@@ -564,8 +564,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        @test length(node.subcmds) == 17
-        for cmd in ["var", "bvar", "lp", "arima", "gmm", "static", "dynamic", "gdfm",
+        @test length(node.subcmds) == 18
+        for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv", "fastica", "ml", "vecm", "pvar"]
             @test haskey(node.subcmds, cmd)
         end
@@ -910,6 +910,45 @@ end  # Shared utilities
                 end
                 @test occursin("GMM", out) || occursin("Estimating GMM", out)
             end
+        end
+    end
+
+    @testset "_estimate_smm — default" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _estimate_smm(; data=csv, format="table")
+            end
+            @test occursin("SMM", out)
+            @test occursin("J-statistic", out) || occursin("Converged", out)
+        end
+    end
+
+    @testset "_estimate_smm — with config" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            config_path = joinpath(dir, "smm.toml")
+            write(config_path, """
+            [smm]
+            weighting = "optimal"
+            sim_ratio = 10
+            burn = 200
+            """)
+            out = _capture() do
+                _estimate_smm(; data=csv, config=config_path, format="table")
+            end
+            @test occursin("SMM", out)
+            @test occursin("optimal", out) || occursin("sim_ratio=10", out)
+        end
+    end
+
+    @testset "_estimate_smm — custom weighting" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _estimate_smm(; data=csv, weighting="identity", sim_ratio=3, format="table")
+            end
+            @test occursin("SMM", out)
         end
     end
 
@@ -2462,7 +2501,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 17
+        @test length(node.subcmds) == 18
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3768,7 +3807,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 17
+        @test length(node.subcmds) == 18
     end
 
     @testset "register_irf_commands! includes pvar" begin
