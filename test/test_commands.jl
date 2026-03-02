@@ -23,6 +23,7 @@ using CSV, DataFrames, JSON3, PrettyTables, TOML
 using Dates
 using LinearAlgebra: eigvals, diag, I, svd, diagm
 using Statistics: mean, median, var
+using Random
 
 # ─── Setup: Mock module + source includes ──────────────────────
 
@@ -68,6 +69,7 @@ include(joinpath(project_root, "src", "commands", "residuals.jl"))
 include(joinpath(project_root, "src", "commands", "filter.jl"))
 include(joinpath(project_root, "src", "commands", "data.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
+include(joinpath(project_root, "src", "commands", "dsge.jl"))
 
 # ─── Test Helpers ───────────────────────────────────────────────
 
@@ -5230,6 +5232,243 @@ end  # Plot Support
             @test length(cons) == 2
             @test cons[1] isa MacroEconometricModels.OccBinConstraint
         end
+    end
+end
+
+@testset "DSGE commands" begin
+    @testset "_dsge_solve — TOML model, default method" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_solve(; model=toml_path, format="table")
+            end
+            @test occursin("DSGE Solution", out) || occursin("Solving", out)
+            @test occursin("Determinacy", out) || occursin("unique", out)
+        end
+    end
+
+    @testset "_dsge_solve — perturbation method" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_solve(; model=toml_path, method="perturbation", order=1, format="table")
+            end
+            @test occursin("perturbation", lowercase(out)) || occursin("Perturbation", out)
+        end
+    end
+
+    @testset "_dsge_solve — OccBin constraints" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            con_path = joinpath(dir, "constraints.toml")
+            write(con_path, """
+            [[constraints.bounds]]
+            variable = "i"
+            lower = 0.0
+            """)
+            out = _capture() do
+                _dsge_solve(; model=toml_path, constraints=con_path, format="table")
+            end
+            @test occursin("OccBin", out) || occursin("constraint", out)
+        end
+    end
+
+    @testset "_dsge_solve — projection method" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_solve(; model=toml_path, method="projection", degree=5, format="table")
+            end
+            @test occursin("Projection", out) || occursin("projection", out)
+        end
+    end
+
+    @testset "_dsge_steady_state" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_steady_state(; model=toml_path, format="table")
+            end
+            @test occursin("Steady State", out)
+        end
+    end
+
+    @testset "_dsge_steady_state — with constraints" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            con_path = joinpath(dir, "constraints.toml")
+            write(con_path, """
+            [[constraints.bounds]]
+            variable = "i"
+            lower = 0.0
+            """)
+            out = _capture() do
+                _dsge_steady_state(; model=toml_path, constraints=con_path, format="table")
+            end
+            @test occursin("Steady State", out)
+        end
+    end
+
+    @testset "_dsge_simulate — default" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_simulate(; model=toml_path, periods=50, burn=10, format="table")
+            end
+            @test occursin("Simulat", out)
+        end
+    end
+
+    @testset "_dsge_simulate — with seed" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_simulate(; model=toml_path, method="perturbation",
+                                 periods=50, burn=10, seed=42, format="table")
+            end
+            @test occursin("Simulat", out)
+        end
+    end
+
+    @testset "_dsge_simulate — csv output" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out_path = joinpath(dir, "sim.csv")
+            out = _capture() do
+                _dsge_simulate(; model=toml_path, periods=20, burn=5,
+                                 output=out_path, format="csv")
+            end
+            @test isfile(out_path)
+        end
+    end
+
+    @testset "placeholder handlers error" begin
+        @test_throws ErrorException _dsge_irf()
+        @test_throws ErrorException _dsge_fevd()
+        @test_throws ErrorException _dsge_estimate()
+        @test_throws ErrorException _dsge_perfect_foresight()
+    end
+
+    @testset "register_dsge_commands! — structure" begin
+        node = register_dsge_commands!()
+        @test node isa NodeCommand
+        @test node.name == "dsge"
+        @test haskey(node.subcmds, "solve")
+        @test haskey(node.subcmds, "irf")
+        @test haskey(node.subcmds, "fevd")
+        @test haskey(node.subcmds, "simulate")
+        @test haskey(node.subcmds, "estimate")
+        @test haskey(node.subcmds, "perfect-foresight")
+        @test haskey(node.subcmds, "steady-state")
+        @test length(node.subcmds) == 7
     end
 end
 
