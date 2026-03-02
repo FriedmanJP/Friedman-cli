@@ -152,7 +152,7 @@ LPFEVD(R2::Array{T,3}, lp_a, lp_b, bc, bse, h::Int, v::Int, s::Int) where T =
     LPFEVD(R2, bc, bse, R2, R2, :R2, h, 200, T(0.95), true)
 
 struct LPForecast{T}
-    forecasts::Matrix{T}; ci_lower::Matrix{T}; ci_upper::Matrix{T}
+    forecast::Matrix{T}; ci_lower::Matrix{T}; ci_upper::Matrix{T}
     se::Matrix{T}; horizon::Int; response_vars::Vector{Int}; shock_var::Int
     shock_path::Vector{T}; conf_level::T; ci_method::Symbol
 end
