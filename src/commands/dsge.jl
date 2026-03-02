@@ -246,20 +246,165 @@ function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
                   title="DSGE Simulation (method=$method, T=$periods)")
 end
 
-# ── Placeholder Handlers (Task 6) ────────────────────────────
+# ── IRF / FEVD / Estimate / Perfect Foresight ──────────────────
 
-function _dsge_irf(; kwargs...)
-    error("dsge irf not yet implemented")
+function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
+                    horizon::Int=40, shock_size::Float64=1.0, n_sim::Int=500,
+                    constraints::String="",
+                    output::String="", format::String="table",
+                    plot::Bool=false, plot_save::String="")
+    spec = _load_dsge_model(model)
+    sol = _solve_dsge(spec; method=method, order=order)
+
+    if !isempty(constraints)
+        println("\nComputing OccBin IRF...")
+        cons = _load_dsge_constraints(constraints)
+        ob_irf = occbin_irf(spec, cons, 1; shock_size=shock_size, horizon=horizon)
+
+        _maybe_plot(ob_irf; plot=plot, plot_save=plot_save)
+
+        n_h = size(ob_irf.piecewise, 1)
+        for (vi, vname) in enumerate(spec.varnames)
+            vi > size(ob_irf.piecewise, 2) && break
+            irf_df = DataFrame(
+                horizon = 0:(n_h - 1),
+                linear = ob_irf.linear[:, vi, 1],
+                piecewise = ob_irf.piecewise[:, vi, 1],
+            )
+            output_result(irf_df; format=Symbol(format),
+                          output=_per_var_output_path(output, vname),
+                          title="OccBin IRF: $vname ← $(ob_irf.shock_name)")
+        end
+        return
+    end
+
+    println("\nComputing IRF: horizon=$horizon, shock_size=$shock_size")
+    irf_result = irf(sol, horizon; shock_size=shock_size, n_sim=n_sim)
+
+    _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+
+    irf_vals = irf_result.values
+    n_h = size(irf_vals, 1)
+    ne = nshocks(sol)
+    for si in 1:ne
+        shock_name = si <= spec.n_exog ? String(spec.exog[si]) : "shock_$si"
+        irf_df = DataFrame()
+        irf_df.horizon = 0:(n_h - 1)
+        for (vi, vname) in enumerate(spec.varnames)
+            vi > size(irf_vals, 2) && break
+            si > size(irf_vals, 3) && break
+            irf_df[!, vname] = irf_vals[:, vi, si]
+        end
+        output_result(irf_df; format=Symbol(format),
+                      output=_per_var_output_path(output, shock_name),
+                      title="DSGE IRF: shock=$shock_name (method=$method, h=$horizon)")
+    end
 end
 
-function _dsge_fevd(; kwargs...)
-    error("dsge fevd not yet implemented")
+function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
+                     horizon::Int=40,
+                     output::String="", format::String="table",
+                     plot::Bool=false, plot_save::String="")
+    spec = _load_dsge_model(model)
+    sol = _solve_dsge(spec; method=method, order=order)
+
+    println("\nComputing FEVD: horizon=$horizon")
+    fevd_result = fevd(sol, horizon)
+
+    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+
+    n_v = size(fevd_result.proportions, 1)
+    ne = size(fevd_result.proportions, 2)
+    n_h = size(fevd_result.proportions, 3)
+
+    for vi in 1:min(n_v, length(spec.varnames))
+        vname = spec.varnames[vi]
+        fevd_df = DataFrame()
+        fevd_df.horizon = 1:n_h
+        for si in 1:ne
+            shock_name = si <= spec.n_exog ? String(spec.exog[si]) : "shock_$si"
+            fevd_df[!, shock_name] = fevd_result.proportions[vi, si, :]
+        end
+        output_result(fevd_df; format=Symbol(format),
+                      output=_per_var_output_path(output, vname),
+                      title="DSGE FEVD: $vname (method=$method, h=$horizon)")
+    end
 end
 
-function _dsge_estimate(; kwargs...)
-    error("dsge estimate not yet implemented")
+function _dsge_estimate(; model::String, data::String="", method::String="irf_matching",
+                         params::String="", solve_method::String="gensys", solve_order::Int=1,
+                         weighting::String="optimal",
+                         irf_horizon::Int=20, var_lags::Int=4,
+                         sim_ratio::Int=5, bounds::String="",
+                         output::String="", format::String="table")
+    isempty(data) && error("--data/-d is required for DSGE estimation")
+    isempty(params) && error("--params is required (comma-separated parameter names)")
+
+    spec = _load_dsge_model(model)
+    Y, varnames = load_multivariate_data(data)
+    param_names = [strip(s) for s in split(params, ",") if !isempty(strip(s))]
+
+    isempty(param_names) && error("--params is required (comma-separated parameter names)")
+
+    println("Estimating DSGE model: method=$method, params=$(join(param_names, ", "))")
+    println("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars")
+    println("  Solver: $solve_method, order=$solve_order")
+    println()
+
+    est = estimate_dsge(spec, Y, param_names;
+                        method=Symbol(method), solve_method=Symbol(solve_method),
+                        solve_order=solve_order, weighting=Symbol(weighting),
+                        irf_horizon=irf_horizon, var_lags=var_lags,
+                        sim_ratio=sim_ratio)
+
+    se = sqrt.(abs.(diag(est.vcov)))
+    t_stats = est.theta ./ se
+    p_vals = [2.0 * (1.0 - _normal_cdf(abs(t))) for t in t_stats]
+
+    est_df = DataFrame(
+        parameter = est.param_names,
+        estimate = round.(est.theta; digits=6),
+        std_error = round.(se; digits=6),
+        t_stat = round.(t_stats; digits=4),
+        p_value = round.(p_vals; digits=4),
+    )
+    output_result(est_df; format=Symbol(format), output=output,
+                  title="DSGE Estimation ($method)")
+
+    println()
+    printstyled("  J-statistic: $(round(est.J_stat; digits=4))\n"; color=:cyan)
+    printstyled("  J p-value:   $(round(est.J_pvalue; digits=4))\n"; color=:cyan)
+    printstyled("  Converged:   $(est.converged)\n";
+                color = est.converged ? :green : :red)
 end
 
-function _dsge_perfect_foresight(; kwargs...)
-    error("dsge perfect-foresight not yet implemented")
+function _dsge_perfect_foresight(; model::String, shocks::String="",
+                                  periods::Int=100,
+                                  output::String="", format::String="table",
+                                  plot::Bool=false, plot_save::String="")
+    isempty(shocks) && error("--shocks is required (path to shock CSV)")
+    spec = _load_dsge_model(model)
+
+    shock_df = load_data(shocks)
+    shock_mat = df_to_matrix(shock_df)
+
+    println("Computing perfect foresight transition path...")
+    println("  Shock periods: $(size(shock_mat, 1)), transition periods: $periods")
+    println()
+
+    pf = perfect_foresight(spec; shocks=shock_mat, T_periods=periods)
+
+    _maybe_plot(pf; plot=plot, plot_save=plot_save)
+
+    path_df = DataFrame()
+    n_periods = size(pf.path, 1)
+    path_df.period = 1:n_periods
+    for (vi, vname) in enumerate(spec.varnames)
+        if vi <= size(pf.path, 2)
+            path_df[!, vname] = pf.path[:, vi]
+        end
+    end
+
+    output_result(path_df; format=Symbol(format), output=output,
+                  title="Perfect Foresight Path (T=$n_periods, converged=$(pf.converged))")
 end
