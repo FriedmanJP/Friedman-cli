@@ -70,6 +70,7 @@ include(joinpath(project_root, "src", "commands", "filter.jl"))
 include(joinpath(project_root, "src", "commands", "data.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
+include(joinpath(project_root, "src", "commands", "did.jl"))
 
 # ─── Test Helpers ───────────────────────────────────────────────
 
