@@ -5677,4 +5677,33 @@ end
     end
 end
 
+# ─── DID Shared Helpers ─────────────────────────────────────────
+
+@testset "DID shared helpers" begin
+    @testset "_load_panel_for_did — basic" begin
+        mktempdir() do dir
+            csv = _make_panel_csv(dir; G=5, T_per=20, n=3,
+                colnames=["outcome", "treat", "covar1"])
+            out = _capture() do
+                pd = _load_panel_for_did(csv, "group", "time")
+                @test pd isa MacroEconometricModels.PanelData
+                @test pd.n_groups == 5
+                @test pd.n_vars == 3
+            end
+            @test occursin("Panel", out) || occursin("panel", out)
+        end
+    end
+
+    @testset "_load_panel_for_did — custom id/time cols" begin
+        mktempdir() do dir
+            csv = _make_panel_csv(dir; G=3, T_per=10, n=2,
+                colnames=["y", "d"])
+            out = _capture() do
+                pd = _load_panel_for_did(csv, "group", "time")
+                @test pd.n_groups == 3
+            end
+        end
+    end
+end
+
 end  # Command Handlers
