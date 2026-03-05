@@ -19,7 +19,7 @@ module Friedman
 using CSV, DataFrames, PrettyTables, JSON3, TOML
 using MacroEconometricModels
 using LinearAlgebra: eigvals, diag, I, svd
-using Statistics: mean, median, var
+using Statistics: mean, median, var, quantile
 using Random
 
 # CLI engine
@@ -50,7 +50,7 @@ include("commands/nowcast.jl")
 include("commands/dsge.jl")
 include("commands/did.jl")
 
-const FRIEDMAN_VERSION = v"0.3.1"
+const FRIEDMAN_VERSION = v"0.3.2"
 
 """
     build_app() -> Entry
