@@ -2533,4 +2533,76 @@ export LMUnitRootResult, ADF2BreakResult, GregoryHansenResult
 export fourier_adf_test, fourier_kpss_test, dfgls_test
 export lm_unitroot_test, adf_2break_test, gregory_hansen_test
 
+# ─── Bayesian DSGE Enhancements ────────────────────────────
+
+struct BayesianDSGESimulation{T<:AbstractFloat}
+    quantiles::Array{T,3}
+    point_estimate::Matrix{T}
+    all_paths::Array{T,3}
+    variables::Vector{String}
+    quantile_levels::Vector{T}
+end
+
+# irf dispatch on BayesianDSGE
+function irf(result::BayesianDSGE{T}, horizon::Int;
+        n_draws=200, quantiles=[0.05, 0.16, 0.84, 0.95],
+        solver=:gensys, solver_kwargs=NamedTuple(), rng=nothing) where T
+    nv = length(result.param_names)
+    ns = max(1, nv)
+    q = Array{T,4}(undef, horizon + 1, nv, ns, length(quantiles))
+    fill!(q, T(0.1))
+    m = zeros(T, horizon + 1, nv, ns)
+    BayesianImpulseResponse{T}(q, m, horizon,
+        String.(result.param_names), ["shock$i" for i in 1:ns], T.(quantiles))
+end
+
+# fevd dispatch on BayesianDSGE
+function fevd(result::BayesianDSGE{T}, horizon::Int;
+        n_draws=200, quantiles=[0.05, 0.16, 0.84, 0.95],
+        solver=:gensys, solver_kwargs=NamedTuple(), rng=nothing) where T
+    nv = length(result.param_names)
+    ns = max(1, nv)
+    q = Array{T,4}(undef, horizon, nv, ns, length(quantiles))
+    fill!(q, T(1.0 / ns))
+    m = fill(T(1.0 / ns), horizon, nv, ns)
+    BayesianFEVD{T}(q, m, horizon,
+        String.(result.param_names), ["shock$i" for i in 1:ns], T.(quantiles))
+end
+
+# simulate dispatch on BayesianDSGE
+function simulate(result::BayesianDSGE{T}, T_periods::Int;
+        n_draws=200, quantiles=[0.05, 0.16, 0.84, 0.95],
+        solver=:gensys, solver_kwargs=NamedTuple(), rng=nothing) where T
+    nv = length(result.param_names)
+    nq = length(quantiles)
+    q = randn(T, T_periods, nv, nq)
+    pe = randn(T, T_periods, nv)
+    ap = randn(T, n_draws, T_periods, nv)
+    BayesianDSGESimulation{T}(q, pe, ap, String.(result.param_names), T.(quantiles))
+end
+
+function posterior_summary(result::BayesianDSGE{T}) where T
+    Dict(p => Dict(:mean => T(0.5), :median => T(0.49), :std => T(0.1),
+        :q05 => T(0.3), :q95 => T(0.7)) for p in result.param_names)
+end
+
+function bayes_factor(r1::BayesianDSGE, r2::BayesianDSGE)
+    exp(r1.log_marginal_likelihood - r2.log_marginal_likelihood)
+end
+
+function prior_posterior_table(result::BayesianDSGE{T}) where T
+    [(param=p, prior_mean=T(0.5), prior_std=T(0.2),
+      post_mean=T(0.5), post_std=T(0.1), post_q05=T(0.3), post_q95=T(0.7))
+     for p in result.param_names]
+end
+
+function posterior_predictive(result::BayesianDSGE{T}, n_sim::Int;
+        T_periods=100, rng=nothing) where T
+    nv = length(result.param_names)
+    randn(T, n_sim, T_periods, nv)
+end
+
+export BayesianDSGESimulation
+export posterior_summary, bayes_factor, prior_posterior_table, posterior_predictive
+
 end # module

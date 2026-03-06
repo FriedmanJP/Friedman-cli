@@ -3113,9 +3113,13 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test haskey(dsge_node.subcmds, "steady-state")
     @test length(dsge_node.subcmds) == 8
 
-    # All are LeafCommands
+    # All non-bayes subcmds are LeafCommands; bayes is NodeCommand
     for (name, cmd) in dsge_node.subcmds
-        @test cmd isa LeafCommand
+        if name == "bayes"
+            @test cmd isa NodeCommand
+        else
+            @test cmd isa LeafCommand
+        end
     end
 
     # solve has model argument and key options
@@ -3136,11 +3140,28 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test "method" in opt_names
     @test "weighting" in opt_names
 
-    # bayes has model argument and SMC/MH options
-    bayes_cmd = dsge_node.subcmds["bayes"]
-    @test length(bayes_cmd.args) == 1
-    @test bayes_cmd.args[1].name == "model"
-    opt_names = [o.name for o in bayes_cmd.options]
+    # bayes is a NodeCommand with 7 sub-leaves
+    bayes_node = dsge_node.subcmds["bayes"]
+    @test bayes_node isa NodeCommand
+    @test length(bayes_node.subcmds) == 7
+    @test haskey(bayes_node.subcmds, "estimate")
+    @test haskey(bayes_node.subcmds, "irf")
+    @test haskey(bayes_node.subcmds, "fevd")
+    @test haskey(bayes_node.subcmds, "simulate")
+    @test haskey(bayes_node.subcmds, "summary")
+    @test haskey(bayes_node.subcmds, "compare")
+    @test haskey(bayes_node.subcmds, "predictive")
+
+    # All bayes sub-leaves are LeafCommands
+    for (name, cmd) in bayes_node.subcmds
+        @test cmd isa LeafCommand
+    end
+
+    # bayes estimate has model argument and SMC/MH options
+    bayes_est = bayes_node.subcmds["estimate"]
+    @test length(bayes_est.args) == 1
+    @test bayes_est.args[1].name == "model"
+    opt_names = [o.name for o in bayes_est.options]
     @test "data" in opt_names
     @test "params" in opt_names
     @test "priors" in opt_names
@@ -3153,8 +3174,29 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test "observables" in opt_names
     @test "solver" in opt_names
     @test "order" in opt_names
-    flag_names = [f.name for f in bayes_cmd.flags]
+    flag_names = [f.name for f in bayes_est.flags]
     @test "delayed-acceptance" in flag_names
+
+    # bayes irf has horizon + plot options
+    bayes_irf = bayes_node.subcmds["irf"]
+    opt_names = [o.name for o in bayes_irf.options]
+    @test "horizon" in opt_names
+    @test "data" in opt_names
+    flag_names = [f.name for f in bayes_irf.flags]
+    @test "plot" in flag_names
+
+    # bayes compare has model2/params2/priors2 options
+    bayes_cmp = bayes_node.subcmds["compare"]
+    opt_names = [o.name for o in bayes_cmp.options]
+    @test "model2" in opt_names
+    @test "params2" in opt_names
+    @test "priors2" in opt_names
+
+    # bayes predictive has n-sim and periods options
+    bayes_pp = bayes_node.subcmds["predictive"]
+    opt_names = [o.name for o in bayes_pp.options]
+    @test "n-sim" in opt_names
+    @test "periods" in opt_names
 
     # irf has horizon and shock-size
     irf_cmd = dsge_node.subcmds["irf"]
