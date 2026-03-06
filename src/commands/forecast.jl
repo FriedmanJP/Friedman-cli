@@ -210,6 +210,23 @@ function register_forecast_commands!()
         flags=[Flag("plot"; description="Open interactive plot in browser")],
         description="Compute native VECM forecasts (preserves cointegrating relationships)")
 
+    fc_favar = LeafCommand("favar", _forecast_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
+            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[
+            Flag("panel-forecast"; description="Output panel-wide forecast instead of factor-level"),
+            Flag("plot"; description="Open interactive plot in browser"),
+        ],
+        description="FAVAR forecast")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "var"       => fc_var,
         "bvar"      => fc_bvar,
@@ -224,6 +241,7 @@ function register_forecast_commands!()
         "gjr_garch" => fc_gjr_garch,
         "sv"        => fc_sv,
         "vecm"      => fc_vecm,
+        "favar"     => fc_favar,
     )
     return NodeCommand("forecast", subcmds, "Forecasting")
 end
@@ -746,4 +764,41 @@ function _forecast_vecm(; data::String, lags::Int=2, rank::String="auto",
     ci_label = ci_method == "none" ? "" : ", $(Int(round(confidence*100)))% CI"
     output_result(fc_df; format=Symbol(format), output=output,
                   title="VECM Forecast (rank=$r, h=$horizons$ci_label)")
+end
+
+# ── FAVAR Forecast ────────────────────────────────────────
+
+function _forecast_favar(; data::String, factors=nothing, lags::Int=2,
+                          key_vars::String="", horizons::Int=12,
+                          panel_forecast::Bool=false,
+                          output::String="", format::String="table",
+                          plot::Bool=false, plot_save::String="")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+
+    println("FAVAR Forecast: horizon=$horizons" * (panel_forecast ? ", panel-wide" : ""))
+    println()
+
+    fc = forecast(favar, horizons)
+
+    if panel_forecast
+        fc = favar_panel_forecast(favar, fc)
+    end
+
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+
+    pt = point_forecast(fc)
+    lo = lower_bound(fc)
+    hi = upper_bound(fc)
+    n_vars = size(pt, 2)
+
+    fc_df = DataFrame()
+    fc_df.horizon = 1:horizons
+    vnames = panel_forecast ? favar.panel_varnames : favar.varnames
+    for v in 1:n_vars
+        vname = v <= length(vnames) ? vnames[v] : "var_$v"
+        fc_df[!, vname] = round.(pt[:, v]; digits=6)
+        fc_df[!, "$(vname)_lower"] = round.(lo[:, v]; digits=6)
+        fc_df[!, "$(vname)_upper"] = round.(hi[:, v]; digits=6)
+    end
+    output_result(fc_df; format=Symbol(format), output=output, title="FAVAR Forecast (h=$horizons)")
 end
