@@ -4543,7 +4543,7 @@ end  # Enhanced Granger handlers
             end
             @test isfile(outfile)
             json_data = JSON3.read(read(outfile, String))
-            @test length(json_data) == 3
+            @test length(json_data) == 5
         end
     end
 
@@ -4670,6 +4670,81 @@ end  # Enhanced Granger handlers
             @test_throws ErrorException cd(dir) do
                 _data_load(; name="fred_md", vars="NONEXISTENT_VAR")
             end
+        end
+    end
+
+    @testset "_data_list includes mpdta and ddcg" begin
+        out = _capture() do
+            _data_list(; format="table")
+        end
+        @test occursin("mpdta", out)
+        @test occursin("ddcg", out)
+        @test occursin("Callaway", out)
+        @test occursin("Acemoglu", out)
+    end
+
+    @testset "_data_load — mpdta" begin
+        mktempdir() do dir
+            out = cd(dir) do
+                _capture() do
+                    _data_load(; name="mpdta")
+                end
+            end
+            @test occursin("Loaded mpdta", out)
+            @test occursin("Panel", out)
+            @test occursin("500 groups", out)
+            @test isfile(joinpath(dir, "mpdta.csv"))
+            result_df = CSV.read(joinpath(dir, "mpdta.csv"), DataFrame)
+            @test "lemp" in names(result_df)
+            @test "group" in names(result_df)
+            @test "time" in names(result_df)
+        end
+    end
+
+    @testset "_data_load — ddcg" begin
+        mktempdir() do dir
+            out = cd(dir) do
+                _capture() do
+                    _data_load(; name="ddcg")
+                end
+            end
+            @test occursin("Loaded ddcg", out)
+            @test occursin("Panel", out)
+            @test occursin("184 groups", out)
+            @test isfile(joinpath(dir, "ddcg.csv"))
+            result_df = CSV.read(joinpath(dir, "ddcg.csv"), DataFrame)
+            @test "y" in names(result_df)
+            @test "dem" in names(result_df)
+        end
+    end
+
+    @testset "_data_load — mpdta with --vars" begin
+        mktempdir() do dir
+            out = cd(dir) do
+                _capture() do
+                    _data_load(; name="mpdta", vars="lemp,lpop")
+                end
+            end
+            @test isfile(joinpath(dir, "mpdta.csv"))
+            result_df = CSV.read(joinpath(dir, "mpdta.csv"), DataFrame)
+            @test "lemp" in names(result_df)
+            @test "lpop" in names(result_df)
+            @test ncol(result_df) == 4  # group, time, lemp, lpop
+        end
+    end
+
+    @testset "_data_load — ddcg with --vars" begin
+        mktempdir() do dir
+            out = cd(dir) do
+                _capture() do
+                    _data_load(; name="ddcg", vars="y,dem")
+                end
+            end
+            @test isfile(joinpath(dir, "ddcg.csv"))
+            result_df = CSV.read(joinpath(dir, "ddcg.csv"), DataFrame)
+            @test "y" in names(result_df)
+            @test "dem" in names(result_df)
+            @test ncol(result_df) == 4  # group, time, y, dem
         end
     end
 
@@ -6158,7 +6233,49 @@ end
                     id_col="unit", time_col="time", format="table")
             end
             @test occursin("LP-DiD", out)
-            @test occursin("Clean controls", out) || occursin("clean", out)
+            @test occursin("Specification", out)
+            @test occursin("Window", out)
+            @test occursin("Pooled post-treatment", out)
+        end
+    end
+
+    @testset "_did_lp_did — with pmd and reweight" begin
+        mktempdir() do dir
+            csv = _make_did_csv(dir)
+            out = _capture() do
+                _did_lp_did(; data=csv, outcome="outcome", treatment="treat",
+                    id_col="unit", time_col="time", pmd="ccs",
+                    reweight=true, pre_window=2, post_window=4,
+                    ylags=1, dylags=1, format="table")
+            end
+            @test occursin("LP-DiD", out)
+            @test occursin("pre=2", out)
+            @test occursin("post=4", out)
+        end
+    end
+
+    @testset "_did_lp_did — oneoff spec" begin
+        mktempdir() do dir
+            csv = _make_did_csv(dir)
+            out = _capture() do
+                _did_lp_did(; data=csv, outcome="outcome", treatment="treat",
+                    id_col="unit", time_col="time", oneoff=true, format="table")
+            end
+            @test occursin("LP-DiD", out)
+            @test occursin("oneoff", out)
+        end
+    end
+
+    @testset "_did_estimate — base_period" begin
+        mktempdir() do dir
+            csv = _make_did_csv(dir)
+            out = _capture() do
+                _did_estimate(; data=csv, outcome="outcome", treatment="treat",
+                    method="cs", base_period="universal",
+                    id_col="unit", time_col="time", format="table")
+            end
+            @test occursin("DID Estimation", out)
+            @test occursin("CS", out)
         end
     end
 

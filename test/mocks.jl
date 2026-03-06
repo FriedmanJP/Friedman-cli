@@ -1281,8 +1281,26 @@ function load_example(name::Symbol)
         group_ids = repeat(1:n_countries, inner=T_per)
         time_ids = repeat(1:T_per, outer=n_countries)
         PanelData(data, vn, group_ids, time_ids, n_countries, n_vars, T_obs, true)
+    elseif name == :mpdta
+        # Callaway-Sant'Anna (2021) minimum wage panel: 500 counties × 5 years × 3 vars
+        n_groups = 500; n_years = 5; n_vars = 3
+        T_obs = n_groups * n_years
+        data = randn(T_obs, n_vars) .+ 1.0
+        vn = ["lemp", "lpop", "first_treat"]
+        group_ids = repeat(1:n_groups, inner=n_years)
+        time_ids = repeat(2003:2007, outer=n_groups)
+        PanelData(data, vn, group_ids, time_ids, n_groups, n_vars, T_obs, true)
+    elseif name == :ddcg
+        # Acemoglu et al. democracy-GDP panel: 184 countries × 51 years
+        n_groups = 184; n_years = 51; n_vars = 5
+        T_obs = n_groups * n_years
+        data = randn(T_obs, n_vars) .+ 1.0
+        vn = ["y", "dem", "tradewb", "lgdp", "lpop"]
+        group_ids = repeat(1:n_groups, inner=n_years)
+        time_ids = repeat(1960:2010, outer=n_groups)
+        PanelData(data, vn, group_ids, time_ids, n_groups, n_vars, T_obs, true)
     else
-        error("unknown dataset: $name (available: fred_md, fred_qd, pwt)")
+        error("unknown dataset: $name (available: fred_md, fred_qd, pwt, mpdta, ddcg)")
     end
 end
 
@@ -1828,6 +1846,17 @@ struct EventStudyLP{T<:Real}
     data::PanelData{T}
 end
 
+struct LPDiDResult{T<:AbstractFloat}
+    coefficients::Vector{T}; se_vec::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}
+    event_times::Vector{Int}; reference_period::Int; nobs_h::Vector{Int}
+    pooled_post_result::Union{NamedTuple,Nothing}; pooled_pre_result::Union{NamedTuple,Nothing}
+    vcov_all::Vector; outcome_name::String; treatment_name::String
+    T_obs::Int; n_groups::Int; spec_type::Symbol
+    pmd::Union{Nothing,Symbol,Int}; reweight::Bool; nocomp::Bool
+    ylags::Int; dylags::Int; pre_window::Int; post_window::Int
+    cluster::Symbol; conf_level::T; pd::PanelData{T}
+end
+
 struct BaconDecomposition{T<:Real}
     estimates::Vector{T}; weights::Vector{T}
     comparison_type::Vector{Symbol}; cohort_i::Vector{Int}; cohort_j::Vector{Int}
@@ -1857,7 +1886,7 @@ end
 function estimate_did(pd::PanelData{T}, outcome, treatment;
         method=:twfe, leads=0, horizon=5, covariates=String[],
         control_group=:never_treated, cluster=:unit,
-        conf_level=0.95, n_boot=200) where T
+        conf_level=0.95, n_boot=200, base_period=:varying) where T
     et = collect(-leads:horizon)
     n_et = length(et)
     att = fill(T(0.5), n_et)
@@ -1891,15 +1920,23 @@ function estimate_event_study_lp(pd::PanelData{T}, outcome, treatment, H::Int;
 end
 
 function estimate_lp_did(pd::PanelData{T}, outcome, treatment, H::Int;
-        leads=3, lags=4, covariates=String[], cluster=:unit, conf_level=0.95) where T
-    result = estimate_event_study_lp(pd, outcome, treatment, H;
-        leads=leads, lags=lags, covariates=covariates, cluster=cluster, conf_level=conf_level)
-    EventStudyLP{T}(result.coefficients, result.se, result.ci_lower, result.ci_upper,
-        result.event_times, result.reference_period,
-        result.B, result.residuals_per_h, result.vcov, result.T_eff,
-        result.outcome_var, result.treatment_var,
-        result.n_obs, result.n_groups, result.lags, result.leads, result.horizon,
-        true, result.cluster, result.conf_level, result.data)
+        pre_window=3, post_window=H, ylags=0, dylags=0,
+        covariates=String[], nonabsorbing=nothing, notyet=false,
+        nevertreated=false, firsttreat=false, oneoff=false,
+        pmd=nothing, reweight=false, nocomp=false,
+        cluster=:unit, conf_level=0.95,
+        only_pooled=false, only_event=false,
+        post_pooled=nothing, pre_pooled=nothing) where T
+    nt = pre_window + post_window + 1
+    et = collect(-pre_window:post_window)
+    c = fill(T(0.3), nt); se = fill(T(0.1), nt)
+    pp = (coef=T(0.5), se=T(0.1), ci_lower=T(0.3), ci_upper=T(0.7), nobs=100)
+    spec = oneoff ? :oneoff : (isnothing(nonabsorbing) ? :absorbing : :nonabsorbing)
+    LPDiDResult{T}(c, se, c .- T(1.96) .* se, c .+ T(1.96) .* se,
+        et, -1, fill(100, nt), pp, pp, Matrix{T}[],
+        String(outcome), String(treatment), pd.T_obs, pd.n_groups,
+        spec, pmd, reweight, nocomp, ylags, dylags, pre_window, post_window,
+        cluster, T(conf_level), pd)
 end
 
 function bacon_decomposition(pd::PanelData{T}, outcome, treatment) where T
@@ -1949,7 +1986,7 @@ function honest_did(result::EventStudyLP{T}; Mbar=1.0, conf_level=0.95) where T
         T(2.5), post_et, post_att, T(conf_level))
 end
 
-export DIDResult, EventStudyLP, BaconDecomposition
+export DIDResult, EventStudyLP, LPDiDResult, BaconDecomposition
 export PretrendTestResult, NegativeWeightResult, HonestDiDResult
 export estimate_did, estimate_event_study_lp, estimate_lp_did
 export bacon_decomposition, pretrend_test, negative_weight_check, honest_did
