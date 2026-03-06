@@ -75,11 +75,28 @@ function register_hd_commands!()
         flags=[Flag("plot"; description="Open interactive plot in browser")],
         description="Compute historical decomposition via VECM → VAR representation")
 
+    hd_favar = LeafCommand("favar", _hd_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
+            Option("horizons"; short="h", type=Int, default=20, description="HD horizon"),
+            Option("id"; type=String, default="cholesky", description="Identification method"),
+            Option("config"; type=String, default="", description="TOML config for restrictions"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[Flag("plot"; description="Open interactive plot in browser")],
+        description="FAVAR historical decomposition")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"  => hd_var,
-        "bvar" => hd_bvar,
-        "lp"   => hd_lp,
-        "vecm" => hd_vecm,
+        "var"   => hd_var,
+        "bvar"  => hd_bvar,
+        "lp"    => hd_lp,
+        "vecm"  => hd_vecm,
+        "favar" => hd_favar,
     )
     return NodeCommand("hd", subcmds, "Historical Decomposition")
 end
@@ -284,6 +301,38 @@ function _hd_vecm(; data::String, lags::Int=2, rank::String="auto",
 
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="VECM Historical Decomposition",
+                      format=format, output=output,
+                      actual=hd_result.actual, initial=hd_result.initial_conditions)
+end
+
+# ── FAVAR HD ──────────────────────────────────────────────
+
+function _hd_favar(; data::String, factors=nothing, lags::Int=2,
+                    key_vars::String="", horizons::Int=20,
+                    id::String="cholesky", config::String="",
+                    output::String="", format::String="table",
+                    plot::Bool=false, plot_save::String="")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    kwargs = _build_identification_kwargs(id, config)
+
+    println("FAVAR Historical Decomposition: horizon=$horizons, id=$id")
+    println()
+
+    hd_result = historical_decomposition(favar, horizons; kwargs...)
+
+    report(hd_result)
+    _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
+
+    is_valid = verify_decomposition(hd_result)
+    if is_valid
+        printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+    else
+        printstyled("Decomposition verification failed\n"; color=:yellow)
+    end
+    println()
+
+    _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), favar.varnames, hd_result.T_eff;
+                      id=id, title_prefix="FAVAR Historical Decomposition",
                       format=format, output=output,
                       actual=hd_result.actual, initial=hd_result.initial_conditions)
 end

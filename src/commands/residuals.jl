@@ -147,6 +147,17 @@ function register_residuals_commands!()
         ],
         description="Standardized residuals from stochastic volatility model")
 
+    res_favar = LeafCommand("favar", _residuals_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+        ],
+        description="FAVAR model residuals")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "var"       => res_var,
         "bvar"      => res_bvar,
@@ -160,6 +171,7 @@ function register_residuals_commands!()
         "egarch"    => res_egarch,
         "gjr_garch" => res_gjr_garch,
         "sv"        => res_sv,
+        "favar"     => res_favar,
     )
     return NodeCommand("residuals", subcmds, "Model residuals")
 end
@@ -447,4 +459,28 @@ function _residuals_sv(; data::String, column::Int=1, draws::Int=5000,
     res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
                   title="SV Standardized Residuals ($vname)")
+end
+
+# ── FAVAR Residuals ───────────────────────────────────────
+
+function _residuals_favar(; data::String, factors=nothing, lags::Int=2,
+                           key_vars::String="",
+                           output::String="", format::String="table")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    var_model = to_var(favar)
+
+    println("FAVAR Residuals")
+    println()
+
+    resid = residuals(var_model)
+    T_eff = size(resid, 1)
+
+    res_df = DataFrame()
+    res_df.t = 1:T_eff
+    for v in 1:size(resid, 2)
+        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
+        res_df[!, vname] = round.(resid[:, v]; digits=6)
+    end
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="FAVAR Residuals (T_eff=$T_eff)")
 end

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# FEVD commands: var, bvar, lp (action-first: friedman fevd var ...)
+# FEVD commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: friedman fevd var ...)
 
 function register_fevd_commands!()
     fevd_var = LeafCommand("var", _fevd_var;
@@ -93,12 +93,44 @@ function register_fevd_commands!()
         flags=[Flag("plot"; description="Open interactive plot in browser")],
         description="Compute Panel VAR forecast error variance decomposition")
 
+    fevd_favar = LeafCommand("favar", _fevd_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices"),
+            Option("horizons"; short="h", type=Int, default=20, description="FEVD horizon"),
+            Option("id"; type=String, default="cholesky", description="Identification method"),
+            Option("config"; type=String, default="", description="TOML config for restrictions"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[Flag("plot"; description="Open interactive plot in browser")],
+        description="FAVAR forecast error variance decomposition")
+
+    fevd_sdfm = LeafCommand("sdfm", _fevd_sdfm;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="q", type=Int, default=nothing, description="Number of dynamic factors"),
+            Option("id"; type=String, default="cholesky", description="cholesky|sign"),
+            Option("var-lags"; type=Int, default=1, description="Factor VAR lag order"),
+            Option("horizons"; short="h", type=Int, default=20, description="FEVD horizon"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[Flag("plot"; description="Open interactive plot in browser")],
+        description="Structural DFM forecast error variance decomposition")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"  => fevd_var,
-        "bvar" => fevd_bvar,
-        "lp"   => fevd_lp,
-        "vecm" => fevd_vecm,
-        "pvar" => fevd_pvar,
+        "var"   => fevd_var,
+        "bvar"  => fevd_bvar,
+        "lp"    => fevd_lp,
+        "vecm"  => fevd_vecm,
+        "pvar"  => fevd_pvar,
+        "favar" => fevd_favar,
+        "sdfm"  => fevd_sdfm,
     )
     return NodeCommand("fevd", subcmds, "Forecast Error Variance Decomposition")
 end
@@ -293,4 +325,69 @@ function _fevd_pvar(; data::String, id_col::String="", time_col::String="",
     _output_fevd_tables(fevd_result.proportions, varnames, horizons;
                         id="cholesky", title_prefix="Panel VAR FEVD",
                         format=format, output=output)
+end
+
+# ── FAVAR FEVD ─────────────────────────────────────────
+
+function _fevd_favar(; data::String, factors=nothing, lags::Int=2,
+                      key_vars::String="", horizons::Int=20,
+                      id::String="cholesky", config::String="",
+                      output::String="", format::String="table",
+                      plot::Bool=false, plot_save::String="")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    id_kwargs = _build_identification_kwargs(id, config)
+
+    println("FAVAR FEVD: horizon=$horizons, id=$id")
+    println()
+
+    result = fevd(favar, horizons; id_kwargs...)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+
+    n_vars = size(result.proportions, 1)
+    n_shocks = size(result.proportions, 2)
+    for v in 1:n_vars
+        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
+        fevd_df = DataFrame()
+        fevd_df.horizon = 1:horizons
+        for s in 1:n_shocks
+            sname = s <= length(favar.varnames) ? favar.varnames[s] : "shock_$s"
+            fevd_df[!, sname] = round.(result.proportions[v, s, :]; digits=4)
+        end
+        output_result(fevd_df; format=Symbol(format),
+                      output=_per_var_output_path(output, vname),
+                      title="FAVAR FEVD — variable: $vname")
+    end
+end
+
+# ── Structural DFM FEVD ──────────────────────────────
+
+function _fevd_sdfm(; data::String, factors=nothing, id::String="cholesky",
+                     var_lags::Int=1, horizons::Int=20,
+                     output::String="", format::String="table",
+                     plot::Bool=false, plot_save::String="")
+    Y, varnames = load_multivariate_data(data)
+    q = factors === nothing ? ic_criteria_gdfm(Y, min(10, size(Y, 2) - 1)).q_opt : factors
+
+    sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags, H=horizons)
+
+    println("SDFM FEVD: $q factors, horizon=$horizons")
+    println()
+
+    result = fevd(sdfm, horizons)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+
+    n_vars = size(result.proportions, 1)
+    n_shocks = size(result.proportions, 2)
+    for v in 1:n_vars
+        vname = "factor_$v"
+        fevd_df = DataFrame()
+        fevd_df.horizon = 1:horizons
+        for s in 1:n_shocks
+            sname = "shock_$s"
+            fevd_df[!, sname] = round.(result.proportions[v, s, :]; digits=4)
+        end
+        output_result(fevd_df; format=Symbol(format),
+                      output=_per_var_output_path(output, vname),
+                      title="SDFM FEVD — factor: $vname")
+    end
 end

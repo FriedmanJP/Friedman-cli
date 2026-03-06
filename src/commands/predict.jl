@@ -147,6 +147,17 @@ function register_predict_commands!()
         ],
         description="Posterior mean volatility from stochastic volatility model")
 
+    pred_favar = LeafCommand("favar", _predict_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+        ],
+        description="FAVAR in-sample fitted values")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "var"       => pred_var,
         "bvar"      => pred_bvar,
@@ -160,6 +171,7 @@ function register_predict_commands!()
         "egarch"    => pred_egarch,
         "gjr_garch" => pred_gjr_garch,
         "sv"        => pred_sv,
+        "favar"     => pred_favar,
     )
     return NodeCommand("predict", subcmds, "In-sample predictions (fitted values)")
 end
@@ -452,4 +464,28 @@ function _predict_sv(; data::String, column::Int=1, draws::Int=5000,
                         volatility=round.(sqrt.(cond_var); digits=6))
     output_result(pred_df; format=Symbol(format), output=output,
                   title="SV Posterior Mean Volatility ($vname)")
+end
+
+# ── FAVAR Predict ─────────────────────────────────────────
+
+function _predict_favar(; data::String, factors=nothing, lags::Int=2,
+                         key_vars::String="",
+                         output::String="", format::String="table")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    var_model = to_var(favar)
+
+    println("FAVAR In-Sample Prediction")
+    println()
+
+    fitted = predict(var_model)
+    T_eff = size(fitted, 1)
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T_eff
+    for v in 1:size(fitted, 2)
+        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
+        pred_df[!, vname] = round.(fitted[:, v]; digits=6)
+    end
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="FAVAR In-Sample Predictions (T_eff=$T_eff)")
 end

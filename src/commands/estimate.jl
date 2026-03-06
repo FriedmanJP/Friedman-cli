@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml
+# Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm
 
 function register_estimate_commands!()
     est_var = LeafCommand("var", _estimate_var;
@@ -257,6 +257,38 @@ function register_estimate_commands!()
         ],
         description="Estimate via Simulated Method of Moments")
 
+    est_favar = LeafCommand("favar", _estimate_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
+            Option("method"; type=String, default="two_step", description="two_step|bayesian"),
+            Option("draws"; short="n", type=Int, default=5000, description="MCMC draws (bayesian only)"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[Flag("plot"; description="Open interactive plot in browser")],
+        description="Estimate Factor-Augmented VAR (Bernanke, Boivin & Eliasz 2005)")
+
+    est_sdfm = LeafCommand("sdfm", _estimate_sdfm;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
+            Option("id"; type=String, default="cholesky", description="cholesky|sign"),
+            Option("var-lags"; type=Int, default=1, description="Factor VAR lag order"),
+            Option("horizon"; short="h", type=Int, default=40, description="Structural IRF horizon"),
+            Option("config"; type=String, default="", description="TOML config for sign restrictions"),
+            Option("bandwidth"; type=Int, default=0, description="Spectral bandwidth (0=auto)"),
+            Option("kernel"; type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[Flag("plot"; description="Open interactive plot in browser")],
+        description="Estimate Structural Dynamic Factor Model (Forni et al. 2009)")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "var"       => est_var,
         "bvar"      => est_bvar,
@@ -276,6 +308,8 @@ function register_estimate_commands!()
         "vecm"      => est_vecm,
         "pvar"      => est_pvar,
         "smm"       => est_smm,
+        "favar"     => est_favar,
+        "sdfm"      => est_sdfm,
     )
     return NodeCommand("estimate", subcmds, "Estimate econometric models")
 end
@@ -1157,5 +1191,73 @@ function _estimate_smm(; data::String, config::String="",
     printstyled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
     printstyled("  Converged:   $(model.converged)\n";
                 color = model.converged ? :green : :red)
+end
+
+# ── FAVAR ──────────────────────────────────────────────
+
+function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
+                          key_vars::String="", method::String="two_step",
+                          draws::Int=5000, output::String="", format::String="table",
+                          plot::Bool=false, plot_save::String="")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, method, draws)
+
+    if favar isa MacroEconometricModels.BayesianFAVAR
+        println("Bayesian FAVAR: $(favar.n_factors) factors, $(favar.n_key) key vars, $(favar.n_draws) draws")
+        pairs = Pair{String,Any}[
+            "Factors" => favar.n_factors,
+            "Key variables" => favar.n_key,
+            "Lags" => favar.p,
+            "MCMC draws" => favar.n_draws,
+        ]
+        output_kv(pairs; format=format, output=output, title="Bayesian FAVAR")
+        return
+    end
+
+    var_model = to_var(favar)
+    coef_df = _build_var_coef_table(coef(var_model), favar.varnames, favar.p)
+    output_result(coef_df; format=Symbol(format), output=output, title="FAVAR($lags) Coefficients")
+
+    println()
+    printstyled("  Factors: $(favar.n_factors), Key variables: $(favar.n_key)\n"; color=:cyan)
+    printstyled("  AIC: $(round(favar.aic; digits=2)), BIC: $(round(favar.bic; digits=2))\n"; color=:cyan)
+
+    _maybe_plot(favar; plot=plot, plot_save=plot_save)
+end
+
+# ── Structural DFM ────────────────────────────────────
+
+function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
+                         var_lags::Int=1, horizon::Int=40,
+                         config::String="", bandwidth::Int=0,
+                         kernel::String="bartlett",
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="")
+    Y, varnames = load_multivariate_data(data)
+    n = size(Y, 2)
+
+    q = if factors === nothing
+        auto_q = ic_criteria_gdfm(Y, min(10, n - 1))
+        printstyled("  Auto-selected dynamic factors: $(auto_q.q_opt)\n"; color=:cyan)
+        auto_q.q_opt
+    else
+        factors
+    end
+
+    sign_check = nothing
+    if id == "sign" && !isempty(config)
+        sign_check, _ = _build_check_func(config)
+    end
+
+    println("Estimating Structural DFM: $q factors, id=$id, VAR lags=$var_lags, horizon=$horizon")
+
+    sdfm = estimate_structural_dfm(Y, q;
+        identification=Symbol(id), p=var_lags, H=horizon,
+        sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel))
+
+    println("  Identification: $(sdfm.identification)")
+    println("  Factor VAR lags: $(sdfm.p_var)")
+    println("  Shocks: $(join(sdfm.shock_names, ", "))")
+
+    _maybe_plot(sdfm; plot=plot, plot_save=plot_save)
 end
 
