@@ -381,11 +381,11 @@ using Test
         @test contains(help_text, "friedman var")
 
         # Entry help includes version number
-        entry = Entry("friedman", node; version=v"0.3.1")
+        entry = Entry("friedman", node; version=v"0.3.2")
         buf = IOBuffer()
         print_help(buf, entry)
         help_text = String(take!(buf))
-        @test contains(help_text, "0.3.1")
+        @test contains(help_text, "0.3.2")
 
         # Leaf with optional argument shows [arg] not <arg>
         leaf_opt_arg = LeafCommand("test", handler;
@@ -500,9 +500,9 @@ using Test
         @test called_with[][:data] == "test.csv"
 
         # dispatch() with ["--version"] prints version
-        entry = Entry("friedman", outer_node; version=v"0.3.1")
+        entry = Entry("friedman", outer_node; version=v"0.3.2")
         version_output = strip(capture_stdout(() -> dispatch(entry, ["--version"])))
-        @test contains(version_output, "0.3.1")
+        @test contains(version_output, "0.3.2")
 
         # dispatch() with [] shows help (no error)
         help_output = capture_stdout(() -> dispatch(entry, String[]))
@@ -550,7 +550,7 @@ using Test
 
         # -V short flag triggers version
         v_output = strip(capture_stdout(() -> dispatch(entry, ["-V"])))
-        @test contains(v_output, "0.3.1")
+        @test contains(v_output, "0.3.2")
     end
 
     @testset "DispatchError on unknown command" begin
@@ -1475,7 +1475,7 @@ using Test
                 "irf" => irf_node, "fevd" => fevd_node, "hd" => hd_node,
                 "forecast" => NodeCommand("forecast", Dict{String,Union{NodeCommand,LeafCommand}}(), "Forecast")),
             "Friedman CLI")
-        entry = Entry("friedman", root; version=v"0.3.1")
+        entry = Entry("friedman", root; version=v"0.3.2")
 
         # Top level HAS irf, fevd, hd (action-first)
         @test haskey(root.subcmds, "irf")
@@ -3102,15 +3102,16 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test dsge_node isa NodeCommand
     @test dsge_node.name == "dsge"
 
-    # All 7 subcommands exist
+    # All 8 subcommands exist
     @test haskey(dsge_node.subcmds, "solve")
     @test haskey(dsge_node.subcmds, "irf")
     @test haskey(dsge_node.subcmds, "fevd")
     @test haskey(dsge_node.subcmds, "simulate")
     @test haskey(dsge_node.subcmds, "estimate")
+    @test haskey(dsge_node.subcmds, "bayes")
     @test haskey(dsge_node.subcmds, "perfect-foresight")
     @test haskey(dsge_node.subcmds, "steady-state")
-    @test length(dsge_node.subcmds) == 7
+    @test length(dsge_node.subcmds) == 8
 
     # All are LeafCommands
     for (name, cmd) in dsge_node.subcmds
@@ -3134,6 +3135,26 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test "params" in opt_names
     @test "method" in opt_names
     @test "weighting" in opt_names
+
+    # bayes has model argument and SMC/MH options
+    bayes_cmd = dsge_node.subcmds["bayes"]
+    @test length(bayes_cmd.args) == 1
+    @test bayes_cmd.args[1].name == "model"
+    opt_names = [o.name for o in bayes_cmd.options]
+    @test "data" in opt_names
+    @test "params" in opt_names
+    @test "priors" in opt_names
+    @test "sampler" in opt_names
+    @test "n-smc" in opt_names
+    @test "n-particles" in opt_names
+    @test "n-draws" in opt_names
+    @test "burnin" in opt_names
+    @test "ess-target" in opt_names
+    @test "observables" in opt_names
+    @test "solver" in opt_names
+    @test "order" in opt_names
+    flag_names = [f.name for f in bayes_cmd.flags]
+    @test "delayed-acceptance" in flag_names
 
     # irf has horizon and shock-size
     irf_cmd = dsge_node.subcmds["irf"]
@@ -3171,15 +3192,38 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # Verify estimate now has 18 subcommands (17 original + smm)
-    @test length(est_node.subcmds) == 18
+    # Verify estimate now has 20 subcommands (17 original + smm + favar + sdfm)
+    @test length(est_node.subcmds) == 20
     @test haskey(est_node.subcmds, "smm")
+    @test haskey(est_node.subcmds, "favar")
+    @test haskey(est_node.subcmds, "sdfm")
     for key in ["var", "bvar", "lp", "arima", "gmm", "static", "dynamic", "gdfm",
                  "arch", "garch", "egarch", "gjr_garch", "sv", "fastica", "ml",
-                 "vecm", "pvar", "smm"]
+                 "vecm", "pvar", "smm", "favar", "sdfm"]
         @test haskey(est_node.subcmds, key)
         @test est_node.subcmds[key] isa LeafCommand
     end
+
+    # FAVAR has key-vars option
+    favar_cmd = est_node.subcmds["favar"]
+    @test length(favar_cmd.args) == 1
+    @test favar_cmd.args[1].name == "data"
+    favar_opt_names = [o.name for o in favar_cmd.options]
+    @test "factors" in favar_opt_names
+    @test "lags" in favar_opt_names
+    @test "key-vars" in favar_opt_names
+    @test "method" in favar_opt_names
+    @test "draws" in favar_opt_names
+
+    # SDFM has identification and spectral options
+    sdfm_cmd = est_node.subcmds["sdfm"]
+    @test length(sdfm_cmd.args) == 1
+    sdfm_opt_names = [o.name for o in sdfm_cmd.options]
+    @test "factors" in sdfm_opt_names
+    @test "id" in sdfm_opt_names
+    @test "var-lags" in sdfm_opt_names
+    @test "bandwidth" in sdfm_opt_names
+    @test "kernel" in sdfm_opt_names
 end
 
 @testset "DID command structure" begin
@@ -3254,4 +3298,158 @@ end
     opt_names = [o.name for o in h_cmd.options]
     @test "mbar" in opt_names
     @test "method" in opt_names
+end
+
+@testset "FAVAR/SDFM command structure across actions" begin
+    # IRF: 7 subcommands (5 original + favar + sdfm)
+    irf_node = register_irf_commands!()
+    @test length(irf_node.subcmds) == 7
+    @test haskey(irf_node.subcmds, "favar")
+    @test haskey(irf_node.subcmds, "sdfm")
+    @test irf_node.subcmds["favar"] isa LeafCommand
+    @test irf_node.subcmds["sdfm"] isa LeafCommand
+
+    # FAVAR IRF has key-vars and panel-irf flag
+    irf_favar = irf_node.subcmds["favar"]
+    @test length(irf_favar.args) == 1
+    irf_favar_opts = [o.name for o in irf_favar.options]
+    @test "factors" in irf_favar_opts
+    @test "key-vars" in irf_favar_opts
+    @test "horizons" in irf_favar_opts
+    @test "id" in irf_favar_opts
+    irf_favar_flags = [f.name for f in irf_favar.flags]
+    @test "panel-irf" in irf_favar_flags
+
+    # SDFM IRF has factors, id, var-lags
+    irf_sdfm = irf_node.subcmds["sdfm"]
+    irf_sdfm_opts = [o.name for o in irf_sdfm.options]
+    @test "factors" in irf_sdfm_opts
+    @test "id" in irf_sdfm_opts
+    @test "var-lags" in irf_sdfm_opts
+
+    # FEVD: 7 subcommands (5 original + favar + sdfm)
+    fevd_node = register_fevd_commands!()
+    @test length(fevd_node.subcmds) == 7
+    @test haskey(fevd_node.subcmds, "favar")
+    @test haskey(fevd_node.subcmds, "sdfm")
+    @test fevd_node.subcmds["favar"] isa LeafCommand
+    @test fevd_node.subcmds["sdfm"] isa LeafCommand
+
+    fevd_favar_opts = [o.name for o in fevd_node.subcmds["favar"].options]
+    @test "key-vars" in fevd_favar_opts
+    @test "horizons" in fevd_favar_opts
+
+    # HD: 5 subcommands (4 original + favar)
+    hd_node = register_hd_commands!()
+    @test length(hd_node.subcmds) == 5
+    @test haskey(hd_node.subcmds, "favar")
+    @test hd_node.subcmds["favar"] isa LeafCommand
+
+    hd_favar_opts = [o.name for o in hd_node.subcmds["favar"].options]
+    @test "key-vars" in hd_favar_opts
+    @test "id" in hd_favar_opts
+
+    # Forecast: 14 subcommands (13 original + favar)
+    fc_node = register_forecast_commands!()
+    @test length(fc_node.subcmds) == 14
+    @test haskey(fc_node.subcmds, "favar")
+    @test fc_node.subcmds["favar"] isa LeafCommand
+
+    fc_favar = fc_node.subcmds["favar"]
+    fc_favar_opts = [o.name for o in fc_favar.options]
+    @test "key-vars" in fc_favar_opts
+    @test "horizons" in fc_favar_opts
+    fc_favar_flags = [f.name for f in fc_favar.flags]
+    @test "panel-forecast" in fc_favar_flags
+
+    # Predict: 13 subcommands (12 original + favar)
+    pred_node = register_predict_commands!()
+    @test length(pred_node.subcmds) == 13
+    @test haskey(pred_node.subcmds, "favar")
+    @test pred_node.subcmds["favar"] isa LeafCommand
+
+    pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
+    @test "key-vars" in pred_favar_opts
+
+    # Residuals: 13 subcommands (12 original + favar)
+    res_node = register_residuals_commands!()
+    @test length(res_node.subcmds) == 13
+    @test haskey(res_node.subcmds, "favar")
+    @test res_node.subcmds["favar"] isa LeafCommand
+
+    res_favar_opts = [o.name for o in res_node.subcmds["favar"].options]
+    @test "key-vars" in res_favar_opts
+end
+
+@testset "Structural break test command structure" begin
+    test_node = register_test_commands!()
+
+    # Test node now has 22 subcommands (16 original + 6 new: andrews, bai-perron, panic, cips, moon-perron, factor-break)
+    @test length(test_node.subcmds) == 22
+
+    # Andrews structural break test
+    @test haskey(test_node.subcmds, "andrews")
+    andrews_cmd = test_node.subcmds["andrews"]
+    @test andrews_cmd isa LeafCommand
+    @test length(andrews_cmd.args) == 1
+    andrews_opts = [o.name for o in andrews_cmd.options]
+    @test "response" in andrews_opts
+    @test "test" in andrews_opts
+    @test "trimming" in andrews_opts
+    andrews_flags = [f.name for f in andrews_cmd.flags]
+    @test "plot" in andrews_flags
+
+    # Bai-Perron multiple structural break test
+    @test haskey(test_node.subcmds, "bai-perron")
+    bp_cmd = test_node.subcmds["bai-perron"]
+    @test bp_cmd isa LeafCommand
+    @test length(bp_cmd.args) == 1
+    bp_opts = [o.name for o in bp_cmd.options]
+    @test "response" in bp_opts
+    @test "max-breaks" in bp_opts
+    @test "trimming" in bp_opts
+    @test "criterion" in bp_opts
+    bp_flags = [f.name for f in bp_cmd.flags]
+    @test "plot" in bp_flags
+end
+
+@testset "Panel unit root test command structure" begin
+    test_node = register_test_commands!()
+
+    # PANIC test
+    @test haskey(test_node.subcmds, "panic")
+    panic_cmd = test_node.subcmds["panic"]
+    @test panic_cmd isa LeafCommand
+    @test length(panic_cmd.args) == 1
+    panic_opts = [o.name for o in panic_cmd.options]
+    @test "factors" in panic_opts
+    @test "method" in panic_opts
+    @test "id-col" in panic_opts
+    @test "time-col" in panic_opts
+
+    # Pesaran CIPS test
+    @test haskey(test_node.subcmds, "cips")
+    cips_cmd = test_node.subcmds["cips"]
+    @test cips_cmd isa LeafCommand
+    cips_opts = [o.name for o in cips_cmd.options]
+    @test "lags" in cips_opts
+    @test "deterministic" in cips_opts
+    @test "id-col" in cips_opts
+
+    # Moon-Perron test
+    @test haskey(test_node.subcmds, "moon-perron")
+    mp_cmd = test_node.subcmds["moon-perron"]
+    @test mp_cmd isa LeafCommand
+    mp_opts = [o.name for o in mp_cmd.options]
+    @test "factors" in mp_opts
+    @test "id-col" in mp_opts
+
+    # Factor break test
+    @test haskey(test_node.subcmds, "factor-break")
+    fb_cmd = test_node.subcmds["factor-break"]
+    @test fb_cmd isa LeafCommand
+    fb_opts = [o.name for o in fb_cmd.options]
+    @test "factors" in fb_opts
+    @test "method" in fb_opts
+    @test "id-col" in fb_opts
 end
