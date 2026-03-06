@@ -207,6 +207,28 @@ function get_smm(config::Dict)
     )
 end
 
+"""
+    get_dsge_priors(config) → Dict{String,Any}
+
+Parse Bayesian DSGE prior specification from [priors] TOML section.
+Each parameter maps to {dist, a, b} (distribution name + 2 shape params).
+"""
+function get_dsge_priors(config::Dict)
+    priors_raw = get(config, "priors", Dict())
+    isempty(priors_raw) && error("TOML must have [priors] section with parameter distributions")
+    result = Dict{String,Any}()
+    for (param, spec) in priors_raw
+        spec isa Dict || error("prior for '$param' must be a table with dist, a, b keys")
+        haskey(spec, "dist") || error("prior for '$param' missing 'dist' key")
+        result[param] = Dict{String,Any}(
+            "dist" => spec["dist"],
+            "a"    => get(spec, "a", 0.0),
+            "b"    => get(spec, "b", 1.0),
+        )
+    end
+    return result
+end
+
 # Internal helpers
 
 function _parse_matrix(rows::Vector)

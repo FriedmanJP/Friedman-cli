@@ -593,6 +593,69 @@ function _build_pvar_coef_table(model, varnames::Vector{String}, p::Int)
     return coef_df
 end
 
+# ── FAVAR Helpers ─────────────────────────────────────────
+
+"""
+    _load_and_estimate_favar(data, factors, lags, key_vars, method, draws) → (favar, Y, varnames)
+"""
+function _load_and_estimate_favar(data::String, factors, lags::Int,
+                                   key_vars::String, method::String, draws::Int)
+    Y, varnames = load_multivariate_data(data)
+    T_obs, n = size(Y)
+
+    # Parse key variables (comma-separated names or indices)
+    key_indices = Int[]
+    if !isempty(key_vars)
+        for kv in split(key_vars, ",")
+            kv = strip(kv)
+            idx = tryparse(Int, kv)
+            if idx !== nothing
+                push!(key_indices, idx)
+            else
+                found = findfirst(==(kv), varnames)
+                found === nothing && error("key variable '$kv' not found in data columns: $varnames")
+                push!(key_indices, found)
+            end
+        end
+    end
+    isempty(key_indices) && error("--key-vars is required for FAVAR (comma-separated column names or indices)")
+
+    # Auto-select factors if not specified
+    r = if factors === nothing
+        auto_r = ic_criteria(Y, min(10, n - 1))
+        printstyled("  Auto-selected factors: $(auto_r.r_IC1) (IC1)\n"; color=:cyan)
+        auto_r.r_IC1
+    else
+        factors
+    end
+
+    println("Estimating FAVAR: $r factors, $lags lags, method=$method, $(length(key_indices)) key variables")
+
+    favar = estimate_favar(Y, key_indices, r, lags;
+                           method=Symbol(method),
+                           n_draws=draws)
+    return favar, Y, varnames
+end
+
+# ── Panel/Matrix Loading Helper ──────────────────────────
+
+"""
+    _load_panel_or_matrix(data; id_col, time_col) → (result, is_panel)
+
+Load data as PanelData if id_col/time_col are provided, else as Matrix.
+"""
+function _load_panel_or_matrix(data::String; id_col::String="", time_col::String="")
+    if !isempty(id_col) && !isempty(time_col)
+        pd = load_panel_data(data, id_col, time_col)
+        printstyled("  Panel: $(pd.n_groups) units, $(div(pd.T_obs, pd.n_groups)) periods\n"; color=:cyan)
+        return pd, true
+    else
+        Y, varnames = load_multivariate_data(data)
+        println("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
+        return Y, false
+    end
+end
+
 # ── Plot Helpers ──────────────────────────────────────────
 
 """
