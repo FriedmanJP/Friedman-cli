@@ -1954,4 +1954,281 @@ export PretrendTestResult, NegativeWeightResult, HonestDiDResult
 export estimate_did, estimate_event_study_lp, estimate_lp_did
 export bacon_decomposition, pretrend_test, negative_weight_check, honest_did
 
+# ─── FAVAR Types & Functions ─────────────────────────────────
+
+struct FAVARModel{T<:Real}
+    Y::Matrix{T}; p::Int; B::Matrix{T}; U::Matrix{T}; Sigma::Matrix{T}
+    factors::Matrix{T}; loadings::Matrix{T}; n_factors::Int; n_key::Int
+    aic::T; bic::T; loglik::T
+    varnames::Vector{String}; panel_varnames::Vector{String}
+end
+
+struct BayesianFAVAR{T<:Real}
+    Y::Matrix{T}; p::Int; n_factors::Int; n_key::Int
+    factors::Matrix{T}; loadings::Matrix{T}
+    varnames::Vector{String}; panel_varnames::Vector{String}
+    n_draws::Int
+end
+
+function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
+                        method=:two_step, n_draws=5000, panel_varnames=nothing) where T
+    n_obs, n_vars = size(X)
+    n_key = length(key_indices)
+    n_aug = r + n_key
+    Y = X[p+1:end, 1:min(n_aug, n_vars)]
+    B = ones(T, n_aug * p + 1, n_aug) * T(0.1)
+    U = randn(T, n_obs - p, n_aug)
+    Sigma = Matrix{T}(I(n_aug)) * T(0.5)
+    factors = randn(T, n_obs, r)
+    loadings = randn(T, n_vars, r)
+    vnames = ["aug$i" for i in 1:n_aug]
+    pvnames = panel_varnames === nothing ? ["var$i" for i in 1:n_vars] : panel_varnames
+    if method == :bayesian
+        return BayesianFAVAR{T}(Y, p, r, n_key, factors, loadings, vnames, pvnames, n_draws)
+    end
+    FAVARModel{T}(Y, p, B, U, Sigma, factors, loadings, r, n_key,
+                   T(-100.0), T(-95.0), T(-90.0), vnames, pvnames)
+end
+
+function to_var(favar::FAVARModel{T}) where T
+    n = size(favar.Y, 2)
+    VARModel{T}(favar.Y, favar.p, favar.B, favar.U, favar.Sigma,
+                favar.aic, favar.bic, T(-92.0))
+end
+
+function favar_panel_irf(favar::FAVARModel{T}, irf_result::ImpulseResponse{T}) where T
+    N = size(favar.loadings, 1)
+    H = irf_result.horizon
+    n_shocks = length(irf_result.shocks)
+    vals = ones(T, H + 1, N, n_shocks) * T(0.05)
+    ImpulseResponse(vals, nothing, nothing, H,
+        favar.panel_varnames, irf_result.shocks, :favar_panel)
+end
+
+function favar_panel_forecast(favar::FAVARModel{T}, fc::VARForecast{T}) where T
+    N = size(favar.loadings, 1)
+    h = fc.horizon
+    panel_fc = ones(T, h, N) * T(0.1)
+    VARForecast{T}(panel_fc, panel_fc .- T(0.5), panel_fc .+ T(0.5),
+                    h, :none, T(0.95), favar.panel_varnames)
+end
+
+# FAVAR dispatches for irf/fevd/hd — delegate to VAR internals
+function irf(favar::FAVARModel{T}, horizon::Int; kwargs...) where T
+    var_model = to_var(favar)
+    irf(var_model, horizon; kwargs...)
+end
+function fevd(favar::FAVARModel{T}, horizon::Int; kwargs...) where T
+    var_model = to_var(favar)
+    fevd(var_model, horizon; kwargs...)
+end
+function historical_decomposition(favar::FAVARModel{T}, horizon::Int; kwargs...) where T
+    var_model = to_var(favar)
+    historical_decomposition(var_model, horizon; kwargs...)
+end
+function forecast(favar::FAVARModel{T}, h::Int; kwargs...) where T
+    var_model = to_var(favar)
+    forecast(var_model, h; kwargs...)
+end
+
+export FAVARModel, BayesianFAVAR, estimate_favar, favar_panel_irf, favar_panel_forecast
+
+# ─── Structural DFM Types & Functions ────────────────────────
+
+struct StructuralDFM{T<:Real}
+    gdfm::GeneralizedDynamicFactorModel{T}
+    factor_var::VARModel{T}
+    B0::Matrix{T}; Q::Matrix{T}
+    identification::Symbol
+    structural_irf::Array{T,3}
+    loadings_td::Matrix{T}
+    p_var::Int; shock_names::Vector{String}
+end
+
+function estimate_structural_dfm(X::Matrix{T}, q::Int;
+        identification=:cholesky, p=1, H=40, sign_check=nothing,
+        max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett) where T
+    n_obs, n_vars = size(X)
+    gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel)
+    factor_Y = randn(T, n_obs - p, q)
+    B_fvar = ones(T, q * p + 1, q) * T(0.1)
+    U_fvar = randn(T, n_obs - p, q)
+    Sigma_fvar = Matrix{T}(I(q)) * T(0.5)
+    fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0), T(-45.0))
+    B0 = Matrix{T}(I(q))
+    Q_mat = Matrix{T}(I(q))
+    loadings_td = randn(T, n_vars, q)
+    s_irf = ones(T, H + 1, n_vars, q) * T(0.05)
+    snames = ["structural_shock_$i" for i in 1:q]
+    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames)
+end
+
+function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
+    n_vars = size(sdfm.loadings_td, 1)
+    q = size(sdfm.B0, 1)
+    h = min(horizon, size(sdfm.structural_irf, 1) - 1)
+    vals = sdfm.structural_irf[1:h+1, :, :]
+    vnames = ["var$i" for i in 1:n_vars]
+    ImpulseResponse(vals, nothing, nothing, h, vnames, sdfm.shock_names, :structural_dfm)
+end
+
+function fevd(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
+    q = size(sdfm.B0, 1)
+    props = ones(T, q, q, horizon) / T(q)
+    FEVD(props, props)
+end
+
+export StructuralDFM, estimate_structural_dfm
+
+# ─── Bayesian DSGE Types & Functions ─────────────────────────
+
+struct BayesianDSGE{T<:Real}
+    theta_draws::Matrix{T}
+    log_posterior::Vector{T}
+    param_names::Vector{String}
+    log_marginal_likelihood::T
+    method::Symbol
+    acceptance_rate::T
+    ess_history::Vector{T}
+end
+
+function estimate_dsge_bayes(spec::DSGESpec{T}, data::Matrix, theta0::Vector;
+        priors=Dict(), method=:smc, observables=Symbol[],
+        n_smc=5000, n_particles=500, n_mh_steps=1,
+        n_draws=10000, burnin=5000, ess_target=0.5,
+        measurement_error=nothing, solver=:gensys,
+        solver_kwargs=NamedTuple(), delayed_acceptance=false,
+        n_screen=200, rng=nothing) where T
+    np = length(theta0)
+    draws = randn(T, n_draws, np) .* T(0.01) .+ theta0'
+    log_post = fill(T(-100.0), n_draws)
+    pnames = ["param_$i" for i in 1:np]
+    ess_hist = fill(T(n_smc * 0.8), 20)
+    BayesianDSGE{T}(draws, log_post, pnames, T(-500.0), method, T(0.25), ess_hist)
+end
+
+export BayesianDSGE, estimate_dsge_bayes
+
+# ─── Structural Break Test Types & Functions ─────────────────
+
+struct AndrewsResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; break_index::Int; break_fraction::T
+    test_type::Symbol; critical_values::Dict{Int,T}
+    stat_sequence::Vector{T}; trimming::T; nobs::Int; n_params::Int
+end
+
+struct BaiPerronResult{T<:AbstractFloat}
+    n_breaks::Int; break_dates::Vector{Int}; break_cis::Vector{Tuple{Int,Int}}
+    regime_coefs::Vector{Vector{T}}; regime_ses::Vector{Vector{T}}
+    supf_stats::Vector{T}; supf_pvalues::Vector{T}
+    sequential_stats::Vector{T}; sequential_pvalues::Vector{T}
+    bic_values::Vector{T}; lwz_values::Vector{T}
+    trimming::T; nobs::Int
+end
+
+function andrews_test(y::AbstractVector{T}, X::AbstractMatrix;
+        test=:supwald, trimming=0.15) where T
+    n = length(y)
+    n_params = size(X, 2)
+    bp = div(n, 2)
+    seq = fill(T(5.0), n - 2 * round(Int, n * trimming))
+    seq[div(length(seq), 2)] = T(12.0)
+    cvs = Dict(1 => T(8.85), 5 => T(7.04), 10 => T(6.28))
+    AndrewsResult{T}(T(12.0), T(0.02), bp, T(bp / n),
+        test, cvs, seq, T(trimming), n, n_params)
+end
+
+function bai_perron_test(y::AbstractVector{T}, X::AbstractMatrix;
+        max_breaks=5, trimming=0.15, criterion=:bic) where T
+    n = length(y)
+    k = size(X, 2)
+    BaiPerronResult{T}(
+        1, [div(n, 2)], [(div(n, 2) - 5, div(n, 2) + 5)],
+        [ones(T, k) * T(2.0), ones(T, k) * T(5.0)],
+        [ones(T, k) * T(0.3), ones(T, k) * T(0.4)],
+        [T(15.0)], [T(0.01)], [T(12.0)], [T(0.03)],
+        fill(T(-100.0), max_breaks + 1), fill(T(-98.0), max_breaks + 1),
+        T(trimming), n)
+end
+
+export AndrewsResult, BaiPerronResult, andrews_test, bai_perron_test
+
+# ─── Panel Unit Root Test Types & Functions ──────────────────
+
+struct PANICResult{T<:AbstractFloat}
+    factor_adf_stats::Vector{T}; factor_adf_pvalues::Vector{T}
+    pooled_statistic::T; pooled_pvalue::T
+    individual_stats::Vector{T}; individual_pvalues::Vector{T}
+    n_factors::Int; method::Symbol; nobs::Int; n_units::Int
+end
+
+struct PesaranCIPSResult{T<:AbstractFloat}
+    cips::T; pvalue::T; individual_cadf::Vector{T}
+    critical_values::Dict{Int,T}; lags::Int; deterministic::Symbol
+    nobs::Int; n_units::Int
+end
+
+struct MoonPerronResult{T<:AbstractFloat}
+    t_a_statistic::T; t_b_statistic::T; pvalue_a::T; pvalue_b::T
+    n_factors::Int; nobs::Int; n_units::Int
+end
+
+struct FactorBreakResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; break_date::Int; method::Symbol
+    r::Int; nobs::Int; n_units::Int
+end
+
+function panic_test(X::AbstractMatrix{T}; r=:auto, method=:pooled) where T
+    n_obs, n_units = size(X)
+    n_r = r == :auto ? 2 : r
+    PANICResult{T}(
+        fill(T(-3.0), n_r), fill(T(0.01), n_r),
+        T(-5.0), T(0.001),
+        fill(T(-2.5), n_units), fill(T(0.05), n_units),
+        n_r, method, n_obs, n_units)
+end
+function panic_test(pd::PanelData{T}; r=:auto, method=:pooled) where T
+    X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)
+    panic_test(X; r=r, method=method)
+end
+
+function pesaran_cips_test(X::AbstractMatrix{T}; lags=:auto, deterministic=:constant) where T
+    n_obs, n_units = size(X)
+    p = lags == :auto ? max(1, round(Int, n_obs^(1/3))) : lags
+    cvs = Dict(1 => T(-2.16), 5 => T(-2.04), 10 => T(-1.97))
+    PesaranCIPSResult{T}(T(-2.5), T(0.01), fill(T(-2.3), n_units),
+        cvs, p, deterministic, n_obs, n_units)
+end
+function pesaran_cips_test(pd::PanelData{T}; lags=:auto, deterministic=:constant) where T
+    X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)
+    pesaran_cips_test(X; lags=lags, deterministic=deterministic)
+end
+
+function moon_perron_test(X::AbstractMatrix{T}; r=:auto) where T
+    n_obs, n_units = size(X)
+    n_r = r == :auto ? 2 : r
+    MoonPerronResult{T}(T(-3.5), T(-4.0), T(0.001), T(0.0005), n_r, n_obs, n_units)
+end
+function moon_perron_test(pd::PanelData{T}; r=:auto) where T
+    X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)
+    moon_perron_test(X; r=r)
+end
+
+function factor_break_test(X::AbstractMatrix{T}, r::Int; method=:breitung_eickmeier) where T
+    n_obs, n_units = size(X)
+    FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units)
+end
+function factor_break_test(pd::PanelData{T}, r::Int; method=:breitung_eickmeier) where T
+    X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)
+    factor_break_test(X, r; method=method)
+end
+
+function panel_unit_root_summary(X; tests=[:panic, :cips, :moon_perron])
+    println("Panel unit root summary ($(length(tests)) tests)")
+end
+
+export PANICResult, PesaranCIPSResult, MoonPerronResult, FactorBreakResult
+export panic_test, pesaran_cips_test, moon_perron_test, factor_break_test
+export panel_unit_root_summary
+
 end # module
