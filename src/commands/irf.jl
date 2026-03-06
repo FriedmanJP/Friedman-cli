@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# IRF commands: var, bvar, lp (action-first: friedman irf var ...)
+# IRF commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: friedman irf var ...)
 
 function register_irf_commands!()
     irf_var = LeafCommand("var", _irf_var;
@@ -119,12 +119,48 @@ function register_irf_commands!()
         flags=[Flag("plot"; description="Open interactive plot in browser")],
         description="Compute Panel VAR impulse response functions (OIRF/GIRF)")
 
+    irf_favar = LeafCommand("favar", _irf_favar;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
+            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
+            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
+            Option("id"; type=String, default="cholesky", description="Identification method"),
+            Option("config"; type=String, default="", description="TOML config for restrictions"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[
+            Flag("panel-irf"; description="Output panel-wide IRFs (N variables) instead of factor-level"),
+            Flag("plot"; description="Open interactive plot in browser"),
+        ],
+        description="FAVAR impulse response functions")
+
+    irf_sdfm = LeafCommand("sdfm", _irf_sdfm;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("factors"; short="q", type=Int, default=nothing, description="Number of dynamic factors"),
+            Option("id"; type=String, default="cholesky", description="cholesky|sign"),
+            Option("var-lags"; type=Int, default=1, description="Factor VAR lag order"),
+            Option("horizons"; short="h", type=Int, default=40, description="IRF horizon"),
+            Option("config"; type=String, default="", description="TOML config for sign restrictions"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
+        ],
+        flags=[Flag("plot"; description="Open interactive plot in browser")],
+        description="Structural DFM impulse response functions (panel-wide)")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"  => irf_var,
-        "bvar" => irf_bvar,
-        "lp"   => irf_lp,
-        "vecm" => irf_vecm,
-        "pvar" => irf_pvar,
+        "var"   => irf_var,
+        "bvar"  => irf_bvar,
+        "lp"    => irf_lp,
+        "vecm"  => irf_vecm,
+        "pvar"  => irf_pvar,
+        "favar" => irf_favar,
+        "sdfm"  => irf_sdfm,
     )
     return NodeCommand("irf", subcmds, "Impulse Response Functions")
 end
@@ -510,5 +546,80 @@ function _irf_pvar(; data::String, id_col::String="", time_col::String="",
                       output=_per_var_output_path(output, shock_name),
                       title="Panel VAR $(uppercase(irf_type)) to $shock_name shock")
         println()
+    end
+end
+
+# ── FAVAR IRF ──────────────────────────────────────────
+
+function _irf_favar(; data::String, factors=nothing, lags::Int=2,
+                     key_vars::String="", horizons::Int=20,
+                     id::String="cholesky", config::String="",
+                     panel_irf::Bool=false,
+                     output::String="", format::String="table",
+                     plot::Bool=false, plot_save::String="")
+    favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    n = size(favar.Y, 2)
+
+    id_kwargs = _build_identification_kwargs(id, config)
+
+    println("FAVAR IRF: horizon=$horizons, id=$id" * (panel_irf ? ", panel-wide" : ""))
+    println()
+
+    irf_result = irf(favar, horizons; id_kwargs...)
+
+    if panel_irf
+        irf_result = favar_panel_irf(favar, irf_result)
+    end
+
+    _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+
+    n_vars = size(irf_result.values, 2)
+    n_shocks = size(irf_result.values, 3)
+    for s in 1:n_shocks
+        shock_name = s <= length(irf_result.shocks) ? irf_result.shocks[s] : "shock_$s"
+        irf_df = DataFrame()
+        irf_df.horizon = 0:horizons
+        for v in 1:n_vars
+            vname = v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
+            irf_df[!, vname] = round.(irf_result.values[:, v, s]; digits=6)
+        end
+        output_result(irf_df; format=Symbol(format),
+                      output=_per_var_output_path(output, shock_name),
+                      title="FAVAR IRF — shock: $shock_name")
+    end
+end
+
+# ── Structural DFM IRF ────────────────────────────────
+
+function _irf_sdfm(; data::String, factors=nothing, id::String="cholesky",
+                    var_lags::Int=1, horizons::Int=40,
+                    config::String="",
+                    output::String="", format::String="table",
+                    plot::Bool=false, plot_save::String="")
+    Y, varnames = load_multivariate_data(data)
+    q = factors === nothing ? ic_criteria_gdfm(Y, min(10, size(Y, 2) - 1)).q_opt : factors
+
+    sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags, H=horizons)
+
+    println("Structural DFM IRF: $q factors, id=$id, horizon=$horizons")
+    println()
+
+    irf_result = irf(sdfm, horizons)
+
+    _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+
+    n_vars = size(irf_result.values, 2)
+    n_shocks = size(irf_result.values, 3)
+    for s in 1:n_shocks
+        shock_name = s <= length(irf_result.shocks) ? irf_result.shocks[s] : "shock_$s"
+        irf_df = DataFrame()
+        irf_df.horizon = 0:size(irf_result.values, 1)-1
+        for v in 1:n_vars
+            vname = v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
+            irf_df[!, vname] = round.(irf_result.values[:, v, s]; digits=6)
+        end
+        output_result(irf_df; format=Symbol(format),
+                      output=_per_var_output_path(output, shock_name),
+                      title="SDFM IRF — shock: $shock_name")
     end
 end
