@@ -565,10 +565,10 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        @test length(node.subcmds) == 20
+        @test length(node.subcmds) == 24
         for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv", "fastica", "ml", "vecm", "pvar",
-                     "favar", "sdfm"]
+                     "favar", "sdfm", "reg", "iv", "logit", "probit"]
             @test haskey(node.subcmds, cmd)
         end
     end
@@ -1289,6 +1289,131 @@ end  # Shared utilities
         end
     end
 
+    @testset "_estimate_reg — OLS default" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _estimate_reg(; data=csv, dep="var1", cov_type="hc1",
+                               weights="", clusters="", format="table", output="")
+            end
+            @test occursin("OLS/WLS", out) || occursin("OLS Regression", out)
+            @test occursin("R²", out) || occursin("R²", out)
+            @test occursin("Coefficient", out)
+        end
+    end
+
+    @testset "_estimate_reg — WLS with weights" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _estimate_reg(; data=csv, dep="var1", cov_type="ols",
+                               weights="var4", clusters="", format="table", output="")
+            end
+            @test occursin("WLS Regression", out)
+            @test occursin("R²", out) || occursin("R²", out)
+        end
+    end
+
+    @testset "_estimate_reg — csv output" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            outfile = joinpath(dir, "reg_out.csv")
+            out = _capture() do
+                _estimate_reg(; data=csv, dep="var1", cov_type="hc1",
+                               weights="", clusters="", format="csv", output=outfile)
+            end
+            @test isfile(outfile)
+        end
+    end
+
+    @testset "_estimate_iv — 2SLS" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
+            out = _capture() do
+                _estimate_iv(; data=csv, dep="y", endogenous="x1",
+                              instruments="z1,z2", cov_type="hc1",
+                              format="table", output="")
+            end
+            @test occursin("IV (2SLS)", out)
+            @test occursin("Coefficient", out)
+            @test occursin("First-stage F", out)
+            @test occursin("Sargan", out)
+        end
+    end
+
+    @testset "_estimate_iv — missing endogenous error" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
+            @test_throws ErrorException _estimate_iv(; data=csv, dep="y",
+                endogenous="", instruments="z1,z2", cov_type="hc1",
+                format="table", output="")
+        end
+    end
+
+    @testset "_estimate_iv — missing instruments error" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
+            @test_throws ErrorException _estimate_iv(; data=csv, dep="y",
+                endogenous="x1", instruments="", cov_type="hc1",
+                format="table", output="")
+        end
+    end
+
+    @testset "_estimate_logit — default" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _estimate_logit(; data=csv, dep="var1", cov_type="hc1",
+                                 clusters="", maxiter=100, tol=1e-8,
+                                 format="table", output="")
+            end
+            @test occursin("Logit Regression", out)
+            @test occursin("Pseudo R²", out) || occursin("Pseudo R", out)
+            @test occursin("Converged", out)
+            @test occursin("Coefficient", out)
+        end
+    end
+
+    @testset "_estimate_logit — json format" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _estimate_logit(; data=csv, dep="var1", cov_type="ols",
+                                 clusters="", maxiter=50, tol=1e-6,
+                                 format="json", output="")
+            end
+            @test occursin("Logit", out)
+        end
+    end
+
+    @testset "_estimate_probit — default" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _estimate_probit(; data=csv, dep="var1", cov_type="hc1",
+                                  clusters="", maxiter=100, tol=1e-8,
+                                  format="table", output="")
+            end
+            @test occursin("Probit Regression", out)
+            @test occursin("Pseudo R²", out) || occursin("Pseudo R", out)
+            @test occursin("Converged", out)
+            @test occursin("Coefficient", out)
+        end
+    end
+
+    @testset "_estimate_probit — csv output" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            outfile = joinpath(dir, "probit_out.csv")
+            out = _capture() do
+                _estimate_probit(; data=csv, dep="var1", cov_type="ols",
+                                  clusters="", maxiter=100, tol=1e-8,
+                                  format="csv", output=outfile)
+            end
+            @test isfile(outfile)
+        end
+    end
+
 end  # Estimate handlers
 
 # ═══════════════════════════════════════════════════════════════
@@ -1301,11 +1426,13 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        @test length(node.subcmds) == 22
+        @test length(node.subcmds) == 29
         for cmd in ["adf", "kpss", "pp", "za", "np", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch_lm", "ljung_box", "var", "granger", "pvar", "lr", "lm",
-                     "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break"]
+                     "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
+                     "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
+                     "adf-2break", "gregory-hansen", "vif"]
             @test haskey(node.subcmds, cmd)
         end
         # VAR is a nested NodeCommand with lagselect and stability
@@ -2504,7 +2631,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 20
+        @test length(node.subcmds) == 24
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -2535,7 +2662,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 22
+        @test length(node.subcmds) == 29
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -3810,7 +3937,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 20
+        @test length(node.subcmds) == 24
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -3840,7 +3967,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 22
+        @test length(node.subcmds) == 29
     end
 
     @testset "_parse_varlist" begin
@@ -6240,6 +6367,191 @@ end
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,
                 ess_target=0.5, observables="", solver="gensys", order=1,
                 delayed_acceptance=false, output="", format="table")
+        end
+    end
+
+end
+
+# ═══════════════════════════════════════════════════════════════
+# Advanced unit root test handlers
+# ═══════════════════════════════════════════════════════════════
+
+@testset "Advanced unit root test handlers" begin
+
+    @testset "_test_fourier_adf" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_fourier_adf(; data=csv, column=1, regression="constant",
+                                   fmax=3, lags="aic", max_lags=nothing,
+                                   trim=0.15, format="table", output="")
+            end
+            @test occursin("Fourier ADF", out)
+            @test occursin("stationary", out) || occursin("Reject", out)
+        end
+    end
+
+    @testset "_test_fourier_adf — explicit lags" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_fourier_adf(; data=csv, column=1, regression="trend",
+                                   fmax=2, lags="4", max_lags=nothing,
+                                   trim=0.15, format="table", output="")
+            end
+            @test occursin("Fourier ADF", out)
+        end
+    end
+
+    @testset "_test_fourier_kpss" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_fourier_kpss(; data=csv, column=1, regression="constant",
+                                    fmax=3, bandwidth=nothing,
+                                    format="table", output="")
+            end
+            @test occursin("Fourier KPSS", out)
+            @test occursin("stationary", out) || occursin("Reject", out)
+        end
+    end
+
+    @testset "_test_fourier_kpss — explicit bandwidth" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_fourier_kpss(; data=csv, column=1, regression="trend",
+                                    fmax=2, bandwidth=5,
+                                    format="table", output="")
+            end
+            @test occursin("Fourier KPSS", out)
+        end
+    end
+
+    @testset "_test_dfgls" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_dfgls(; data=csv, column=1, regression="constant",
+                              lags="aic", max_lags=nothing,
+                              format="table", output="")
+            end
+            @test occursin("DF-GLS", out)
+            @test occursin("stationary", out) || occursin("Reject", out)
+        end
+    end
+
+    @testset "_test_dfgls — explicit lags" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_dfgls(; data=csv, column=1, regression="trend",
+                              lags="3", max_lags=nothing,
+                              format="table", output="")
+            end
+            @test occursin("DF-GLS", out)
+        end
+    end
+
+    @testset "_test_lm_unitroot — no breaks" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_lm_unitroot(; data=csv, column=1, breaks=0,
+                                    regression="level", lags="aic",
+                                    max_lags=nothing, trim=0.15,
+                                    format="table", output="")
+            end
+            @test occursin("LM Unit Root", out)
+            @test occursin("stationary", out) || occursin("Reject", out)
+        end
+    end
+
+    @testset "_test_lm_unitroot — with breaks" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_lm_unitroot(; data=csv, column=1, breaks=2,
+                                    regression="trend", lags="aic",
+                                    max_lags=nothing, trim=0.15,
+                                    format="table", output="")
+            end
+            @test occursin("LM Unit Root", out)
+            @test occursin("Break", out)
+        end
+    end
+
+    @testset "_test_adf_2break" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_adf_2break(; data=csv, column=1, model="level",
+                                   lags="aic", max_lags=nothing,
+                                   trim=0.10, format="table", output="")
+            end
+            @test occursin("ADF 2-Break", out)
+            @test occursin("Break 1", out) || occursin("observations", out)
+        end
+    end
+
+    @testset "_test_adf_2break — trend model" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_adf_2break(; data=csv, column=1, model="trend",
+                                   lags="3", max_lags=nothing,
+                                   trim=0.10, format="table", output="")
+            end
+            @test occursin("ADF 2-Break", out)
+        end
+    end
+
+    @testset "_test_gregory_hansen" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_gregory_hansen(; data=csv, model="C",
+                                      lags="aic", max_lags=nothing,
+                                      trim=0.15, format="table", output="")
+            end
+            @test occursin("Gregory-Hansen", out)
+            @test occursin("ADF*", out) || occursin("cointegration", out)
+        end
+    end
+
+    @testset "_test_gregory_hansen — C/T model" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_gregory_hansen(; data=csv, model="C/T",
+                                      lags="2", max_lags=nothing,
+                                      trim=0.15, format="table", output="")
+            end
+            @test occursin("Gregory-Hansen", out)
+        end
+    end
+
+    @testset "_test_vif" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _test_vif(; data=csv, dep="var1", cov_type="hc1",
+                            format="table", output="")
+            end
+            @test occursin("Variance Inflation", out)
+            @test occursin("VIF", out)
+            @test occursin("Tolerance", out)
+        end
+    end
+
+    @testset "_test_vif — default dep" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _test_vif(; data=csv, dep="", cov_type="ols",
+                            format="table", output="")
+            end
+            @test occursin("Variance Inflation", out)
         end
     end
 

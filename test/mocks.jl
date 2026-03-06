@@ -2425,4 +2425,112 @@ export estimate_reg, estimate_iv, estimate_logit, estimate_probit
 export marginal_effects, odds_ratio, vif, classification_table
 export vcov, confint, r2
 
+# ─── Advanced Unit Root Test Types & Functions ─────────────────
+
+struct FourierADFResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; frequency::Int; f_statistic::T; f_pvalue::T
+    lags::Int; regression::Symbol
+    critical_values::Dict{Int,T}; f_critical_values::Dict{Int,T}; nobs::Int
+end
+
+struct FourierKPSSResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; frequency::Int; f_statistic::T; f_pvalue::T
+    regression::Symbol; critical_values::Dict{Int,T}; f_critical_values::Dict{Int,T}
+    bandwidth::Int; nobs::Int
+end
+
+struct DFGLSResult{T<:AbstractFloat}
+    tau_statistic::T; pt_statistic::T; mgls_statistics::Dict{Symbol,T}
+    pvalue::T; lags::Int; regression::Symbol; critical_values::Dict{Int,T}; nobs::Int
+end
+
+struct LMUnitRootResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; break_indices::Union{Nothing,Vector{Int}}
+    break_fractions::Union{Nothing,Vector{T}}; breaks::Int; regression::Symbol
+    critical_values::Dict{Int,T}; lags::Int; nobs::Int
+end
+
+struct ADF2BreakResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; break_index1::Int; break_index2::Int
+    break_fraction1::T; break_fraction2::T; lags::Int; model::Symbol
+    critical_values::Dict{Int,T}; nobs::Int
+end
+
+struct GregoryHansenResult{T<:AbstractFloat}
+    adf_statistic::T; adf_pvalue::T; adf_break_index::Int
+    zt_statistic::T; zt_pvalue::T; zt_break_index::Int
+    za_statistic::T; za_pvalue::T; za_break_index::Int
+    model::Symbol; critical_values::Dict{Int,T}; nobs::Int
+end
+
+function fourier_adf_test(y::AbstractVector{T};
+        regression=:constant, fmax=3, lags=:aic,
+        max_lags=nothing, trim=0.15) where T
+    n = length(y)
+    p = lags == :aic ? max(1, round(Int, n^(1/3))) : lags
+    freq = min(fmax, 3)
+    cvs = Dict(1 => T(-4.82), 5 => T(-4.25), 10 => T(-3.96))
+    f_cvs = Dict(1 => T(6.93), 5 => T(4.68), 10 => T(3.85))
+    FourierADFResult{T}(T(-4.5), T(0.02), freq, T(8.5), T(0.005),
+        p, regression, cvs, f_cvs, n)
+end
+
+function fourier_kpss_test(y::AbstractVector{T};
+        regression=:constant, fmax=3, bandwidth=nothing) where T
+    n = length(y)
+    bw = isnothing(bandwidth) ? max(1, round(Int, n^(1/4))) : bandwidth
+    freq = min(fmax, 3)
+    cvs = Dict(1 => T(0.739), 5 => T(0.463), 10 => T(0.347))
+    f_cvs = Dict(1 => T(6.93), 5 => T(4.68), 10 => T(3.85))
+    FourierKPSSResult{T}(T(0.35), T(0.10), freq, T(5.2), T(0.01),
+        regression, cvs, f_cvs, bw, n)
+end
+
+function dfgls_test(y::AbstractVector{T};
+        regression=:constant, lags=:aic, max_lags=nothing) where T
+    n = length(y)
+    p = lags == :aic ? max(1, round(Int, n^(1/3))) : lags
+    mgls = Dict(:MZa => T(-15.0), :MZt => T(-2.7), :MSB => T(0.18), :MPT => T(3.5))
+    cvs = Dict(1 => T(-3.48), 5 => T(-2.89), 10 => T(-2.57))
+    DFGLSResult{T}(T(-3.2), T(4.5), mgls, T(0.02), p, regression, cvs, n)
+end
+
+function lm_unitroot_test(y::AbstractVector{T};
+        breaks=0, regression=:level, lags=:aic,
+        max_lags=nothing, trim=0.15) where T
+    n = length(y)
+    p = lags == :aic ? max(1, round(Int, n^(1/3))) : lags
+    cvs = Dict(1 => T(-4.24), 5 => T(-3.57), 10 => T(-3.21))
+    bi = breaks > 0 ? [div(n, i + 1) for i in 1:breaks] : nothing
+    bf = breaks > 0 ? [T(1.0 / (i + 1)) for i in 1:breaks] : nothing
+    LMUnitRootResult{T}(T(-3.8), T(0.03), bi, bf, breaks, regression, cvs, p, n)
+end
+
+function adf_2break_test(y::AbstractVector{T};
+        model=:level, lags=:aic, max_lags=nothing, trim=0.10) where T
+    n = length(y)
+    p = lags == :aic ? max(1, round(Int, n^(1/3))) : lags
+    b1 = div(n, 3)
+    b2 = div(2n, 3)
+    cvs = Dict(1 => T(-5.65), 5 => T(-5.13), 10 => T(-4.82))
+    ADF2BreakResult{T}(T(-5.3), T(0.03), b1, b2, T(b1 / n), T(b2 / n),
+        p, model, cvs, n)
+end
+
+function gregory_hansen_test(Y::AbstractMatrix{T};
+        model=:C, lags=:aic, max_lags=nothing, trim=0.15) where T
+    n = size(Y, 1)
+    bp = div(n, 2)
+    cvs = Dict(1 => T(-5.13), 5 => T(-4.61), 10 => T(-4.34))
+    GregoryHansenResult{T}(T(-4.8), T(0.03), bp,
+        T(-4.5), T(0.04), bp + 2,
+        T(-35.0), T(0.02), bp - 1,
+        model, cvs, n)
+end
+
+export FourierADFResult, FourierKPSSResult, DFGLSResult
+export LMUnitRootResult, ADF2BreakResult, GregoryHansenResult
+export fourier_adf_test, fourier_kpss_test, dfgls_test
+export lm_unitroot_test, adf_2break_test, gregory_hansen_test
+
 end # module
