@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg?token=TIYTWTJG36)](https://codecov.io/gh/FriedmanJP/Friedman-cli)
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 
-Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.3.4).
+Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.3.5).
 
 13 top-level commands, ~164 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit), local projections, DSGE (including full Bayesian workflow and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
 
@@ -47,6 +47,8 @@ julia --project bin/friedman [command] [subcommand] [args...] [options...]
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
 
 All commands support `--format` (`table`|`csv`|`json`) and `--output` (file path) options.
+
+**Global flags:** `--help`, `--version`, `--warranty` (GPL warranty disclaimer), `--conditions` (GPL distribution conditions).
 
 ### Estimation
 
