@@ -77,7 +77,7 @@ Then `bind_args()` maps parsed tokens to the `LeafCommand`'s declared arguments,
 
 `dispatch()` walks the command tree:
 
-1. Entry-level: check `--version` / `--help`, then delegate to root node
+1. Entry-level: check `--version` / `--help` / `--warranty` / `--conditions`, then delegate to root node
 2. Node-level: match first arg token as subcommand name, recurse into child
 3. Leaf-level: tokenize remaining args, bind to declared params, call `handler(; bound...)`
 
@@ -139,7 +139,7 @@ src/
 | | Version |
 |---|---------|
 | Julia | `>= 1.12` |
-| MacroEconometricModels | `0.3.4` |
+| MacroEconometricModels | `0.3.5` |
 
 ## Totals
 

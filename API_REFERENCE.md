@@ -1,6 +1,6 @@
 # MacroEconometricModels.jl API Reference
 
-Upstream library (v0.3.3): 300+ exports. Full docs: https://chung9207.github.io/MacroEconometricModels.jl/dev/
+Upstream library (v0.3.5): 300+ exports. Full docs: https://chung9207.github.io/MacroEconometricModels.jl/dev/
 Deps: DataFrames, Distributions, LinearAlgebra, Optim, MCMCChains, PrettyTables, Random, SparseArrays, SpecialFunctions, Statistics, StatsAPI, Turing. Weak: FFTW, JuMP/Ipopt/PATHSolver.
 
 ## Key Types
@@ -161,3 +161,5 @@ OccBin: `OccBinConstraint(var, lower, upper)`, `variable_bound(var; lower, upper
 **Covariance estimators:** `newey_west(X, u; bandwidth, kernel)`, `white_vcov(X, u; variant)`, `driscoll_kraay(X, u; bandwidth, kernel)` — kernels: :bartlett/:parzen/:quadratic_spectral/:tukey_hanning
 
 **StatsAPI:** VARModel/ARIMA implement: `coef`, `vcov`, `residuals`, `predict`, `r2`, `aic`, `bic`, `dof`, `dof_residual`, `nobs`, `loglikelihood`, `confint`, `stderror`, `islinear`, `fit`
+
+**GPL Notice:** `warranty()`, `conditions()` — display GPL-3.0 warranty/conditions text

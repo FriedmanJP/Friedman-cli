@@ -1548,6 +1548,7 @@ struct OccBinSolution{T<:Real}
     linear_path::Matrix{T}; piecewise_path::Matrix{T}; steady_state::Vector{T}
     regime_history::Vector{Int}; converged::Bool; iterations::Int
     spec::DSGESpec{T}; varnames::Vector{String}
+    constraints::Vector{OccBinConstraint{T}}
 end
 
 struct OccBinIRF{T<:Real}
@@ -1662,7 +1663,8 @@ function occbin_solve(spec::DSGESpec{T}, shocks, constraints; T_periods=40, kwar
     pp = zeros(T, T_periods, n)
     ss = zeros(T, n)
     regimes = ones(Int, T_periods)
-    OccBinSolution{T}(lp, pp, ss, regimes, true, 15, spec, spec.varnames)
+    cons = constraints isa Vector ? constraints : [constraints]
+    OccBinSolution{T}(lp, pp, ss, regimes, true, 15, spec, spec.varnames, cons)
 end
 
 function occbin_irf(spec::DSGESpec{T}, constraints, shock_idx; shock_size=1.0, horizon=40, kwargs...) where T
@@ -2641,5 +2643,19 @@ end
 
 export BayesianDSGESimulation
 export posterior_summary, bayes_factor, prior_posterior_table, posterior_predictive
+
+# ─── GPL Notice Functions ────────────────────────────────────
+
+function warranty()
+    println("THERE IS NO WARRANTY FOR THE PROGRAM (mock)")
+    nothing
+end
+
+function conditions()
+    println("You may convey verbatim copies of the Program (mock)")
+    nothing
+end
+
+export warranty, conditions
 
 end # module

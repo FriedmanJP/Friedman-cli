@@ -16,6 +16,16 @@
 
 using Test
 
+# Minimal mock for dispatch.jl's MacroEconometricModels.warranty/conditions calls
+module MacroEconometricModels
+    function warranty()
+        println("THERE IS NO WARRANTY FOR THE PROGRAM")
+    end
+    function conditions()
+        println("You may distribute copies of the program")
+    end
+end
+
 @testset "Friedman CLI Engine" begin
 
     # Include CLI engine files directly for unit testing
@@ -381,11 +391,11 @@ using Test
         @test contains(help_text, "friedman var")
 
         # Entry help includes version number
-        entry = Entry("friedman", node; version=v"0.3.3")
+        entry = Entry("friedman", node; version=v"0.3.4")
         buf = IOBuffer()
         print_help(buf, entry)
         help_text = String(take!(buf))
-        @test contains(help_text, "0.3.3")
+        @test contains(help_text, "0.3.4")
 
         # Leaf with optional argument shows [arg] not <arg>
         leaf_opt_arg = LeafCommand("test", handler;
@@ -500,9 +510,9 @@ using Test
         @test called_with[][:data] == "test.csv"
 
         # dispatch() with ["--version"] prints version
-        entry = Entry("friedman", outer_node; version=v"0.3.3")
+        entry = Entry("friedman", outer_node; version=v"0.3.4")
         version_output = strip(capture_stdout(() -> dispatch(entry, ["--version"])))
-        @test contains(version_output, "0.3.3")
+        @test contains(version_output, "0.3.4")
 
         # dispatch() with [] shows help (no error)
         help_output = capture_stdout(() -> dispatch(entry, String[]))
@@ -550,7 +560,15 @@ using Test
 
         # -V short flag triggers version
         v_output = strip(capture_stdout(() -> dispatch(entry, ["-V"])))
-        @test contains(v_output, "0.3.3")
+        @test contains(v_output, "0.3.4")
+
+        # --warranty flag prints warranty text
+        warranty_output = capture_stdout(() -> dispatch(entry, ["--warranty"]))
+        @test contains(warranty_output, "WARRANTY")
+
+        # --conditions flag prints conditions text
+        conditions_output = capture_stdout(() -> dispatch(entry, ["--conditions"]))
+        @test contains(conditions_output, "copies")
     end
 
     @testset "DispatchError on unknown command" begin
@@ -1482,7 +1500,7 @@ using Test
                 "irf" => irf_node, "fevd" => fevd_node, "hd" => hd_node,
                 "forecast" => NodeCommand("forecast", Dict{String,Union{NodeCommand,LeafCommand}}(), "Forecast")),
             "Friedman CLI")
-        entry = Entry("friedman", root; version=v"0.3.3")
+        entry = Entry("friedman", root; version=v"0.3.4")
 
         # Top level HAS irf, fevd, hd (action-first)
         @test haskey(root.subcmds, "irf")

@@ -67,6 +67,9 @@ Every command and subcommand supports `--help`:
 
 ```bash
 friedman --help                  # top-level help
+friedman --version               # show version
+friedman --warranty              # display GPL warranty disclaimer
+friedman --conditions            # display GPL distribution conditions
 friedman estimate --help         # list estimate subcommands
 friedman estimate var --help     # detailed var estimation help
 friedman irf var --help          # IRF options
