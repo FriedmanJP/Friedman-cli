@@ -85,4 +85,59 @@ function session_load_builtin!(s::Session, name::Symbol)
     return s
 end
 
+"""
+    inject_session_data(session, args) → args
+
+If session has data loaded and the command args don't already include a data file,
+inject the session data path after the subcommand token and before any options.
+"""
+function inject_session_data(s::Session, args::Vector{String})
+    session_has_data(s) || return args
+    length(args) < 2 && return args
+
+    cmd_depth = _command_depth(args)
+    positionals_start = cmd_depth + 1
+
+    # Check if there's already a positional arg (non-option) after the subcommand
+    has_positional = false
+    for i in positionals_start:length(args)
+        arg = args[i]
+        startswith(arg, "-") && break
+        has_positional = true
+        break
+    end
+
+    has_positional && return args
+
+    new_args = copy(args)
+    insert!(new_args, positionals_start, s.data_path)
+    return new_args
+end
+
+"""
+    _command_depth(args) → Int
+
+Count how many leading tokens are command/subcommand names (not options or data files).
+Returns 2 for "estimate var", 3 for "dsge bayes estimate", etc.
+"""
+function _command_depth(args::Vector{String})
+    depth = 0
+    for arg in args
+        startswith(arg, "-") && break
+        (endswith(arg, ".csv") || endswith(arg, ".toml") || endswith(arg, ".jl") || contains(arg, "/") || contains(arg, "\\")) && break
+        depth += 1
+        depth >= 4 && break
+    end
+    return depth
+end
+
+function detect_model_type(args::Vector{String})
+    length(args) >= 2 || return :none
+    return Symbol(args[2])
+end
+
+function is_estimate_command(args::Vector{String})
+    !isempty(args) && args[1] == "estimate"
+end
+
 const SESSION = Session()

@@ -150,3 +150,47 @@ end
         @test s.last_model == :none
     end
 end
+
+@testset "REPL dispatch wrapper" begin
+    @testset "inject_session_data" begin
+        s = Friedman.Session()
+        s.data_path = "/tmp/test.csv"
+
+        # Args with no data positional — inject before options
+        args = ["estimate", "var", "--lags", "4"]
+        result = Friedman.inject_session_data(s, args)
+        @test result == ["estimate", "var", "/tmp/test.csv", "--lags", "4"]
+
+        # Args already have data (a .csv path) — don't inject
+        args2 = ["estimate", "var", "mydata.csv", "--lags", "4"]
+        result2 = Friedman.inject_session_data(s, args2)
+        @test result2 == args2
+
+        # No session data — return unchanged
+        s2 = Friedman.Session()
+        result3 = Friedman.inject_session_data(s2, args)
+        @test result3 == args
+
+        # Deep nesting: dsge bayes estimate
+        s3 = Friedman.Session()
+        s3.data_path = "/tmp/test.csv"
+        args4 = ["dsge", "bayes", "estimate", "--draws", "1000"]
+        result4 = Friedman.inject_session_data(s3, args4)
+        @test result4 == ["dsge", "bayes", "estimate", "/tmp/test.csv", "--draws", "1000"]
+    end
+
+    @testset "detect_model_type" begin
+        @test Friedman.detect_model_type(["estimate", "var"]) == :var
+        @test Friedman.detect_model_type(["estimate", "bvar"]) == :bvar
+        @test Friedman.detect_model_type(["irf", "var"]) == :var
+        @test Friedman.detect_model_type(["test", "adf"]) == :adf
+        @test Friedman.detect_model_type(["data", "use"]) == :use
+        @test Friedman.detect_model_type(["data"]) == :none
+    end
+
+    @testset "is_estimate_command" begin
+        @test Friedman.is_estimate_command(["estimate", "var", "d.csv"])
+        @test !Friedman.is_estimate_command(["irf", "var", "d.csv"])
+        @test !Friedman.is_estimate_command(["data", "use", "d.csv"])
+    end
+end
