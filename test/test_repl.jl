@@ -49,10 +49,15 @@ module Friedman
     struct NodeCommand; end
     struct Entry; name::String; root::Any; version::VersionNumber; end
     const FRIEDMAN_VERSION = v"0.3.4"
-    function dispatch(app, args)
+    _last_injected_model = nothing
+    function dispatch(app, args; extra_kwargs...)
         # Return a mock result for estimate commands
         if !isempty(args) && args[1] == "estimate" && length(args) >= 2
             return "mock_$(args[2])_model"
+        end
+        # For downstream commands, store the injected model in a global for testing
+        if haskey(Dict(extra_kwargs), :model)
+            global _last_injected_model = Dict(extra_kwargs)[:model]
         end
         return nothing
     end
@@ -353,5 +358,34 @@ end
         # Non-estimate command should not cache
         Friedman.repl_dispatch(s, app, ["irf", "var", "data.csv"])
         @test s.last_model == :var  # unchanged
+    end
+end
+
+@testset "REPL model injection" begin
+    @testset "is_downstream_command" begin
+        @test Friedman.is_downstream_command(["irf", "var"])
+        @test Friedman.is_downstream_command(["fevd", "bvar"])
+        @test Friedman.is_downstream_command(["hd", "var"])
+        @test Friedman.is_downstream_command(["forecast", "var"])
+        @test Friedman.is_downstream_command(["predict", "var"])
+        @test Friedman.is_downstream_command(["residuals", "var"])
+        @test !Friedman.is_downstream_command(["estimate", "var"])
+        @test !Friedman.is_downstream_command(["test", "adf"])
+        @test !Friedman.is_downstream_command(["data", "use"])
+    end
+
+    @testset "model injection into downstream dispatch" begin
+        s = Friedman.Session()
+        s.data_path = "/tmp/test.csv"
+        app = Friedman.build_app()
+
+        # First estimate to cache a result
+        Friedman.repl_dispatch(s, app, ["estimate", "var", "data.csv"])
+        @test Friedman.session_get_result(s, :var) == "mock_var_model"
+
+        # Now run downstream — should inject cached model
+        Friedman._last_injected_model = nothing
+        Friedman.repl_dispatch(s, app, ["irf", "var", "data.csv"])
+        @test Friedman._last_injected_model == "mock_var_model"
     end
 end

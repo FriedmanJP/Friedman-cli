@@ -28,7 +28,7 @@ _wants_help(args::Vector{String}) = "--help" in args || "-h" in args
 
 Main dispatch: walk the command tree from `entry` using `args`, then execute the matched leaf.
 """
-function dispatch(entry::Entry, args::Vector{String}=ARGS)
+function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
     # Handle --version at top level
     if "--version" in args || "-V" in args
         println(entry.name, " v", entry.version)
@@ -51,7 +51,7 @@ function dispatch(entry::Entry, args::Vector{String}=ARGS)
         return
     end
 
-    return dispatch_node(entry.root, args; prog=entry.name)
+    return dispatch_node(entry.root, args; prog=entry.name, extra_kwargs...)
 end
 
 """
@@ -59,7 +59,7 @@ end
 
 Walk into a NodeCommand, matching the first token as a subcommand name.
 """
-function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=node.name)
+function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=node.name, extra_kwargs...)
     if isempty(args)
         print_help(stdout, node; prog=prog)
         return
@@ -73,9 +73,9 @@ function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=nod
         subcmd = node.subcmds[subcmd_name]
         subprog = prog * " " * subcmd_name
         if subcmd isa NodeCommand
-            return dispatch_node(subcmd, rest; prog=subprog)
+            return dispatch_node(subcmd, rest; prog=subprog, extra_kwargs...)
         else
-            return dispatch_leaf(subcmd, rest; prog=subprog)
+            return dispatch_leaf(subcmd, rest; prog=subprog, extra_kwargs...)
         end
     end
 
@@ -93,7 +93,7 @@ end
 
 Parse arguments for a LeafCommand and call its handler.
 """
-function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=leaf.name)
+function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=leaf.name, extra_kwargs...)
     # Handle --help or no arguments when required args exist
     if _wants_help(args)
         print_help(stdout, leaf; prog=prog)
@@ -108,7 +108,8 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
     try
         parsed = tokenize(args)
         bound = bind_args(parsed, leaf)
-        return leaf.handler(; bound...)
+        merged = merge(Dict{Symbol,Any}(pairs(bound)), Dict{Symbol,Any}(extra_kwargs))
+        return leaf.handler(; merged...)
     catch e
         if e isa ParseError
             throw(ParseError("$prog: $(e.message)"))

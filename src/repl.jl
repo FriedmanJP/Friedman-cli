@@ -131,6 +131,11 @@ function _command_depth(args::Vector{String})
     return depth
 end
 
+const DOWNSTREAM_ACTIONS = Set(["irf", "fevd", "hd", "forecast", "predict", "residuals"])
+
+is_downstream_command(args::Vector{String}) =
+    !isempty(args) && args[1] in DOWNSTREAM_ACTIONS
+
 function detect_model_type(args::Vector{String})
     length(args) >= 2 || return :none
     return Symbol(args[2])
@@ -189,8 +194,18 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String})
     # Inject session data if needed
     args = inject_session_data(s, args)
 
+    # Check if downstream command can use cached model
+    extra_kw = Dict{Symbol,Any}()
+    if is_downstream_command(args)
+        model_type = detect_model_type(args)
+        cached = session_get_result(s, model_type)
+        if !isnothing(cached)
+            extra_kw[:model] = cached
+        end
+    end
+
     # Dispatch and capture result
-    result = dispatch(app, args)
+    result = dispatch(app, args; extra_kw...)
 
     # Cache estimation results
     if is_estimate_command(args) && !isnothing(result)
