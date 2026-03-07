@@ -16,6 +16,16 @@
 
 using Test
 
+# Minimal mock for dispatch.jl's MacroEconometricModels.warranty/conditions calls
+module MacroEconometricModels
+    function warranty()
+        println("THERE IS NO WARRANTY FOR THE PROGRAM")
+    end
+    function conditions()
+        println("You may distribute copies of the program")
+    end
+end
+
 @testset "Friedman CLI Engine" begin
 
     # Include CLI engine files directly for unit testing
@@ -551,6 +561,14 @@ using Test
         # -V short flag triggers version
         v_output = strip(capture_stdout(() -> dispatch(entry, ["-V"])))
         @test contains(v_output, "0.3.3")
+
+        # --warranty flag prints warranty text
+        warranty_output = capture_stdout(() -> dispatch(entry, ["--warranty"]))
+        @test contains(warranty_output, "WARRANTY")
+
+        # --conditions flag prints conditions text
+        conditions_output = capture_stdout(() -> dispatch(entry, ["--conditions"]))
+        @test contains(conditions_output, "copies")
     end
 
     @testset "DispatchError on unknown command" begin

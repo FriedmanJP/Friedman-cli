@@ -35,6 +35,16 @@ function dispatch(entry::Entry, args::Vector{String}=ARGS)
         return
     end
 
+    # Handle --warranty / --conditions (GPL notice)
+    if "--warranty" in args
+        MacroEconometricModels.warranty()
+        return
+    end
+    if "--conditions" in args
+        MacroEconometricModels.conditions()
+        return
+    end
+
     # Handle --help at top level only (not when a subcommand follows)
     if isempty(args) || args[1] in ("--help", "-h")
         print_help(stdout, entry)
