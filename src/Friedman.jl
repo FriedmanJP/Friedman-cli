@@ -50,6 +50,9 @@ include("commands/nowcast.jl")
 include("commands/dsge.jl")
 include("commands/did.jl")
 
+# REPL (interactive session)
+include("repl.jl")
+
 const FRIEDMAN_VERSION = v"0.3.4"
 
 """
