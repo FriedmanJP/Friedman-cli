@@ -381,6 +381,7 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
 
     println()
     output_model_criteria(model; format=format, title="Information Criteria")
+    return model
 end
 
 # ── BVAR ───────────────────────────────────────────────────
@@ -417,6 +418,7 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
 
     println()
     output_model_criteria(model; format=format, title="Information Criteria (Posterior $(titlecase(method)))")
+    return model
 end
 
 # ── LP ─────────────────────────────────────────────────────
@@ -429,17 +431,17 @@ function _estimate_lp(; data::String, method::String="standard", shock::Int=1,
                        output::String="", format::String="table")
     validate_method(method, ["standard", "iv", "smooth", "state", "propensity", "robust"], "LP method")
     if method == "standard"
-        _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
+        return _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
     elseif method == "iv"
-        _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format)
+        return _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format)
     elseif method == "smooth"
-        _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
+        return _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
     elseif method == "state"
-        _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
+        return _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
     elseif method == "propensity"
-        _estimate_lp_propensity(data, treatment, horizons, score_method, output, format)
+        return _estimate_lp_propensity(data, treatment, horizons, score_method, output, format)
     elseif method == "robust"
-        _estimate_lp_robust(data, treatment, horizons, score_method, output, format)
+        return _estimate_lp_robust(data, treatment, horizons, score_method, output, format)
     end
 end
 
@@ -491,6 +493,7 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
         "Horizons" => horizons,
         "Control lags" => control_lags,
     ]; format=format, title="Estimation Summary")
+    return model
 end
 
 function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format)
@@ -529,6 +532,7 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         "First-stage F" => round(wi.F_stat; digits=2),
         "Instruments" => size(Z, 2),
     ]; format=format, title="LP-IV Estimation Summary")
+    return model
 end
 
 function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
@@ -558,6 +562,7 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
         "B-spline knots" => knots,
         "Horizons" => horizons,
     ]; format=format, title="Smooth LP Estimation Summary")
+    return model
 end
 
 function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
@@ -594,6 +599,7 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
     else
         printstyled("  → No significant regime differences at 5%\n"; color=:yellow)
     end
+    return model
 end
 
 function _estimate_lp_propensity(data, treatment, horizons, score_method, output, format)
@@ -623,6 +629,7 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="Propensity Score LP: ATE Estimates ($treat_name)", format=format, output=output)
+    return model
 end
 
 function _estimate_lp_robust(data, treatment, horizons, score_method, output, format)
@@ -652,6 +659,7 @@ function _estimate_lp_robust(data, treatment, horizons, score_method, output, fo
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="Doubly Robust LP: ATE Estimates ($treat_name)", format=format, output=output)
+    return model
 end
 
 # ── ARIMA ──────────────────────────────────────────────────
@@ -694,6 +702,7 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
         "BIC" => round(bic(model); digits=4),
         "Log-likelihood" => round(loglikelihood(model); digits=4),
     ]; format=format, title="Information Criteria")
+    return model
 end
 
 # ARIMA helpers (from old arima.jl)
@@ -804,6 +813,7 @@ function _estimate_gmm(; data::String, config::String="",
                                  estimate=model.theta, std_error=se)
             output_result(param_df; format=Symbol(format), output=output, title="GMM Estimates")
         end
+        return model
     end
 end
 
@@ -841,6 +851,7 @@ function _estimate_static(; data::String, nfactors=nothing, criterion::String="i
     loading_df = DataFrame(loadings, ["F$i" for i in 1:r])
     insertcols!(loading_df, 1, :variable => varnames)
     output_result(loading_df; format=Symbol(format), output=output, title="Factor Loadings")
+    return model
 end
 
 function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
@@ -885,6 +896,7 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
     for (i, ev) in enumerate(sort(eig_moduli; rev=true))
         println("  lambda$i = $(round(ev; digits=6))")
     end
+    return model
 end
 
 function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
@@ -923,6 +935,7 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
 
     println()
     println("Average common variance share: $(round(mean(var_shares); digits=4))")
+    return model
 end
 
 # ── Volatility Models (NEW) ───────────────────────────────
@@ -939,6 +952,7 @@ function _estimate_arch(; data::String, column::Int=1, q::Int=1,
     _vol_estimate_output(model, vname, param_names, "ARCH($q)"; format=format, output=output)
     uc = unconditional_variance(model)
     println("Unconditional variance: $(round(uc; digits=4))")
+    return model
 end
 
 function _estimate_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
@@ -955,6 +969,7 @@ function _estimate_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     println("Half-life: $(round(hl; digits=2)) periods")
     uc = unconditional_variance(model)
     println("Unconditional variance: $(round(uc; digits=4))")
+    return model
 end
 
 function _estimate_egarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
@@ -967,6 +982,7 @@ function _estimate_egarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]]
     _vol_estimate_output(model, vname, param_names, "EGARCH($p,$q)"; format=format, output=output)
+    return model
 end
 
 function _estimate_gjr_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
@@ -981,6 +997,7 @@ function _estimate_gjr_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     _vol_estimate_output(model, vname, param_names, "GJR-GARCH($p,$q)"; format=format, output=output)
     hl = halflife(model)
     println("Half-life: $(round(hl; digits=2)) periods")
+    return model
 end
 
 function _estimate_sv(; data::String, column::Int=1, draws::Int=5000,
@@ -993,6 +1010,7 @@ function _estimate_sv(; data::String, column::Int=1, draws::Int=5000,
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu", "phi", "sigma_eta"]
     _vol_estimate_output(model, vname, param_names, "SV"; format=format, output=output)
+    return model
 end
 
 # ── Non-Gaussian ICA ──────────────────────────────────────
@@ -1038,6 +1056,7 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
     insertcols!(shock_df, 1, :t => 1:n_show)
     output_result(shock_df; format=Symbol(format), output=output,
                   title="Structural Shocks (first $n_show observations)")
+    return result
 end
 
 # ── Non-Gaussian ML ───────────────────────────────────────
@@ -1095,6 +1114,7 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
         output_result(se_df; format=Symbol(format), output=output,
                       title="Parameter Estimates with Standard Errors")
     end
+    return result
 end
 
 # ── VECM ─────────────────────────────────────────────────
@@ -1132,6 +1152,7 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
         "HQC" => round(vecm.hqic; digits=4),
         "Log-likelihood" => round(loglikelihood(vecm); digits=4),
     ]; format=format, title="Information Criteria")
+    return vecm
 end
 
 # ── Panel VAR ─────────────────────────────────────────────
@@ -1182,6 +1203,7 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
         "Method" => string(model.method),
         "Transformation" => string(model.transformation),
     ]; format=format, title="Panel Summary")
+    return model
 end
 
 # ── SMM ───────────────────────────────────────────────────
@@ -1233,6 +1255,7 @@ function _estimate_smm(; data::String, config::String="",
     printstyled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
     printstyled("  Converged:   $(model.converged)\n";
                 color = model.converged ? :green : :red)
+    return model
 end
 
 # ── FAVAR ──────────────────────────────────────────────
@@ -1252,7 +1275,7 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
             "MCMC draws" => favar.n_draws,
         ]
         output_kv(pairs; format=format, output=output, title="Bayesian FAVAR")
-        return
+        return favar
     end
 
     var_model = to_var(favar)
@@ -1264,6 +1287,7 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
     printstyled("  AIC: $(round(favar.aic; digits=2)), BIC: $(round(favar.bic; digits=2))\n"; color=:cyan)
 
     _maybe_plot(favar; plot=plot, plot_save=plot_save)
+    return favar
 end
 
 # ── Structural DFM ────────────────────────────────────
@@ -1301,6 +1325,7 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
     println("  Shocks: $(join(sdfm.shock_names, ", "))")
 
     _maybe_plot(sdfm; plot=plot, plot_save=plot_save)
+    return sdfm
 end
 
 # ── OLS/WLS Regression ────────────────────────────────
@@ -1335,6 +1360,7 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
         "BIC"             => round(bic(model); digits=4),
     ]
     output_kv(pairs; format=format, title="Fit Statistics")
+    return model
 end
 
 # ── IV (2SLS) Regression ──────────────────────────────
@@ -1396,6 +1422,7 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
         push!(pairs, "Sargan p-value"   => round(model.sargan_pval; digits=4))
     end
     output_kv(pairs; format=format, title="IV Diagnostics")
+    return model
 end
 
 # ── Logit Regression ──────────────────────────────────
@@ -1428,6 +1455,7 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
         "Iterations"      => model.iterations,
     ]
     output_kv(pairs; format=format, title="Fit Statistics")
+    return model
 end
 
 # ── Probit Regression ─────────────────────────────────
@@ -1460,5 +1488,6 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
         "Iterations"      => model.iterations,
     ]
     output_kv(pairs; format=format, title="Fit Statistics")
+    return model
 end
 
