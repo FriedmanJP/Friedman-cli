@@ -446,3 +446,89 @@ end
         @test isempty(completions)
     end
 end
+
+@testset "REPL integration" begin
+    @testset "data use → estimate → irf workflow" begin
+        s = Friedman.Session()
+
+        tmpfile = tempname() * ".csv"
+        open(tmpfile, "w") do io
+            println(io, "x,y,z")
+            for i in 1:50
+                println(io, "$(rand()),$(rand()),$(rand())")
+            end
+        end
+
+        Friedman.session_load_data!(s, tmpfile)
+        @test Friedman.session_has_data(s)
+
+        # Simulate estimate → store
+        Friedman.session_store_result!(s, :var, "mock_var_model")
+        @test Friedman.session_get_result(s, :var) == "mock_var_model"
+        @test s.last_model == :var
+
+        # Simulate second estimate
+        Friedman.session_store_result!(s, :bvar, "mock_bvar_model")
+        @test s.last_model == :bvar
+        @test Friedman.session_get_result(s, :var) == "mock_var_model"  # still cached
+
+        # Data change clears results
+        Friedman.session_load_data!(s, tmpfile)
+        @test isempty(s.results)
+        @test s.last_model == :none
+
+        rm(tmpfile; force=true)
+    end
+
+    @testset "data injection into args" begin
+        s = Friedman.Session()
+        s.data_path = "/tmp/macro.csv"
+        s.Y = zeros(10, 3)
+        s.varnames = ["a", "b", "c"]
+
+        # estimate var --lags 4 → estimate var /tmp/macro.csv --lags 4
+        injected = Friedman.inject_session_data(s, ["estimate", "var", "--lags", "4"])
+        @test injected[3] == "/tmp/macro.csv"
+
+        # dsge solve model.toml → unchanged (has positional ending in .toml)
+        unchanged = Friedman.inject_session_data(s, ["dsge", "solve", "model.toml"])
+        @test unchanged == ["dsge", "solve", "model.toml"]
+    end
+
+    @testset "builtin dataset workflow" begin
+        s = Friedman.Session()
+        Friedman.session_load_builtin!(s, :fred_md)
+        @test s.data_path == ":fred-md"
+        @test !isnothing(s.Y)
+
+        # Store result
+        Friedman.session_store_result!(s, :var, "var_on_fred")
+        @test s.results[:var] == "var_on_fred"
+
+        # Load different builtin clears results
+        Friedman.session_load_builtin!(s, :pwt)
+        @test s.data_path == ":pwt"
+        @test isempty(s.results)
+    end
+
+    @testset "full dispatch cycle" begin
+        s = Friedman.Session()
+        s.data_path = "/tmp/test.csv"
+        app = Friedman.build_app()
+
+        # Estimate caches result
+        Friedman.repl_dispatch(s, app, ["estimate", "var", "data.csv"])
+        @test s.results[:var] == "mock_var_model"
+        @test s.last_model == :var
+
+        # Downstream gets cached model injected
+        Friedman._last_injected_model = nothing
+        Friedman.repl_dispatch(s, app, ["irf", "var", "data.csv"])
+        @test Friedman._last_injected_model == "mock_var_model"
+
+        # Clear resets everything
+        Friedman.session_clear!(s)
+        @test !Friedman.session_has_data(s)
+        @test isempty(s.results)
+    end
+end
