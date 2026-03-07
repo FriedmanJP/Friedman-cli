@@ -22,6 +22,11 @@
 Read a CSV file and return a DataFrame. Validates that the file exists and is non-empty.
 """
 function load_data(path::String)
+    if startswith(path, ":")
+        name = Symbol(replace(path[2:end], "-" => "_"))
+        ts = load_example(name)
+        return DataFrame(ts.data, ts.varnames)
+    end
     isfile(path) || error("file not found: $path")
     df = CSV.read(path, DataFrame)
     nrow(df) == 0 && error("empty dataset: $path")
