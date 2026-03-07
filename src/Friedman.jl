@@ -89,6 +89,12 @@ end
 Entry point: build the CLI app and dispatch on the given arguments.
 """
 function main(args::Vector{String}=ARGS)
+    # Launch REPL if "repl" is the first argument
+    if !isempty(args) && args[1] == "repl"
+        start_repl()
+        return
+    end
+
     app = build_app()
     try
         dispatch(app, args)

@@ -140,4 +140,137 @@ function is_estimate_command(args::Vector{String})
     !isempty(args) && args[1] == "estimate"
 end
 
+"""
+    repl_dispatch(session, app, args)
+
+Dispatch a command within the REPL. Handles REPL-specific commands
+(data use/current/clear, exit/quit), injects session data, captures
+estimation results. Never calls exit().
+"""
+function repl_dispatch(s::Session, app::Entry, args::Vector{String})
+    isempty(args) && return
+
+    # REPL-only commands
+    if args[1] == "exit" || args[1] == "quit"
+        throw(InterruptException())
+    end
+
+    # data use / data current / data clear
+    if length(args) >= 2 && args[1] == "data"
+        if args[2] == "use" && length(args) >= 3
+            source = args[3]
+            kind, val = parse_data_source(source)
+            if kind == :builtin
+                session_load_builtin!(s, val)
+            else
+                session_load_data!(s, val)
+            end
+            printstyled("✓ "; color=:green)
+            println("Loaded $(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)), vars: $(join(s.varnames, ", ")))")
+            return
+        elseif args[2] == "current"
+            if session_has_data(s)
+                println("$(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)))")
+                if !isempty(s.results)
+                    println("Cached results: $(join(keys(s.results), ", "))")
+                end
+            else
+                println("No data loaded")
+            end
+            return
+        elseif args[2] == "clear"
+            session_clear!(s)
+            printstyled("✓ "; color=:green)
+            println("Data and results cleared")
+            return
+        end
+    end
+
+    # Inject session data if needed
+    args = inject_session_data(s, args)
+
+    # Dispatch through existing engine
+    dispatch(app, args)
+end
+
+"""
+    start_repl()
+
+Launch the interactive REPL with a `friedman>` prompt.
+"""
+function start_repl()
+    app = build_app()
+    s = SESSION
+    session_clear!(s)
+
+    printstyled("Friedman REPL v$(FRIEDMAN_VERSION)\n"; bold=true)
+    println("Type commands as you would on the command line. Type 'exit' to quit.")
+    println()
+
+    while true
+        try
+            printstyled("friedman> "; color=:blue, bold=true)
+            line = readline(stdin)
+            isempty(strip(line)) && continue
+
+            args = _split_repl_line(line)
+            try
+                repl_dispatch(s, app, args)
+            catch e
+                if e isa InterruptException
+                    println("Goodbye!")
+                    return
+                elseif e isa ParseError || e isa DispatchError
+                    printstyled(stderr, "Error: "; bold=true, color=:red)
+                    println(stderr, e.message)
+                else
+                    printstyled(stderr, "Error: "; bold=true, color=:red)
+                    println(stderr, sprint(showerror, e))
+                end
+            end
+        catch e
+            if e isa EOFError || e isa InterruptException
+                println("\nGoodbye!")
+                return
+            end
+            rethrow()
+        end
+    end
+end
+
+"""
+    _split_repl_line(line) → Vector{String}
+
+Split a REPL input line into tokens, respecting quoted strings.
+"""
+function _split_repl_line(line::String)
+    tokens = String[]
+    i = 1
+    while i <= length(line)
+        while i <= length(line) && isspace(line[i])
+            i += 1
+        end
+        i > length(line) && break
+
+        if line[i] == '"'
+            j = findnext('"', line, i + 1)
+            if isnothing(j)
+                push!(tokens, line[i+1:end])
+                break
+            end
+            push!(tokens, line[i+1:j-1])
+            i = j + 1
+        else
+            j = findnext(isspace, line, i)
+            if isnothing(j)
+                push!(tokens, line[i:end])
+                break
+            end
+            push!(tokens, line[i:j-1])
+            i = j
+        end
+    end
+    return tokens
+end
+
 const SESSION = Session()

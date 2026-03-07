@@ -39,6 +39,19 @@ module Friedman
         end
     end
 
+    # Minimal stubs for REPL loop compilation
+    struct ParseError <: Exception; message::String; end
+    struct DispatchError <: Exception; message::String; end
+    struct Argument; end
+    struct Option; end
+    struct Flag; end
+    struct LeafCommand; end
+    struct NodeCommand; end
+    struct Entry; name::String; root::Any; version::VersionNumber; end
+    const FRIEDMAN_VERSION = v"0.3.4"
+    function dispatch(app, args) end
+    function build_app() Entry("friedman", nothing, v"0.3.4") end
+
     include(joinpath(@__DIR__, "..", "src", "repl.jl"))
 end
 
@@ -192,5 +205,132 @@ end
         @test Friedman.is_estimate_command(["estimate", "var", "d.csv"])
         @test !Friedman.is_estimate_command(["irf", "var", "d.csv"])
         @test !Friedman.is_estimate_command(["data", "use", "d.csv"])
+    end
+end
+
+@testset "REPL line splitting" begin
+    @test Friedman._split_repl_line("estimate var data.csv --lags 4") == ["estimate", "var", "data.csv", "--lags", "4"]
+    @test Friedman._split_repl_line("  estimate   var  ") == ["estimate", "var"]
+    @test Friedman._split_repl_line("data use \"my file.csv\"") == ["data", "use", "my file.csv"]
+    @test Friedman._split_repl_line("") == String[]
+    @test Friedman._split_repl_line("   ") == String[]
+end
+
+@testset "repl_dispatch" begin
+    @testset "data use (file)" begin
+        s = Friedman.Session()
+        tmpfile = tempname() * ".csv"
+        open(tmpfile, "w") do io
+            println(io, "x,y")
+            println(io, "1.0,2.0")
+            println(io, "3.0,4.0")
+        end
+        Friedman.session_load_data!(s, tmpfile)
+        @test s.data_path == tmpfile
+        @test s.varnames == ["x", "y"]
+        rm(tmpfile; force=true)
+    end
+
+    @testset "data current with no data" begin
+        s = Friedman.Session()
+        @test !Friedman.session_has_data(s)
+    end
+
+    @testset "data clear" begin
+        s = Friedman.Session()
+        s.data_path = "test.csv"
+        s.results[:var] = "model"
+        Friedman.session_clear!(s)
+        @test !Friedman.session_has_data(s)
+        @test isempty(s.results)
+    end
+
+    @testset "exit/quit throws InterruptException" begin
+        app = Friedman.build_app()
+        s = Friedman.Session()
+        @test_throws InterruptException Friedman.repl_dispatch(s, app, ["exit"])
+        @test_throws InterruptException Friedman.repl_dispatch(s, app, ["quit"])
+    end
+
+    @testset "empty args is no-op" begin
+        app = Friedman.build_app()
+        s = Friedman.Session()
+        # Should return without error
+        Friedman.repl_dispatch(s, app, String[])
+    end
+
+    @testset "data use loads file via repl_dispatch" begin
+        s = Friedman.Session()
+        app = Friedman.build_app()
+        tmpfile = tempname() * ".csv"
+        open(tmpfile, "w") do io
+            println(io, "a,b")
+            println(io, "1.0,2.0")
+            println(io, "3.0,4.0")
+        end
+        Friedman.repl_dispatch(s, app, ["data", "use", tmpfile])
+        @test s.data_path == tmpfile
+        @test s.varnames == ["a", "b"]
+        @test size(s.Y) == (2, 2)
+        rm(tmpfile; force=true)
+    end
+
+    @testset "data use loads builtin via repl_dispatch" begin
+        s = Friedman.Session()
+        app = Friedman.build_app()
+        Friedman.repl_dispatch(s, app, ["data", "use", ":fred-md"])
+        @test s.data_path == ":fred-md"
+        @test s.varnames == ["INDPRO", "CPI", "FEDFUNDS"]
+    end
+
+    @testset "data current output" begin
+        s = Friedman.Session()
+        app = Friedman.build_app()
+        # No data — prints "No data loaded"
+        output = let (tmppath, tmpio) = mktemp()
+            try
+                redirect_stdout(tmpio) do
+                    Friedman.repl_dispatch(s, app, ["data", "current"])
+                end
+                close(tmpio)
+                read(tmppath, String)
+            finally
+                try; close(tmpio); catch; end
+                try; rm(tmppath; force=true); catch; end
+            end
+        end
+        @test contains(output, "No data loaded")
+
+        # With data
+        Friedman.session_load_builtin!(s, :fred_md)
+        output2 = let (tmppath, tmpio) = mktemp()
+            try
+                redirect_stdout(tmpio) do
+                    Friedman.repl_dispatch(s, app, ["data", "current"])
+                end
+                close(tmpio)
+                read(tmppath, String)
+            finally
+                try; close(tmpio); catch; end
+                try; rm(tmppath; force=true); catch; end
+            end
+        end
+        @test contains(output2, ":fred-md")
+        @test contains(output2, "3×3")
+    end
+
+    @testset "data clear via repl_dispatch" begin
+        s = Friedman.Session()
+        app = Friedman.build_app()
+        Friedman.session_load_builtin!(s, :fred_md)
+        @test Friedman.session_has_data(s)
+        Friedman.repl_dispatch(s, app, ["data", "clear"])
+        @test !Friedman.session_has_data(s)
+    end
+
+    @testset "functions are defined" begin
+        @test hasmethod(Friedman.repl_dispatch, Tuple{Friedman.Session, Friedman.Entry, Vector{String}})
+        @test hasmethod(Friedman.start_repl, Tuple{})
+        @test hasmethod(Friedman._split_repl_line, Tuple{String})
     end
 end
