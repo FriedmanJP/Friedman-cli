@@ -39,6 +39,8 @@ friedman
 
 **Total: 13 top-level commands, ~164 subcommands.**
 
+Additionally, `friedman repl` launches an [interactive REPL session](@ref Interactive-REPL) with persistent data loading, result caching, and tab completion.
+
 ## Common Options
 
 All commands that produce output support these options:

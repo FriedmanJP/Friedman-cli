@@ -26,6 +26,7 @@ makedocs(;
             "structural breaks" => "commands/structural-breaks.md",
             "panel unit root" => "commands/panel-unit-root.md",
         ],
+        "Interactive REPL" => "repl.md",
         "Configuration" => "configuration.md",
         "API Reference" => "api.md",
         "Architecture" => "architecture.md",
