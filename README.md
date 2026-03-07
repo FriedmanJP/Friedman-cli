@@ -50,6 +50,36 @@ All commands support `--format` (`table`|`csv`|`json`) and `--output` (file path
 
 **Global flags:** `--help`, `--version`, `--warranty` (GPL warranty disclaimer), `--conditions` (GPL distribution conditions).
 
+### Interactive REPL
+
+Launch an interactive session with `friedman repl`:
+
+```bash
+friedman repl
+```
+
+The REPL provides:
+- **Session data** -- Load data once, use across commands: `data use mydata.csv` or `data use :fred-md`
+- **Result caching** -- Estimation results cached automatically, reused by downstream commands
+- **Tab completion** -- Commands, subcommands, and options
+- **REPL-only commands** -- `data use`, `data current`, `data clear`, `exit`/`quit`
+
+```
+friedman> data use :fred-md
+Loaded :fred-md (804x126, vars: INDPRO, CPIAUCSL, ...)
+
+friedman> estimate var --lags 4
+[estimation output]
+Result cached as :var
+
+friedman> irf var --horizons 20
+[uses cached VAR model -- no re-estimation]
+
+friedman> data current
+:fred-md (804x126)
+Cached results: var
+```
+
 ### Estimation
 
 ```bash

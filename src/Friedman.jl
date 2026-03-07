@@ -53,7 +53,7 @@ include("commands/did.jl")
 # REPL (interactive session)
 include("repl.jl")
 
-const FRIEDMAN_VERSION = v"0.3.4"
+const FRIEDMAN_VERSION = v"0.4.0"
 
 """
     build_app() -> Entry
