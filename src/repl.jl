@@ -57,4 +57,32 @@ session_has_data(s::Session) = !isempty(s.data_path)
 
 session_get_result(s::Session, model_type::Symbol) = get(s.results, model_type, nothing)
 
+const BUILTIN_DATASETS = Dict(
+    "fred-md" => :fred_md, "fred-qd" => :fred_qd,
+    "pwt" => :pwt, "mpdta" => :mpdta, "ddcg" => :ddcg,
+)
+
+function parse_data_source(source::String)
+    if startswith(source, ":")
+        name = source[2:end]
+        haskey(BUILTIN_DATASETS, name) || error("unknown built-in dataset ':$name'. Available: $(join(keys(BUILTIN_DATASETS), ", "))")
+        return (:builtin, BUILTIN_DATASETS[name])
+    else
+        return (:file, source)
+    end
+end
+
+function session_load_builtin!(s::Session, name::Symbol)
+    ts = load_example(name)
+    df = DataFrame(ts.data, ts.varnames)
+    Y = Matrix{Float64}(ts.data)
+    s.data_path = ":$(replace(string(name), "_" => "-"))"
+    s.df = df
+    s.Y = Y
+    s.varnames = ts.varnames
+    s.results = Dict{Symbol,Any}()
+    s.last_model = :none
+    return s
+end
+
 const SESSION = Session()
