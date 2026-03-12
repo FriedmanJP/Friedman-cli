@@ -85,15 +85,19 @@ Entry(name::String, root::NodeCommand; version::VersionNumber=v"0.4.0") =
 
 Find all `v"0.3.5"` references (lines 394, 513, 1503) and replace with `v"0.4.0"`.
 
-- [ ] **Step 5: Run tests to verify nothing broke**
+- [ ] **Step 5: Update `build_app.jl` — FFTW no longer needs weak→real migration**
+
+If `build_app.jl` has a hardcoded FFTW migration step, remove it (FFTW is now a regular dep). Verify NonlinearSolve doesn't need special handling.
+
+- [ ] **Step 6: Run tests to verify nothing broke**
 
 Run: `julia --project test/runtests.jl`
 Expected: All existing tests pass (version tests use new v"0.4.0").
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add Project.toml src/Friedman.jl src/cli/types.jl test/runtests.jl
+git add Project.toml src/Friedman.jl src/cli/types.jl test/runtests.jl build_app.jl
 git commit -m "chore: bump version to v0.4.0, update deps (FFTW, NonlinearSolve, PATHSolver UUID)"
 ```
 
@@ -108,9 +112,47 @@ All new mock types and functions go in `test/mocks.jl`. Add them **before** any 
 **Files:**
 - Modify: `test/mocks.jl` (append near existing DSGE mocks section)
 
-- [ ] **Step 1: Add `KalmanSmootherResult` mock type and DSGE HD dispatches**
+- [ ] **Step 1: Update `BayesianDSGE` mock to add `spec` and `solution` fields, then add DSGE HD dispatches**
 
-Find the existing DSGE mock section (near `BayesianDSGE` definition) and append:
+First, update the existing `BayesianDSGE` struct to include `spec` and `solution` fields needed by HD:
+
+```julia
+# Replace the existing BayesianDSGE struct with:
+struct BayesianDSGE{T<:Real}
+    theta_draws::Matrix{T}
+    log_posterior::Vector{T}
+    param_names::Vector{String}
+    log_marginal_likelihood::T
+    method::Symbol
+    acceptance_rate::T
+    ess_history::Vector{T}
+    spec::DSGESpec{T}
+    solution::DSGESolution{T}
+end
+```
+
+Update the existing `estimate_dsge_bayes` mock to pass `spec` and construct a solution:
+
+```julia
+# Replace the existing estimate_dsge_bayes function with:
+function estimate_dsge_bayes(spec::DSGESpec{T}, data::Matrix, theta0::Vector;
+        priors=Dict(), method=:smc, observables=Symbol[],
+        n_smc=5000, n_particles=500, n_mh_steps=1,
+        n_draws=10000, burnin=5000, ess_target=0.5,
+        measurement_error=nothing, solver=:gensys,
+        solver_kwargs=NamedTuple(), delayed_acceptance=false,
+        n_screen=200, rng=nothing) where T
+    np = length(theta0)
+    draws = randn(T, n_draws, np) .* T(0.01) .+ theta0'
+    log_post = fill(T(-100.0), n_draws)
+    pnames = ["param_$i" for i in 1:np]
+    ess_hist = fill(T(n_smc * 0.8), 20)
+    sol = solve(spec; method=:gensys)
+    BayesianDSGE{T}(draws, log_post, pnames, T(-500.0), method, T(0.25), ess_hist, spec, sol)
+end
+```
+
+Then find the existing DSGE mock section and append:
 
 ```julia
 # --- DSGE Historical Decomposition (v0.4.0) ---
@@ -145,7 +187,7 @@ function historical_decomposition(sol::DSGESolution{T}, data::AbstractMatrix,
     n_shocks = sol.spec.n_exog
     n_vars = states == :all ? sol.spec.n_endog : n_obs
     varnames = states == :all ? sol.spec.varnames : [string(s) for s in observables]
-    shock_names = sol.spec.exog
+    shock_names = string.(sol.spec.exog)
     HistoricalDecomposition{T}(
         randn(T_obs, n_vars, n_shocks), randn(T_obs, n_vars), randn(T_obs, n_vars),
         randn(T_obs, n_shocks), T_obs, varnames, shock_names, :dsge_linear)
@@ -154,13 +196,13 @@ end
 function historical_decomposition(bd::BayesianDSGE{T}, data::AbstractMatrix,
         observables::Vector{Symbol}; mode_only::Bool=false, n_draws::Int=200,
         quantiles::Vector{<:Real}=T[0.16, 0.5, 0.84],
-        measurement_error=nothing) where {T}
+        measurement_error=nothing, states::Symbol=:observables) where {T}
     T_obs = size(data, 1)
     n_obs = length(observables)
     n_shocks = bd.spec.n_exog
     n_q = length(quantiles)
     varnames = [string(s) for s in observables]
-    shock_names = bd.spec.exog
+    shock_names = string.(bd.spec.exog)
     BayesianHistoricalDecomposition{T}(
         randn(T_obs, n_obs, n_shocks, n_q), randn(T_obs, n_obs, n_shocks),
         randn(T_obs, n_obs, n_q), randn(T_obs, n_obs), randn(T_obs, n_shocks),
@@ -1008,8 +1050,7 @@ In the `bayes_subcmds` Dict (where bayes_estimate, bayes_irf, etc. are), add:
     bayes_hd = LeafCommand("hd", _dsge_bayes_hd;
         args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
         options=[_bayes_common_options...,
-            Option("observables"; type=String, default="", description="Observable variable names (comma-separated)"),
-            Option("n-draws"; type=Int, default=200, description="Number of posterior draws for HD"),
+            Option("n-hd-draws"; type=Int, default=200, description="Number of posterior draws for HD"),
             Option("quantiles"; type=String, default="0.16,0.5,0.84", description="Quantile levels"),
             Option("horizon"; short="h", type=Int, default=40, description="IRF horizon"),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
@@ -1085,9 +1126,12 @@ end
 ```julia
 function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          priors::String="", observables::String="",
-                         sampler::String="smc", n_smc::Int=5000, n_mh::Int=10000,
-                         n_blocks::Int=1, conf_level::Float64=0.9,
-                         n_draws::Int=200, quantiles::String="0.16,0.5,0.84",
+                         sampler::String="smc", n_smc::Int=5000,
+                         n_particles::Int=500,
+                         n_draws::Int=10000, burnin::Int=5000,
+                         ess_target::Float64=0.5,
+                         solver::String="gensys", order::Int=1,
+                         n_hd_draws::Int=200, quantiles::String="0.16,0.5,0.84",
                          mode_only::Bool=false,
                          delayed_acceptance::Bool=false,
                          horizon::Int=40,
@@ -1116,10 +1160,13 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
 
     bd = estimate_dsge_bayes(spec, Y, theta0;
         priors=prior_dists, method=Symbol(sampler),
-        n_smc=n_smc, n_mh=n_mh, n_blocks=n_blocks, conf_level=conf_level)
+        observables=obs_syms,
+        n_smc=n_smc, n_particles=n_particles,
+        n_draws=n_draws, burnin=burnin, ess_target=ess_target,
+        solver=Symbol(solver), delayed_acceptance=delayed_acceptance)
 
     hd = historical_decomposition(bd, Y, obs_syms;
-        mode_only=mode_only, n_draws=n_draws, quantiles=q_levels)
+        mode_only=mode_only, n_draws=n_hd_draws, quantiles=q_levels)
 
     # Output point estimates per shock
     for (si, sname) in enumerate(hd.shock_names)
@@ -1279,7 +1326,8 @@ In `register_estimate_commands!()`, add:
             _PREG_COMMON_OPTIONS[1:2]...,  # dep, indep
             Option("method"; short="m", type=String, default="pooled", description="pooled|fe|re|cre"),
             Option("cov-type"; type=String, default="cluster", description="ols|cluster"),
-            _PREG_COMMON_OPTIONS[4:end]...,  # id-col, time-col, output, format
+            _PREG_COMMON_OPTIONS[3:4]...,  # id-col, time-col
+            _PREG_COMMON_OPTIONS[7:8]...,  # output, format
         ],
         description="Panel logistic regression")
 
@@ -1289,7 +1337,8 @@ In `register_estimate_commands!()`, add:
             _PREG_COMMON_OPTIONS[1:2]...,  # dep, indep
             Option("method"; short="m", type=String, default="pooled", description="pooled|re|cre"),
             Option("cov-type"; type=String, default="cluster", description="ols|cluster"),
-            _PREG_COMMON_OPTIONS[4:end]...,  # id-col, time-col, output, format
+            _PREG_COMMON_OPTIONS[3:4]...,  # id-col, time-col
+            _PREG_COMMON_OPTIONS[7:8]...,  # output, format
         ],
         description="Panel probit regression (no FE — incidental parameters problem)")
 ```
@@ -1664,7 +1713,7 @@ git commit -m "feat: add residuals preg/piv/plogit/pprobit/ologit/oprobit/mlogit
     test_hausman = LeafCommand("hausman", _test_hausman;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]...,  # dep, indep
-                 _PREG_COMMON_OPTIONS[4:5]...,  # id-col, time-col
+                 _PREG_COMMON_OPTIONS[3:4]...,  # id-col, time-col
                  Option("format"; short="f", type=String, default="table", description="table|csv|json"),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Hausman specification test (FE vs RE)")
