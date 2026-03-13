@@ -71,6 +71,7 @@ include(joinpath(project_root, "src", "commands", "data.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
+include(joinpath(project_root, "src", "commands", "spectral.jl"))
 
 # ─── Test Helpers ───────────────────────────────────────────────
 
@@ -565,10 +566,11 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        @test length(node.subcmds) == 24
+        @test length(node.subcmds) == 31
         for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv", "fastica", "ml", "vecm", "pvar",
-                     "favar", "sdfm", "reg", "iv", "logit", "probit"]
+                     "favar", "sdfm", "reg", "iv", "logit", "probit",
+                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
     end
@@ -1426,13 +1428,16 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        @test length(node.subcmds) == 29
+        @test length(node.subcmds) == 41
         for cmd in ["adf", "kpss", "pp", "za", "np", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch_lm", "ljung_box", "var", "granger", "pvar", "lr", "lm",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
-                     "adf-2break", "gregory-hansen", "vif"]
+                     "adf-2break", "gregory-hansen", "vif",
+                     "hausman", "breusch-pagan", "f-fe", "pesaran-cd", "wooldridge-ar", "modified-wald",
+                     "fisher", "bartlett-wn", "box-pierce", "durbin-watson",
+                     "brant", "hausman-iia"]
             @test haskey(node.subcmds, cmd)
         end
         # VAR is a nested NodeCommand with lagselect and stability
@@ -2631,7 +2636,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 24
+        @test length(node.subcmds) == 31
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -2662,7 +2667,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 29
+        @test length(node.subcmds) == 41
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -2999,10 +3004,11 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        @test length(node.subcmds) == 16
+        @test length(node.subcmds) == 23
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv", "favar",
-                     "reg", "logit", "probit"]
+                     "reg", "logit", "probit",
+                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
     end
@@ -3438,10 +3444,11 @@ end  # Predict handlers
         node = register_residuals_commands!()
         @test node isa NodeCommand
         @test node.name == "residuals"
-        @test length(node.subcmds) == 16
+        @test length(node.subcmds) == 23
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv", "favar",
-                     "reg", "logit", "probit"]
+                     "reg", "logit", "probit",
+                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
     end
@@ -4137,7 +4144,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 24
+        @test length(node.subcmds) == 31
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -4167,7 +4174,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 29
+        @test length(node.subcmds) == 41
     end
 
     @testset "_parse_varlist" begin
@@ -4503,8 +4510,8 @@ end  # Enhanced Granger handlers
         node = register_data_commands!()
         @test node isa NodeCommand
         @test node.name == "data"
-        @test length(node.subcmds) == 9
-        for cmd in ["list", "load", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance"]
+        @test length(node.subcmds) == 11
+        for cmd in ["list", "load", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance", "dropna", "keeprows"]
             @test haskey(node.subcmds, cmd)
             @test node.subcmds[cmd] isa LeafCommand
         end
@@ -6079,7 +6086,8 @@ end
         @test haskey(node.subcmds, "perfect-foresight")
         @test haskey(node.subcmds, "steady-state")
         @test haskey(node.subcmds, "bayes")
-        @test length(node.subcmds) == 8
+        @test haskey(node.subcmds, "hd")
+        @test length(node.subcmds) == 9
     end
 end
 
@@ -6965,6 +6973,517 @@ end
                             format="table", output="")
             end
             @test occursin("Variance Inflation", out)
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Spectral Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "Spectral Commands" begin
+        @testset "_spectral_acf" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _spectral_acf(; data=csv, column=1, max_lag=20, format="table", output="")
+                end
+                @test occursin("ACF", out)
+            end
+        end
+
+        @testset "_spectral_periodogram" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _spectral_periodogram(; data=csv, column=1, format="table", output="")
+                end
+                @test occursin("Periodogram", out)
+            end
+        end
+
+        @testset "_spectral_density" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _spectral_density(; data=csv, column=1, method="welch", format="table", output="")
+                end
+                @test occursin("Spectral Density", out)
+            end
+        end
+
+        @testset "_spectral_cross" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _spectral_cross(; data=csv, var1=1, var2=2, format="table", output="")
+                end
+                @test occursin("Cross", out)
+            end
+        end
+
+        @testset "_spectral_transfer" begin
+            out = _capture() do
+                _spectral_transfer(; filter="hp", lambda=1600.0, nobs=200, format="table", output="")
+            end
+            @test occursin("Transfer", out)
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — DSGE HD Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "DSGE HD Commands" begin
+        @testset "_dsge_hd" begin
+            mktempdir() do dir
+                toml_path = joinpath(dir, "model.toml")
+                write(toml_path, """
+                [model]
+                parameters = { rho = 0.9, sigma = 0.01, beta = 0.99 }
+                endogenous = ["C", "K", "Y"]
+                exogenous = ["e_A"]
+
+                [[model.equations]]
+                expr = "C[t] + K[t] = Y[t]"
+                [[model.equations]]
+                expr = "Y[t] = K[t-1]"
+                [[model.equations]]
+                expr = "K[t] = rho * K[t-1] + sigma * e_A[t]"
+                """)
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _dsge_hd(; model=toml_path, data=csv, observables="var1,var2,var3",
+                              format="table", output="")
+                end
+                @test occursin("Historical Decomposition", out)
+            end
+        end
+
+        @testset "_dsge_bayes_hd" begin
+            mktempdir() do dir
+                toml_path = joinpath(dir, "model.toml")
+                write(toml_path, """
+                [model]
+                parameters = { rho = 0.9, sigma = 0.01, beta = 0.99 }
+                endogenous = ["C", "K", "Y"]
+                exogenous = ["e_A"]
+
+                [[model.equations]]
+                expr = "C[t] + K[t] = Y[t]"
+                [[model.equations]]
+                expr = "Y[t] = K[t-1]"
+                [[model.equations]]
+                expr = "K[t] = rho * K[t-1] + sigma * e_A[t]"
+                """)
+                csv = _make_csv(dir; T=100, n=3)
+                params_path = joinpath(dir, "params.toml")
+                write(params_path, """
+                [parameters]
+                rho = {init = 0.9, lower = 0.0, upper = 1.0}
+                sigma = {init = 0.01, lower = 0.001, upper = 0.1}
+                """)
+                priors_path = joinpath(dir, "priors.toml")
+                write(priors_path, """
+                [priors]
+                [priors.rho]
+                dist = "beta"
+                a = 0.5
+                b = 0.2
+                [priors.sigma]
+                dist = "inv_gamma"
+                a = 2.0
+                b = 0.1
+                """)
+                out = _capture() do
+                    _dsge_bayes_hd(; model=toml_path, data=csv, params=params_path,
+                                    priors=priors_path, observables="var1,var2,var3",
+                                    n_draws=100, sampler="smc",
+                                    n_hd_draws=50, format="table", output="")
+                end
+                @test occursin("Historical Decomposition", out)
+            end
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Data Enhancement Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "Data Enhancement Commands" begin
+        @testset "_data_dropna" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=50, n=3)
+                out = _capture() do
+                    _data_dropna(; data=csv, format="table", output="")
+                end
+                @test occursin("Drop NA", out) || occursin("Cleaned", out)
+            end
+        end
+
+        @testset "_data_keeprows" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=50, n=3)
+                out = _capture() do
+                    _data_keeprows(; data=csv, rows="1:20", format="table", output="")
+                end
+                @test occursin("Keep Rows", out) || occursin("Filtered Data", out)
+            end
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Panel Regression Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "Panel Regression Commands" begin
+        @testset "_estimate_preg" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _estimate_preg(; data=csv, dep="var1", indep="var2,var3",
+                        method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Regression", out)
+                @test occursin("Coefficient", out)
+            end
+        end
+
+        @testset "_estimate_piv" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=4)
+                out = _capture() do
+                    _estimate_piv(; data=csv, dep="var1", exog="var2", endog="var3",
+                        instruments="var4", method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel IV", out)
+            end
+        end
+
+        @testset "_estimate_plogit" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _estimate_plogit(; data=csv, dep="var1", indep="var2,var3",
+                        method="pooled", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Logit", out)
+            end
+        end
+
+        @testset "_estimate_pprobit" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _estimate_pprobit(; data=csv, dep="var1", indep="var2,var3",
+                        method="pooled", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Probit", out)
+            end
+        end
+
+        @testset "_predict_preg" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _predict_preg(; data=csv, dep="var1", indep="var2,var3",
+                        method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Regression Fitted", out)
+            end
+        end
+
+        @testset "_predict_piv" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=4)
+                out = _capture() do
+                    _predict_piv(; data=csv, dep="var1", exog="var2", endog="var3",
+                        instruments="var4", method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel IV Fitted", out)
+            end
+        end
+
+        @testset "_predict_plogit" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _predict_plogit(; data=csv, dep="var1", indep="var2,var3",
+                        method="pooled", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Logit Fitted", out)
+            end
+        end
+
+        @testset "_predict_pprobit" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _predict_pprobit(; data=csv, dep="var1", indep="var2,var3",
+                        method="pooled", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Probit Fitted", out)
+            end
+        end
+
+        @testset "_residuals_preg" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _residuals_preg(; data=csv, dep="var1", indep="var2,var3",
+                        method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Regression Residuals", out)
+            end
+        end
+
+        @testset "_residuals_plogit" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _residuals_plogit(; data=csv, dep="var1", indep="var2,var3",
+                        method="pooled", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Panel Logit Residuals", out)
+            end
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Ordered/Multinomial Choice Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "Ordered/Multinomial Choice Commands" begin
+        @testset "_estimate_ologit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _estimate_ologit(; data=csv, dep="var1", cov_type="ols",
+                                      clusters="", output="", format="table")
+                end
+                @test occursin("Ordered Logit", out)
+            end
+        end
+
+        @testset "_estimate_oprobit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _estimate_oprobit(; data=csv, dep="var1", cov_type="ols",
+                                       clusters="", output="", format="table")
+                end
+                @test occursin("Ordered Probit", out)
+            end
+        end
+
+        @testset "_estimate_mlogit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _estimate_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                      output="", format="table")
+                end
+                @test occursin("Multinomial Logit", out)
+            end
+        end
+
+        @testset "_predict_ologit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _predict_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                     clusters="", output="", format="table")
+                end
+                @test occursin("Ordered Logit Predicted", out)
+            end
+        end
+
+        @testset "_predict_mlogit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _predict_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                     output="", format="table")
+                end
+                @test occursin("Multinomial Logit Predicted", out)
+            end
+        end
+
+        @testset "_residuals_ologit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                       clusters="", output="", format="table")
+                end
+                @test occursin("Ordered Logit Residuals", out)
+            end
+        end
+
+        @testset "_residuals_mlogit" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                       output="", format="table")
+                end
+                @test occursin("Multinomial Logit Residuals", out)
+            end
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Panel Specification Tests
+    # ══════════════════════════════════════════════════
+
+    @testset "Panel Specification Test Commands" begin
+        @testset "_test_hausman" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _test_hausman(; data=csv, dep="var1", indep="var2,var3",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Hausman", out)
+            end
+        end
+
+        @testset "_test_breusch_pagan" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _test_breusch_pagan(; data=csv, dep="var1", indep="var2,var3",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Breusch-Pagan", out)
+            end
+        end
+
+        @testset "_test_f_fe" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _test_f_fe(; data=csv, dep="var1", indep="var2,var3",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("F-Test", out) || occursin("Fixed Effect", out)
+            end
+        end
+
+        @testset "_test_pesaran_cd" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _test_pesaran_cd(; data=csv, dep="var1", indep="var2,var3",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Pesaran", out)
+            end
+        end
+
+        @testset "_test_wooldridge_ar" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _test_wooldridge_ar(; data=csv, dep="var1", indep="var2,var3",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Wooldridge", out)
+            end
+        end
+
+        @testset "_test_modified_wald" begin
+            mktempdir() do dir
+                csv = _make_panel_csv(dir; G=5, T_per=20, n=3)
+                out = _capture() do
+                    _test_modified_wald(; data=csv, dep="var1", indep="var2,var3",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Modified Wald", out)
+            end
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Spectral/Portmanteau Test Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "Spectral Test Commands" begin
+        @testset "_test_fisher" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _test_fisher(; data=csv, column=1, format="table", output="")
+                end
+                @test occursin("Fisher", out)
+            end
+        end
+
+        @testset "_test_bartlett_wn" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _test_bartlett_wn(; data=csv, column=1, format="table", output="")
+                end
+                @test occursin("Bartlett", out)
+            end
+        end
+
+        @testset "_test_box_pierce" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _test_box_pierce(; data=csv, column=1, lags=20, format="table", output="")
+                end
+                @test occursin("Box-Pierce", out)
+            end
+        end
+
+        @testset "_test_durbin_watson" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _test_durbin_watson(; data=csv, column=1, format="table", output="")
+                end
+                @test occursin("Durbin-Watson", out)
+            end
+        end
+    end
+
+    # ══════════════════════════════════════════════════
+    # v0.4.0 — Discrete Choice Test Commands
+    # ══════════════════════════════════════════════════
+
+    @testset "Discrete Choice Test Commands" begin
+        @testset "_test_brant" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _test_brant(; data=csv, dep="var1", cov_type="hc1",
+                                  format="table", output="")
+                end
+                @test occursin("Brant", out)
+            end
+        end
+
+        @testset "_test_hausman_iia" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _test_hausman_iia(; data=csv, dep="var1", omit_category=1,
+                                       format="table", output="")
+                end
+                @test occursin("Hausman", out) || occursin("IIA", out)
+            end
         end
     end
 

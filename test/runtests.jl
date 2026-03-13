@@ -391,11 +391,11 @@ end
         @test contains(help_text, "friedman var")
 
         # Entry help includes version number
-        entry = Entry("friedman", node; version=v"0.3.5")
+        entry = Entry("friedman", node; version=v"0.4.0")
         buf = IOBuffer()
         print_help(buf, entry)
         help_text = String(take!(buf))
-        @test contains(help_text, "0.3.5")
+        @test contains(help_text, "0.4.0")
 
         # Leaf with optional argument shows [arg] not <arg>
         leaf_opt_arg = LeafCommand("test", handler;
@@ -510,9 +510,9 @@ end
         @test called_with[][:data] == "test.csv"
 
         # dispatch() with ["--version"] prints version
-        entry = Entry("friedman", outer_node; version=v"0.3.5")
+        entry = Entry("friedman", outer_node; version=v"0.4.0")
         version_output = strip(capture_stdout(() -> dispatch(entry, ["--version"])))
-        @test contains(version_output, "0.3.5")
+        @test contains(version_output, "0.4.0")
 
         # dispatch() with [] shows help (no error)
         help_output = capture_stdout(() -> dispatch(entry, String[]))
@@ -560,7 +560,7 @@ end
 
         # -V short flag triggers version
         v_output = strip(capture_stdout(() -> dispatch(entry, ["-V"])))
-        @test contains(v_output, "0.3.5")
+        @test contains(v_output, "0.4.0")
 
         # --warranty flag prints warranty text
         warranty_output = capture_stdout(() -> dispatch(entry, ["--warranty"]))
@@ -1500,7 +1500,7 @@ end
                 "irf" => irf_node, "fevd" => fevd_node, "hd" => hd_node,
                 "forecast" => NodeCommand("forecast", Dict{String,Union{NodeCommand,LeafCommand}}(), "Forecast")),
             "Friedman CLI")
-        entry = Entry("friedman", root; version=v"0.3.5")
+        entry = Entry("friedman", root; version=v"0.4.0")
 
         # Top level HAS irf, fevd, hd (action-first)
         @test haskey(root.subcmds, "irf")
@@ -3127,7 +3127,7 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test dsge_node isa NodeCommand
     @test dsge_node.name == "dsge"
 
-    # All 8 subcommands exist
+    # All 9 subcommands exist
     @test haskey(dsge_node.subcmds, "solve")
     @test haskey(dsge_node.subcmds, "irf")
     @test haskey(dsge_node.subcmds, "fevd")
@@ -3136,7 +3136,8 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test haskey(dsge_node.subcmds, "bayes")
     @test haskey(dsge_node.subcmds, "perfect-foresight")
     @test haskey(dsge_node.subcmds, "steady-state")
-    @test length(dsge_node.subcmds) == 8
+    @test haskey(dsge_node.subcmds, "hd")
+    @test length(dsge_node.subcmds) == 9
 
     # All non-bayes subcmds are LeafCommands; bayes is NodeCommand
     for (name, cmd) in dsge_node.subcmds
@@ -3165,10 +3166,10 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test "method" in opt_names
     @test "weighting" in opt_names
 
-    # bayes is a NodeCommand with 7 sub-leaves
+    # bayes is a NodeCommand with 8 sub-leaves
     bayes_node = dsge_node.subcmds["bayes"]
     @test bayes_node isa NodeCommand
-    @test length(bayes_node.subcmds) == 7
+    @test length(bayes_node.subcmds) == 8
     @test haskey(bayes_node.subcmds, "estimate")
     @test haskey(bayes_node.subcmds, "irf")
     @test haskey(bayes_node.subcmds, "fevd")
@@ -3176,6 +3177,7 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     @test haskey(bayes_node.subcmds, "summary")
     @test haskey(bayes_node.subcmds, "compare")
     @test haskey(bayes_node.subcmds, "predictive")
+    @test haskey(bayes_node.subcmds, "hd")
 
     # All bayes sub-leaves are LeafCommands
     for (name, cmd) in bayes_node.subcmds
@@ -3259,8 +3261,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # Verify estimate now has 24 subcommands (20 original + reg + iv + logit + probit)
-    @test length(est_node.subcmds) == 24
+    # Verify estimate now has 31 subcommands
+    @test length(est_node.subcmds) == 31
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -3430,18 +3432,18 @@ end
     fc_favar_flags = [f.name for f in fc_favar.flags]
     @test "panel-forecast" in fc_favar_flags
 
-    # Predict: 16 subcommands (12 original + favar + reg + logit + probit)
+    # Predict: 23 subcommands
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 16
+    @test length(pred_node.subcmds) == 23
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
     pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
-    # Residuals: 16 subcommands (12 original + favar + reg + logit + probit)
+    # Residuals: 23 subcommands
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 16
+    @test length(res_node.subcmds) == 23
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
@@ -3452,8 +3454,8 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # Test node now has 29 subcommands (22 previous + 7 new: fourier-adf, fourier-kpss, dfgls, lm-unitroot, adf-2break, gregory-hansen, vif)
-    @test length(test_node.subcmds) == 29
+    # Test node now has 41 subcommands
+    @test length(test_node.subcmds) == 41
 
     # Andrews structural break test
     @test haskey(test_node.subcmds, "andrews")
@@ -3520,4 +3522,41 @@ end
     @test "factors" in fb_opts
     @test "method" in fb_opts
     @test "id-col" in fb_opts
+end
+
+@testset "Spectral command structure" begin
+    spectral_node = register_spectral_commands!()
+    @test spectral_node isa NodeCommand
+    @test length(spectral_node.subcmds) == 5
+
+    @test haskey(spectral_node.subcmds, "acf")
+    acf_cmd = spectral_node.subcmds["acf"]
+    @test acf_cmd isa LeafCommand
+    acf_opts = [o.name for o in acf_cmd.options]
+    @test "column" in acf_opts
+    @test "max-lag" in acf_opts
+
+    @test haskey(spectral_node.subcmds, "periodogram")
+    peri_cmd = spectral_node.subcmds["periodogram"]
+    @test peri_cmd isa LeafCommand
+
+    @test haskey(spectral_node.subcmds, "density")
+    dens_cmd = spectral_node.subcmds["density"]
+    @test dens_cmd isa LeafCommand
+    dens_opts = [o.name for o in dens_cmd.options]
+    @test "method" in dens_opts
+
+    @test haskey(spectral_node.subcmds, "cross")
+    cross_cmd = spectral_node.subcmds["cross"]
+    @test cross_cmd isa LeafCommand
+    cross_opts = [o.name for o in cross_cmd.options]
+    @test "var1" in cross_opts
+    @test "var2" in cross_opts
+
+    @test haskey(spectral_node.subcmds, "transfer")
+    trans_cmd = spectral_node.subcmds["transfer"]
+    @test trans_cmd isa LeafCommand
+    trans_opts = [o.name for o in trans_cmd.options]
+    @test "filter" in trans_opts
+    @test "lambda" in trans_opts
 end

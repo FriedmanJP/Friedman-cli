@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit
+# Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit, preg, piv, plogit, pprobit, ologit, oprobit, mlogit
 
 function register_estimate_commands!()
     est_var = LeafCommand("var", _estimate_var;
@@ -327,6 +327,70 @@ function register_estimate_commands!()
         ],
         description="Binary probit regression (MLE via IRLS)")
 
+    est_preg = LeafCommand("preg", _estimate_preg;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS...],
+        flags=[Flag("twoway"; description="Include time fixed effects")],
+        description="Panel regression (FE/RE/FD/Between/CRE/AB/BB)")
+
+    est_piv = LeafCommand("piv", _estimate_piv;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[
+            Option("dep"; type=String, default="", description="Dependent variable column name"),
+            Option("exog"; type=String, default="", description="Exogenous variables (comma-separated)"),
+            Option("endog"; type=String, default="", description="Endogenous variables (comma-separated)"),
+            Option("instruments"; type=String, default="", description="Instruments (comma-separated)"),
+            Option("method"; short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
+            Option("cov-type"; type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+            Option("id-col"; type=String, default="", description="Panel group ID column"),
+            Option("time-col"; type=String, default="", description="Panel time column"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+        ],
+        description="Panel IV/2SLS regression")
+
+    est_plogit = LeafCommand("plogit", _estimate_plogit;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[
+            _PREG_COMMON_OPTIONS[1:2]...,
+            Option("method"; short="m", type=String, default="pooled", description="pooled|fe|re|cre"),
+            Option("cov-type"; type=String, default="cluster", description="ols|cluster"),
+            _PREG_COMMON_OPTIONS[3:4]...,
+            _PREG_COMMON_OPTIONS[7:8]...,
+        ],
+        description="Panel logistic regression")
+
+    est_pprobit = LeafCommand("pprobit", _estimate_pprobit;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[
+            _PREG_COMMON_OPTIONS[1:2]...,
+            Option("method"; short="m", type=String, default="pooled", description="pooled|re|cre"),
+            Option("cov-type"; type=String, default="cluster", description="ols|cluster"),
+            _PREG_COMMON_OPTIONS[3:4]...,
+            _PREG_COMMON_OPTIONS[7:8]...,
+        ],
+        description="Panel probit regression (no FE - incidental parameters problem)")
+
+    est_ologit = LeafCommand("ologit", _estimate_ologit;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[_REG_COMMON_OPTIONS...],
+        description="Ordered logistic regression")
+
+    est_oprobit = LeafCommand("oprobit", _estimate_oprobit;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[_REG_COMMON_OPTIONS...],
+        description="Ordered probit regression")
+
+    est_mlogit = LeafCommand("mlogit", _estimate_mlogit;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("dep"; type=String, default="", description="Dependent variable column name"),
+            Option("cov-type"; type=String, default="ols", description="ols|hc0|hc1|hc2|hc3"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+        ],
+        description="Multinomial logistic regression")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "var"       => est_var,
         "bvar"      => est_bvar,
@@ -352,6 +416,13 @@ function register_estimate_commands!()
         "iv"        => est_iv,
         "logit"     => est_logit,
         "probit"    => est_probit,
+        "preg"      => est_preg,
+        "piv"       => est_piv,
+        "plogit"    => est_plogit,
+        "pprobit"   => est_pprobit,
+        "ologit"    => est_ologit,
+        "oprobit"   => est_oprobit,
+        "mlogit"    => est_mlogit,
     )
     return NodeCommand("estimate", subcmds, "Estimate econometric models")
 end
@@ -1491,3 +1562,250 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     return model
 end
 
+# ── Panel Regression ──────────────────────────────────
+
+function _estimate_preg(; data::String, dep::String="", indep::String="",
+                         method::String="fe", twoway::Bool=false,
+                         cov_type::String="cluster",
+                         id_col::String="", time_col::String="",
+                         output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model_sym = _to_sym(method)
+    cov_sym = _to_sym(cov_type)
+    println("Panel Regression ($method): $dep ~ $(join(indep_syms, " + "))")
+    println()
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
+        model=model_sym, twoway=twoway, cov_type=cov_sym)
+
+    coef_df = _preg_coef_table(model, model.varnames)
+    output_result(coef_df; format=Symbol(format), output=output,
+        title="Panel Regression Coefficients ($method)")
+
+    println()
+    pairs = Pair{String,Any}[
+        "R2 (within)"  => round(model.within_r2; digits=6),
+        "R2 (between)" => round(model.between_r2; digits=6),
+        "R2 (overall)" => round(model.overall_r2; digits=6),
+        "F-statistic"  => round(model.f_stat; digits=4),
+        "F p-value"    => round(model.f_pvalue; digits=4),
+        "N obs"        => model.nobs,
+        "N groups"     => model.n_groups,
+    ]
+    output_kv(pairs; format=format, title="Model Statistics")
+    return model
+end
+
+function _estimate_piv(; data::String, dep::String="", exog::String="",
+                        endog::String="", instruments::String="",
+                        method::String="fe", cov_type::String="cluster",
+                        id_col::String="", time_col::String="",
+                        output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    isempty(endog) && error("--endog is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+
+    exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
+    endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
+    inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
+
+    println("Panel IV ($method): $dep ~ $(join([exog_syms; endog_syms], " + "))")
+    println("  Instruments: $(join(inst_syms, ", "))")
+    println()
+
+    model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
+        instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    all_vars = [string.(exog_syms); string.(endog_syms)]
+    coef_df = _preg_coef_table(model, all_vars)
+    output_result(coef_df; format=Symbol(format), output=output, title="Panel IV Coefficients")
+    return model
+end
+
+function _estimate_plogit(; data::String, dep::String="", indep::String="",
+                           method::String="pooled", cov_type::String="cluster",
+                           id_col::String="", time_col::String="",
+                           output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    println("Panel Logit ($method): $dep ~ $(join(indep_syms, " + "))")
+    println()
+
+    model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    coef_df = _preg_coef_table(model, model.varnames)
+    output_result(coef_df; format=Symbol(format), output=output,
+        title="Panel Logit Coefficients ($method)")
+
+    println()
+    pairs = Pair{String,Any}[
+        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
+        "Log-likelihood"  => round(model.loglik; digits=4),
+        "AIC"             => round(model.aic; digits=4),
+        "BIC"             => round(model.bic; digits=4),
+        "Converged"       => model.converged,
+        "N obs"           => model.nobs,
+        "N groups"        => model.n_groups,
+    ]
+    output_kv(pairs; format=format, title="Model Statistics")
+    return model
+end
+
+function _estimate_pprobit(; data::String, dep::String="", indep::String="",
+                            method::String="pooled", cov_type::String="cluster",
+                            id_col::String="", time_col::String="",
+                            output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    println("Panel Probit ($method): $dep ~ $(join(indep_syms, " + "))")
+    println()
+
+    model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    coef_df = _preg_coef_table(model, model.varnames)
+    output_result(coef_df; format=Symbol(format), output=output,
+        title="Panel Probit Coefficients ($method)")
+
+    println()
+    pairs = Pair{String,Any}[
+        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
+        "Log-likelihood"  => round(model.loglik; digits=4),
+        "AIC"             => round(model.aic; digits=4),
+        "BIC"             => round(model.bic; digits=4),
+        "Converged"       => model.converged,
+        "N obs"           => model.nobs,
+        "N groups"        => model.n_groups,
+    ]
+    output_kv(pairs; format=format, title="Model Statistics")
+    return model
+end
+
+# ── Ordered Logit ──────────────────────────────────────
+
+function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols",
+                           clusters::String="",
+                           output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    println("Ordered Logit: $dep_name ~ $(join(xcols, " + "))")
+    println()
+
+    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    J = length(model.cutpoints)
+    cut_df = DataFrame(
+        Cutpoint = ["cut$i" for i in 1:J],
+        Value = round.(model.cutpoints; digits=6),
+    )
+    output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
+
+    b = model.beta; se = stderror(model)[1:length(b)]
+    z = b ./ se
+    p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    coef_df = DataFrame(
+        Variable = xcols,
+        Coefficient = round.(b; digits=6),
+        Std_Error = round.(se; digits=6),
+        z_stat = round.(z; digits=4),
+        p_value = round.(p; digits=4),
+    )
+    println()
+    output_result(coef_df; format=Symbol(format), output=output, title="Ordered Logit Coefficients")
+
+    println()
+    pairs = Pair{String,Any}[
+        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
+        "Log-likelihood"  => round(model.loglik; digits=4),
+        "AIC"             => round(model.aic; digits=4),
+        "BIC"             => round(model.bic; digits=4),
+        "Categories"      => length(model.categories),
+    ]
+    output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end
+
+# ── Ordered Probit ─────────────────────────────────────
+
+function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols",
+                            clusters::String="",
+                            output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    println("Ordered Probit: $dep_name ~ $(join(xcols, " + "))")
+    println()
+
+    model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    J = length(model.cutpoints)
+    cut_df = DataFrame(Cutpoint = ["cut$i" for i in 1:J], Value = round.(model.cutpoints; digits=6))
+    output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
+
+    b = model.beta; se = stderror(model)[1:length(b)]
+    z = b ./ se
+    p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    coef_df = DataFrame(
+        Variable = xcols, Coefficient = round.(b; digits=6),
+        Std_Error = round.(se; digits=6), z_stat = round.(z; digits=4), p_value = round.(p; digits=4))
+    println()
+    output_result(coef_df; format=Symbol(format), output=output, title="Ordered Probit Coefficients")
+
+    println()
+    pairs = Pair{String,Any}[
+        "Pseudo R2" => round(model.pseudo_r2; digits=6),
+        "Log-likelihood" => round(model.loglik; digits=4),
+        "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
+        "Categories" => length(model.categories)]
+    output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end
+
+# ── Multinomial Logit ──────────────────────────────────
+
+function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols",
+                           output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    println("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
+    println()
+
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+
+    J = size(model.fitted, 2)
+    for j in 2:J
+        cat_beta = model.beta[:, j-1]
+        k = length(cat_beta)
+        se_all = stderror(model)
+        se_j = se_all[((j-2)*k+1):((j-1)*k)]
+        z = cat_beta ./ se_j
+        p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        cat_df = DataFrame(
+            Variable = xcols, Coefficient = round.(cat_beta; digits=6),
+            Std_Error = round.(se_j; digits=6), z_stat = round.(z; digits=4),
+            p_value = round.(p; digits=4))
+        output_result(cat_df; format=Symbol(format), output=output,
+            title="Category $(model.categories[j]) vs $(model.categories[1])")
+        println()
+    end
+
+    pairs = Pair{String,Any}[
+        "Pseudo R2" => round(model.pseudo_r2; digits=6),
+        "Log-likelihood" => round(model.loglik; digits=4),
+        "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
+        "Categories" => J]
+    output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end

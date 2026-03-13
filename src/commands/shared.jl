@@ -856,3 +856,61 @@ function _reg_coef_table(model, varnames::Vector{String})
         CI_Upper = round.(ci[:, 2]; digits=6),
     )
 end
+
+# --- Panel Regression Shared Helpers (v0.4.0) ---
+
+const _PREG_COMMON_OPTIONS = [
+    Option("dep"; type=String, default="", description="Dependent variable column name"),
+    Option("indep"; type=String, default="", description="Independent variables (comma-separated)"),
+    Option("id-col"; type=String, default="", description="Panel group ID column (default: first column)"),
+    Option("time-col"; type=String, default="", description="Panel time column (default: second column)"),
+    Option("cov-type"; type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+    Option("method"; short="m", type=String, default="fe", description="Estimation method"),
+    Option("output"; short="o", type=String, default="", description="Export results to file"),
+    Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+]
+
+"""Load panel CSV for panel regression. Returns PanelData."""
+function _load_panel_for_preg(data::String, id_col::String, time_col::String)
+    df = load_data(data)
+    cols = names(df)
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)
+    printstyled("  Panel: $(pd.n_groups) groups, $(pd.n_vars) variables"; color=:cyan)
+    pd.balanced && printstyled(" (balanced)"; color=:cyan)
+    println()
+    return pd
+end
+
+"""Parse indep vars from comma-separated string. If empty, infer from all non-dep numeric cols."""
+function _parse_indep_vars(pd, dep::String, indep_str::String)
+    if isempty(indep_str)
+        all_vars = pd.varnames
+        return Symbol[Symbol(v) for v in all_vars if v != dep]
+    else
+        return Symbol[Symbol(strip(s)) for s in split(indep_str, ",")]
+    end
+end
+
+"""Convert CLI option value with hyphens to MEMs Symbol with underscores."""
+_to_sym(s::String) = Symbol(replace(s, "-" => "_"))
+
+"""Build coefficient table from panel regression model."""
+function _preg_coef_table(model, varnames::Vector{String})
+    b = coef(model)
+    se = stderror(model)
+    t = b ./ se
+    p = [2.0 * (1.0 - _normal_cdf(abs(ti))) for ti in t]
+    ci_lo = b .- 1.96 .* se
+    ci_hi = b .+ 1.96 .* se
+    DataFrame(
+        Variable = varnames,
+        Coefficient = round.(b; digits=6),
+        Std_Error = round.(se; digits=6),
+        t_stat = round.(t; digits=4),
+        p_value = round.(p; digits=4),
+        CI_Lower = round.(ci_lo; digits=6),
+        CI_Upper = round.(ci_hi; digits=6),
+    )
+end
