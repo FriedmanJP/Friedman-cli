@@ -430,6 +430,96 @@ function register_test_commands!()
         ],
         description="Variance Inflation Factor (multicollinearity diagnostic)")
 
+    # Panel specification tests
+    test_hausman = LeafCommand("hausman", _test_hausman;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Hausman specification test (FE vs RE)")
+
+    test_breusch_pagan = LeafCommand("breusch-pagan", _test_breusch_pagan;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Breusch-Pagan LM test for random effects")
+
+    test_f_fe = LeafCommand("f-fe", _test_f_fe;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="F-test for individual fixed effects")
+
+    test_pesaran_cd = LeafCommand("pesaran-cd", _test_pesaran_cd;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Pesaran CD test for cross-sectional dependence")
+
+    test_wooldridge_ar = LeafCommand("wooldridge-ar", _test_wooldridge_ar;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Wooldridge test for serial correlation in panel data")
+
+    test_modified_wald = LeafCommand("modified-wald", _test_modified_wald;
+        args=[Argument("data"; description="Path to CSV panel data file")],
+        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Modified Wald test for groupwise heteroskedasticity")
+
+    # Spectral/portmanteau tests
+    test_fisher_spec = LeafCommand("fisher", _test_fisher;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Fisher's test for periodicity")
+
+    test_bartlett_wn = LeafCommand("bartlett-wn", _test_bartlett_wn;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Bartlett white noise test")
+
+    test_box_pierce = LeafCommand("box-pierce", _test_box_pierce;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
+                 Option("lags"; short="p", type=Int, default=20, description="Number of lags"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Box-Pierce portmanteau test for white noise")
+
+    test_durbin_watson = LeafCommand("durbin-watson", _test_durbin_watson;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Durbin-Watson test for autocorrelation")
+
+    # Discrete choice tests
+    test_brant = LeafCommand("brant", _test_brant;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[Option("dep"; type=String, default="", description="Dependent variable"),
+                 Option("cov-type"; type=String, default="hc1", description="Covariance type"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Brant test for parallel regression (ordered models)")
+
+    test_hausman_iia = LeafCommand("hausman-iia", _test_hausman_iia;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[Option("dep"; type=String, default="", description="Dependent variable"),
+                 Option("omit-category"; type=Int, default=nothing, description="Category to omit for IIA test"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("output"; short="o", type=String, default="", description="Export results to file")],
+        description="Hausman-McFadden IIA test for multinomial logit")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "adf"                => test_adf,
         "kpss"               => test_kpss,
@@ -460,6 +550,18 @@ function register_test_commands!()
         "adf-2break"         => test_adf_2break,
         "gregory-hansen"     => test_gregory_hansen,
         "vif"                => test_vif,
+        "hausman"            => test_hausman,
+        "breusch-pagan"      => test_breusch_pagan,
+        "f-fe"               => test_f_fe,
+        "pesaran-cd"         => test_pesaran_cd,
+        "wooldridge-ar"      => test_wooldridge_ar,
+        "modified-wald"      => test_modified_wald,
+        "fisher"             => test_fisher_spec,
+        "bartlett-wn"        => test_bartlett_wn,
+        "box-pierce"         => test_box_pierce,
+        "durbin-watson"      => test_durbin_watson,
+        "brant"              => test_brant,
+        "hausman-iia"        => test_hausman_iia,
     )
     return NodeCommand("test", subcmds, "Statistical tests (unit root, cointegration, diagnostics)")
 end
@@ -1644,4 +1746,274 @@ function _test_vif(; data::String, dep::String="",
         printstyled("No significant multicollinearity (all VIF < 5)\n"; color=:green)
     end
     println("  Mean VIF: $(round(sum(vif_vals) / length(vif_vals); digits=4))")
+end
+
+# ── Panel Specification Tests ────────────────────────
+
+function _test_hausman(; data::String, dep::String="", indep::String="",
+                        id_col::String="", time_col::String="",
+                        output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    fe_model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    re_model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
+    result = hausman_test(fe_model, re_model)
+
+    println("Hausman Test: FE vs RE")
+    println()
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "χ² statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (use FE)" : "Fail to reject H0 (RE consistent)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Hausman Specification Test")
+end
+
+function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
+                              id_col::String="", time_col::String="",
+                              output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
+    result = breusch_pagan_test(model)
+
+    println("Breusch-Pagan LM Test for Random Effects")
+    println()
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "LM statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (RE preferred over pooled OLS)" : "Fail to reject H0 (pooled OLS adequate)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Breusch-Pagan LM Test")
+end
+
+function _test_f_fe(; data::String, dep::String="", indep::String="",
+                     id_col::String="", time_col::String="",
+                     output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    result = f_test_fe(model)
+
+    println("F-Test for Individual Fixed Effects")
+    println()
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "F statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (individual effects significant)" : "Fail to reject H0 (pooled OLS adequate)",
+    ]
+    output_kv(pairs; format=format, output=output, title="F-Test for Fixed Effects")
+end
+
+function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
+                           id_col::String="", time_col::String="",
+                           output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    result = pesaran_cd_test(model)
+
+    println("Pesaran CD Test for Cross-Sectional Dependence")
+    println()
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "CD statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (cross-sectional dependence detected)" : "Fail to reject H0 (no cross-sectional dependence)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Pesaran CD Test")
+end
+
+function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
+                              id_col::String="", time_col::String="",
+                              output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    result = wooldridge_ar_test(model)
+
+    println("Wooldridge Test for Serial Correlation in Panel Data")
+    println()
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "F statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (serial correlation detected)" : "Fail to reject H0 (no serial correlation)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Wooldridge AR Test")
+end
+
+function _test_modified_wald(; data::String, dep::String="", indep::String="",
+                              id_col::String="", time_col::String="",
+                              output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    result = modified_wald_test(model)
+
+    println("Modified Wald Test for Groupwise Heteroskedasticity")
+    println()
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "χ² statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (groupwise heteroskedasticity detected)" : "Fail to reject H0 (homoskedastic)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Modified Wald Test")
+end
+
+# ── Spectral/Portmanteau Tests ───────────────────────
+
+function _test_fisher(; data::String, column::Int=1,
+                       format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+
+    println("Fisher's Test for Periodicity: variable=$vname")
+    println()
+
+    result = fisher_test(y)
+
+    pairs = Pair{String,Any}[
+        "Test statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "Critical value (5%)" => round(result.critical_value; digits=4),
+        "Observations" => result.nobs,
+    ]
+    output_kv(pairs; format=format, output=output, title="Fisher's Test: $vname")
+
+    interpret_test_result(result.pvalue,
+        "Reject H0 (no periodicity): significant periodic component detected",
+        "Cannot reject H0: no significant periodicity")
+end
+
+function _test_bartlett_wn(; data::String, column::Int=1,
+                            format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+
+    println("Bartlett White Noise Test: variable=$vname")
+    println()
+
+    result = bartlett_white_noise_test(y)
+
+    pairs = Pair{String,Any}[
+        "Test statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "Critical value (5%)" => round(result.critical_value; digits=4),
+        "Observations" => result.nobs,
+    ]
+    output_kv(pairs; format=format, output=output, title="Bartlett White Noise Test: $vname")
+
+    interpret_test_result(result.pvalue,
+        "Reject H0 (white noise): series is not white noise",
+        "Cannot reject H0: series is consistent with white noise")
+end
+
+function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
+                           format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+
+    println("Box-Pierce Test: variable=$vname, lags=$lags")
+    println()
+
+    result = box_pierce_test(y; lags=lags)
+
+    pairs = Pair{String,Any}[
+        "Q statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Observations" => result.nobs,
+    ]
+    output_kv(pairs; format=format, output=output, title="Box-Pierce Test: $vname")
+
+    interpret_test_result(result.pvalue,
+        "Reject H0 (white noise): significant autocorrelation detected",
+        "Cannot reject H0: no significant autocorrelation")
+end
+
+function _test_durbin_watson(; data::String, column::Int=1,
+                              format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+
+    println("Durbin-Watson Test: variable=$vname")
+    println()
+
+    result = durbin_watson_test(y)
+
+    pairs = Pair{String,Any}[
+        "DW statistic" => round(result.statistic; digits=4),
+        "Lower bound (dL)" => round(result.dl; digits=4),
+        "Upper bound (dU)" => round(result.du; digits=4),
+        "Decision" => result.decision,
+        "Observations" => result.nobs,
+    ]
+    output_kv(pairs; format=format, output=output, title="Durbin-Watson Test: $vname")
+end
+
+# ── Discrete Choice Tests ────────────────────────────
+
+function _test_brant(; data::String, dep::String="", cov_type::String="hc1",
+                      format::String="table", output::String="")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+
+    println("Brant Test for Parallel Regression: $dep_name")
+    println()
+
+    result = brant_test(model)
+
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "χ² statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (parallel regression assumption violated)" : "Fail to reject H0 (parallel regression assumption holds)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Brant Test")
+end
+
+function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing,
+                            format::String="table", output::String="")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    isnothing(omit_category) && error("--omit-category is required")
+
+    model = estimate_mlogit(y, X; cov_type=:ols, varnames=xcols)
+
+    println("Hausman-McFadden IIA Test: $dep_name, omit category=$omit_category")
+    println()
+
+    result = hausman_iia(model; omit_category=omit_category)
+
+    pairs = Pair{String,Any}[
+        "Test" => result.test_name,
+        "χ² statistic" => round(result.statistic; digits=4),
+        "p-value" => round(result.pvalue; digits=4),
+        "df" => result.df,
+        "Omitted category" => omit_category,
+        "Decision" => result.pvalue < 0.05 ? "Reject H0 (IIA assumption violated)" : "Fail to reject H0 (IIA assumption holds)",
+    ]
+    output_kv(pairs; format=format, output=output, title="Hausman-McFadden IIA Test")
 end
