@@ -131,6 +131,36 @@ curl -fSL "$DOWNLOAD_URL" -o "$TMPDIR/$ARCHIVE_NAME" || {
     exit 1
 }
 
+# --- Verify checksum ---
+CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${VERSION}/checksums.sha256"
+echo "Verifying checksum..."
+if curl -fsSL "$CHECKSUM_URL" -o "$TMPDIR/checksums.sha256" 2>/dev/null; then
+    cd "$TMPDIR"
+    # Extract only the line for our archive
+    grep "$ARCHIVE_NAME" checksums.sha256 > check.sha256
+    if [ -s check.sha256 ]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c check.sha256 || {
+                echo "Error: Checksum verification failed! The download may be corrupted." >&2
+                exit 1
+            }
+        elif command -v shasum >/dev/null 2>&1; then
+            # macOS uses shasum instead of sha256sum
+            shasum -a 256 -c check.sha256 || {
+                echo "Error: Checksum verification failed! The download may be corrupted." >&2
+                exit 1
+            }
+        else
+            echo "Warning: No sha256sum or shasum found, skipping checksum verification."
+        fi
+    else
+        echo "Warning: Archive not found in checksums file, skipping verification."
+    fi
+    cd - >/dev/null
+else
+    echo "Warning: Could not download checksums file, skipping verification."
+fi
+
 # --- Extract to temp, then safe-replace install dir ---
 echo "Installing to ${INSTALL_DIR}..."
 mkdir -p "$TMPDIR/extract"

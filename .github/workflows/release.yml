@@ -94,6 +94,12 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/
 
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum * > checksums.sha256
+          cat checksums.sha256
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

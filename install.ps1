@@ -89,6 +89,31 @@ try {
     Write-Host "Downloading $ArchiveName..."
     Invoke-WebRequest -Uri $DownloadUrl -OutFile $ArchivePath -ErrorAction Stop
 
+    # --- Verify checksum ---
+    $ChecksumUrl = "https://github.com/$Repo/releases/download/v$Version/checksums.sha256"
+    $ChecksumPath = Join-Path $TmpDir "checksums.sha256"
+    Write-Host "Verifying checksum..."
+    try {
+        Invoke-WebRequest -Uri $ChecksumUrl -OutFile $ChecksumPath -ErrorAction Stop
+        $ChecksumContent = Get-Content $ChecksumPath
+        $ExpectedLine = $ChecksumContent | Where-Object { $_ -match [regex]::Escape($ArchiveName) }
+        if ($ExpectedLine) {
+            $ExpectedHash = ($ExpectedLine -split '\s+')[0].ToUpper()
+            $ActualHash = (Get-FileHash -Path $ArchivePath -Algorithm SHA256).Hash.ToUpper()
+            if ($ExpectedHash -ne $ActualHash) {
+                Write-Host "Error: Checksum verification failed! The download may be corrupted." -ForegroundColor Red
+                Write-Host "  Expected: $ExpectedHash" -ForegroundColor Red
+                Write-Host "  Got:      $ActualHash" -ForegroundColor Red
+                exit 1
+            }
+            Write-Host "Checksum verified." -ForegroundColor Green
+        } else {
+            Write-Host "Warning: Archive not found in checksums file, skipping verification." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "Warning: Could not download checksums file, skipping verification." -ForegroundColor Yellow
+    }
+
     # --- Extract to temp, then safe-replace install dir ---
     Write-Host "Installing to $InstallDir..."
     $ExtractDir = Join-Path $TmpDir "extract"
