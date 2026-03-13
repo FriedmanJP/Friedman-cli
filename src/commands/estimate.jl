@@ -371,6 +371,26 @@ function register_estimate_commands!()
         ],
         description="Panel probit regression (no FE - incidental parameters problem)")
 
+    est_ologit = LeafCommand("ologit", _estimate_ologit;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[_REG_COMMON_OPTIONS...],
+        description="Ordered logistic regression")
+
+    est_oprobit = LeafCommand("oprobit", _estimate_oprobit;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[_REG_COMMON_OPTIONS...],
+        description="Ordered probit regression")
+
+    est_mlogit = LeafCommand("mlogit", _estimate_mlogit;
+        args=[Argument("data"; description="Path to CSV data file")],
+        options=[
+            Option("dep"; type=String, default="", description="Dependent variable column name"),
+            Option("cov-type"; type=String, default="ols", description="ols|hc0|hc1|hc2|hc3"),
+            Option("output"; short="o", type=String, default="", description="Export results to file"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+        ],
+        description="Multinomial logistic regression")
+
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "var"       => est_var,
         "bvar"      => est_bvar,
@@ -400,6 +420,9 @@ function register_estimate_commands!()
         "piv"       => est_piv,
         "plogit"    => est_plogit,
         "pprobit"   => est_pprobit,
+        "ologit"    => est_ologit,
+        "oprobit"   => est_oprobit,
+        "mlogit"    => est_mlogit,
     )
     return NodeCommand("estimate", subcmds, "Estimate econometric models")
 end
@@ -1669,3 +1692,123 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
     return model
 end
 
+# ── Ordered Logit ──────────────────────────────────────
+
+function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols",
+                           clusters::String="",
+                           output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    println("Ordered Logit: $dep_name ~ $(join(xcols, " + "))")
+    println()
+
+    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    J = length(model.cutpoints)
+    cut_df = DataFrame(
+        Cutpoint = ["cut$i" for i in 1:J],
+        Value = round.(model.cutpoints; digits=6),
+    )
+    output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
+
+    b = model.beta; se = stderror(model)[1:length(b)]
+    z = b ./ se
+    p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    coef_df = DataFrame(
+        Variable = xcols,
+        Coefficient = round.(b; digits=6),
+        Std_Error = round.(se; digits=6),
+        z_stat = round.(z; digits=4),
+        p_value = round.(p; digits=4),
+    )
+    println()
+    output_result(coef_df; format=Symbol(format), output=output, title="Ordered Logit Coefficients")
+
+    println()
+    pairs = Pair{String,Any}[
+        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
+        "Log-likelihood"  => round(model.loglik; digits=4),
+        "AIC"             => round(model.aic; digits=4),
+        "BIC"             => round(model.bic; digits=4),
+        "Categories"      => length(model.categories),
+    ]
+    output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end
+
+# ── Ordered Probit ─────────────────────────────────────
+
+function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols",
+                            clusters::String="",
+                            output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    println("Ordered Probit: $dep_name ~ $(join(xcols, " + "))")
+    println()
+
+    model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    J = length(model.cutpoints)
+    cut_df = DataFrame(Cutpoint = ["cut$i" for i in 1:J], Value = round.(model.cutpoints; digits=6))
+    output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
+
+    b = model.beta; se = stderror(model)[1:length(b)]
+    z = b ./ se
+    p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    coef_df = DataFrame(
+        Variable = xcols, Coefficient = round.(b; digits=6),
+        Std_Error = round.(se; digits=6), z_stat = round.(z; digits=4), p_value = round.(p; digits=4))
+    println()
+    output_result(coef_df; format=Symbol(format), output=output, title="Ordered Probit Coefficients")
+
+    println()
+    pairs = Pair{String,Any}[
+        "Pseudo R2" => round(model.pseudo_r2; digits=6),
+        "Log-likelihood" => round(model.loglik; digits=4),
+        "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
+        "Categories" => length(model.categories)]
+    output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end
+
+# ── Multinomial Logit ──────────────────────────────────
+
+function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols",
+                           output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    println("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
+    println()
+
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+
+    J = size(model.fitted, 2)
+    for j in 2:J
+        cat_beta = model.beta[:, j-1]
+        k = length(cat_beta)
+        se_all = stderror(model)
+        se_j = se_all[((j-2)*k+1):((j-1)*k)]
+        z = cat_beta ./ se_j
+        p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        cat_df = DataFrame(
+            Variable = xcols, Coefficient = round.(cat_beta; digits=6),
+            Std_Error = round.(se_j; digits=6), z_stat = round.(z; digits=4),
+            p_value = round.(p; digits=4))
+        output_result(cat_df; format=Symbol(format), output=output,
+            title="Category $(model.categories[j]) vs $(model.categories[1])")
+        println()
+    end
+
+    pairs = Pair{String,Any}[
+        "Pseudo R2" => round(model.pseudo_r2; digits=6),
+        "Log-likelihood" => round(model.loglik; digits=4),
+        "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
+        "Categories" => J]
+    output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end
