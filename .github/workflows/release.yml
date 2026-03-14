@@ -37,6 +37,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Add swap (Linux ARM)
+        if: runner.os == 'Linux' && matrix.arch == 'aarch64'
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1.12'
