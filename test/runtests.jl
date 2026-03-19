@@ -3276,6 +3276,19 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     opt_names = [o.name for o in pf_cmd.options]
     @test "shocks" in opt_names
     @test "periods" in opt_names
+
+    # Verify --constraint-solver option on solve
+    @test any(o -> o.name == "constraint-solver", solve_cmd.options)
+
+    # Verify --constraint-solver option on steady-state
+    ss_cmd = dsge_node.subcmds["steady-state"]
+    @test any(o -> o.name == "constraint-solver", ss_cmd.options)
+
+    # Verify --constraint-solver option on perfect-foresight
+    @test any(o -> o.name == "constraint-solver", pf_cmd.options)
+
+    # Verify --constraint-solver in bayes subcommands (via _bayes_common_options)
+    @test any(o -> o.name == "constraint-solver", bayes_est.options)
 end
 
 @testset "estimate smm command structure" begin
