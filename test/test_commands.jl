@@ -5667,6 +5667,14 @@ end  # Plot Support
         end
     end
 
+    @testset "_solve_dsge — with constraint_solver" begin
+        spec = MacroEconometricModels.DSGESpec(; n_endog=2, n_exog=1)
+        out = _capture() do
+            sol = _solve_dsge(spec; method="gensys", constraint_solver="optim")
+            @test sol isa MacroEconometricModels.DSGESolution
+        end
+    end
+
     @testset "_load_dsge_constraints" begin
         mktempdir() do dir
             con_path = joinpath(dir, "constraints.toml")
@@ -5681,6 +5689,66 @@ end  # Plot Support
             """)
             cons = _load_dsge_constraints(con_path)
             @test length(cons) == 2
+            @test cons[1] isa MacroEconometricModels.OccBinConstraint
+        end
+    end
+
+    @testset "_load_dsge_constraints — nonlinear" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "constraints.toml")
+            write(toml_path, """
+            [[constraints.nonlinear]]
+            expr = "K[t] + C[t] <= Y[t]"
+            label = "resource constraint"
+            """)
+            spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+            cons = _load_dsge_constraints(toml_path; spec=spec)
+            @test length(cons) == 1
+            @test cons[1] isa MacroEconometricModels.NonlinearConstraint
+        end
+    end
+
+    @testset "_load_dsge_constraints — nonlinear without spec errors" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "constraints.toml")
+            write(toml_path, """
+            [[constraints.nonlinear]]
+            expr = "K[t] <= Y[t]"
+            """)
+            @test_throws ErrorException _load_dsge_constraints(toml_path)
+        end
+    end
+
+    @testset "_load_dsge_constraints — mixed bounds + nonlinear" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "constraints.toml")
+            write(toml_path, """
+            [[constraints.bounds]]
+            variable = "i"
+            lower = 0.0
+
+            [[constraints.nonlinear]]
+            expr = "K[t] <= Y[t]"
+            label = "cap"
+            """)
+            spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+            cons = _load_dsge_constraints(toml_path; spec=spec)
+            @test length(cons) == 2
+            @test any(c -> c isa MacroEconometricModels.OccBinConstraint, cons)
+            @test any(c -> c isa MacroEconometricModels.NonlinearConstraint, cons)
+        end
+    end
+
+    @testset "_load_dsge_constraints — bounds only backward compat (no spec)" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "constraints.toml")
+            write(toml_path, """
+            [[constraints.bounds]]
+            variable = "i"
+            lower = 0.0
+            """)
+            cons = _load_dsge_constraints(toml_path)
+            @test length(cons) == 1
             @test cons[1] isa MacroEconometricModels.OccBinConstraint
         end
     end
@@ -5760,6 +5828,51 @@ end
         end
     end
 
+    @testset "_dsge_solve — constraint-solver option" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            cons_path = joinpath(dir, "constraints.toml")
+            write(cons_path, """
+            [[constraints.nonlinear]]
+            expr = "C[t] <= Y[t]"
+            label = "resource"
+            """)
+            out = _capture() do
+                _dsge_solve(; model=model_path, constraints=cons_path,
+                              constraint_solver="optim")
+            end
+            @test contains(out, "constraint-solver=optim")
+        end
+    end
+
+    @testset "_dsge_solve — invalid constraint-solver" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            @test_throws ErrorException _dsge_solve(;
+                model=model_path, constraint_solver="invalid")
+        end
+    end
+
     @testset "_dsge_solve — projection method" begin
         mktempdir() do dir
             toml_path = joinpath(dir, "model.toml")
@@ -5829,6 +5942,33 @@ end
                 _dsge_steady_state(; model=toml_path, constraints=con_path, format="table")
             end
             @test occursin("Steady State", out)
+        end
+    end
+
+    @testset "_dsge_steady_state — constraint-solver" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            cons_path = joinpath(dir, "constraints.toml")
+            write(cons_path, """
+            [[constraints.bounds]]
+            variable = "Y"
+            lower = 0.0
+            """)
+            out = _capture() do
+                _dsge_steady_state(; model=model_path, constraints=cons_path,
+                                     constraint_solver="nlopt")
+            end
+            @test contains(out, "Steady State")
         end
     end
 
@@ -6071,6 +6211,29 @@ end
             """)
             @test_throws ErrorException _dsge_perfect_foresight(;
                 model=toml_path, shocks="", periods=50, format="table")
+        end
+    end
+
+    @testset "_dsge_perfect_foresight — constraint-solver" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            shock_path = joinpath(dir, "shocks.csv")
+            CSV.write(shock_path, DataFrame(e_A = [1.0, 0.5, 0.0]))
+            out = _capture() do
+                _dsge_perfect_foresight(; model=model_path, shocks=shock_path,
+                                          constraint_solver="ipopt")
+            end
+            @test contains(out, "Perfect Foresight")
         end
     end
 
@@ -6666,6 +6829,18 @@ end
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,
                 ess_target=0.5, observables="", solver="gensys", order=1,
                 delayed_acceptance=false, output="", format="table")
+        end
+    end
+
+    @testset "_dsge_bayes_estimate — constraint-solver" begin
+        mktempdir() do dir
+            model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+            out = _capture() do
+                _dsge_bayes_estimate(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path,
+                    constraint_solver="path")
+            end
+            @test contains(out, "Bayesian")
         end
     end
 

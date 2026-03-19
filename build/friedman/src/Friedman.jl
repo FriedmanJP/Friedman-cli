@@ -54,7 +54,7 @@ include("commands/spectral.jl")
 # REPL (interactive session)
 include("repl.jl")
 
-const FRIEDMAN_VERSION = v"0.4.2"
+const FRIEDMAN_VERSION = v"0.4.0"
 
 """
     build_app() -> Entry

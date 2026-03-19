@@ -1544,6 +1544,15 @@ struct OccBinConstraint{T<:Real}
     variable::Symbol; bound::T; direction::Symbol
 end
 
+struct NonlinearConstraint{T<:Real}
+    fn::Function
+    label::String
+end
+
+function nonlinear_constraint(fn::Function; label::String="")
+    NonlinearConstraint{Float64}(fn, label)
+end
+
 struct OccBinSolution{T<:Real}
     linear_path::Matrix{T}; piecewise_path::Matrix{T}; steady_state::Vector{T}
     regime_history::Vector{Int}; converged::Bool; iterations::Int
@@ -1583,7 +1592,7 @@ function _mock_solution(spec::DSGESpec{T}; method=:gensys) where T
     DSGESolution{T}(G1, impact, C_sol, eu, method, eigs[1:min(n, length(eigs))], spec, ld)
 end
 
-function compute_steady_state(spec::DSGESpec; kwargs...)
+function compute_steady_state(spec::DSGESpec; solver=nothing, constraints=[], kwargs...)
     spec
 end
 
@@ -1591,7 +1600,7 @@ function linearize(spec::DSGESpec)
     _mock_linear(spec)
 end
 
-function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto, kwargs...) where T
+function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto, solver=nothing, constraints=[], kwargs...) where T
     n = spec.n_endog
     ne = spec.n_exog
     ld = _mock_linear(spec)
@@ -1650,7 +1659,7 @@ function pfi_solver(spec::DSGESpec; kwargs...)
     solve(spec; method=:pfi)
 end
 
-function perfect_foresight(spec::DSGESpec{T}; shocks=nothing, T_periods=100, kwargs...) where T
+function perfect_foresight(spec::DSGESpec{T}; shocks=nothing, T_periods=100, solver=nothing, constraints=[], kwargs...) where T
     n = spec.n_endog
     path = zeros(T, T_periods, n)
     devs = zeros(T, T_periods, n)
@@ -1683,8 +1692,11 @@ function occbin_irf(spec::DSGESpec{T}, constraints, shock_idx; shock_size=1.0, h
     OccBinIRF{T}(lin, pw, regimes, spec.varnames, "shock$shock_idx")
 end
 
+function parse_constraint(expr::String, spec::DSGESpec)
+    nonlinear_constraint(x -> 0.0; label=expr)
+end
 function parse_constraint(expr, spec::DSGESpec)
-    OccBinConstraint{Float64}(:i, 0.0, :geq)
+    OccBinConstraint{Float64}(Symbol("x"), 0.0, :geq)
 end
 
 function variable_bound(var::Symbol; lower=-Inf, upper=Inf)
@@ -1766,7 +1778,7 @@ end
 
 export AbstractDSGEModel, DSGESpec, LinearDSGE, DSGESolution, PerturbationSolution
 export ProjectionSolution, PerfectForesightPath, DSGEEstimation
-export OccBinConstraint, OccBinSolution, OccBinIRF
+export OccBinConstraint, NonlinearConstraint, nonlinear_constraint, OccBinSolution, OccBinIRF
 export compute_steady_state, linearize, solve, gensys, blanchard_kahn, klein
 export perturbation_solver, collocation_solver, pfi_solver
 export perfect_foresight, occbin_solve, occbin_irf, parse_constraint, variable_bound
@@ -2139,7 +2151,7 @@ function estimate_dsge_bayes(spec::DSGESpec{T}, data::Matrix, theta0::Vector;
         n_draws=10000, burnin=5000, ess_target=0.5,
         measurement_error=nothing, solver=:gensys,
         solver_kwargs=NamedTuple(), delayed_acceptance=false,
-        n_screen=200, rng=nothing) where T
+        n_screen=200, rng=nothing, solver_obj=nothing) where T
     np = length(theta0)
     draws = randn(T, n_draws, np) .* T(0.01) .+ theta0'
     log_post = fill(T(-100.0), n_draws)

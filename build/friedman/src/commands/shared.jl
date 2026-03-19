@@ -56,7 +56,6 @@ _var_name(varnames::Vector{String}, idx::Int) =
 """Generate per-variable output path by inserting suffix before extension."""
 function _per_var_output_path(output::String, suffix::String)
     isempty(output) && return ""
-    _validate_output_path(output)
     return replace(output, "." => "_$(suffix).")
 end
 
@@ -667,7 +666,6 @@ If `plot` is true, opens in browser. If `plot_save` is non-empty, saves to HTML 
 """
 function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
     !plot && isempty(plot_save) && return
-    _validate_output_path(plot_save)
     p = plot_result(result; kwargs...)
     if !isempty(plot_save)
         save_plot(p, plot_save)
@@ -689,7 +687,6 @@ Load a DSGE model from a .toml or .jl file.
 - .jl: include() the file, expect a `model` variable of type DSGESpec
 """
 function _load_dsge_model(path::String)
-    _validate_input_path(path)
     isfile(path) || error("model file not found: $path")
     ext = lowercase(splitext(path)[2])
 
@@ -725,18 +722,16 @@ function _load_dsge_model(path::String)
 end
 
 """
-    _solve_dsge(spec; method="gensys", order=1, degree=5, grid="auto", constraint_solver="") → solution
+    _solve_dsge(spec; method="gensys", order=1, degree=5, grid="auto") → solution
 
 Solve a DSGE model: compute steady state → linearize → solve.
 Returns DSGESolution, PerturbationSolution, or ProjectionSolution.
 """
 function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
                      method::String="gensys", order::Int=1,
-                     degree::Int=5, grid::String="auto",
-                     constraint_solver::String="")
+                     degree::Int=5, grid::String="auto")
     println("Computing steady state...")
-    ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    spec = compute_steady_state(spec; ss_kw...)
+    spec = compute_steady_state(spec)
 
     println("Linearizing model...")
     linearize(spec)
@@ -746,9 +741,8 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
             (method in ("projection", "pfi") ? ", degree=$degree, grid=$grid" : "") *
             "...")
 
-    solve_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
     sol = solve(spec; method=Symbol(method), order=order,
-                degree=degree, grid=Symbol(grid), solve_kw...)
+                degree=degree, grid=Symbol(grid))
 
     # Report diagnostics
     if sol isa MacroEconometricModels.DSGESolution ||
@@ -763,40 +757,20 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
 end
 
 """
-    _load_dsge_constraints(path; spec=nothing) → Vector{constraint}
+    _load_dsge_constraints(path) → Vector{OccBinConstraint}
 
-Load OccBin and/or nonlinear constraints from a TOML file.
-Nonlinear constraints require a loaded DSGE spec.
+Load OccBin constraints from a TOML file.
 """
-function _load_dsge_constraints(path::String; spec=nothing)
+function _load_dsge_constraints(path::String)
     config = load_config(path)
     con_cfg = get_dsge_constraints(config)
-
-    has_bounds = !isempty(get(con_cfg, "bounds", []))
-    has_nonlinear = !isempty(get(con_cfg, "nonlinear", []))
-
-    if has_nonlinear && spec === nothing
-        error("nonlinear constraints require a loaded DSGE spec (pass spec keyword)")
+    constraints = MacroEconometricModels.OccBinConstraint[]
+    for b in con_cfg["bounds"]
+        lower = get(b, "lower", -Inf)
+        c = variable_bound(Symbol(b["variable"]); lower=lower,
+                           upper=get(b, "upper", Inf))
+        push!(constraints, c)
     end
-
-    constraints = Any[]
-
-    if has_bounds
-        for b in con_cfg["bounds"]
-            lower = get(b, "lower", -Inf)
-            c = variable_bound(Symbol(b["variable"]); lower=lower,
-                               upper=get(b, "upper", Inf))
-            push!(constraints, c)
-        end
-    end
-
-    if has_nonlinear
-        for nl in con_cfg["nonlinear"]
-            c = parse_constraint(nl["expr"], spec)
-            push!(constraints, c)
-        end
-    end
-
     return constraints
 end
 

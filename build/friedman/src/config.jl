@@ -22,7 +22,6 @@
 Load and validate a TOML configuration file.
 """
 function load_config(path::String)
-    _validate_input_path(path)
     isfile(path) || error("config file not found: $path")
     try
         return TOML.parsefile(path)
@@ -190,17 +189,6 @@ function get_dsge_constraints(config::Dict)
         push!(bounds, bound)
     end
     result["bounds"] = bounds
-
-    nonlinear_raw = get(con, "nonlinear", Dict[])
-    nonlinear = Dict{String,Any}[]
-    for nl in nonlinear_raw
-        entry = Dict{String,Any}("expr" => get(nl, "expr", ""))
-        if haskey(nl, "label")
-            entry["label"] = String(nl["label"])
-        end
-        push!(nonlinear, entry)
-    end
-    result["nonlinear"] = nonlinear
 
     return result
 end

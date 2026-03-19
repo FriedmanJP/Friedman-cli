@@ -391,11 +391,11 @@ end
         @test contains(help_text, "friedman var")
 
         # Entry help includes version number
-        entry = Entry("friedman", node; version=v"0.4.1")
+        entry = Entry("friedman", node; version=v"0.4.2")
         buf = IOBuffer()
         print_help(buf, entry)
         help_text = String(take!(buf))
-        @test contains(help_text, "0.4.1")
+        @test contains(help_text, "0.4.2")
 
         # Leaf with optional argument shows [arg] not <arg>
         leaf_opt_arg = LeafCommand("test", handler;
@@ -510,9 +510,9 @@ end
         @test called_with[][:data] == "test.csv"
 
         # dispatch() with ["--version"] prints version
-        entry = Entry("friedman", outer_node; version=v"0.4.1")
+        entry = Entry("friedman", outer_node; version=v"0.4.2")
         version_output = strip(capture_stdout(() -> dispatch(entry, ["--version"])))
-        @test contains(version_output, "0.4.1")
+        @test contains(version_output, "0.4.2")
 
         # dispatch() with [] shows help (no error)
         help_output = capture_stdout(() -> dispatch(entry, String[]))
@@ -560,7 +560,7 @@ end
 
         # -V short flag triggers version
         v_output = strip(capture_stdout(() -> dispatch(entry, ["-V"])))
-        @test contains(v_output, "0.4.1")
+        @test contains(v_output, "0.4.2")
 
         # --warranty flag prints warranty text
         warranty_output = capture_stdout(() -> dispatch(entry, ["--warranty"]))
@@ -1500,7 +1500,7 @@ end
                 "irf" => irf_node, "fevd" => fevd_node, "hd" => hd_node,
                 "forecast" => NodeCommand("forecast", Dict{String,Union{NodeCommand,LeafCommand}}(), "Forecast")),
             "Friedman CLI")
-        entry = Entry("friedman", root; version=v"0.4.1")
+        entry = Entry("friedman", root; version=v"0.4.2")
 
         # Top level HAS irf, fevd, hd (action-first)
         @test haskey(root.subcmds, "irf")
@@ -3089,6 +3089,36 @@ using TOML
         @test isempty(result["bounds"])
     end
 
+    @testset "get_dsge_constraints — nonlinear" begin
+        config = Dict(
+            "constraints" => Dict(
+                "nonlinear" => [
+                    Dict("expr" => "K[t] + C[t] <= Y[t]", "label" => "resource"),
+                    Dict("expr" => "I[t] >= 0")
+                ]
+            )
+        )
+        result = get_dsge_constraints(config)
+        @test haskey(result, "nonlinear")
+        @test length(result["nonlinear"]) == 2
+        @test result["nonlinear"][1]["expr"] == "K[t] + C[t] <= Y[t]"
+        @test result["nonlinear"][1]["label"] == "resource"
+        @test result["nonlinear"][2]["expr"] == "I[t] >= 0"
+        @test !haskey(result["nonlinear"][2], "label") || result["nonlinear"][2]["label"] == ""
+    end
+
+    @testset "get_dsge_constraints — mixed bounds + nonlinear" begin
+        config = Dict(
+            "constraints" => Dict(
+                "bounds" => [Dict("variable" => "i", "lower" => 0.0)],
+                "nonlinear" => [Dict("expr" => "K[t] <= Y[t]", "label" => "cap")]
+            )
+        )
+        result = get_dsge_constraints(config)
+        @test length(result["bounds"]) == 1
+        @test length(result["nonlinear"]) == 1
+    end
+
     @testset "get_smm — valid config" begin
         cfg = Dict(
             "smm" => Dict(
@@ -3246,6 +3276,19 @@ include(joinpath(@__DIR__, "test_commands.jl"))
     opt_names = [o.name for o in pf_cmd.options]
     @test "shocks" in opt_names
     @test "periods" in opt_names
+
+    # Verify --constraint-solver option on solve
+    @test any(o -> o.name == "constraint-solver", solve_cmd.options)
+
+    # Verify --constraint-solver option on steady-state
+    ss_cmd = dsge_node.subcmds["steady-state"]
+    @test any(o -> o.name == "constraint-solver", ss_cmd.options)
+
+    # Verify --constraint-solver option on perfect-foresight
+    @test any(o -> o.name == "constraint-solver", pf_cmd.options)
+
+    # Verify --constraint-solver in bayes subcommands (via _bayes_common_options)
+    @test any(o -> o.name == "constraint-solver", bayes_est.options)
 end
 
 @testset "estimate smm command structure" begin

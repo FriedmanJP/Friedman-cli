@@ -1,0 +1,8 @@
+#!/bin/bash
+SCRIPT_DIR="/Users/chung/Desktop/CODES/Friedman-cli"
+SYSIMAGE="$SCRIPT_DIR/friedman.so"
+if [ -f "$SYSIMAGE" ]; then
+    exec julia --project="$SCRIPT_DIR" --sysimage="$SYSIMAGE" "$SCRIPT_DIR/bin/friedman" "$@"
+else
+    exec julia --project="$SCRIPT_DIR" "$SCRIPT_DIR/bin/friedman" "$@"
+fi
