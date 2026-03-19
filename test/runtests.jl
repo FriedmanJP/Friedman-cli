@@ -3089,6 +3089,36 @@ using TOML
         @test isempty(result["bounds"])
     end
 
+    @testset "get_dsge_constraints — nonlinear" begin
+        config = Dict(
+            "constraints" => Dict(
+                "nonlinear" => [
+                    Dict("expr" => "K[t] + C[t] <= Y[t]", "label" => "resource"),
+                    Dict("expr" => "I[t] >= 0")
+                ]
+            )
+        )
+        result = get_dsge_constraints(config)
+        @test haskey(result, "nonlinear")
+        @test length(result["nonlinear"]) == 2
+        @test result["nonlinear"][1]["expr"] == "K[t] + C[t] <= Y[t]"
+        @test result["nonlinear"][1]["label"] == "resource"
+        @test result["nonlinear"][2]["expr"] == "I[t] >= 0"
+        @test !haskey(result["nonlinear"][2], "label") || result["nonlinear"][2]["label"] == ""
+    end
+
+    @testset "get_dsge_constraints — mixed bounds + nonlinear" begin
+        config = Dict(
+            "constraints" => Dict(
+                "bounds" => [Dict("variable" => "i", "lower" => 0.0)],
+                "nonlinear" => [Dict("expr" => "K[t] <= Y[t]", "label" => "cap")]
+            )
+        )
+        result = get_dsge_constraints(config)
+        @test length(result["bounds"]) == 1
+        @test length(result["nonlinear"]) == 1
+    end
+
     @testset "get_smm — valid config" begin
         cfg = Dict(
             "smm" => Dict(

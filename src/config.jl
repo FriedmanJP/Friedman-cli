@@ -190,6 +190,17 @@ function get_dsge_constraints(config::Dict)
     end
     result["bounds"] = bounds
 
+    nonlinear_raw = get(con, "nonlinear", Dict[])
+    nonlinear = Dict{String,Any}[]
+    for nl in nonlinear_raw
+        entry = Dict{String,Any}("expr" => get(nl, "expr", ""))
+        if haskey(nl, "label")
+            entry["label"] = String(nl["label"])
+        end
+        push!(nonlinear, entry)
+    end
+    result["nonlinear"] = nonlinear
+
     return result
 end
 
