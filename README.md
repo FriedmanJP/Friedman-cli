@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg?token=TIYTWTJG36)](https://codecov.io/gh/FriedmanJP/Friedman-cli)
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 
-Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.4.0).
+Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.4.1).
 
 14 top-level commands, ~199 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
 
@@ -729,6 +729,14 @@ method = "gensys"
 [[constraints.bounds]]
 variable = "i"
 lower = 0.0
+```
+
+**Nonlinear constraints (MEMs v0.4.1):**
+
+```toml
+[[constraints.nonlinear]]
+expr = "K[t] + C[t] <= Y[t]"
+label = "resource constraint"
 ```
 
 **SMM specification:**

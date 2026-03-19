@@ -139,7 +139,7 @@ src/
 | | Version |
 |---|---------|
 | Julia | `>= 1.12` |
-| MacroEconometricModels | `0.3.5` |
+| MacroEconometricModels | `0.4.1` |
 
 ## Totals
 

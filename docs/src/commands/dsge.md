@@ -68,6 +68,7 @@ friedman dsge solve rbc.toml --constraints=occbin.toml --periods=60
 | `--degree` | | Int | 5 | Polynomial degree (projection/pfi) |
 | `--grid` | | String | `auto` | Grid type: `auto`, `chebyshev`, `smolyak` |
 | `--constraints` | | String | | Path to OccBin constraints TOML |
+| `--constraint-solver` | | String | `nlsolve` | Constraint solver backend: `ipopt`, `path`, `nlsolve` |
 | `--periods` | | Int | 40 | Number of periods for OccBin simulation |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
@@ -213,6 +214,7 @@ friedman dsge perfect-foresight rbc.toml --shocks=shocks.csv --periods=200
 |--------|-------|------|---------|-------------|
 | `--shocks` | | String | (required) | Path to shock sequence CSV |
 | `--periods` | | Int | 100 | Simulation periods |
+| `--constraint-solver` | | String | `nlsolve` | Constraint solver backend: `ipopt`, `path`, `nlsolve` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
@@ -234,6 +236,7 @@ friedman dsge steady-state rbc.toml --constraints=occbin.toml
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--constraints` | | String | | Path to OccBin constraints TOML |
+| `--constraint-solver` | | String | `nlsolve` | Constraint solver backend: `ipopt`, `path`, `nlsolve` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
@@ -255,6 +258,7 @@ Bayesian DSGE workflow. `bayes` is a **nested command group** with 8 sub-leaves:
 | `--burnin` | | Int | 5000 | Burn-in draws |
 | `--n-particles` | | Int | 500 | Particle filter particles (smc2) |
 | `--solver` | | String | `gensys` | `gensys`, `klein`, `perturbation` |
+| `--constraint-solver` | | String | `nlsolve` | Constraint solver backend: `ipopt`, `path`, `nlsolve` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 

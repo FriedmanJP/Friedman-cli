@@ -1,6 +1,6 @@
 # MacroEconometricModels.jl API Reference
 
-Upstream library (v0.3.5): 300+ exports. Full docs: https://chung9207.github.io/MacroEconometricModels.jl/dev/
+Upstream library (v0.4.1): 350+ exports. Full docs: https://chung9207.github.io/MacroEconometricModels.jl/dev/
 Deps: DataFrames, Distributions, LinearAlgebra, Optim, MCMCChains, PrettyTables, Random, SparseArrays, SpecialFunctions, Statistics, StatsAPI, Turing. Weak: FFTW, JuMP/Ipopt/PATHSolver.
 
 ## Key Types
@@ -19,7 +19,7 @@ Deps: DataFrames, Distributions, LinearAlgebra, Optim, MCMCChains, PrettyTables,
 **Data:** `TimeSeriesData{T}` (keyword ctor), `DataDiagnostic`, `DataSummary{T}`
 **Nowcast:** `NowcastDFM`, `NowcastBVAR`, `NowcastBridge`, `NowcastResult`, `NowcastNews`
 **Filter:** `HPFilterResult`, `HamiltonFilterResult`, `BeveridgeNelsonResult`, `BaxterKingResult`, `BoostedHPResult`
-**DSGE:** `DSGESpec{T}`, `LinearDSGE{T}`, `DSGESolution{T}` (G1, impact, eigenvalues), `PerturbationSolution{T}` (gx, hx), `ProjectionSolution{T}`, `PerfectForesightPath{T}`, `DSGEEstimation{T}`, `OccBinConstraint{T}`, `OccBinSolution{T}`, `OccBinIRF{T}` (linear, piecewise, shock_name)
+**DSGE:** `DSGESpec{T}`, `LinearDSGE{T}`, `DSGESolution{T}` (G1, impact, eigenvalues), `PerturbationSolution{T}` (gx, hx), `ProjectionSolution{T}`, `PerfectForesightPath{T}`, `DSGEEstimation{T}`, `OccBinConstraint{T}`, `OccBinSolution{T}`, `OccBinIRF{T}` (linear, piecewise, shock_name), `NonlinearConstraint{T}` (fn, label)
 **DID:** `DIDResult{T}` (att, se, ci_lower, ci_upper, event_times, overall_att, group_time_att, cohorts), `EventStudyLP{T}`, `LPDiDResult{T}` (se_vec, nobs_h, outcome_name, spec_type), `BaconDecomposition{T}`, `PretrendTestResult{T}`, `NegativeWeightResult{T}`, `HonestDiDResult{T}`
 **FAVAR:** `FAVARModel{T}`, `BayesianFAVAR{T}` — FAVAR estimation (two-step/Bayesian)
 **Structural DFM:** `StructuralDFM{T}` — structural dynamic factor model
@@ -132,13 +132,13 @@ Accessors: `point_forecast(fc)`, `lower_bound(fc)`, `upper_bound(fc)`, `forecast
 **DSGE:**
 `DSGESpec(; n_endog, n_exog, varnames, exog, parameters, equations, steady_state)`
 `compute_steady_state(spec; constraints)` | `linearize(spec)` → LinearDSGE
-`solve(spec; method, order, degree, grid)` — method: :gensys/:blanchard_kahn/:klein/:perturbation/:projection/:pfi
+`solve(spec; method, order, degree, grid, solver)` — method: :gensys/:blanchard_kahn/:klein/:perturbation/:projection/:pfi, solver: constraint solver backend
 `gensys(spec)`, `blanchard_kahn(spec)`, `klein(spec)` → DSGESolution | `perturbation_solver(spec; order)` (order: 1/2/3, 3rd-order NEW in v0.3.2) | `collocation_solver(spec; degree)` | `pfi_solver(spec; degree)`
 `is_determined(sol)`, `is_stable(sol)`, `nshocks(sol)`
 `simulate(sol, T; antithetic, rng)` | `simulate(spec, T)` → Matrix
 `estimate_dsge(spec, Y, param_names; method, solve_method, weighting, irf_horizon, var_lags, sim_ratio)` → DSGEEstimation
-`perfect_foresight(spec; shocks, T_periods)` → PerfectForesightPath
-OccBin: `OccBinConstraint(var, lower, upper)`, `variable_bound(var; lower, upper)`, `parse_constraint(expr)`, `occbin_solve(spec, shocks, constraints; T_periods)`, `occbin_irf(spec, constraints, shock_idx; shock_size, horizon)`
+`perfect_foresight(spec; shocks, T_periods, solver)` → PerfectForesightPath
+OccBin: `OccBinConstraint(var, lower, upper)`, `variable_bound(var; lower, upper)`, `parse_constraint(expr, spec)`, `nonlinear_constraint(fn; label)`, `occbin_solve(spec, shocks, constraints; T_periods)`, `occbin_irf(spec, constraints, shock_idx; shock_size, horizon)`
 `estimate_dsge_bayes(spec, data, theta0; priors, method, n_smc, n_mh, n_blocks, conf_level)` → BayesianDSGE — method: :smc/:smc2/:mh
 `posterior_summary(bd::BayesianDSGE)`, `bayes_factor(bd1, bd2)`, `prior_posterior_table(bd)`, `posterior_predictive(bd; n_sim, periods)`
 
