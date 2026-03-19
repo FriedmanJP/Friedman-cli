@@ -247,6 +247,35 @@ end
     @test Friedman._split_repl_line("data use \"my file.csv\"") == ["data", "use", "my file.csv"]
     @test Friedman._split_repl_line("") == String[]
     @test Friedman._split_repl_line("   ") == String[]
+    @test Friedman._split_repl_line("help") == ["help"]
+    # Unclosed quote — takes rest of line as token
+    @test Friedman._split_repl_line("data use \"my file") == ["data", "use", "my file"]
+end
+
+@testset "_command_depth" begin
+    @test Friedman._command_depth(["estimate", "var", "data.csv"]) == 2
+    @test Friedman._command_depth(["dsge", "bayes", "estimate", "model.toml"]) == 3
+    @test Friedman._command_depth(["data", "list"]) == 2
+    @test Friedman._command_depth(["--help"]) == 0
+    @test Friedman._command_depth(String[]) == 0
+    # Stops at file-like tokens
+    @test Friedman._command_depth(["estimate", "var", "/path/to/data.csv"]) == 2
+    @test Friedman._command_depth(["dsge", "solve", "model.jl"]) == 2
+    # Caps at 4
+    @test Friedman._command_depth(["a", "b", "c", "d", "e"]) == 4
+end
+
+@testset "_complete_leaf_options" begin
+    app = Friedman.build_app()
+    var_leaf = app.root.subcmds["estimate"].subcmds["var"]
+    # Option prefix matching
+    completions = Friedman._complete_leaf_options(var_leaf, "--la")
+    @test "--lags" in completions
+    # Flag prefix matching
+    completions2 = Friedman._complete_leaf_options(var_leaf, "--pl")
+    @test "--plot" in completions2
+    # Non-option prefix returns empty
+    @test isempty(Friedman._complete_leaf_options(var_leaf, "data"))
 end
 
 @testset "repl_dispatch" begin
