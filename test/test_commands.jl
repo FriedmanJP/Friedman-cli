@@ -5972,6 +5972,82 @@ end
         end
     end
 
+    @testset "_dsge_steady_state — invalid constraint-solver" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            @test_throws ErrorException _dsge_steady_state(;
+                model=model_path, constraint_solver="invalid")
+        end
+    end
+
+    @testset "_dsge_perfect_foresight — invalid constraint-solver" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            shocks_csv = joinpath(dir, "shocks.csv")
+            write(shocks_csv, "e_A\n0.01\n0.0\n")
+            @test_throws ErrorException _dsge_perfect_foresight(;
+                model=model_path, shocks=shocks_csv, constraint_solver="invalid")
+        end
+    end
+
+    @testset "_dsge_bayes_run_estimation — invalid constraint-solver" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            parameters = { rho = 0.9, sigma = 0.01 }
+            endogenous = ["Y", "C"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
+            [[model.equations]]
+            expr = "C[t] = Y[t]"
+            [solver]
+            method = "gensys"
+            """)
+            priors_path = joinpath(dir, "priors.toml")
+            write(priors_path, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+            csv = _make_csv(dir; T=50, n=2)
+            @test_throws ErrorException _dsge_bayes_estimate(;
+                model=model_path, data=csv, params="rho,sigma",
+                priors=priors_path, sampler="smc",
+                n_smc=100, n_particles=50, n_draws=100, burnin=10,
+                ess_target=0.5, observables="", solver="gensys", order=1,
+                delayed_acceptance=false, constraint_solver="invalid",
+                output="", format="table")
+        end
+    end
+
     @testset "_dsge_simulate — default" begin
         mktempdir() do dir
             toml_path = joinpath(dir, "model.toml")
@@ -6232,6 +6308,35 @@ end
             out = _capture() do
                 _dsge_perfect_foresight(; model=model_path, shocks=shock_path,
                                           constraint_solver="ipopt")
+            end
+            @test contains(out, "Perfect Foresight")
+        end
+    end
+
+    @testset "_dsge_perfect_foresight — with constraints" begin
+        mktempdir() do dir
+            model_path = joinpath(dir, "model.toml")
+            write(model_path, """
+            [model]
+            endogenous = ["Y", "C"]
+            exogenous = ["e_A"]
+            parameters = { alpha = 0.36 }
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [solver]
+            method = "gensys"
+            """)
+            cons_path = joinpath(dir, "constraints.toml")
+            write(cons_path, """
+            [[constraints.bounds]]
+            variable = "Y"
+            lower = 0.0
+            """)
+            shock_path = joinpath(dir, "shocks.csv")
+            CSV.write(shock_path, DataFrame(e_A = [1.0, 0.5, 0.0]))
+            out = _capture() do
+                _dsge_perfect_foresight(; model=model_path, shocks=shock_path,
+                                          constraints=cons_path)
             end
             @test contains(out, "Perfect Foresight")
         end
@@ -6935,6 +7040,33 @@ end
         end
     end
 
+    @testset "_dsge_bayes_compare — Model 1 favored" begin
+        mktempdir() do dir
+            model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+            # Model 1 has 2 params → log_ml = -498, Model 2 has 1 param → log_ml = -499
+            # So bayes_factor = exp(1) > 1 → "Model 1 favored"
+            priors2_path = joinpath(dir, "priors2.toml")
+            write(priors2_path, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            """)
+            out = _capture() do
+                _dsge_bayes_compare(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path,
+                    sampler="smc", n_smc=100, n_particles=50,
+                    n_draws=100, burnin=10, ess_target=0.5,
+                    observables="", solver="gensys", order=1,
+                    delayed_acceptance=false,
+                    model2=model_path, params2="rho", priors2=priors2_path,
+                    output="", format="table")
+            end
+            @test occursin("Evidence favors Model 1", out)
+        end
+    end
+
     @testset "_dsge_bayes_compare — missing model2" begin
         mktempdir() do dir
             model_path, priors_path, csv = _make_bayes_dsge_files(dir)
@@ -7229,6 +7361,31 @@ end
                 out = _capture() do
                     _dsge_hd(; model=toml_path, data=csv, observables="var1,var2,var3",
                               format="table", output="")
+                end
+                @test occursin("Historical Decomposition", out)
+            end
+        end
+
+        @testset "_dsge_hd — auto measurement error" begin
+            mktempdir() do dir
+                toml_path = joinpath(dir, "model.toml")
+                write(toml_path, """
+                [model]
+                parameters = { rho = 0.9, sigma = 0.01, beta = 0.99 }
+                endogenous = ["C", "K", "Y"]
+                exogenous = ["e_A"]
+
+                [[model.equations]]
+                expr = "C[t] + K[t] = Y[t]"
+                [[model.equations]]
+                expr = "Y[t] = K[t-1]"
+                [[model.equations]]
+                expr = "K[t] = rho * K[t-1] + sigma * e_A[t]"
+                """)
+                csv = _make_csv(dir; T=100, n=3)
+                out = _capture() do
+                    _dsge_hd(; model=toml_path, data=csv, observables="var1,var2,var3",
+                              measurement_error="auto", format="table", output="")
                 end
                 @test occursin("Historical Decomposition", out)
             end

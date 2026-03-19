@@ -2189,7 +2189,7 @@ function estimate_dsge_bayes(spec::DSGESpec{T}, data::Matrix, theta0::Vector;
     pnames = ["param_$i" for i in 1:np]
     ess_hist = fill(T(n_smc * 0.8), 20)
     sol = solve(spec; method=:gensys)
-    BayesianDSGE{T}(draws, log_post, pnames, T(-500.0), method, T(0.25), ess_hist, spec, sol)
+    BayesianDSGE{T}(draws, log_post, pnames, T(-500.0 + np), method, T(0.25), ess_hist, spec, sol)
 end
 
 export BayesianDSGE, estimate_dsge_bayes
