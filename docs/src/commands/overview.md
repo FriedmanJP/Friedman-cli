@@ -24,7 +24,7 @@ friedman
 │                pvar (hansen_j | mmsc | lagselect | stability)
 ├── irf          var | bvar | lp | vecm | pvar | favar | sdfm
 ├── fevd         var | bvar | lp | vecm | pvar | favar | sdfm
-├── hd           var | bvar | lp | vecm | favar | dsge | dsge-bayes
+├── hd           var | bvar | lp | vecm | favar
 ├── forecast     var | bvar | lp | arima | static | dynamic | gdfm |
 │                arch | garch | egarch | gjr_garch | sv | vecm | favar
 ├── predict      var | bvar | arima | vecm | static | dynamic | gdfm |
@@ -45,7 +45,7 @@ friedman
 └── spectral     acf | periodogram | density | cross | transfer
 ```
 
-**Total: 14 top-level commands, ~200 subcommands.**
+**Total: 14 top-level commands, ~204 subcommands.**
 
 Additionally, `friedman repl` launches an [interactive REPL session](@ref Interactive-REPL) with persistent data loading, result caching, and tab completion.
 

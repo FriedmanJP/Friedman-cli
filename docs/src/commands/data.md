@@ -190,26 +190,25 @@ friedman data dropna data.csv --output=data_clean.csv
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--output` | `-o` | String | auto | Output CSV file path |
+| `--vars` | | String | (all) | Column names to check, comma-separated |
+| `--output` | `-o` | String | (stdout) | Export results to file |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 
 **Output:** Cleaned dataset with missing rows removed, plus a summary of rows dropped.
 
 ## data keeprows
 
-Keep only rows satisfying a condition on a specified column.
+Keep only rows at the given index positions (range or comma-separated list).
 
 ```bash
-friedman data keeprows data.csv --col=year --op=ge --val=1990
-friedman data keeprows data.csv --col=country --op=eq --val=USA --output=usa.csv
+friedman data keeprows data.csv --rows=1:100
+friedman data keeprows data.csv --rows=1,5,10 --output=subset.csv
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--col` | `-c` | String | (required) | Column name to filter on |
-| `--op` | | String | (required) | Comparison operator: `eq`, `ne`, `lt`, `le`, `gt`, `ge` |
-| `--val` | | String | (required) | Value to compare against |
-| `--output` | `-o` | String | auto | Output CSV file path |
+| `--rows` | | String | (all) | Row indices to keep (e.g. `1:100`, `1,5,10`) |
+| `--output` | `-o` | String | (stdout) | Export results to file |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 
-**Output:** Filtered dataset containing only rows that satisfy the condition.
+**Output:** Filtered dataset containing only the selected rows.

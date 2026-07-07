@@ -143,4 +143,4 @@ src/
 
 ## Totals
 
-14 top-level commands, ~199 subcommands across 21 source files.
+14 top-level commands, ~204 subcommands across 21 source files.
