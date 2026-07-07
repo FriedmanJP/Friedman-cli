@@ -90,28 +90,41 @@ Extract numeric column names from a DataFrame.
 """
 variable_names(df::DataFrame) = _numeric_column_names(df)
 
+const _VALID_FORMATS = (:table, :csv, :json)
+
+"""
+    _parse_format(format) → Symbol
+
+Normalize and validate an output format. Errors on anything not in table|csv|json.
+"""
+function _parse_format(format::Union{String,Symbol})
+    fmt = Symbol(lowercase(String(format)))
+    fmt in _VALID_FORMATS || error("unknown format '$(format)' (expected: table|csv|json)")
+    return fmt
+end
+
 """
     output_result(result, varnames; format, output, title)
 
 Route output to table (terminal), CSV, or JSON based on `format`.
 - `result`: a Matrix or DataFrame
 - `varnames`: column names
-- `format`: :table, :csv, or :json
+- `format`: table, csv, or json (String or Symbol)
 - `output`: file path (empty string = stdout)
 - `title`: table title for terminal display
 """
 function output_result(result::AbstractMatrix, varnames::Vector{String};
-                       format::String="table", output::String="", title::String="Results")
-    fmt = Symbol(lowercase(format))
+                       format::Union{String,Symbol}="table", output::String="", title::String="Results")
     df = DataFrame(result, varnames)
-    output_result(df; format=fmt, output=output, title=title)
+    output_result(df; format=format, output=output, title=title)
 end
 
-function output_result(df::DataFrame; format::Symbol=:table, output::String="", title::String="Results")
+function output_result(df::DataFrame; format::Union{String,Symbol}=:table, output::String="", title::String="Results")
+    fmt = _parse_format(format)
     _validate_output_path(output)
-    if format == :csv
+    if fmt == :csv
         _write_csv(df, output)
-    elseif format == :json
+    elseif fmt == :json
         _write_json(df, output)
     else
         _write_table(df, output, title)
@@ -123,9 +136,9 @@ end
 
 Output key-value results (e.g., test statistics).
 """
-function output_kv(pairs::Vector{<:Pair{String}}; format::String="table", output::String="", title::String="Results")
+function output_kv(pairs::Vector{<:Pair{String}}; format::Union{String,Symbol}="table", output::String="", title::String="Results")
+    fmt = _parse_format(format)
     _validate_output_path(output)
-    fmt = Symbol(lowercase(format))
     if fmt == :json
         d = Dict(pairs)
         _write_json_raw(d, output)

@@ -2635,6 +2635,24 @@ end
         @test_throws ErrorException output_result(df; format=:csv, output="foo/../../bad.csv")
     end
 
+    @testset "strict format validation (F18/F19)" begin
+        df = DataFrame(a=[1.0], b=[2.0])
+        # Unknown formats must error, never silently render a table
+        @test_throws ErrorException output_result(df; format=:xml)
+        @test_throws ErrorException output_result(df; format=:jsn)
+        @test_throws ErrorException output_kv(["stat" => 1.0]; format="yaml")
+        @test_throws ErrorException output_result(ones(1, 2), ["a", "b"]; format="html")
+        # Case-insensitive strings and Symbols both accepted after unification
+        mktempdir() do dir
+            p = joinpath(dir, "o.json")
+            output_result(df; format="JSON", output=p)
+            @test startswith(strip(read(p, String)), "[")
+            p2 = joinpath(dir, "o2.csv")
+            output_result(df; format=:csv, output=p2)
+            @test startswith(read(p2, String), "a,b")
+        end
+    end
+
     @testset "df_to_matrix" begin
         # Extracts only numeric columns
         df = DataFrame(a=[1,2,3], b=[4.0,5.0,6.0])
