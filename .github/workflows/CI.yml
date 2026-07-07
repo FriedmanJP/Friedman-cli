@@ -23,13 +23,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: '1'
+          - version: '1.12'
             os: ubuntu-latest
             arch: x64
-          - version: '1'
+          - version: '1.12'
             os: macos-latest
             arch: arm64
-          - version: '1'
+          - version: '1.12'
             os: windows-latest
             arch: x64
 
@@ -44,11 +44,12 @@ jobs:
       - uses: julia-actions/cache@v2
 
       - name: Install dependencies
+        # rev must equal [compat] MacroEconometricModels in Project.toml (F30)
         run: |
           julia --project -e '
             using Pkg
             Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="main")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
             Pkg.instantiate()
           '
 
@@ -68,3 +69,30 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
+
+  # Upstream early-warning radar: latest Julia + MEMs dev. Allowed to fail.
+  canary:
+    name: Canary — Julia latest + MEMs dev
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Install dependencies (MEMs dev)
+        run: |
+          julia --project -e '
+            using Pkg
+            Pkg.rm("MacroEconometricModels")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="dev")
+            Pkg.instantiate()
+          '
+
+      - name: Run tests
+        run: julia --project test/runtests.jl
