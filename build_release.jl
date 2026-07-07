@@ -129,12 +129,19 @@ if %errorlevel% equ 0 (
 )
 
 where julia >nul 2>&1
-if %errorlevel% equ 0 (
-    for /f "tokens=*" %%v in ('julia --version 2^>^&1') do set "JULIA_VER=%%v"
-    julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
-    exit /b %errorlevel%
+if %errorlevel% neq 0 goto :nojulia
+for /f "tokens=3" %%v in ('julia --version 2^>nul') do set "JULIA_VER=%%v"
+for /f "tokens=1,2 delims=." %%a in ("%JULIA_VER%") do (
+    set "JMAJ=%%a"
+    set "JMIN=%%b"
 )
+if "%JMAJ%"=="" goto :nojulia
+if %JMAJ% lss 1 goto :nojulia
+if %JMAJ% equ 1 if %JMIN% lss 12 goto :nojulia
+julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
+exit /b %errorlevel%
 
+:nojulia
 echo Error: Julia 1.12+ is required but not found.
 echo Install via: winget install --id Julialang.Juliaup
 echo Then run: juliaup add 1.12
