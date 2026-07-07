@@ -11,5 +11,18 @@ script_dir = @__DIR__
 project_dir = dirname(script_dir)
 Pkg.activate(project_dir; io=devnull)
 
-using Friedman
+if !isfile(joinpath(project_dir, "Manifest.toml"))
+    @info "No Manifest.toml found — instantiating project environment (one-time)…"
+    Pkg.instantiate()
+end
+
+try
+    @eval using Friedman
+catch
+    @warn "Loading Friedman failed — re-instantiating the environment and retrying…"
+    Pkg.instantiate()
+    Pkg.precompile()
+    @eval using Friedman
+end
+
 Friedman.main(ARGS)
