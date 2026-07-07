@@ -27,7 +27,17 @@ using Statistics: mean
 struct VARModel{T<:Real}
     Y::Matrix{T}; p::Int; B::Matrix{T}; U::Matrix{T}; Sigma::Matrix{T}
     aic::T; bic::T; hqic::T
+    varnames::Vector{String}
 end
+
+# Real MEMs VARModel carries varnames with this default (var/types.jl:31-35)
+VARModel(Y::Matrix{T}, p::Int, B::Matrix{T}, U::Matrix{T}, Sigma::Matrix{T},
+         aic::T, bic::T, hqic::T) where {T<:Real} =
+    VARModel(Y, p, B, U, Sigma, aic, bic, hqic, ["y$i" for i in 1:size(Y, 2)])
+
+(::Type{VARModel{T}})(Y::Matrix{T}, p::Int, B::Matrix{T}, U::Matrix{T}, Sigma::Matrix{T},
+                      aic::T, bic::T, hqic::T) where {T<:Real} =
+    VARModel{T}(Y, p, B, U, Sigma, aic, bic, hqic, ["y$i" for i in 1:size(Y, 2)])
 
 struct MockChains end
 
@@ -376,7 +386,17 @@ struct VECMModel{T<:Real}
     U::Matrix{T}; Sigma::Matrix{T}
     aic::T; bic::T; hqic::T; loglik::T
     deterministic::Symbol; method::Symbol
+    varnames::Vector{String}
 end
+
+# Real MEMs VECMModel carries varnames (vecm/types.jl:61)
+VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
+          Pi::Matrix{T}, Gamma::Vector{Matrix{T}}, mu::Vector{T}, U::Matrix{T},
+          Sigma::Matrix{T}, aic::T, bic::T, hqic::T, loglik::T,
+          deterministic::Symbol, method::Symbol) where {T<:Real} =
+    VECMModel(Y, p, rank, alpha, beta, Pi, Gamma, mu, U, Sigma,
+              aic, bic, hqic, loglik, deterministic, method,
+              ["y$i" for i in 1:size(Y, 2)])
 
 struct VECMForecast{T<:Real}
     levels::Matrix{T}; differences::Matrix{T}

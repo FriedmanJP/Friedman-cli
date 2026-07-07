@@ -8389,4 +8389,35 @@ end  # Sign/narrative closure execution
 
 end  # Remaining handler coverage
 
+@testset "cached-model path — F14 regression (five sites)" begin
+    Y = randn(60, 3)
+    var_m  = MacroEconometricModels.estimate_var(Y, 2)
+    vecm_m = MacroEconometricModels.estimate_vecm(Y, 2; rank=1)
+
+    out = _capture() do
+        _predict_var(; model=var_m, format="table")
+    end
+    @test occursin("In-Sample Predictions", out)
+
+    out = _capture() do
+        _residuals_var(; model=var_m, format="table")
+    end
+    @test occursin("Residuals", out)
+
+    out = _capture() do
+        _predict_vecm(; model=vecm_m, format="table")
+    end
+    @test occursin("In-Sample Predictions", out)
+
+    out = _capture() do
+        _residuals_vecm(; model=vecm_m, format="table")
+    end
+    @test occursin("Residuals", out)
+
+    out = _capture() do
+        _forecast_vecm(; model=vecm_m, horizons=4, format="table")
+    end
+    @test occursin("VECM", out)
+end
+
 end  # Command Handlers

@@ -258,8 +258,6 @@ function _residuals_var(; data::String="", lags=nothing,
         varnames = model.varnames
         p = model.p
     end
-    n = size(Y, 2)
-
     println("Computing VAR($p) residuals: $(length(varnames)) variables")
     println()
 
@@ -365,7 +363,6 @@ function _residuals_vecm(; data::String="", lags::Int=2, rank::String="auto",
         varnames = vecm.varnames
         p = vecm.p
     end
-    n = size(Y, 2)
     r = cointegrating_rank(vecm)
 
     println("Computing VECM residuals: rank=$r, lags=$p")

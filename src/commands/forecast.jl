@@ -806,7 +806,6 @@ function _forecast_vecm(; data::String="", lags::Int=2, rank::String="auto",
         varnames = vecm.varnames
         p = vecm.p
     end
-    n = size(Y, 2)
     r = cointegrating_rank(vecm)
 
     println("Computing VECM forecast: rank=$r, horizons=$horizons, CI=$ci_method")
