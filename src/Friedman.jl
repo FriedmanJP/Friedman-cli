@@ -54,7 +54,10 @@ include("commands/spectral.jl")
 # REPL (interactive session)
 include("repl.jl")
 
-const FRIEDMAN_VERSION = v"0.4.2"
+# Single source of truth: Project.toml (F3). Resolved at precompile time.
+const FRIEDMAN_VERSION = let proj = TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))
+    VersionNumber(proj["version"])
+end
 
 """
     build_app() -> Entry

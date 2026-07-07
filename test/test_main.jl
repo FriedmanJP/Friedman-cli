@@ -11,7 +11,10 @@ let project_root = dirname(@__DIR__)
     include(joinpath(project_root, "src", "cli", "dispatch.jl"))
 end
 
-const FRIEDMAN_VERSION = v"0.4.2"
+# Mirrors src/Friedman.jl: version derived from Project.toml (F3)
+const FRIEDMAN_VERSION = let proj = TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))
+    VersionNumber(proj["version"])
+end
 
 # Stub start_repl to avoid launching interactive REPL in tests
 function start_repl()
