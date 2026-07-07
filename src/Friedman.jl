@@ -86,50 +86,52 @@ function build_app()
 end
 
 """
-    main(args=ARGS)
+    run_cli(args)::Cint
 
-Entry point: build the CLI app and dispatch on the given arguments.
+Single entry shared by `main` (dev) and `julia_main` (compiled): dispatches and
+maps every failure to one clean stderr line and exit code 1. The full error
+taxonomy (typed classes, exit codes 2–6) lands in Phase 1 (P1-4).
 """
-function main(args::Vector{String}=ARGS)
+function run_cli(args::Vector{String})::Cint
     # Launch REPL if "repl" is the first argument
     if !isempty(args) && args[1] == "repl"
         start_repl()
-        return
+        return Cint(0)
     end
 
     app = build_app()
     try
         dispatch(app, args)
+        return Cint(0)
     catch e
+        printstyled(stderr, "Error: "; bold=true, color=:red)
         if e isa ParseError || e isa DispatchError
-            printstyled(stderr, "Error: "; bold=true, color=:red)
             println(stderr, e.message)
-            exit(1)
         else
-            rethrow()
+            println(stderr, sprint(showerror, e))
         end
+        return Cint(1)
     end
+end
+
+"""
+    main(args=ARGS)
+
+Entry point: dispatch and exit non-zero on failure.
+"""
+function main(args::Vector{String}=ARGS)
+    code = run_cli(args)
+    code == 0 || exit(Int(code))
+    return nothing
 end
 
 """
     julia_main()::Cint
 
-Entry point for PackageCompiler standalone executable.
+Entry point for PackageCompiler standalone executables.
 """
-function julia_main()::Cint
-    try
-        main(ARGS)
-        return 0
-    catch e
-        if e isa SystemExit
-            return e.code
-        end
-        printstyled(stderr, "Error: "; bold=true, color=:red)
-        println(stderr, sprint(showerror, e))
-        return 1
-    end
-end
+julia_main()::Cint = run_cli(ARGS)
 
-export main, build_app, julia_main
+export main, build_app, julia_main, run_cli
 
 end # module Friedman

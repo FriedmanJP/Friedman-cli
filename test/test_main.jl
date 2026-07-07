@@ -48,30 +48,44 @@ function build_app()
 end
 
 """
-    main(args)
+    run_cli(args)::Cint
 
-Entry point (mirrors src/Friedman.jl). Dispatches CLI commands.
+Single entry shared by main/julia_main (mirrors src/Friedman.jl).
 """
-function main(args::Vector{String}=ARGS)
+function run_cli(args::Vector{String})::Cint
     # Launch REPL if "repl" is the first argument
     if !isempty(args) && args[1] == "repl"
         start_repl()
-        return
+        return Cint(0)
     end
 
     app = build_app()
     try
         dispatch(app, args)
+        return Cint(0)
     catch e
+        printstyled(stderr, "Error: "; bold=true, color=:red)
         if e isa ParseError || e isa DispatchError
-            printstyled(stderr, "Error: "; bold=true, color=:red)
             println(stderr, e.message)
-            exit(1)
         else
-            rethrow()
+            println(stderr, sprint(showerror, e))
         end
+        return Cint(1)
     end
 end
+
+"""
+    main(args)
+
+Entry point (mirrors src/Friedman.jl). Dispatches CLI commands.
+"""
+function main(args::Vector{String}=ARGS)
+    code = run_cli(args)
+    code == 0 || exit(Int(code))
+    return nothing
+end
+
+julia_main()::Cint = run_cli(ARGS)
 
 @testset "build_app and main" begin
 
@@ -148,5 +162,16 @@ end
 
     @testset "FRIEDMAN_VERSION is a VersionNumber" begin
         @test FRIEDMAN_VERSION isa VersionNumber
+    end
+
+    @testset "run_cli exit codes (interim contract)" begin
+        out = _capture() do
+            @test run_cli(["--version"]) == 0
+        end
+        @test contains(out, string(FRIEDMAN_VERSION))
+        # DispatchError → 1, single stderr line, no stack trace, no exit()
+        @test run_cli(["definitely-not-a-command"]) == 1
+        # Handler error() (file not found) → 1 instead of an uncaught throw
+        @test run_cli(["estimate", "var", "/nonexistent/file.csv"]) == 1
     end
 end
