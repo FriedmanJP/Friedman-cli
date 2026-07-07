@@ -26,13 +26,13 @@ irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1
 ### macOS/Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 0.4.2
+curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 0.4.3
 ```
 
 ### Windows
 
 ```powershell
-$env:FRIEDMAN_VERSION = "0.4.2"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
+$env:FRIEDMAN_VERSION = "0.4.3"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 ```
 
 ## Manual Install from GitHub Releases

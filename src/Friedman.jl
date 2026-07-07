@@ -54,7 +54,9 @@ include("commands/spectral.jl")
 # REPL (interactive session)
 include("repl.jl")
 
-# Single source of truth: Project.toml (F3). Resolved at precompile time.
+# Single source of truth: Project.toml (F3). Resolved at precompile time;
+# include_dependency invalidates the precompile cache when the version bumps.
+Base.include_dependency(joinpath(dirname(@__DIR__), "Project.toml"))
 const FRIEDMAN_VERSION = let proj = TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))
     VersionNumber(proj["version"])
 end
