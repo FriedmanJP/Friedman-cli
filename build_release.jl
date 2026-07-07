@@ -9,9 +9,10 @@
 # 3. Creates a self-contained app directory with sysimage + launcher
 # 4. Does NOT modify the source Project.toml
 #
-# Note: JuMP/Ipopt/PATHSolver are excluded from the sysimage because Ipopt's
-# EPL-2.0 license is incompatible with GPL-3.0. Users who need DSGE constrained
-# optimization can install them separately: Pkg.add(["JuMP", "Ipopt"])
+# Note: JuMP/Ipopt/PATHSolver (EPL-2.0, GPL-incompatible) are excluded because
+# they are never installed into build_env — they are optional extensions of
+# MacroEconometricModels, not deps of this package. Users who need DSGE
+# constrained optimization can install them separately: Pkg.add(["JuMP", "Ipopt"])
 
 using Pkg
 
