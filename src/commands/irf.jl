@@ -16,154 +16,187 @@
 
 # IRF commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: friedman irf var ...)
 
-function register_irf_commands!()
-    irf_var = LeafCommand("var", _irf_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-            Option("shock"; type=Int, default=1, description="Shock variable index (1-based)"),
-            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
-            Option("ci"; type=String, default="bootstrap", description="none|bootstrap|theoretical"),
-            Option("replications"; type=Int, default=1000, description="Bootstrap replications"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("plot"; description="Open interactive plot in browser"),
-            Flag("cumulative"; description="Compute cumulative IRFs (for differenced data)"),
-            Flag("identified-set"; description="Return full identified set for sign restrictions"),
-            Flag("stationary-only"; description="Filter non-stationary bootstrap draws"),
-        ],
-        description="Compute frequentist impulse response functions")
-
-    irf_bvar = LeafCommand("bvar", _irf_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("shock"; type=Int, default=1, description="Shock variable index (1-based)"),
-            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("config"; type=String, default="", description="TOML config for identification/prior"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("plot"; description="Open interactive plot in browser"),
-            Flag("cumulative"; description="Compute cumulative IRFs (for differenced data)"),
-        ],
-        description="Compute Bayesian impulse response functions with credible intervals")
-
-    irf_lp = LeafCommand("lp", _irf_lp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("shock"; type=Int, default=1, description="Single shock index (1-based)"),
-            Option("shocks"; type=String, default="", description="Comma-separated shock indices (e.g. 1,2,3)"),
-            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
-            Option("lags"; short="p", type=Int, default=4, description="LP control lags"),
-            Option("var-lags"; type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("ci"; type=String, default="none", description="none|bootstrap"),
-            Option("replications"; type=Int, default=200, description="Bootstrap replications"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("vcov"; type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
-            Option("config"; type=String, default="", description="TOML config for sign/narrative restrictions"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("plot"; description="Open interactive plot in browser"),
-            Flag("cumulative"; description="Compute cumulative IRFs (for differenced data)"),
-        ],
-        description="Compute structural LP impulse response functions")
-
-    irf_vecm = LeafCommand("vecm", _irf_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("shock"; type=Int, default=1, description="Shock variable index (1-based)"),
-            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("ci"; type=String, default="bootstrap", description="none|bootstrap|theoretical"),
-            Option("replications"; type=Int, default=1000, description="Bootstrap replications"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute impulse response functions via VECM → VAR representation")
-
-    irf_pvar = LeafCommand("pvar", _irf_pvar;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column"),
-            Option("time-col"; type=String, default="", description="Time period column"),
-            Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("horizons"; short="h", type=Int, default=10, description="IRF horizon"),
-            Option("irf-type"; type=String, default="oirf", description="oirf|girf"),
-            Option("boot-draws"; type=Int, default=500, description="Bootstrap draws for CIs"),
-            Option("confidence"; type=Float64, default=0.95, description="Confidence level"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute Panel VAR impulse response functions (OIRF/GIRF)")
-
-    irf_favar = LeafCommand("favar", _irf_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
-            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
-            Option("id"; type=String, default="cholesky", description="Identification method"),
-            Option("config"; type=String, default="", description="TOML config for restrictions"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("panel-irf"; description="Output panel-wide IRFs (N variables) instead of factor-level"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="FAVAR impulse response functions")
-
-    irf_sdfm = LeafCommand("sdfm", _irf_sdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="q", type=Int, default=nothing, description="Number of dynamic factors"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign"),
-            Option("var-lags"; type=Int, default=1, description="Factor VAR lag order"),
-            Option("horizons"; short="h", type=Int, default=40, description="IRF horizon"),
-            Option("config"; type=String, default="", description="TOML config for sign restrictions"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Structural DFM impulse response functions (panel-wide)")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"   => irf_var,
-        "bvar"  => irf_bvar,
-        "lp"    => irf_lp,
-        "vecm"  => irf_vecm,
-        "pvar"  => irf_pvar,
-        "favar" => irf_favar,
-        "sdfm"  => irf_sdfm,
-    )
-    return NodeCommand("irf", subcmds, "Impulse Response Functions")
+function irf_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["irf", "var"],
+            summary="Compute frequentist impulse response functions",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+                OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
+                OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
+                OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)"),
+                FlagSpec(name="identified-set", description="Return full identified set for sign restrictions"),
+                FlagSpec(name="stationary-only", description="Filter non-stationary bootstrap draws")
+            ],
+            tables=[TableSpec(name=:irf_var, description="Compute frequentist impulse response functions")],
+            category="irf",
+            handler=wrap_legacy(_irf_var),
+        ),
+        CommandSpec(
+            path=["irf", "bvar"],
+            summary="Compute Bayesian impulse response functions with credible intervals",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)")
+            ],
+            tables=[TableSpec(name=:irf_bvar, description="Compute Bayesian impulse response functions with credible intervals")],
+            category="irf",
+            handler=wrap_legacy(_irf_bvar),
+        ),
+        CommandSpec(
+            path=["irf", "lp"],
+            summary="Compute structural LP impulse response functions",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="shock", type=Int, default=1, description="Single shock index (1-based)"),
+                OptionSpec(name="shocks", type=String, default="", description="Comma-separated shock indices (e.g. 1,2,3)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
+                OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="ci", type=String, default="none", description="none|bootstrap"),
+                OptionSpec(name="replications", type=Int, default=200, description="Bootstrap replications"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign/narrative restrictions"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)")
+            ],
+            tables=[TableSpec(name=:irf_lp, description="Compute structural LP impulse response functions")],
+            category="irf",
+            handler=wrap_legacy(_irf_lp),
+        ),
+        CommandSpec(
+            path=["irf", "vecm"],
+            summary="Compute impulse response functions via VECM → VAR representation",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
+                OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:irf_vecm, description="Compute impulse response functions via VECM → VAR representation")],
+            category="irf",
+            handler=wrap_legacy(_irf_vecm),
+        ),
+        CommandSpec(
+            path=["irf", "pvar"],
+            summary="Compute Panel VAR impulse response functions (OIRF/GIRF)",
+            args=[ArgSpec(name="data", description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=10, description="IRF horizon"),
+                OptionSpec(name="irf-type", type=String, default="oirf", description="oirf|girf"),
+                OptionSpec(name="boot-draws", type=Int, default=500, description="Bootstrap draws for CIs"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:irf_pvar, description="Compute Panel VAR impulse response functions (OIRF/GIRF)")],
+            category="irf",
+            handler=wrap_legacy(_irf_pvar),
+        ),
+        CommandSpec(
+            path=["irf", "favar"],
+            summary="FAVAR impulse response functions",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="Identification method"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for restrictions"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="panel-irf", description="Output panel-wide IRFs (N variables) instead of factor-level"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:irf_favar, description="FAVAR impulse response functions")],
+            category="irf",
+            handler=wrap_legacy(_irf_favar),
+        ),
+        CommandSpec(
+            path=["irf", "sdfm"],
+            summary="Structural DFM impulse response functions (panel-wide)",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:irf_sdfm, description="Structural DFM impulse response functions (panel-wide)")],
+            category="irf",
+            handler=wrap_legacy(_irf_sdfm),
+        )
+    ]
 end
+
+function register_irf_commands!()
+    specs = irf_specs()
+    register!(specs)
+    return build_node("irf", specs; description="Impulse Response Functions")
+end
+
 
 # ── VAR IRF ──────────────────────────────────────────────
 
