@@ -528,7 +528,7 @@ function estimate_specs()::Vector{CommandSpec}
 end
 
 function register_estimate_commands!()
-    specs = estimate_specs()
+    specs = with_save_model(estimate_specs())
     register!(specs)
     return build_node("estimate", specs; description="Model estimation")
 end

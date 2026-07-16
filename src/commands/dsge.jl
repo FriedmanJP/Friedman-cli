@@ -320,7 +320,10 @@ function dsge_specs()::Vector{CommandSpec}
 end
 
 function register_dsge_commands!()
-    specs = dsge_specs()
+    # --save-model only on solve (estimate already covered under estimate command)
+    specs = map(dsge_specs()) do s
+        s.path == ["dsge", "solve"] ? with_save_model([s])[1] : s
+    end
     register!(specs)
     return build_node("dsge", specs; description="DSGE models: solve, IRF, FEVD, simulate, estimate, Bayesian, OccBin, perfect foresight")
 end
@@ -408,6 +411,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       title="Projection Solution (degree=$(sol.degree), grid=$(sol.grid_type))")
     end
     _status()
+    return sol  # for --save-model (C029)
 end
 
 function _dsge_steady_state(; model::String, constraints::String="",

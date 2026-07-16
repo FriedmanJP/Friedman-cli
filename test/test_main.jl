@@ -42,6 +42,8 @@ function build_app()
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),
         "spectral"  => register_spectral_commands!(),
+        "model"     => register_model_commands!(),
+        "completions" => register_completions_commands!(),
     )
 
     root = NodeCommand("friedman", root_cmds,
@@ -100,15 +102,15 @@ julia_main()::Cint = run_cli(ARGS)
         @test app.root isa NodeCommand
     end
 
-    @testset "build_app has all 14 top-level commands" begin
+    @testset "build_app has all top-level commands" begin
         app = build_app()
         expected = ["estimate", "test", "irf", "fevd", "hd", "forecast",
                      "predict", "residuals", "filter", "data", "nowcast",
-                     "dsge", "did", "spectral"]
+                     "dsge", "did", "spectral", "model", "completions"]
         for cmd in expected
             @test haskey(app.root.subcmds, cmd)
         end
-        @test length(app.root.subcmds) == 14
+        @test length(app.root.subcmds) == length(expected)
     end
 
     @testset "build_app commands are correct types" begin

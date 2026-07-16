@@ -20,6 +20,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -50,6 +51,7 @@ Path to CSV data file
 | `--method` | `-m` | `String` | `css_mle` | — | ols|css|mle|css_mle |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_arima` (Path to CSV data file)
 
@@ -73,6 +75,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_bvar` (Path to CSV data file)
 
@@ -94,6 +97,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -119,6 +123,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -143,6 +148,7 @@ Path to CSV data file
 | `--contrast` | — | `String` | `logcosh` | — | logcosh|exp|kurtosis (for FastICA) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_fastica` (Path to CSV data file)
 
@@ -166,6 +172,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -191,6 +198,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -214,6 +222,7 @@ Path to CSV data file
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_gdfm` (Path to CSV data file)
 
@@ -235,6 +244,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -258,6 +268,7 @@ Path to CSV data file
 | `--weighting` | `-w` | `String` | `twostep` | — | identity|optimal|twostep|iterated |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_gmm` (Path to CSV data file)
 
@@ -279,6 +290,7 @@ Path to CSV data file
 | `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_iv` (Path to CSV data file)
 
@@ -301,6 +313,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_logit` (Path to CSV data file)
 
@@ -331,6 +344,7 @@ Path to CSV data file
 | `--score-method` | — | `String` | `logit` | — | logit|probit (propensity/robust only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_lp` (Path to CSV data file)
 
@@ -350,6 +364,7 @@ Path to CSV data file
 | `--distribution` | `-d` | `String` | `student_t` | — | student_t|skew_t|ghd|mixture_normal|pml|skew_normal |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_ml` (Path to CSV data file)
 
@@ -369,6 +384,7 @@ Path to CSV data file
 | `--cov-type` | — | `String` | `ols` | — | ols|hc0|hc1|hc2|hc3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_mlogit` (Path to CSV data file)
 
@@ -389,6 +405,7 @@ Path to CSV data file
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_ologit` (Path to CSV data file)
 
@@ -409,6 +426,7 @@ Path to CSV data file
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_oprobit` (Path to CSV data file)
 
@@ -434,6 +452,7 @@ Path to CSV panel data file
 | `--time-col` | — | `String` | `""` | — | Panel time column |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_piv` (Path to CSV panel data file)
 
@@ -457,6 +476,7 @@ Path to CSV panel data file
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_plogit` (Path to CSV panel data file)
 
@@ -480,6 +500,7 @@ Path to CSV panel data file
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_pprobit` (Path to CSV panel data file)
 
@@ -503,6 +524,7 @@ Path to CSV panel data file
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -529,6 +551,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_probit` (Path to CSV data file)
 
@@ -557,6 +580,7 @@ Path to CSV panel data file
 | `--max-lag-endo` | — | `Int64` | `99` | — | Maximum lag for endogenous instruments |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -583,6 +607,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--weights` | — | `String` | `""` | — | Weight column name (WLS) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_reg` (Path to CSV data file)
 
@@ -608,6 +633,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -633,6 +659,7 @@ Path to CSV data file
 | `--burn` | — | `Int64` | `100` | — | Burn-in periods |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_smm` (Path to CSV data file)
 
@@ -653,6 +680,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -677,6 +705,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -700,6 +729,7 @@ Path to CSV data file
 | `--trend` | — | `String` | `constant` | — | none|constant|trend|both |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_var` (Path to CSV data file)
 
@@ -722,6 +752,7 @@ Path to CSV data file
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_vecm` (Path to CSV data file)
 

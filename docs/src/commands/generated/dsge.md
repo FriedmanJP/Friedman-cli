@@ -479,6 +479,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|

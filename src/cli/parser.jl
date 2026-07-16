@@ -204,11 +204,18 @@ Unknown options throw ParseError with a did-you-mean hint (F1).
 function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
     # Bind positional arguments
     pos_values = Dict{Symbol,Any}()
+    # --model PATH.fmod makes <data> optional (C029): model handle skips re-estimation
+    model_set = haskey(parsed.options, "model") && !isempty(parsed.options["model"])
+
     for (idx, arg) in enumerate(cmd.args)
         if idx <= length(parsed.positional)
             pos_values[Symbol(arg.name)] = convert_value(arg.type, parsed.positional[idx], arg.name)
         elseif arg.required
-            throw(ParseError("missing required argument: <$(arg.name)>"))
+            if model_set && arg.name == "data"
+                pos_values[Symbol(arg.name)] = something(arg.default, "")
+            else
+                throw(ParseError("missing required argument: <$(arg.name)>"))
+            end
         else
             pos_values[Symbol(arg.name)] = arg.default
         end

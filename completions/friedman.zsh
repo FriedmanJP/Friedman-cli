@@ -3,6 +3,7 @@
 _friedman() {
   local -a commands
   commands=(
+    'completions'
     'data'
     'did'
     'dsge'
@@ -12,6 +13,7 @@ _friedman() {
     'forecast'
     'hd'
     'irf'
+    'model'
     'nowcast'
     'predict'
     'residuals'

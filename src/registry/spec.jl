@@ -68,6 +68,33 @@ const PLOT_OPTIONS = [
                description="Save interactive plot to HTML file"),
 ]
 
+# Model handles (P2-7 / C029) — compose onto estimate vs downstream specs
+const SAVE_MODEL_OPTION = OptionSpec(
+    name="save-model", type=String, default="",
+    description="Save estimated model to a .fmod handle file",
+)
+const MODEL_OPTION = OptionSpec(
+    name="model", type=String, default="",
+    description="Load model from a .fmod handle (skip re-estimation)",
+)
+
+"""Append option specs to every CommandSpec (by copy)."""
+function with_options(specs::Vector{CommandSpec}, extra::Vector{OptionSpec})
+    out = CommandSpec[]
+    for s in specs
+        push!(out, CommandSpec(
+            path=s.path, summary=s.summary, args=s.args,
+            options=vcat(s.options, extra), flags=s.flags,
+            tables=s.tables, category=s.category, aliases=s.aliases,
+            handler=s.handler,
+        ))
+    end
+    return out
+end
+
+with_save_model(specs::Vector{CommandSpec}) = with_options(specs, [SAVE_MODEL_OPTION])
+with_model_option(specs::Vector{CommandSpec}) = with_options(specs, [MODEL_OPTION])
+
 const PLOT_FLAGS = [
     FlagSpec(name="plot", description="Open interactive plot in browser"),
 ]

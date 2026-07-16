@@ -3777,4 +3777,75 @@ end
     @test "lambda" in trans_opts
 end
 
+@testset "Model handles (.fmod) C029" begin
+    tmp = tempname() * ".fmod"
+    try
+        # save / load round-trip (Main scope: sources included via test_commands.jl)
+        obj = (kind=:mock_var, p=2)
+        save_model_handle(tmp, obj; model_type="MockVAR")
+        @test isfile(tmp)
+        loaded = load_model_handle(tmp)
+        @test loaded.kind == :mock_var
+        @test loaded.p == 2
+        info = model_handle_info(tmp)
+        @test info.model_type == "MockVAR"
+        @test info.magic == FMOD_MAGIC
+        @test info.cli_version == string(FRIEDMAN_VERSION)
+
+        # version mismatch → env/model-version (exit class 6)
+        bad = tempname() * ".fmod"
+        hdr = ModelHandleHeader(FMOD_MAGIC, "0.0.1", "0.0.0", "X")
+        open(bad, "w") do io
+            serialize(io, (hdr, obj))
+        end
+        err = try
+            load_model_handle(bad)
+            nothing
+        catch e
+            e
+        end
+        @test err isa CliError
+        @test err.code == "env/model-version"
+        @test exit_class(err) == 6
+        rm(bad; force=true)
+
+        # wrap_legacy save + load
+        h_save = wrap_legacy((; data="", format="table", output="", kwargs...) -> (m=:var, ok=true))
+        env = Envelope(command="estimate var")
+        ctx = CmdContext(
+            Dict{Symbol,Any}(:data => "x.csv"),
+            Dict{Symbol,Any}(:save_model => tmp, :format => "table", :output => ""),
+            Dict{Symbol,Bool}(),
+            :table, "", env, (parts...) -> nothing,
+        )
+        h_save(ctx)
+        h_load = wrap_legacy((; data="", model=nothing, format="table", output="", kwargs...) -> model)
+        ctx2 = CmdContext(
+            Dict{Symbol,Any}(:data => ""),
+            Dict{Symbol,Any}(:model => tmp, :format => "table", :output => ""),
+            Dict{Symbol,Bool}(),
+            :table, "", env, (parts...) -> nothing,
+        )
+        m = h_load(ctx2)
+        @test m.m == :var
+
+        # registry options present
+        app = build_app()
+        @test any(o -> o.name == "save-model", app.root.subcmds["estimate"].subcmds["var"].options)
+        @test any(o -> o.name == "model", app.root.subcmds["irf"].subcmds["var"].options)
+        @test haskey(app.root.subcmds, "model")
+        @test haskey(app.root.subcmds["model"].subcmds, "info")
+        @test haskey(app.root.subcmds, "completions")
+        @test haskey(app.root.subcmds["completions"].subcmds, "bash")
+
+        # data optional when --model set
+        leaf = app.root.subcmds["irf"].subcmds["var"]
+        parsed = tokenize(["--model", tmp])
+        bound = bind_args(parsed, leaf)
+        @test bound.data == "" || bound.data === nothing
+    finally
+        rm(tmp; force=true)
+    end
+end
+
 include(joinpath(@__DIR__, "test_e2e.jl"))

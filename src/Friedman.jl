@@ -21,6 +21,7 @@ using MacroEconometricModels
 using LinearAlgebra: eigvals, diag, I, svd
 using Statistics: mean, median, var, quantile
 using Random
+using Serialization
 
 # CLI engine
 include("cli/types.jl")
@@ -38,6 +39,9 @@ include("config.jl")
 
 # Shared utilities (must come before command files)
 include("commands/shared.jl")
+
+# Model handles (.fmod) — after io/errors (uses CliError, _status)
+include("model_handle.jl")
 
 # Declarative registry (P2-1) — before command files that emit CommandSpecs
 include("registry/spec.jl")
@@ -58,6 +62,8 @@ include("commands/dsge.jl")
 include("commands/did.jl")
 include("commands/spectral.jl")
 include("commands/schema.jl")
+include("commands/model.jl")       # model info (C029)
+include("commands/completions.jl") # completions bash|zsh|fish (C029)
 
 # REPL (interactive session)
 include("repl.jl")
@@ -91,6 +97,8 @@ function build_app()
         "did"       => register_did_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
+        "model"     => register_model_commands!(),
+        "completions" => register_completions_commands!(),
     )
 
     root = NodeCommand("friedman", root_cmds,

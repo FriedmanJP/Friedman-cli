@@ -24,6 +24,7 @@ using Dates
 using LinearAlgebra: eigvals, diag, I, svd, diagm
 using Statistics: mean, median, var, quantile
 using Random
+using Serialization
 
 # ─── Setup: Mock module + source includes ──────────────────────
 
@@ -69,6 +70,7 @@ include(joinpath(project_root, "src", "cli", "dispatch.jl"))
 
 # Include command files in dependency order
 include(joinpath(project_root, "src", "commands", "shared.jl"))
+include(joinpath(project_root, "src", "model_handle.jl"))
 include(joinpath(project_root, "src", "registry", "spec.jl"))
 include(joinpath(project_root, "src", "registry", "adapter.jl"))
 include(joinpath(project_root, "src", "commands", "estimate.jl"))
@@ -84,6 +86,8 @@ include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
+include(joinpath(project_root, "src", "commands", "model.jl"))
+include(joinpath(project_root, "src", "commands", "completions.jl"))
 
 include(joinpath(project_root, "test", "support.jl"))
 @testset "Command Handlers" begin

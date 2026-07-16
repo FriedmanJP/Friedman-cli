@@ -18,6 +18,7 @@ Model residuals (arch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_arch` (Model residuals)
 
@@ -36,6 +37,7 @@ Model residuals (arima)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_arima` (Model residuals)
 
@@ -57,6 +59,7 @@ Model residuals (bvar)
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_bvar` (Model residuals)
 
@@ -76,6 +79,7 @@ Model residuals (dynamic)
 | `--lags` | `-p` | `Int64` | `1` | — | Lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_dynamic` (Model residuals)
 
@@ -94,6 +98,7 @@ Model residuals (egarch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_egarch` (Model residuals)
 
@@ -114,6 +119,7 @@ Model residuals (favar)
 | `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_favar` (Model residuals)
 
@@ -132,6 +138,7 @@ Model residuals (garch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_garch` (Model residuals)
 
@@ -151,6 +158,7 @@ Model residuals (gdfm)
 | `--lags` | `-p` | `Int64` | `1` | — | Lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_gdfm` (Model residuals)
 
@@ -169,6 +177,7 @@ Model residuals (gjr_garch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_gjr_garch` (Model residuals)
 
@@ -189,6 +198,7 @@ Model residuals (logit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_logit` (Model residuals)
 
@@ -209,6 +219,7 @@ Model residuals (mlogit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_mlogit` (Model residuals)
 
@@ -229,6 +240,7 @@ Model residuals (ologit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_ologit` (Model residuals)
 
@@ -249,6 +261,7 @@ Model residuals (oprobit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_oprobit` (Model residuals)
 
@@ -272,6 +285,7 @@ Model residuals (piv)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_piv` (Model residuals)
 
@@ -295,6 +309,7 @@ Model residuals (plogit)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_plogit` (Model residuals)
 
@@ -318,6 +333,7 @@ Model residuals (pprobit)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_pprobit` (Model residuals)
 
@@ -341,6 +357,7 @@ Model residuals (preg)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_preg` (Model residuals)
 
@@ -361,6 +378,7 @@ Model residuals (probit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_probit` (Model residuals)
 
@@ -382,6 +400,7 @@ Model residuals (reg)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_reg` (Model residuals)
 
@@ -401,6 +420,7 @@ Model residuals (static)
 | `--lags` | `-p` | `Int64` | `1` | — | Lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_static` (Model residuals)
 
@@ -419,6 +439,7 @@ Model residuals (sv)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_sv` (Model residuals)
 
@@ -437,6 +458,7 @@ Model residuals (var)
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_var` (Model residuals)
 
@@ -456,6 +478,7 @@ Model residuals (vecm)
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_vecm` (Model residuals)
 

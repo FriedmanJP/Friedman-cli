@@ -23,6 +23,7 @@ Compute Bayesian historical decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -51,6 +52,7 @@ FAVAR historical decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -78,6 +80,7 @@ Compute historical decomposition via structural LP
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -103,6 +106,7 @@ Compute historical decomposition of shocks
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -130,6 +134,7 @@ Compute historical decomposition via VECM → VAR representation
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

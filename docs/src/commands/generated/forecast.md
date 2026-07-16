@@ -21,6 +21,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -54,6 +55,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -80,6 +82,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `forecast_bvar` (Path to CSV data file)
 
@@ -102,6 +105,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -128,6 +132,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -154,6 +159,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -181,6 +187,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -206,6 +213,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -232,6 +240,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -262,6 +271,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -288,6 +298,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -313,6 +324,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -339,6 +351,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -368,6 +381,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

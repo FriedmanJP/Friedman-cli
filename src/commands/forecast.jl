@@ -217,7 +217,7 @@ function forecast_specs()::Vector{CommandSpec}
 end
 
 function register_forecast_commands!()
-    specs = forecast_specs()
+    specs = with_model_option(forecast_specs())
     register!(specs)
     return build_node("forecast", specs; description="Forecasting")
 end

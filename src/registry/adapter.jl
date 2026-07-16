@@ -18,6 +18,10 @@ end
     wrap_legacy(handler) → (ctx::CmdContext) -> Any
 
 Adapt a legacy kwargs handler `_foo(; data, lags, ...)` to the CmdContext style.
+
+Also implements model-handle I/O (C029):
+- `--model PATH.fmod` → load handle, inject as `model=` object
+- `--save-model PATH.fmod` → serialize handler return value after success
 """
 function wrap_legacy(handler::Function)
     return function (ctx::CmdContext)
@@ -34,7 +38,36 @@ function wrap_legacy(handler::Function)
         # format/output may live only in opts already; ensure present
         kwargs[:format] = string(ctx.fmt)
         kwargs[:output] = ctx.output
-        return handler(; kwargs...)
+
+        # --save-model is never a handler kwarg
+        save_path = string(get(kwargs, :save_model, ""))
+        delete!(kwargs, :save_model)
+
+        # --model PATH → loaded object; empty → drop so handler default applies
+        if haskey(kwargs, :model)
+            mp = kwargs[:model]
+            if mp isa AbstractString
+                if isempty(mp)
+                    delete!(kwargs, :model)
+                else
+                    kwargs[:model] = load_model_handle(String(mp))
+                    # allow missing data positional when handle supplies the model
+                    get!(kwargs, :data, "")
+                end
+            end
+        end
+
+        result = handler(; kwargs...)
+
+        if !isempty(save_path)
+            isnothing(result) && throw(CliError(
+                "model/no-result",
+                "cannot --save-model: handler returned nothing",
+                hint="only estimate/solve commands produce savable models",
+            ))
+            save_model_handle(save_path, result)
+        end
+        return result
     end
 end
 

@@ -170,7 +170,7 @@ function fevd_specs()::Vector{CommandSpec}
 end
 
 function register_fevd_commands!()
-    specs = fevd_specs()
+    specs = with_model_option(fevd_specs())
     register!(specs)
     return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
 end

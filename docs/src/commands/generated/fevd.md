@@ -24,6 +24,7 @@ Compute Bayesian forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -52,6 +53,7 @@ FAVAR forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -80,6 +82,7 @@ Compute forecast error variance decomposition via structural LP
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -106,6 +109,7 @@ Compute Panel VAR forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -132,6 +136,7 @@ Structural DFM forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -158,6 +163,7 @@ Compute forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -186,6 +192,7 @@ Compute FEVD via VECM → VAR representation
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

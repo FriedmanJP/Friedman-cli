@@ -18,6 +18,7 @@ In-sample fitted values (arch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_arch` (In-sample fitted values)
 
@@ -36,6 +37,7 @@ In-sample fitted values (arima)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_arima` (In-sample fitted values)
 
@@ -57,6 +59,7 @@ In-sample fitted values (bvar)
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_bvar` (In-sample fitted values)
 
@@ -76,6 +79,7 @@ In-sample fitted values (dynamic)
 | `--lags` | `-p` | `Int64` | `1` | — | Lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_dynamic` (In-sample fitted values)
 
@@ -94,6 +98,7 @@ In-sample fitted values (egarch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_egarch` (In-sample fitted values)
 
@@ -114,6 +119,7 @@ In-sample fitted values (favar)
 | `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_favar` (In-sample fitted values)
 
@@ -132,6 +138,7 @@ In-sample fitted values (garch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_garch` (In-sample fitted values)
 
@@ -151,6 +158,7 @@ In-sample fitted values (gdfm)
 | `--lags` | `-p` | `Int64` | `1` | — | Lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_gdfm` (In-sample fitted values)
 
@@ -169,6 +177,7 @@ In-sample fitted values (gjr_garch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_gjr_garch` (In-sample fitted values)
 
@@ -193,6 +202,7 @@ In-sample fitted values (logit)
 | `--odds-ratio` | — | `String` | `""` | — | Odds ratios (logit) |
 | `--classification-table` | — | `String` | `""` | — | Classification table |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_logit` (In-sample fitted values)
 
@@ -215,6 +225,7 @@ In-sample fitted values (mlogit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--marginal-effects` | — | `String` | `""` | — | Marginal effects |
 | `--base-category` | — | `Int64` | `1` | — | Base category |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_mlogit` (In-sample fitted values)
 
@@ -237,6 +248,7 @@ In-sample fitted values (ologit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--marginal-effects` | — | `String` | `""` | — | Marginal effects |
 | `--category` | — | `Int64` | `0` | — | Category index |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_ologit` (In-sample fitted values)
 
@@ -259,6 +271,7 @@ In-sample fitted values (oprobit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--marginal-effects` | — | `String` | `""` | — | Marginal effects |
 | `--category` | — | `Int64` | `0` | — | Category index |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_oprobit` (In-sample fitted values)
 
@@ -282,6 +295,7 @@ In-sample fitted values (piv)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_piv` (In-sample fitted values)
 
@@ -305,6 +319,7 @@ In-sample fitted values (plogit)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_plogit` (In-sample fitted values)
 
@@ -328,6 +343,7 @@ In-sample fitted values (pprobit)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_pprobit` (In-sample fitted values)
 
@@ -351,6 +367,7 @@ In-sample fitted values (preg)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_preg` (In-sample fitted values)
 
@@ -374,6 +391,7 @@ In-sample fitted values (probit)
 | `--marginal-effects` | — | `String` | `""` | — | Compute marginal effects (empty=off) |
 | `--classification-table` | — | `String` | `""` | — | Classification table |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_probit` (In-sample fitted values)
 
@@ -395,6 +413,7 @@ In-sample fitted values (reg)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_reg` (In-sample fitted values)
 
@@ -414,6 +433,7 @@ In-sample fitted values (static)
 | `--lags` | `-p` | `Int64` | `1` | — | Lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_static` (In-sample fitted values)
 
@@ -432,6 +452,7 @@ In-sample fitted values (sv)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_sv` (In-sample fitted values)
 
@@ -450,6 +471,7 @@ In-sample fitted values (var)
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_var` (In-sample fitted values)
 
@@ -469,6 +491,7 @@ In-sample fitted values (vecm)
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_vecm` (In-sample fitted values)
 
