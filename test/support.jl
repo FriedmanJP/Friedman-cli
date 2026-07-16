@@ -416,3 +416,20 @@ function _extract_json_object(s::AbstractString)
     i === nothing && return nothing
     return s[i:end]
 end
+
+"""
+    _run_leaf(args) → Envelope
+
+Dispatch a command with `--format=json`, parse the single envelope, return as
+`Envelope`-like NamedTuple of the JSON document (TS-4 helper).
+"""
+function _run_leaf(args::Vector{String})
+    argv = copy(args)
+    any(a -> startswith(a, "--format"), argv) || push!(argv, "--format", "json")
+    out = _capture() do
+        _dispatch_via_app(argv)
+    end
+    js = _extract_json_object(out)
+    js === nothing && error("no JSON envelope from args=$argv\n$out")
+    return JSON3.read(js)
+end
