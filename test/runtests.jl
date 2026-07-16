@@ -85,18 +85,30 @@ using .MacroEconometricModels
             options=[Option("lags"; type=Int, default=2),
                      Option("threshold"; type=Float64, default=0.5),
                      Option("format"; type=String, default="table",
-                            choices=["table", "csv", "json"])],
-            flags=Flag[])
+                            choices=["table", "csv", "json"]),
+                     Option("set"; type=String, default="")],
+            flags=[Flag("verbose"; short="v"), Flag("quiet"; short="q"), Flag("all"; short="a")])
         @test_throws ParseError bind_args(tokenize(["d.csv", "--lgas", "4"]), leaf)
         err = try bind_args(tokenize(["d.csv", "--lgas", "4"]), leaf) catch e; e end
         @test occursin("did you mean --lags", err.message)
         b = bind_args(tokenize(["d.csv", "--threshold", "-0.5"]), leaf)
         @test b.threshold == -0.5
+        b = bind_args(tokenize(["d.csv", "--lags", "-3"]), leaf)
+        @test b.lags == -3
         @test_throws ParseError bind_args(tokenize(["d.csv", "--format", "xml"]), leaf)
         err = try bind_args(tokenize(["d.csv", "--format", "xml"]), leaf) catch e; e end
         @test occursin("table", err.message) && occursin("json", err.message)
         @test convert_value(Bool, "yes", "x") === true
         @test convert_value(Bool, "0", "x") === false
+        # -- passthrough
+        p = tokenize(["--", "--not-an-option", "file.csv"])
+        @test p.positional == ["--not-an-option", "file.csv"]
+        # bundled flags
+        b = bind_args(tokenize(["d.csv", "-vqa"]), leaf)
+        @test b.verbose && b.quiet && b.all
+        # = form with embedded =
+        b = bind_args(tokenize(["d.csv", "--set=key=value"]), leaf)
+        @test b.set == "key=value"
     end
 
 
