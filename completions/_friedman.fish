@@ -1,0 +1,16 @@
+# Friedman-cli fish completion (generated)
+complete -c friedman -n "__fish_use_subcommand" -a data
+complete -c friedman -n "__fish_use_subcommand" -a did
+complete -c friedman -n "__fish_use_subcommand" -a dsge
+complete -c friedman -n "__fish_use_subcommand" -a estimate
+complete -c friedman -n "__fish_use_subcommand" -a fevd
+complete -c friedman -n "__fish_use_subcommand" -a filter
+complete -c friedman -n "__fish_use_subcommand" -a forecast
+complete -c friedman -n "__fish_use_subcommand" -a hd
+complete -c friedman -n "__fish_use_subcommand" -a irf
+complete -c friedman -n "__fish_use_subcommand" -a nowcast
+complete -c friedman -n "__fish_use_subcommand" -a predict
+complete -c friedman -n "__fish_use_subcommand" -a residuals
+complete -c friedman -n "__fish_use_subcommand" -a spectral
+complete -c friedman -n "__fish_use_subcommand" -a test
+complete -c friedman -n "__fish_use_subcommand" -a repl

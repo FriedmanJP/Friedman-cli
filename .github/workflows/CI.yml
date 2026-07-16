@@ -58,6 +58,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: julia --project test/tools/check_mock_surface.jl
 
+      - name: Docs generation --check (P2-6 / C028)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          julia --project docs/generate_cli_reference.jl --check
+          julia --project docs/capture_examples.jl --check
+
       - name: Run tests
         run: julia --code-coverage=user --project test/runtests.jl
 

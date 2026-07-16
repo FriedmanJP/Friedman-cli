@@ -2,10 +2,10 @@ name: Documentation
 
 on:
   push:
-    branches: [master]
+    branches: [master, dev]
     tags: ["*"]
   pull_request:
-    branches: [master]
+    branches: [master, dev]
   workflow_dispatch:
 
 concurrency:
@@ -33,7 +33,19 @@ jobs:
             Pkg.develop(path=".")
             Pkg.instantiate()
           '
-      - name: Build and deploy docs
+      - name: Regenerate CLI reference (stale check)
+        run: |
+          julia --project -e '
+            using Pkg
+            Pkg.rm("MacroEconometricModels")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
+            Pkg.instantiate()
+          '
+          julia --project docs/generate_cli_reference.jl --check
+          julia --project docs/capture_examples.jl --check
+      - name: Build docs
+        run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: julia --project=docs docs/make.jl
+          # deploydocs only pushes from master (D-9); build still runs on dev
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

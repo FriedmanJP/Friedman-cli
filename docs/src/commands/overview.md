@@ -2,52 +2,50 @@
 
 Friedman-cli uses an **action-first** command hierarchy: commands are organized by action (`estimate`, `irf`, `forecast`, ...) rather than by model type.
 
+<!-- BEGIN GENERATED: do not hand-edit; run julia docs/generate_cli_reference.jl -->
+
 ## Command Tree
 
 ```
 friedman
-├── estimate     var | bvar | lp | arima | gmm | smm | static | dynamic | gdfm |
-│                arch | garch | egarch | gjr_garch | sv | fastica | ml | vecm | pvar |
-│                favar | sdfm | reg | iv | logit | probit |
-│                preg | piv | plogit | pprobit |
-│                ologit | oprobit | mlogit
-├── test         adf | kpss | pp | za | np | johansen | normality |
-│                identifiability | heteroskedasticity | arch_lm | ljung_box |
-│                granger | lr | lm | andrews | bai-perron |
-│                panic | cips | moon-perron | factor-break |
-│                fourier-adf | fourier-kpss | dfgls | lm-unitroot |
-│                adf-2break | gregory-hansen | vif |
-│                hausman | breusch-pagan | f-fe | pesaran-cd |
-│                wooldridge-ar | modified-wald |
-│                brant | hausman-iia |
-│                var (lagselect | stability) |
-│                pvar (hansen_j | mmsc | lagselect | stability)
-├── irf          var | bvar | lp | vecm | pvar | favar | sdfm
-├── fevd         var | bvar | lp | vecm | pvar | favar | sdfm
-├── hd           var | bvar | lp | vecm | favar
-├── forecast     var | bvar | lp | arima | static | dynamic | gdfm |
-│                arch | garch | egarch | gjr_garch | sv | vecm | favar
-├── predict      var | bvar | arima | vecm | static | dynamic | gdfm |
-│                arch | garch | egarch | gjr_garch | sv | favar | reg | logit | probit |
-│                preg | piv | plogit | pprobit | ologit | oprobit | mlogit
-├── residuals    var | bvar | arima | vecm | static | dynamic | gdfm |
-│                arch | garch | egarch | gjr_garch | sv | favar | reg | logit | probit |
-│                preg | piv | plogit | pprobit | ologit | oprobit | mlogit
-├── filter       hp | hamilton | bn | bk | bhp
-├── data         list | load | describe | diagnose | fix | transform | filter |
-│                validate | balance | dropna | keeprows
-├── nowcast      dfm | bvar | bridge | news | forecast
-├── dsge         solve | irf | fevd | hd | simulate | estimate |
-│                perfect-foresight | steady-state |
-│                bayes (estimate | irf | fevd | hd | simulate | summary | compare | predictive)
-├── did          estimate | event-study | lp-did |
-│                test (bacon | pretrend | negweight | honest)
-└── spectral     acf | periodogram | density | cross | transfer
+├── data     balance | describe | diagnose | dropna | filter | fix | keeprows | list | load | transform | validate
+├── did     estimate | event-study | lp-did | test bacon | test honest | test negweight | test pretrend
+├── dsge     bayes compare | bayes estimate | bayes fevd | bayes hd | bayes irf | bayes predictive | bayes simulate | bayes summary | estimate | fevd | hd | irf | perfect-foresight | simulate | solve | steady-state
+├── estimate     arch | arima | bvar | dynamic | egarch | fastica | favar | garch | gdfm | gjr_garch | gmm | iv | logit | lp | ml | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | pvar | reg | sdfm | smm | static | sv | var | vecm
+├── fevd     bvar | favar | lp | pvar | sdfm | var | vecm
+├── filter     bhp | bk | bn | hamilton | hp
+├── forecast     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr_garch | lp | static | sv | var | vecm
+├── hd     bvar | favar | lp | var | vecm
+├── irf     bvar | favar | lp | pvar | sdfm | var | vecm
+├── nowcast     bridge | bvar | dfm | forecast | news
+├── predict     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr_garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
+├── residuals     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr_garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
+├── spectral     acf | cross | density | periodogram | transfer
+└── test     adf | adf-2break | andrews | arch_lm | bai-perron | bartlett-wn | box-pierce | brant | breusch-pagan | cips | dfgls | durbin-watson | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | granger | gregory-hansen | hausman | hausman-iia | heteroskedasticity | identifiability | johansen | kpss | ljung_box | lm | lm-unitroot | lr | modified-wald | moon-perron | normality | np | panic | pesaran-cd | pp | pvar hansen_j | pvar lagselect | pvar mmsc | pvar stability | var lagselect | var stability | vif | wooldridge-ar | za
+
+Total: 14 top-level commands, 204 leaves (from registry).
 ```
 
-**Total: 14 top-level commands, ~204 subcommands.**
+Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
 
-Additionally, `friedman repl` launches an [interactive REPL session](@ref Interactive-REPL) with persistent data loading, result caching, and tab completion.
+## Generated reference pages
+
+- [`data`](generated/data.md) — 11 leaves
+- [`did`](generated/did.md) — 7 leaves
+- [`dsge`](generated/dsge.md) — 16 leaves
+- [`estimate`](generated/estimate.md) — 31 leaves
+- [`fevd`](generated/fevd.md) — 7 leaves
+- [`filter`](generated/filter.md) — 5 leaves
+- [`forecast`](generated/forecast.md) — 14 leaves
+- [`hd`](generated/hd.md) — 5 leaves
+- [`irf`](generated/irf.md) — 7 leaves
+- [`nowcast`](generated/nowcast.md) — 5 leaves
+- [`predict`](generated/predict.md) — 23 leaves
+- [`residuals`](generated/residuals.md) — 23 leaves
+- [`spectral`](generated/spectral.md) — 5 leaves
+- [`test`](generated/test.md) — 45 leaves
+
+<!-- END GENERATED -->
 
 ## Common Options
 
@@ -58,63 +56,10 @@ All commands that produce output support these options:
 | `--format` | `-f` | String | `table` | Output format: `table`, `csv`, or `json` |
 | `--output` | `-o` | String | (stdout) | Export results to a file path |
 
-## Output Formats
-
-```bash
-# Terminal table (default) -- uses PrettyTables
-friedman estimate var data.csv
-
-# CSV export
-friedman estimate var data.csv --format=csv --output=results.csv
-
-# JSON export
-friedman estimate var data.csv --format=json --output=results.json
-```
-
 ## Help
 
-Every command and subcommand supports `--help`:
+Every command and subcommand supports `--help`. Machine-readable schema:
 
 ```bash
-friedman --help                  # top-level help
-friedman --version               # show version
-friedman --warranty              # display GPL warranty disclaimer
-friedman --conditions            # display GPL distribution conditions
-friedman estimate --help         # list estimate subcommands
-friedman estimate var --help     # detailed var estimation help
-friedman irf var --help          # IRF options
+friedman schema estimate var
 ```
-
-## Option Syntax
-
-The parser supports several formats for passing options:
-
-```bash
---lags=4           # long option with =
---lags 4           # long option with space
--p 4               # short alias
--p=4               # short alias with =
-```
-
-Flags (boolean options) are toggled by presence:
-
-```bash
---verbose          # sets verbose=true
--v                 # short alias
-```
-
-Bundled short flags are supported:
-
-```bash
--abc               # equivalent to -a -b -c
-```
-
-The `--` separator stops option parsing:
-
-```bash
-friedman estimate var -- --data-that-starts-with-dash.csv
-```
-
-## Hyphen-to-Underscore Mapping
-
-CLI option names use hyphens (`--control-lags`, `--monthly-vars`) which are automatically converted to underscores (`control_lags`, `monthly_vars`) when passed to handler functions.
