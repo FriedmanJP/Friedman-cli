@@ -29,7 +29,7 @@ jobs:
         run: |
           julia --project=docs -e '
             using Pkg
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="main")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
             Pkg.develop(path=".")
             Pkg.instantiate()
           '

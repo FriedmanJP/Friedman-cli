@@ -45,7 +45,8 @@ jobs:
           julia --project -e '
             using Pkg
             Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="main")
+            # must equal [compat] MacroEconometricModels
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
             Pkg.instantiate()
           '
 

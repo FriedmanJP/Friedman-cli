@@ -29,9 +29,8 @@ println("Setting up build environment...")
 rm(build_project_dir; force=true, recursive=true)
 mkpath(build_project_dir)
 
-# Copy source files
+# Copy source files (launcher is regenerated later — do not copy bin/)
 cp(joinpath(project_dir, "src"), joinpath(build_project_dir, "src"))
-cp(joinpath(project_dir, "bin"), joinpath(build_project_dir, "bin"))
 
 # Read original Project.toml, drop weakdeps and extensions (EPL-incompatible)
 original_toml = Pkg.TOML.parsefile(joinpath(project_dir, "Project.toml"))
@@ -41,6 +40,13 @@ delete!(original_toml, "extensions")
 # Write Project.toml without weakdeps
 open(joinpath(build_project_dir, "Project.toml"), "w") do io
     Pkg.TOML.print(io, original_toml)
+end
+
+# Seed the resolved Manifest so build_env gets EXACTLY the source env's
+# dependency graph (incl. the pinned MEMs commit), not a fresh resolve (F50).
+src_manifest = joinpath(project_dir, "Manifest.toml")
+if isfile(src_manifest)
+    cp(src_manifest, joinpath(build_project_dir, "Manifest.toml"))
 end
 
 # Activate build env and install deps (weak deps excluded)
