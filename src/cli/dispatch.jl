@@ -109,7 +109,21 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
         parsed = tokenize(args)
         bound = bind_args(parsed, leaf)
         merged = merge(Dict{Symbol,Any}(pairs(bound)), Dict{Symbol,Any}(extra_kwargs))
-        return leaf.handler(; merged...)
+        # Single-envelope JSON accumulation (P1-1 / F17); legacy path when env set
+        fmt = get(Dict(pairs(bound)), :format, nothing)
+        use_env = fmt == "json" && get(ENV, "FRIEDMAN_LEGACY_OUTPUT", "") != "1"
+        if use_env
+            _ENVELOPE[] = Envelope(command=prog)
+        end
+        try
+            result = leaf.handler(; merged...)
+            if use_env && _ENVELOPE[] !== nothing
+                render(_ENVELOPE[], :json, stdout)
+            end
+            return result
+        finally
+            _ENVELOPE[] = nothing
+        end
     catch e
         if e isa ParseError
             throw(ParseError("$prog: $(e.message)"))

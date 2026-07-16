@@ -119,9 +119,29 @@ function output_result(result::AbstractMatrix, varnames::Vector{String};
     output_result(df; format=format, output=output, title=title)
 end
 
+"""Slug a table title for envelope keys: lowercase, non-alnum → `_`."""
+function _slug(title::String)
+    s = lowercase(title)
+    s = replace(s, r"[^a-z0-9]+" => "_")
+    s = replace(s, r"^_+|_+$" => "")
+    s = replace(s, r"_+" => "_")
+    return isempty(s) ? "table" : s
+end
+
 function output_result(df::DataFrame; format::Union{String,Symbol}=:table, output::String="", title::String="Results")
     fmt = _parse_format(format)
     _validate_output_path(output)
+    # Accumulate into active JSON envelope instead of printing (C010 / F17)
+    if envelope_active() && fmt == :json
+        if isempty(output)
+            add_table!(_ENVELOPE[], Symbol(_slug(title)), df)
+            return
+        else
+            _write_json(df, output)
+            add_artifact!(_ENVELOPE[], "file", output)
+            return
+        end
+    end
     if fmt == :csv
         _write_csv(df, output)
     elseif fmt == :json
@@ -139,6 +159,17 @@ Output key-value results (e.g., test statistics).
 function output_kv(pairs::Vector{<:Pair{String}}; format::Union{String,Symbol}="table", output::String="", title::String="Results")
     fmt = _parse_format(format)
     _validate_output_path(output)
+    if envelope_active() && fmt == :json
+        df = DataFrame(; metric=first.(pairs), value=last.(pairs))
+        if isempty(output)
+            add_table!(_ENVELOPE[], Symbol(_slug(title)), df)
+            return
+        else
+            _write_json(df, output)
+            add_artifact!(_ENVELOPE[], "file", output)
+            return
+        end
+    end
     if fmt == :json
         d = Dict(pairs)
         _write_json_raw(d, output)

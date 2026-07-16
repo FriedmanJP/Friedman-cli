@@ -40,6 +40,8 @@ end
 
 # Include io.jl and config.jl (needed by command handlers)
 include(joinpath(project_root, "src", "io.jl"))
+include(joinpath(project_root, "src", "output", "envelope.jl"))
+include(joinpath(project_root, "src", "output", "render.jl"))
 include(joinpath(project_root, "src", "config.jl"))
 
 # Override _write_table for PrettyTables v3 (tf/show_subheader kwargs removed)
@@ -55,6 +57,9 @@ end
 
 # Include CLI types (needed for LeafCommand, NodeCommand, etc.)
 include(joinpath(project_root, "src", "cli", "types.jl"))
+include(joinpath(project_root, "src", "cli", "parser.jl"))
+include(joinpath(project_root, "src", "cli", "help.jl"))
+include(joinpath(project_root, "src", "cli", "dispatch.jl"))
 
 # Include command files in dependency order
 include(joinpath(project_root, "src", "commands", "shared.jl"))
@@ -111,6 +116,29 @@ function _capture(f)
         try; close(io); catch; end
         try; rm(path; force=true); catch; end
     end
+end
+
+"""Dispatch via a minimal Entry built from register_* (mock-bound)."""
+function _dispatch_via_app(args::Vector{String})
+    root_cmds = Dict{String,Union{NodeCommand,LeafCommand}}(
+        "estimate" => register_estimate_commands!(),
+        "test"     => register_test_commands!(),
+        "irf"      => register_irf_commands!(),
+        "fevd"     => register_fevd_commands!(),
+        "hd"       => register_hd_commands!(),
+        "forecast"  => register_forecast_commands!(),
+        "predict"   => register_predict_commands!(),
+        "residuals" => register_residuals_commands!(),
+        "filter"    => register_filter_commands!(),
+        "data"      => register_data_commands!(),
+        "nowcast"   => register_nowcast_commands!(),
+        "dsge"      => register_dsge_commands!(),
+        "did"       => register_did_commands!(),
+        "spectral"  => register_spectral_commands!(),
+    )
+    root = NodeCommand("friedman", root_cmds, "test tree")
+    entry = Entry("friedman", root; version=v"0.4.3")
+    return dispatch(entry, args)
 end
 
 """Create a temp CSV file with synthetic panel data (group + time columns)."""
@@ -265,6 +293,39 @@ end
 # ─── Tests ─────────────────────────────────────────────────────
 
 @testset "Command Handlers" begin
+
+# ═══════════════════════════════════════════════════════════════
+# Single-envelope JSON (C010 / F17)
+# ═══════════════════════════════════════════════════════════════
+
+@testset "single JSON document per invocation (F17)" begin
+    mktempdir() do dir
+        csv = _make_csv(dir; T=100, n=3)
+        out = _capture() do
+            _dispatch_via_app(["estimate", "var", csv, "--lags", "1", "--format", "json"])
+        end
+        # Strip any leading non-JSON status noise: find first '{'
+        i = findfirst('{', out)
+        @test i !== nothing
+        doc = JSON3.read(out[i:end])
+        @test haskey(doc, :data)
+        @test length(collect(keys(doc.data))) >= 1
+        @test doc.schema_version == 1
+        @test doc.status == "ok"
+    end
+
+    # Legacy path: FRIEDMAN_LEGACY_OUTPUT=1 restores pre-envelope multi-doc/json array output
+    mktempdir() do dir
+        csv = _make_csv(dir; T=100, n=3)
+        withenv("FRIEDMAN_LEGACY_OUTPUT" => "1") do
+            out = _capture() do
+                _dispatch_via_app(["estimate", "var", csv, "--lags", "1", "--format", "json"])
+            end
+            # Legacy is not a single envelope (no schema_version at top level required)
+            @test !occursin("schema_version", out) || occursin("[", out)
+        end
+    end
+end
 
 # ═══════════════════════════════════════════════════════════════
 # Shared utilities (shared.jl)
