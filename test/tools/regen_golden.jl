@@ -102,6 +102,12 @@ function main()
             (["spectral", "density", fix, "--method", "welch", "--format", "json"], ["spectral", "density"]),
             (["spectral", "cross", fix, "--var1", "1", "--var2", "2", "--format", "json"], ["spectral", "cross"]),
             (["spectral", "transfer", "--filter", "hp", "--lambda", "1600.0", "--nobs", "200", "--format", "json"], ["spectral", "transfer"]),
+            # filter (C023-1)
+            (["filter", "hp", fix, "--lambda", "1600.0", "--format", "json"], ["filter", "hp"]),
+            (["filter", "hamilton", fix, "--horizon", "8", "--lags", "4", "--format", "json"], ["filter", "hamilton"]),
+            (["filter", "bn", fix, "--method", "arima", "--format", "json"], ["filter", "bn"]),
+            (["filter", "bk", fix, "--pl", "6", "--pu", "32", "--K", "12", "--format", "json"], ["filter", "bk"]),
+            (["filter", "bhp", fix, "--lambda", "1600.0", "--stopping", "BIC", "--format", "json"], ["filter", "bhp"]),
         ]
         for (argv, gpath) in cases
             Random.seed!(42)

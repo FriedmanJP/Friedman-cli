@@ -14,85 +14,100 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Filter commands: hp, hamilton, bn, bk, bhp
+# Filter commands: hp, hamilton, bn, bk, bhp — registry migrated (C023-1)
+
+function filter_specs()::Vector{CommandSpec}
+    data_arg = [ArgSpec(name="data", description="Path to CSV data file")]
+    plot_opts = [OUTPUT_OPTIONS; PLOT_OPTIONS]
+    plot_flags = copy(PLOT_FLAGS)
+    col = OptionSpec(name="columns", short="c", type=String, default="",
+                     description="Column indices, comma-separated (default: all numeric)")
+
+    return [
+        CommandSpec(
+            path=["filter", "hp"],
+            summary="Hodrick-Prescott filter",
+            args=data_arg,
+            options=[
+                OptionSpec(name="lambda", short="l", type=Float64, default=1600.0,
+                           description="Smoothing parameter (6.25 annual, 1600 quarterly, 129600 monthly)"),
+                col, plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            category="filter",
+            handler=wrap_legacy(_filter_hp),
+        ),
+        CommandSpec(
+            path=["filter", "hamilton"],
+            summary="Hamilton (2018) regression filter",
+            args=data_arg,
+            options=[
+                OptionSpec(name="horizon", short="h", type=Int, default=8, description="Forecast horizon"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags in regression"),
+                col, plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            category="filter",
+            handler=wrap_legacy(_filter_hamilton),
+        ),
+        CommandSpec(
+            path=["filter", "bn"],
+            summary="Beveridge-Nelson decomposition",
+            args=data_arg,
+            options=[
+                OptionSpec(name="method", type=String, default="arima",
+                           choices=["arima", "statespace"], description="arima|statespace"),
+                OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto)"),
+                OptionSpec(name="q", type=Int, default=nothing, description="MA order (default: auto)"),
+                col, plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            category="filter",
+            handler=wrap_legacy(_filter_bn),
+        ),
+        CommandSpec(
+            path=["filter", "bk"],
+            summary="Baxter-King band-pass filter",
+            args=data_arg,
+            options=[
+                OptionSpec(name="pl", type=Int, default=6, description="Minimum period of oscillation"),
+                OptionSpec(name="pu", type=Int, default=32, description="Maximum period of oscillation"),
+                OptionSpec(name="K", type=Int, default=12, description="Truncation length (leads/lags)"),
+                col, plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            category="filter",
+            handler=wrap_legacy(_filter_bk),
+        ),
+        CommandSpec(
+            path=["filter", "bhp"],
+            summary="Boosted HP filter (Phillips & Shi 2021)",
+            args=data_arg,
+            options=[
+                OptionSpec(name="lambda", short="l", type=Float64, default=1600.0, description="Smoothing parameter"),
+                OptionSpec(name="stopping", type=String, default="BIC",
+                           choices=["BIC", "ADF", "fixed"], description="BIC|ADF|fixed"),
+                OptionSpec(name="max-iter", type=Int, default=100, description="Maximum boosting iterations"),
+                OptionSpec(name="sig-p", type=Float64, default=0.05, description="ADF significance level"),
+                col, plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            category="filter",
+            handler=wrap_legacy(_filter_bhp),
+        ),
+    ]
+end
 
 function register_filter_commands!()
-    filt_hp = LeafCommand("hp", _filter_hp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lambda"; short="l", type=Float64, default=1600.0, description="Smoothing parameter (6.25 annual, 1600 quarterly, 129600 monthly)"),
-            Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all numeric)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Hodrick-Prescott filter")
-
-    filt_hamilton = LeafCommand("hamilton", _filter_hamilton;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("horizon"; short="h", type=Int, default=8, description="Forecast horizon"),
-            Option("lags"; short="p", type=Int, default=4, description="Number of lags in regression"),
-            Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all numeric)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Hamilton (2018) regression filter")
-
-    filt_bn = LeafCommand("bn", _filter_bn;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("method"; type=String, default="arima", description="arima|statespace"),
-            Option("p"; type=Int, default=nothing, description="AR order (default: auto)"),
-            Option("q"; type=Int, default=nothing, description="MA order (default: auto)"),
-            Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all numeric)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Beveridge-Nelson decomposition")
-
-    filt_bk = LeafCommand("bk", _filter_bk;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("pl"; type=Int, default=6, description="Minimum period of oscillation"),
-            Option("pu"; type=Int, default=32, description="Maximum period of oscillation"),
-            Option("K"; type=Int, default=12, description="Truncation length (leads/lags)"),
-            Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all numeric)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Baxter-King band-pass filter")
-
-    filt_bhp = LeafCommand("bhp", _filter_bhp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lambda"; short="l", type=Float64, default=1600.0, description="Smoothing parameter"),
-            Option("stopping"; type=String, default="BIC", description="BIC|ADF|fixed"),
-            Option("max-iter"; type=Int, default=100, description="Maximum boosting iterations"),
-            Option("sig-p"; type=Float64, default=0.05, description="ADF significance level"),
-            Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all numeric)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Boosted HP filter (Phillips & Shi 2021)")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "hp"       => filt_hp,
-        "hamilton" => filt_hamilton,
-        "bn"       => filt_bn,
-        "bk"       => filt_bk,
-        "bhp"      => filt_bhp,
-    )
-    return NodeCommand("filter", subcmds, "Time series filtering and trend-cycle decomposition")
+    specs = filter_specs()
+    register!(specs)
+    return build_node("filter", specs;
+        description="Time series filtering and trend-cycle decomposition")
 end
 
 # ── Column Parsing ───────────────────────────────────────
