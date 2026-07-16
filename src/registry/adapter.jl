@@ -57,17 +57,40 @@ function wrap_legacy(handler::Function)
             end
         end
 
-        result = handler(; kwargs...)
+        # Config ergonomics (C030): merge file < config-json < --set; --strict
+        config_json = string(get(kwargs, :config_json, ""))
+        set_raw = get(kwargs, :set, String[])
+        set_vals = set_raw isa AbstractString ?
+            (isempty(set_raw) ? String[] : String[String(set_raw)]) :
+            String[String(s) for s in set_raw]
+        strict = get(kwargs, :strict, false) === true
+        delete!(kwargs, :config_json)
+        delete!(kwargs, :set)
+        delete!(kwargs, :strict)
+        prev_strict = _CONFIG_STRICT[]
+        _CONFIG_STRICT[] = strict
+        try
+            config_path = string(get(kwargs, :config, ""))
+            if !isempty(config_path) || !isempty(config_json) || !isempty(set_vals)
+                merged = merge_config(config_path; config_json=config_json,
+                                      set=set_vals, strict=strict)
+                kwargs[:config] = write_merged_config_toml(merged)
+            end
 
-        if !isempty(save_path)
-            isnothing(result) && throw(CliError(
-                "model/no-result",
-                "cannot --save-model: handler returned nothing",
-                hint="only estimate/solve commands produce savable models",
-            ))
-            save_model_handle(save_path, result)
+            result = handler(; kwargs...)
+
+            if !isempty(save_path)
+                isnothing(result) && throw(CliError(
+                    "model/no-result",
+                    "cannot --save-model: handler returned nothing",
+                    hint="only estimate/solve commands produce savable models",
+                ))
+                save_model_handle(save_path, result)
+            end
+            return result
+        finally
+            _CONFIG_STRICT[] = prev_strict
         end
-        return result
     end
 end
 

@@ -192,7 +192,7 @@ function irf_specs()::Vector{CommandSpec}
 end
 
 function register_irf_commands!()
-    specs = with_model_option(irf_specs())
+    specs = with_config_ergonomics(with_model_option(irf_specs()))
     register!(specs)
     return build_node("irf", specs; description="Impulse Response Functions")
 end

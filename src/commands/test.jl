@@ -718,7 +718,7 @@ function test_specs()::Vector{CommandSpec}
 end
 
 function register_test_commands!()
-    specs = test_specs()
+    specs = with_config_ergonomics(test_specs())
     register!(specs)
     return build_node("test", specs; description="Statistical tests (unit root, cointegration, diagnostics)")
 end

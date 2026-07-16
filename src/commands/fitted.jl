@@ -1179,13 +1179,13 @@ function residuals_specs()::Vector{CommandSpec}
 end
 
 function register_predict_commands!()
-    specs = with_model_option(predict_specs())
+    specs = with_config_ergonomics(with_model_option(predict_specs()))
     register!(specs)
     return build_node("predict", specs; description="In-sample fitted values / predictions")
 end
 
 function register_residuals_commands!()
-    specs = with_model_option(residuals_specs())
+    specs = with_config_ergonomics(with_model_option(residuals_specs()))
     register!(specs)
     return build_node("residuals", specs; description="Model residuals")
 end

@@ -32,7 +32,9 @@ struct ParsedArgs
     positional::Vector{String}
     options::Dict{String,String}
     flags::Set{String}
+    multi::Dict{String,Vector{String}}  # repeatable options e.g. --set (C030)
 end
+ParsedArgs(pos, opts, flags) = ParsedArgs(pos, opts, flags, Dict{String,Vector{String}}())
 
 """True if `t` looks like an option value (not a flag), including negative numbers (F2)."""
 _looks_like_value(t::AbstractString) = !startswith(t, "-") || occursin(r"^-(\.?\d)", t)
@@ -45,10 +47,14 @@ Handles: `--option=value`, `--option value`, `-o value`, `--flag`, `-f`, positio
 `--` stops option parsing (everything after is positional).
 Negative numeric values (`-0.5`, `-3`) bind as option values (F2).
 """
+# Option names that may be repeated (`--set a=1 --set b=2`)
+const _MULTI_OPTIONS = Set(["set"])
+
 function tokenize(tokens::Vector{String})
     positional = String[]
     options = Dict{String,String}()
     flags = Set{String}()
+    multi = Dict{String,Vector{String}}()
     i = 1
     stop_parsing = false
     while i <= length(tokens)
@@ -63,9 +69,17 @@ function tokenize(tokens::Vector{String})
             body = tok[3:end]
             if contains(body, '=')
                 k, v = split(body, '='; limit=2)
-                options[k] = v
+                if k in _MULTI_OPTIONS
+                    push!(get!(multi, k, String[]), v)
+                else
+                    options[k] = v
+                end
             elseif i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
-                options[body] = tokens[i+1]
+                if body in _MULTI_OPTIONS
+                    push!(get!(multi, body, String[]), tokens[i+1])
+                else
+                    options[body] = tokens[i+1]
+                end
                 i += 1
             else
                 # Treat as flag
@@ -94,7 +108,7 @@ function tokenize(tokens::Vector{String})
             i += 1
         end
     end
-    return ParsedArgs(positional, options, flags)
+    return ParsedArgs(positional, options, flags, multi)
 end
 
 """
@@ -256,7 +270,18 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
     # Bind options
     opt_values = Dict{Symbol,Any}()
     for opt in cmd.options
-        opt_values[Symbol(replace(opt.name, "-" => "_"))] = resolve_option(parsed, opt)
+        key = Symbol(replace(opt.name, "-" => "_"))
+        if opt.name in _MULTI_OPTIONS
+            # Repeatable: prefer multi-vector; fall back to single options entry
+            vals = get(parsed.multi, opt.name, String[])
+            if isempty(vals)
+                single = get(parsed.options, opt.name, nothing)
+                vals = isnothing(single) ? String[] : String[single]
+            end
+            opt_values[key] = vals
+        else
+            opt_values[key] = resolve_option(parsed, opt)
+        end
     end
 
     # Bind flags

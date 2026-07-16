@@ -16,6 +16,52 @@
 
 # TOML config file parsing for complex model specifications
 
+# ── Schema (F65 / C030) ───────────────────────────────────────
+
+"""Known top-level sections → allowed keys (unknown → warning / --strict error)."""
+const CONFIG_SCHEMA = Dict{String,Vector{String}}(
+    "prior" => ["type", "hyperparameters", "optimization"],
+    "identification" => ["method", "sign_matrix", "narrative", "zero_restrictions",
+                         "sign_restrictions", "uhlig"],
+    "gmm" => ["moment_conditions", "instruments", "weighting"],
+    "smm" => ["weighting", "sim_ratio", "burn"],
+    "nongaussian" => ["method", "contrast", "distribution", "n_regimes",
+                      "transition_variable", "regime_variable"],
+    "model" => ["parameters", "endogenous", "exogenous", "equations"],
+    "solver" => ["method", "order", "degree", "grid"],
+    "constraints" => ["bounds", "nonlinear"],
+    "priors" => String[],  # free param names under [priors]
+)
+
+"""Nested tables under known sections."""
+const CONFIG_NESTED_SCHEMA = Dict{String,Vector{String}}(
+    "prior.hyperparameters" => ["lambda1", "lambda2", "lambda3", "lambda4"],
+    "prior.optimization" => ["enabled"],
+    "identification.sign_matrix" => ["matrix", "horizons"],
+    "identification.narrative" => ["shock_index", "periods", "signs"],
+    "identification.uhlig" => ["n_starts", "n_refine", "max_iter_coarse",
+                               "max_iter_fine", "tol_coarse", "tol_fine"],
+)
+
+"""Enum-like string fields validated against allow-lists."""
+const CONFIG_ENUMS = Dict{String,Vector{String}}(
+    "prior.type" => ["minnesota"],
+    "identification.method" => ["cholesky", "sign", "narrative", "longrun", "arias", "uhlig",
+                                "fastica", "jade", "sobi", "dcov", "hsic", "student_t",
+                                "mixture_normal", "pml", "skew_normal", "markov_switching",
+                                "garch_id"],
+    "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step"],
+    "smm.weighting" => ["identity", "optimal", "two_step", "iterated", "twostep"],
+    "nongaussian.method" => ["fastica", "jade", "ml", "markov", "garch",
+                             "smooth_transition", "external"],
+    "nongaussian.contrast" => ["logcosh", "exp", "kurtosis"],
+    "nongaussian.distribution" => ["student_t", "skew_t", "ghd"],
+    "solver.method" => ["gensys", "klein", "perturbation", "projection", "pfi"],
+)
+
+# Thread/task-local strict flag set by wrap_legacy from --strict
+const _CONFIG_STRICT = Ref(false)
+
 """
     load_config(path) → Dict
 
@@ -24,11 +70,193 @@ Load and validate a TOML configuration file.
 function load_config(path::String)
     _validate_input_path(path)
     isfile(path) || throw(CliError("config/file-not-found", "config file not found: $path"))
-    try
-        return TOML.parsefile(path)
+    cfg = try
+        TOML.parsefile(path)
     catch e
         e isa CliError && rethrow()
         throw(CliError("config/malformed-toml", "failed to parse config file '$path': $(sprint(showerror, e))"))
+    end
+    validate_config_schema!(cfg; strict=_CONFIG_STRICT[])
+    return cfg
+end
+
+"""
+    merge_config(path; config_json="", set=String[], strict=false) → Dict
+
+Merge config layers: file < config-json < --set (C030).
+Validates the merged result.
+"""
+function merge_config(path::String=""; config_json::String="",
+                      set::Vector{String}=String[], strict::Bool=false)
+    cfg = Dict{String,Any}()
+    if !isempty(path)
+        # load without double-validating intermediate — validate once at end
+        _validate_input_path(path)
+        isfile(path) || throw(CliError("config/file-not-found", "config file not found: $path"))
+        file_cfg = try
+            TOML.parsefile(path)
+        catch e
+            e isa CliError && rethrow()
+            throw(CliError("config/malformed-toml",
+                           "failed to parse config file '$path': $(sprint(showerror, e))"))
+        end
+        deep_merge!(cfg, _string_key_dict(file_cfg))
+    end
+    if !isempty(config_json)
+        j = try
+            JSON3.read(config_json)
+        catch e
+            throw(CliError("config/malformed-json",
+                           "failed to parse --config-json: $(sprint(showerror, e))"))
+        end
+        deep_merge!(cfg, _json_to_dict(j))
+    end
+    for assignment in set
+        apply_set!(cfg, assignment)
+    end
+    validate_config_schema!(cfg; strict=strict)
+    return cfg
+end
+
+"""Write a merged config Dict to a temp TOML path (for handlers that call load_config)."""
+function write_merged_config_toml(cfg::AbstractDict)::String
+    path = tempname() * ".toml"
+    open(path, "w") do io
+        TOML.print(io, cfg)
+    end
+    return path
+end
+
+function deep_merge!(base::Dict, over::AbstractDict)
+    for (k, v) in over
+        key = string(k)
+        if v isa AbstractDict && get(base, key, nothing) isa AbstractDict
+            deep_merge!(base[key], v)
+        else
+            base[key] = v isa AbstractDict ? _string_key_dict(v) : v
+        end
+    end
+    return base
+end
+
+function _string_key_dict(d::AbstractDict)
+    out = Dict{String,Any}()
+    for (k, v) in d
+        out[string(k)] = v isa AbstractDict ? _string_key_dict(v) : v
+    end
+    return out
+end
+
+function _json_to_dict(j)
+    if j isa AbstractDict
+        return Dict{String,Any}(string(k) => _json_to_dict(v) for (k, v) in j)
+    elseif j isa AbstractVector
+        return Any[_json_to_dict(x) for x in j]
+    else
+        return j
+    end
+end
+
+"""
+    apply_set!(cfg, \"dotted.key=value\")
+
+Apply a single --set override (dotted path).
+"""
+function apply_set!(cfg::Dict, assignment::AbstractString)
+    eq = findfirst('=', assignment)
+    isnothing(eq) && throw(CliError("config/bad-set",
+        "--set expects key=value, got '$assignment'",
+        hint="example: --set prior.hyperparameters.lambda1=0.2"))
+    keypath = String(assignment[1:prevind(assignment, eq)])
+    rawval = String(assignment[nextind(assignment, eq):end])
+    isempty(keypath) && throw(CliError("config/bad-set", "empty key in --set '$assignment'"))
+    parts = split(keypath, '.')
+    node = cfg
+    for p in parts[1:end-1]
+        child = get(node, p, nothing)
+        if !(child isa AbstractDict)
+            child = Dict{String,Any}()
+            node[p] = child
+        end
+        node = child
+    end
+    node[parts[end]] = _parse_set_value(rawval)
+    return cfg
+end
+
+function _parse_set_value(s::AbstractString)
+    ls = lowercase(strip(s))
+    ls == "true" && return true
+    ls == "false" && return false
+    if occursin(r"^-?\d+$", strip(s))
+        return parse(Int, strip(s))
+    end
+    f = tryparse(Float64, strip(s))
+    f !== nothing && return f
+    return String(s)
+end
+
+function _config_unknown!(code::String, msg::String; strict::Bool)
+    if strict
+        throw(CliError(code, msg, hint="fix the key or drop --strict"))
+    end
+    _status_styled("Warning: "; bold=true, color=:yellow)
+    println(stderr, code, ": ", msg)
+    if envelope_active()
+        add_warning!(_ENVELOPE[], code, msg)
+    end
+    return nothing
+end
+
+"""
+    validate_config_schema!(cfg; strict=false)
+
+Warn (or error under --strict) on unknown keys; suggest nearest known name (F65).
+"""
+function validate_config_schema!(cfg::AbstractDict; strict::Bool=false)
+    for (section, body) in cfg
+        sec = string(section)
+        haskey(CONFIG_SCHEMA, sec) || continue  # free-form top-level ignored
+        known = CONFIG_SCHEMA[sec]
+        body isa AbstractDict || continue
+        if !isempty(known)
+            _validate_level!(body, known, sec; strict)
+        end
+        # nested tables
+        for (sub, subknown) in CONFIG_NESTED_SCHEMA
+            startswith(sub, sec * ".") || continue
+            subname = sub[length(sec)+2:end]
+            if haskey(body, subname) && body[subname] isa AbstractDict
+                _validate_level!(body[subname], subknown, sub; strict)
+            end
+        end
+        # enums at this section
+        for (ek, allowed) in CONFIG_ENUMS
+            startswith(ek, sec * ".") || continue
+            field = ek[length(sec)+2:end]
+            if haskey(body, field)
+                val = string(body[field])
+                if !(val in allowed)
+                    _config_unknown!("config/bad-enum",
+                        "invalid value '$val' for $ek (allowed: $(join(allowed, ", ")))";
+                        strict)
+                end
+            end
+        end
+    end
+    return cfg
+end
+
+function _validate_level!(d::AbstractDict, known::Vector{String}, path::String; strict::Bool)
+    for k in keys(d)
+        ks = string(k)
+        ks in known && continue
+        sugg = _nearest(ks, known)
+        msg = "unknown config key '$path.$ks'"
+        if sugg !== nothing
+            msg *= " — did you mean '$sugg'?"
+        end
+        _config_unknown!("config/unknown-key", msg; strict)
     end
 end
 

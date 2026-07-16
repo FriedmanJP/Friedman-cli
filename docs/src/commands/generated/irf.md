@@ -26,11 +26,14 @@ Compute Bayesian impulse response functions with credible intervals
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_bvar` (Compute Bayesian impulse response functions with credible intervals)
 
@@ -56,11 +59,14 @@ FAVAR impulse response functions
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--panel-irf` | — | Output panel-wide IRFs (N variables) instead of factor-level |
 | `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_favar` (FAVAR impulse response functions)
 
@@ -91,11 +97,14 @@ Compute structural LP impulse response functions
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_lp` (Compute structural LP impulse response functions)
 
@@ -150,10 +159,13 @@ Structural DFM impulse response functions (panel-wide)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_sdfm` (Structural DFM impulse response functions (panel-wide))
 
@@ -180,6 +192,8 @@ Compute frequentist impulse response functions
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -187,6 +201,7 @@ Compute frequentist impulse response functions
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
 | `--identified-set` | — | Return full identified set for sign restrictions |
 | `--stationary-only` | — | Filter non-stationary bootstrap draws |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_var` (Compute frequentist impulse response functions)
 
@@ -215,10 +230,13 @@ Compute impulse response functions via VECM → VAR representation
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_vecm` (Compute impulse response functions via VECM → VAR representation)
 

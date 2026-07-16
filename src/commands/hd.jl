@@ -126,7 +126,7 @@ function hd_specs()::Vector{CommandSpec}
 end
 
 function register_hd_commands!()
-    specs = with_model_option(hd_specs())
+    specs = with_config_ergonomics(with_model_option(hd_specs()))
     register!(specs)
     return build_node("hd", specs; description="Historical Decomposition")
 end

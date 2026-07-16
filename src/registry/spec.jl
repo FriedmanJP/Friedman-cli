@@ -78,6 +78,36 @@ const MODEL_OPTION = OptionSpec(
     description="Load model from a .fmod handle (skip re-estimation)",
 )
 
+# Config ergonomics (P2-8 / C030) — append to every leaf that has --config
+const CONFIG_ERGONOMICS_OPTIONS = [
+    OptionSpec(name="config-json", type=String, default="",
+               description="JSON object merged over --config (file < json < --set)"),
+    OptionSpec(name="set", type=String, default="",
+               description="Override config key=value; repeatable; dotted keys OK"),
+]
+const STRICT_FLAG = FlagSpec(name="strict",
+                             description="Treat config schema warnings as errors (exit 4)")
+
+"""Append --config-json/--set/--strict to specs that already declare --config."""
+function with_config_ergonomics(specs::Vector{CommandSpec})
+    out = CommandSpec[]
+    for s in specs
+        has_config = any(o -> o.name == "config", s.options)
+        if !has_config
+            push!(out, s)
+            continue
+        end
+        push!(out, CommandSpec(
+            path=s.path, summary=s.summary, args=s.args,
+            options=vcat(s.options, CONFIG_ERGONOMICS_OPTIONS),
+            flags=vcat(s.flags, [STRICT_FLAG]),
+            tables=s.tables, category=s.category, aliases=s.aliases,
+            handler=s.handler,
+        ))
+    end
+    return out
+end
+
 """Append option specs to every CommandSpec (by copy)."""
 function with_options(specs::Vector{CommandSpec}, extra::Vector{OptionSpec})
     out = CommandSpec[]

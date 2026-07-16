@@ -106,9 +106,9 @@ using .MacroEconometricModels
         # bundled flags
         b = bind_args(tokenize(["d.csv", "-vqa"]), leaf)
         @test b.verbose && b.quiet && b.all
-        # = form with embedded =
+        # = form with embedded = (repeatable --set binds as Vector)
         b = bind_args(tokenize(["d.csv", "--set=key=value"]), leaf)
-        @test b.set == "key=value"
+        @test b.set == ["key=value"]
     end
 
 
@@ -2988,6 +2988,58 @@ using TOML
         pr_empty = get_prior(Dict())
         @test pr_empty["type"] == "minnesota"
         @test pr_empty["optimize"] == false
+    end
+
+    @testset "config schema + merge (C030 / F65)" begin
+        # Typo lamda1 → warning suggesting lambda1
+        bad = Dict{String,Any}(
+            "prior" => Dict{String,Any}(
+                "type" => "minnesota",
+                "hyperparameters" => Dict{String,Any}("lamda1" => 0.2),
+            ),
+        )
+        mktemp() do path, io
+            redirect_stderr(io) do
+                validate_config_schema!(bad; strict=false)
+            end
+            flush(io)
+            out = read(path, String)
+            @test occursin("lamda1", out)
+            @test occursin("lambda1", out)
+            @test occursin("config/unknown-key", out)
+        end
+        # --strict → exit class 4
+        err = try
+            validate_config_schema!(deepcopy(bad); strict=true)
+            nothing
+        catch e
+            e
+        end
+        @test err isa CliError
+        @test err.code == "config/unknown-key"
+        @test exit_class(err) == 4
+
+        # merge order: file < config-json < --set
+        mktempdir() do dir
+            p = joinpath(dir, "c.toml")
+            open(p, "w") do io
+                println(io, "[prior]")
+                println(io, "type = \"minnesota\"")
+                println(io, "[prior.hyperparameters]")
+                println(io, "lambda1 = 0.1")
+                println(io, "lambda2 = 0.2")
+            end
+            j = "{\"prior\":{\"hyperparameters\":{\"lambda1\":0.3}}}"
+            m = merge_config(p; config_json=j,
+                set=["prior.hyperparameters.lambda1=0.9", "prior.hyperparameters.lambda3=1.5"])
+            @test m["prior"]["hyperparameters"]["lambda1"] == 0.9
+            @test m["prior"]["hyperparameters"]["lambda2"] == 0.2
+            @test m["prior"]["hyperparameters"]["lambda3"] == 1.5
+        end
+
+        # repeatable --set tokenization
+        parsed = tokenize(["--set", "a=1", "--set", "b=2"])
+        @test parsed.multi["set"] == ["a=1", "b=2"]
     end
 
     @testset "get_gmm" begin
