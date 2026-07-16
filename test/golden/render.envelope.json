@@ -1,0 +1,1 @@
+{"meta":{"julia":"GOLDEN","mems_version":"GOLDEN","cli_version":"GOLDEN"},"error":null,"status":"ok","command":"estimate var","data":{"lags":2,"coefficients":{"rows":[["y1",0.5],["y2",-0.25]],"columns":["variable","est"]}},"warnings":[],"schema_version":1,"artifacts":[]}

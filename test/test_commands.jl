@@ -69,6 +69,8 @@ include(joinpath(project_root, "src", "cli", "dispatch.jl"))
 
 # Include command files in dependency order
 include(joinpath(project_root, "src", "commands", "shared.jl"))
+include(joinpath(project_root, "src", "registry", "spec.jl"))
+include(joinpath(project_root, "src", "registry", "adapter.jl"))
 include(joinpath(project_root, "src", "commands", "estimate.jl"))
 include(joinpath(project_root, "src", "commands", "test.jl"))
 include(joinpath(project_root, "src", "commands", "irf.jl"))
@@ -8275,3 +8277,54 @@ end  # Remaining handler coverage
 end
 
 end  # Command Handlers
+
+# ═══════════════════════════════════════════════════════════════
+# Golden envelopes (C022 / TS-5) — spectral pilot + renderer
+# ═══════════════════════════════════════════════════════════════
+
+@testset "golden envelopes (spectral pilot)" begin
+    mktempdir() do dir
+        fix = joinpath(dir, "golden_data.csv")
+        open(fix, "w") do f
+            println(f, "y1,y2,y3")
+            for t in 1:80
+                vals = [sin(t / (2 + i)) + 0.1 * cos(t / (3 + i)) for i in 1:3]
+                println(f, join(string.(round.(vals; digits=8)), ","))
+            end
+        end
+        cases = [
+            (["spectral", "acf", fix, "--format", "json"], ["spectral", "acf"]),
+            (["spectral", "periodogram", fix, "--format", "json"], ["spectral", "periodogram"]),
+            (["spectral", "density", fix, "--method", "welch", "--format", "json"], ["spectral", "density"]),
+            (["spectral", "cross", fix, "--var1", "1", "--var2", "2", "--format", "json"], ["spectral", "cross"]),
+            (["spectral", "transfer", "--filter", "hp", "--lambda", "1600.0", "--nobs", "200", "--format", "json"], ["spectral", "transfer"]),
+        ]
+        for (argv, gkeys) in cases
+            Random.seed!(42)
+            out = _capture() do
+                _dispatch_via_app(String[string(a) for a in argv])
+            end
+            js = _extract_json_object(out)
+            @test js !== nothing
+            gpath = _golden_path(gkeys)
+            @test isfile(gpath)
+            @test _golden_compare(js, gpath)
+            errs = validate_envelope_json(js)
+            @test isempty(errs) || (@info "schema errs" errs; false)
+        end
+    end
+
+    # Renderer goldens
+    env = Envelope(command="estimate var")
+    add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
+    add_scalar!(env, "lags", 2)
+    buf = IOBuffer(); render(env, :csv, buf)
+    csv_out = replace(String(take!(buf)), "\r\n" => "\n")
+    @test csv_out == read(joinpath(_GOLDEN_DIR, "render.csv.txt"), String)
+    buf = IOBuffer(); render(env, :json, buf)
+    @test _golden_compare(String(take!(buf)), joinpath(_GOLDEN_DIR, "render.envelope.json"))
+
+    # Deliberate rename detection (acceptance demo)
+    bad = replace(read(joinpath(_GOLDEN_DIR, "spectral.acf.json"), String), "acf_pacf" => "renamed_table")
+    @test !_golden_compare(bad, joinpath(_GOLDEN_DIR, "spectral.acf.json"))
+end

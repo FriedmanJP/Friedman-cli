@@ -234,14 +234,185 @@ function _make_ng_external_config(dir; regime_var="var3")
     return path
 end
 
-# ─── Tests ─────────────────────────────────────────────────────
+# ─── Golden envelopes + JSON Schema (C022 / TS-5) ─────────────
 
+const _GOLDEN_DIR = joinpath(@__DIR__, "golden")
+const _ENVELOPE_SCHEMA_PATH = joinpath(dirname(@__DIR__), "schema", "envelope-v1.json")
 
-"""Compare golden envelope JSON loosely (filled in C022)."""
-function _golden_compare(actual_json::AbstractString, golden_path::AbstractString)
-    if !isfile(golden_path)
-        @warn "golden missing" golden_path
-        return false
+"""Normalize envelope JSON for stable golden compare (strip volatile meta, sort keys, LF)."""
+function _normalize_envelope_json(json_str::AbstractString)
+    doc = JSON3.read(json_str)
+    d = _json_to_sorted_dict(doc)
+    if haskey(d, "meta") && d["meta"] isa AbstractDict
+        m = Dict{String,Any}(d["meta"])
+        delete!(m, "elapsed_ms")
+        delete!(m, "argv")
+        # pin volatile version strings for cross-env goldens
+        m["cli_version"] = "GOLDEN"
+        m["mems_version"] = "GOLDEN"
+        m["julia"] = "GOLDEN"
+        d["meta"] = _sort_keys(m)
     end
-    return strip(actual_json) == strip(read(golden_path, String))
+    if haskey(d, "command")
+        # strip leading "friedman " for stability across prog prefixes
+        d["command"] = replace(string(d["command"]), r"^friedman\s+" => "")
+    end
+    return _stable_json(d)
+end
+
+function _json_to_sorted_dict(x)
+    if x isa JSON3.Object || x isa AbstractDict
+        d = Dict{String,Any}()
+        for (k, v) in pairs(x)
+            d[string(k)] = _json_to_sorted_dict(v)
+        end
+        return _sort_keys(d)
+    elseif x isa JSON3.Array || x isa AbstractVector
+        return Any[_json_to_sorted_dict(v) for v in x]
+    else
+        return x
+    end
+end
+
+function _sort_keys(d::AbstractDict)
+    out = Dict{String,Any}()
+    for k in sort!(collect(keys(d)); by=string)
+        out[string(k)] = d[k]
+    end
+    return out
+end
+
+function _stable_json(x)
+    # Deterministic compact JSON (keys already sorted at each object level)
+    return replace(JSON3.write(x), "\r\n" => "\n") * "\n"
+end
+
+"""Return true if actual JSON matches the golden file after normalization."""
+function _golden_compare(actual_json::AbstractString, golden_path::AbstractString)
+    isfile(golden_path) || return false
+    a = _normalize_envelope_json(actual_json)
+    g = _normalize_envelope_json(read(golden_path, String))
+    return a == g
+end
+
+"""Write normalized golden from actual JSON string."""
+function _write_golden(actual_json::AbstractString, golden_path::AbstractString)
+    mkpath(dirname(golden_path))
+    open(golden_path, "w") do io
+        write(io, _normalize_envelope_json(actual_json))
+    end
+    return golden_path
+end
+
+function _golden_path(cmd_path::Vector{String})
+    return joinpath(_GOLDEN_DIR, join(cmd_path, ".") * ".json")
+end
+
+# ── Pure-Julia JSON Schema draft-07 subset (type/required/enum/const/properties/items/additionalProperties/oneOf) ──
+
+function _schema_type_ok(x, t::AbstractString)
+    t == "object"  && return x isa AbstractDict || x isa JSON3.Object
+    t == "array"   && return x isa AbstractVector || x isa JSON3.Array
+    t == "string"  && return x isa AbstractString
+    t == "integer" && return x isa Integer && !(x isa Bool)
+    t == "number"  && return x isa Real && !(x isa Bool)
+    t == "boolean" && return x isa Bool
+    t == "null"    && return x === nothing
+    return false
+end
+
+function _schema_type_ok(x, types::AbstractVector)
+    return any(t -> _schema_type_ok(x, string(t)), types)
+end
+
+"""Validate `doc` against a JSON Schema (draft-07 subset). Returns list of error strings (empty = ok)."""
+function validate_json_schema(doc, schema; path::String="\$")
+    errors = String[]
+    _validate_schema!(errors, doc, schema, path)
+    return errors
+end
+
+function _validate_schema!(errors, doc, schema, path)
+    schema isa AbstractDict || schema isa JSON3.Object || return
+    sch = schema
+
+    if haskey(sch, "const") || haskey(sch, :const)
+        c = haskey(sch, "const") ? sch["const"] : sch[:const]
+        (doc == c || string(doc) == string(c)) ||
+            push!(errors, "$path: expected const $c, got $doc")
+    end
+
+    if haskey(sch, "enum") || haskey(sch, :enum)
+        enum = haskey(sch, "enum") ? sch["enum"] : sch[:enum]
+        vals = collect(enum)
+        ok = any(e -> e == doc || string(e) == string(doc), vals)
+        ok || push!(errors, "$path: value $doc not in enum $vals")
+    end
+
+    if haskey(sch, "type") || haskey(sch, :type)
+        t = haskey(sch, "type") ? sch["type"] : sch[:type]
+        if t isa AbstractVector || t isa JSON3.Array
+            _schema_type_ok(doc, collect(t)) || push!(errors, "$path: type mismatch, expected one of $t")
+        else
+            _schema_type_ok(doc, string(t)) || push!(errors, "$path: type mismatch, expected $t")
+        end
+    end
+
+    if (haskey(sch, "required") || haskey(sch, :required)) && (doc isa AbstractDict || doc isa JSON3.Object)
+        req = haskey(sch, "required") ? sch["required"] : sch[:required]
+        for r in req
+            rk = string(r)
+            haskey(doc, rk) || haskey(doc, Symbol(rk)) || push!(errors, "$path: missing required property '$rk'")
+        end
+    end
+
+    if (haskey(sch, "properties") || haskey(sch, :properties)) && (doc isa AbstractDict || doc isa JSON3.Object)
+        props = haskey(sch, "properties") ? sch["properties"] : sch[:properties]
+        for (k, v) in pairs(doc)
+            ks = string(k)
+            if haskey(props, ks) || haskey(props, Symbol(ks))
+                sub = haskey(props, ks) ? props[ks] : props[Symbol(ks)]
+                _validate_schema!(errors, v, sub, "$path.$ks")
+            elseif haskey(sch, "additionalProperties") || haskey(sch, :additionalProperties)
+                ap = haskey(sch, "additionalProperties") ? sch["additionalProperties"] : sch[:additionalProperties]
+                if ap === false
+                    push!(errors, "$path: additional property '$ks' not allowed")
+                elseif ap isa AbstractDict || ap isa JSON3.Object
+                    _validate_schema!(errors, v, ap, "$path.$ks")
+                end
+            end
+        end
+    end
+
+    if (haskey(sch, "items") || haskey(sch, :items)) && (doc isa AbstractVector || doc isa JSON3.Array)
+        items = haskey(sch, "items") ? sch["items"] : sch[:items]
+        for (i, el) in enumerate(doc)
+            _validate_schema!(errors, el, items, "$path[$i]")
+        end
+    end
+
+    if haskey(sch, "oneOf") || haskey(sch, :oneOf)
+        alts = haskey(sch, "oneOf") ? sch["oneOf"] : sch[:oneOf]
+        matched = 0
+        for alt in alts
+            sub_err = String[]
+            _validate_schema!(sub_err, doc, alt, path)
+            isempty(sub_err) && (matched += 1)
+        end
+        matched == 1 || push!(errors, "$path: oneOf matched $matched alternatives (want 1)")
+    end
+end
+
+function validate_envelope_json(json_str::AbstractString; schema_path::String=_ENVELOPE_SCHEMA_PATH)
+    schema = JSON3.read(read(schema_path, String))
+    # validate the raw document (not normalized) for schema
+    doc = JSON3.read(json_str)
+    return validate_json_schema(doc, schema)
+end
+
+"""Extract first JSON object from mixed stdout (status may be co-captured)."""
+function _extract_json_object(s::AbstractString)
+    i = findfirst('{', s)
+    i === nothing && return nothing
+    return s[i:end]
 end

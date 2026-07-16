@@ -1,0 +1,3 @@
+variable,est
+y1,0.5
+y2,-0.25
