@@ -113,11 +113,15 @@ sysimage_path = joinpath(build_project_dir, sysimage_name)
 println("Building sysimage ($(sysimage_name))...")
 println("This will take several minutes.")
 
+# --strip-metadata: size win when StructUtils/JSON3 path stays healthy (F47).
+# Validated by release smoke (C006) on the next tag — do NOT add --strip-ir
+# (MissingCodeError) or filter_stdlibs (needs incremental=false).
 create_sysimage(
     [:Friedman];
     sysimage_path=sysimage_path,
     precompile_execution_file=precompile_script,
     project=build_project_dir,
+    sysimage_build_args=`--strip-metadata`,
 )
 
 # --- Step 5: Bundle into app directory ---
