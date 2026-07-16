@@ -21,15 +21,9 @@ using TOML
 const PROJECT_VERSION = VersionNumber(
     TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"])
 
-# Minimal mock for dispatch.jl's MacroEconometricModels.warranty/conditions calls
-module MacroEconometricModels
-    function warranty()
-        println("THERE IS NO WARRANTY FOR THE PROGRAM")
-    end
-    function conditions()
-        println("You may distribute copies of the program")
-    end
-end
+# Real mock module (single definition — TS-1); warranty/conditions used by engine dispatch tests
+include(joinpath(@__DIR__, "mocks.jl"))
+using .MacroEconometricModels
 
 @testset "Friedman CLI Engine" begin
 
