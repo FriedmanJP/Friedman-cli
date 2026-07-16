@@ -8,6 +8,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Installation" => "installation.md",
+        "Agent Guide" => "agent-guide.md",
         "CLI Reference" => [
             "Overview" => "commands/overview.md",
             "estimate" => "commands/estimate.md",

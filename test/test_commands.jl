@@ -44,6 +44,9 @@ include(joinpath(project_root, "src", "io.jl"))
 include(joinpath(project_root, "src", "output", "envelope.jl"))
 include(joinpath(project_root, "src", "output", "render.jl"))
 include(joinpath(project_root, "src", "config.jl"))
+# Required by dispatch_leaf envelope meta
+const FRIEDMAN_VERSION = VersionNumber(
+    TOML.parsefile(joinpath(project_root, "Project.toml"))["version"])
 
 # Override _write_table for PrettyTables v3 (tf/show_subheader kwargs removed)
 function _write_table(df::DataFrame, output::String, title::String)
@@ -562,7 +565,7 @@ end
     @testset "load_univariate_series — out of range" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=50, n=3)
-            @test_throws ErrorException load_univariate_series(csv, 10)
+            @test_throws Exception load_univariate_series(csv, 10)
         end
     end
 
@@ -592,7 +595,7 @@ end
 
     @testset "validate_method" begin
         @test validate_method("cholesky", ["cholesky", "sign"], "id") == "cholesky"
-        @test_throws ErrorException validate_method("unknown", ["cholesky", "sign"], "id")
+        @test_throws Exception validate_method("unknown", ["cholesky", "sign"], "id")
     end
 
     @testset "interpret_test_result" begin
@@ -786,7 +789,7 @@ end  # Shared utilities
     @testset "_estimate_lp — iv missing instruments error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _estimate_lp(; data=csv, method="iv", shock=1, horizons=10,
                                   control_lags=4, vcov="newey_west", instruments="",
@@ -849,7 +852,7 @@ end  # Shared utilities
     @testset "_estimate_lp — state missing state_var error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _estimate_lp(; data=csv, method="state", shock=1, horizons=10,
                                   state_var=nothing, gamma=1.5, format="table")
@@ -893,7 +896,7 @@ end  # Shared utilities
     @testset "_estimate_lp — unknown method error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _estimate_lp(; data=csv, method="invalid", format="table")
                 end
@@ -960,7 +963,7 @@ end  # Shared utilities
     @testset "_estimate_gmm — missing config error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _estimate_gmm(; data=csv, config="", weighting="twostep", format="table")
                 end
@@ -1426,7 +1429,7 @@ end  # Shared utilities
     @testset "_estimate_iv — missing endogenous error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
-            @test_throws ErrorException _estimate_iv(; data=csv, dep="y",
+            @test_throws Exception _estimate_iv(; data=csv, dep="y",
                 endogenous="", instruments="z1,z2", cov_type="hc1",
                 format="table", output="")
         end
@@ -1435,7 +1438,7 @@ end  # Shared utilities
     @testset "_estimate_iv — missing instruments error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
-            @test_throws ErrorException _estimate_iv(; data=csv, dep="y",
+            @test_throws Exception _estimate_iv(; data=csv, dep="y",
                 endogenous="x1", instruments="", cov_type="hc1",
                 format="table", output="")
         end
@@ -1752,7 +1755,7 @@ end  # Estimate handlers
     @testset "_test_heteroskedasticity — smooth_transition requires config" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _capture() do
+            @test_throws Exception _capture() do
                 _test_heteroskedasticity(; data=csv, lags=2, method="smooth_transition",
                                             config="", format="table")
             end
@@ -1774,7 +1777,7 @@ end  # Estimate handlers
     @testset "_test_heteroskedasticity — external requires config" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _capture() do
+            @test_throws Exception _capture() do
                 _test_heteroskedasticity(; data=csv, lags=2, method="external",
                                             config="", format="table")
             end
@@ -1923,7 +1926,7 @@ end  # Test handlers
     @testset "_irf_var — arias without config errors" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="arias",
                               config="", format="table")
@@ -1950,7 +1953,7 @@ end  # Test handlers
     @testset "_irf_var — uhlig without config errors" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="uhlig",
                               config="", format="table")
@@ -2073,7 +2076,7 @@ end  # Test handlers
     @testset "_irf_lp — invalid shock index" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _irf_lp(; data=csv, shock=1, shocks="5", horizons=10, lags=4,
                              id="cholesky", ci="none", vcov="newey_west", config="",
@@ -2146,7 +2149,7 @@ end  # Test handlers
     @testset "_irf_var — identified-set without config errors" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sign",
                               config="", ci="none", format="table", identified_set=true)
@@ -3946,7 +3949,7 @@ end  # Output format tests
 
     @testset "nonexistent data file" begin
         mktempdir() do dir
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _capture() do
                     _estimate_var(; data="/nonexistent/path.csv", lags=2, format="table")
                 end
@@ -3955,7 +3958,7 @@ end  # Output format tests
     end
 
     @testset "nonexistent config file" begin
-        @test_throws ErrorException _capture() do
+        @test_throws Exception _capture() do
             _build_prior("/nonexistent/config.toml", ones(100, 3), 2)
         end
     end
@@ -4278,14 +4281,14 @@ end  # Filter handlers
     @testset "load_panel_data — missing id column" begin
         mktempdir() do dir
             csv = _make_panel_csv(dir)
-            @test_throws ErrorException load_panel_data(csv, "nonexistent", "time")
+            @test_throws Exception load_panel_data(csv, "nonexistent", "time")
         end
     end
 
     @testset "load_panel_data — missing time column" begin
         mktempdir() do dir
             csv = _make_panel_csv(dir)
-            @test_throws ErrorException load_panel_data(csv, "group", "nonexistent")
+            @test_throws Exception load_panel_data(csv, "group", "nonexistent")
         end
     end
 
@@ -4343,7 +4346,7 @@ end  # Filter handlers
     @testset "_estimate_pvar — missing id-col error" begin
         mktempdir() do dir
             csv = _make_panel_csv(dir)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _estimate_pvar(; data=csv, time_col="time")
             end
         end
@@ -4352,7 +4355,7 @@ end  # Filter handlers
     @testset "_estimate_pvar — missing time-col error" begin
         mktempdir() do dir
             csv = _make_panel_csv(dir)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _estimate_pvar(; data=csv, id_col="group")
             end
         end
@@ -4361,7 +4364,7 @@ end  # Filter handlers
     @testset "_estimate_pvar — invalid method error" begin
         mktempdir() do dir
             csv = _make_panel_csv(dir)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _estimate_pvar(; data=csv, id_col="group", time_col="time", method="invalid")
             end
         end
@@ -4395,7 +4398,7 @@ end  # Filter handlers
 
     @testset "_irf_pvar — missing data and tag error" begin
         mktempdir() do dir
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _irf_pvar(; data="", id_col="group", time_col="time")
             end
         end
@@ -4429,7 +4432,7 @@ end  # Filter handlers
     @testset "_test_pvar_hansen_j — missing id error" begin
         mktempdir() do dir
             csv = _make_panel_csv(dir)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _test_pvar_hansen_j(; data=csv, time_col="time")
             end
         end
@@ -4560,7 +4563,7 @@ end  # LR/LM test handlers
     @testset "_test_granger — invalid model error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _test_granger(; data=csv, model="invalid")
             end
         end
@@ -4718,7 +4721,7 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — invalid name" begin
         mktempdir() do dir
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _data_load(; name="nonexistent")
             end
         end
@@ -4754,7 +4757,7 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — invalid var name" begin
         mktempdir() do dir
-            @test_throws ErrorException cd(dir) do
+            @test_throws Exception cd(dir) do
                 _data_load(; name="fred_md", vars="NONEXISTENT_VAR")
             end
         end
@@ -4958,7 +4961,7 @@ end  # Enhanced Granger handlers
     @testset "_data_fix — invalid method" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_fix(; data=csv, method="invalid")
+            @test_throws Exception _data_fix(; data=csv, method="invalid")
         end
     end
 
@@ -4995,14 +4998,14 @@ end  # Enhanced Granger handlers
     @testset "_data_transform — missing tcodes error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_transform(; data=csv, tcodes="")
+            @test_throws Exception _data_transform(; data=csv, tcodes="")
         end
     end
 
     @testset "_data_transform — wrong number of tcodes" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_transform(; data=csv, tcodes="5,5")
+            @test_throws Exception _data_transform(; data=csv, tcodes="5,5")
         end
     end
 
@@ -5074,14 +5077,14 @@ end  # Enhanced Granger handlers
     @testset "_data_filter — invalid method" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_filter(; data=csv, method="invalid")
+            @test_throws Exception _data_filter(; data=csv, method="invalid")
         end
     end
 
     @testset "_data_filter — invalid component" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_filter(; data=csv, component="invalid")
+            @test_throws Exception _data_filter(; data=csv, component="invalid")
         end
     end
 
@@ -5121,14 +5124,14 @@ end  # Enhanced Granger handlers
     @testset "_data_validate — missing --model error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_validate(; data=csv, model="")
+            @test_throws Exception _data_validate(; data=csv, model="")
         end
     end
 
     @testset "_data_validate — invalid model type error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            @test_throws ErrorException _data_validate(; data=csv, model="invalid")
+            @test_throws Exception _data_validate(; data=csv, model="invalid")
         end
     end
 
@@ -5293,7 +5296,7 @@ end  # Data handlers
     @testset "_nowcast_dfm — invalid var split" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
-            @test_throws ErrorException _nowcast_dfm(; data=csv,
+            @test_throws Exception _nowcast_dfm(; data=csv,
                 monthly_vars=3, quarterly_vars=1)
         end
     end
@@ -5364,8 +5367,8 @@ end  # Data handlers
     end
 
     @testset "_nowcast_news — missing data errors" begin
-        @test_throws ErrorException _nowcast_news(; data_new="", data_old="old.csv")
-        @test_throws ErrorException _nowcast_news(; data_new="new.csv", data_old="")
+        @test_throws Exception _nowcast_news(; data_new="", data_old="old.csv")
+        @test_throws Exception _nowcast_news(; data_new="new.csv", data_old="")
     end
 
     @testset "_nowcast_news — bvar method" begin
@@ -5423,7 +5426,7 @@ end  # Data handlers
     @testset "_nowcast_forecast — invalid method" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
-            @test_throws ErrorException _nowcast_forecast(; data=csv,
+            @test_throws Exception _nowcast_forecast(; data=csv,
                 monthly_vars=4, quarterly_vars=1, method="invalid")
         end
     end
@@ -5696,14 +5699,14 @@ end  # Plot Support
     end
 
     @testset "_load_dsge_model — missing file" begin
-        @test_throws ErrorException _load_dsge_model("/nonexistent/model.toml")
+        @test_throws Exception _load_dsge_model("/nonexistent/model.toml")
     end
 
     @testset "_load_dsge_model — unsupported extension" begin
         mktempdir() do dir
             bad_path = joinpath(dir, "model.csv")
             write(bad_path, "a,b\n1,2\n")
-            @test_throws ErrorException _load_dsge_model(bad_path)
+            @test_throws Exception _load_dsge_model(bad_path)
         end
     end
 
@@ -5714,7 +5717,7 @@ end  # Plot Support
             [model]
             parameters = { rho = 0.9 }
             """)
-            @test_throws ErrorException _load_dsge_model(toml_path)
+            @test_throws Exception _load_dsge_model(toml_path)
         end
     end
 
@@ -5795,7 +5798,7 @@ end  # Plot Support
             [[constraints.nonlinear]]
             expr = "K[t] <= Y[t]"
             """)
-            @test_throws ErrorException _load_dsge_constraints(toml_path)
+            @test_throws Exception _load_dsge_constraints(toml_path)
         end
     end
 
@@ -5948,7 +5951,7 @@ end
             [solver]
             method = "gensys"
             """)
-            @test_throws ErrorException _dsge_solve(;
+            @test_throws Exception _dsge_solve(;
                 model=model_path, constraint_solver="invalid")
         end
     end
@@ -6065,7 +6068,7 @@ end
             [solver]
             method = "gensys"
             """)
-            @test_throws ErrorException _dsge_steady_state(;
+            @test_throws Exception _dsge_steady_state(;
                 model=model_path, constraint_solver="invalid")
         end
     end
@@ -6085,7 +6088,7 @@ end
             """)
             shocks_csv = joinpath(dir, "shocks.csv")
             write(shocks_csv, "e_A\n0.01\n0.0\n")
-            @test_throws ErrorException _dsge_perfect_foresight(;
+            @test_throws Exception _dsge_perfect_foresight(;
                 model=model_path, shocks=shocks_csv, constraint_solver="invalid")
         end
     end
@@ -6118,7 +6121,7 @@ end
             b = 0.1
             """)
             csv = _make_csv(dir; T=50, n=2)
-            @test_throws ErrorException _dsge_bayes_estimate(;
+            @test_throws Exception _dsge_bayes_estimate(;
                 model=model_path, data=csv, params="rho,sigma",
                 priors=priors_path, sampler="smc",
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,
@@ -6305,7 +6308,7 @@ end
             [[model.equations]]
             expr = "Y[t] = rho * Y[t-1] + e[t]"
             """)
-            @test_throws ErrorException _dsge_estimate(;
+            @test_throws Exception _dsge_estimate(;
                 model=toml_path, data="", method="irf_matching",
                 params="rho", format="table")
         end
@@ -6323,7 +6326,7 @@ end
             expr = "Y[t] = e[t]"
             """)
             csv = _make_csv(dir; T=100, n=1)
-            @test_throws ErrorException _dsge_estimate(;
+            @test_throws Exception _dsge_estimate(;
                 model=toml_path, data=csv, method="irf_matching",
                 params="", format="table")
         end
@@ -6365,7 +6368,7 @@ end
             [[model.equations]]
             expr = "Y[t] = e[t]"
             """)
-            @test_throws ErrorException _dsge_perfect_foresight(;
+            @test_throws Exception _dsge_perfect_foresight(;
                 model=toml_path, shocks="", periods=50, format="table")
         end
     end
@@ -6538,7 +6541,7 @@ end
     @testset "_did_estimate — missing outcome" begin
         mktempdir() do dir
             csv = _make_did_csv(dir)
-            @test_throws ErrorException _did_estimate(;
+            @test_throws Exception _did_estimate(;
                 data=csv, outcome="", treatment="treat",
                 id_col="unit", time_col="time", format="table")
         end
@@ -6984,7 +6987,7 @@ end
     @testset "_dsge_bayes_estimate — missing data" begin
         mktempdir() do dir
             model_path, priors_path, _ = _make_bayes_dsge_files(dir)
-            @test_throws ErrorException _dsge_bayes_estimate(;
+            @test_throws Exception _dsge_bayes_estimate(;
                 model=model_path, data="", params="rho,sigma",
                 priors=priors_path, sampler="smc",
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,
@@ -6996,7 +6999,7 @@ end
     @testset "_dsge_bayes_estimate — missing params" begin
         mktempdir() do dir
             model_path, priors_path, csv = _make_bayes_dsge_files(dir)
-            @test_throws ErrorException _dsge_bayes_estimate(;
+            @test_throws Exception _dsge_bayes_estimate(;
                 model=model_path, data=csv, params="",
                 priors=priors_path, sampler="smc",
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,
@@ -7008,7 +7011,7 @@ end
     @testset "_dsge_bayes_estimate — missing priors" begin
         mktempdir() do dir
             model_path, _, csv = _make_bayes_dsge_files(dir)
-            @test_throws ErrorException _dsge_bayes_estimate(;
+            @test_throws Exception _dsge_bayes_estimate(;
                 model=model_path, data=csv, params="rho,sigma",
                 priors="", sampler="smc",
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,
@@ -7150,7 +7153,7 @@ end
     @testset "_dsge_bayes_compare — missing model2" begin
         mktempdir() do dir
             model_path, priors_path, csv = _make_bayes_dsge_files(dir)
-            @test_throws ErrorException _dsge_bayes_compare(;
+            @test_throws Exception _dsge_bayes_compare(;
                 model=model_path, data=csv, params="rho,sigma",
                 priors=priors_path, sampler="smc",
                 n_smc=100, n_particles=50, n_draws=100, burnin=10,

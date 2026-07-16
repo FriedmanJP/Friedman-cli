@@ -6,7 +6,18 @@
 
 Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.4.1).
 
-14 top-level commands, ~204 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
+> **v0.5.0 breaking (agent contract):** with `--format=json`, stdout is **exactly one** versioned JSON envelope; status goes to **stderr**. Exit codes: 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal. See the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/). `FRIEDMAN_LEGACY_OUTPUT=1` restores pre-0.5 JSON for one minor release.
+
+15 top-level commands (incl. `schema`), ~204 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `schema`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
+
+### Agent quick start
+
+```bash
+# install (see below), then:
+friedman estimate var data.csv --lags 1 --format json | jq .
+friedman schema estimate var | jq '.options[].name'
+echo $?   # 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal
+```
 
 ## Installation
 
@@ -68,10 +79,11 @@ friedman [command] [subcommand] [args...] [options...]
 | `dsge` | `solve` `irf` `fevd` `hd` `simulate` `estimate` `perfect-foresight` `steady-state` + `bayes` (`estimate` `irf` `fevd` `simulate` `summary` `compare` `predictive`) | DSGE models (8 + 7 nested bayes, incl. historical decomposition) |
 | `spectral` | `acf` `periodogram` `density` `cross` `transfer` | Spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function) |
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
+| `schema` | — | Machine-readable self-description (raw JSON) |
 
 All commands support `--format` (`table`|`csv`|`json`) and `--output` (file path) options.
 
-**Global flags:** `--help`, `--version`, `--warranty` (GPL warranty disclaimer), `--conditions` (GPL distribution conditions).
+**Global flags:** `--help`, `--version`, `--warranty`, `--conditions`, plus agent globals `--quiet`/`-q`, `--no-color`, `--seed N`, `--json` (leading only).
 
 ### Interactive REPL
 
