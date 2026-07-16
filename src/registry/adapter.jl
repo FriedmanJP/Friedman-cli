@@ -88,21 +88,33 @@ end
 """
     build_node(name, specs; description="") → NodeCommand
 
-Build a node from CommandSpecs that share a common path prefix of length 1
-(the node name) and differ in the leaf name (path[2]).
+Build a node from CommandSpecs sharing path prefix `name`.
+Supports depth-2 (`["estimate","var"]`) and depth-3 (`["dsge","bayes","irf"]`) paths.
 """
 function build_node(name::String, specs::Vector{CommandSpec}; description::String="")
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}()
+    # Group depth-3 specs by middle segment
+    nested = Dict{String,Vector{CommandSpec}}()
     for spec in specs
         length(spec.path) >= 2 || error("spec path must be [node, leaf, ...]: $(spec.path)")
         spec.path[1] == name || error("spec path[1]=$(spec.path[1]) != node $name")
-        leaf = to_leaf(spec)
-        # support deeper paths later; pilot is depth-2
         if length(spec.path) == 2
-            subcmds[spec.path[2]] = leaf
+            subcmds[spec.path[2]] = to_leaf(spec)
+        elseif length(spec.path) == 3
+            mid = spec.path[2]
+            push!(get!(nested, mid, CommandSpec[]), spec)
         else
-            error("nested registry paths depth>2 not yet implemented: $(spec.path)")
+            error("registry paths deeper than 3 not yet implemented: $(spec.path)")
         end
+    end
+    for (mid, nspecs) in nested
+        # child leaves: path[3] becomes leaf name under mid node
+        child_cmds = Dict{String,Union{NodeCommand,LeafCommand}}()
+        for spec in nspecs
+            child_cmds[spec.path[3]] = to_leaf(spec)
+        end
+        # description from first child category or mid name
+        subcmds[mid] = NodeCommand(mid, child_cmds, mid)
     end
     return NodeCommand(name, subcmds, description)
 end

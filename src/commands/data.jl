@@ -16,129 +16,178 @@
 
 # Data commands: list, load, describe, diagnose, fix, transform, filter, validate
 
-function register_data_commands!()
-    data_list = LeafCommand("list", _data_list;
-        args=Argument[],
-        options=[
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="List available example datasets")
-
-    data_load = LeafCommand("load", _data_load;
-        args=[Argument("name"; description="Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path")],
-        options=[
-            Option("output"; short="o", type=String, default="", description="Output CSV file path"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("vars"; type=String, default="", description="Comma-separated variable subset"),
-            Option("country"; type=String, default="", description="Country filter (for PWT panel data)"),
-            Option("dates"; type=String, default="", description="Column name for date labels"),
-            Option("path"; type=String, default="", description="Path to CSV file (alternative to named dataset)"),
-        ],
-        flags=[Flag("transform"; short="t", description="Apply FRED transformation codes")],
-        description="Load example dataset and export as CSV")
-
-    data_describe = LeafCommand("describe", _data_describe;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Summary statistics for a dataset")
-
-    data_diagnose = LeafCommand("diagnose", _data_diagnose;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Data quality diagnostics (NaN, Inf, constant columns)")
-
-    data_fix = LeafCommand("fix", _data_fix;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("method"; short="m", type=String, default="listwise", description="listwise|interpolate|mean"),
-            Option("output"; short="o", type=String, default="", description="Output CSV file path"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Clean data (handle NaN/Inf/constant columns)")
-
-    data_transform = LeafCommand("transform", _data_transform;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("tcodes"; type=String, default="", description="Comma-separated FRED transformation codes"),
-            Option("output"; short="o", type=String, default="", description="Output CSV file path"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Apply FRED transformation codes")
-
-    data_filter = LeafCommand("filter", _data_filter;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("method"; short="m", type=String, default="hp", description="hp|hamilton|bn|bk|bhp"),
-            Option("component"; type=String, default="cycle", description="cycle|trend"),
-            Option("lambda"; short="l", type=Float64, default=1600.0, description="Smoothing parameter (HP/BHP)"),
-            Option("horizon"; type=Int, default=8, description="Forecast horizon (Hamilton)"),
-            Option("lags"; short="p", type=Int, default=4, description="Number of lags (Hamilton/BN)"),
-            Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Apply time series filter (unified interface)")
-
-    data_validate = LeafCommand("validate", _data_validate;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("model"; type=String, default="", description="Model type (var|bvar|vecm|arima|garch|sv|lp|gmm|factor)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Validate data suitability for a model type")
-
-    data_balance = LeafCommand("balance", _data_balance;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("method"; type=String, default="dfm", description="dfm"),
-            Option("factors"; short="r", type=Int, default=3, description="Number of factors"),
-            Option("lags"; short="p", type=Int, default=2, description="Factor VAR lags"),
-            Option("output"; short="o", type=String, default="", description="Export file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Balance panel with missing data via DFM imputation")
-
-    data_dropna = LeafCommand("dropna", _data_dropna;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("vars"; type=String, default="", description="Column names to check (comma-separated; default: all)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Drop rows with missing/NaN values")
-
-    data_keeprows = LeafCommand("keeprows", _data_keeprows;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("rows"; type=String, default="", description="Row indices (e.g. 1:100, 1,5,10)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Filter rows by index range")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "list"      => data_list,
-        "load"      => data_load,
-        "describe"  => data_describe,
-        "diagnose"  => data_diagnose,
-        "fix"       => data_fix,
-        "transform" => data_transform,
-        "filter"    => data_filter,
-        "validate"  => data_validate,
-        "balance"   => data_balance,
-        "dropna"    => data_dropna,
-        "keeprows"  => data_keeprows,
-    )
-    return NodeCommand("data", subcmds, "Data management: load example datasets, inspect, clean, transform")
+function data_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["data", "list"],
+            summary="table|csv|json",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_list, description="table|csv|json")],
+            category="data",
+            handler=wrap_legacy(_data_list),
+        ),
+        CommandSpec(
+            path=["data", "load"],
+            summary="Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path",
+            args=[ArgSpec(name="name", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset"),
+                OptionSpec(name="country", type=String, default="", description="Country filter (for PWT panel data)"),
+                OptionSpec(name="dates", type=String, default="", description="Column name for date labels"),
+                OptionSpec(name="path", type=String, default="", description="Path to CSV file (alternative to named dataset)")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_load, description="Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path")],
+            category="data",
+            handler=wrap_legacy(_data_load),
+        ),
+        CommandSpec(
+            path=["data", "describe"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_describe, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_describe),
+        ),
+        CommandSpec(
+            path=["data", "diagnose"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_diagnose, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_diagnose),
+        ),
+        CommandSpec(
+            path=["data", "fix"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="method", short="m", type=String, default="listwise", description="listwise|interpolate|mean"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_fix, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_fix),
+        ),
+        CommandSpec(
+            path=["data", "transform"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="tcodes", type=String, default="", description="Comma-separated FRED transformation codes"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_transform, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_transform),
+        ),
+        CommandSpec(
+            path=["data", "filter"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="method", short="m", type=String, default="hp", description="hp|hamilton|bn|bk|bhp"),
+                OptionSpec(name="component", type=String, default="cycle", description="cycle|trend"),
+                OptionSpec(name="lambda", short="l", type=Float64, default=1600.0, description="Smoothing parameter (HP/BHP)"),
+                OptionSpec(name="horizon", type=Int, default=8, description="Forecast horizon (Hamilton)"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags (Hamilton/BN)"),
+                OptionSpec(name="columns", short="c", type=String, default="", description="Column indices, comma-separated (default: all)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_filter, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_filter),
+        ),
+        CommandSpec(
+            path=["data", "validate"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="model", type=String, default="", description="Model type (var|bvar|vecm|arima|garch|sv|lp|gmm|factor)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_validate, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_validate),
+        ),
+        CommandSpec(
+            path=["data", "balance"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="method", type=String, default="dfm", description="dfm"),
+                OptionSpec(name="factors", short="r", type=Int, default=3, description="Number of factors"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Factor VAR lags"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_balance, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_balance),
+        ),
+        CommandSpec(
+            path=["data", "dropna"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="vars", type=String, default="", description="Column names to check (comma-separated; default: all)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_dropna, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_dropna),
+        ),
+        CommandSpec(
+            path=["data", "keeprows"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="rows", type=String, default="", description="Row indices (e.g. 1:100, 1,5,10)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:data_keeprows, description="Path to CSV data file")],
+            category="data",
+            handler=wrap_legacy(_data_keeprows),
+        )
+    ]
 end
+
+function register_data_commands!()
+    specs = data_specs()
+    register!(specs)
+    return build_node("data", specs; description="Data management: load example datasets, inspect, clean, transform")
+end
+
 
 # ── Handlers ─────────────────────────────────────────────
 

@@ -16,259 +16,315 @@
 
 # DSGE commands: solve, irf, fevd, simulate, estimate, perfect-foresight, steady-state, bayes (NodeCommand)
 
-function register_dsge_commands!()
-    dsge_solve = LeafCommand("solve", _dsge_solve;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("method"; type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
-            Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-            Option("degree"; type=Int, default=5, description="Polynomial degree (projection/pfi)"),
-            Option("grid"; type=String, default="auto", description="Grid type: auto|chebyshev|smolyak"),
-            Option("constraints"; type=String, default="", description="Path to OccBin constraints TOML"),
-            Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
-            Option("periods"; type=Int, default=40, description="Number of periods for OccBin simulation"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Solve a DSGE model (linearize + solve, or OccBin with constraints)")
-
-    dsge_irf = LeafCommand("irf", _dsge_irf;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("method"; type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
-            Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-            Option("horizon"; short="h", type=Int, default=40, description="IRF horizon"),
-            Option("shock-size"; type=Float64, default=1.0, description="Shock size (std devs)"),
-            Option("n-sim"; type=Int, default=0, description="Simulation-based IRF draws (0=analytical)"),
-            Option("constraints"; type=String, default="", description="Path to OccBin constraints TOML"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Impulse response functions from a solved DSGE model")
-
-    dsge_fevd = LeafCommand("fevd", _dsge_fevd;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("method"; type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
-            Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-            Option("horizon"; short="h", type=Int, default=40, description="FEVD horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast error variance decomposition from a solved DSGE model")
-
-    dsge_simulate = LeafCommand("simulate", _dsge_simulate;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("method"; type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
-            Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-            Option("periods"; type=Int, default=200, description="Simulation periods (after burn-in)"),
-            Option("burn"; type=Int, default=100, description="Burn-in periods to discard"),
-            Option("seed"; type=Int, default=0, description="Random seed (0=no seed)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("antithetic"; description="Use antithetic sampling for variance reduction"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="Simulate from a solved DSGE model")
-
-    dsge_estimate = LeafCommand("estimate", _dsge_estimate;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("data"; short="d", type=String, default="", description="Path to CSV data file"),
-            Option("method"; type=String, default="irf_matching", description="Estimation method: irf_matching|likelihood|bayesian|smm"),
-            Option("params"; type=String, default="", description="Comma-separated parameter names to estimate"),
-            Option("solve-method"; type=String, default="gensys", description="DSGE solution method"),
-            Option("solve-order"; type=Int, default=1, description="Perturbation order for solution"),
-            Option("weighting"; type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal"),
-            Option("irf-horizon"; type=Int, default=20, description="IRF horizon for matching"),
-            Option("var-lags"; type=Int, default=4, description="VAR lags for empirical IRF"),
-            Option("sim-ratio"; type=Int, default=5, description="Simulation-to-data ratio (SMM)"),
-            Option("bounds"; type=String, default="", description="Path to parameter bounds TOML"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate DSGE model parameters from data")
-
-    dsge_pf = LeafCommand("perfect-foresight", _dsge_perfect_foresight;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("shocks"; type=String, default="", description="Path to shock sequence CSV"),
-            Option("constraints"; type=String, default="", description="Path to constraints TOML"),
-            Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
-            Option("periods"; type=Int, default=100, description="Simulation periods"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Perfect foresight simulation (deterministic transition path)")
-
-    dsge_ss = LeafCommand("steady-state", _dsge_steady_state;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("constraints"; type=String, default="", description="Path to OccBin constraints TOML"),
-            Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Compute the steady state of a DSGE model")
-
-    dsge_hd = LeafCommand("hd", _dsge_hd;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[
-            Option("data"; short="d", type=String, default="", description="Path to CSV data file"),
-            Option("observables"; type=String, default="", description="Observable variable names (comma-separated)"),
-            Option("states"; type=String, default="observables", description="observables|all"),
-            Option("measurement-error"; type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Historical decomposition of DSGE model via Kalman smoother")
-
-    # ── Bayesian DSGE sub-commands (NodeCommand with 7 leaves) ──
-
-    _bayes_common_options = [
-        Option("data"; short="d", type=String, default="", description="Path to CSV data file"),
-        Option("params"; type=String, default="", description="Comma-separated parameter names"),
-        Option("priors"; type=String, default="", description="Path to priors TOML file"),
-        Option("sampler"; type=String, default="smc", description="smc|smc2|mh"),
-        Option("n-smc"; type=Int, default=5000, description="SMC particles"),
-        Option("n-particles"; type=Int, default=500, description="Particle filter particles (smc2)"),
-        Option("n-draws"; type=Int, default=10000, description="Total posterior draws"),
-        Option("burnin"; type=Int, default=5000, description="Burn-in draws"),
-        Option("ess-target"; type=Float64, default=0.5, description="ESS target for resampling"),
-        Option("observables"; type=String, default="", description="Observable variable names (comma-separated)"),
-        Option("solver"; type=String, default="gensys", description="gensys|klein|perturbation"),
-        Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-        Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
-        Option("output"; short="o", type=String, default="", description="Export results to file"),
-        Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+function dsge_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["dsge", "solve"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="method", type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
+                OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
+                OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi)"),
+                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak"),
+                OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
+                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+                OptionSpec(name="periods", type=Int, default=40, description="Number of periods for OccBin simulation"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:solve, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_solve),
+        ),
+        CommandSpec(
+            path=["dsge", "irf"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="method", type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
+                OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
+                OptionSpec(name="n-sim", type=Int, default=0, description="Simulation-based IRF draws (0=analytical)"),
+                OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:irf, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_irf),
+        ),
+        CommandSpec(
+            path=["dsge", "fevd"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="method", type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
+                OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_fevd),
+        ),
+        CommandSpec(
+            path=["dsge", "simulate"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="method", type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
+                OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
+                OptionSpec(name="periods", type=Int, default=200, description="Simulation periods (after burn-in)"),
+                OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods to discard"),
+                OptionSpec(name="seed", type=Int, default=0, description="Random seed (0=no seed)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="antithetic", description="Use antithetic sampling for variance reduction"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:simulate, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_simulate),
+        ),
+        CommandSpec(
+            path=["dsge", "estimate"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+                OptionSpec(name="method", type=String, default="irf_matching", description="Estimation method: irf_matching|likelihood|bayesian|smm"),
+                OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names to estimate"),
+                OptionSpec(name="solve-method", type=String, default="gensys", description="DSGE solution method"),
+                OptionSpec(name="solve-order", type=Int, default=1, description="Perturbation order for solution"),
+                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal"),
+                OptionSpec(name="irf-horizon", type=Int, default=20, description="IRF horizon for matching"),
+                OptionSpec(name="var-lags", type=Int, default=4, description="VAR lags for empirical IRF"),
+                OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-data ratio (SMM)"),
+                OptionSpec(name="bounds", type=String, default="", description="Path to parameter bounds TOML"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_estimate),
+        ),
+        CommandSpec(
+            path=["dsge", "perfect-foresight"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="shocks", type=String, default="", description="Path to shock sequence CSV"),
+                OptionSpec(name="constraints", type=String, default="", description="Path to constraints TOML"),
+                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+                OptionSpec(name="periods", type=Int, default=100, description="Simulation periods"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:perfect_foresight, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_perfect_foresight),
+        ),
+        CommandSpec(
+            path=["dsge", "steady-state"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
+                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:steady_state, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_steady_state),
+        ),
+        CommandSpec(
+            path=["dsge", "hd"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+                OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
+                OptionSpec(name="states", type=String, default="observables", description="observables|all"),
+                OptionSpec(name="measurement-error", type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:hd, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_hd),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "estimate"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH (Christen & Fox 2005)")
+            ],
+            tables=[TableSpec(name=:bayes_estimate, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_estimate),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "irf"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...,
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:bayes_irf, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_irf),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "fevd"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...,
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:bayes_fevd, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_fevd),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "simulate"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...,
+                OptionSpec(name="periods", type=Int, default=200, description="Simulation periods"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:bayes_simulate, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_simulate),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "summary"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
+            ],
+            tables=[TableSpec(name=:bayes_summary, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_summary),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "compare"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...,
+                OptionSpec(name="model2", type=String, default="", description="Path to second DSGE model file"),
+                OptionSpec(name="params2", type=String, default="", description="Parameters for second model (comma-separated)"),
+                OptionSpec(name="priors2", type=String, default="", description="Priors TOML for second model")
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
+            ],
+            tables=[TableSpec(name=:bayes_compare, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_compare),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "predictive"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...,
+                OptionSpec(name="n-sim", type=Int, default=500, description="Number of predictive simulations"),
+                OptionSpec(name="periods", type=Int, default=100, description="Periods per simulation"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:bayes_predictive, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_predictive),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "hd"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                BAYES_OPTIONS...,
+                OptionSpec(name="n-hd-draws", type=Int, default=200, description="Number of posterior draws for HD"),
+                OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84", description="Quantile levels"),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="mode-only", description="Use posterior mode only (no full posterior)"),
+                FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:bayes_hd, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_hd),
+        )
     ]
-
-    bayes_estimate = LeafCommand("estimate", _dsge_bayes_estimate;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...],
-        flags=[Flag("delayed-acceptance"; description="Use delayed acceptance for MH (Christen & Fox 2005)")],
-        description="Bayesian DSGE estimation (SMC / SMC² / Metropolis-Hastings)")
-
-    bayes_irf = LeafCommand("irf", _dsge_bayes_irf;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...,
-            Option("horizon"; short="h", type=Int, default=40, description="IRF horizon"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("delayed-acceptance"; description="Use delayed acceptance for MH"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="IRF from Bayesian DSGE posterior draws")
-
-    bayes_fevd = LeafCommand("fevd", _dsge_bayes_fevd;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...,
-            Option("horizon"; short="h", type=Int, default=40, description="FEVD horizon"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("delayed-acceptance"; description="Use delayed acceptance for MH"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="FEVD from Bayesian DSGE posterior draws")
-
-    bayes_simulate = LeafCommand("simulate", _dsge_bayes_simulate;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...,
-            Option("periods"; type=Int, default=200, description="Simulation periods"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("delayed-acceptance"; description="Use delayed acceptance for MH"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="Simulate from Bayesian DSGE posterior draws")
-
-    bayes_summary = LeafCommand("summary", _dsge_bayes_summary;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...],
-        flags=[Flag("delayed-acceptance"; description="Use delayed acceptance for MH")],
-        description="Posterior summary with prior-posterior comparison")
-
-    bayes_compare = LeafCommand("compare", _dsge_bayes_compare;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...,
-            Option("model2"; type=String, default="", description="Path to second DSGE model file"),
-            Option("params2"; type=String, default="", description="Parameters for second model (comma-separated)"),
-            Option("priors2"; type=String, default="", description="Priors TOML for second model"),
-        ],
-        flags=[Flag("delayed-acceptance"; description="Use delayed acceptance for MH")],
-        description="Bayesian model comparison via Bayes factor")
-
-    bayes_predictive = LeafCommand("predictive", _dsge_bayes_predictive;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...,
-            Option("n-sim"; type=Int, default=500, description="Number of predictive simulations"),
-            Option("periods"; type=Int, default=100, description="Periods per simulation"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("delayed-acceptance"; description="Use delayed acceptance for MH"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="Posterior predictive checks")
-
-    bayes_hd = LeafCommand("hd", _dsge_bayes_hd;
-        args=[Argument("model"; description="Path to DSGE model file (.toml or .jl)")],
-        options=[_bayes_common_options...,
-            Option("n-hd-draws"; type=Int, default=200, description="Number of posterior draws for HD"),
-            Option("quantiles"; type=String, default="0.16,0.5,0.84", description="Quantile levels"),
-            Option("horizon"; short="h", type=Int, default=40, description="IRF horizon"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("mode-only"; description="Use posterior mode only (no full posterior)"),
-            Flag("delayed-acceptance"; description="Use delayed acceptance for MH"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="Historical decomposition from Bayesian DSGE posterior")
-
-    bayes_subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "estimate"   => bayes_estimate,
-        "irf"        => bayes_irf,
-        "fevd"       => bayes_fevd,
-        "simulate"   => bayes_simulate,
-        "summary"    => bayes_summary,
-        "compare"    => bayes_compare,
-        "predictive" => bayes_predictive,
-        "hd"         => bayes_hd,
-    )
-    bayes_node = NodeCommand("bayes", bayes_subcmds,
-        "Bayesian DSGE: estimation, IRF, FEVD, simulation, summary, comparison, predictive checks")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "solve"              => dsge_solve,
-        "irf"                => dsge_irf,
-        "fevd"               => dsge_fevd,
-        "simulate"           => dsge_simulate,
-        "estimate"           => dsge_estimate,
-        "bayes"              => bayes_node,
-        "perfect-foresight"  => dsge_pf,
-        "steady-state"       => dsge_ss,
-        "hd"                 => dsge_hd,
-    )
-    return NodeCommand("dsge", subcmds, "DSGE models: solve, IRF, FEVD, simulate, estimate, Bayesian, OccBin, perfect foresight")
 end
+
+function register_dsge_commands!()
+    specs = dsge_specs()
+    register!(specs)
+    return build_node("dsge", specs; description="DSGE models: solve, IRF, FEVD, simulate, estimate, Bayesian, OccBin, perfect foresight")
+end
+
 
 # ── Implemented Handlers ─────────────────────────────────────
 

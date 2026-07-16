@@ -352,158 +352,181 @@ end
 
 # ─── Command Registration ───────────────────────────────────────
 
-function register_did_commands!()
-    did_estimate = LeafCommand("estimate", _did_estimate;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("outcome"; type=String, default="", description="Outcome variable column name (required)"),
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            Option("method"; type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh"),
-            _DID_PANEL_OPTIONS...,
-            Option("leads"; type=Int, default=0, description="Pre-treatment periods"),
-            Option("horizon"; type=Int, default=5, description="Post-treatment periods"),
-            Option("covariates"; type=String, default="", description="Comma-separated covariate column names"),
-            Option("control-group"; type=String, default="never_treated", description="never_treated|not_yet_treated"),
-            Option("cluster"; type=String, default="unit", description="unit|time|twoway"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("n-boot"; type=Int, default=200, description="Bootstrap replications (dcdh only)"),
-            Option("base-period"; type=String, default="varying", description="varying|universal (Callaway-Sant'Anna only)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate DID (twfe|cs|sa|bjs|dcdh)")
-
-    did_event_study = LeafCommand("event-study", _did_event_study;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("outcome"; type=String, default="", description="Outcome variable column name (required)"),
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            _DID_PANEL_OPTIONS...,
-            Option("leads"; type=Int, default=3, description="Pre-treatment leads"),
-            Option("horizon"; type=Int, default=5, description="Post-treatment horizon"),
-            Option("lags"; short="p", type=Int, default=4, description="Control lags"),
-            Option("covariates"; type=String, default="", description="Comma-separated covariate column names"),
-            Option("cluster"; type=String, default="unit", description="unit|time|twoway"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Panel event study LP (Jordà 2005 + panel FE)")
-
-    did_lp_did = LeafCommand("lp-did", _did_lp_did;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("outcome"; type=String, default="", description="Outcome variable column name (required)"),
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            _DID_PANEL_OPTIONS...,
-            Option("horizon"; type=Int, default=5, description="Post-treatment horizon"),
-            Option("pre-window"; type=Int, default=3, description="Pre-treatment window"),
-            Option("post-window"; type=Int, default=0, description="Post-treatment window (0 = use horizon)"),
-            Option("ylags"; type=Int, default=0, description="Outcome lags"),
-            Option("dylags"; type=Int, default=0, description="Differenced outcome lags"),
-            Option("covariates"; type=String, default="", description="Comma-separated covariate column names"),
-            Option("cluster"; type=String, default="unit", description="unit|time|twoway"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("pmd"; type=String, default="", description="Pre-treatment matching: ccs|ipw|<integer>"),
-            Option("nonabsorbing"; type=String, default="", description="Non-absorbing treatment (integer periods)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("plot"; description="Open interactive plot in browser"),
-            Flag("reweight"; description="Reweight observations"),
-            Flag("nocomp"; description="No composition adjustment"),
-            Flag("notyet"; description="Use not-yet-treated as controls"),
-            Flag("nevertreated"; description="Use never-treated as controls"),
-            Flag("firsttreat"; description="Use first-treatment timing"),
-            Flag("oneoff"; description="One-off treatment specification"),
-            Flag("only-pooled"; description="Only report pooled estimates"),
-            Flag("only-event"; description="Only report event-time estimates"),
-        ],
-        description="LP-DiD estimation (Dube et al. 2023)")
-
-    did_test_bacon = LeafCommand("bacon", _did_test_bacon;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("outcome"; type=String, default="", description="Outcome variable column name (required)"),
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            _DID_PANEL_OPTIONS...,
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Bacon decomposition (Goodman-Bacon 2021)")
-
-    did_test_pretrend = LeafCommand("pretrend", _did_test_pretrend;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("outcome"; type=String, default="", description="Outcome variable column name (required)"),
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            _DID_PANEL_OPTIONS...,
-            Option("leads"; type=Int, default=3, description="Pre-treatment leads"),
-            Option("horizon"; type=Int, default=5, description="Post-treatment horizon"),
-            Option("lags"; short="p", type=Int, default=4, description="Control lags (event-study only)"),
-            Option("cluster"; type=String, default="unit", description="unit|time|twoway"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("method"; type=String, default="did", description="did|event-study"),
-            Option("did-method"; type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Pre-trend test for parallel trends assumption")
-
-    did_test_negweight = LeafCommand("negweight", _did_test_negweight;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            _DID_PANEL_OPTIONS...,
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Negative weight check (de Chaisemartin-D'Haultfoeuille 2020)")
-
-    did_test_honest = LeafCommand("honest", _did_test_honest;
-        args=[Argument("data"; description="Path to panel CSV data file")],
-        options=[
-            Option("outcome"; type=String, default="", description="Outcome variable column name (required)"),
-            Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
-            _DID_PANEL_OPTIONS...,
-            Option("mbar"; type=Float64, default=1.0, description="Violation bound M̄"),
-            Option("leads"; type=Int, default=3, description="Pre-treatment leads"),
-            Option("horizon"; type=Int, default=5, description="Post-treatment horizon"),
-            Option("lags"; short="p", type=Int, default=4, description="Control lags (event-study only)"),
-            Option("cluster"; type=String, default="unit", description="unit|time|twoway"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("method"; type=String, default="did", description="did|event-study"),
-            Option("did-method"; type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="HonestDiD sensitivity analysis (Rambachan-Roth 2023)")
-
-    test_subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "bacon"    => did_test_bacon,
-        "pretrend" => did_test_pretrend,
-        "negweight" => did_test_negweight,
-        "honest"   => did_test_honest,
-    )
-    did_test = NodeCommand("test", test_subcmds,
-        "DID diagnostics: Bacon decomposition, pre-trend tests, negative weights, HonestDiD")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "estimate"    => did_estimate,
-        "event-study" => did_event_study,
-        "lp-did"      => did_lp_did,
-        "test"        => did_test,
-    )
-    return NodeCommand("did", subcmds,
-        "Difference-in-differences: estimation, event study LP, diagnostics")
+function did_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["did", "estimate"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh"),
+                OptionSpec(name="leads", type=Int, default=0, description="Pre-treatment periods"),
+                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment periods"),
+                OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
+                OptionSpec(name="control-group", type=String, default="never_treated", description="never_treated|not_yet_treated"),
+                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="n-boot", type=Int, default=200, description="Bootstrap replications (dcdh only)"),
+                OptionSpec(name="base-period", type=String, default="varying", description="varying|universal (Callaway-Sant'Anna only)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_estimate),
+        ),
+        CommandSpec(
+            path=["did", "event-study"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
+                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags"),
+                OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
+                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:event_study, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_event_study),
+        ),
+        CommandSpec(
+            path=["did", "lp-did"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="pre-window", type=Int, default=3, description="Pre-treatment window"),
+                OptionSpec(name="post-window", type=Int, default=0, description="Post-treatment window (0 = use horizon)"),
+                OptionSpec(name="ylags", type=Int, default=0, description="Outcome lags"),
+                OptionSpec(name="dylags", type=Int, default=0, description="Differenced outcome lags"),
+                OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
+                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="pmd", type=String, default="", description="Pre-treatment matching: ccs|ipw|<integer>"),
+                OptionSpec(name="nonabsorbing", type=String, default="", description="Non-absorbing treatment (integer periods)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="reweight", description="Reweight observations"),
+                FlagSpec(name="nocomp", description="No composition adjustment"),
+                FlagSpec(name="notyet", description="Use not-yet-treated as controls"),
+                FlagSpec(name="nevertreated", description="Use never-treated as controls"),
+                FlagSpec(name="firsttreat", description="Use first-treatment timing"),
+                FlagSpec(name="oneoff", description="One-off treatment specification"),
+                FlagSpec(name="only-pooled", description="Only report pooled estimates"),
+                FlagSpec(name="only-event", description="Only report event-time estimates")
+            ],
+            tables=[TableSpec(name=:lp_did, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_lp_did),
+        ),
+        CommandSpec(
+            path=["did", "test", "bacon"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:test_bacon, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_test_bacon),
+        ),
+        CommandSpec(
+            path=["did", "test", "pretrend"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
+                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
+                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="method", type=String, default="did", description="did|event-study"),
+                OptionSpec(name="did-method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_pretrend, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_test_pretrend),
+        ),
+        CommandSpec(
+            path=["did", "test", "negweight"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_negweight, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_test_negweight),
+        ),
+        CommandSpec(
+            path=["did", "test", "honest"],
+            summary="Path to panel CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
+                OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                OptionSpec(name="mbar", type=Float64, default=1.0, description="Violation bound M̄"),
+                OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
+                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
+                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="method", type=String, default="did", description="did|event-study"),
+                OptionSpec(name="did-method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:test_honest, description="Path to panel CSV data file")],
+            category="did",
+            handler=wrap_legacy(_did_test_honest),
+        )
+    ]
 end
+
+function register_did_commands!()
+    specs = did_specs()
+    register!(specs)
+    return build_node("did", specs; description="Difference-in-differences: estimation, event study LP, diagnostics")
+end
+

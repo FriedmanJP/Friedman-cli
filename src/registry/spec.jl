@@ -72,6 +72,57 @@ const PLOT_FLAGS = [
     FlagSpec(name="plot", description="Open interactive plot in browser"),
 ]
 
+# Cross-sectional regression shared options (replaces _REG_COMMON_OPTIONS)
+const REG_OPTIONS = [
+    OptionSpec(name="dep", type=String, default="",
+               description="Dependent variable column name (default: first numeric column)"),
+    OptionSpec(name="cov-type", type=String, default="hc1",
+               choices=["ols", "hc0", "hc1", "hc2", "hc3", "cluster"],
+               description="ols|hc0|hc1|hc2|hc3|cluster"),
+    OptionSpec(name="clusters", type=String, default="",
+               description="Cluster variable column name"),
+    OptionSpec(name="output", short="o", type=String, default="",
+               description="Export results to file"),
+    OptionSpec(name="format", short="f", type=String, default="table",
+               choices=["table", "csv", "json"], description="table|csv|json"),
+]
+
+# Panel regression shared options (replaces _PREG_COMMON_OPTIONS)
+const PREG_OPTIONS = [
+    OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+    OptionSpec(name="indep", type=String, default="", description="Independent variables (comma-separated)"),
+    OptionSpec(name="id-col", type=String, default="", description="Panel group ID column (default: first column)"),
+    OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+    OptionSpec(name="cov-type", type=String, default="cluster",
+               choices=["ols", "cluster", "twoway", "driscoll-kraay"],
+               description="ols|cluster|twoway|driscoll-kraay"),
+    OptionSpec(name="method", short="m", type=String, default="fe", description="Estimation method"),
+    OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+    OptionSpec(name="format", short="f", type=String, default="table",
+               choices=["table", "csv", "json"], description="table|csv|json"),
+]
+
+# Bayesian DSGE shared options (replaces _bayes_common_options)
+const BAYES_OPTIONS = [
+    OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+    OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names"),
+    OptionSpec(name="priors", type=String, default="", description="Path to priors TOML file"),
+    OptionSpec(name="sampler", type=String, default="smc", description="smc|smc2|mh"),
+    OptionSpec(name="n-smc", type=Int, default=5000, description="SMC particles"),
+    OptionSpec(name="n-particles", type=Int, default=500, description="Particle filter particles (smc2)"),
+    OptionSpec(name="n-draws", type=Int, default=10000, description="Total posterior draws"),
+    OptionSpec(name="burnin", type=Int, default=5000, description="Burn-in draws"),
+    OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for resampling"),
+    OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
+    OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation"),
+    OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
+    OptionSpec(name="constraint-solver", type=String, default="",
+               description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+    OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+    OptionSpec(name="format", short="f", type=String, default="table",
+               choices=["table", "csv", "json"], description="table|csv|json"),
+]
+
 """Replace the default of a named option in a group (by name, not index)."""
 function with_default(group::Vector{OptionSpec}, name::String, default)
     out = OptionSpec[]

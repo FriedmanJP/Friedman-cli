@@ -17,235 +17,357 @@
 # Residuals commands: model residuals for var, bvar, arima, vecm,
 #                     static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv
 
-function register_residuals_commands!()
-    res_var = LeafCommand("var", _residuals_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Residuals from VAR model")
-
-    res_bvar = LeafCommand("bvar", _residuals_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("config"; type=String, default="", description="TOML config for prior hyperparameters"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Residuals from Bayesian VAR (posterior mean)")
-
-    res_arima = LeafCommand("arima", _residuals_arima;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=nothing, description="AR order (default: auto selection)"),
-            Option("d"; type=Int, default=0, description="Differencing order"),
-            Option("q"; type=Int, default=0, description="MA order"),
-            Option("method"; short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        flags=[Flag("auto"; short="a", description="Use auto ARIMA selection")],
-        description="Residuals from ARIMA model")
-
-    res_vecm = LeafCommand("vecm", _residuals_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Residuals from VECM (via VAR representation)")
-
-    res_static = LeafCommand("static", _residuals_static;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Idiosyncratic component from static factor model (X - FΛ')")
-
-    res_dynamic = LeafCommand("dynamic", _residuals_dynamic;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("factor-lags"; short="p", type=Int, default=1, description="Factor VAR lag order"),
-            Option("method"; type=String, default="twostep", description="twostep|em"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Idiosyncratic component from dynamic factor model (X - FΛ')")
-
-    res_gdfm = LeafCommand("gdfm", _residuals_gdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
-            Option("dynamic-rank"; short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Idiosyncratic component from generalized dynamic factor model")
-
-    res_arch = LeafCommand("arch", _residuals_arch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Standardized residuals from ARCH model")
-
-    res_garch = LeafCommand("garch", _residuals_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Standardized residuals from GARCH model")
-
-    res_egarch = LeafCommand("egarch", _residuals_egarch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="EGARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Standardized residuals from EGARCH model")
-
-    res_gjr_garch = LeafCommand("gjr_garch", _residuals_gjr_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GJR-GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Standardized residuals from GJR-GARCH model")
-
-    res_sv = LeafCommand("sv", _residuals_sv;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("draws"; short="n", type=Int, default=5000, description="MCMC draws"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Standardized residuals from stochastic volatility model")
-
-    res_favar = LeafCommand("favar", _residuals_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="FAVAR model residuals")
-
-    res_reg = LeafCommand("reg", _residuals_reg;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("weights"; type=String, default="", description="Weight column name (WLS)"),
-        ],
-        description="OLS/WLS model residuals")
-
-    res_logit = LeafCommand("logit", _residuals_logit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Logit model residuals (deviance residuals)")
-
-    res_probit = LeafCommand("probit", _residuals_probit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Probit model residuals (deviance residuals)")
-
-    res_preg = LeafCommand("preg", _residuals_preg;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 _PREG_COMMON_OPTIONS[5:6]..., _PREG_COMMON_OPTIONS[7:8]...],
-        description="Residuals from panel regression")
-
-    res_piv = LeafCommand("piv", _residuals_piv;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[Option("dep"; type=String, default="", description="Dependent variable"),
-                 Option("exog"; type=String, default="", description="Exogenous regressors (comma-separated)"),
-                 Option("endog"; type=String, default="", description="Endogenous regressors (comma-separated)"),
-                 Option("instruments"; type=String, default="", description="Instruments (comma-separated)"),
-                 _PREG_COMMON_OPTIONS[3:4]..., _PREG_COMMON_OPTIONS[5:6]...,
-                 _PREG_COMMON_OPTIONS[7:8]...],
-        description="Residuals from panel IV regression")
-
-    res_plogit = LeafCommand("plogit", _residuals_plogit;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 _PREG_COMMON_OPTIONS[5:6]..., _PREG_COMMON_OPTIONS[7:8]...],
-        description="Residuals from panel logit")
-
-    res_pprobit = LeafCommand("pprobit", _residuals_pprobit;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 _PREG_COMMON_OPTIONS[5:6]..., _PREG_COMMON_OPTIONS[7:8]...],
-        description="Residuals from panel probit")
-
-    res_ologit = LeafCommand("ologit", _residuals_ologit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Residuals from ordered logit")
-
-    res_oprobit = LeafCommand("oprobit", _residuals_oprobit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Residuals from ordered probit")
-
-    res_mlogit = LeafCommand("mlogit", _residuals_mlogit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Residuals from multinomial logit")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"       => res_var,
-        "bvar"      => res_bvar,
-        "arima"     => res_arima,
-        "vecm"      => res_vecm,
-        "static"    => res_static,
-        "dynamic"   => res_dynamic,
-        "gdfm"      => res_gdfm,
-        "arch"      => res_arch,
-        "garch"     => res_garch,
-        "egarch"    => res_egarch,
-        "gjr_garch" => res_gjr_garch,
-        "sv"        => res_sv,
-        "favar"     => res_favar,
-        "reg"       => res_reg,
-        "logit"     => res_logit,
-        "probit"    => res_probit,
-        "preg"      => res_preg,
-        "piv"       => res_piv,
-        "plogit"    => res_plogit,
-        "pprobit"   => res_pprobit,
-        "ologit"    => res_ologit,
-        "oprobit"   => res_oprobit,
-        "mlogit"    => res_mlogit,
-    )
-    return NodeCommand("residuals", subcmds, "Model residuals")
+function residuals_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["residuals", "var"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_var, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_var),
+        ),
+        CommandSpec(
+            path=["residuals", "bvar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_bvar, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_bvar),
+        ),
+        CommandSpec(
+            path=["residuals", "arima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
+                OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_arima, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_arima),
+        ),
+        CommandSpec(
+            path=["residuals", "vecm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_vecm, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_vecm),
+        ),
+        CommandSpec(
+            path=["residuals", "static"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_static, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_static),
+        ),
+        CommandSpec(
+            path=["residuals", "dynamic"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_dynamic, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_dynamic),
+        ),
+        CommandSpec(
+            path=["residuals", "gdfm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
+                OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_gdfm, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_gdfm),
+        ),
+        CommandSpec(
+            path=["residuals", "arch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_arch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_arch),
+        ),
+        CommandSpec(
+            path=["residuals", "garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_garch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_garch),
+        ),
+        CommandSpec(
+            path=["residuals", "egarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="EGARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_egarch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_egarch),
+        ),
+        CommandSpec(
+            path=["residuals", "gjr_garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GJR-GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_gjr_garch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_gjr_garch),
+        ),
+        CommandSpec(
+            path=["residuals", "sv"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_sv, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_sv),
+        ),
+        CommandSpec(
+            path=["residuals", "favar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_favar, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_favar),
+        ),
+        CommandSpec(
+            path=["residuals", "reg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="weights", type=String, default="", description="Weight column name (WLS)")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_reg, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_reg),
+        ),
+        CommandSpec(
+            path=["residuals", "logit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_logit, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_logit),
+        ),
+        CommandSpec(
+            path=["residuals", "probit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_probit, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_probit),
+        ),
+        CommandSpec(
+            path=["residuals", "preg"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_preg, description="Path to CSV panel data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_preg),
+        ),
+        CommandSpec(
+            path=["residuals", "piv"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable"),
+                OptionSpec(name="exog", type=String, default="", description="Exogenous regressors (comma-separated)"),
+                OptionSpec(name="endog", type=String, default="", description="Endogenous regressors (comma-separated)"),
+                OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_piv, description="Path to CSV panel data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_piv),
+        ),
+        CommandSpec(
+            path=["residuals", "plogit"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_plogit, description="Path to CSV panel data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_plogit),
+        ),
+        CommandSpec(
+            path=["residuals", "pprobit"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_pprobit, description="Path to CSV panel data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_pprobit),
+        ),
+        CommandSpec(
+            path=["residuals", "ologit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_ologit, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_ologit),
+        ),
+        CommandSpec(
+            path=["residuals", "oprobit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_oprobit, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_oprobit),
+        ),
+        CommandSpec(
+            path=["residuals", "mlogit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_mlogit, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_mlogit),
+        )
+    ]
 end
+
+function register_residuals_commands!()
+    specs = residuals_specs()
+    register!(specs)
+    return build_node("residuals", specs; description="Model residuals")
+end
+
 
 # ── VAR Residuals ───────────────────────────────────────
 

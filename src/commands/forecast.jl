@@ -17,234 +17,307 @@
 # Forecast commands: var, bvar, lp, arima, static, dynamic, gdfm,
 #                    arch, garch, egarch, gjr_garch, sv
 
-function register_forecast_commands!()
-    fc_var = LeafCommand("var", _forecast_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("confidence"; type=Float64, default=0.95, description="Confidence level for intervals"),
-            Option("ci-method"; type=String, default="analytical", description="analytical|bootstrap"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute h-step ahead VAR forecasts")
-
-    fc_bvar = LeafCommand("bvar", _forecast_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("config"; type=String, default="", description="TOML config for prior hyperparameters"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Compute Bayesian h-step ahead forecasts with credible intervals")
-
-    fc_lp = LeafCommand("lp", _forecast_lp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("shock"; type=Int, default=1, description="Shock variable index (1-based)"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("shock-size"; type=Float64, default=1.0, description="Impulse shock size"),
-            Option("lags"; short="p", type=Int, default=4, description="LP control lags"),
-            Option("vcov"; type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
-            Option("ci-method"; type=String, default="analytical", description="analytical|bootstrap|none"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
-            Option("n-boot"; type=Int, default=500, description="Bootstrap replications"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute direct LP forecasts")
-
-    fc_arima = LeafCommand("arima", _forecast_arima;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=nothing, description="AR order (default: auto selection)"),
-            Option("d"; type=Int, default=0, description="Differencing order"),
-            Option("q"; type=Int, default=0, description="MA order"),
-            Option("max-p"; type=Int, default=5, description="Max AR order for auto selection"),
-            Option("max-d"; type=Int, default=2, description="Max differencing order for auto selection"),
-            Option("max-q"; type=Int, default=5, description="Max MA order for auto selection"),
-            Option("criterion"; type=String, default="bic", description="aic|bic"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("confidence"; type=Float64, default=0.95, description="Confidence level"),
-            Option("method"; short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="ARIMA forecast (auto-selects order when --p omitted)")
-
-    fc_static = LeafCommand("static", _forecast_static;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("ci-method"; type=String, default="none", description="none|bootstrap|parametric"),
-            Option("conf-level"; type=Float64, default=0.95, description="Confidence level for intervals"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast observables using static factor model")
-
-    fc_dynamic = LeafCommand("dynamic", _forecast_dynamic;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("factor-lags"; short="p", type=Int, default=1, description="Factor VAR lag order"),
-            Option("method"; type=String, default="twostep", description="twostep|em"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast observables using dynamic factor model")
-
-    fc_gdfm = LeafCommand("gdfm", _forecast_gdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
-            Option("dynamic-rank"; short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast observables using GDFM")
-
-    fc_arch = LeafCommand("arch", _forecast_arch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast volatility using ARCH model")
-
-    fc_garch = LeafCommand("garch", _forecast_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast volatility using GARCH model")
-
-    fc_egarch = LeafCommand("egarch", _forecast_egarch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="EGARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast volatility using EGARCH model")
-
-    fc_gjr_garch = LeafCommand("gjr_garch", _forecast_gjr_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast volatility using GJR-GARCH model")
-
-    fc_sv = LeafCommand("sv", _forecast_sv;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("draws"; short="n", type=Int, default=5000, description="MCMC draws"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast volatility using Stochastic Volatility model")
-
-    fc_vecm = LeafCommand("vecm", _forecast_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("ci-method"; type=String, default="none", description="none|bootstrap|parametric"),
-            Option("replications"; type=Int, default=500, description="Bootstrap replications"),
-            Option("confidence"; type=Float64, default=0.95, description="Confidence level for intervals"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute native VECM forecasts (preserves cointegrating relationships)")
-
-    fc_favar = LeafCommand("favar", _forecast_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
-            Option("horizons"; short="h", type=Int, default=12, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[
-            Flag("panel-forecast"; description="Output panel-wide forecast instead of factor-level"),
-            Flag("plot"; description="Open interactive plot in browser"),
-        ],
-        description="FAVAR forecast")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"       => fc_var,
-        "bvar"      => fc_bvar,
-        "lp"        => fc_lp,
-        "arima"     => fc_arima,
-        "static"    => fc_static,
-        "dynamic"   => fc_dynamic,
-        "gdfm"      => fc_gdfm,
-        "arch"      => fc_arch,
-        "garch"     => fc_garch,
-        "egarch"    => fc_egarch,
-        "gjr_garch" => fc_gjr_garch,
-        "sv"        => fc_sv,
-        "vecm"      => fc_vecm,
-        "favar"     => fc_favar,
-    )
-    return NodeCommand("forecast", subcmds, "Forecasting")
+function forecast_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["forecast", "var"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level for intervals"),
+                OptionSpec(name="ci-method", type=String, default="analytical", description="analytical|bootstrap"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_var, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_var),
+        ),
+        CommandSpec(
+            path=["forecast", "bvar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_bvar, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_bvar),
+        ),
+        CommandSpec(
+            path=["forecast", "lp"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="shock-size", type=Float64, default=1.0, description="Impulse shock size"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
+                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                OptionSpec(name="ci-method", type=String, default="analytical", description="analytical|bootstrap|none"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="n-boot", type=Int, default=500, description="Bootstrap replications"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_lp, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_lp),
+        ),
+        CommandSpec(
+            path=["forecast", "arima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
+                OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="max-p", type=Int, default=5, description="Max AR order for auto selection"),
+                OptionSpec(name="max-d", type=Int, default=2, description="Max differencing order for auto selection"),
+                OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
+                OptionSpec(name="criterion", type=String, default="bic", description="aic|bic"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_arima, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_arima),
+        ),
+        CommandSpec(
+            path=["forecast", "static"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="ci-method", type=String, default="none", description="none|bootstrap|parametric"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level for intervals"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_static, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_static),
+        ),
+        CommandSpec(
+            path=["forecast", "dynamic"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_dynamic, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_dynamic),
+        ),
+        CommandSpec(
+            path=["forecast", "gdfm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
+                OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_gdfm, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_gdfm),
+        ),
+        CommandSpec(
+            path=["forecast", "arch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_arch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_arch),
+        ),
+        CommandSpec(
+            path=["forecast", "garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_garch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_garch),
+        ),
+        CommandSpec(
+            path=["forecast", "egarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="EGARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_egarch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_egarch),
+        ),
+        CommandSpec(
+            path=["forecast", "gjr_garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_gjr_garch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_gjr_garch),
+        ),
+        CommandSpec(
+            path=["forecast", "sv"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_sv, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_sv),
+        ),
+        CommandSpec(
+            path=["forecast", "vecm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="ci-method", type=String, default="none", description="none|bootstrap|parametric"),
+                OptionSpec(name="replications", type=Int, default=500, description="Bootstrap replications"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level for intervals"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_vecm, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_vecm),
+        ),
+        CommandSpec(
+            path=["forecast", "favar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="panel-forecast", description="Output panel-wide forecast instead of factor-level"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:forecast_favar, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_favar),
+        )
+    ]
 end
+
+function register_forecast_commands!()
+    specs = forecast_specs()
+    register!(specs)
+    return build_node("forecast", specs; description="Forecasting")
+end
+
 
 # ── VAR Forecast ─────────────────────────────────────────
 

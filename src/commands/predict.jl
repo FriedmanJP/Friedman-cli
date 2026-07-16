@@ -17,250 +17,366 @@
 # Predict commands: in-sample fitted values for var, bvar, arima, vecm,
 #                   static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv
 
-function register_predict_commands!()
-    pred_var = LeafCommand("var", _predict_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="In-sample fitted values from VAR model")
-
-    pred_bvar = LeafCommand("bvar", _predict_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("config"; type=String, default="", description="TOML config for prior hyperparameters"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="In-sample fitted values from Bayesian VAR (posterior mean)")
-
-    pred_arima = LeafCommand("arima", _predict_arima;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=nothing, description="AR order (default: auto selection)"),
-            Option("d"; type=Int, default=0, description="Differencing order"),
-            Option("q"; type=Int, default=0, description="MA order"),
-            Option("method"; short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        flags=[Flag("auto"; short="a", description="Use auto ARIMA selection")],
-        description="In-sample fitted values from ARIMA model")
-
-    pred_vecm = LeafCommand("vecm", _predict_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="In-sample fitted values from VECM (via VAR representation)")
-
-    pred_static = LeafCommand("static", _predict_static;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Common component from static factor model (F * Λ')")
-
-    pred_dynamic = LeafCommand("dynamic", _predict_dynamic;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("factor-lags"; short="p", type=Int, default=1, description="Factor VAR lag order"),
-            Option("method"; type=String, default="twostep", description="twostep|em"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Common component from dynamic factor model (F * Λ')")
-
-    pred_gdfm = LeafCommand("gdfm", _predict_gdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
-            Option("dynamic-rank"; short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Common component from generalized dynamic factor model")
-
-    pred_arch = LeafCommand("arch", _predict_arch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Conditional variance from ARCH model")
-
-    pred_garch = LeafCommand("garch", _predict_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Conditional variance from GARCH model")
-
-    pred_egarch = LeafCommand("egarch", _predict_egarch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="EGARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Conditional variance from EGARCH model")
-
-    pred_gjr_garch = LeafCommand("gjr_garch", _predict_gjr_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GJR-GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Conditional variance from GJR-GARCH model")
-
-    pred_sv = LeafCommand("sv", _predict_sv;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("draws"; short="n", type=Int, default=5000, description="MCMC draws"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Posterior mean volatility from stochastic volatility model")
-
-    pred_favar = LeafCommand("favar", _predict_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="FAVAR in-sample fitted values")
-
-    pred_reg = LeafCommand("reg", _predict_reg;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("weights"; type=String, default="", description="Weight column name (WLS)"),
-        ],
-        description="OLS/WLS in-sample fitted values")
-
-    pred_logit = LeafCommand("logit", _predict_logit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("threshold"; type=Float64, default=0.5, description="Classification threshold"),
-        ],
-        flags=[
-            Flag("marginal-effects"; description="Output marginal effects instead of fitted values"),
-            Flag("odds-ratio"; description="Output odds ratios (logit only)"),
-            Flag("classification-table"; description="Output classification table"),
-        ],
-        description="Logit in-sample fitted probabilities")
-
-    pred_probit = LeafCommand("probit", _predict_probit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("threshold"; type=Float64, default=0.5, description="Classification threshold"),
-        ],
-        flags=[
-            Flag("marginal-effects"; description="Output marginal effects instead of fitted values"),
-            Flag("classification-table"; description="Output classification table"),
-        ],
-        description="Probit in-sample fitted probabilities")
-
-    pred_preg = LeafCommand("preg", _predict_preg;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 _PREG_COMMON_OPTIONS[5:6]..., _PREG_COMMON_OPTIONS[7:8]...],
-        description="In-sample fitted values from panel regression")
-
-    pred_piv = LeafCommand("piv", _predict_piv;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[Option("dep"; type=String, default="", description="Dependent variable"),
-                 Option("exog"; type=String, default="", description="Exogenous regressors (comma-separated)"),
-                 Option("endog"; type=String, default="", description="Endogenous regressors (comma-separated)"),
-                 Option("instruments"; type=String, default="", description="Instruments (comma-separated)"),
-                 _PREG_COMMON_OPTIONS[3:4]..., _PREG_COMMON_OPTIONS[5:6]...,
-                 _PREG_COMMON_OPTIONS[7:8]...],
-        description="In-sample fitted values from panel IV regression")
-
-    pred_plogit = LeafCommand("plogit", _predict_plogit;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 _PREG_COMMON_OPTIONS[5:6]..., _PREG_COMMON_OPTIONS[7:8]...],
-        description="In-sample fitted probabilities from panel logit")
-
-    pred_pprobit = LeafCommand("pprobit", _predict_pprobit;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 _PREG_COMMON_OPTIONS[5:6]..., _PREG_COMMON_OPTIONS[7:8]...],
-        description="In-sample fitted probabilities from panel probit")
-
-    pred_ologit = LeafCommand("ologit", _predict_ologit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Predicted probabilities from ordered logit")
-
-    pred_oprobit = LeafCommand("oprobit", _predict_oprobit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Predicted probabilities from ordered probit")
-
-    pred_mlogit = LeafCommand("mlogit", _predict_mlogit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Predicted probabilities from multinomial logit")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"       => pred_var,
-        "bvar"      => pred_bvar,
-        "arima"     => pred_arima,
-        "vecm"      => pred_vecm,
-        "static"    => pred_static,
-        "dynamic"   => pred_dynamic,
-        "gdfm"      => pred_gdfm,
-        "arch"      => pred_arch,
-        "garch"     => pred_garch,
-        "egarch"    => pred_egarch,
-        "gjr_garch" => pred_gjr_garch,
-        "sv"        => pred_sv,
-        "favar"     => pred_favar,
-        "reg"       => pred_reg,
-        "logit"     => pred_logit,
-        "probit"    => pred_probit,
-        "preg"      => pred_preg,
-        "piv"       => pred_piv,
-        "plogit"    => pred_plogit,
-        "pprobit"   => pred_pprobit,
-        "ologit"    => pred_ologit,
-        "oprobit"   => pred_oprobit,
-        "mlogit"    => pred_mlogit,
-    )
-    return NodeCommand("predict", subcmds, "In-sample predictions (fitted values)")
+function predict_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["predict", "var"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_var, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_var),
+        ),
+        CommandSpec(
+            path=["predict", "bvar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_bvar, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_bvar),
+        ),
+        CommandSpec(
+            path=["predict", "arima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
+                OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_arima, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_arima),
+        ),
+        CommandSpec(
+            path=["predict", "vecm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_vecm, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_vecm),
+        ),
+        CommandSpec(
+            path=["predict", "static"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_static, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_static),
+        ),
+        CommandSpec(
+            path=["predict", "dynamic"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_dynamic, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_dynamic),
+        ),
+        CommandSpec(
+            path=["predict", "gdfm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
+                OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_gdfm, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_gdfm),
+        ),
+        CommandSpec(
+            path=["predict", "arch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_arch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_arch),
+        ),
+        CommandSpec(
+            path=["predict", "garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_garch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_garch),
+        ),
+        CommandSpec(
+            path=["predict", "egarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="EGARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_egarch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_egarch),
+        ),
+        CommandSpec(
+            path=["predict", "gjr_garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GJR-GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_gjr_garch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_gjr_garch),
+        ),
+        CommandSpec(
+            path=["predict", "sv"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_sv, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_sv),
+        ),
+        CommandSpec(
+            path=["predict", "favar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_favar, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_favar),
+        ),
+        CommandSpec(
+            path=["predict", "reg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="weights", type=String, default="", description="Weight column name (WLS)")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_reg, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_reg),
+        ),
+        CommandSpec(
+            path=["predict", "logit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="threshold", type=Float64, default=0.5, description="Classification threshold")
+            ],
+            flags=[
+                FlagSpec(name="marginal-effects", description="Output marginal effects instead of fitted values"),
+                FlagSpec(name="odds-ratio", description="Output odds ratios (logit only)"),
+                FlagSpec(name="classification-table", description="Output classification table")
+            ],
+            tables=[TableSpec(name=:predict_logit, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_logit),
+        ),
+        CommandSpec(
+            path=["predict", "probit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="threshold", type=Float64, default=0.5, description="Classification threshold")
+            ],
+            flags=[
+                FlagSpec(name="marginal-effects", description="Output marginal effects instead of fitted values"),
+                FlagSpec(name="classification-table", description="Output classification table")
+            ],
+            tables=[TableSpec(name=:predict_probit, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_probit),
+        ),
+        CommandSpec(
+            path=["predict", "preg"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_preg, description="Path to CSV panel data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_preg),
+        ),
+        CommandSpec(
+            path=["predict", "piv"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable"),
+                OptionSpec(name="exog", type=String, default="", description="Exogenous regressors (comma-separated)"),
+                OptionSpec(name="endog", type=String, default="", description="Endogenous regressors (comma-separated)"),
+                OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_piv, description="Path to CSV panel data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_piv),
+        ),
+        CommandSpec(
+            path=["predict", "plogit"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_plogit, description="Path to CSV panel data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_plogit),
+        ),
+        CommandSpec(
+            path=["predict", "pprobit"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS[5:6]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_pprobit, description="Path to CSV panel data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_pprobit),
+        ),
+        CommandSpec(
+            path=["predict", "ologit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_ologit, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_ologit),
+        ),
+        CommandSpec(
+            path=["predict", "oprobit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_oprobit, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_oprobit),
+        ),
+        CommandSpec(
+            path=["predict", "mlogit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_mlogit, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_mlogit),
+        )
+    ]
 end
+
+function register_predict_commands!()
+    specs = predict_specs()
+    register!(specs)
+    return build_node("predict", specs; description="In-sample fitted values / predictions")
+end
+
 
 # ── VAR Predict ─────────────────────────────────────────
 

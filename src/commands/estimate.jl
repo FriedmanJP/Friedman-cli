@@ -16,416 +16,560 @@
 
 # Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit, preg, piv, plogit, pprobit, ologit, oprobit, mlogit
 
-function register_estimate_commands!()
-    est_var = LeafCommand("var", _estimate_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("trend"; type=String, default="constant", description="none|constant|trend|both"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate a VAR(p) model")
-
-    est_bvar = LeafCommand("bvar", _estimate_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("prior"; type=String, default="minnesota", description="Prior type: minnesota"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("method"; type=String, default="mean", description="mean|median (posterior extraction)"),
-            Option("config"; type=String, default="", description="TOML config for prior hyperparameters"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate a Bayesian VAR model (includes posterior extraction)")
-
-    est_lp = LeafCommand("lp", _estimate_lp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("method"; type=String, default="standard", description="standard|iv|smooth|state|propensity|robust"),
-            Option("shock"; type=Int, default=1, description="Shock variable index (1-based)"),
-            Option("horizons"; short="h", type=Int, default=20, description="IRF horizon"),
-            Option("control-lags"; type=Int, default=4, description="Number of control lags"),
-            Option("vcov"; type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
-            Option("instruments"; type=String, default="", description="Path to instruments CSV (iv only)"),
-            Option("knots"; type=Int, default=3, description="Number of B-spline knots (smooth only)"),
-            Option("lambda"; type=Float64, default=0.0, description="Smoothing penalty, 0=auto CV (smooth only)"),
-            Option("state-var"; type=Int, default=nothing, description="State variable index (state only)"),
-            Option("gamma"; type=Float64, default=1.5, description="Transition steepness (state only)"),
-            Option("transition"; type=String, default="logistic", description="logistic|exponential|indicator (state only)"),
-            Option("treatment"; type=Int, default=1, description="Treatment variable index (propensity/robust only)"),
-            Option("score-method"; type=String, default="logit", description="logit|probit (propensity/robust only)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate local projections (standard|iv|smooth|state|propensity|robust)")
-
-    est_arima = LeafCommand("arima", _estimate_arima;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=nothing, description="AR order (default: auto selection)"),
-            Option("d"; type=Int, default=0, description="Differencing order"),
-            Option("q"; type=Int, default=0, description="MA order"),
-            Option("max-p"; type=Int, default=5, description="Max AR order for auto selection"),
-            Option("max-d"; type=Int, default=2, description="Max differencing order for auto selection"),
-            Option("max-q"; type=Int, default=5, description="Max MA order for auto selection"),
-            Option("criterion"; type=String, default="bic", description="aic|bic (for auto selection)"),
-            Option("method"; short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Estimate ARIMA(p,d,q) model (auto-selects order when --p omitted)")
-
-    est_gmm = LeafCommand("gmm", _estimate_gmm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("config"; type=String, default="", description="TOML config for moment conditions and instruments"),
-            Option("weighting"; short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate a GMM model")
-
-    est_static = LeafCommand("static", _estimate_static;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
-            Option("criterion"; type=String, default="ic1", description="ic1|ic2|ic3 for auto selection"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate static factor model (PCA)")
-
-    est_dynamic = LeafCommand("dynamic", _estimate_dynamic;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("factor-lags"; short="p", type=Int, default=1, description="Factor VAR lag order"),
-            Option("method"; type=String, default="twostep", description="twostep|em"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate dynamic factor model")
-
-    est_gdfm = LeafCommand("gdfm", _estimate_gdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("nfactors"; short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
-            Option("dynamic-rank"; short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate generalized dynamic factor model")
-
-    est_arch = LeafCommand("arch", _estimate_arch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate ARCH(q) model")
-
-    est_garch = LeafCommand("garch", _estimate_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate GARCH(p,q) model")
-
-    est_egarch = LeafCommand("egarch", _estimate_egarch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="EGARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate EGARCH(p,q) model")
-
-    est_gjr_garch = LeafCommand("gjr_garch", _estimate_gjr_garch;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("p"; type=Int, default=1, description="GARCH order"),
-            Option("q"; type=Int, default=1, description="ARCH order"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate GJR-GARCH(p,q) model")
-
-    est_sv = LeafCommand("sv", _estimate_sv;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("draws"; short="n", type=Int, default=5000, description="MCMC draws"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate Stochastic Volatility model")
-
-    est_fastica = LeafCommand("fastica", _estimate_fastica;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("method"; type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic"),
-            Option("contrast"; type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="ICA-based non-Gaussian SVAR identification")
-
-    est_ml = LeafCommand("ml", _estimate_ml;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("distribution"; short="d", type=String, default="student_t", description="student_t|skew_t|ghd|mixture_normal|pml|skew_normal"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Maximum likelihood non-Gaussian SVAR identification")
-
-    est_pvar = LeafCommand("pvar", _estimate_pvar;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column (required)"),
-            Option("time-col"; type=String, default="", description="Time period column (required)"),
-            Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("dependent"; type=String, default="", description="Dependent variables (comma-separated)"),
-            Option("predet"; type=String, default="", description="Predetermined variables (comma-separated)"),
-            Option("exog"; type=String, default="", description="Exogenous variables (comma-separated)"),
-            Option("transformation"; type=String, default="fd", description="fd|fod (first-difference or forward orthogonal)"),
-            Option("steps"; type=String, default="twostep", description="onestep|twostep"),
-            Option("method"; type=String, default="gmm", description="gmm|feols"),
-            Option("min-lag-endo"; type=Int, default=2, description="Minimum lag for endogenous instruments"),
-            Option("max-lag-endo"; type=Int, default=99, description="Maximum lag for endogenous instruments"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        flags=[
-            Flag("system"; description="Use system GMM (adds level equations)"),
-            Flag("collapse"; description="Collapse instruments to limit count"),
-        ],
-        description="Estimate a Panel VAR model (FD-GMM / System-GMM / FE-OLS)")
-
-    est_vecm = LeafCommand("vecm", _estimate_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("method"; type=String, default="johansen", description="johansen|engle_granger"),
-            Option("significance"; type=Float64, default=0.05, description="Significance level for rank selection"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate a Vector Error Correction Model (VECM)")
-
-    est_smm = LeafCommand("smm", _estimate_smm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("config"; type=String, default="", description="TOML config for SMM specification"),
-            Option("weighting"; type=String, default="two_step",
-                description="identity|optimal|two_step|iterated"),
-            Option("sim-ratio"; type=Int, default=5, description="Simulation-to-sample ratio"),
-            Option("burn"; type=Int, default=100, description="Burn-in periods"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Estimate via Simulated Method of Moments")
-
-    est_favar = LeafCommand("favar", _estimate_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
-            Option("method"; type=String, default="two_step", description="two_step|bayesian"),
-            Option("draws"; short="n", type=Int, default=5000, description="MCMC draws (bayesian only)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate Factor-Augmented VAR (Bernanke, Boivin & Eliasz 2005)")
-
-    est_sdfm = LeafCommand("sdfm", _estimate_sdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign"),
-            Option("var-lags"; type=Int, default=1, description="Factor VAR lag order"),
-            Option("horizon"; short="h", type=Int, default=40, description="Structural IRF horizon"),
-            Option("config"; type=String, default="", description="TOML config for sign restrictions"),
-            Option("bandwidth"; type=Int, default=0, description="Spectral bandwidth (0=auto)"),
-            Option("kernel"; type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Estimate Structural Dynamic Factor Model (Forni et al. 2009)")
-
-    est_reg = LeafCommand("reg", _estimate_reg;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("weights"; type=String, default="", description="Weight column name (WLS)"),
-        ],
-        description="OLS/WLS linear regression")
-
-    est_iv = LeafCommand("iv", _estimate_iv;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("dep"; type=String, default="", description="Dependent variable column name (default: first numeric column)"),
-            Option("endogenous"; type=String, default="", description="Endogenous column names, comma-separated (required)"),
-            Option("instruments"; type=String, default="", description="Instrument column names, comma-separated (required)"),
-            Option("cov-type"; type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Instrumental variables (2SLS) regression")
-
-    est_logit = LeafCommand("logit", _estimate_logit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("maxiter"; type=Int, default=100, description="Maximum IRLS iterations"),
-            Option("tol"; type=Float64, default=1e-8, description="Convergence tolerance"),
-        ],
-        description="Binary logit regression (MLE via IRLS)")
-
-    est_probit = LeafCommand("probit", _estimate_probit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            _REG_COMMON_OPTIONS...,
-            Option("maxiter"; type=Int, default=100, description="Maximum IRLS iterations"),
-            Option("tol"; type=Float64, default=1e-8, description="Convergence tolerance"),
-        ],
-        description="Binary probit regression (MLE via IRLS)")
-
-    est_preg = LeafCommand("preg", _estimate_preg;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS...],
-        flags=[Flag("twoway"; description="Include time fixed effects")],
-        description="Panel regression (FE/RE/FD/Between/CRE/AB/BB)")
-
-    est_piv = LeafCommand("piv", _estimate_piv;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("dep"; type=String, default="", description="Dependent variable column name"),
-            Option("exog"; type=String, default="", description="Exogenous variables (comma-separated)"),
-            Option("endog"; type=String, default="", description="Endogenous variables (comma-separated)"),
-            Option("instruments"; type=String, default="", description="Instruments (comma-separated)"),
-            Option("method"; short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
-            Option("cov-type"; type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
-            Option("id-col"; type=String, default="", description="Panel group ID column"),
-            Option("time-col"; type=String, default="", description="Panel time column"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Panel IV/2SLS regression")
-
-    est_plogit = LeafCommand("plogit", _estimate_plogit;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            _PREG_COMMON_OPTIONS[1:2]...,
-            Option("method"; short="m", type=String, default="pooled", description="pooled|fe|re|cre"),
-            Option("cov-type"; type=String, default="cluster", description="ols|cluster"),
-            _PREG_COMMON_OPTIONS[3:4]...,
-            _PREG_COMMON_OPTIONS[7:8]...,
-        ],
-        description="Panel logistic regression")
-
-    est_pprobit = LeafCommand("pprobit", _estimate_pprobit;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            _PREG_COMMON_OPTIONS[1:2]...,
-            Option("method"; short="m", type=String, default="pooled", description="pooled|re|cre"),
-            Option("cov-type"; type=String, default="cluster", description="ols|cluster"),
-            _PREG_COMMON_OPTIONS[3:4]...,
-            _PREG_COMMON_OPTIONS[7:8]...,
-        ],
-        description="Panel probit regression (no FE - incidental parameters problem)")
-
-    est_ologit = LeafCommand("ologit", _estimate_ologit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Ordered logistic regression")
-
-    est_oprobit = LeafCommand("oprobit", _estimate_oprobit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[_REG_COMMON_OPTIONS...],
-        description="Ordered probit regression")
-
-    est_mlogit = LeafCommand("mlogit", _estimate_mlogit;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("dep"; type=String, default="", description="Dependent variable column name"),
-            Option("cov-type"; type=String, default="ols", description="ols|hc0|hc1|hc2|hc3"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Multinomial logistic regression")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"       => est_var,
-        "bvar"      => est_bvar,
-        "lp"        => est_lp,
-        "arima"     => est_arima,
-        "gmm"       => est_gmm,
-        "static"    => est_static,
-        "dynamic"   => est_dynamic,
-        "gdfm"      => est_gdfm,
-        "arch"      => est_arch,
-        "garch"     => est_garch,
-        "egarch"    => est_egarch,
-        "gjr_garch" => est_gjr_garch,
-        "sv"        => est_sv,
-        "fastica"   => est_fastica,
-        "ml"        => est_ml,
-        "vecm"      => est_vecm,
-        "pvar"      => est_pvar,
-        "smm"       => est_smm,
-        "favar"     => est_favar,
-        "sdfm"      => est_sdfm,
-        "reg"       => est_reg,
-        "iv"        => est_iv,
-        "logit"     => est_logit,
-        "probit"    => est_probit,
-        "preg"      => est_preg,
-        "piv"       => est_piv,
-        "plogit"    => est_plogit,
-        "pprobit"   => est_pprobit,
-        "ologit"    => est_ologit,
-        "oprobit"   => est_oprobit,
-        "mlogit"    => est_mlogit,
-    )
-    return NodeCommand("estimate", subcmds, "Estimate econometric models")
+function estimate_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["estimate", "var"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend|both"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_var, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_var),
+        ),
+        CommandSpec(
+            path=["estimate", "bvar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="prior", type=String, default="minnesota", description="Prior type: minnesota"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="method", type=String, default="mean", description="mean|median (posterior extraction)"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_bvar, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_bvar),
+        ),
+        CommandSpec(
+            path=["estimate", "lp"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="method", type=String, default="standard", description="standard|iv|smooth|state|propensity|robust"),
+                OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="control-lags", type=Int, default=4, description="Number of control lags"),
+                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                OptionSpec(name="instruments", type=String, default="", description="Path to instruments CSV (iv only)"),
+                OptionSpec(name="knots", type=Int, default=3, description="Number of B-spline knots (smooth only)"),
+                OptionSpec(name="lambda", type=Float64, default=0.0, description="Smoothing penalty, 0=auto CV (smooth only)"),
+                OptionSpec(name="state-var", type=Int, default=nothing, description="State variable index (state only)"),
+                OptionSpec(name="gamma", type=Float64, default=1.5, description="Transition steepness (state only)"),
+                OptionSpec(name="transition", type=String, default="logistic", description="logistic|exponential|indicator (state only)"),
+                OptionSpec(name="treatment", type=Int, default=1, description="Treatment variable index (propensity/robust only)"),
+                OptionSpec(name="score-method", type=String, default="logit", description="logit|probit (propensity/robust only)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_lp, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_lp),
+        ),
+        CommandSpec(
+            path=["estimate", "arima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
+                OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="max-p", type=Int, default=5, description="Max AR order for auto selection"),
+                OptionSpec(name="max-d", type=Int, default=2, description="Max differencing order for auto selection"),
+                OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
+                OptionSpec(name="criterion", type=String, default="bic", description="aic|bic (for auto selection)"),
+                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_arima, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_arima),
+        ),
+        CommandSpec(
+            path=["estimate", "gmm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config for moment conditions and instruments"),
+                OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_gmm, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_gmm),
+        ),
+        CommandSpec(
+            path=["estimate", "static"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="criterion", type=String, default="ic1", description="ic1|ic2|ic3 for auto selection"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_static, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_static),
+        ),
+        CommandSpec(
+            path=["estimate", "dynamic"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_dynamic, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_dynamic),
+        ),
+        CommandSpec(
+            path=["estimate", "gdfm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
+                OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_gdfm, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_gdfm),
+        ),
+        CommandSpec(
+            path=["estimate", "arch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_arch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_arch),
+        ),
+        CommandSpec(
+            path=["estimate", "garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_garch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_garch),
+        ),
+        CommandSpec(
+            path=["estimate", "egarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="EGARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_egarch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_egarch),
+        ),
+        CommandSpec(
+            path=["estimate", "gjr_garch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_gjr_garch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_gjr_garch),
+        ),
+        CommandSpec(
+            path=["estimate", "sv"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_sv, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_sv),
+        ),
+        CommandSpec(
+            path=["estimate", "fastica"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic"),
+                OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_fastica, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_fastica),
+        ),
+        CommandSpec(
+            path=["estimate", "ml"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="distribution", short="d", type=String, default="student_t", description="student_t|skew_t|ghd|mixture_normal|pml|skew_normal"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_ml, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ml),
+        ),
+        CommandSpec(
+            path=["estimate", "pvar"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
+                OptionSpec(name="dependent", type=String, default="", description="Dependent variables (comma-separated)"),
+                OptionSpec(name="predet", type=String, default="", description="Predetermined variables (comma-separated)"),
+                OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
+                OptionSpec(name="transformation", type=String, default="fd", description="fd|fod (first-difference or forward orthogonal)"),
+                OptionSpec(name="steps", type=String, default="twostep", description="onestep|twostep"),
+                OptionSpec(name="method", type=String, default="gmm", description="gmm|feols"),
+                OptionSpec(name="min-lag-endo", type=Int, default=2, description="Minimum lag for endogenous instruments"),
+                OptionSpec(name="max-lag-endo", type=Int, default=99, description="Maximum lag for endogenous instruments"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[
+                FlagSpec(name="system", description="Use system GMM (adds level equations)"),
+                FlagSpec(name="collapse", description="Collapse instruments to limit count")
+            ],
+            tables=[TableSpec(name=:estimate_pvar, description="Path to CSV panel data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_pvar),
+        ),
+        CommandSpec(
+            path=["estimate", "vecm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_vecm, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_vecm),
+        ),
+        CommandSpec(
+            path=["estimate", "smm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config for SMM specification"),
+                OptionSpec(name="weighting", type=String, default="two_step", description="identity|optimal|two_step|iterated"),
+                OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-sample ratio"),
+                OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_smm, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_smm),
+        ),
+        CommandSpec(
+            path=["estimate", "favar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
+                OptionSpec(name="method", type=String, default="two_step", description="two_step|bayesian"),
+                OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws (bayesian only)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_favar, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_favar),
+        ),
+        CommandSpec(
+            path=["estimate", "sdfm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="Structural IRF horizon"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral bandwidth (0=auto)"),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:estimate_sdfm, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_sdfm),
+        ),
+        CommandSpec(
+            path=["estimate", "reg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="weights", type=String, default="", description="Weight column name (WLS)")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_reg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_reg),
+        ),
+        CommandSpec(
+            path=["estimate", "iv"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="endogenous", type=String, default="", description="Endogenous column names, comma-separated (required)"),
+                OptionSpec(name="instruments", type=String, default="", description="Instrument column names, comma-separated (required)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_iv, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_iv),
+        ),
+        CommandSpec(
+            path=["estimate", "logit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_logit, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_logit),
+        ),
+        CommandSpec(
+            path=["estimate", "probit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_probit, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_probit),
+        ),
+        CommandSpec(
+            path=["estimate", "preg"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS...
+            ],
+            flags=[
+                FlagSpec(name="twoway", description="Include time fixed effects")
+            ],
+            tables=[TableSpec(name=:estimate_preg, description="Path to CSV panel data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_preg),
+        ),
+        CommandSpec(
+            path=["estimate", "piv"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+                OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
+                OptionSpec(name="endog", type=String, default="", description="Endogenous variables (comma-separated)"),
+                OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
+                OptionSpec(name="method", short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
+                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel group ID column"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_piv, description="Path to CSV panel data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_piv),
+        ),
+        CommandSpec(
+            path=["estimate", "plogit"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                OptionSpec(name="method", short="m", type=String, default="pooled", description="pooled|fe|re|cre"),
+                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster"),
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_plogit, description="Path to CSV panel data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_plogit),
+        ),
+        CommandSpec(
+            path=["estimate", "pprobit"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                OptionSpec(name="method", short="m", type=String, default="pooled", description="pooled|re|cre"),
+                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster"),
+                PREG_OPTIONS[3:4]...,
+                PREG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_pprobit, description="Path to CSV panel data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_pprobit),
+        ),
+        CommandSpec(
+            path=["estimate", "ologit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_ologit, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ologit),
+        ),
+        CommandSpec(
+            path=["estimate", "oprobit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                REG_OPTIONS...
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_oprobit, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_oprobit),
+        ),
+        CommandSpec(
+            path=["estimate", "mlogit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+                OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_mlogit, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_mlogit),
+        )
+    ]
 end
+
+function register_estimate_commands!()
+    specs = estimate_specs()
+    register!(specs)
+    return build_node("estimate", specs; description="Model estimation")
+end
+
 
 # ── VAR ────────────────────────────────────────────────────
 

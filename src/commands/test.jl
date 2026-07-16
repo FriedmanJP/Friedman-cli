@@ -21,550 +21,738 @@
 #                fourier-adf, fourier-kpss, dfgls, lm-unitroot, adf-2break,
 #                gregory-hansen, vif
 
-function register_test_commands!()
-    test_adf = LeafCommand("adf", _test_adf;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto via AIC)"),
-            Option("trend"; type=String, default="constant", description="none|constant|trend|both"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Augmented Dickey-Fuller unit root test")
-
-    test_kpss = LeafCommand("kpss", _test_kpss;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test"),
-            Option("trend"; type=String, default="constant", description="constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="KPSS stationarity test")
-
-    test_pp = LeafCommand("pp", _test_pp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test"),
-            Option("trend"; type=String, default="constant", description="none|constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Phillips-Perron unit root test")
-
-    test_za = LeafCommand("za", _test_za;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test"),
-            Option("trend"; type=String, default="both", description="intercept|trend|both"),
-            Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Zivot-Andrews unit root test with structural break")
-
-    test_np = LeafCommand("np", _test_np;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test"),
-            Option("trend"; type=String, default="constant", description="constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Ng-Perron unit root test")
-
-    test_johansen = LeafCommand("johansen", _test_johansen;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order"),
-            Option("trend"; type=String, default="constant", description="none|constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Johansen cointegration test")
-
-    test_normality = LeafCommand("normality", _test_normality;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Normality test suite for VAR residuals")
-
-    test_identifiability = LeafCommand("identifiability", _test_identifiability;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("test"; short="t", type=String, default="all", description="strength|gaussianity|independence|overidentification|all"),
-            Option("method"; type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests)"),
-            Option("contrast"; type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Test identifiability conditions for non-Gaussian SVAR")
-
-    test_heteroskedasticity = LeafCommand("heteroskedasticity", _test_heteroskedasticity;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("method"; type=String, default="markov", description="markov|garch|smooth_transition|external"),
-            Option("config"; type=String, default="", description="TOML config (for transition/regime variables)"),
-            Option("regimes"; type=Int, default=2, description="Number of regimes"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Heteroskedasticity-based SVAR identification")
-
-    test_arch_lm = LeafCommand("arch_lm", _test_arch_lm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("lags"; short="p", type=Int, default=4, description="Number of lags for ARCH-LM test"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="ARCH-LM test for conditional heteroskedasticity")
-
-    test_ljung_box = LeafCommand("ljung_box", _test_ljung_box;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("lags"; short="p", type=Int, default=10, description="Number of lags for Ljung-Box test"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Ljung-Box test on squared residuals")
-
-    # VAR-specific tests (lagselect, stability) as a nested NodeCommand
-    var_lagselect = LeafCommand("lagselect", _test_var_lagselect;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("max-lags"; type=Int, default=12, description="Maximum lag order to test"),
-            Option("criterion"; type=String, default="aic", description="aic|bic|hqc"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Select optimal lag order for VAR")
-
-    var_stability = LeafCommand("stability", _test_var_stability;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Check VAR stationarity (eigenvalues of companion matrix)")
-
-    var_node = NodeCommand("var",
-        Dict{String,Union{NodeCommand,LeafCommand}}(
-            "lagselect" => var_lagselect,
-            "stability" => var_stability,
+function test_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["test", "adf"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto via AIC)"),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend|both"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:adf, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_adf),
         ),
-        "VAR model diagnostic tests")
-
-    test_granger = LeafCommand("granger", _test_granger;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("cause"; type=Int, default=1, description="Cause variable index (1-based)"),
-            Option("effect"; type=Int, default=2, description="Effect variable index (1-based)"),
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("model"; type=String, default="vecm", description="var|vecm (model type for Granger test)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        flags=[
-            Flag("all"; description="Test all pairwise combinations (VAR only)"),
-        ],
-        description="Granger causality test (VAR or VECM)")
-
-    # Panel VAR tests as a nested NodeCommand
-    pvar_hansen_j = LeafCommand("hansen_j", _test_pvar_hansen_j;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column"),
-            Option("time-col"; type=String, default="", description="Time period column"),
-            Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Hansen J overidentification test for Panel VAR")
-
-    pvar_mmsc = LeafCommand("mmsc", _test_pvar_mmsc;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column"),
-            Option("time-col"; type=String, default="", description="Time period column"),
-            Option("max-lags"; type=Int, default=4, description="Maximum lag order to test"),
-            Option("criterion"; type=String, default="bic", description="bic|aic|hqic"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="MMSC model selection criteria for Panel VAR lag order")
-
-    pvar_lagselect = LeafCommand("lagselect", _test_pvar_lagselect;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column"),
-            Option("time-col"; type=String, default="", description="Time period column"),
-            Option("max-lags"; type=Int, default=4, description="Maximum lag order to test"),
-            Option("criterion"; type=String, default="bic", description="bic|aic|hqic"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Panel VAR lag order selection")
-
-    pvar_stability = LeafCommand("stability", _test_pvar_stability;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column"),
-            Option("time-col"; type=String, default="", description="Time period column"),
-            Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Panel VAR stability check (eigenvalues of companion matrix)")
-
-    pvar_node = NodeCommand("pvar",
-        Dict{String,Union{NodeCommand,LeafCommand}}(
-            "hansen_j"  => pvar_hansen_j,
-            "mmsc"      => pvar_mmsc,
-            "lagselect" => pvar_lagselect,
-            "stability" => pvar_stability,
+        CommandSpec(
+            path=["test", "kpss"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="trend", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:kpss, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_kpss),
         ),
-        "Panel VAR diagnostic tests")
-
-    test_lr = LeafCommand("lr", _test_lr;
-        args=[
-            Argument("data1"; description="Path to CSV data file for restricted model"),
-            Argument("data2"; description="Path to CSV data file for unrestricted model"),
-        ],
-        options=[
-            Option("lags1"; type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
-            Option("lags2"; type=Int, default=nothing, description="Lag order for unrestricted model (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Likelihood Ratio test (restricted vs unrestricted model)")
-
-    test_lm = LeafCommand("lm", _test_lm;
-        args=[
-            Argument("data1"; description="Path to CSV data file for restricted model"),
-            Argument("data2"; description="Path to CSV data file for unrestricted model"),
-        ],
-        options=[
-            Option("lags1"; type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
-            Option("lags2"; type=Int, default=nothing, description="Lag order for unrestricted model (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Lagrange Multiplier test (restricted vs unrestricted model)")
-
-    # ── Structural Break Tests ──
-
-    test_andrews = LeafCommand("andrews", _test_andrews;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("response"; type=Int, default=1, description="Response variable column index (1-based)"),
-            Option("test"; type=String, default="supwald", description="supwald|suplr|suplm|expwald|explr|explm|meanwald|meanlr|meanlm"),
-            Option("trimming"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Andrews (1993) structural break test")
-
-    test_bai_perron = LeafCommand("bai-perron", _test_bai_perron;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("response"; type=Int, default=1, description="Response variable column index (1-based)"),
-            Option("max-breaks"; type=Int, default=5, description="Maximum number of breaks"),
-            Option("trimming"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("criterion"; type=String, default="bic", description="bic|lwz"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Bai-Perron (1998) multiple structural break test")
-
-    # ── Panel Unit Root Tests ──
-
-    test_panic = LeafCommand("panic", _test_panic;
-        args=[Argument("data"; description="Path to CSV data file (rows=T, cols=N)")],
-        options=[
-            Option("factors"; type=String, default="auto", description="Number of factors (auto|N)"),
-            Option("method"; type=String, default="pooled", description="pooled|individual"),
-            Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
-            Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="PANIC panel unit root test (Bai & Ng 2004)")
-
-    test_cips = LeafCommand("cips", _test_cips;
-        args=[Argument("data"; description="Path to CSV data file (rows=T, cols=N)")],
-        options=[
-            Option("lags"; type=String, default="auto", description="Lag order (auto|N)"),
-            Option("deterministic"; type=String, default="constant", description="constant|trend"),
-            Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
-            Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Pesaran CIPS panel unit root test (2007)")
-
-    test_moon_perron = LeafCommand("moon-perron", _test_moon_perron;
-        args=[Argument("data"; description="Path to CSV data file (rows=T, cols=N)")],
-        options=[
-            Option("factors"; type=String, default="auto", description="Number of factors (auto|N)"),
-            Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
-            Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Moon-Perron panel unit root test (2004)")
-
-    test_factor_break = LeafCommand("factor-break", _test_factor_break;
-        args=[Argument("data"; description="Path to CSV data file (rows=T, cols=N)")],
-        options=[
-            Option("factors"; type=Int, default=2, description="Number of factors"),
-            Option("method"; type=String, default="breitung_eickmeier", description="breitung_eickmeier|chen_dolado_gonzalo|han_inoue"),
-            Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
-            Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Factor break test (Breitung-Eickmeier / Chen-Dolado-Gonzalo / Han-Inoue)")
-
-    # ── Advanced Unit Root Tests ──
-
-    test_fourier_adf = LeafCommand("fourier-adf", _test_fourier_adf;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("regression"; type=String, default="constant", description="constant|trend"),
-            Option("fmax"; type=Int, default=3, description="Maximum Fourier frequency"),
-            Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
-            Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
-            Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Fourier ADF unit root test (Enders & Lee 2012)")
-
-    test_fourier_kpss = LeafCommand("fourier-kpss", _test_fourier_kpss;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("regression"; type=String, default="constant", description="constant|trend"),
-            Option("fmax"; type=Int, default=3, description="Maximum Fourier frequency"),
-            Option("bandwidth"; type=Int, default=nothing, description="Bandwidth (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Fourier KPSS stationarity test (Becker et al. 2006)")
-
-    test_dfgls = LeafCommand("dfgls", _test_dfgls;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("regression"; type=String, default="constant", description="constant|trend"),
-            Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
-            Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="DF-GLS unit root test (Elliott, Rothenberg & Stock 1996)")
-
-    test_lm_unitroot = LeafCommand("lm-unitroot", _test_lm_unitroot;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("breaks"; type=Int, default=0, description="Number of structural breaks (0|1|2)"),
-            Option("regression"; type=String, default="level", description="level|trend"),
-            Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
-            Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
-            Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="LM unit root test with structural breaks (Lee & Strazicich 2003/2013)")
-
-    test_adf_2break = LeafCommand("adf-2break", _test_adf_2break;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
-            Option("model"; type=String, default="level", description="level|trend|regime"),
-            Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
-            Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
-            Option("trim"; type=Float64, default=0.10, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="ADF unit root test with two structural breaks (Narayan & Popp 2010)")
-
-    test_gregory_hansen = LeafCommand("gregory-hansen", _test_gregory_hansen;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("model"; type=String, default="C", description="C|C/T|C/S (level shift/trend/regime)"),
-            Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
-            Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
-            Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Gregory-Hansen cointegration test with structural break (1996)")
-
-    test_vif = LeafCommand("vif", _test_vif;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("dep"; type=String, default="", description="Dependent variable name (default: first numeric column)"),
-            Option("cov-type"; type=String, default="hc1", description="Covariance estimator (ols|hc0|hc1|hc2|hc3)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-        ],
-        description="Variance Inflation Factor (multicollinearity diagnostic)")
-
-    # Panel specification tests
-    test_hausman = LeafCommand("hausman", _test_hausman;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Hausman specification test (FE vs RE)")
-
-    test_breusch_pagan = LeafCommand("breusch-pagan", _test_breusch_pagan;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Breusch-Pagan LM test for random effects")
-
-    test_f_fe = LeafCommand("f-fe", _test_f_fe;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="F-test for individual fixed effects")
-
-    test_pesaran_cd = LeafCommand("pesaran-cd", _test_pesaran_cd;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Pesaran CD test for cross-sectional dependence")
-
-    test_wooldridge_ar = LeafCommand("wooldridge-ar", _test_wooldridge_ar;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Wooldridge test for serial correlation in panel data")
-
-    test_modified_wald = LeafCommand("modified-wald", _test_modified_wald;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Modified Wald test for groupwise heteroskedasticity")
-
-    # Spectral/portmanteau tests
-    test_fisher_spec = LeafCommand("fisher", _test_fisher;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Fisher's test for periodicity")
-
-    test_bartlett_wn = LeafCommand("bartlett-wn", _test_bartlett_wn;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Bartlett white noise test")
-
-    test_box_pierce = LeafCommand("box-pierce", _test_box_pierce;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("lags"; short="p", type=Int, default=20, description="Number of lags"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Box-Pierce portmanteau test for white noise")
-
-    test_durbin_watson = LeafCommand("durbin-watson", _test_durbin_watson;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Durbin-Watson test for autocorrelation")
-
-    # Discrete choice tests
-    test_brant = LeafCommand("brant", _test_brant;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[Option("dep"; type=String, default="", description="Dependent variable"),
-                 Option("cov-type"; type=String, default="hc1", description="Covariance type"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Brant test for parallel regression (ordered models)")
-
-    test_hausman_iia = LeafCommand("hausman-iia", _test_hausman_iia;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[Option("dep"; type=String, default="", description="Dependent variable"),
-                 Option("omit-category"; type=Int, default=nothing, description="Category to omit for IIA test"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                 Option("output"; short="o", type=String, default="", description="Export results to file")],
-        description="Hausman-McFadden IIA test for multinomial logit")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "adf"                => test_adf,
-        "kpss"               => test_kpss,
-        "pp"                 => test_pp,
-        "za"                 => test_za,
-        "np"                 => test_np,
-        "johansen"           => test_johansen,
-        "normality"          => test_normality,
-        "identifiability"    => test_identifiability,
-        "heteroskedasticity" => test_heteroskedasticity,
-        "arch_lm"            => test_arch_lm,
-        "ljung_box"          => test_ljung_box,
-        "var"                => var_node,
-        "granger"            => test_granger,
-        "pvar"               => pvar_node,
-        "lr"                 => test_lr,
-        "lm"                 => test_lm,
-        "andrews"            => test_andrews,
-        "bai-perron"         => test_bai_perron,
-        "panic"              => test_panic,
-        "cips"               => test_cips,
-        "moon-perron"        => test_moon_perron,
-        "factor-break"       => test_factor_break,
-        "fourier-adf"        => test_fourier_adf,
-        "fourier-kpss"       => test_fourier_kpss,
-        "dfgls"              => test_dfgls,
-        "lm-unitroot"        => test_lm_unitroot,
-        "adf-2break"         => test_adf_2break,
-        "gregory-hansen"     => test_gregory_hansen,
-        "vif"                => test_vif,
-        "hausman"            => test_hausman,
-        "breusch-pagan"      => test_breusch_pagan,
-        "f-fe"               => test_f_fe,
-        "pesaran-cd"         => test_pesaran_cd,
-        "wooldridge-ar"      => test_wooldridge_ar,
-        "modified-wald"      => test_modified_wald,
-        "fisher"             => test_fisher_spec,
-        "bartlett-wn"        => test_bartlett_wn,
-        "box-pierce"         => test_box_pierce,
-        "durbin-watson"      => test_durbin_watson,
-        "brant"              => test_brant,
-        "hausman-iia"        => test_hausman_iia,
-    )
-    return NodeCommand("test", subcmds, "Statistical tests (unit root, cointegration, diagnostics)")
+        CommandSpec(
+            path=["test", "pp"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pp, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_pp),
+        ),
+        CommandSpec(
+            path=["test", "za"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="trend", type=String, default="both", description="intercept|trend|both"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:za, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_za),
+        ),
+        CommandSpec(
+            path=["test", "np"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="trend", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:np, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_np),
+        ),
+        CommandSpec(
+            path=["test", "johansen"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:johansen, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_johansen),
+        ),
+        CommandSpec(
+            path=["test", "normality"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:normality, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_normality),
+        ),
+        CommandSpec(
+            path=["test", "identifiability"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="test", short="t", type=String, default="all", description="strength|gaussianity|independence|overidentification|all"),
+                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests)"),
+                OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:identifiability, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_identifiability),
+        ),
+        CommandSpec(
+            path=["test", "heteroskedasticity"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="method", type=String, default="markov", description="markov|garch|smooth_transition|external"),
+                OptionSpec(name="config", type=String, default="", description="TOML config (for transition/regime variables)"),
+                OptionSpec(name="regimes", type=Int, default=2, description="Number of regimes"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:heteroskedasticity, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_heteroskedasticity),
+        ),
+        CommandSpec(
+            path=["test", "arch_lm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags for ARCH-LM test"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:arch_lm, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_arch_lm),
+        ),
+        CommandSpec(
+            path=["test", "ljung_box"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="lags", short="p", type=Int, default=10, description="Number of lags for Ljung-Box test"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:ljung_box, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_ljung_box),
+        ),
+        CommandSpec(
+            path=["test", "var", "lagselect"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="max-lags", type=Int, default=12, description="Maximum lag order to test"),
+                OptionSpec(name="criterion", type=String, default="aic", description="aic|bic|hqc"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:var_lagselect, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_var_lagselect),
+        ),
+        CommandSpec(
+            path=["test", "var", "stability"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:var_stability, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_var_stability),
+        ),
+        CommandSpec(
+            path=["test", "granger"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="cause", type=Int, default=1, description="Cause variable index (1-based)"),
+                OptionSpec(name="effect", type=Int, default=2, description="Effect variable index (1-based)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="model", type=String, default="vecm", description="var|vecm (model type for Granger test)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[
+                FlagSpec(name="all", description="Test all pairwise combinations (VAR only)")
+            ],
+            tables=[TableSpec(name=:granger, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_granger),
+        ),
+        CommandSpec(
+            path=["test", "pvar", "hansen_j"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pvar_hansen_j, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pvar_hansen_j),
+        ),
+        CommandSpec(
+            path=["test", "pvar", "mmsc"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="max-lags", type=Int, default=4, description="Maximum lag order to test"),
+                OptionSpec(name="criterion", type=String, default="bic", description="bic|aic|hqic"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pvar_mmsc, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pvar_mmsc),
+        ),
+        CommandSpec(
+            path=["test", "pvar", "lagselect"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="max-lags", type=Int, default=4, description="Maximum lag order to test"),
+                OptionSpec(name="criterion", type=String, default="bic", description="bic|aic|hqic"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pvar_lagselect, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pvar_lagselect),
+        ),
+        CommandSpec(
+            path=["test", "pvar", "stability"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pvar_stability, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pvar_stability),
+        ),
+        CommandSpec(
+            path=["test", "lr"],
+            summary="Path to CSV data file for restricted model",
+            args=[ArgSpec(name="data1", type=String, required=true, default=nothing, description="Path to CSV data file for restricted model"), ArgSpec(name="data2", type=String, required=true, default=nothing, description="Path to CSV data file for unrestricted model")],
+            options=[
+                OptionSpec(name="lags1", type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
+                OptionSpec(name="lags2", type=Int, default=nothing, description="Lag order for unrestricted model (default: auto)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:lr, description="Path to CSV data file for restricted model")],
+            category="test",
+            handler=wrap_legacy(_test_lr),
+        ),
+        CommandSpec(
+            path=["test", "lm"],
+            summary="Path to CSV data file for restricted model",
+            args=[ArgSpec(name="data1", type=String, required=true, default=nothing, description="Path to CSV data file for restricted model"), ArgSpec(name="data2", type=String, required=true, default=nothing, description="Path to CSV data file for unrestricted model")],
+            options=[
+                OptionSpec(name="lags1", type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
+                OptionSpec(name="lags2", type=Int, default=nothing, description="Lag order for unrestricted model (default: auto)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:lm, description="Path to CSV data file for restricted model")],
+            category="test",
+            handler=wrap_legacy(_test_lm),
+        ),
+        CommandSpec(
+            path=["test", "andrews"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="response", type=Int, default=1, description="Response variable column index (1-based)"),
+                OptionSpec(name="test", type=String, default="supwald", description="supwald|suplr|suplm|expwald|explr|explm|meanwald|meanlr|meanlm"),
+                OptionSpec(name="trimming", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:andrews, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_andrews),
+        ),
+        CommandSpec(
+            path=["test", "bai-perron"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="response", type=Int, default=1, description="Response variable column index (1-based)"),
+                OptionSpec(name="max-breaks", type=Int, default=5, description="Maximum number of breaks"),
+                OptionSpec(name="trimming", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="criterion", type=String, default="bic", description="bic|lwz"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:bai_perron, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_bai_perron),
+        ),
+        CommandSpec(
+            path=["test", "panic"],
+            summary="Path to CSV data file (rows=T, cols=N)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="factors", type=String, default="auto", description="Number of factors (auto|N)"),
+                OptionSpec(name="method", type=String, default="pooled", description="pooled|individual"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:panic, description="Path to CSV data file (rows=T, cols=N)")],
+            category="test",
+            handler=wrap_legacy(_test_panic),
+        ),
+        CommandSpec(
+            path=["test", "cips"],
+            summary="Path to CSV data file (rows=T, cols=N)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="lags", type=String, default="auto", description="Lag order (auto|N)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:cips, description="Path to CSV data file (rows=T, cols=N)")],
+            category="test",
+            handler=wrap_legacy(_test_cips),
+        ),
+        CommandSpec(
+            path=["test", "moon-perron"],
+            summary="Path to CSV data file (rows=T, cols=N)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="factors", type=String, default="auto", description="Number of factors (auto|N)"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:moon_perron, description="Path to CSV data file (rows=T, cols=N)")],
+            category="test",
+            handler=wrap_legacy(_test_moon_perron),
+        ),
+        CommandSpec(
+            path=["test", "factor-break"],
+            summary="Path to CSV data file (rows=T, cols=N)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="factors", type=Int, default=2, description="Number of factors"),
+                OptionSpec(name="method", type=String, default="breitung_eickmeier", description="breitung_eickmeier|chen_dolado_gonzalo|han_inoue"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:factor_break, description="Path to CSV data file (rows=T, cols=N)")],
+            category="test",
+            handler=wrap_legacy(_test_factor_break),
+        ),
+        CommandSpec(
+            path=["test", "fourier-adf"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="fmax", type=Int, default=3, description="Maximum Fourier frequency"),
+                OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:fourier_adf, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_fourier_adf),
+        ),
+        CommandSpec(
+            path=["test", "fourier-kpss"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="fmax", type=Int, default=3, description="Maximum Fourier frequency"),
+                OptionSpec(name="bandwidth", type=Int, default=nothing, description="Bandwidth (default: auto)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:fourier_kpss, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_fourier_kpss),
+        ),
+        CommandSpec(
+            path=["test", "dfgls"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:dfgls, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_dfgls),
+        ),
+        CommandSpec(
+            path=["test", "lm-unitroot"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="breaks", type=Int, default=0, description="Number of structural breaks (0|1|2)"),
+                OptionSpec(name="regression", type=String, default="level", description="level|trend"),
+                OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:lm_unitroot, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_lm_unitroot),
+        ),
+        CommandSpec(
+            path=["test", "adf-2break"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="model", type=String, default="level", description="level|trend|regime"),
+                OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
+                OptionSpec(name="trim", type=Float64, default=0.10, description="Trimming proportion"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:adf_2break, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_adf_2break),
+        ),
+        CommandSpec(
+            path=["test", "gregory-hansen"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="model", type=String, default="C", description="C|C/T|C/S (level shift/trend/regime)"),
+                OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:gregory_hansen, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_gregory_hansen),
+        ),
+        CommandSpec(
+            path=["test", "vif"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable name (default: first numeric column)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator (ols|hc0|hc1|hc2|hc3)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:vif, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vif),
+        ),
+        CommandSpec(
+            path=["test", "hausman"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:hausman, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_hausman),
+        ),
+        CommandSpec(
+            path=["test", "breusch-pagan"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:breusch_pagan, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_breusch_pagan),
+        ),
+        CommandSpec(
+            path=["test", "f-fe"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:f_fe, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_f_fe),
+        ),
+        CommandSpec(
+            path=["test", "pesaran-cd"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pesaran_cd, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pesaran_cd),
+        ),
+        CommandSpec(
+            path=["test", "wooldridge-ar"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:wooldridge_ar, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_wooldridge_ar),
+        ),
+        CommandSpec(
+            path=["test", "modified-wald"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                PREG_OPTIONS[1:2]...,
+                PREG_OPTIONS[3:4]...,
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:modified_wald, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_modified_wald),
+        ),
+        CommandSpec(
+            path=["test", "fisher"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:fisher, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_fisher),
+        ),
+        CommandSpec(
+            path=["test", "bartlett-wn"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:bartlett_wn, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_bartlett_wn),
+        ),
+        CommandSpec(
+            path=["test", "box-pierce"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+                OptionSpec(name="lags", short="p", type=Int, default=20, description="Number of lags"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:box_pierce, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_box_pierce),
+        ),
+        CommandSpec(
+            path=["test", "durbin-watson"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:durbin_watson, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_durbin_watson),
+        ),
+        CommandSpec(
+            path=["test", "brant"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance type"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:brant, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_brant),
+        ),
+        CommandSpec(
+            path=["test", "hausman-iia"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable"),
+                OptionSpec(name="omit-category", type=Int, default=nothing, description="Category to omit for IIA test"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:hausman_iia, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_hausman_iia),
+        )
+    ]
 end
+
+function register_test_commands!()
+    specs = test_specs()
+    register!(specs)
+    return build_node("test", specs; description="Statistical tests (unit root, cointegration, diagnostics)")
+end
+
 
 # ── Unit Root Tests ──────────────────────────────────────
 
