@@ -1455,11 +1455,13 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
     output_result(coef_df; format=Symbol(format), output=output, title="$wls_tag Regression Coefficients")
 
     _status()
+    f_pv = hasproperty(model, :f_pval) ? model.f_pval :
+           (hasproperty(model, :f_pvalue) ? model.f_pvalue : NaN)
     pairs = Pair{String,Any}[
         "R²"              => round(r2(model); digits=6),
         "Adj. R²"         => round(model.adj_r2; digits=6),
         "F-statistic"     => round(model.f_stat; digits=4),
-        "F p-value"       => round(model.f_pvalue; digits=4),
+        "F p-value"       => round(f_pv; digits=4),
         "Log-likelihood"  => round(loglikelihood(model); digits=4),
         "AIC"             => round(aic(model); digits=4),
         "BIC"             => round(bic(model); digits=4),
@@ -1550,8 +1552,10 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
     output_result(coef_df; format=Symbol(format), output=output, title="Logit Regression Coefficients")
 
     _status()
+    pr2 = hasproperty(model, :pseudo_r2) ? model.pseudo_r2 :
+          (try r2(model) catch; NaN end)
     pairs = Pair{String,Any}[
-        "Pseudo R²"       => round(r2(model); digits=6),
+        "Pseudo R²"       => round(pr2; digits=6),
         "Log-likelihood"  => round(loglikelihood(model); digits=4),
         "Log-lik (null)"  => round(model.loglik_null; digits=4),
         "AIC"             => round(aic(model); digits=4),
@@ -1583,8 +1587,10 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     output_result(coef_df; format=Symbol(format), output=output, title="Probit Regression Coefficients")
 
     _status()
+    pr2 = hasproperty(model, :pseudo_r2) ? model.pseudo_r2 :
+          (try r2(model) catch; NaN end)
     pairs = Pair{String,Any}[
-        "Pseudo R²"       => round(r2(model); digits=6),
+        "Pseudo R²"       => round(pr2; digits=6),
         "Log-likelihood"  => round(loglikelihood(model); digits=4),
         "Log-lik (null)"  => round(model.loglik_null; digits=4),
         "AIC"             => round(aic(model); digits=4),
@@ -1625,7 +1631,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
         "R2 (between)" => round(model.between_r2; digits=6),
         "R2 (overall)" => round(model.overall_r2; digits=6),
         "F-statistic"  => round(model.f_stat; digits=4),
-        "F p-value"    => round(model.f_pvalue; digits=4),
+        "F p-value"    => round(hasproperty(model, :f_pval) ? model.f_pval :
+                                (hasproperty(model, :f_pvalue) ? model.f_pvalue : NaN); digits=4),
         "N obs"        => model.nobs,
         "N groups"     => model.n_groups,
     ]
