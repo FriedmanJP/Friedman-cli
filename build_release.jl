@@ -122,14 +122,14 @@ set "SYSIMAGE=%SCRIPT_DIR%\\lib\\$(sysimage_name)"
 set "JULIA_LOAD_PATH=%SCRIPT_DIR%;@stdlib"
 
 rem Find Julia: prefer juliaup, fallback to julia on PATH
-where juliaup >nul 2>&1
-if %errorlevel% equ 0 (
-    juliaup run +1.12 julia -- --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
-    exit /b %errorlevel%
-)
-
+rem Prefer julia +1.12 (juliaup channel); juliaup run is not portable on 1.20.x
 where julia >nul 2>&1
 if %errorlevel% neq 0 goto :nojulia
+julia +1.12 --version >nul 2>&1
+if %errorlevel% equ 0 (
+    julia +1.12 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
+    exit /b %errorlevel%
+)
 for /f "tokens=3" %%v in ('julia --version 2^>nul') do set "JULIA_VER=%%v"
 for /f "tokens=1,2 delims=." %%a in ("%JULIA_VER%") do (
     set "JMAJ=%%a"
@@ -168,15 +168,17 @@ SYSIMAGE="\$SCRIPT_DIR/lib/$(sysimage_name)"
 
 export JULIA_LOAD_PATH="\$SCRIPT_DIR:@stdlib"
 
-# Find Julia: prefer juliaup run +1.12, fallback to julia on PATH
-if command -v juliaup >/dev/null 2>&1; then
-    exec juliaup run +1.12 julia -- \\
-        --project="\$SCRIPT_DIR" \\
-        --sysimage="\$SYSIMAGE" \\
-        --startup-file=no \\
-        -e 'using Friedman; Friedman.main(ARGS)' \\
-        -- "\$@"
-elif command -v julia >/dev/null 2>&1; then
+# Find Julia: prefer channel `julia +1.12` (juliaup), then bare julia ≥1.12.
+# Note: `juliaup run` is not portable across juliaup versions (1.20.x has no `run`).
+if command -v julia >/dev/null 2>&1; then
+    if julia +1.12 --version >/dev/null 2>&1; then
+        exec julia +1.12 \\
+            --project="\$SCRIPT_DIR" \\
+            --sysimage="\$SYSIMAGE" \\
+            --startup-file=no \\
+            -e 'using Friedman; Friedman.main(ARGS)' \\
+            -- "\$@"
+    fi
     JULIA_VER=\$(julia --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+' | head -1)
     JULIA_MAJOR=\$(echo "\$JULIA_VER" | cut -d. -f1)
     JULIA_MINOR=\$(echo "\$JULIA_VER" | cut -d. -f2)
