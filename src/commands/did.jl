@@ -11,8 +11,8 @@
 # ─── Common option builders ─────────────────────────────────────
 
 const _DID_PANEL_OPTIONS = [
-    Option("id-col"; type=String, default="", description="Panel unit ID column (default: first column)"),
-    Option("time-col"; type=String, default="", description="Time column (default: second column)"),
+    OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (default: first column)"),
+    OptionSpec(name="time-col", type=String, default="", description="Time column (default: second column)"),
 ]
 
 function _did_panel_cols(df, id_col::String, time_col::String)
@@ -362,6 +362,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
                 OptionSpec(name="method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=0, description="Pre-treatment periods"),
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment periods"),
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
@@ -388,6 +389,7 @@ function did_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags"),
@@ -412,6 +414,7 @@ function did_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="pre-window", type=Int, default=3, description="Pre-treatment window"),
                 OptionSpec(name="post-window", type=Int, default=0, description="Post-treatment window (0 = use horizon)"),
@@ -448,6 +451,7 @@ function did_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -466,6 +470,7 @@ function did_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
@@ -487,6 +492,7 @@ function did_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -502,6 +508,7 @@ function did_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
+                _DID_PANEL_OPTIONS...,
                 OptionSpec(name="mbar", type=Float64, default=1.0, description="Violation bound M̄"),
                 OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),

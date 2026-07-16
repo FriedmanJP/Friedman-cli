@@ -16,6 +16,72 @@
 
 # Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit, preg, piv, plogit, pprobit, ologit, oprobit, mlogit
 
+"""Generate CommandSpecs for the volatility family (estimate / forecast / predict / residuals)."""
+function _vol_specs(verb::Symbol)::Vector{CommandSpec}
+    handlers = if verb === :estimate
+        _VOL_ESTIMATE_HANDLERS
+    elseif verb === :forecast
+        _VOL_FORECAST_HANDLERS
+    elseif verb === :predict
+        _VOL_PREDICT_HANDLERS
+    elseif verb === :residuals
+        _VOL_RESIDUALS_HANDLERS
+    else
+        error("unknown vol verb: $verb")
+    end
+    with_horizons = verb === :forecast
+    with_plot = verb === :estimate || verb === :forecast
+    order_opts = Dict{Symbol,Vector{OptionSpec}}(
+        :q_only => [OptionSpec(name="q", type=Int, default=1, description="ARCH order")],
+        :pq => [
+            OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+            OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+        ],
+        :sv => [OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws")],
+    )
+    # estimate/forecast keep historical option order: output before format, then plot-save
+    out_opts = if with_plot
+        [
+            OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+            OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+            OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+        ]
+    else
+        # predict/residuals: format then output (OUTPUT_OPTIONS order)
+        collect(OUTPUT_OPTIONS)
+    end
+    flags = with_plot ? [FlagSpec(name="plot", description="Open interactive plot in browser")] : FlagSpec[]
+    specs = CommandSpec[]
+    for vol in VOL_MODELS
+        opts = OptionSpec[
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            order_opts[vol.order]...,
+        ]
+        if with_horizons
+            push!(opts, OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"))
+        end
+        append!(opts, out_opts)
+        # predict/residuals historically omit p/q/draws from schema (defaults only)
+        if verb === :predict || verb === :residuals
+            opts = OptionSpec[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+                OUTPUT_OPTIONS...,
+            ]
+        end
+        push!(specs, CommandSpec(
+            path=[string(verb), vol.name],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=opts,
+            flags=flags,
+            tables=[TableSpec(name=Symbol("$(verb)_$(vol.name)"), description="Path to CSV data file")],
+            category=string(verb),
+            handler=wrap_legacy(handlers[vol.name]),
+        ))
+    end
+    return specs
+end
+
 function estimate_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
@@ -167,99 +233,8 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_gdfm),
         ),
-        CommandSpec(
-            path=["estimate", "arch"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
-            options=[
-                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
-                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
-            ],
-            flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser")
-            ],
-            tables=[TableSpec(name=:estimate_arch, description="Path to CSV data file")],
-            category="estimate",
-            handler=wrap_legacy(_estimate_arch),
-        ),
-        CommandSpec(
-            path=["estimate", "garch"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
-            options=[
-                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
-                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
-                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
-            ],
-            flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser")
-            ],
-            tables=[TableSpec(name=:estimate_garch, description="Path to CSV data file")],
-            category="estimate",
-            handler=wrap_legacy(_estimate_garch),
-        ),
-        CommandSpec(
-            path=["estimate", "egarch"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
-            options=[
-                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
-                OptionSpec(name="p", type=Int, default=1, description="EGARCH order"),
-                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
-            ],
-            flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser")
-            ],
-            tables=[TableSpec(name=:estimate_egarch, description="Path to CSV data file")],
-            category="estimate",
-            handler=wrap_legacy(_estimate_egarch),
-        ),
-        CommandSpec(
-            path=["estimate", "gjr_garch"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
-            options=[
-                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
-                OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
-                OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
-            ],
-            flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser")
-            ],
-            tables=[TableSpec(name=:estimate_gjr_garch, description="Path to CSV data file")],
-            category="estimate",
-            handler=wrap_legacy(_estimate_gjr_garch),
-        ),
-        CommandSpec(
-            path=["estimate", "sv"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
-            options=[
-                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
-                OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
-            ],
-            flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser")
-            ],
-            tables=[TableSpec(name=:estimate_sv, description="Path to CSV data file")],
-            category="estimate",
-            handler=wrap_legacy(_estimate_sv),
-        ),
+        # Volatility 20-plex (estimate side): generated from VOL_MODELS
+        _vol_specs(:estimate)...,
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -494,13 +469,7 @@ function estimate_specs()::Vector{CommandSpec}
             path=["estimate", "plogit"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                OptionSpec(name="method", short="m", type=String, default="pooled", description="pooled|fe|re|cre"),
-                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster"),
-                PREG_OPTIONS[3:4]...,
-                PREG_OPTIONS...
-            ],
+            options=with_default(PREG_OPTIONS, "method", "pooled"),
             flags=FlagSpec[],
             tables=[TableSpec(name=:estimate_plogit, description="Path to CSV panel data file")],
             category="estimate",
@@ -510,13 +479,7 @@ function estimate_specs()::Vector{CommandSpec}
             path=["estimate", "pprobit"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                OptionSpec(name="method", short="m", type=String, default="pooled", description="pooled|re|cre"),
-                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster"),
-                PREG_OPTIONS[3:4]...,
-                PREG_OPTIONS...
-            ],
+            options=with_default(PREG_OPTIONS, "method", "pooled"),
             flags=FlagSpec[],
             tables=[TableSpec(name=:estimate_pprobit, description="Path to CSV panel data file")],
             category="estimate",
@@ -1153,80 +1116,7 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
     return model
 end
 
-# ── Volatility Models (NEW) ───────────────────────────────
-
-function _estimate_arch(; data::String, column::Int=1, q::Int=1,
-                         output::String="", format::String="table",
-                         plot::Bool=false, plot_save::String="")
-    y, vname = load_univariate_series(data, column)
-    _status("Estimating ARCH($q): variable=$vname, observations=$(length(y))")
-    _status()
-    model = estimate_arch(y, q)
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
-    param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]]
-    _vol_estimate_output(model, vname, param_names, "ARCH($q)"; format=format, output=output)
-    uc = unconditional_variance(model)
-    _status("Unconditional variance: $(round(uc; digits=4))")
-    return model
-end
-
-function _estimate_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
-                          output::String="", format::String="table",
-                          plot::Bool=false, plot_save::String="")
-    y, vname = load_univariate_series(data, column)
-    _status("Estimating GARCH($p,$q): variable=$vname, observations=$(length(y))")
-    _status()
-    model = estimate_garch(y, p, q)
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
-    param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]]
-    _vol_estimate_output(model, vname, param_names, "GARCH($p,$q)"; format=format, output=output)
-    hl = halflife(model)
-    _status("Half-life: $(round(hl; digits=2)) periods")
-    uc = unconditional_variance(model)
-    _status("Unconditional variance: $(round(uc; digits=4))")
-    return model
-end
-
-function _estimate_egarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
-                           output::String="", format::String="table",
-                           plot::Bool=false, plot_save::String="")
-    y, vname = load_univariate_series(data, column)
-    _status("Estimating EGARCH($p,$q): variable=$vname, observations=$(length(y))")
-    _status()
-    model = estimate_egarch(y, p, q)
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
-    param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]]
-    _vol_estimate_output(model, vname, param_names, "EGARCH($p,$q)"; format=format, output=output)
-    return model
-end
-
-function _estimate_gjr_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
-                              output::String="", format::String="table",
-                              plot::Bool=false, plot_save::String="")
-    y, vname = load_univariate_series(data, column)
-    _status("Estimating GJR-GARCH($p,$q): variable=$vname, observations=$(length(y))")
-    _status()
-    model = estimate_gjr_garch(y, p, q)
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
-    param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]]
-    _vol_estimate_output(model, vname, param_names, "GJR-GARCH($p,$q)"; format=format, output=output)
-    hl = halflife(model)
-    _status("Half-life: $(round(hl; digits=2)) periods")
-    return model
-end
-
-function _estimate_sv(; data::String, column::Int=1, draws::Int=5000,
-                       output::String="", format::String="table",
-                       plot::Bool=false, plot_save::String="")
-    y, vname = load_univariate_series(data, column)
-    _status("Estimating Stochastic Volatility: variable=$vname, observations=$(length(y)), draws=$draws")
-    _status()
-    model = estimate_sv(y; n_samples=draws)
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
-    param_names = ["mu", "phi", "sigma_eta"]
-    _vol_estimate_output(model, vname, param_names, "SV"; format=format, output=output)
-    return model
-end
+# Volatility estimate handlers live in shared.jl (VOL_MODELS / _VOL_ESTIMATE_HANDLERS).
 
 # ── Non-Gaussian ICA ──────────────────────────────────────
 

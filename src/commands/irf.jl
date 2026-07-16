@@ -239,13 +239,7 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         lower, upper = irf_bounds(set)
         med = irf_median(set)
         _status("Sign-Identified Set: $(set.n_accepted)/$(set.n_total) accepted ($(round(set.acceptance_rate*100; digits=1))%)")
-        irf_df = DataFrame()
-        irf_df.horizon = 0:horizons
-        for (vi, vname) in enumerate(varnames)
-            irf_df[!, vname] = med[:, vi, shock]
-            irf_df[!, "$(vname)_lower"] = lower[:, vi, shock]
-            irf_df[!, "$(vname)_upper"] = upper[:, vi, shock]
-        end
+        irf_df = build_irf_table(med, lower, upper, varnames, shock, horizons)
         shock_name = _shock_name(varnames, shock)
         output_result(irf_df; format=Symbol(format), output=output,
                       title="IRF Identified Set (sign, $shock_name shock)")
@@ -270,52 +264,32 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
 
     _status_report(() -> report(irf_result))
 
-    irf_vals = irf_result.values  # H x n x n
-    n_h = size(irf_vals, 1)
-
-    irf_df = DataFrame()
-    irf_df.horizon = 0:(n_h-1)
-    for (vi, vname) in enumerate(varnames)
-        irf_df[!, vname] = irf_vals[:, vi, shock]
-    end
-
-    if ci != "none" && !isnothing(irf_result.ci_lower)
-        for (vi, vname) in enumerate(varnames)
-            irf_df[!, "$(vname)_lower"] = irf_result.ci_lower[:, vi, shock]
-            irf_df[!, "$(vname)_upper"] = irf_result.ci_upper[:, vi, shock]
-        end
-    end
-
+    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
+    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
+    irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock)
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock ($id identification)")
 end
 
-function _var_irf_arias(model, config::String, horizons::Int,
-                        varnames::Vector{String}, shock::Int; format::String="table", output::String="")
-    isempty(config) && error("Arias identification requires a --config file with restrictions")
+function _load_svar_restrictions(model, config::String, method_label::String)
+    isempty(config) && error("$method_label identification requires a --config file with restrictions")
     cfg = load_config(config)
     id_cfg = get(cfg, "identification", Dict())
-
     zeros_list = get(id_cfg, "zero_restrictions", [])
     signs_list = get(id_cfg, "sign_restrictions", [])
-
     n = nvars(model)
     zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
     sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-
     restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+    return cfg, restrictions
+end
+
+function _var_irf_arias(model, config::String, horizons::Int,
+                        varnames::Vector{String}, shock::Int; format::String="table", output::String="")
+    _, restrictions = _load_svar_restrictions(model, config, "Arias")
     result = identify_arias(model, restrictions, horizons)
-
-    irf_vals = irf_mean(result)  # H x n x n
-    n_h = size(irf_vals, 1)
-
-    irf_df = DataFrame()
-    irf_df.horizon = 0:(n_h-1)
-    for (vi, vname) in enumerate(varnames)
-        irf_df[!, vname] = irf_vals[:, vi, shock]
-    end
-
+    irf_df = build_irf_table(irf_mean(result), nothing, nothing, varnames, shock)
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock (Arias et al. identification)")
@@ -323,41 +297,18 @@ end
 
 function _var_irf_uhlig(model, config::String, horizons::Int,
                         varnames::Vector{String}, shock::Int; format::String="table", output::String="")
-    isempty(config) && error("Uhlig identification requires a --config file with restrictions")
-    cfg = load_config(config)
-    id_cfg = get(cfg, "identification", Dict())
-
-    zeros_list = get(id_cfg, "zero_restrictions", [])
-    signs_list = get(id_cfg, "sign_restrictions", [])
-
-    n = nvars(model)
-    zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-    sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-
-    restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
-
+    cfg, restrictions = _load_svar_restrictions(model, config, "Uhlig")
     uhlig_params = get_uhlig_params(cfg)
     result = identify_uhlig(model, restrictions, horizons;
         n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
         max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
         tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
-
-    # Convergence info
     _status("Uhlig identification: penalty=$(round(result.penalty; digits=6)), converged=$(result.converged)")
     for (si, sp) in enumerate(result.shock_penalties)
         _status("  Shock $si penalty: $(round(sp; digits=6))")
     end
     _status()
-
-    irf_vals = result.irf  # H x n x n
-    n_h = size(irf_vals, 1)
-
-    irf_df = DataFrame()
-    irf_df.horizon = 0:(n_h-1)
-    for (vi, vname) in enumerate(varnames)
-        irf_df[!, vname] = irf_vals[:, vi, shock]
-    end
-
+    irf_df = build_irf_table(result.irf, nothing, nothing, varnames, shock)
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock (Uhlig identification)")
@@ -411,28 +362,16 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
     _status_report(() -> report(birf))
 
     irf_mean_vals = birf.mean
-    n_h = size(irf_mean_vals, 1)
     q_levels = birf.quantile_levels
     q_idx_lo = findfirst(==(0.16), q_levels)
     q_idx_med = findfirst(==(0.5), q_levels)
     q_idx_hi = findfirst(==(0.84), q_levels)
 
-    irf_df = DataFrame()
-    irf_df.horizon = 0:(n_h-1)
-
-    for (vi, vname) in enumerate(varnames)
-        if !isnothing(q_idx_med)
-            irf_df[!, vname] = birf.quantiles[:, vi, shock, q_idx_med]
-        else
-            irf_df[!, vname] = irf_mean_vals[:, vi, shock]
-        end
-        if !isnothing(q_idx_lo)
-            irf_df[!, "$(vname)_16pct"] = birf.quantiles[:, vi, shock, q_idx_lo]
-        end
-        if !isnothing(q_idx_hi)
-            irf_df[!, "$(vname)_84pct"] = birf.quantiles[:, vi, shock, q_idx_hi]
-        end
-    end
+    point = !isnothing(q_idx_med) ? birf.quantiles[:, :, :, q_idx_med] : irf_mean_vals
+    ci_lo = !isnothing(q_idx_lo) ? birf.quantiles[:, :, :, q_idx_lo] : nothing
+    ci_hi = !isnothing(q_idx_hi) ? birf.quantiles[:, :, :, q_idx_hi] : nothing
+    irf_df = build_irf_table(point, ci_lo, ci_hi, varnames, shock;
+                             lower_suffix="_16pct", upper_suffix="_84pct")
 
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
@@ -478,26 +417,12 @@ function _irf_lp(; data::String="", shock::Int=1, shocks::String="",
     _status("Computing LP IRFs: horizons=$horizons, id=$id, ci=$ci")
     _status()
 
+    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
+    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
     for shock_idx in shock_indices
         (shock_idx < 1 || shock_idx > n) && error("shock index $shock_idx out of range (data has $n variables)")
         shock_name = _shock_name(varnames, shock_idx)
-
-        irf_vals = irf_result.values  # H x n x n
-        n_h = size(irf_vals, 1)
-
-        irf_df = DataFrame()
-        irf_df.horizon = 0:(n_h-1)
-        for (vi, vname) in enumerate(varnames)
-            irf_df[!, vname] = irf_vals[:, vi, shock_idx]
-        end
-
-        if ci != "none" && !isnothing(irf_result.ci_lower)
-            for (vi, vname) in enumerate(varnames)
-                irf_df[!, "$(vname)_lower"] = irf_result.ci_lower[:, vi, shock_idx]
-                irf_df[!, "$(vname)_upper"] = irf_result.ci_upper[:, vi, shock_idx]
-            end
-        end
-
+        irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock_idx)
         output_result(irf_df; format=Symbol(format),
                       output=isempty(output) ? "" : (length(shock_indices) > 1 ? replace(output, "." => "_$(shock_name).") : output),
                       title="LP IRF to $shock_name shock ($id identification)")
@@ -540,22 +465,9 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _status_report(() -> report(irf_result))
 
-    irf_vals = irf_result.values
-    n_h = size(irf_vals, 1)
-
-    irf_df = DataFrame()
-    irf_df.horizon = 0:(n_h-1)
-    for (vi, vname) in enumerate(varnames)
-        irf_df[!, vname] = irf_vals[:, vi, shock]
-    end
-
-    if ci != "none" && !isnothing(irf_result.ci_lower)
-        for (vi, vname) in enumerate(varnames)
-            irf_df[!, "$(vname)_lower"] = irf_result.ci_lower[:, vi, shock]
-            irf_df[!, "$(vname)_upper"] = irf_result.ci_upper[:, vi, shock]
-        end
-    end
-
+    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
+    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
+    irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock)
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
                   title="VECM IRF to $shock_name shock ($id identification)")
@@ -593,21 +505,8 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
     # Output per-shock IRF tables
     for shock in 1:n
         shock_name = _shock_name(varnames, shock)
-        irf_vals = irf_result.values
-        n_h = size(irf_vals, 1)
-
-        irf_df = DataFrame()
-        irf_df.horizon = 0:(n_h-1)
-        for (vi, vname) in enumerate(varnames)
-            irf_df[!, vname] = irf_vals[:, vi, shock]
-        end
-        if !isnothing(irf_result.ci_lower)
-            for (vi, vname) in enumerate(varnames)
-                irf_df[!, "$(vname)_lower"] = irf_result.ci_lower[:, vi, shock]
-                irf_df[!, "$(vname)_upper"] = irf_result.ci_upper[:, vi, shock]
-            end
-        end
-
+        irf_df = build_irf_table(irf_result.values, irf_result.ci_lower, irf_result.ci_upper,
+                                 varnames, shock)
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
                       title="Panel VAR $(uppercase(irf_type)) to $shock_name shock")
@@ -647,14 +546,11 @@ function _irf_favar(; data::String="", factors=nothing, lags::Int=2,
 
     n_vars = size(irf_result.values, 2)
     n_shocks = size(irf_result.values, 3)
+    vnames = String[v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
+                    for v in 1:n_vars]
     for s in 1:n_shocks
         shock_name = s <= length(irf_result.shocks) ? irf_result.shocks[s] : "shock_$s"
-        irf_df = DataFrame()
-        irf_df.horizon = 0:horizons
-        for v in 1:n_vars
-            vname = v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
-            irf_df[!, vname] = round.(irf_result.values[:, v, s]; digits=6)
-        end
+        irf_df = build_irf_table(irf_result.values, nothing, nothing, vnames, s; digits=6)
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
                       title="FAVAR IRF — shock: $shock_name")
@@ -686,14 +582,11 @@ function _irf_sdfm(; data::String="", factors=nothing, id::String="cholesky",
 
     n_vars = size(irf_result.values, 2)
     n_shocks = size(irf_result.values, 3)
+    vnames = String[v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
+                    for v in 1:n_vars]
     for s in 1:n_shocks
         shock_name = s <= length(irf_result.shocks) ? irf_result.shocks[s] : "shock_$s"
-        irf_df = DataFrame()
-        irf_df.horizon = 0:size(irf_result.values, 1)-1
-        for v in 1:n_vars
-            vname = v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
-            irf_df[!, vname] = round.(irf_result.values[:, v, s]; digits=6)
-        end
+        irf_df = build_irf_table(irf_result.values, nothing, nothing, vnames, s; digits=6)
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
                       title="SDFM IRF — shock: $shock_name")

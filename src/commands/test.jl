@@ -571,12 +571,7 @@ function test_specs()::Vector{CommandSpec}
             path=["test", "hausman"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                PREG_OPTIONS[3:4]...,
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
-            ],
+            options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
             tables=[TableSpec(name=:hausman, description="Path to CSV panel data file")],
             category="test",
@@ -586,12 +581,7 @@ function test_specs()::Vector{CommandSpec}
             path=["test", "breusch-pagan"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                PREG_OPTIONS[3:4]...,
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
-            ],
+            options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
             tables=[TableSpec(name=:breusch_pagan, description="Path to CSV panel data file")],
             category="test",
@@ -601,12 +591,7 @@ function test_specs()::Vector{CommandSpec}
             path=["test", "f-fe"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                PREG_OPTIONS[3:4]...,
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
-            ],
+            options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
             tables=[TableSpec(name=:f_fe, description="Path to CSV panel data file")],
             category="test",
@@ -616,12 +601,7 @@ function test_specs()::Vector{CommandSpec}
             path=["test", "pesaran-cd"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                PREG_OPTIONS[3:4]...,
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
-            ],
+            options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
             tables=[TableSpec(name=:pesaran_cd, description="Path to CSV panel data file")],
             category="test",
@@ -631,12 +611,7 @@ function test_specs()::Vector{CommandSpec}
             path=["test", "wooldridge-ar"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                PREG_OPTIONS[3:4]...,
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
-            ],
+            options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
             tables=[TableSpec(name=:wooldridge_ar, description="Path to CSV panel data file")],
             category="test",
@@ -646,12 +621,7 @@ function test_specs()::Vector{CommandSpec}
             path=["test", "modified-wald"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=[
-                PREG_OPTIONS[1:2]...,
-                PREG_OPTIONS[3:4]...,
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
-            ],
+            options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
             tables=[TableSpec(name=:modified_wald, description="Path to CSV panel data file")],
             category="test",

@@ -250,115 +250,7 @@ function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing
                   title="GDFM Common Component (q=$q, T=$T)")
 end
 
-# ── ARCH Predict ──────────────────────────────────────
-
-function _predict_arch(; data::String="", column::Int=1, q::Int=1,
-                         output::String="", format::String="table",
-                         model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_arch(y, q)
-    else
-        vname = "series"
-    end
-    cond_var = predict(model)
-
-    _status("ARCH($q) conditional variance: variable=$vname")
-    _status()
-
-    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
-                        volatility=round.(sqrt.(cond_var); digits=6))
-    output_result(pred_df; format=Symbol(format), output=output,
-                  title="ARCH($q) Conditional Variance ($vname)")
-end
-
-# ── GARCH Predict ─────────────────────────────────────
-
-function _predict_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
-                          output::String="", format::String="table",
-                          model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_garch(y, p, q)
-    else
-        vname = "series"
-    end
-    cond_var = predict(model)
-
-    _status("GARCH($p,$q) conditional variance: variable=$vname")
-    _status()
-
-    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
-                        volatility=round.(sqrt.(cond_var); digits=6))
-    output_result(pred_df; format=Symbol(format), output=output,
-                  title="GARCH($p,$q) Conditional Variance ($vname)")
-end
-
-# ── EGARCH Predict ────────────────────────────────────
-
-function _predict_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
-                           output::String="", format::String="table",
-                           model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_egarch(y, p, q)
-    else
-        vname = "series"
-    end
-    cond_var = predict(model)
-
-    _status("EGARCH($p,$q) conditional variance: variable=$vname")
-    _status()
-
-    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
-                        volatility=round.(sqrt.(cond_var); digits=6))
-    output_result(pred_df; format=Symbol(format), output=output,
-                  title="EGARCH($p,$q) Conditional Variance ($vname)")
-end
-
-# ── GJR-GARCH Predict ────────────────────────────────
-
-function _predict_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
-                              output::String="", format::String="table",
-                              model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_gjr_garch(y, p, q)
-    else
-        vname = "series"
-    end
-    cond_var = predict(model)
-
-    _status("GJR-GARCH($p,$q) conditional variance: variable=$vname")
-    _status()
-
-    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
-                        volatility=round.(sqrt.(cond_var); digits=6))
-    output_result(pred_df; format=Symbol(format), output=output,
-                  title="GJR-GARCH($p,$q) Conditional Variance ($vname)")
-end
-
-# ── SV Predict ────────────────────────────────────────
-
-function _predict_sv(; data::String="", column::Int=1, draws::Int=5000,
-                       output::String="", format::String="table",
-                       model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_sv(y; n_samples=draws)
-    else
-        vname = "series"
-    end
-    cond_var = predict(model)
-
-    _status("SV posterior mean volatility: variable=$vname, draws=$draws")
-    _status()
-
-    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
-                        volatility=round.(sqrt.(cond_var); digits=6))
-    output_result(pred_df; format=Symbol(format), output=output,
-                  title="SV Posterior Mean Volatility ($vname)")
-end
+# Volatility predict handlers live in shared.jl (VOL_MODELS / _VOL_PREDICT_HANDLERS).
 
 # ── FAVAR Predict ─────────────────────────────────────────
 
@@ -891,110 +783,7 @@ function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothi
                   title="GDFM Idiosyncratic Component (q=$q, T=$T)")
 end
 
-# ── ARCH Residuals ────────────────────────────────────
-
-function _residuals_arch(; data::String="", column::Int=1, q::Int=1,
-                           output::String="", format::String="table",
-                           model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_arch(y, q)
-    else
-        vname = "series"
-    end
-    resid = residuals(model)
-
-    _status("ARCH($q) standardized residuals: variable=$vname")
-    _status()
-
-    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="ARCH($q) Standardized Residuals ($vname)")
-end
-
-# ── GARCH Residuals ───────────────────────────────────
-
-function _residuals_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
-                            output::String="", format::String="table",
-                            model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_garch(y, p, q)
-    else
-        vname = "series"
-    end
-    resid = residuals(model)
-
-    _status("GARCH($p,$q) standardized residuals: variable=$vname")
-    _status()
-
-    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="GARCH($p,$q) Standardized Residuals ($vname)")
-end
-
-# ── EGARCH Residuals ──────────────────────────────────
-
-function _residuals_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
-                             output::String="", format::String="table",
-                             model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_egarch(y, p, q)
-    else
-        vname = "series"
-    end
-    resid = residuals(model)
-
-    _status("EGARCH($p,$q) standardized residuals: variable=$vname")
-    _status()
-
-    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="EGARCH($p,$q) Standardized Residuals ($vname)")
-end
-
-# ── GJR-GARCH Residuals ──────────────────────────────
-
-function _residuals_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
-                                output::String="", format::String="table",
-                                model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_gjr_garch(y, p, q)
-    else
-        vname = "series"
-    end
-    resid = residuals(model)
-
-    _status("GJR-GARCH($p,$q) standardized residuals: variable=$vname")
-    _status()
-
-    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="GJR-GARCH($p,$q) Standardized Residuals ($vname)")
-end
-
-# ── SV Residuals ──────────────────────────────────────
-
-function _residuals_sv(; data::String="", column::Int=1, draws::Int=5000,
-                         output::String="", format::String="table",
-                         model=nothing)
-    if isnothing(model)
-        y, vname = load_univariate_series(data, column)
-        model = estimate_sv(y; n_samples=draws)
-    else
-        vname = "series"
-    end
-    resid = residuals(model)
-
-    _status("SV standardized residuals: variable=$vname, draws=$draws")
-    _status()
-
-    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="SV Standardized Residuals ($vname)")
-end
+# Volatility residual handlers live in shared.jl (VOL_MODELS / _VOL_RESIDUALS_HANDLERS).
 
 # ── FAVAR Residuals ───────────────────────────────────────
 
@@ -1288,11 +1077,11 @@ const FITTED_MODEL_KINDS = [
     (; name="static",     pred=_predict_static,     res=_residuals_static,     kind=:factor),
     (; name="dynamic",    pred=_predict_dynamic,    res=_residuals_dynamic,    kind=:factor),
     (; name="gdfm",       pred=_predict_gdfm,       res=_residuals_gdfm,       kind=:factor),
-    (; name="arch",       pred=_predict_arch,       res=_residuals_arch,       kind=:vol),
-    (; name="garch",      pred=_predict_garch,      res=_residuals_garch,      kind=:vol),
-    (; name="egarch",     pred=_predict_egarch,     res=_residuals_egarch,     kind=:vol),
-    (; name="gjr_garch",  pred=_predict_gjr_garch,  res=_residuals_gjr_garch,  kind=:vol),
-    (; name="sv",         pred=_predict_sv,         res=_residuals_sv,         kind=:vol),
+    (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol),
+    (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol),
+    (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol),
+    (; name="gjr_garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol),
+    (; name="sv",         pred=_VOL_PREDICT_HANDLERS["sv"],         res=_VOL_RESIDUALS_HANDLERS["sv"],         kind=:vol),
     (; name="favar",      pred=_predict_favar,      res=_residuals_favar,      kind=:favar),
     (; name="reg",        pred=_predict_reg,        res=_residuals_reg,        kind=:reg),
     (; name="logit",      pred=_predict_logit,      res=_residuals_logit,      kind=:logit),

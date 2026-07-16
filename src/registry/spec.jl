@@ -141,6 +141,17 @@ function with_default(group::Vector{OptionSpec}, name::String, default)
     return out
 end
 
+"""Select named options from a group (order follows `names`, not the group)."""
+function select_options(group::Vector{OptionSpec}, names::String...)
+    out = OptionSpec[]
+    for name in names
+        idx = findfirst(o -> o.name == name, group)
+        isnothing(idx) && error("option '$name' not found in group")
+        push!(out, group[idx])
+    end
+    return out
+end
+
 # Global registry of migrated specs (build_app merges with legacy nodes)
 const REGISTRY = CommandSpec[]
 

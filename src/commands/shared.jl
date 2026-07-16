@@ -216,6 +216,266 @@ function _vol_forecast_output(fc, vname::String, model_label::String,
                   title="$model_label Volatility Forecast ($vname, h=$horizons)")
 end
 
+# ── Volatility model table (F10: 5 rows × 4 verbs = 20 leaves) ──
+
+"""
+One row drives estimate / predict / residuals / forecast for a volatility model.
+`order`: `:q_only` (ARCH), `:pq` (GARCH family), `:sv` (stochastic vol).
+`post_est`: extras after estimate — `:uc`, `:halflife`, `:halflife_uc`, or `:none`.
+`post_fc`: extras after forecast — `:uc` or `:none`.
+"""
+const VOL_MODELS = [
+    (
+        name = "arch",
+        order = :q_only,
+        estimate = (y; p=1, q=1, draws=5000) -> estimate_arch(y, q),
+        param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]],
+        label = (p, q) -> "ARCH($q)",
+        post_est = :uc,
+        post_fc = :none,
+        predict_title = (p, q) -> "ARCH($q) Conditional Variance",
+        resid_title = (p, q) -> "ARCH($q) Standardized Residuals",
+    ),
+    (
+        name = "garch",
+        order = :pq,
+        estimate = (y; p=1, q=1, draws=5000) -> estimate_garch(y, p, q),
+        param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]],
+        label = (p, q) -> "GARCH($p,$q)",
+        post_est = :halflife_uc,
+        post_fc = :uc,
+        predict_title = (p, q) -> "GARCH($p,$q) Conditional Variance",
+        resid_title = (p, q) -> "GARCH($p,$q) Standardized Residuals",
+    ),
+    (
+        name = "egarch",
+        order = :pq,
+        estimate = (y; p=1, q=1, draws=5000) -> estimate_egarch(y, p, q),
+        param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]],
+        label = (p, q) -> "EGARCH($p,$q)",
+        post_est = :none,
+        post_fc = :none,
+        predict_title = (p, q) -> "EGARCH($p,$q) Conditional Variance",
+        resid_title = (p, q) -> "EGARCH($p,$q) Standardized Residuals",
+    ),
+    (
+        name = "gjr_garch",
+        order = :pq,
+        estimate = (y; p=1, q=1, draws=5000) -> estimate_gjr_garch(y, p, q),
+        param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]],
+        label = (p, q) -> "GJR-GARCH($p,$q)",
+        post_est = :halflife,
+        post_fc = :none,
+        predict_title = (p, q) -> "GJR-GARCH($p,$q) Conditional Variance",
+        resid_title = (p, q) -> "GJR-GARCH($p,$q) Standardized Residuals",
+    ),
+    (
+        name = "sv",
+        order = :sv,
+        estimate = (y; p=1, q=1, draws=5000) -> estimate_sv(y; n_samples=draws),
+        param_names = (p, q) -> String["mu", "phi", "sigma_eta"],
+        label = (p, q) -> "SV",
+        post_est = :none,
+        post_fc = :none,
+        predict_title = (p, q) -> "SV Posterior Mean Volatility",
+        resid_title = (p, q) -> "SV Standardized Residuals",
+    ),
+]
+
+function _vol_by_name(name::String)
+    for v in VOL_MODELS
+        v.name == name && return v
+    end
+    error("unknown volatility model: $name")
+end
+
+function _vol_resolve_model(vol, data::String, column::Int; p::Int=1, q::Int=1,
+                             draws::Int=5000, model=nothing)
+    if !isnothing(model)
+        return model, "series"
+    end
+    y, vname = load_univariate_series(data, column)
+    return vol.estimate(y; p=p, q=q, draws=draws), vname
+end
+
+function _vol_post_status(model, kind::Symbol)
+    if kind === :halflife || kind === :halflife_uc
+        hl = halflife(model)
+        _status("Half-life: $(round(hl; digits=2)) periods")
+    end
+    if kind === :uc || kind === :halflife_uc
+        uc = unconditional_variance(model)
+        _status("Unconditional variance: $(round(uc; digits=4))")
+    end
+end
+
+function _make_estimate_vol(vol)
+    return function (; data::String, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
+                      output::String="", format::String="table",
+                      plot::Bool=false, plot_save::String="")
+        y, vname = load_univariate_series(data, column)
+        label = vol.label(p, q)
+        if vol.order === :sv
+            _status("Estimating Stochastic Volatility: variable=$vname, observations=$(length(y)), draws=$draws")
+        else
+            _status("Estimating $label: variable=$vname, observations=$(length(y))")
+        end
+        _status()
+        model = vol.estimate(y; p=p, q=q, draws=draws)
+        _maybe_plot(model; plot=plot, plot_save=plot_save)
+        _vol_estimate_output(model, vname, vol.param_names(p, q), label; format=format, output=output)
+        _vol_post_status(model, vol.post_est)
+        return model
+    end
+end
+
+function _make_forecast_vol(vol)
+    return function (; data::String="", column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
+                      horizons::Int=12, output::String="", format::String="table",
+                      plot::Bool=false, plot_save::String="", model=nothing)
+        m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws, model=model)
+        label = vol.label(p, q)
+        if vol.order === :sv
+            _status("Stochastic Volatility Forecast: variable=$vname, horizons=$horizons, draws=$draws")
+        else
+            _status("$label Volatility Forecast: variable=$vname, horizons=$horizons")
+        end
+        _status()
+        fc = forecast(m, horizons)
+        _maybe_plot(fc; plot=plot, plot_save=plot_save)
+        _vol_forecast_output(fc, vname, label, horizons; format=format, output=output)
+        if vol.post_fc !== :none
+            _status()
+            _vol_post_status(m, vol.post_fc)
+        end
+        return fc
+    end
+end
+
+function _make_predict_vol(vol)
+    return function (; data::String="", column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
+                      output::String="", format::String="table", model=nothing)
+        m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws, model=model)
+        cond_var = predict(m)
+        if vol.order === :sv
+            _status("SV posterior mean volatility: variable=$vname, draws=$draws")
+        else
+            _status("$(vol.label(p, q)) conditional variance: variable=$vname")
+        end
+        _status()
+        pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
+                            volatility=round.(sqrt.(cond_var); digits=6))
+        output_result(pred_df; format=Symbol(format), output=output,
+                      title="$(vol.predict_title(p, q)) ($vname)")
+        return cond_var
+    end
+end
+
+function _make_residuals_vol(vol)
+    return function (; data::String="", column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
+                      output::String="", format::String="table", model=nothing)
+        m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws, model=model)
+        resid = residuals(m)
+        if vol.order === :sv
+            _status("SV standardized residuals: variable=$vname, draws=$draws")
+        else
+            _status("$(vol.label(p, q)) standardized residuals: variable=$vname")
+        end
+        _status()
+        res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+        output_result(res_df; format=Symbol(format), output=output,
+                      title="$(vol.resid_title(p, q)) ($vname)")
+        return resid
+    end
+end
+
+# Cached per-model handlers (built once at load)
+const _VOL_ESTIMATE_HANDLERS = Dict(v.name => _make_estimate_vol(v) for v in VOL_MODELS)
+const _VOL_FORECAST_HANDLERS = Dict(v.name => _make_forecast_vol(v) for v in VOL_MODELS)
+const _VOL_PREDICT_HANDLERS = Dict(v.name => _make_predict_vol(v) for v in VOL_MODELS)
+const _VOL_RESIDUALS_HANDLERS = Dict(v.name => _make_residuals_vol(v) for v in VOL_MODELS)
+
+# Back-compat aliases used by tests / direct handler calls
+const _estimate_arch = _VOL_ESTIMATE_HANDLERS["arch"]
+const _estimate_garch = _VOL_ESTIMATE_HANDLERS["garch"]
+const _estimate_egarch = _VOL_ESTIMATE_HANDLERS["egarch"]
+const _estimate_gjr_garch = _VOL_ESTIMATE_HANDLERS["gjr_garch"]
+const _estimate_sv = _VOL_ESTIMATE_HANDLERS["sv"]
+const _forecast_arch = _VOL_FORECAST_HANDLERS["arch"]
+const _forecast_garch = _VOL_FORECAST_HANDLERS["garch"]
+const _forecast_egarch = _VOL_FORECAST_HANDLERS["egarch"]
+const _forecast_gjr_garch = _VOL_FORECAST_HANDLERS["gjr_garch"]
+const _forecast_sv = _VOL_FORECAST_HANDLERS["sv"]
+const _predict_arch = _VOL_PREDICT_HANDLERS["arch"]
+const _predict_garch = _VOL_PREDICT_HANDLERS["garch"]
+const _predict_egarch = _VOL_PREDICT_HANDLERS["egarch"]
+const _predict_gjr_garch = _VOL_PREDICT_HANDLERS["gjr_garch"]
+const _predict_sv = _VOL_PREDICT_HANDLERS["sv"]
+const _residuals_arch = _VOL_RESIDUALS_HANDLERS["arch"]
+const _residuals_garch = _VOL_RESIDUALS_HANDLERS["garch"]
+const _residuals_egarch = _VOL_RESIDUALS_HANDLERS["egarch"]
+const _residuals_gjr_garch = _VOL_RESIDUALS_HANDLERS["gjr_garch"]
+const _residuals_sv = _VOL_RESIDUALS_HANDLERS["sv"]
+
+# ── IRF table assembly (F11) ───────────────────────────────
+
+"""
+    build_irf_table(irf_data, ci_lower, ci_upper, varnames, shock, horizons=nothing;
+                    lower_suffix="_lower", upper_suffix="_upper", digits=nothing) -> DataFrame
+
+Build a single-shock IRF table: `horizon` + one column per variable, optionally with CI bands.
+
+`irf_data` is `H×n×S` (3D) or `H×n` (2D). When 3D, `shock` indexes the third dimension.
+`horizons` defaults to `0:(H-1)`; pass an integer `Hmax` for `0:Hmax`, or any iterable of length H.
+"""
+function build_irf_table(irf_data::AbstractArray, ci_lower, ci_upper,
+                         varnames::AbstractVector{<:AbstractString}, shock::Int,
+                         horizons=nothing;
+                         lower_suffix::String="_lower",
+                         upper_suffix::String="_upper",
+                         digits::Union{Nothing,Int}=nothing)
+    nd = ndims(irf_data)
+    nd == 2 || nd == 3 || error("irf_data must be 2D (H×n) or 3D (H×n×S), got ndims=$nd")
+    n_h = size(irf_data, 1)
+    n_v = length(varnames)
+
+    slice = if nd == 3
+        (arr, vi) -> arr[:, vi, shock]
+    else
+        (arr, vi) -> arr[:, vi]
+    end
+
+    hvals = if isnothing(horizons)
+        0:(n_h - 1)
+    elseif horizons isa Integer
+        0:horizons
+    else
+        horizons
+    end
+    length(hvals) == n_h || error("horizons length $(length(hvals)) != IRF length $n_h")
+
+    _maybe_round(x) = isnothing(digits) ? x : round.(x; digits=digits)
+
+    irf_df = DataFrame(horizon=collect(hvals))
+    for (vi, vname) in enumerate(varnames)
+        vi > size(irf_data, 2) && break
+        irf_df[!, String(vname)] = _maybe_round(slice(irf_data, vi))
+    end
+    if !isnothing(ci_lower)
+        for (vi, vname) in enumerate(varnames)
+            vi > size(ci_lower, 2) && break
+            irf_df[!, "$(vname)$(lower_suffix)"] = _maybe_round(slice(ci_lower, vi))
+        end
+    end
+    if !isnothing(ci_upper)
+        for (vi, vname) in enumerate(varnames)
+            vi > size(ci_upper, 2) && break
+            irf_df[!, "$(vname)$(upper_suffix)"] = _maybe_round(slice(ci_upper, vi))
+        end
+    end
+    return irf_df
+end
+
 # ── Constants ──────────────────────────────────────────────
 
 """
