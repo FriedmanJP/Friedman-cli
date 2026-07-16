@@ -94,6 +94,53 @@ end
         @test convert_value(Bool, "0", "x") === false
     end
 
+
+    @testset "parser property round-trip" begin
+        using Random
+        rng = Random.MersenneTwister(20260707)
+        for _ in 1:200
+            n_opts = rand(rng, 0:3); n_flags = rand(rng, 0:2)
+            opts = Option[]
+            for i in 1:n_opts
+                T = rand(rng, (Int, Float64, String))
+                push!(opts, Option("o$i"; type=T, default=T === String ? "" : zero(T)))
+            end
+            flags = [Flag("f$i") for i in 1:n_flags]
+            leaf = LeafCommand("p", (; k...) -> k; args=[Argument("a")],
+                               options=opts, flags=flags)
+            argv = String["data.csv"]
+            expected = Dict{Symbol,Any}()
+            for o in opts
+                if o.type === String
+                    v = "s$(rand(rng, 1:9))"
+                    expected[Symbol(o.name)] = v
+                elseif o.type === Int
+                    v = string(rand(rng, -3:7))
+                    expected[Symbol(o.name)] = parse(Int, v)
+                else
+                    v = string(rand(rng, (-3.0, -0.5, 0.0, 7.0)))
+                    expected[Symbol(o.name)] = parse(Float64, v)
+                end
+                if rand(rng, Bool)
+                    push!(argv, "--$(o.name)=$v")
+                else
+                    push!(argv, "--$(o.name)"); push!(argv, v)
+                end
+            end
+            for f in flags
+                push!(argv, "--$(f.name)")
+                expected[Symbol(f.name)] = true
+            end
+            # shuffle option/flag tokens only
+            rest = argv[2:end]
+            shuffle!(rng, rest)
+            bound = bind_args(tokenize(vcat(["data.csv"], rest)), leaf)
+            for (k, v) in expected
+                @test getproperty(bound, k) == v
+            end
+        end
+    end
+
     @testset "Tokenizer" begin
         # Basic positional args
         parsed = tokenize(["file.csv", "other.csv"])
@@ -3715,3 +3762,5 @@ end
     @test "filter" in trans_opts
     @test "lambda" in trans_opts
 end
+
+include(joinpath(@__DIR__, "test_e2e.jl"))
