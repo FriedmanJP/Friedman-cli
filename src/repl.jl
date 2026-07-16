@@ -87,55 +87,66 @@ function session_load_builtin!(s::Session, name::Symbol)
 end
 
 """
-    inject_session_data(session, args) → args
+    _walk_command_path(app, args) → (node_or_leaf, depth)
 
-If session has data loaded and the command args don't already include a data file,
-inject the session data path after the subcommand token and before any options.
+Consume leading tokens while they match subcommand names on the registry tree.
+Returns the node/leaf reached and the number of tokens consumed as the command path.
+The first non-matching non-option token is a positional (data/model path) — not sniffed by extension.
 """
-function inject_session_data(s::Session, args::Vector{String})
-    session_has_data(s) || return args
-    length(args) < 2 && return args
-
-    cmd_depth = _command_depth(args)
-    positionals_start = cmd_depth + 1
-
-    # Check if there's already a positional arg (non-option) after the subcommand
-    has_positional = false
-    for i in positionals_start:length(args)
-        arg = args[i]
+function _walk_command_path(app::Entry, args::Vector{String})
+    node = app.root
+    depth = 0
+    for arg in args
         startswith(arg, "-") && break
-        has_positional = true
-        break
+        if node isa NodeCommand
+            sub = get(node.subcmds, arg, nothing)
+            isnothing(sub) && break
+            depth += 1
+            if sub isa LeafCommand
+                return (sub, depth)
+            end
+            node = sub
+        else
+            break
+        end
     end
+    return (node, depth)
+end
 
-    has_positional && return args
+"""
+    inject_session_data(session, args, app) → args
+
+If session has data loaded and the leaf has no positional yet, inject the session
+data path after the command path and before options.
+
+Tree-walks `app.root` (no `.csv`/extension sniffing) so extensionless paths and
+`:builtin` datasets are treated as positionals correctly (F27).
+"""
+function inject_session_data(s::Session, args::Vector{String}, app::Entry)
+    session_has_data(s) || return args
+    isempty(args) && return args
+
+    node_or_leaf, depth = _walk_command_path(app, args)
+    depth == 0 && return args
+    # Incomplete path still on a NodeCommand — nothing to inject yet
+    node_or_leaf isa LeafCommand || return args
+
+    positionals_start = depth + 1
+    for i in positionals_start:length(args)
+        startswith(args[i], "-") && break
+        return args  # already has a positional
+    end
 
     new_args = copy(args)
     insert!(new_args, positionals_start, s.data_path)
     return new_args
 end
 
-"""
-    _command_depth(args) → Int
-
-Count how many leading tokens are command/subcommand names (not options or data files).
-Returns 2 for "estimate var", 3 for "dsge bayes estimate", etc.
-"""
-function _command_depth(args::Vector{String})
-    depth = 0
-    for arg in args
-        startswith(arg, "-") && break
-        (endswith(arg, ".csv") || endswith(arg, ".toml") || endswith(arg, ".jl") || contains(arg, "/") || contains(arg, "\\")) && break
-        depth += 1
-        depth >= 4 && break
-    end
-    return depth
-end
-
-const DOWNSTREAM_ACTIONS = Set(["irf", "fevd", "hd", "forecast", "predict", "residuals"])
+# Actions that accept a cached in-memory model handle from Session.results (F15 twin of .fmod)
+const MODEL_CACHE_ACTIONS = Set(["irf", "fevd", "hd", "forecast", "predict", "residuals"])
 
 is_downstream_command(args::Vector{String}) =
-    !isempty(args) && args[1] in DOWNSTREAM_ACTIONS
+    !isempty(args) && args[1] in MODEL_CACHE_ACTIONS
 
 function detect_model_type(args::Vector{String})
     length(args) >= 2 || return :none
@@ -192,8 +203,8 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String})
         end
     end
 
-    # Inject session data if needed
-    args = inject_session_data(s, args)
+    # Inject session data if needed (tree-walk on registry)
+    args = inject_session_data(s, args, app)
 
     # Check if downstream command can use cached model
     extra_kw = Dict{Symbol,Any}()
@@ -223,15 +234,18 @@ end
 Launch the interactive REPL with a `friedman>` prompt.
 """
 function start_repl()
+    app = APP
+    s = SESSION
+    session_clear!(s)
+    # F63: build completion candidates once at session start
+    idx = _reset_completion_index!(app)
     try
         _init_completion_provider()
     catch
         # REPL stdlib not available (e.g. compiled sysimage); tab completion disabled
     end
-
-    app = APP
-    s = SESSION
-    session_clear!(s)
+    # Keep index on provider if LineEdit path is active (rebuild after init)
+    _COMPLETION_INDEX[] = idx
 
     printstyled("Friedman REPL v$(FRIEDMAN_VERSION)\n"; bold=true)
     println("Type commands as you would on the command line. Type 'exit' to quit.")
@@ -307,23 +321,74 @@ function _split_repl_line(line::String)
     return tokens
 end
 
+# ── Completion index (F63: precomputed once per session, not per keystroke) ──
+
 """
-    complete_command(app, partial_line) → Vector{String}
+Sorted candidate vectors for tab completion, built once from the registry tree.
+"""
+struct CompletionIndex
+    children::Dict{Vector{String},Vector{String}}  # path → sorted subcommand names
+    leaf_opts::Dict{Vector{String},Vector{String}} # path → sorted --option/--flag names
+end
+
+function build_completion_index(app::Entry)::CompletionIndex
+    children = Dict{Vector{String},Vector{String}}()
+    leaf_opts = Dict{Vector{String},Vector{String}}()
+    function walk(node::NodeCommand, path::Vector{String})
+        kids = sort!(collect(keys(node.subcmds)))
+        children[copy(path)] = kids
+        for name in kids
+            sub = node.subcmds[name]
+            p = vcat(path, name)
+            if sub isa NodeCommand
+                walk(sub, p)
+            else
+                opts = String["--" * o.name for o in sub.options]
+                append!(opts, ["--" * f.name for f in sub.flags])
+                sort!(opts)
+                leaf_opts[p] = opts
+            end
+        end
+    end
+    walk(app.root, String[])
+    return CompletionIndex(children, leaf_opts)
+end
+
+# Session-scoped index; rebuilt in start_repl / when APP changes
+const _COMPLETION_INDEX = Ref{Union{Nothing,CompletionIndex}}(nothing)
+
+function _completion_index(app::Entry)::CompletionIndex
+    idx = _COMPLETION_INDEX[]
+    if isnothing(idx)
+        idx = build_completion_index(app)
+        _COMPLETION_INDEX[] = idx
+    end
+    return idx
+end
+
+function _reset_completion_index!(app::Entry)
+    _COMPLETION_INDEX[] = build_completion_index(app)
+    return _COMPLETION_INDEX[]
+end
+
+"""
+    complete_command(app, partial_line; index=nothing) → Vector{String}
 
 Return completion candidates for the current partial input line.
+Uses a precomputed `CompletionIndex` (F63) when available.
 """
-function complete_command(app::Entry, partial::String)
+function complete_command(app::Entry, partial::String; index::Union{Nothing,CompletionIndex}=nothing)
+    idx = isnothing(index) ? _completion_index(app) : index
     tokens = _split_repl_line(partial)
-    isempty(tokens) && return sort(collect(keys(app.root.subcmds)))
+    isempty(tokens) && return get(idx.children, String[], String[])
 
-    node = app.root
-    for (i, tok) in enumerate(tokens[1:end-1])
-        if node isa NodeCommand && haskey(node.subcmds, tok)
-            sub = node.subcmds[tok]
-            if sub isa NodeCommand
-                node = sub
-            else
-                return _complete_leaf_options(sub, tokens[end])
+    path = String[]
+    for tok in tokens[1:end-1]
+        startswith(tok, "-") && return String[]
+        if haskey(idx.children, path) && tok in idx.children[path]
+            push!(path, tok)
+            if haskey(idx.leaf_opts, path)
+                return _filter_prefix(idx.leaf_opts[path], tokens[end])
             end
         else
             return String[]
@@ -331,23 +396,23 @@ function complete_command(app::Entry, partial::String)
     end
 
     prefix = tokens[end]
-
-    if node isa NodeCommand
-        if startswith(prefix, "-")
-            return String[]
-        end
-        return sort([k for k in keys(node.subcmds) if startswith(k, prefix)])
+    if startswith(prefix, "-")
+        # Completing options for a leaf reached by path (no trailing partial subcmd)
+        return haskey(idx.leaf_opts, path) ? _filter_prefix(idx.leaf_opts[path], prefix) : String[]
     end
-
-    return String[]
+    kids = get(idx.children, path, String[])
+    return _filter_prefix(kids, prefix)
 end
+
+_filter_prefix(candidates::Vector{String}, prefix::String) =
+    isempty(prefix) ? candidates : filter(c -> startswith(c, prefix), candidates)
 
 function _complete_leaf_options(leaf::LeafCommand, prefix::String)
     startswith(prefix, "-") || return String[]
     options = ["--" * o.name for o in leaf.options]
     flags = ["--" * f.name for f in leaf.flags]
-    all_opts = vcat(options, flags)
-    return sort([o for o in all_opts if startswith(o, prefix)])
+    all_opts = sort(vcat(options, flags))
+    return _filter_prefix(all_opts, prefix)
 end
 
 # FriedmanCompletionProvider is defined at runtime when REPL is loaded
@@ -362,11 +427,12 @@ function _init_completion_provider()
 
         struct FriedmanCompletionProvider <: $CompletionProvider
             app::Entry
+            index::CompletionIndex
         end
 
         function $_LineEdit.complete_line(c::FriedmanCompletionProvider, state)
             partial = String($_LineEdit.buffer(state))
-            completions = complete_command(c.app, partial)
+            completions = complete_command(c.app, partial; index=c.index)
             tokens = _split_repl_line(partial)
             last_token = isempty(tokens) ? "" : tokens[end]
             return completions, last_token, !isempty(completions)

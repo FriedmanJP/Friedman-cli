@@ -78,13 +78,33 @@ module Friedman
             "var" => irf_var_leaf
         ), "IRF commands")
 
+        data_list = LeafCommand("list", noop, Argument[], Option[], Flag[], "List datasets")
+        data_use = LeafCommand("use", noop, Argument[], Option[], Flag[], "Use dataset")
+        data_node = NodeCommand("data", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "list" => data_list, "use" => data_use
+        ), "Data commands")
+
+        bayes_est = LeafCommand("estimate", noop, Argument[],
+            [Option("draws", "n", Int, 1000, "Draws")], Flag[], "Bayes estimate")
+        bayes_node = NodeCommand("bayes", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "estimate" => bayes_est
+        ), "Bayesian DSGE")
+        dsge_solve = LeafCommand("solve", noop, Argument[], Option[], Flag[], "Solve DSGE")
+        dsge_node = NodeCommand("dsge", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "bayes" => bayes_node, "solve" => dsge_solve
+        ), "DSGE commands")
+
         root = NodeCommand("friedman", Dict{String,Union{NodeCommand,LeafCommand}}(
-            "estimate" => estimate_node, "irf" => irf_node
+            "estimate" => estimate_node,
+            "irf" => irf_node,
+            "data" => data_node,
+            "dsge" => dsge_node,
         ), "Main")
 
         Entry("friedman", root, v"0.4.1")
     end
 
+    # Precomputed completion index uses APP when present; tests call build_completion_index(app).
     include(joinpath(@__DIR__, "..", "src", "repl.jl"))
 end
 
@@ -199,29 +219,39 @@ end
 
 @testset "REPL dispatch wrapper" begin
     @testset "inject_session_data" begin
+        app = Friedman.build_app()
         s = Friedman.Session()
         s.data_path = "/tmp/test.csv"
 
         # Args with no data positional — inject before options
         args = ["estimate", "var", "--lags", "4"]
-        result = Friedman.inject_session_data(s, args)
+        result = Friedman.inject_session_data(s, args, app)
         @test result == ["estimate", "var", "/tmp/test.csv", "--lags", "4"]
 
         # Args already have data (a .csv path) — don't inject
         args2 = ["estimate", "var", "mydata.csv", "--lags", "4"]
-        result2 = Friedman.inject_session_data(s, args2)
+        result2 = Friedman.inject_session_data(s, args2, app)
         @test result2 == args2
+
+        # Extensionless positional — do not inject (tree-walk, F27)
+        args_ext = ["estimate", "var", "mydata", "--lags", "4"]
+        result_ext = Friedman.inject_session_data(s, args_ext, app)
+        @test result_ext == args_ext
+
+        # Builtin dataset token — already a positional
+        args_bi = ["estimate", "var", ":fred-md"]
+        @test Friedman.inject_session_data(s, args_bi, app) == args_bi
 
         # No session data — return unchanged
         s2 = Friedman.Session()
-        result3 = Friedman.inject_session_data(s2, args)
+        result3 = Friedman.inject_session_data(s2, args, app)
         @test result3 == args
 
         # Deep nesting: dsge bayes estimate
         s3 = Friedman.Session()
         s3.data_path = "/tmp/test.csv"
         args4 = ["dsge", "bayes", "estimate", "--draws", "1000"]
-        result4 = Friedman.inject_session_data(s3, args4)
+        result4 = Friedman.inject_session_data(s3, args4, app)
         @test result4 == ["dsge", "bayes", "estimate", "/tmp/test.csv", "--draws", "1000"]
     end
 
@@ -252,17 +282,28 @@ end
     @test Friedman._split_repl_line("data use \"my file") == ["data", "use", "my file"]
 end
 
-@testset "_command_depth" begin
-    @test Friedman._command_depth(["estimate", "var", "data.csv"]) == 2
-    @test Friedman._command_depth(["dsge", "bayes", "estimate", "model.toml"]) == 3
-    @test Friedman._command_depth(["data", "list"]) == 2
-    @test Friedman._command_depth(["--help"]) == 0
-    @test Friedman._command_depth(String[]) == 0
-    # Stops at file-like tokens
-    @test Friedman._command_depth(["estimate", "var", "/path/to/data.csv"]) == 2
-    @test Friedman._command_depth(["dsge", "solve", "model.jl"]) == 2
-    # Caps at 4
-    @test Friedman._command_depth(["a", "b", "c", "d", "e"]) == 4
+@testset "command path tree-walk" begin
+    app = Friedman.build_app()
+    # Leaf depth
+    _, d1 = Friedman._walk_command_path(app, ["estimate", "var", "data.csv"])
+    @test d1 == 2
+    _, d2 = Friedman._walk_command_path(app, ["dsge", "bayes", "estimate", "model.toml"])
+    @test d2 == 3
+    _, d3 = Friedman._walk_command_path(app, ["data", "list"])
+    @test d3 == 2
+    _, d0 = Friedman._walk_command_path(app, ["--help"])
+    @test d0 == 0
+    _, dempty = Friedman._walk_command_path(app, String[])
+    @test dempty == 0
+    # Path with slash / extensionless still depth 2 (positional is not a subcommand)
+    _, d4 = Friedman._walk_command_path(app, ["estimate", "var", "/path/to/data"])
+    @test d4 == 2
+    _, d5 = Friedman._walk_command_path(app, ["dsge", "solve", "model.jl"])
+    @test d5 == 2
+    # Extensionless bare name is positional, not a third subcommand
+    leaf, d6 = Friedman._walk_command_path(app, ["estimate", "var", "mydata"])
+    @test d6 == 2
+    @test leaf isa Friedman.LeafCommand
 end
 
 @testset "_complete_leaf_options" begin
@@ -508,18 +549,23 @@ end
     end
 
     @testset "data injection into args" begin
+        app = Friedman.build_app()
         s = Friedman.Session()
         s.data_path = "/tmp/macro.csv"
         s.Y = zeros(10, 3)
         s.varnames = ["a", "b", "c"]
 
         # estimate var --lags 4 → estimate var /tmp/macro.csv --lags 4
-        injected = Friedman.inject_session_data(s, ["estimate", "var", "--lags", "4"])
+        injected = Friedman.inject_session_data(s, ["estimate", "var", "--lags", "4"], app)
         @test injected[3] == "/tmp/macro.csv"
 
-        # dsge solve model.toml → unchanged (has positional ending in .toml)
-        unchanged = Friedman.inject_session_data(s, ["dsge", "solve", "model.toml"])
+        # dsge solve model.toml → unchanged (has positional)
+        unchanged = Friedman.inject_session_data(s, ["dsge", "solve", "model.toml"], app)
         @test unchanged == ["dsge", "solve", "model.toml"]
+
+        # Extensionless file already provided — unchanged (tree-walk, not extension sniff)
+        bare = Friedman.inject_session_data(s, ["estimate", "var", "panel_data"], app)
+        @test bare == ["estimate", "var", "panel_data"]
     end
 
     @testset "builtin dataset workflow" begin
