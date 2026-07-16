@@ -38,7 +38,7 @@ Load CSV and extract a single numeric column by index.
 function load_univariate_series(data::String, column::Int)
     df = load_data(data)
     varnames = variable_names(df)
-    column > length(varnames) && error("column $column out of range (data has $(length(varnames)) numeric columns)")
+    column > length(varnames) && throw(CliError("data/column-range", "column $column out of range (data has $(length(varnames)) numeric columns)"))
     y = Vector{Float64}(df[!, varnames[column]])
     return y, varnames[column]
 end
@@ -522,8 +522,8 @@ Load CSV data and set panel structure using xtset().
 """
 function load_panel_data(data::String, id_col::String, time_col::String)
     df = load_data(data)
-    id_col in names(df) || error("id column '$id_col' not found in data (columns: $(join(names(df), ", ")))")
-    time_col in names(df) || error("time column '$time_col' not found in data (columns: $(join(names(df), ", ")))")
+    id_col in names(df) || throw(CliError("data/missing-column", "id column '$id_col' not found in data (columns: $(join(names(df), ", ")))"))
+    time_col in names(df) || throw(CliError("data/missing-column", "time column '$time_col' not found in data (columns: $(join(names(df), ", ")))"))
     group_ids = Int.(df[!, id_col])
     time_ids = Int.(df[!, time_col])
     # Get numeric columns excluding id and time

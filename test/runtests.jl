@@ -2586,6 +2586,7 @@ end
 
 # Include io.jl at top level so it can see PrettyTables exports
 let project_root = dirname(@__DIR__)
+    include(joinpath(project_root, "src", "output", "errors.jl"))
     include(joinpath(project_root, "src", "io.jl"))
     include(joinpath(project_root, "src", "output", "envelope.jl"))
     include(joinpath(project_root, "src", "output", "render.jl"))
@@ -2629,6 +2630,17 @@ end
     @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
 end
 
+@testset "error taxonomy" begin
+    include(joinpath(dirname(@__DIR__), "src", "output", "errors.jl"))
+    e = CliError("data/file-not-found", "file not found: x.csv"; hint="check the path")
+    @test exit_class(e) == 3
+    @test exit_class(CliError("config/malformed-toml", "…")) == 4
+    @test exit_class(CliError("weird", "…")) == 1
+    @test exit_class(CliError("usage/bad-format", "…")) == 2
+    @test exit_class(CliError("model/singular", "…")) == 5
+    @test exit_class(CliError("env/network", "…")) == 6
+end
+
 @testset "IO utilities" begin
 
     @testset "load_data" begin
@@ -2643,33 +2655,33 @@ end
             @test "b" in names(df)
 
             # Nonexistent file → error
-            @test_throws ErrorException load_data(joinpath(dir, "nonexistent.csv"))
+            @test_throws CliError load_data(joinpath(dir, "nonexistent.csv"))
 
             # Empty CSV (headers only, 0 rows) → error
             empty_path = joinpath(dir, "empty.csv")
             CSV.write(empty_path, DataFrame(a=Int[], b=Float64[]))
-            @test_throws ErrorException load_data(empty_path)
+            @test_throws CliError load_data(empty_path)
         end
     end
 
     @testset "load_data path traversal rejection" begin
-        @test_throws ErrorException load_data("../etc/passwd")
-        @test_throws ErrorException load_data("data/../../../secret.csv")
+        @test_throws CliError load_data("../etc/passwd")
+        @test_throws CliError load_data("data/../../../secret.csv")
     end
 
     @testset "output path traversal rejection" begin
         df = DataFrame(a=[1,2,3])
-        @test_throws ErrorException output_result(df; format=:csv, output="../bad.csv")
-        @test_throws ErrorException output_result(df; format=:csv, output="foo/../../bad.csv")
+        @test_throws CliError output_result(df; format=:csv, output="../bad.csv")
+        @test_throws CliError output_result(df; format=:csv, output="foo/../../bad.csv")
     end
 
     @testset "strict format validation (F18/F19)" begin
         df = DataFrame(a=[1.0], b=[2.0])
         # Unknown formats must error, never silently render a table
-        @test_throws ErrorException output_result(df; format=:xml)
-        @test_throws ErrorException output_result(df; format=:jsn)
-        @test_throws ErrorException output_kv(["stat" => 1.0]; format="yaml")
-        @test_throws ErrorException output_result(ones(1, 2), ["a", "b"]; format="html")
+        @test_throws CliError output_result(df; format=:xml)
+        @test_throws CliError output_result(df; format=:jsn)
+        @test_throws CliError output_kv(["stat" => 1.0]; format="yaml")
+        @test_throws CliError output_result(ones(1, 2), ["a", "b"]; format="html")
         # Case-insensitive strings and Symbols both accepted after unification
         mktempdir() do dir
             p = joinpath(dir, "o.json")
@@ -2696,7 +2708,7 @@ end
 
         # No numeric columns → error
         df_str = DataFrame(name=["a","b","c"], label=["d","e","f"])
-        @test_throws ErrorException df_to_matrix(df_str)
+        @test_throws CliError df_to_matrix(df_str)
     end
 
     @testset "variable_names" begin
@@ -2821,7 +2833,7 @@ using TOML
             @test cfg["section"]["number"] == 42
 
             # Missing file → error
-            @test_throws ErrorException load_config(joinpath(dir, "nonexistent.toml"))
+            @test_throws CliError load_config(joinpath(dir, "nonexistent.toml"))
         end
     end
 

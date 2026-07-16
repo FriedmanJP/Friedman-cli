@@ -69,8 +69,9 @@ function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=nod
     rest = args[2:end]
 
     # If first arg is a known subcommand, recurse into it (carries --help through)
-    if haskey(node.subcmds, subcmd_name)
-        subcmd = node.subcmds[subcmd_name]
+    # F62: single get() instead of haskey+index pair
+    subcmd = get(node.subcmds, subcmd_name, nothing)
+    if subcmd !== nothing
         subprog = prog * " " * subcmd_name
         if subcmd isa NodeCommand
             return dispatch_node(subcmd, rest; prog=subprog, extra_kwargs...)
@@ -121,6 +122,17 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
                 render(_ENVELOPE[], :json, stdout)
             end
             return result
+        catch e
+            # In JSON mode, attach error to envelope, render, then rethrow for exit code
+            if use_env && _ENVELOPE[] !== nothing
+                if e isa CliError
+                    set_error!(_ENVELOPE[], e.code, e.message; hint=e.hint)
+                else
+                    set_error!(_ENVELOPE[], "internal/error", sprint(showerror, e))
+                end
+                render(_ENVELOPE[], :json, stdout)
+            end
+            rethrow()
         finally
             _ENVELOPE[] = nothing
         end

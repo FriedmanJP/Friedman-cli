@@ -39,6 +39,7 @@ if !@isdefined(tf_unicode_rounded)
 end
 
 # Include io.jl and config.jl (needed by command handlers)
+include(joinpath(project_root, "src", "output", "errors.jl"))
 include(joinpath(project_root, "src", "io.jl"))
 include(joinpath(project_root, "src", "output", "envelope.jl"))
 include(joinpath(project_root, "src", "output", "render.jl"))

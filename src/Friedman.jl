@@ -28,6 +28,8 @@ include("cli/parser.jl")
 include("cli/help.jl")
 include("cli/dispatch.jl")
 
+# Errors before io (loaders throw CliError)
+include("output/errors.jl")
 # IO and config
 include("io.jl")
 include("output/envelope.jl")
@@ -98,9 +100,8 @@ const APP = build_app()
 """
     run_cli(args)::Cint
 
-Single entry shared by `main` (dev) and `julia_main` (compiled): dispatches and
-maps every failure to one clean stderr line and exit code 1. The full error
-taxonomy (typed classes, exit codes 2–6) lands in Phase 1 (P1-4).
+Single entry shared by `main` (dev) and `julia_main` (compiled). Exit codes
+(P1-4): 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal.
 """
 function run_cli(args::Vector{String})::Cint
     # Launch REPL if "repl" is the first argument
@@ -114,13 +115,20 @@ function run_cli(args::Vector{String})::Cint
         dispatch(app, args)
         return Cint(0)
     catch e
-        printstyled(stderr, "Error: "; bold=true, color=:red)
-        if e isa ParseError || e isa DispatchError
-            println(stderr, e.message)
-        else
+        if e isa CliError
+            printstyled(stderr, "Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
+            return Cint(exit_class(e))
+        elseif e isa ParseError || e isa DispatchError
+            printstyled(stderr, "Error: "; bold=true, color=:red)
+            println(stderr, e.message)
+            return Cint(2)  # usage
+        else
+            printstyled(stderr, "Error: "; bold=true, color=:red)
+            println(stderr, sprint(showerror, e))
+            println(stderr, "this is likely a bug — please report")
+            return Cint(1)
         end
-        return Cint(1)
     end
 end
 

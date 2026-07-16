@@ -39,7 +39,7 @@ Returns the path unchanged if valid; throws on suspicious paths.
 """
 function _validate_input_path(path::String)
     if contains(path, "..")
-        error("path traversal ('..') not allowed in file paths: $path")
+        throw(CliError("data/bad-path", "path traversal ('..') not allowed in file paths: $path"))
     end
     return path
 end
@@ -53,7 +53,7 @@ Returns the path unchanged if valid; throws on suspicious paths.
 function _validate_output_path(path::String)
     isempty(path) && return path
     if contains(path, "..")
-        error("path traversal ('..') not allowed in output paths: $path")
+        throw(CliError("data/bad-path", "path traversal ('..') not allowed in output paths: $path"))
     end
     return path
 end
@@ -70,9 +70,9 @@ function load_data(path::String)
         return DataFrame(ts.data, ts.varnames)
     end
     _validate_input_path(path)
-    isfile(path) || error("file not found: $path")
+    isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)
-    nrow(df) == 0 && error("empty dataset: $path")
+    nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
     return df
 end
 
@@ -91,7 +91,7 @@ Convert a DataFrame to a numeric matrix, selecting only numeric columns.
 """
 function df_to_matrix(df::DataFrame)
     numeric_cols = _numeric_column_names(df)
-    isempty(numeric_cols) && error("no numeric columns found in data")
+    isempty(numeric_cols) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
     mat = Matrix{Float64}(df[!, numeric_cols])
     return mat
 end
@@ -112,7 +112,7 @@ Normalize and validate an output format. Errors on anything not in table|csv|jso
 """
 function _parse_format(format::Union{String,Symbol})
     fmt = Symbol(lowercase(String(format)))
-    fmt in _VALID_FORMATS || error("unknown format '$(format)' (expected: table|csv|json)")
+    fmt in _VALID_FORMATS || throw(CliError("usage/bad-format", "unknown format '$(format)' (expected: table|csv|json)"))
     return fmt
 end
 

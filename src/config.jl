@@ -23,11 +23,12 @@ Load and validate a TOML configuration file.
 """
 function load_config(path::String)
     _validate_input_path(path)
-    isfile(path) || error("config file not found: $path")
+    isfile(path) || throw(CliError("config/file-not-found", "config file not found: $path"))
     try
         return TOML.parsefile(path)
     catch e
-        error("failed to parse config file '$path': $(sprint(showerror, e))")
+        e isa CliError && rethrow()
+        throw(CliError("config/malformed-toml", "failed to parse config file '$path': $(sprint(showerror, e))"))
     end
 end
 
@@ -227,7 +228,7 @@ Each parameter maps to {dist, a, b} (distribution name + 2 shape params).
 """
 function get_dsge_priors(config::Dict)
     priors_raw = get(config, "priors", Dict())
-    isempty(priors_raw) && error("TOML must have [priors] section with parameter distributions")
+    isempty(priors_raw) && throw(CliError("config/missing-key", "TOML must have [priors] section with parameter distributions"))
     result = Dict{String,Any}()
     for (param, spec) in priors_raw
         spec isa Dict || error("prior for '$param' must be a table with dist, a, b keys")
