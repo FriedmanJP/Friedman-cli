@@ -59,23 +59,46 @@ using PackageCompiler
 Pkg.activate(build_project_dir)
 
 # --- Step 3: Generate precompile script ---
+# Real handler paths (estimate/irf/test/filter/forecast + all formats), not just
+# --help (F45). No in-package PrecompileTools.@compile_workload (F46): that would
+# run on every dev Pkg.precompile; the sysimage script owns the heavy paths.
 precompile_script = joinpath(build_project_dir, "precompile_app.jl")
 open(precompile_script, "w") do io
     write(io, """
     using Friedman
-    app = Friedman.build_app()
+
+    # Deterministic fixture (no RNG — sysimage builds must be reproducible)
+    fixture = joinpath(@__DIR__, "precompile_fixture.csv")
+    open(fixture, "w") do f
+        println(f, "y1,y2,y3")
+        for t in 1:80
+            println(f, string(sin(t/3)) * "," * string(cos(t/4)) * "," *
+                       string(sin(t/5) + cos(t/7)))
+        end
+    end
+
+    app = Friedman.APP
+
+    # Help/metadata paths
     Friedman.dispatch(app, ["--help"])
-    Friedman.dispatch(app, ["estimate", "--help"])
-    Friedman.dispatch(app, ["test", "--help"])
-    Friedman.dispatch(app, ["irf", "--help"])
-    Friedman.dispatch(app, ["forecast", "--help"])
-    Friedman.dispatch(app, ["filter", "--help"])
-    Friedman.dispatch(app, ["data", "--help"])
-    Friedman.dispatch(app, ["dsge", "--help"])
-    Friedman.dispatch(app, ["did", "--help"])
-    Friedman.dispatch(app, ["spectral", "--help"])
-    Friedman.dispatch(app, ["nowcast", "--help"])
     Friedman.dispatch(app, ["--version"])
+    for cmd in ["estimate", "test", "irf", "forecast", "filter", "data",
+                "dsge", "did", "spectral", "nowcast"]
+        Friedman.dispatch(app, [cmd, "--help"])
+    end
+
+    # Real handler paths: estimation, IRF, unit root, filter, forecast,
+    # all three render formats. These dominate agent workloads.
+    outdir = mktempdir()
+    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1",
+                            "--format", "json"])
+    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1",
+                            "--format", "csv", "--output", joinpath(outdir, "o.csv")])
+    Friedman.dispatch(app, ["irf", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["test", "adf", fixture])
+    Friedman.dispatch(app, ["filter", "hp", fixture])
+    Friedman.dispatch(app, ["forecast", "var", fixture, "--lags", "1"])
     """)
 end
 
