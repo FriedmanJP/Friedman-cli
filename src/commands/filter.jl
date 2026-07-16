@@ -117,13 +117,13 @@ end
 
 function _print_variance_ratios(varnames::Vector{String}, cycles::Vector{Vector{Float64}},
                                  originals::Vector{Vector{Float64}})
-    println()
-    printstyled("Cycle Variance Ratios:\n"; bold=true)
+    _status()
+    _status_styled("Cycle Variance Ratios:\n"; bold=true)
     for (i, vname) in enumerate(varnames)
         total_var = var(originals[i])
         cycle_var = var(cycles[i])
         ratio = total_var > 0 ? cycle_var / total_var : 0.0
-        println("  $vname: $(round(ratio; digits=4))")
+        _status("  $vname: $(round(ratio; digits=4))")
     end
 end
 
@@ -138,8 +138,8 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
     T_obs, n = size(Y)
     col_idx = _parse_columns(columns, n)
 
-    println("HP Filter (λ=$(lambda)): $(length(col_idx)) variable(s), T=$T_obs")
-    println()
+    _status("HP Filter (λ=$(lambda)): $(length(col_idx)) variable(s), T=$T_obs")
+    _status()
 
     result_df = DataFrame()
     result_df.t = 1:T_obs
@@ -178,8 +178,8 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
     T_obs, n = size(Y)
     col_idx = _parse_columns(columns, n)
 
-    println("Hamilton Filter (h=$horizon, p=$lags): $(length(col_idx)) variable(s), T=$T_obs")
-    println()
+    _status("Hamilton Filter (h=$horizon, p=$lags): $(length(col_idx)) variable(s), T=$T_obs")
+    _status()
 
     result_df = DataFrame()
     cycles = Vector{Float64}[]
@@ -213,8 +213,8 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
 
     lost = isnothing(first_valid) ? 0 : first(first_valid) - 1
     if lost > 0
-        printstyled("Note: $lost initial observations lost due to filter requirements\n"; color=:yellow)
-        println()
+        _status_styled("Note: $lost initial observations lost due to filter requirements\n"; color=:yellow)
+        _status()
     end
 
     sel_names = [varnames[ci] for ci in col_idx]
@@ -237,8 +237,8 @@ function _filter_bn(; data::String, method::String="arima", p=nothing, q=nothing
 
     p_label = isnothing(p) ? "auto" : string(p)
     q_label = isnothing(q) ? "auto" : string(q)
-    println("Beveridge-Nelson Decomposition (method=$method, p=$p_label, q=$q_label): $(length(col_idx)) variable(s), T=$T_obs")
-    println()
+    _status("Beveridge-Nelson Decomposition (method=$method, p=$p_label, q=$q_label): $(length(col_idx)) variable(s), T=$T_obs")
+    _status()
 
     result_df = DataFrame()
     result_df.t = 1:T_obs
@@ -284,8 +284,8 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
     T_obs, n = size(Y)
     col_idx = _parse_columns(columns, n)
 
-    println("Baxter-King Filter (pl=$pl, pu=$pu, K=$K): $(length(col_idx)) variable(s), T=$T_obs")
-    println()
+    _status("Baxter-King Filter (pl=$pl, pu=$pu, K=$K): $(length(col_idx)) variable(s), T=$T_obs")
+    _status()
 
     result_df = DataFrame()
     cycles = Vector{Float64}[]
@@ -320,8 +320,8 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
     lost = isnothing(first_valid) ? 0 : first(first_valid) - 1
     total_lost = isnothing(first_valid) ? 0 : T_obs - length(first_valid)
     if total_lost > 0
-        printstyled("Note: $total_lost observations lost ($K leads/lags trimmed from each end)\n"; color=:yellow)
-        println()
+        _status_styled("Note: $total_lost observations lost ($K leads/lags trimmed from each end)\n"; color=:yellow)
+        _status()
     end
 
     sel_names = [varnames[ci] for ci in col_idx]
@@ -343,8 +343,8 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
     col_idx = _parse_columns(columns, n)
 
     stop_sym = Symbol(stopping)
-    println("Boosted HP Filter (λ=$(lambda), stopping=$stopping): $(length(col_idx)) variable(s), T=$T_obs")
-    println()
+    _status("Boosted HP Filter (λ=$(lambda), stopping=$stopping): $(length(col_idx)) variable(s), T=$T_obs")
+    _status()
 
     result_df = DataFrame()
     result_df.t = 1:T_obs
@@ -365,7 +365,7 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
         push!(cycles, c)
         push!(originals, y)
 
-        println("  $vname: $(res.iterations) iteration(s)")
+        _status("  $vname: $(res.iterations) iteration(s)")
     end
 
     sel_names = [varnames[ci] for ci in col_idx]

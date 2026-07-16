@@ -288,7 +288,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         cons = _load_dsge_constraints(constraints; spec=spec)
         if isempty(constraint_solver)
             # Default: OccBin path (backward compatible)
-            println("\nSolving with OccBin constraints...")
+            _status("\nSolving with OccBin constraints...")
             sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid)
             shocks = zeros(Float64, periods, spec.n_exog)
             shocks[1, 1] = 1.0
@@ -308,7 +308,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
             return
         else
             # New solver hierarchy path
-            println("\nSolving with constraint-solver=$constraint_solver...")
+            _status("\nSolving with constraint-solver=$constraint_solver...")
             sol = _solve_dsge(spec; method=method, order=order, degree=degree,
                               grid=grid, constraint_solver=constraint_solver)
         end
@@ -332,17 +332,17 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
     elseif sol isa MacroEconometricModels.PerturbationSolution
         n_s = length(sol.state_indices)
         n_c = length(sol.control_indices)
-        println("\n  State variables ($n_s): $(join([spec.varnames[i] for i in sol.state_indices], ", "))")
-        println("  Control variables ($n_c): $(join([spec.varnames[i] for i in sol.control_indices], ", "))")
+        _status("\n  State variables ($n_s): $(join([spec.varnames[i] for i in sol.state_indices], ", "))")
+        _status("  Control variables ($n_c): $(join([spec.varnames[i] for i in sol.control_indices], ", "))")
 
         gx_df = DataFrame(sol.gx, [spec.varnames[i] for i in sol.state_indices])
         insertcols!(gx_df, 1, :control => [spec.varnames[i] for i in sol.control_indices])
         output_result(gx_df; format=Symbol(format), output=output,
                       title="Perturbation Policy (gx, order=$order)")
     elseif sol isa MacroEconometricModels.ProjectionSolution
-        println("\n  Grid type: $(sol.grid_type), Degree: $(sol.degree)")
-        println("  Converged: $(sol.converged), Iterations: $(sol.iterations)")
-        printstyled("  Residual norm: $(round(sol.residual_norm; sigdigits=4))\n";
+        _status("\n  Grid type: $(sol.grid_type), Degree: $(sol.degree)")
+        _status("  Converged: $(sol.converged), Iterations: $(sol.iterations)")
+        _status_styled("  Residual norm: $(round(sol.residual_norm; sigdigits=4))\n";
                     color = sol.residual_norm < 1e-6 ? :green : :yellow)
 
         coef_df = DataFrame(sol.coefficients,
@@ -351,7 +351,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         output_result(coef_df; format=Symbol(format), output=output,
                       title="Projection Solution (degree=$(sol.degree), grid=$(sol.grid_type))")
     end
-    println()
+    _status()
 end
 
 function _dsge_steady_state(; model::String, constraints::String="",
@@ -387,7 +387,7 @@ function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
     spec = _load_dsge_model(model)
     sol = _solve_dsge(spec; method=method, order=order)
 
-    println("Simulating $(periods + burn) periods (burn-in=$burn)...")
+    _status("Simulating $(periods + burn) periods (burn-in=$burn)...")
 
     if seed > 0
         sim = simulate(sol, periods + burn; antithetic=antithetic, rng=Random.MersenneTwister(seed))
@@ -418,7 +418,7 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
     sol = _solve_dsge(spec; method=method, order=order)
 
     if !isempty(constraints)
-        println("\nComputing OccBin IRF...")
+        _status("\nComputing OccBin IRF...")
         cons = _load_dsge_constraints(constraints)
         ob_irf = occbin_irf(spec, cons, 1; shock_size=shock_size, horizon=horizon)
 
@@ -439,7 +439,7 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
         return
     end
 
-    println("\nComputing IRF: horizon=$horizon, shock_size=$shock_size")
+    _status("\nComputing IRF: horizon=$horizon, shock_size=$shock_size")
     irf_result = irf(sol, horizon; shock_size=shock_size, n_sim=n_sim)
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
@@ -469,7 +469,7 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
     spec = _load_dsge_model(model)
     sol = _solve_dsge(spec; method=method, order=order)
 
-    println("\nComputing FEVD: horizon=$horizon")
+    _status("\nComputing FEVD: horizon=$horizon")
     fevd_result = fevd(sol, horizon)
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
@@ -507,10 +507,10 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
 
     isempty(param_names) && error("--params is required (comma-separated parameter names)")
 
-    println("Estimating DSGE model: method=$method, params=$(join(param_names, ", "))")
-    println("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars")
-    println("  Solver: $solve_method, order=$solve_order")
-    println()
+    _status("Estimating DSGE model: method=$method, params=$(join(param_names, ", "))")
+    _status("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars")
+    _status("  Solver: $solve_method, order=$solve_order")
+    _status()
 
     est = estimate_dsge(spec, Y, param_names;
                         method=Symbol(method), solve_method=Symbol(solve_method),
@@ -532,10 +532,10 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
     output_result(est_df; format=Symbol(format), output=output,
                   title="DSGE Estimation ($method)")
 
-    println()
-    printstyled("  J-statistic: $(round(est.J_stat; digits=4))\n"; color=:cyan)
-    printstyled("  J p-value:   $(round(est.J_pvalue; digits=4))\n"; color=:cyan)
-    printstyled("  Converged:   $(est.converged)\n";
+    _status()
+    _status_styled("  J-statistic: $(round(est.J_stat; digits=4))\n"; color=:cyan)
+    _status_styled("  J p-value:   $(round(est.J_pvalue; digits=4))\n"; color=:cyan)
+    _status_styled("  Converged:   $(est.converged)\n";
                 color = est.converged ? :green : :red)
 end
 
@@ -554,9 +554,9 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     shock_df = load_data(shocks)
     shock_mat = df_to_matrix(shock_df)
 
-    println("Computing perfect foresight transition path...")
-    println("  Shock periods: $(size(shock_mat, 1)), transition periods: $periods")
-    println()
+    _status("Computing perfect foresight transition path...")
+    _status("  Shock periods: $(size(shock_mat, 1)), transition periods: $periods")
+    _status()
 
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
     cons_kw = if !isempty(constraints)
@@ -613,12 +613,12 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
-    println("Bayesian DSGE Estimation:")
-    println("  Sampler: $sampler")
-    println("  Parameters: $(join(param_names, ", "))")
-    println("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars")
-    println("  Solver: $solver" * (order > 1 ? ", order=$order" : ""))
-    println()
+    _status("Bayesian DSGE Estimation:")
+    _status("  Sampler: $sampler")
+    _status("  Parameters: $(join(param_names, ", "))")
+    _status("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars")
+    _status("  Solver: $solver" * (order > 1 ? ", order=$order" : ""))
+    _status()
 
     solver_obj_kw = isempty(constraint_solver) ? (;) : (; solver_obj=Symbol(constraint_solver))
     result = estimate_dsge_bayes(spec, Y, theta0;
@@ -659,10 +659,10 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
     output_result(est_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Posterior ($sampler)")
 
-    println()
-    printstyled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
-    printstyled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
-    printstyled("  Method: $(result.method)\n"; color=:cyan)
+    _status()
+    _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
+    _status_styled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
+    _status_styled("  Method: $(result.method)\n"; color=:cyan)
 end
 
 function _dsge_bayes_irf(; model::String, data::String="", params::String="",
@@ -682,7 +682,7 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
-    println("Computing Bayesian DSGE IRF: horizon=$horizon")
+    _status("Computing Bayesian DSGE IRF: horizon=$horizon")
     irf_result = irf(result, horizon; n_draws=n_draws,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
@@ -722,7 +722,7 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
-    println("Computing Bayesian DSGE FEVD: horizon=$horizon")
+    _status("Computing Bayesian DSGE FEVD: horizon=$horizon")
     fevd_result = fevd(result, horizon; n_draws=n_draws,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
@@ -763,7 +763,7 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
-    println("Simulating from Bayesian DSGE posterior: T=$periods")
+    _status("Simulating from Bayesian DSGE posterior: T=$periods")
     sim = simulate(result, periods; n_draws=n_draws,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
@@ -823,9 +823,9 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
                   output=_per_var_output_path(output, "prior_posterior"),
                   title="Prior vs Posterior Comparison")
 
-    println()
-    printstyled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
-    printstyled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
+    _status()
+    _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
+    _status_styled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
 end
 
 function _dsge_bayes_compare(; model::String, data::String="", params::String="",
@@ -842,12 +842,12 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     isempty(params2) && error("--params2 is required for model comparison")
     isempty(priors2) && error("--priors2 is required for model comparison")
 
-    println("Estimating Model 1...")
+    _status("Estimating Model 1...")
     r1 = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver)
 
-    println("Estimating Model 2...")
+    _status("Estimating Model 2...")
     r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
         priors=priors2, sampler, n_smc, n_particles, n_draws, burnin,
         ess_target, observables, solver, order, delayed_acceptance, constraint_solver)
@@ -864,13 +864,13 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     output_result(comp_df; format=Symbol(format), output=output,
                   title="Bayesian Model Comparison")
 
-    println()
-    printstyled("  Bayes factor (M1 vs M2): $(round(bf; digits=4))\n"; color=:cyan)
-    printstyled("  Log Bayes factor: $(round(log(bf); digits=4))\n"; color=:cyan)
+    _status()
+    _status_styled("  Bayes factor (M1 vs M2): $(round(bf; digits=4))\n"; color=:cyan)
+    _status_styled("  Log Bayes factor: $(round(log(bf); digits=4))\n"; color=:cyan)
     if bf > 1
-        printstyled("  Evidence favors Model 1\n"; color=:green)
+        _status_styled("  Evidence favors Model 1\n"; color=:green)
     else
-        printstyled("  Evidence favors Model 2\n"; color=:yellow)
+        _status_styled("  Evidence favors Model 2\n"; color=:yellow)
     end
 end
 
@@ -889,7 +889,7 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver)
 
-    println("Generating posterior predictive simulations: n=$n_sim, T=$periods")
+    _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     pp = posterior_predictive(result, n_sim; T_periods=periods)
 
     _maybe_plot(pp; plot=plot, plot_save=plot_save)
@@ -923,11 +923,11 @@ function _dsge_hd(; model::String, data::String="", observables::String="",
     Y = df_to_matrix(df)
     obs_syms = Symbol[Symbol(strip(s)) for s in split(observables, ",")]
 
-    println("DSGE Historical Decomposition")
-    println("  Model: $model")
-    println("  Observations: $(size(Y, 1)), Observable variables: $(length(obs_syms))")
-    println("  States: $states")
-    println()
+    _status("DSGE Historical Decomposition")
+    _status("  Model: $model")
+    _status("  Observations: $(size(Y, 1)), Observable variables: $(length(obs_syms))")
+    _status("  States: $states")
+    _status()
 
     me = if isempty(measurement_error)
         nothing
@@ -941,7 +941,7 @@ function _dsge_hd(; model::String, data::String="", observables::String="",
         states=Symbol(states), measurement_error=me)
 
     ok = verify_decomposition(hd)
-    ok && printstyled("  Decomposition verified\n"; color=:green)
+    ok && _status_styled("  Decomposition verified\n"; color=:green)
 
     for (si, sname) in enumerate(hd.shock_names)
         contrib = hd.contributions[:, :, si]
@@ -980,8 +980,8 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
     obs_syms = Symbol[Symbol(strip(s)) for s in split(observables, ",")]
     q_levels = [parse(Float64, strip(s)) for s in split(quantiles, ",")]
 
-    println("Historical Decomposition from Bayesian DSGE posterior")
-    println()
+    _status("Historical Decomposition from Bayesian DSGE posterior")
+    _status()
 
     hd = historical_decomposition(bd, Y, obs_syms;
         mode_only=mode_only, n_draws=n_hd_draws, quantiles=q_levels)

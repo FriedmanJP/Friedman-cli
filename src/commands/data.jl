@@ -177,9 +177,9 @@ function _data_load(; name::String, output::String="", format::String="table",
             if dates in names(df)
                 date_values = string.(df[!, dates])
                 set_dates!(ts, date_values)
-                printstyled("  Date labels set from column: $dates\n"; color=:cyan)
+                _status_styled("  Date labels set from column: $dates\n"; color=:cyan)
             else
-                printstyled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
+                _status_styled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
             end
         end
 
@@ -187,8 +187,8 @@ function _data_load(; name::String, output::String="", format::String="table",
         _validate_output_path(out_path)
         out_df = DataFrame(Y, vn)
         CSV.write(out_path, out_df)
-        println("Loaded $(basename(path)): $n_obs × $n_vars")
-        println("Written to $out_path")
+        _status("Loaded $(basename(path)): $n_obs × $n_vars")
+        _status("Written to $out_path")
         return
     end
 
@@ -200,7 +200,7 @@ function _data_load(; name::String, output::String="", format::String="table",
         vn = varnames(dataset)
 
         if !isempty(country)
-            println("Loading $name: filtering for country=$country")
+            _status("Loading $name: filtering for country=$country")
         end
 
         out_path = isempty(output) ? "$name.csv" : output
@@ -221,8 +221,8 @@ function _data_load(; name::String, output::String="", format::String="table",
         end
 
         CSV.write(out_path, df)
-        println("Loaded $name: $n_obs observations × $n_vars variables (Panel, $(dataset.n_groups) groups)")
-        println("Written to $out_path")
+        _status("Loaded $name: $n_obs observations × $n_vars variables (Panel, $(dataset.n_groups) groups)")
+        _status("Written to $out_path")
     else
         # TimeSeriesData
         data_mat = to_matrix(dataset)
@@ -231,7 +231,7 @@ function _data_load(; name::String, output::String="", format::String="table",
         if transform
             dataset = apply_tcode(dataset, dataset.tcode)
             data_mat = to_matrix(dataset)
-            println("Applied FRED transformation codes")
+            _status("Applied FRED transformation codes")
         end
 
         if !isempty(vars)
@@ -251,9 +251,9 @@ function _data_load(; name::String, output::String="", format::String="table",
             if dates in vn
                 date_values = string.(data_mat[:, findfirst(==(dates), vn)])
                 set_dates!(dataset, date_values)
-                printstyled("  Date labels set from column: $dates\n"; color=:cyan)
+                _status_styled("  Date labels set from column: $dates\n"; color=:cyan)
             else
-                printstyled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
+                _status_styled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
             end
         end
 
@@ -263,8 +263,8 @@ function _data_load(; name::String, output::String="", format::String="table",
         df = DataFrame(data_mat, vn)
         CSV.write(out_path, df)
         freq_str = string(frequency(dataset))
-        println("Loaded $name: $n_obs × $n_vars ($freq_str)")
-        println("Written to $out_path")
+        _status("Loaded $name: $n_obs × $n_vars ($freq_str)")
+        _status("Written to $out_path")
     end
 end
 
@@ -291,8 +291,8 @@ function _data_describe(; data::String, format::String="table", output::String="
         kurtosis=round.(summary.kurtosis; digits=4),
     )
 
-    println("Data Summary: $n_obs observations × $n_vars variables")
-    println()
+    _status("Data Summary: $n_obs observations × $n_vars variables")
+    _status()
     output_result(result_df; format=Symbol(format), output=output, title="Descriptive Statistics")
 end
 
@@ -312,18 +312,18 @@ function _data_diagnose(; data::String, format::String="table", output::String="
         is_constant=diag.is_constant,
     )
 
-    println("Data Diagnostics: $n_obs observations × $n_vars variables")
-    println()
+    _status("Data Diagnostics: $n_obs observations × $n_vars variables")
+    _status()
     output_result(result_df; format=Symbol(format), output=output, title="Data Diagnostics")
 
-    println()
+    _status()
     if diag.is_clean
-        printstyled("Data is clean: no issues found\n"; color=:green)
+        _status_styled("Data is clean: no issues found\n"; color=:green)
     else
         n_issues = count(diag.n_nan .> 0) + count(diag.n_inf .> 0) + count(diag.is_constant)
-        printstyled("Found issues in $n_issues variable(s)\n"; color=:yellow)
+        _status_styled("Found issues in $n_issues variable(s)\n"; color=:yellow)
         if diag.is_short
-            printstyled("Warning: series is short ($n_obs observations)\n"; color=:yellow)
+            _status_styled("Warning: series is short ($n_obs observations)\n"; color=:yellow)
         end
     end
 end
@@ -350,8 +350,8 @@ function _data_fix(; data::String, method::String="listwise", output::String="",
 
     fixed_df = DataFrame(fixed_mat, vn)
     CSV.write(out_path, fixed_df)
-    println("Fixed data ($method): $n_obs observations × $n_vars variables")
-    println("Written to $out_path")
+    _status("Fixed data ($method): $n_obs observations × $n_vars variables")
+    _status("Written to $out_path")
 end
 
 function _data_transform(; data::String, tcodes::String="", output::String="", format::String="table")
@@ -382,13 +382,13 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
     trans_df = DataFrame(trans_mat, vn)
     CSV.write(out_path, trans_df)
 
-    println("Transformed $n_vars variable(s):")
+    _status("Transformed $n_vars variable(s):")
     for (i, vname) in enumerate(vn)
         code = codes[i]
         label = get(tcode_names, code, "code=$code")
-        println("  $vname: tcode=$code ($label)")
+        _status("  $vname: tcode=$code ($label)")
     end
-    println("Written to $out_path")
+    _status("Written to $out_path")
 end
 
 function _data_filter(; data::String, method::String="hp", component::String="cycle",
@@ -404,8 +404,8 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
     col_idx = _parse_columns(columns, n)
 
     method_sym = Symbol(method)
-    println("Data Filter ($method, component=$component): $(length(col_idx)) variable(s), T=$T_obs")
-    println()
+    _status("Data Filter ($method, component=$component): $(length(col_idx)) variable(s), T=$T_obs")
+    _status()
 
     result_df = DataFrame()
     first_done = false
@@ -471,10 +471,10 @@ function _data_validate(; data::String, model::String="", format::String="table"
 
     try
         validate_for_model(tsd, Symbol(model))
-        printstyled("Data is valid for $model estimation ($n_vars variable(s), $n_obs observations)\n"; color=:green)
+        _status_styled("Data is valid for $model estimation ($n_vars variable(s), $n_obs observations)\n"; color=:green)
     catch e
-        printstyled("Data validation failed for $model:\n"; color=:red)
-        println("  ", e.msg)
+        _status_styled("Data validation failed for $model:\n"; color=:red)
+        _status("  ", e.msg)
     end
 end
 
@@ -484,8 +484,8 @@ function _data_balance(; data::String, method::String="dfm", factors::Int=3,
     Y = df_to_matrix(df)
     vn = variable_names(df)
 
-    println("Balancing panel via $(method): $(length(vn)) variables, T=$(size(Y, 1))")
-    println()
+    _status("Balancing panel via $(method): $(length(vn)) variables, T=$(size(Y, 1))")
+    _status()
 
     ts = TimeSeriesData(Y; varnames=vn)
     balanced = balance_panel(ts; method=Symbol(method), r=factors, p=lags)
@@ -508,9 +508,9 @@ function _data_dropna(; data::String, vars::String="",
     cleaned = dropna(ts; vars=var_list)
     n_after = size(cleaned.data, 1)
 
-    println("Drop NA: $data")
-    println("  Rows before: $n_before, after: $n_after, dropped: $(n_before - n_after)")
-    println()
+    _status("Drop NA: $data")
+    _status("  Rows before: $n_before, after: $n_after, dropped: $(n_before - n_after)")
+    _status()
 
     result_df = DataFrame(cleaned.data, cleaned.varnames)
     output_result(result_df; format=Symbol(format), output=output, title="Cleaned Data")
@@ -539,9 +539,9 @@ function _data_keeprows(; data::String, rows::String="",
 
     filtered = keeprows(ts, indices)
 
-    println("Keep Rows: $data")
-    println("  Selected $(length(indices)) of $n_total rows")
-    println()
+    _status("Keep Rows: $data")
+    _status("  Selected $(length(indices)) of $n_total rows")
+    _status()
 
     result_df = DataFrame(filtered.data, filtered.varnames)
     output_result(result_df; format=Symbol(format), output=output, title="Filtered Data")

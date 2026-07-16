@@ -258,8 +258,8 @@ function _residuals_var(; data::String="", lags=nothing,
         varnames = model.varnames
         p = model.p
     end
-    println("Computing VAR($p) residuals: $(length(varnames)) variables")
-    println()
+    _status("Computing VAR($p) residuals: $(length(varnames)) variables")
+    _status()
 
     resid = residuals(model)
     T_eff = size(resid, 1)
@@ -289,9 +289,9 @@ function _residuals_bvar(; data::String="", lags::Int=4, draws::Int=2000,
         Y = post.Y
     end
 
-    println("Computing BVAR($p) residuals (posterior mean)")
-    println("  Sampler: $sampler, Draws: $draws")
-    println()
+    _status("Computing BVAR($p) residuals (posterior mean)")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
 
     var_model = posterior_mean_model(post; data=Y)
     resid = residuals(var_model)
@@ -319,17 +319,17 @@ function _residuals_arima(; data::String="", column::Int=1, p=nothing, d::Int=0,
         safe_method = method_sym == :css_mle ? :mle : method_sym
 
         model = if isnothing(p) || auto
-            println("Auto ARIMA residuals: variable=$vname, observations=$(length(y))")
-            println()
+            _status("Auto ARIMA residuals: variable=$vname, observations=$(length(y))")
+            _status()
             m = auto_arima(y; method=safe_method)
             label = _model_label(ar_order(m), diff_order(m), ma_order(m))
-            printstyled("Selected model: $label\n"; bold=true)
-            println()
+            _status_styled("Selected model: $label\n"; bold=true)
+            _status()
             m
         else
             label = _model_label(p, d, q)
-            println("$label residuals: variable=$vname")
-            println()
+            _status("$label residuals: variable=$vname")
+            _status()
             _estimate_arima_model(y, p, d, q; method=method_sym)
         end
     end
@@ -365,8 +365,8 @@ function _residuals_vecm(; data::String="", lags::Int=2, rank::String="auto",
     end
     r = cointegrating_rank(vecm)
 
-    println("Computing VECM residuals: rank=$r, lags=$p")
-    println()
+    _status("Computing VECM residuals: rank=$r, lags=$p")
+    _status()
 
     var_model = to_var(vecm)
     resid = residuals(var_model)
@@ -405,8 +405,8 @@ function _residuals_static(; data::String="", nfactors=nothing,
     resid = residuals(fm)
     T = size(resid, 1)
 
-    println("Static factor model residuals: $r factors, idiosyncratic component (T=$T)")
-    println()
+    _status("Static factor model residuals: $r factors, idiosyncratic component (T=$T)")
+    _status()
 
     res_df = DataFrame()
     res_df.t = 1:T
@@ -442,8 +442,8 @@ function _residuals_dynamic(; data::String="", nfactors=nothing, factor_lags::In
     resid = residuals(fm)
     T = size(resid, 1)
 
-    println("Dynamic factor model residuals: $r factors, p=$factor_lags, idiosyncratic component (T=$T)")
-    println()
+    _status("Dynamic factor model residuals: $r factors, p=$factor_lags, idiosyncratic component (T=$T)")
+    _status()
 
     res_df = DataFrame()
     res_df.t = 1:T
@@ -478,8 +478,8 @@ function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothi
     resid = residuals(gm)
     T = size(resid, 1)
 
-    println("GDFM residuals: q=$q dynamic factors, idiosyncratic component (T=$T)")
-    println()
+    _status("GDFM residuals: q=$q dynamic factors, idiosyncratic component (T=$T)")
+    _status()
 
     res_df = DataFrame()
     res_df.t = 1:T
@@ -504,8 +504,8 @@ function _residuals_arch(; data::String="", column::Int=1, q::Int=1,
     end
     resid = residuals(model)
 
-    println("ARCH($q) standardized residuals: variable=$vname")
-    println()
+    _status("ARCH($q) standardized residuals: variable=$vname")
+    _status()
 
     res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
@@ -525,8 +525,8 @@ function _residuals_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     end
     resid = residuals(model)
 
-    println("GARCH($p,$q) standardized residuals: variable=$vname")
-    println()
+    _status("GARCH($p,$q) standardized residuals: variable=$vname")
+    _status()
 
     res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
@@ -546,8 +546,8 @@ function _residuals_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     end
     resid = residuals(model)
 
-    println("EGARCH($p,$q) standardized residuals: variable=$vname")
-    println()
+    _status("EGARCH($p,$q) standardized residuals: variable=$vname")
+    _status()
 
     res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
@@ -567,8 +567,8 @@ function _residuals_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int
     end
     resid = residuals(model)
 
-    println("GJR-GARCH($p,$q) standardized residuals: variable=$vname")
-    println()
+    _status("GJR-GARCH($p,$q) standardized residuals: variable=$vname")
+    _status()
 
     res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
@@ -588,8 +588,8 @@ function _residuals_sv(; data::String="", column::Int=1, draws::Int=5000,
     end
     resid = residuals(model)
 
-    println("SV standardized residuals: variable=$vname, draws=$draws")
-    println()
+    _status("SV standardized residuals: variable=$vname, draws=$draws")
+    _status()
 
     res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
@@ -610,8 +610,8 @@ function _residuals_favar(; data::String="", factors=nothing, lags::Int=2,
     end
     var_model = to_var(favar)
 
-    println("FAVAR Residuals")
-    println()
+    _status("FAVAR Residuals")
+    _status()
 
     resid = residuals(var_model)
     T_eff = size(resid, 1)
@@ -644,8 +644,8 @@ function _residuals_reg(; data::String="", dep::String="", cov_type::String="hc1
         dep_name = "y"
         wls_tag = "OLS"
     end
-    println("$wls_tag Residuals: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("$wls_tag Residuals: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -667,8 +667,8 @@ function _residuals_logit(; data::String="", dep::String="", cov_type::String="h
         xcols = model.varnames
         dep_name = "y"
     end
-    println("Logit Residuals: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("Logit Residuals: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -690,8 +690,8 @@ function _residuals_probit(; data::String="", dep::String="", cov_type::String="
         xcols = model.varnames
         dep_name = "y"
     end
-    println("Probit Residuals: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("Probit Residuals: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -711,8 +711,8 @@ function _residuals_preg(; data::String="", dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel Regression Residuals ($method): $dep")
-    println()
+    _status("Panel Regression Residuals ($method): $dep")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -736,8 +736,8 @@ function _residuals_piv(; data::String="", dep::String="", exog::String="",
     model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
         instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel IV Residuals ($method): $dep")
-    println()
+    _status("Panel IV Residuals ($method): $dep")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -756,8 +756,8 @@ function _residuals_plogit(; data::String="", dep::String="", indep::String="",
     model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel Logit Residuals ($method): $dep")
-    println()
+    _status("Panel Logit Residuals ($method): $dep")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -776,8 +776,8 @@ function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
     model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel Probit Residuals ($method): $dep")
-    println()
+    _status("Panel Probit Residuals ($method): $dep")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -796,8 +796,8 @@ function _residuals_ologit(; data::String="", dep::String="", cov_type::String="
 
     model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
-    println("Ordered Logit Residuals: $dep_name")
-    println()
+    _status("Ordered Logit Residuals: $dep_name")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -814,8 +814,8 @@ function _residuals_oprobit(; data::String="", dep::String="", cov_type::String=
 
     model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
-    println("Ordered Probit Residuals: $dep_name")
-    println()
+    _status("Ordered Probit Residuals: $dep_name")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
@@ -831,8 +831,8 @@ function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="
 
     model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
 
-    println("Multinomial Logit Residuals: $dep_name")
-    println()
+    _status("Multinomial Logit Residuals: $dep_name")
+    _status()
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))

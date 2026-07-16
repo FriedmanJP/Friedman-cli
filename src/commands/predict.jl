@@ -273,8 +273,8 @@ function _predict_var(; data::String="", lags=nothing,
         varnames = model.varnames
         p = model.p
     end
-    println("Computing VAR($p) in-sample predictions: $(length(varnames)) variables")
-    println()
+    _status("Computing VAR($p) in-sample predictions: $(length(varnames)) variables")
+    _status()
 
     fitted = predict(model)
     T_eff = size(fitted, 1)
@@ -304,9 +304,9 @@ function _predict_bvar(; data::String="", lags::Int=4, draws::Int=2000,
         Y = post.Y
     end
 
-    println("Computing BVAR($p) in-sample predictions (posterior mean)")
-    println("  Sampler: $sampler, Draws: $draws")
-    println()
+    _status("Computing BVAR($p) in-sample predictions (posterior mean)")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
 
     var_model = posterior_mean_model(post; data=Y)
     fitted = predict(var_model)
@@ -334,17 +334,17 @@ function _predict_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q
         safe_method = method_sym == :css_mle ? :mle : method_sym
 
         model = if isnothing(p) || auto
-            println("Auto ARIMA predict: variable=$vname, observations=$(length(y))")
-            println()
+            _status("Auto ARIMA predict: variable=$vname, observations=$(length(y))")
+            _status()
             m = auto_arima(y; method=safe_method)
             label = _model_label(ar_order(m), diff_order(m), ma_order(m))
-            printstyled("Selected model: $label\n"; bold=true)
-            println()
+            _status_styled("Selected model: $label\n"; bold=true)
+            _status()
             m
         else
             label = _model_label(p, d, q)
-            println("$label predict: variable=$vname")
-            println()
+            _status("$label predict: variable=$vname")
+            _status()
             _estimate_arima_model(y, p, d, q; method=method_sym)
         end
     end
@@ -380,8 +380,8 @@ function _predict_vecm(; data::String="", lags::Int=2, rank::String="auto",
     end
     r = cointegrating_rank(vecm)
 
-    println("Computing VECM in-sample predictions: rank=$r, lags=$p")
-    println()
+    _status("Computing VECM in-sample predictions: rank=$r, lags=$p")
+    _status()
 
     var_model = to_var(vecm)
     fitted = predict(var_model)
@@ -420,8 +420,8 @@ function _predict_static(; data::String="", nfactors=nothing,
     fitted = predict(fm)
     T = size(fitted, 1)
 
-    println("Static factor model: $r factors, common component (T=$T)")
-    println()
+    _status("Static factor model: $r factors, common component (T=$T)")
+    _status()
 
     pred_df = DataFrame()
     pred_df.t = 1:T
@@ -457,8 +457,8 @@ function _predict_dynamic(; data::String="", nfactors=nothing, factor_lags::Int=
     fitted = predict(fm)
     T = size(fitted, 1)
 
-    println("Dynamic factor model: $r factors, p=$factor_lags, common component (T=$T)")
-    println()
+    _status("Dynamic factor model: $r factors, p=$factor_lags, common component (T=$T)")
+    _status()
 
     pred_df = DataFrame()
     pred_df.t = 1:T
@@ -493,8 +493,8 @@ function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing
     fitted = predict(gm)
     T = size(fitted, 1)
 
-    println("GDFM: q=$q dynamic factors, common component (T=$T)")
-    println()
+    _status("GDFM: q=$q dynamic factors, common component (T=$T)")
+    _status()
 
     pred_df = DataFrame()
     pred_df.t = 1:T
@@ -519,8 +519,8 @@ function _predict_arch(; data::String="", column::Int=1, q::Int=1,
     end
     cond_var = predict(model)
 
-    println("ARCH($q) conditional variance: variable=$vname")
-    println()
+    _status("ARCH($q) conditional variance: variable=$vname")
+    _status()
 
     pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
                         volatility=round.(sqrt.(cond_var); digits=6))
@@ -541,8 +541,8 @@ function _predict_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     end
     cond_var = predict(model)
 
-    println("GARCH($p,$q) conditional variance: variable=$vname")
-    println()
+    _status("GARCH($p,$q) conditional variance: variable=$vname")
+    _status()
 
     pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
                         volatility=round.(sqrt.(cond_var); digits=6))
@@ -563,8 +563,8 @@ function _predict_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     end
     cond_var = predict(model)
 
-    println("EGARCH($p,$q) conditional variance: variable=$vname")
-    println()
+    _status("EGARCH($p,$q) conditional variance: variable=$vname")
+    _status()
 
     pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
                         volatility=round.(sqrt.(cond_var); digits=6))
@@ -585,8 +585,8 @@ function _predict_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1
     end
     cond_var = predict(model)
 
-    println("GJR-GARCH($p,$q) conditional variance: variable=$vname")
-    println()
+    _status("GJR-GARCH($p,$q) conditional variance: variable=$vname")
+    _status()
 
     pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
                         volatility=round.(sqrt.(cond_var); digits=6))
@@ -607,8 +607,8 @@ function _predict_sv(; data::String="", column::Int=1, draws::Int=5000,
     end
     cond_var = predict(model)
 
-    println("SV posterior mean volatility: variable=$vname, draws=$draws")
-    println()
+    _status("SV posterior mean volatility: variable=$vname, draws=$draws")
+    _status()
 
     pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
                         volatility=round.(sqrt.(cond_var); digits=6))
@@ -630,8 +630,8 @@ function _predict_favar(; data::String="", factors=nothing, lags::Int=2,
     end
     var_model = to_var(favar)
 
-    println("FAVAR In-Sample Prediction")
-    println()
+    _status("FAVAR In-Sample Prediction")
+    _status()
 
     fitted = predict(var_model)
     T_eff = size(fitted, 1)
@@ -664,8 +664,8 @@ function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
         dep_name = "y"
         wls_tag = "OLS"
     end
-    println("$wls_tag Fitted Values: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("$wls_tag Fitted Values: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
@@ -705,13 +705,13 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
                       title="Odds Ratios (Logit)")
     elseif classification_table
         ct = MacroEconometricModels.classification_table(model; threshold=threshold)
-        println("Classification Table (threshold=$threshold):")
+        _status("Classification Table (threshold=$threshold):")
         for (k, v) in sort(collect(ct))
-            println("  $k: $v")
+            _status("  $k: $v")
         end
     else
-        println("Logit Fitted Probabilities: $dep_name")
-        println()
+        _status("Logit Fitted Probabilities: $dep_name")
+        _status()
         fitted = predict(model)
         pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
         output_result(pred_df; format=Symbol(format), output=output,
@@ -746,13 +746,13 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
                       title="Average Marginal Effects (Probit)")
     elseif classification_table
         ct = MacroEconometricModels.classification_table(model; threshold=threshold)
-        println("Classification Table (threshold=$threshold):")
+        _status("Classification Table (threshold=$threshold):")
         for (k, v) in sort(collect(ct))
-            println("  $k: $v")
+            _status("  $k: $v")
         end
     else
-        println("Probit Fitted Probabilities: $dep_name")
-        println()
+        _status("Probit Fitted Probabilities: $dep_name")
+        _status()
         fitted = predict(model)
         pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
         output_result(pred_df; format=Symbol(format), output=output,
@@ -773,8 +773,8 @@ function _predict_preg(; data::String, dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel Regression Fitted Values ($method): $dep")
-    println()
+    _status("Panel Regression Fitted Values ($method): $dep")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
@@ -798,8 +798,8 @@ function _predict_piv(; data::String, dep::String="", exog::String="",
     model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
         instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel IV Fitted Values ($method): $dep")
-    println()
+    _status("Panel IV Fitted Values ($method): $dep")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
@@ -818,8 +818,8 @@ function _predict_plogit(; data::String, dep::String="", indep::String="",
     model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel Logit Fitted Probabilities ($method): $dep")
-    println()
+    _status("Panel Logit Fitted Probabilities ($method): $dep")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
@@ -838,8 +838,8 @@ function _predict_pprobit(; data::String, dep::String="", indep::String="",
     model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    println("Panel Probit Fitted Probabilities ($method): $dep")
-    println()
+    _status("Panel Probit Fitted Probabilities ($method): $dep")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
@@ -858,8 +858,8 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
 
     model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
-    println("Ordered Logit Predicted Probabilities: $dep_name")
-    println()
+    _status("Ordered Logit Predicted Probabilities: $dep_name")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
@@ -876,8 +876,8 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
 
     model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
-    println("Ordered Probit Predicted Probabilities: $dep_name")
-    println()
+    _status("Ordered Probit Predicted Probabilities: $dep_name")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
@@ -892,8 +892,8 @@ function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ol
 
     model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
 
-    println("Multinomial Logit Predicted Probabilities: $dep_name")
-    println()
+    _status("Multinomial Logit Predicted Probabilities: $dep_name")
+    _status()
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))

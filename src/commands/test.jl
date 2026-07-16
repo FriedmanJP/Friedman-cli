@@ -575,8 +575,8 @@ function _test_adf(; data::String, column::Int=1, max_lags=nothing,
     lags_arg = isnothing(max_lags) ? :aic : max_lags
     regression = to_regression_symbol(trend)
 
-    println("ADF Test: variable=$vname, observations=$(length(y)), trend=$trend")
-    println()
+    _status("ADF Test: variable=$vname, observations=$(length(y)), trend=$trend")
+    _status()
 
     result = adf_test(y; lags=lags_arg, regression=regression)
 
@@ -599,8 +599,8 @@ function _test_kpss(; data::String, column::Int=1, trend::String="constant",
 
     regression = to_regression_symbol(trend)
 
-    println("KPSS Test: variable=$vname, observations=$(length(y)), trend=$trend")
-    println()
+    _status("KPSS Test: variable=$vname, observations=$(length(y)), trend=$trend")
+    _status()
 
     result = kpss_test(y; regression=regression)
 
@@ -612,11 +612,11 @@ function _test_kpss(; data::String, column::Int=1, trend::String="constant",
 
     # KPSS: reversed interpretation (H0 = stationarity)
     pval = hasproperty(result, :pvalue) ? result.pvalue : 1.0
-    println()
+    _status()
     if pval < 0.05
-        printstyled("-> Reject H0 (stationarity) at 5% -- series appears non-stationary\n"; color=:yellow)
+        _status_styled("-> Reject H0 (stationarity) at 5% -- series appears non-stationary\n"; color=:yellow)
     else
-        printstyled("-> Cannot reject H0 (stationarity) -- series appears stationary\n"; color=:green)
+        _status_styled("-> Cannot reject H0 (stationarity) -- series appears stationary\n"; color=:green)
     end
 end
 
@@ -625,8 +625,8 @@ function _test_pp(; data::String, column::Int=1, trend::String="constant",
     y, vname = load_univariate_series(data, column)
     regression = to_regression_symbol(trend)
 
-    println("Phillips-Perron Test: variable=$vname, observations=$(length(y)), trend=$trend")
-    println()
+    _status("Phillips-Perron Test: variable=$vname, observations=$(length(y)), trend=$trend")
+    _status()
 
     result = pp_test(y; regression=regression)
 
@@ -647,8 +647,8 @@ function _test_za(; data::String, column::Int=1, trend::String="both",
     y, vname = load_univariate_series(data, column)
     regression = to_regression_symbol(trend)
 
-    println("Zivot-Andrews Test: variable=$vname, observations=$(length(y)), model=$trend")
-    println()
+    _status("Zivot-Andrews Test: variable=$vname, observations=$(length(y)), model=$trend")
+    _status()
 
     result = za_test(y; regression=regression, trim=trim)
 
@@ -659,8 +659,8 @@ function _test_za(; data::String, column::Int=1, trend::String="both",
 
     output_kv(pairs; format=format, output=output, title="Zivot-Andrews Test: $vname")
 
-    println()
-    println("Estimated structural break at observation $(result.break_index)")
+    _status()
+    _status("Estimated structural break at observation $(result.break_index)")
 end
 
 function _test_np(; data::String, column::Int=1, trend::String="constant",
@@ -668,8 +668,8 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
     y, vname = load_univariate_series(data, column)
     regression = to_regression_symbol(trend)
 
-    println("Ng-Perron Test: variable=$vname, observations=$(length(y)), trend=$trend")
-    println()
+    _status("Ng-Perron Test: variable=$vname, observations=$(length(y)), trend=$trend")
+    _status()
 
     result = ngperron_test(y; regression=regression)
 
@@ -690,8 +690,8 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
     Y, varnames = load_multivariate_data(data)
     det = to_regression_symbol(trend)
 
-    println("Johansen Cointegration Test: $(size(Y, 2)) variables, lags=$lags, trend=$trend")
-    println()
+    _status("Johansen Cointegration Test: $(size(Y, 2)) variables, lags=$lags, trend=$trend")
+    _status()
 
     result = johansen_test(Y, lags; deterministic=det)
 
@@ -702,7 +702,7 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
         reject=[p < 0.05 ? "yes" : "no" for p in result.trace_pvalues]
     )
     output_result(trace_df; format=Symbol(format), title="Johansen Trace Test")
-    println()
+    _status()
 
     maxeig_df = DataFrame(
         rank=0:(length(result.max_eigen_stats)-1),
@@ -713,7 +713,7 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
     output_result(maxeig_df; format=Symbol(format),
                   output=output, title="Johansen Max Eigenvalue Test")
 
-    println()
+    _status()
     rank = 0
     for i in 1:length(result.trace_pvalues)
         if result.trace_pvalues[i] < 0.05
@@ -722,7 +722,7 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
             break
         end
     end
-    printstyled("Estimated cointegration rank: $rank\n"; bold=true)
+    _status_styled("Estimated cointegration rank: $rank\n"; bold=true)
 end
 
 # ── Normality Test Suite ─────────────────────────────────
@@ -732,8 +732,8 @@ function _test_normality(; data::String, lags=nothing,
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
-    println("Normality Test Suite: VAR($p), $n variables")
-    println()
+    _status("Normality Test Suite: VAR($p), $n variables")
+    _status()
 
     suite = normality_test_suite(model)
 
@@ -755,13 +755,13 @@ function _test_normality(; data::String, lags=nothing,
     output_result(test_df; format=Symbol(format), output=output,
                   title="Normality Tests for VAR Residuals")
 
-    println()
+    _status()
     n_reject = count(r -> r.pvalue < 0.05, suite.results)
     if n_reject > 0
-        printstyled("$n_reject of $(length(suite.results)) tests reject normality at 5%\n"; color=:yellow)
-        printstyled("Non-Gaussian identification methods may be applicable\n"; color=:green)
+        _status_styled("$n_reject of $(length(suite.results)) tests reject normality at 5%\n"; color=:yellow)
+        _status_styled("Non-Gaussian identification methods may be applicable\n"; color=:green)
     else
-        printstyled("No tests reject normality at 5% -- Gaussian assumption appears valid\n"; color=:green)
+        _status_styled("No tests reject normality at 5% -- Gaussian assumption appears valid\n"; color=:green)
     end
 end
 
@@ -773,8 +773,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
-    println("Identifiability Tests: VAR($p), $n variables")
-    println()
+    _status("Identifiability Tests: VAR($p), $n variables")
+    _status()
 
     results_df = DataFrame(
         test=String[],
@@ -857,12 +857,12 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     output_result(results_df; format=Symbol(format), output=output,
                   title="Identifiability Test Results")
 
-    println()
+    _status()
     n_reject = count(row -> row.p_value < 0.05, eachrow(results_df))
     if n_reject > 0
-        printstyled("$n_reject of $(nrow(results_df)) tests significant at 5%\n"; color=:green)
+        _status_styled("$n_reject of $(nrow(results_df)) tests significant at 5%\n"; color=:green)
     else
-        printstyled("No tests significant at 5%\n"; color=:yellow)
+        _status_styled("No tests significant at 5%\n"; color=:yellow)
     end
 end
 
@@ -875,8 +875,8 @@ function _test_heteroskedasticity(; data::String, lags=nothing, method::String="
     n = length(varnames)
     df = load_data(data)
 
-    println("Heteroskedasticity SVAR: method=$method, regimes=$regimes, VAR($p), $n variables")
-    println()
+    _status("Heteroskedasticity SVAR: method=$method, regimes=$regimes, VAR($p), $n variables")
+    _status()
 
     result = if method == "garch"
         identify_garch(model)
@@ -918,8 +918,8 @@ function _test_arch_lm(; data::String, column::Int=1, lags::Int=4,
                          format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    println("ARCH-LM Test: variable=$vname, observations=$(length(y)), lags=$lags")
-    println()
+    _status("ARCH-LM Test: variable=$vname, observations=$(length(y)), lags=$lags")
+    _status()
 
     result = arch_lm_test(y, lags)
 
@@ -942,8 +942,8 @@ function _test_ljung_box(; data::String, column::Int=1, lags::Int=10,
                            format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    println("Ljung-Box Squared Residuals Test: variable=$vname, observations=$(length(y)), lags=$lags")
-    println()
+    _status("Ljung-Box Squared Residuals Test: variable=$vname, observations=$(length(y)), lags=$lags")
+    _status()
 
     result = ljung_box_squared(y, lags)
 
@@ -970,8 +970,8 @@ function _test_var_lagselect(; data::String, max_lags::Int=12, criterion::String
     max_p = min(max_lags, size(Y,1) ÷ (3*n))
     crit_sym = Symbol(lowercase(criterion))
 
-    println("Lag order selection (max lags: $max_p, criterion: $criterion)")
-    println()
+    _status("Lag order selection (max lags: $max_p, criterion: $criterion)")
+    _status()
 
     results = []
     for p in 1:max_p
@@ -993,8 +993,8 @@ function _test_var_lagselect(; data::String, max_lags::Int=12, criterion::String
     optimal = select_lag_order(Y, max_p; criterion=crit_sym)
 
     output_result(res_df; format=Symbol(format), output=output, title="Lag Order Selection")
-    println()
-    printstyled("Optimal lag order ($criterion): $optimal\n"; bold=true)
+    _status()
+    _status_styled("Optimal lag order ($criterion): $optimal\n"; bold=true)
 
     if format == "json"
         output_kv(Pair{String,Any}["optimal_lag" => optimal, "criterion" => criterion];
@@ -1017,8 +1017,8 @@ function _test_var_stability(; data::String, lags=nothing, format::String="table
     model = estimate_var(Y, p)
     result = is_stationary(model)
 
-    println("VAR($p) Stationarity Check")
-    println()
+    _status("VAR($p) Stationarity Check")
+    _status()
 
     eigenvalues = result.eigenvalues
     moduli = abs.(eigenvalues)
@@ -1030,14 +1030,14 @@ function _test_var_stability(; data::String, lags=nothing, format::String="table
     )
 
     output_result(eig_df; format=Symbol(format), output=output, title="Companion Matrix Eigenvalues")
-    println()
+    _status()
 
     if result.is_stationary
-        printstyled("VAR($p) is stable (all eigenvalues inside unit circle)\n"; color=:green, bold=true)
+        _status_styled("VAR($p) is stable (all eigenvalues inside unit circle)\n"; color=:green, bold=true)
     else
-        printstyled("VAR($p) is NOT stable (eigenvalue(s) outside unit circle)\n"; color=:red, bold=true)
+        _status_styled("VAR($p) is NOT stable (eigenvalue(s) outside unit circle)\n"; color=:red, bold=true)
     end
-    println("  Max modulus: $(round(maximum(moduli); digits=6))")
+    _status("  Max modulus: $(round(maximum(moduli); digits=6))")
 end
 
 # ── VECM Granger Causality Test ────────────────────────
@@ -1064,9 +1064,9 @@ function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, form
     cause_name = _var_name(varnames, cause)
     effect_name = _var_name(varnames, effect)
 
-    println("VECM Granger Causality Test: $cause_name → $effect_name")
-    println("VECM($(p-1)), rank=$r, $n variables")
-    println()
+    _status("VECM Granger Causality Test: $cause_name → $effect_name")
+    _status("VECM($(p-1)), rank=$r, $n variables")
+    _status()
 
     result = granger_causality_vecm(vecm, cause, effect)
 
@@ -1090,8 +1090,8 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
     n = size(Y, 2)
 
     if test_all
-        println("VAR Granger Causality Test (all pairwise): VAR($p), $n variables")
-        println()
+        _status("VAR Granger Causality Test (all pairwise): VAR($p), $n variables")
+        _status()
 
         results = granger_test_all(model)
 
@@ -1114,9 +1114,9 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
         cause_name = _var_name(varnames, cause)
         effect_name = _var_name(varnames, effect)
 
-        println("VAR Granger Causality Test: $cause_name → $effect_name")
-        println("VAR($p), $n variables")
-        println()
+        _status("VAR Granger Causality Test: $cause_name → $effect_name")
+        _status("VAR($p), $n variables")
+        _status()
 
         result = granger_test(model, cause, effect)
 
@@ -1144,8 +1144,8 @@ function _test_pvar_hansen_j(; data::String, id_col::String="", time_col::String
 
     model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
 
-    println("Hansen J Overidentification Test: Panel VAR($lags)")
-    println()
+    _status("Hansen J Overidentification Test: Panel VAR($lags)")
+    _status()
 
     result = pvar_hansen_j(model)
 
@@ -1171,8 +1171,8 @@ function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
 
     panel = load_panel_data(data, id_col, time_col)
 
-    println("MMSC Model Selection: max lags=$max_lags, criterion=$criterion")
-    println()
+    _status("MMSC Model Selection: max lags=$max_lags, criterion=$criterion")
+    _status()
 
     result = pvar_mmsc(panel, max_lags; criterion=Symbol(criterion))
 
@@ -1180,8 +1180,8 @@ function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
     rename!(res_df, :p => :lags, :bic => :BIC, :aic => :AIC, :hqic => :HQIC)
     output_result(res_df; format=Symbol(format), output=output, title="MMSC Results")
 
-    println()
-    printstyled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
+    _status()
+    _status_styled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
 end
 
 function _test_pvar_lagselect(; data::String, id_col::String="", time_col::String="",
@@ -1192,8 +1192,8 @@ function _test_pvar_lagselect(; data::String, id_col::String="", time_col::Strin
 
     panel = load_panel_data(data, id_col, time_col)
 
-    println("Panel VAR Lag Selection: max lags=$max_lags, criterion=$criterion")
-    println()
+    _status("Panel VAR Lag Selection: max lags=$max_lags, criterion=$criterion")
+    _status()
 
     result = pvar_lag_selection(panel, max_lags; criterion=Symbol(criterion))
 
@@ -1201,8 +1201,8 @@ function _test_pvar_lagselect(; data::String, id_col::String="", time_col::Strin
     rename!(res_df, :p => :lags, :bic => :BIC, :aic => :AIC, :hqic => :HQIC)
     output_result(res_df; format=Symbol(format), output=output, title="Lag Selection Results")
 
-    println()
-    printstyled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
+    _status()
+    _status_styled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
 end
 
 function _test_pvar_stability(; data::String, id_col::String="", time_col::String="",
@@ -1212,8 +1212,8 @@ function _test_pvar_stability(; data::String, id_col::String="", time_col::Strin
 
     model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
 
-    println("Panel VAR($lags) Stability Check")
-    println()
+    _status("Panel VAR($lags) Stability Check")
+    _status()
 
     result = pvar_stability(model)
 
@@ -1225,14 +1225,14 @@ function _test_pvar_stability(; data::String, id_col::String="", time_col::Strin
 
     output_result(eig_df; format=Symbol(format), output=output,
                   title="Panel VAR Companion Matrix Eigenvalues")
-    println()
+    _status()
 
     if result.is_stable
-        printstyled("Panel VAR($lags) is stable (all eigenvalues inside unit circle)\n"; color=:green, bold=true)
+        _status_styled("Panel VAR($lags) is stable (all eigenvalues inside unit circle)\n"; color=:green, bold=true)
     else
-        printstyled("Panel VAR($lags) is NOT stable (eigenvalue(s) outside unit circle)\n"; color=:red, bold=true)
+        _status_styled("Panel VAR($lags) is NOT stable (eigenvalue(s) outside unit circle)\n"; color=:red, bold=true)
     end
-    println("  Max modulus: $(round(maximum(result.moduli); digits=6))")
+    _status("  Max modulus: $(round(maximum(result.moduli); digits=6))")
 end
 
 # ── LR Test ───────────────────────────────────────────────
@@ -1243,12 +1243,12 @@ function _test_lr(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     m2, _, _, p2 = _load_and_estimate_var(data2, lags2)
 
     if p1 == p2 && data1 == data2
-        printstyled("  Warning: Both models have the same specification (p=$p1) on the same data.\n"; color=:yellow)
-        printstyled("  Use --lags1 and --lags2 to specify different restricted/unrestricted models.\n"; color=:yellow)
+        _status_styled("  Warning: Both models have the same specification (p=$p1) on the same data.\n"; color=:yellow)
+        _status_styled("  Use --lags1 and --lags2 to specify different restricted/unrestricted models.\n"; color=:yellow)
     end
 
-    println("Likelihood Ratio Test: restricted (p=$p1) vs unrestricted (p=$p2)")
-    println()
+    _status("Likelihood Ratio Test: restricted (p=$p1) vs unrestricted (p=$p2)")
+    _status()
 
     result = lr_test(m1, m2)
 
@@ -1274,12 +1274,12 @@ function _test_lm(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     m2, _, _, p2 = _load_and_estimate_var(data2, lags2)
 
     if p1 == p2 && data1 == data2
-        printstyled("  Warning: Both models have the same specification (p=$p1) on the same data.\n"; color=:yellow)
-        printstyled("  Use --lags1 and --lags2 to specify different restricted/unrestricted models.\n"; color=:yellow)
+        _status_styled("  Warning: Both models have the same specification (p=$p1) on the same data.\n"; color=:yellow)
+        _status_styled("  Use --lags1 and --lags2 to specify different restricted/unrestricted models.\n"; color=:yellow)
     end
 
-    println("Lagrange Multiplier Test: restricted (p=$p1) vs unrestricted (p=$p2)")
-    println()
+    _status("Lagrange Multiplier Test: restricted (p=$p1) vs unrestricted (p=$p2)")
+    _status()
 
     result = lm_test(m1, m2)
 
@@ -1308,8 +1308,8 @@ function _test_andrews(; data::String, response::Int=1,
     y = Y[:, response]
     X = hcat(ones(n), Y[:, setdiff(1:size(Y, 2), response)])
 
-    println("Andrews Structural Break Test: $(varnames[response]), test=$test, trimming=$trimming")
-    println()
+    _status("Andrews Structural Break Test: $(varnames[response]), test=$test, trimming=$trimming")
+    _status()
 
     result = andrews_test(y, X; test=Symbol(test), trimming=trimming)
 
@@ -1343,8 +1343,8 @@ function _test_bai_perron(; data::String, response::Int=1,
     y = Y[:, response]
     X = hcat(ones(n), Y[:, setdiff(1:size(Y, 2), response)])
 
-    println("Bai-Perron Multiple Break Test: $(varnames[response]), max_breaks=$max_breaks, criterion=$criterion")
-    println()
+    _status("Bai-Perron Multiple Break Test: $(varnames[response]), max_breaks=$max_breaks, criterion=$criterion")
+    _status()
 
     result = bai_perron_test(y, X; max_breaks=max_breaks, trimming=trimming,
                              criterion=Symbol(criterion))
@@ -1361,7 +1361,7 @@ function _test_bai_perron(; data::String, response::Int=1,
 
     if !isempty(result.regime_coefs)
         for (i, coefs) in enumerate(result.regime_coefs)
-            println("  Regime $i: $(join(round.(coefs; digits=4), ", "))")
+            _status("  Regime $i: $(join(round.(coefs; digits=4), ", "))")
         end
     end
 end
@@ -1375,8 +1375,8 @@ function _test_panic(; data::String, factors::String="auto",
 
     r_arg = factors == "auto" ? :auto : parse(Int, factors)
 
-    println("PANIC Panel Unit Root Test: factors=$(factors), method=$method")
-    println()
+    _status("PANIC Panel Unit Root Test: factors=$(factors), method=$method")
+    _status()
 
     result = panic_test(dat; r=r_arg, method=Symbol(method))
 
@@ -1402,8 +1402,8 @@ function _test_cips(; data::String, lags::String="auto",
 
     lags_arg = lags == "auto" ? :auto : parse(Int, lags)
 
-    println("Pesaran CIPS Panel Unit Root Test: lags=$lags, deterministic=$deterministic")
-    println()
+    _status("Pesaran CIPS Panel Unit Root Test: lags=$lags, deterministic=$deterministic")
+    _status()
 
     result = pesaran_cips_test(dat; lags=lags_arg, deterministic=Symbol(deterministic))
 
@@ -1429,8 +1429,8 @@ function _test_moon_perron(; data::String, factors::String="auto",
 
     r_arg = factors == "auto" ? :auto : parse(Int, factors)
 
-    println("Moon-Perron Panel Unit Root Test: factors=$factors")
-    println()
+    _status("Moon-Perron Panel Unit Root Test: factors=$factors")
+    _status()
 
     result = moon_perron_test(dat; r=r_arg)
 
@@ -1455,8 +1455,8 @@ function _test_factor_break(; data::String, factors::Int=2,
                               format::String="table", output::String="")
     dat, is_panel = _load_panel_or_matrix(data; id_col=id_col, time_col=time_col)
 
-    println("Factor Break Test: factors=$factors, method=$method")
-    println()
+    _status("Factor Break Test: factors=$factors, method=$method")
+    _status()
 
     result = factor_break_test(dat, factors; method=Symbol(method))
 
@@ -1487,8 +1487,8 @@ function _test_fourier_adf(; data::String, column::Int=1,
     lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
     reg_sym = Symbol(regression)
 
-    println("Fourier ADF Test: variable=$vname, observations=$(length(y)), regression=$regression, fmax=$fmax")
-    println()
+    _status("Fourier ADF Test: variable=$vname, observations=$(length(y)), regression=$regression, fmax=$fmax")
+    _status()
 
     kw = Dict{Symbol,Any}(:regression => reg_sym, :fmax => fmax, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
@@ -1511,8 +1511,8 @@ function _test_fourier_adf(; data::String, column::Int=1,
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
 
     if result.f_pvalue < 0.05
-        println()
-        printstyled("Fourier terms are jointly significant (F=$(round(result.f_statistic; digits=4)), p=$(round(result.f_pvalue; digits=4)))\n"; color=:green)
+        _status()
+        _status_styled("Fourier terms are jointly significant (F=$(round(result.f_statistic; digits=4)), p=$(round(result.f_pvalue; digits=4)))\n"; color=:green)
     end
 end
 
@@ -1526,8 +1526,8 @@ function _test_fourier_kpss(; data::String, column::Int=1,
 
     reg_sym = Symbol(regression)
 
-    println("Fourier KPSS Test: variable=$vname, observations=$(length(y)), regression=$regression, fmax=$fmax")
-    println()
+    _status("Fourier KPSS Test: variable=$vname, observations=$(length(y)), regression=$regression, fmax=$fmax")
+    _status()
 
     kw = Dict{Symbol,Any}(:regression => reg_sym, :fmax => fmax)
     !isnothing(bandwidth) && (kw[:bandwidth] = bandwidth)
@@ -1546,11 +1546,11 @@ function _test_fourier_kpss(; data::String, column::Int=1,
     output_kv(pairs; format=format, output=output, title="Fourier KPSS Test: $vname")
 
     # KPSS: reversed interpretation (H0 = stationarity)
-    println()
+    _status()
     if result.pvalue < 0.05
-        printstyled("-> Reject H0 (stationarity) at 5% -- series appears non-stationary\n"; color=:yellow)
+        _status_styled("-> Reject H0 (stationarity) at 5% -- series appears non-stationary\n"; color=:yellow)
     else
-        printstyled("-> Cannot reject H0 (stationarity) -- series appears stationary (with smooth breaks)\n"; color=:green)
+        _status_styled("-> Cannot reject H0 (stationarity) -- series appears stationary (with smooth breaks)\n"; color=:green)
     end
 end
 
@@ -1565,8 +1565,8 @@ function _test_dfgls(; data::String, column::Int=1,
     lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
     reg_sym = Symbol(regression)
 
-    println("DF-GLS Test: variable=$vname, observations=$(length(y)), regression=$regression")
-    println()
+    _status("DF-GLS Test: variable=$vname, observations=$(length(y)), regression=$regression")
+    _status()
 
     kw = Dict{Symbol,Any}(:regression => reg_sym)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
@@ -1604,8 +1604,8 @@ function _test_lm_unitroot(; data::String, column::Int=1,
     lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
     reg_sym = Symbol(regression)
 
-    println("LM Unit Root Test: variable=$vname, observations=$(length(y)), breaks=$breaks, regression=$regression")
-    println()
+    _status("LM Unit Root Test: variable=$vname, observations=$(length(y)), breaks=$breaks, regression=$regression")
+    _status()
 
     kw = Dict{Symbol,Any}(:breaks => breaks, :regression => reg_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
@@ -1643,8 +1643,8 @@ function _test_adf_2break(; data::String, column::Int=1,
     lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
     model_sym = Symbol(model)
 
-    println("ADF 2-Break Test: variable=$vname, observations=$(length(y)), model=$model")
-    println()
+    _status("ADF 2-Break Test: variable=$vname, observations=$(length(y)), model=$model")
+    _status()
 
     kw = Dict{Symbol,Any}(:model => model_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
@@ -1667,8 +1667,8 @@ function _test_adf_2break(; data::String, column::Int=1,
         "Reject H0 (unit root) at 5% -- series appears stationary (with two breaks)",
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
 
-    println()
-    println("Estimated structural breaks at observations $(result.break_index1) and $(result.break_index2)")
+    _status()
+    _status("Estimated structural breaks at observations $(result.break_index1) and $(result.break_index2)")
 end
 
 # ── Gregory-Hansen Cointegration Test ───────────────
@@ -1682,8 +1682,8 @@ function _test_gregory_hansen(; data::String, model::String="C",
     lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
     model_sym = Symbol(model)
 
-    println("Gregory-Hansen Test: $(length(varnames)) variables, model=$model")
-    println()
+    _status("Gregory-Hansen Test: $(length(varnames)) variables, model=$model")
+    _status()
 
     kw = Dict{Symbol,Any}(:model => model_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
@@ -1710,8 +1710,8 @@ function _test_gregory_hansen(; data::String, model::String="C",
         "Reject H0 (no cointegration): cointegration with structural break detected",
         "Cannot reject H0: no cointegration with structural break")
 
-    println()
-    println("Estimated break at observation $(result.adf_break_index) (ADF* criterion)")
+    _status()
+    _status("Estimated break at observation $(result.adf_break_index) (ADF* criterion)")
 end
 
 # ── VIF (Variance Inflation Factor) ─────────────────
@@ -1721,8 +1721,8 @@ function _test_vif(; data::String, dep::String="",
                     format::String="table", output::String="")
     y, X, xcols = _load_reg_data(data, dep)
 
-    println("Variance Inflation Factors: $(length(xcols)) regressors, cov_type=$cov_type")
-    println()
+    _status("Variance Inflation Factors: $(length(xcols)) regressors, cov_type=$cov_type")
+    _status()
 
     model = estimate_reg(y, X; cov_type=Symbol(cov_type), varnames=xcols)
     vif_vals = vif(model)
@@ -1736,16 +1736,16 @@ function _test_vif(; data::String, dep::String="",
     output_result(vif_df; format=Symbol(format), output=output,
                   title="Variance Inflation Factors")
 
-    println()
+    _status()
     max_vif = maximum(vif_vals)
     if max_vif > 10.0
-        printstyled("Warning: VIF > 10 detected -- severe multicollinearity\n"; color=:red)
+        _status_styled("Warning: VIF > 10 detected -- severe multicollinearity\n"; color=:red)
     elseif max_vif > 5.0
-        printstyled("Moderate multicollinearity detected (VIF > 5)\n"; color=:yellow)
+        _status_styled("Moderate multicollinearity detected (VIF > 5)\n"; color=:yellow)
     else
-        printstyled("No significant multicollinearity (all VIF < 5)\n"; color=:green)
+        _status_styled("No significant multicollinearity (all VIF < 5)\n"; color=:green)
     end
-    println("  Mean VIF: $(round(sum(vif_vals) / length(vif_vals); digits=4))")
+    _status("  Mean VIF: $(round(sum(vif_vals) / length(vif_vals); digits=4))")
 end
 
 # ── Panel Specification Tests ────────────────────────
@@ -1761,8 +1761,8 @@ function _test_hausman(; data::String, dep::String="", indep::String="",
     re_model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
     result = hausman_test(fe_model, re_model)
 
-    println("Hausman Test: FE vs RE")
-    println()
+    _status("Hausman Test: FE vs RE")
+    _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
         "χ² statistic" => round(result.statistic; digits=4),
@@ -1783,8 +1783,8 @@ function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
     result = breusch_pagan_test(model)
 
-    println("Breusch-Pagan LM Test for Random Effects")
-    println()
+    _status("Breusch-Pagan LM Test for Random Effects")
+    _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
         "LM statistic" => round(result.statistic; digits=4),
@@ -1805,8 +1805,8 @@ function _test_f_fe(; data::String, dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
     result = f_test_fe(model)
 
-    println("F-Test for Individual Fixed Effects")
-    println()
+    _status("F-Test for Individual Fixed Effects")
+    _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
         "F statistic" => round(result.statistic; digits=4),
@@ -1827,8 +1827,8 @@ function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
     result = pesaran_cd_test(model)
 
-    println("Pesaran CD Test for Cross-Sectional Dependence")
-    println()
+    _status("Pesaran CD Test for Cross-Sectional Dependence")
+    _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
         "CD statistic" => round(result.statistic; digits=4),
@@ -1848,8 +1848,8 @@ function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
     result = wooldridge_ar_test(model)
 
-    println("Wooldridge Test for Serial Correlation in Panel Data")
-    println()
+    _status("Wooldridge Test for Serial Correlation in Panel Data")
+    _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
         "F statistic" => round(result.statistic; digits=4),
@@ -1870,8 +1870,8 @@ function _test_modified_wald(; data::String, dep::String="", indep::String="",
     model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
     result = modified_wald_test(model)
 
-    println("Modified Wald Test for Groupwise Heteroskedasticity")
-    println()
+    _status("Modified Wald Test for Groupwise Heteroskedasticity")
+    _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
         "χ² statistic" => round(result.statistic; digits=4),
@@ -1888,8 +1888,8 @@ function _test_fisher(; data::String, column::Int=1,
                        format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    println("Fisher's Test for Periodicity: variable=$vname")
-    println()
+    _status("Fisher's Test for Periodicity: variable=$vname")
+    _status()
 
     result = fisher_test(y)
 
@@ -1909,8 +1909,8 @@ function _test_bartlett_wn(; data::String, column::Int=1,
                             format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    println("Bartlett White Noise Test: variable=$vname")
-    println()
+    _status("Bartlett White Noise Test: variable=$vname")
+    _status()
 
     result = bartlett_white_noise_test(y)
 
@@ -1930,8 +1930,8 @@ function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
                            format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    println("Box-Pierce Test: variable=$vname, lags=$lags")
-    println()
+    _status("Box-Pierce Test: variable=$vname, lags=$lags")
+    _status()
 
     result = box_pierce_test(y; lags=lags)
 
@@ -1952,8 +1952,8 @@ function _test_durbin_watson(; data::String, column::Int=1,
                               format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    println("Durbin-Watson Test: variable=$vname")
-    println()
+    _status("Durbin-Watson Test: variable=$vname")
+    _status()
 
     result = durbin_watson_test(y)
 
@@ -1976,8 +1976,8 @@ function _test_brant(; data::String, dep::String="", cov_type::String="hc1",
 
     model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
 
-    println("Brant Test for Parallel Regression: $dep_name")
-    println()
+    _status("Brant Test for Parallel Regression: $dep_name")
+    _status()
 
     result = brant_test(model)
 
@@ -2000,8 +2000,8 @@ function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing
 
     model = estimate_mlogit(y, X; cov_type=:ols, varnames=xcols)
 
-    println("Hausman-McFadden IIA Test: $dep_name, omit category=$omit_category")
-    println()
+    _status("Hausman-McFadden IIA Test: $dep_name, omit category=$omit_category")
+    _status()
 
     result = hausman_iia(model; omit_category=omit_category)
 

@@ -135,9 +135,9 @@ function _nowcast_dfm(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
-    println("Nowcast DFM: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    println("  Factors: $factors, VAR lags: $lags, idiosyncratic: $idio")
-    println()
+    _status("Nowcast DFM: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+    _status("  Factors: $factors, VAR lags: $lags, idiosyncratic: $idio")
+    _status()
 
     model = nowcast_dfm(Y, nM, nQ; r=factors, p=lags, idio=Symbol(idio), max_iter=max_iter)
     tv = target_var > 0 ? target_var : nothing
@@ -147,10 +147,10 @@ function _nowcast_dfm(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0
 
     idx = result.target_index
     target_name = idx <= length(varnames) ? varnames[idx] : "var_$idx"
-    println("  Target: $target_name (index $idx)")
-    printstyled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
-    printstyled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
-    println()
+    _status("  Target: $target_name (index $idx)")
+    _status_styled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
+    _status()
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "log-likelihood", "EM iterations"],
@@ -168,9 +168,9 @@ function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
-    println("Nowcast BVAR: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    println("  Lags: $lags")
-    println()
+    _status("Nowcast BVAR: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+    _status("  Lags: $lags")
+    _status()
 
     model = nowcast_bvar(Y, nM, nQ; lags=lags)
     tv = target_var > 0 ? target_var : nothing
@@ -178,10 +178,10 @@ function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=
 
     idx = result.target_index
     target_name = idx <= length(varnames) ? varnames[idx] : "var_$idx"
-    println("  Target: $target_name (index $idx)")
-    printstyled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
-    printstyled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
-    println()
+    _status("  Target: $target_name (index $idx)")
+    _status_styled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
+    _status()
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "log-likelihood"],
@@ -199,9 +199,9 @@ function _nowcast_bridge(; data::String, monthly_vars::Int=0, quarterly_vars::In
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
-    println("Nowcast Bridge: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    println("  Lags: lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y")
-    println()
+    _status("Nowcast Bridge: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+    _status("  Lags: lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y")
+    _status()
 
     model = nowcast_bridge(Y, nM, nQ; lagM=lag_m, lagQ=lag_q, lagY=lag_y)
     tv = target_var > 0 ? target_var : nothing
@@ -209,10 +209,10 @@ function _nowcast_bridge(; data::String, monthly_vars::Int=0, quarterly_vars::In
 
     idx = result.target_index
     target_name = idx <= length(varnames) ? varnames[idx] : "var_$idx"
-    println("  Target: $target_name (index $idx)")
-    printstyled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
-    printstyled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
-    println()
+    _status("  Target: $target_name (index $idx)")
+    _status_styled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
+    _status()
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "n_equations"],
@@ -238,10 +238,10 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     T_new, N = size(Y_new)
     T_old = size(Y_old, 1)
 
-    println("Nowcast News: $N variables ($nM monthly, $nQ quarterly)")
-    println("  Old vintage: T=$T_old, New vintage: T=$T_new")
-    println("  Method: $method")
-    println()
+    _status("Nowcast News: $N variables ($nM monthly, $nQ quarterly)")
+    _status("  Old vintage: T=$T_old, New vintage: T=$T_new")
+    _status("  Method: $method")
+    _status()
 
     # Estimate model on old data
     model = if method == "dfm"
@@ -258,11 +258,11 @@ function _nowcast_news(; data_new::String="", data_old::String="",
 
     _maybe_plot(news; plot=plot, plot_save=plot_save)
 
-    printstyled("  Old nowcast: $(round(news.old_nowcast; digits=4))\n"; color=:yellow)
-    printstyled("  New nowcast: $(round(news.new_nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Old nowcast: $(round(news.old_nowcast; digits=4))\n"; color=:yellow)
+    _status_styled("  New nowcast: $(round(news.new_nowcast; digits=4))\n"; color=:green)
     revision = news.new_nowcast - news.old_nowcast
-    printstyled("  Revision: $(round(revision; digits=4))\n"; color=:cyan)
-    println()
+    _status_styled("  Revision: $(round(revision; digits=4))\n"; color=:cyan)
+    _status()
 
     # News impact table
     result_df = DataFrame(
@@ -282,9 +282,9 @@ function _nowcast_forecast(; data::String, monthly_vars::Int=0, quarterly_vars::
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
-    println("Nowcast Forecast: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    println("  Method: $method, horizons: $horizons")
-    println()
+    _status("Nowcast Forecast: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+    _status("  Method: $method, horizons: $horizons")
+    _status()
 
     model = if method == "dfm"
         nowcast_dfm(Y, nM, nQ; r=factors, p=lags)

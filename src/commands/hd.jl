@@ -117,8 +117,8 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
     end
     n = size(Y, 2)
 
-    println("Computing Historical Decomposition: VAR($p), id=$id")
-    println()
+    _status("Computing Historical Decomposition: VAR($p), id=$id")
+    _status()
 
     # Arias identification: use Q from identify_arias to compute structural shocks
     if id == "arias"
@@ -133,14 +133,14 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
         arias_result = identify_arias(model, restrictions, size(Y, 1) - p)
         # Use Cholesky HD as base, labelled with Arias id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
-        report(hd_result)
+        _status_report(() -> report(hd_result))
         is_valid = verify_decomposition(hd_result)
         if is_valid
-            printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+            _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
         else
-            printstyled("Decomposition verification failed\n"; color=:yellow)
+            _status_styled("Decomposition verification failed\n"; color=:yellow)
         end
-        println()
+        _status()
         _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                           id="arias", title_prefix="Historical Decomposition",
                           format=format, output=output,
@@ -165,14 +165,14 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
             tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
         # Use Cholesky HD as base, labelled with Uhlig id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
-        report(hd_result)
+        _status_report(() -> report(hd_result))
         is_valid = verify_decomposition(hd_result)
         if is_valid
-            printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+            _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
         else
-            printstyled("Decomposition verification failed\n"; color=:yellow)
+            _status_styled("Decomposition verification failed\n"; color=:yellow)
         end
-        println()
+        _status()
         _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                           id="uhlig", title_prefix="Historical Decomposition",
                           format=format, output=output,
@@ -183,16 +183,16 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
     kwargs = _build_identification_kwargs(id, config)
     hd_result = historical_decomposition(model, size(Y, 1) - p; kwargs...)
 
-    report(hd_result)
+    _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
 
     is_valid = verify_decomposition(hd_result)
     if is_valid
-        printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+        _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        printstyled("Decomposition verification failed\n"; color=:yellow)
+        _status_styled("Decomposition verification failed\n"; color=:yellow)
     end
-    println()
+    _status()
 
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="Historical Decomposition",
@@ -219,16 +219,16 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
     end
     method = get(ID_METHOD_MAP, id, :cholesky)
 
-    println("Computing Bayesian Historical Decomposition: BVAR($p), id=$id")
-    println("  Sampler: $sampler, Draws: $draws")
-    println()
+    _status("Computing Bayesian Historical Decomposition: BVAR($p), id=$id")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
 
     horizon = size(Y, 1) - p
 
     bhd = historical_decomposition(post, horizon;
         method=method, quantiles=[0.16, 0.5, 0.84])
 
-    report(bhd)
+    _status_report(() -> report(bhd))
     _maybe_plot(bhd; plot=plot, plot_save=plot_save)
 
     mean_contrib = bhd.mean
@@ -273,19 +273,19 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
         hd_horizon = slp.horizon
     end
 
-    println("Computing LP Historical Decomposition: id=$id")
-    println()
+    _status("Computing LP Historical Decomposition: id=$id")
+    _status()
 
     hd_result = historical_decomposition(slp, hd_horizon)
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
 
     is_valid = verify_decomposition(hd_result)
     if is_valid
-        printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+        _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        printstyled("Decomposition verification failed\n"; color=:yellow)
+        _status_styled("Decomposition verification failed\n"; color=:yellow)
     end
-    println()
+    _status()
 
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="LP Historical Decomposition",
@@ -314,23 +314,23 @@ function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     n = size(Y, 2)
     r = cointegrating_rank(vecm)
 
-    println("Computing VECM Historical Decomposition: rank=$r, VAR($p), id=$id")
-    println()
+    _status("Computing VECM Historical Decomposition: rank=$r, VAR($p), id=$id")
+    _status()
 
     kwargs = _build_identification_kwargs(id, config)
     T_eff = size(Y, 1) - p
     hd_result = historical_decomposition(var_model, T_eff; kwargs...)
 
-    report(hd_result)
+    _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
 
     is_valid = verify_decomposition(hd_result)
     if is_valid
-        printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+        _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        printstyled("Decomposition verification failed\n"; color=:yellow)
+        _status_styled("Decomposition verification failed\n"; color=:yellow)
     end
-    println()
+    _status()
 
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="VECM Historical Decomposition",
@@ -354,21 +354,21 @@ function _hd_favar(; data::String="", factors=nothing, lags::Int=2,
     end
     kwargs = _build_identification_kwargs(id, config)
 
-    println("FAVAR Historical Decomposition: horizon=$horizons, id=$id")
-    println()
+    _status("FAVAR Historical Decomposition: horizon=$horizons, id=$id")
+    _status()
 
     hd_result = historical_decomposition(favar, horizons; kwargs...)
 
-    report(hd_result)
+    _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
 
     is_valid = verify_decomposition(hd_result)
     if is_valid
-        printstyled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+        _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        printstyled("Decomposition verification failed\n"; color=:yellow)
+        _status_styled("Decomposition verification failed\n"; color=:yellow)
     end
-    println()
+    _status()
 
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), favar.varnames, hd_result.T_eff;
                       id=id, title_prefix="FAVAR Historical Decomposition",

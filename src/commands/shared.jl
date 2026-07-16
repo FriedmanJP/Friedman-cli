@@ -111,7 +111,7 @@ function _output_fevd_tables(proportions::AbstractArray, varnames::Vector{String
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
                       title="$title_prefix for $vname ($id identification)")
-        println()
+        _status()
     end
 end
 
@@ -138,7 +138,7 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
         output_result(hd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
                       title="$title_prefix: $vname ($id identification)")
-        println()
+        _status()
     end
 end
 
@@ -154,11 +154,11 @@ end
 
 """Print colored p-value interpretation for hypothesis tests."""
 function interpret_test_result(pvalue::Real, reject_msg::String, accept_msg::String; level::Float64=0.05)
-    println()
+    _status()
     if pvalue < level
-        printstyled("-> $reject_msg\n"; color=:yellow)
+        _status_styled("-> $reject_msg\n"; color=:yellow)
     else
-        printstyled("-> $accept_msg\n"; color=:green)
+        _status_styled("-> $accept_msg\n"; color=:green)
     end
 end
 
@@ -199,9 +199,9 @@ function _vol_estimate_output(model, vname::String, param_names::Vector{String},
     end
     output_result(coef_df; format=Symbol(format), output=output,
                   title="$model_label Coefficients ($vname)")
-    println()
+    _status()
     p_val = persistence(model)
-    println("Persistence: $(round(p_val; digits=4))")
+    _status("Persistence: $(round(p_val; digits=4))")
 end
 
 """Shared volatility forecast output: horizon/variance/volatility table."""
@@ -297,7 +297,7 @@ function _build_prior(config_path::String, Y::AbstractMatrix, p::Int)
 
     if prior_cfg["type"] == "minnesota"
         if prior_cfg["optimize"]
-            println("Optimizing Minnesota prior hyperparameters...")
+            _status("Optimizing Minnesota prior hyperparameters...")
             return optimize_hyperparameters(Y, p)
         else
             sigma_ar = ones(size(Y, 2))
@@ -624,13 +624,13 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
     # Auto-select factors if not specified
     r = if factors === nothing
         auto_r = ic_criteria(Y, min(10, n - 1))
-        printstyled("  Auto-selected factors: $(auto_r.r_IC1) (IC1)\n"; color=:cyan)
+        _status_styled("  Auto-selected factors: $(auto_r.r_IC1) (IC1)\n"; color=:cyan)
         auto_r.r_IC1
     else
         factors
     end
 
-    println("Estimating FAVAR: $r factors, $lags lags, method=$method, $(length(key_indices)) key variables")
+    _status("Estimating FAVAR: $r factors, $lags lags, method=$method, $(length(key_indices)) key variables")
 
     favar = estimate_favar(Y, key_indices, r, lags;
                            method=Symbol(method),
@@ -648,11 +648,11 @@ Load data as PanelData if id_col/time_col are provided, else as Matrix.
 function _load_panel_or_matrix(data::String; id_col::String="", time_col::String="")
     if !isempty(id_col) && !isempty(time_col)
         pd = load_panel_data(data, id_col, time_col)
-        printstyled("  Panel: $(pd.n_groups) units, $(div(pd.T_obs, pd.n_groups)) periods\n"; color=:cyan)
+        _status_styled("  Panel: $(pd.n_groups) units, $(div(pd.T_obs, pd.n_groups)) periods\n"; color=:cyan)
         return pd, true
     else
         Y, varnames = load_multivariate_data(data)
-        println("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
+        _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
         return Y, false
     end
 end
@@ -671,11 +671,11 @@ function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
     p = plot_result(result; kwargs...)
     if !isempty(plot_save)
         save_plot(p, plot_save)
-        printstyled("  Plot saved: $plot_save\n"; color=:green)
+        _status_styled("  Plot saved: $plot_save\n"; color=:green)
     end
     if plot
         display_plot(p)
-        printstyled("  Plot opened in browser\n"; color=:cyan)
+        _status_styled("  Plot opened in browser\n"; color=:cyan)
     end
 end
 
@@ -706,7 +706,7 @@ function _load_dsge_model(path::String)
 
         spec = MacroEconometricModels.DSGESpec(; n_endog=length(endog), n_exog=length(exog))
 
-        println("Loaded DSGE model from TOML: $(length(endog)) endogenous, $(length(exog)) exogenous, $(length(dsge_cfg["equations"])) equations")
+        _status("Loaded DSGE model from TOML: $(length(endog)) endogenous, $(length(exog)) exogenous, $(length(dsge_cfg["equations"])) equations")
         return spec
 
     elseif ext == ".jl"
@@ -716,7 +716,7 @@ function _load_dsge_model(path::String)
         result isa MacroEconometricModels.DSGESpec || error(
             ".jl model file must evaluate to a DSGESpec (last expression), got $(typeof(result))")
         spec = result
-        println("Loaded DSGE model from Julia file: $(spec.n_endog) endogenous, $(spec.n_exog) exogenous")
+        _status("Loaded DSGE model from Julia file: $(spec.n_endog) endogenous, $(spec.n_exog) exogenous")
         return spec
 
     else
@@ -734,14 +734,14 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
                      method::String="gensys", order::Int=1,
                      degree::Int=5, grid::String="auto",
                      constraint_solver::String="")
-    println("Computing steady state...")
+    _status("Computing steady state...")
     ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
     spec = compute_steady_state(spec; ss_kw...)
 
-    println("Linearizing model...")
+    _status("Linearizing model...")
     linearize(spec)
 
-    println("Solving with method=$method" *
+    _status("Solving with method=$method" *
             (method == "perturbation" ? ", order=$order" : "") *
             (method in ("projection", "pfi") ? ", degree=$degree, grid=$grid" : "") *
             "...")
@@ -755,8 +755,8 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
        sol isa MacroEconometricModels.PerturbationSolution
         det_status = is_determined(sol) ? "unique" : "indeterminate"
         stab_status = is_stable(sol) ? "stable" : "unstable"
-        printstyled("  Determinacy: $det_status\n"; color = is_determined(sol) ? :green : :red)
-        printstyled("  Stability: $stab_status\n"; color = is_stable(sol) ? :green : :red)
+        _status_styled("  Determinacy: $det_status\n"; color = is_determined(sol) ? :green : :red)
+        _status_styled("  Stability: $stab_status\n"; color = is_stable(sol) ? :green : :red)
     end
 
     return sol
@@ -807,10 +807,10 @@ Load panel CSV and print summary for DID/event study commands.
 """
 function _load_panel_for_did(data::String, id_col::String, time_col::String)
     pd = load_panel_data(data, id_col, time_col)
-    printstyled("  Panel: $(pd.n_groups) groups, $(div(pd.T_obs, pd.n_groups)) periods, " *
+    _status_styled("  Panel: $(pd.n_groups) groups, $(div(pd.T_obs, pd.n_groups)) periods, " *
                 "$(pd.n_vars) variables"; color=:cyan)
-    pd.balanced && printstyled(" (balanced)"; color=:cyan)
-    println()
+    pd.balanced && _status_styled(" (balanced)"; color=:cyan)
+    _status()
     return pd
 end
 
@@ -903,9 +903,9 @@ function _load_panel_for_preg(data::String, id_col::String, time_col::String)
     id = isempty(id_col) ? cols[1] : id_col
     tc = isempty(time_col) ? cols[2] : time_col
     pd = load_panel_data(data, id, tc)
-    printstyled("  Panel: $(pd.n_groups) groups, $(pd.n_vars) variables"; color=:cyan)
-    pd.balanced && printstyled(" (balanced)"; color=:cyan)
-    println()
+    _status_styled("  Panel: $(pd.n_groups) groups, $(pd.n_vars) variables"; color=:cyan)
+    pd.balanced && _status_styled(" (balanced)"; color=:cyan)
+    _status()
     return pd
 end
 

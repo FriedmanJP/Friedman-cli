@@ -262,8 +262,8 @@ function _forecast_var(; data::String="", lags=nothing, horizons::Int=12,
     end
     n = size(Y, 2)
 
-    println("Computing VAR($p) forecast: horizons=$horizons, confidence=$confidence, ci=$ci_method")
-    println()
+    _status("Computing VAR($p) forecast: horizons=$horizons, confidence=$confidence, ci=$ci_method")
+    _status()
 
     # Bootstrap CI branch
     if ci_method == "bootstrap"
@@ -351,9 +351,9 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
         Y = post.Y
     end
 
-    println("Computing Bayesian forecast: BVAR($p), horizons=$horizons")
-    println("  Sampler: $sampler, Draws: $draws")
-    println()
+    _status("Computing Bayesian forecast: BVAR($p), horizons=$horizons")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
 
     b_vecs, sigmas = MacroEconometricModels.extract_chain_parameters(post)
     n_draws = size(b_vecs, 1)
@@ -408,8 +408,8 @@ function _forecast_lp(; data::String="", shock::Int=1, horizons::Int=12,
         varnames = model.varnames
     end
 
-    println("Computing LP forecast: shock=$shock, horizons=$horizons, shock_size=$shock_size, ci=$ci_method")
-    println()
+    _status("Computing LP forecast: shock=$shock, horizons=$horizons, shock_size=$shock_size, ci=$ci_method")
+    _status()
 
     shock_path = fill(shock_size, horizons)
 
@@ -453,18 +453,18 @@ function _forecast_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
 
         model = if isnothing(p)
             crit_sym = Symbol(lowercase(criterion))
-            println("Auto ARIMA forecast: variable=$vname, observations=$(length(y))")
-            println("  Search: p=0:$max_p, d=0:$max_d, q=0:$max_q, criterion=$criterion")
-            println()
+            _status("Auto ARIMA forecast: variable=$vname, observations=$(length(y))")
+            _status("  Search: p=0:$max_p, d=0:$max_d, q=0:$max_q, criterion=$criterion")
+            _status()
             m = auto_arima(y; max_p=max_p, max_q=max_q, max_d=max_d, criterion=crit_sym, method=safe_method)
             label = _model_label(ar_order(m), diff_order(m), ma_order(m))
-            printstyled("Selected model: $label\n"; bold=true)
-            println()
+            _status_styled("Selected model: $label\n"; bold=true)
+            _status()
             m
         else
             label = _model_label(p, d, q)
-            println("$label forecast: variable=$vname, horizons=$horizons")
-            println()
+            _status("$label forecast: variable=$vname, horizons=$horizons")
+            _status()
             _estimate_arima_model(y, p, d, q; method=method_sym)
         end
     end
@@ -501,17 +501,17 @@ function _forecast_static(; data::String="", nfactors=nothing, horizons::Int=12,
         X, varnames = load_multivariate_data(data)
 
         r = if isnothing(nfactors)
-            println("Selecting number of factors via Bai-Ng information criteria...")
+            _status("Selecting number of factors via Bai-Ng information criteria...")
             ic = ic_criteria(X, min(20, size(X, 2)))
             optimal_r = ic.r_IC1
-            println("  IC1 suggests $optimal_r factors")
+            _status("  IC1 suggests $optimal_r factors")
             optimal_r
         else
             nfactors
         end
 
-        println("Forecasting with static factor model: $r factors, horizon=$horizons, CI=$ci_method")
-        println()
+        _status("Forecasting with static factor model: $r factors, horizon=$horizons, CI=$ci_method")
+        _status()
 
         fm = estimate_factors(X, r)
     else
@@ -539,11 +539,11 @@ function _forecast_static(; data::String="", nfactors=nothing, horizons::Int=12,
                   title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)")
 
     if !isnothing(fc.observables_se)
-        println()
+        _status()
         avg_se = round.(mean(fc.observables_se; dims=1)[1, :]; digits=4)
-        println("Average forecast standard errors:")
+        _status("Average forecast standard errors:")
         for (vi, vname) in enumerate(varnames)
-            println("  $vname: $(avg_se[vi])")
+            _status("  $vname: $(avg_se[vi])")
         end
     end
 end
@@ -557,17 +557,17 @@ function _forecast_dynamic(; data::String="", nfactors=nothing, horizons::Int=12
         X, varnames = load_multivariate_data(data)
 
         r = if isnothing(nfactors)
-            println("Selecting number of factors...")
+            _status("Selecting number of factors...")
             ic = ic_criteria(X, min(10, size(X, 2)))
             optimal_r = ic.r_IC1
-            println("  Auto-selected $optimal_r factors")
+            _status("  Auto-selected $optimal_r factors")
             optimal_r
         else
             nfactors
         end
 
-        println("Forecasting with dynamic factor model: $r factors, $factor_lags lags, method=$method, horizon=$horizons")
-        println()
+        _status("Forecasting with dynamic factor model: $r factors, $factor_lags lags, method=$method, horizon=$horizons")
+        _status()
 
         fm = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
     else
@@ -612,27 +612,27 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
         X, varnames = load_multivariate_data(data)
 
         q = if isnothing(dynamic_rank)
-            println("Selecting dynamic rank...")
+            _status("Selecting dynamic rank...")
             ic = ic_criteria_gdfm(X, min(5, size(X, 2)))
             q_opt = ic.q_ratio
-            println("  Auto-selected $q_opt dynamic factors")
+            _status("  Auto-selected $q_opt dynamic factors")
             q_opt
         else
             dynamic_rank
         end
 
         r = if isnothing(nfactors)
-            println("Selecting static rank...")
+            _status("Selecting static rank...")
             ic_static = ic_criteria(X, min(20, size(X, 2)))
             r_opt = ic_static.r_IC1
-            println("  Auto-selected $r_opt static factors")
+            _status("  Auto-selected $r_opt static factors")
             r_opt
         else
             nfactors
         end
 
-        println("Forecasting with GDFM: static rank=$r, dynamic rank=$q, horizon=$horizons")
-        println()
+        _status("Forecasting with GDFM: static rank=$r, dynamic rank=$q, horizon=$horizons")
+        _status()
 
         fm = estimate_gdfm(X, q; r=r)
     else
@@ -671,9 +671,9 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
     output_result(fc_df; format=Symbol(format), output=output,
                   title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)")
 
-    println()
+    _status()
     var_shares = common_variance_share(fm)
-    println("Average common variance share: $(round(mean(var_shares); digits=4))")
+    _status("Average common variance share: $(round(mean(var_shares); digits=4))")
 end
 
 # ── Volatility Model Forecasts (NEW) ────────────────────
@@ -690,8 +690,8 @@ function _forecast_arch(; data::String="", column::Int=1, q::Int=1, horizons::In
     end
     label = "ARCH($q)"
 
-    println("$label Volatility Forecast: variable=$vname, horizons=$horizons")
-    println()
+    _status("$label Volatility Forecast: variable=$vname, horizons=$horizons")
+    _status()
     fc = forecast(model, horizons)
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
@@ -712,8 +712,8 @@ function _forecast_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     end
     label = "GARCH($p,$q)"
 
-    println("$label Volatility Forecast: variable=$vname, horizons=$horizons")
-    println()
+    _status("$label Volatility Forecast: variable=$vname, horizons=$horizons")
+    _status()
     fc = forecast(model, horizons)
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
@@ -721,8 +721,8 @@ function _forecast_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     _vol_forecast_output(fc, vname, label, horizons; format=format, output=output)
 
     uc = unconditional_variance(model)
-    println()
-    println("Unconditional variance: $(round(uc; digits=4))")
+    _status()
+    _status("Unconditional variance: $(round(uc; digits=4))")
 end
 
 function _forecast_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
@@ -738,8 +738,8 @@ function _forecast_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
     end
     label = "EGARCH($p,$q)"
 
-    println("$label Volatility Forecast: variable=$vname, horizons=$horizons")
-    println()
+    _status("$label Volatility Forecast: variable=$vname, horizons=$horizons")
+    _status()
     fc = forecast(model, horizons)
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
@@ -760,8 +760,8 @@ function _forecast_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int=
     end
     label = "GJR-GARCH($p,$q)"
 
-    println("$label Volatility Forecast: variable=$vname, horizons=$horizons")
-    println()
+    _status("$label Volatility Forecast: variable=$vname, horizons=$horizons")
+    _status()
     fc = forecast(model, horizons)
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
@@ -781,8 +781,8 @@ function _forecast_sv(; data::String="", column::Int=1, draws::Int=5000,
         vname = "series"
     end
 
-    println("Stochastic Volatility Forecast: variable=$vname, horizons=$horizons, draws=$draws")
-    println()
+    _status("Stochastic Volatility Forecast: variable=$vname, horizons=$horizons, draws=$draws")
+    _status()
     fc = forecast(model, horizons)
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
@@ -808,8 +808,8 @@ function _forecast_vecm(; data::String="", lags::Int=2, rank::String="auto",
     end
     r = cointegrating_rank(vecm)
 
-    println("Computing VECM forecast: rank=$r, horizons=$horizons, CI=$ci_method")
-    println()
+    _status("Computing VECM forecast: rank=$r, horizons=$horizons, CI=$ci_method")
+    _status()
 
     fc = forecast(vecm, horizons; ci_method=Symbol(ci_method), reps=replications, conf_level=confidence)
 
@@ -848,8 +848,8 @@ function _forecast_favar(; data::String="", factors=nothing, lags::Int=2,
         varnames = favar.varnames
     end
 
-    println("FAVAR Forecast: horizon=$horizons" * (panel_forecast ? ", panel-wide" : ""))
-    println()
+    _status("FAVAR Forecast: horizon=$horizons" * (panel_forecast ? ", panel-wide" : ""))
+    _status()
 
     fc = forecast(favar, horizons)
 

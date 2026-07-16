@@ -107,8 +107,8 @@ function _spectral_acf(; data::String, column::Int=1,
     kwargs = isnothing(max_lag) ? (;) : (; maxlag=max_lag)
     result = acf(y; kwargs...)
 
-    println("ACF/PACF: $(vnames[column])  (T = $(length(y)))")
-    println()
+    _status("ACF/PACF: $(vnames[column])  (T = $(length(y)))")
+    _status()
 
     acf_df = DataFrame(
         Lag     = result.lags,
@@ -126,7 +126,7 @@ function _spectral_acf(; data::String, column::Int=1,
             Lag = ccf_result.lags,
             CCF = round.(ccf_result.ccf; digits=6),
         )
-        println()
+        _status()
         output_result(ccf_df; format=Symbol(format), output="",
             title="CCF: $(vnames[column]) x $(vnames[ccf_with])")
     end
@@ -144,8 +144,8 @@ function _spectral_periodogram(; data::String, column::Int=1,
 
     result = periodogram(y)
 
-    println("Periodogram: $(vnames[column])  (T = $(length(y)))")
-    println()
+    _status("Periodogram: $(vnames[column])  (T = $(length(y)))")
+    _status()
 
     peri_df = DataFrame(
         Frequency = round.(result.freq; digits=6),
@@ -169,8 +169,8 @@ function _spectral_density(; data::String, column::Int=1,
     !isnothing(bandwidth) && (kwargs[:bandwidth] = bandwidth)
     result = spectral_density(y; kwargs...)
 
-    println("Spectral Density ($(method)): $(vnames[column])  (T = $(length(y)))")
-    println()
+    _status("Spectral Density ($(method)): $(vnames[column])  (T = $(length(y)))")
+    _status()
 
     sd_df = DataFrame(
         Frequency = round.(result.freq; digits=6),
@@ -193,8 +193,8 @@ function _spectral_cross(; data::String, var1::Int=1, var2::Int=2,
 
     result = cross_spectrum(y, z)
 
-    println("Cross-Spectrum: $(vnames[var1]) x $(vnames[var2])  (T = $(length(y)))")
-    println()
+    _status("Cross-Spectrum: $(vnames[var1]) x $(vnames[var2])  (T = $(length(y)))")
+    _status()
 
     cs_df = DataFrame(
         Frequency     = round.(result.freq; digits=6),
@@ -215,8 +215,8 @@ function _spectral_transfer(; filter::String="hp", lambda::Float64=1600.0,
                              plot::Bool=false, plot_save::String="")
     result = transfer_function(Symbol(filter); lambda=lambda, nobs=nobs)
 
-    println("Transfer Function: $(filter) filter  (lambda = $lambda, T = $nobs)")
-    println()
+    _status("Transfer Function: $(filter) filter  (lambda = $lambda, T = $nobs)")
+    _status()
 
     tf_df = DataFrame(
         Frequency = round.(result.freq; digits=6),

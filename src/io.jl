@@ -16,6 +16,19 @@
 
 # IO utilities: CSV reading, table/CSV/JSON output
 
+# ── Quiet-aware status helpers (P1-2; F21, F22) ───────────
+# Status/progress goes to stderr so stdout stays data-only.
+# `_QUIET` is set by the global-flag pre-pass (C014).
+
+const _QUIET = Ref(false)
+_status(parts...) = _QUIET[] || println(stderr, parts...)
+function _status_styled(args...; kwargs...)
+    _QUIET[] && return nothing
+    printstyled(stderr, args...; kwargs...)
+end
+"""Run `f` with stdout redirected to stderr unless quiet (MEMs report() dumps)."""
+_status_report(f::Function) = _QUIET[] || redirect_stdout(f, stderr)
+
 # ── Path Validation ──────────────────────────────────────
 
 """
@@ -193,7 +206,7 @@ function _write_table(df::DataFrame, output::String, title::String)
     finally
         isempty(output) || close(io)
     end
-    isempty(output) || println("Results written to $output")
+    isempty(output) || _status("Results written to $output")
 end
 
 function _write_csv(df::DataFrame, output::String)
@@ -201,7 +214,7 @@ function _write_csv(df::DataFrame, output::String)
         CSV.write(stdout, df)
     else
         CSV.write(output, df)
-        println("Results written to $output")
+        _status("Results written to $output")
     end
 end
 
@@ -213,11 +226,11 @@ end
 function _write_json_raw(data, output::String)
     json_str = JSON3.write(data)
     if isempty(output)
-        println(json_str)
+        println(json_str)  # data path — stays on stdout
     else
         open(output, "w") do io
             write(io, json_str)
         end
-        println("Results written to $output")
+        _status("Results written to $output")
     end
 end

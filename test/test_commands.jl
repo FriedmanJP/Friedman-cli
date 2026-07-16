@@ -52,7 +52,7 @@ function _write_table(df::DataFrame, output::String, title::String)
     finally
         isempty(output) || close(io)
     end
-    isempty(output) || println("Results written to $output")
+    isempty(output) || _status("Results written to $output")
 end
 
 # Include CLI types (needed for LeafCommand, NodeCommand, etc.)
@@ -103,18 +103,36 @@ function _make_instruments_csv(dir; T=100, n_inst=2)
     return path
 end
 
-"""Capture stdout output from a function call, returning the string."""
+"""Capture stdout (and stderr) from a function call, returning the string.
+
+After P1-2, status prose goes to stderr; tests that assert on status text
+need both streams. Data remains on stdout; merging keeps assertions stable.
+"""
 function _capture(f)
     path, io = mktemp()
     try
-        redirect_stdout(io) do
-            f()
-        end
+        redirect_stdio(f; stdout=io, stderr=io)
         close(io)
         return read(path, String)
     finally
         try; close(io); catch; end
         try; rm(path; force=true); catch; end
+    end
+end
+
+"""Capture stdout and stderr separately as a NamedTuple `(out, err)`."""
+function _capture_all(f)
+    outp, outio = mktemp()
+    errp, errio = mktemp()
+    try
+        redirect_stdio(f; stdout=outio, stderr=errio)
+        close(outio); close(errio)
+        return (out=read(outp, String), err=read(errp, String))
+    finally
+        try; close(outio); catch; end
+        try; close(errio); catch; end
+        try; rm(outp; force=true); catch; end
+        try; rm(errp; force=true); catch; end
     end
 end
 

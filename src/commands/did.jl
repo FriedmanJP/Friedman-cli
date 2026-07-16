@@ -59,16 +59,16 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
     output_result(att_df; format=fmt, output=output,
         title="DID Estimation — $(uppercase(method))")
 
-    println()
-    printstyled("  Overall ATT: "; bold=true)
-    println("$(round(result.overall_att; digits=6))  (SE: $(round(result.overall_se; digits=6)))")
-    printstyled("  Method: "; bold=true)
-    println(method)
-    printstyled("  N: "; bold=true)
-    println("$(result.n_obs) obs, $(result.n_groups) groups ($(result.n_treated) treated, $(result.n_control) control)")
+    _status()
+    _status_styled("  Overall ATT: "; bold=true)
+    _status("$(round(result.overall_att; digits=6))  (SE: $(round(result.overall_se; digits=6)))")
+    _status_styled("  Method: "; bold=true)
+    _status(method)
+    _status_styled("  N: "; bold=true)
+    _status("$(result.n_obs) obs, $(result.n_groups) groups ($(result.n_treated) treated, $(result.n_control) control)")
 
     if !isnothing(result.group_time_att) && !isnothing(result.cohorts)
-        println()
+        _status()
         gt_df = DataFrame(result.group_time_att, ["t=$(t)" for t in result.event_times])
         insertcols!(gt_df, 1, :Cohort => result.cohorts)
         output_result(gt_df; format=fmt, output="",
@@ -110,15 +110,15 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
     output_result(coef_df; format=fmt, output=output,
         title="Event Study LP — $(result.outcome_var)")
 
-    println()
-    printstyled("  N: "; bold=true)
-    println("$(result.n_obs) obs, $(result.n_groups) groups")
-    printstyled("  Lags: "; bold=true)
+    _status()
+    _status_styled("  N: "; bold=true)
+    _status("$(result.n_obs) obs, $(result.n_groups) groups")
+    _status_styled("  Lags: "; bold=true)
     print("$(result.lags)  ")
-    printstyled("Leads: "; bold=true)
+    _status_styled("Leads: "; bold=true)
     print("$(result.leads)  ")
-    printstyled("Horizon: "; bold=true)
-    println("$(result.horizon)")
+    _status_styled("Horizon: "; bold=true)
+    _status("$(result.horizon)")
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 end
@@ -182,24 +182,24 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
     output_result(coef_df; format=fmt, output=output,
         title="LP-DiD (Dube et al. 2023) — $(result.outcome_name)")
 
-    println()
-    printstyled("  Specification: "; bold=true)
-    println(result.spec_type)
-    printstyled("  N: "; bold=true)
-    println("$(result.T_obs) obs, $(result.n_groups) groups")
-    printstyled("  Window: "; bold=true)
-    println("pre=$(result.pre_window), post=$(result.post_window)")
+    _status()
+    _status_styled("  Specification: "; bold=true)
+    _status(result.spec_type)
+    _status_styled("  N: "; bold=true)
+    _status("$(result.T_obs) obs, $(result.n_groups) groups")
+    _status_styled("  Window: "; bold=true)
+    _status("pre=$(result.pre_window), post=$(result.post_window)")
 
     if !isnothing(result.pooled_post_result)
         pp = result.pooled_post_result
-        println()
-        printstyled("  Pooled post-treatment: "; bold=true)
-        println("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
+        _status()
+        _status_styled("  Pooled post-treatment: "; bold=true)
+        _status("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
     end
     if !isnothing(result.pooled_pre_result)
         pp = result.pooled_pre_result
-        printstyled("  Pooled pre-treatment:  "; bold=true)
-        println("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
+        _status_styled("  Pooled pre-treatment:  "; bold=true)
+        _status("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
     end
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -230,9 +230,9 @@ function _did_test_bacon(; data::String, outcome::String, treatment::String,
     output_result(dec_df; format=fmt, output=output,
         title="Bacon Decomposition (Goodman-Bacon 2021)")
 
-    println()
-    printstyled("  Overall ATT (TWFE): "; bold=true)
-    println(round(result.overall_att; digits=6))
+    _status()
+    _status_styled("  Overall ATT (TWFE): "; bold=true)
+    _status(round(result.overall_att; digits=6))
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 end
@@ -298,7 +298,7 @@ function _did_test_negweight(; data::String, treatment::String,
             Time = [p[2] for p in result.cohort_time_pairs],
             Weight = round.(result.weights; digits=6)
         )
-        println()
+        _status()
         output_result(wt_df; format=fmt, output="",
             title="Weight Details")
     end
@@ -343,9 +343,9 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     output_result(hon_df; format=fmt, output=output,
         title="HonestDiD Sensitivity (Rambachan-Roth 2023, M̄=$(mbar))")
 
-    println()
-    printstyled("  Breakdown value: "; bold=true)
-    println(round(result.breakdown_value; digits=4))
+    _status()
+    _status_styled("  Breakdown value: "; bold=true)
+    _status(round(result.breakdown_value; digits=4))
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 end

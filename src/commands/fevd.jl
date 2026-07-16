@@ -150,8 +150,8 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
     end
     n = length(varnames)
 
-    println("Computing FEVD: VAR($p), horizons=$horizons, id=$id")
-    println()
+    _status("Computing FEVD: VAR($p), horizons=$horizons, id=$id")
+    _status()
 
     # Arias identification: use identify_arias → irf_mean → compute FEVD from structural IRFs
     if id == "arias"
@@ -230,7 +230,7 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
     kwargs = _build_identification_kwargs(id, config)
     fevd_result = fevd(model, horizons; kwargs...)
 
-    report(fevd_result)
+    _status_report(() -> report(fevd_result))
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
@@ -255,14 +255,14 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
         n = length(varnames)
     end
 
-    println("Computing Bayesian FEVD: BVAR($p), horizons=$horizons, id=$id")
-    println("  Sampler: $sampler, Draws: $draws")
-    println()
+    _status("Computing Bayesian FEVD: BVAR($p), horizons=$horizons, id=$id")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
 
     bfevd = fevd(post, horizons;
         quantiles=[0.16, 0.5, 0.84])
 
-    report(bfevd)
+    _status_report(() -> report(bfevd))
 
     _maybe_plot(bfevd; plot=plot, plot_save=plot_save)
 
@@ -287,8 +287,8 @@ function _fevd_lp(; data::String="", horizons::Int=20, lags::Int=4, var_lags=not
         n = length(varnames)
     end
 
-    println("Computing LP FEVD: horizons=$horizons, id=$id")
-    println()
+    _status("Computing LP FEVD: horizons=$horizons, id=$id")
+    _status()
 
     fevd_result = lp_fevd(slp, horizons)
 
@@ -318,13 +318,13 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     n = length(varnames)
     r = cointegrating_rank(vecm)
 
-    println("Computing VECM FEVD: rank=$r, VAR($p), horizons=$horizons, id=$id")
-    println()
+    _status("Computing VECM FEVD: rank=$r, VAR($p), horizons=$horizons, id=$id")
+    _status()
 
     kwargs = _build_identification_kwargs(id, config)
     fevd_result = fevd(var_model, horizons; kwargs...)
 
-    report(fevd_result)
+    _status_report(() -> report(fevd_result))
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
@@ -348,8 +348,8 @@ function _fevd_pvar(; data::String="", id_col::String="", time_col::String="",
     end
     n = length(varnames)
 
-    println("Computing Panel VAR FEVD: horizons=$horizons")
-    println()
+    _status("Computing Panel VAR FEVD: horizons=$horizons")
+    _status()
 
     fevd_result = pvar_fevd(model, horizons)
 
@@ -376,8 +376,8 @@ function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
     end
     id_kwargs = _build_identification_kwargs(id, config)
 
-    println("FAVAR FEVD: horizon=$horizons, id=$id")
-    println()
+    _status("FAVAR FEVD: horizon=$horizons, id=$id")
+    _status()
 
     result = fevd(favar, horizons; id_kwargs...)
     _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -413,8 +413,8 @@ function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
         sdfm = model
     end
 
-    println("SDFM FEVD: $q factors, horizon=$horizons")
-    println()
+    _status("SDFM FEVD: $q factors, horizon=$horizons")
+    _status()
 
     result = fevd(sdfm, horizons)
     _maybe_plot(result; plot=plot, plot_save=plot_save)

@@ -183,8 +183,8 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     end
     n = length(varnames)
 
-    println("Computing IRFs: VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
-    println()
+    _status("Computing IRFs: VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
+    _status()
 
     # Arias identification handled separately
     if id == "arias"
@@ -205,7 +205,7 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true)
         lower, upper = irf_bounds(set)
         med = irf_median(set)
-        println("Sign-Identified Set: $(set.n_accepted)/$(set.n_total) accepted ($(round(set.acceptance_rate*100; digits=1))%)")
+        _status("Sign-Identified Set: $(set.n_accepted)/$(set.n_total) accepted ($(round(set.acceptance_rate*100; digits=1))%)")
         irf_df = DataFrame()
         irf_df.horizon = 0:horizons
         for (vi, vname) in enumerate(varnames)
@@ -230,12 +230,12 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
 
     if cumulative
         irf_result = cumulative_irf(irf_result)
-        printstyled("  Cumulative IRFs computed\n"; color=:cyan)
+        _status_styled("  Cumulative IRFs computed\n"; color=:cyan)
     end
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    report(irf_result)
+    _status_report(() -> report(irf_result))
 
     irf_vals = irf_result.values  # H x n x n
     n_h = size(irf_vals, 1)
@@ -310,11 +310,11 @@ function _var_irf_uhlig(model, config::String, horizons::Int,
         tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
 
     # Convergence info
-    println("Uhlig identification: penalty=$(round(result.penalty; digits=6)), converged=$(result.converged)")
+    _status("Uhlig identification: penalty=$(round(result.penalty; digits=6)), converged=$(result.converged)")
     for (si, sp) in enumerate(result.shock_penalties)
-        println("  Shock $si penalty: $(round(sp; digits=6))")
+        _status("  Shock $si penalty: $(round(sp; digits=6))")
     end
-    println()
+    _status()
 
     irf_vals = result.irf  # H x n x n
     n_h = size(irf_vals, 1)
@@ -349,9 +349,9 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
     end
     method = get(ID_METHOD_MAP, id, :cholesky)
 
-    println("Computing Bayesian IRFs: BVAR($p), shock=$shock, horizons=$horizons, id=$id")
-    println("  Sampler: $sampler, Draws: $draws")
-    println()
+    _status("Computing Bayesian IRFs: BVAR($p), shock=$shock, horizons=$horizons, id=$id")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
 
     check_func, narrative_check = _build_check_func(config)
 
@@ -370,12 +370,12 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
 
     if cumulative
         birf = cumulative_irf(birf)
-        printstyled("  Cumulative IRFs computed\n"; color=:cyan)
+        _status_styled("  Cumulative IRFs computed\n"; color=:cyan)
     end
 
     _maybe_plot(birf; plot=plot, plot_save=plot_save)
 
-    report(birf)
+    _status_report(() -> report(birf))
 
     irf_mean_vals = birf.mean
     n_h = size(irf_mean_vals, 1)
@@ -437,13 +437,13 @@ function _irf_lp(; data::String="", shock::Int=1, shocks::String="",
 
     if cumulative
         irf_result = cumulative_irf(irf_result)
-        printstyled("  Cumulative IRFs computed\n"; color=:cyan)
+        _status_styled("  Cumulative IRFs computed\n"; color=:cyan)
     end
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    println("Computing LP IRFs: horizons=$horizons, id=$id, ci=$ci")
-    println()
+    _status("Computing LP IRFs: horizons=$horizons, id=$id, ci=$ci")
+    _status()
 
     for shock_idx in shock_indices
         (shock_idx < 1 || shock_idx > n) && error("shock index $shock_idx out of range (data has $n variables)")
@@ -468,7 +468,7 @@ function _irf_lp(; data::String="", shock::Int=1, shocks::String="",
         output_result(irf_df; format=Symbol(format),
                       output=isempty(output) ? "" : (length(shock_indices) > 1 ? replace(output, "." => "_$(shock_name).") : output),
                       title="LP IRF to $shock_name shock ($id identification)")
-        println()
+        _status()
     end
 end
 
@@ -494,8 +494,8 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
     n = length(varnames)
     r = cointegrating_rank(vecm)
 
-    println("Computing VECM IRFs: rank=$r, VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
-    println()
+    _status("Computing VECM IRFs: rank=$r, VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
+    _status()
 
     kwargs = _build_identification_kwargs(id, config)
     kwargs[:ci_type] = Symbol(ci)
@@ -505,7 +505,7 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    report(irf_result)
+    _status_report(() -> report(irf_result))
 
     irf_vals = irf_result.values
     n_h = size(irf_vals, 1)
@@ -548,8 +548,8 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
     end
     n = length(varnames)
 
-    println("Computing Panel VAR IRFs: type=$irf_type, horizons=$horizons, bootstrap=$boot_draws")
-    println()
+    _status("Computing Panel VAR IRFs: type=$irf_type, horizons=$horizons, bootstrap=$boot_draws")
+    _status()
 
     # Compute IRFs with bootstrap CIs
     irf_result = pvar_bootstrap_irf(model, horizons;
@@ -578,7 +578,7 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
                       title="Panel VAR $(uppercase(irf_type)) to $shock_name shock")
-        println()
+        _status()
     end
 end
 
@@ -601,8 +601,8 @@ function _irf_favar(; data::String="", factors=nothing, lags::Int=2,
 
     id_kwargs = _build_identification_kwargs(id, config)
 
-    println("FAVAR IRF: horizon=$horizons, id=$id" * (panel_irf ? ", panel-wide" : ""))
-    println()
+    _status("FAVAR IRF: horizon=$horizons, id=$id" * (panel_irf ? ", panel-wide" : ""))
+    _status()
 
     irf_result = irf(favar, horizons; id_kwargs...)
 
@@ -644,8 +644,8 @@ function _irf_sdfm(; data::String="", factors=nothing, id::String="cholesky",
         sdfm = model
     end
 
-    println("Structural DFM IRF: $q factors, id=$id, horizon=$horizons")
-    println()
+    _status("Structural DFM IRF: $q factors, id=$id, horizon=$horizons")
+    _status()
 
     irf_result = irf(sdfm, horizons)
 

@@ -440,17 +440,17 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
         lags
     end
 
-    println("Estimating VAR($p) with $n variables: $(join(varnames, ", "))")
-    println("Trend: $trend, Observations: $(size(Y, 1))")
-    println()
+    _status("Estimating VAR($p) with $n variables: $(join(varnames, ", "))")
+    _status("Trend: $trend, Observations: $(size(Y, 1))")
+    _status()
 
     model = estimate_var(Y, p)
-    report(model)
+    _status_report(() -> report(model))
 
     coef_df = _build_var_coef_table(coef(model), varnames, p)
     output_result(coef_df; format=Symbol(format), output=output, title="VAR($p) Coefficients")
 
-    println()
+    _status()
     output_model_criteria(model; format=format, title="Information Criteria")
     return model
 end
@@ -464,9 +464,9 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
     n = size(Y, 2)
     p = lags
 
-    println("Estimating Bayesian VAR($p) with $n variables: $(join(varnames, ", "))")
-    println("Prior: $prior, Sampler: $sampler, Draws: $draws, Posterior: $method")
-    println()
+    _status("Estimating Bayesian VAR($p) with $n variables: $(join(varnames, ", "))")
+    _status("Prior: $prior, Sampler: $sampler, Draws: $draws, Posterior: $method")
+    _status()
 
     prior_obj = _build_prior(config, Y, p)
     prior_sym = isnothing(prior_obj) ? Symbol(prior) : :minnesota
@@ -481,13 +481,13 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
         posterior_mean_model(post)
     end
 
-    report(model)
+    _status_report(() -> report(model))
 
     coef_df = _build_var_coef_table(coef(model), varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
                   title="BVAR($p) Posterior $(titlecase(method)) Coefficients")
 
-    println()
+    _status()
     output_model_criteria(model; format=format, title="Information Criteria (Posterior $(titlecase(method)))")
     return model
 end
@@ -546,10 +546,10 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
     n = size(Y, 2)
     shock_name = _shock_name(varnames, shock)
 
-    println("Estimating Local Projections: method=standard")
-    println("  Shock: $shock_name, Horizons: $horizons, Lags: $control_lags, VCov: $vcov")
-    println("  Variables: $(join(varnames, ", "))")
-    println()
+    _status("Estimating Local Projections: method=standard")
+    _status("  Shock: $shock_name, Horizons: $horizons, Lags: $control_lags, VCov: $vcov")
+    _status("  Variables: $(join(varnames, ", "))")
+    _status()
 
     model = estimate_lp(Y, shock, horizons; lags=control_lags, cov_type=Symbol(vcov))
     irf_result = lp_irf(model)
@@ -557,7 +557,7 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="LP Coefficients ($shock_name → responses)", format=format, output=output)
 
-    println()
+    _status()
     output_kv(Pair{String,Any}[
         "Effective observations" => model.T_eff,
         "Covariance estimator" => vcov,
@@ -575,28 +575,28 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
     n = size(Y, 2)
     shock_name = _shock_name(varnames, shock)
 
-    println("Estimating LP-IV: shock=$shock_name, horizons=$horizons, instruments=$(size(Z, 2))")
-    println()
+    _status("Estimating LP-IV: shock=$shock_name, horizons=$horizons, instruments=$(size(Z, 2))")
+    _status()
 
     model = estimate_lp_iv(Y, shock, Z, horizons; lags=control_lags, cov_type=Symbol(vcov))
 
     # First-stage diagnostics
     wi = weak_instrument_test(model)
-    println("First-stage diagnostics:")
-    println("  F-statistic: $(round(wi.F_stat; digits=2))")
+    _status("First-stage diagnostics:")
+    _status("  F-statistic: $(round(wi.F_stat; digits=2))")
     if wi.F_stat < 10
-        printstyled("  Warning: Weak instruments (F < 10)\n"; color=:yellow)
+        _status_styled("  Warning: Weak instruments (F < 10)\n"; color=:yellow)
     else
-        printstyled("  Instruments appear strong (F >= 10)\n"; color=:green)
+        _status_styled("  Instruments appear strong (F >= 10)\n"; color=:green)
     end
-    println()
+    _status()
 
     irf_result = lp_iv_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="LP-IV Coefficients ($shock_name → responses)", format=format, output=output)
 
-    println()
+    _status()
     output_kv(Pair{String,Any}[
         "Effective observations" => model.T_eff,
         "Covariance estimator" => vcov,
@@ -611,15 +611,15 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
     n = size(Y, 2)
 
     lam = if lambda == 0.0
-        println("Cross-validating smoothing parameter...")
+        _status("Cross-validating smoothing parameter...")
         cross_validate_lambda(Y, shock, horizons)
     else
         lambda
     end
 
     shock_name = _shock_name(varnames, shock)
-    println("Estimating Smooth LP: shock=$shock_name, horizons=$horizons, knots=$knots, λ=$(round(lam; digits=4))")
-    println()
+    _status("Estimating Smooth LP: shock=$shock_name, horizons=$horizons, knots=$knots, λ=$(round(lam; digits=4))")
+    _status()
 
     model = estimate_smooth_lp(Y, shock, horizons; n_knots=knots, lambda=lam)
     irf_result = smooth_lp_irf(model)
@@ -627,7 +627,7 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="Smooth LP Coefficients ($shock_name → responses)", format=format, output=output)
 
-    println()
+    _status()
     output_kv(Pair{String,Any}[
         "Smoothing parameter (λ)" => round(lam; digits=6),
         "B-spline knots" => knots,
@@ -644,8 +644,8 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
     shock_name = _shock_name(varnames, shock)
     state_name = _var_name(varnames, state_var)
 
-    println("Estimating State-Dependent LP: shock=$shock_name, state=$state_name, γ=$gamma, transition=$transition")
-    println()
+    _status("Estimating State-Dependent LP: shock=$shock_name, state=$state_name, γ=$gamma, transition=$transition")
+    _status()
 
     state_vec = Y[:, state_var]
     model = estimate_state_lp(Y, shock, state_vec, horizons; gamma=gamma)
@@ -657,18 +657,18 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
             title="State LP Coefficients — $label ($shock_name → responses)",
             format=format,
             output=isempty(output) ? "" : replace(output, "." => "_$(lowercase(label))."))
-        println()
+        _status()
     end
 
     diff_test = test_regime_difference(model)
     jt = diff_test.joint_test
-    println("Regime Difference Test:")
-    println("  Avg t-statistic: $(round(jt.avg_t_stat; digits=3))")
-    println("  p-value: $(round(jt.p_value; digits=4))")
+    _status("Regime Difference Test:")
+    _status("  Avg t-statistic: $(round(jt.avg_t_stat; digits=3))")
+    _status("  p-value: $(round(jt.p_value; digits=4))")
     if jt.p_value < 0.05
-        printstyled("  → Significant regime differences at 5%\n"; color=:green)
+        _status_styled("  → Significant regime differences at 5%\n"; color=:green)
     else
-        printstyled("  → No significant regime differences at 5%\n"; color=:yellow)
+        _status_styled("  → No significant regime differences at 5%\n"; color=:yellow)
     end
     return model
 end
@@ -678,8 +678,8 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
     n = size(Y, 2)
     treat_name = _var_name(varnames, treatment)
 
-    println("Estimating Propensity Score LP: treatment=$treat_name, horizons=$horizons, method=$score_method")
-    println()
+    _status("Estimating Propensity Score LP: treatment=$treat_name, horizons=$horizons, method=$score_method")
+    _status()
 
     treatment_bool = Bool.(Y[:, treatment] .> median(Y[:, treatment]))
     covariates = Y[:, setdiff(1:size(Y,2), [treatment])]
@@ -690,11 +690,11 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
     # Propensity score diagnostics
     diag = propensity_diagnostics(model)
     ps = diag.propensity_summary
-    println("Propensity Score Diagnostics:")
-    println("  Treated mean score: $(round(ps.treated.mean; digits=4))")
-    println("  Control mean score: $(round(ps.control.mean; digits=4))")
-    println("  Max weighted SMD: $(round(diag.balance.max_weighted; digits=4))")
-    println()
+    _status("Propensity Score Diagnostics:")
+    _status("  Treated mean score: $(round(ps.treated.mean; digits=4))")
+    _status("  Control mean score: $(round(ps.control.mean; digits=4))")
+    _status("  Max weighted SMD: $(round(diag.balance.max_weighted; digits=4))")
+    _status()
 
     irf_result = propensity_irf(model)
 
@@ -708,8 +708,8 @@ function _estimate_lp_robust(data, treatment, horizons, score_method, output, fo
     n = size(Y, 2)
     treat_name = _var_name(varnames, treatment)
 
-    println("Estimating Doubly Robust LP: treatment=$treat_name, horizons=$horizons, method=$score_method")
-    println()
+    _status("Estimating Doubly Robust LP: treatment=$treat_name, horizons=$horizons, method=$score_method")
+    _status()
 
     treatment_bool = Bool.(Y[:, treatment] .> median(Y[:, treatment]))
     covariates = Y[:, setdiff(1:size(Y,2), [treatment])]
@@ -720,11 +720,11 @@ function _estimate_lp_robust(data, treatment, horizons, score_method, output, fo
     # Diagnostics
     diag = propensity_diagnostics(model)
     ps = diag.propensity_summary
-    println("Doubly Robust Diagnostics:")
-    println("  Treated mean score: $(round(ps.treated.mean; digits=4))")
-    println("  Control mean score: $(round(ps.control.mean; digits=4))")
-    println("  Max weighted SMD: $(round(diag.balance.max_weighted; digits=4))")
-    println()
+    _status("Doubly Robust Diagnostics:")
+    _status("  Treated mean score: $(round(ps.treated.mean; digits=4))")
+    _status("  Control mean score: $(round(ps.control.mean; digits=4))")
+    _status("  Max weighted SMD: $(round(diag.balance.max_weighted; digits=4))")
+    _status()
 
     irf_result = propensity_irf(model)
 
@@ -745,18 +745,18 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
 
     model = if isnothing(p)
         crit_sym = Symbol(lowercase(criterion))
-        println("Auto ARIMA: variable=$vname, observations=$(length(y))")
-        println("  Search: p=0:$max_p, d=0:$max_d, q=0:$max_q, criterion=$criterion, method=$method")
-        println()
+        _status("Auto ARIMA: variable=$vname, observations=$(length(y))")
+        _status("  Search: p=0:$max_p, d=0:$max_d, q=0:$max_q, criterion=$criterion, method=$method")
+        _status()
         m = auto_arima(y; max_p=max_p, max_q=max_q, max_d=max_d, criterion=crit_sym, method=safe_method)
         label = _model_label(ar_order(m), diff_order(m), ma_order(m))
-        printstyled("Selected model: $label\n"; bold=true)
-        println()
+        _status_styled("Selected model: $label\n"; bold=true)
+        _status()
         m
     else
         label = _model_label(p, d, q)
-        println("Estimating $label: variable=$vname, observations=$(length(y)), method=$method")
-        println()
+        _status("Estimating $label: variable=$vname, observations=$(length(y)), method=$method")
+        _status()
         _estimate_arima_model(y, p, d, q; method=method_sym)
     end
 
@@ -767,7 +767,7 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
 
     _arima_coef_table(model; format=format, output=output, title="$label Coefficients ($vname)")
 
-    println()
+    _status()
     output_kv(Pair{String,Any}[
         "AIC" => round(aic(model); digits=4),
         "BIC" => round(bic(model); digits=4),
@@ -848,9 +848,9 @@ function _estimate_gmm(; data::String, config::String="",
                          "twostep" => :two_step, "iterated" => :iterated)
     w = get(weighting_map, lowercase(weighting), :two_step)
 
-    println("Estimating GMM: weighting=$weighting")
-    println("  Moment conditions: $(length(gmm_cfg["moment_conditions"]))")
-    println()
+    _status("Estimating GMM: weighting=$weighting")
+    _status("  Moment conditions: $(length(gmm_cfg["moment_conditions"]))")
+    _status()
 
     moment_cols = gmm_cfg["moment_conditions"]
     shock_var = if !isempty(moment_cols)
@@ -866,16 +866,16 @@ function _estimate_gmm(; data::String, config::String="",
         model = models[1]
         summ = gmm_summary(model)
         jtest = j_test(model)
-        println()
-        println("Hansen's J-test for overidentification:")
-        println("  J-statistic: $(round(jtest.J_stat; digits=4))")
-        println("  p-value: $(round(jtest.p_value; digits=4))")
-        println("  Degrees of freedom: $(jtest.df)")
+        _status()
+        _status("Hansen's J-test for overidentification:")
+        _status("  J-statistic: $(round(jtest.J_stat; digits=4))")
+        _status("  p-value: $(round(jtest.p_value; digits=4))")
+        _status("  Degrees of freedom: $(jtest.df)")
 
         if jtest.p_value < 0.05
-            printstyled("  -> Reject valid moment conditions at 5%\n"; color=:yellow)
+            _status_styled("  -> Reject valid moment conditions at 5%\n"; color=:yellow)
         else
-            printstyled("  -> Cannot reject valid moment conditions\n"; color=:green)
+            _status_styled("  -> Cannot reject valid moment conditions\n"; color=:green)
         end
 
         if !isempty(output)
@@ -896,18 +896,18 @@ function _estimate_static(; data::String, nfactors=nothing, criterion::String="i
     X, varnames = load_multivariate_data(data)
 
     r = if isnothing(nfactors)
-        println("Selecting number of factors via Bai-Ng information criteria...")
+        _status("Selecting number of factors via Bai-Ng information criteria...")
         ic = ic_criteria(X, min(20, size(X, 2)))
         r_sym = Symbol("r_", uppercase(criterion))
         optimal_r = getfield(ic, r_sym)
-        println("  $criterion suggests $optimal_r factors")
+        _status("  $criterion suggests $optimal_r factors")
         optimal_r
     else
         nfactors
     end
 
-    println("Estimating static factor model: $r factors, $(size(X, 2)) variables, $(size(X, 1)) observations")
-    println()
+    _status("Estimating static factor model: $r factors, $(size(X, 2)) variables, $(size(X, 1)) observations")
+    _status()
 
     model = estimate_factors(X, r)
     _maybe_plot(model; plot=plot, plot_save=plot_save)
@@ -916,7 +916,7 @@ function _estimate_static(; data::String, nfactors=nothing, criterion::String="i
     scree_df = DataFrame(component=scree.factors, eigenvalue=scree.explained_variance,
                          cumulative=scree.cumulative_variance)
     output_result(scree_df; format=Symbol(format), title="Scree Data (Eigenvalues & Variance Shares)")
-    println()
+    _status()
 
     loadings = model.loadings
     loading_df = DataFrame(loadings, ["F$i" for i in 1:r])
@@ -931,17 +931,17 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
     X, varnames = load_multivariate_data(data)
 
     r = if isnothing(nfactors)
-        println("Selecting number of factors...")
+        _status("Selecting number of factors...")
         ic = ic_criteria(X, min(10, size(X, 2)))
         optimal_r = ic.r_IC1
-        println("  Auto-selected $optimal_r factors")
+        _status("  Auto-selected $optimal_r factors")
         optimal_r
     else
         nfactors
     end
 
-    println("Estimating dynamic factor model: $r factors, $factor_lags lags, method=$method")
-    println()
+    _status("Estimating dynamic factor model: $r factors, $factor_lags lags, method=$method")
+    _status()
 
     model = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
     _maybe_plot(model; plot=plot, plot_save=plot_save)
@@ -949,23 +949,23 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
     stable_result = is_stationary(model)
     stable = stable_result isa Bool ? stable_result : stable_result.is_stationary
     if stable
-        printstyled("Factor VAR is stationary\n"; color=:green)
+        _status_styled("Factor VAR is stationary\n"; color=:green)
     else
-        printstyled("Factor VAR is not stationary\n"; color=:yellow)
+        _status_styled("Factor VAR is not stationary\n"; color=:yellow)
     end
-    println()
+    _status()
 
     loadings = model.loadings
     loading_df = DataFrame(loadings, ["F$i" for i in 1:r])
     insertcols!(loading_df, 1, :variable => varnames)
     output_result(loading_df; format=Symbol(format), output=output, title="Dynamic Factor Loadings")
 
-    println()
-    println("Factor VAR Companion Matrix eigenvalues:")
+    _status()
+    _status("Factor VAR Companion Matrix eigenvalues:")
     comp = companion_matrix_factors(model)
     eig_moduli = abs.(eigvals(comp))
     for (i, ev) in enumerate(sort(eig_moduli; rev=true))
-        println("  lambda$i = $(round(ev; digits=6))")
+        _status("  lambda$i = $(round(ev; digits=6))")
     end
     return model
 end
@@ -975,27 +975,27 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
     X, varnames = load_multivariate_data(data)
 
     q = if isnothing(dynamic_rank)
-        println("Selecting dynamic rank...")
+        _status("Selecting dynamic rank...")
         ic = ic_criteria_gdfm(X, min(5, size(X, 2)))
         q_opt = ic.q_ratio
-        println("  Auto-selected $q_opt dynamic factors")
+        _status("  Auto-selected $q_opt dynamic factors")
         q_opt
     else
         dynamic_rank
     end
 
     r = if isnothing(nfactors)
-        println("Selecting static rank...")
+        _status("Selecting static rank...")
         ic_static = ic_criteria(X, min(20, size(X, 2)))
         r_opt = ic_static.r_IC1
-        println("  Auto-selected $r_opt static factors")
+        _status("  Auto-selected $r_opt static factors")
         r_opt
     else
         nfactors
     end
 
-    println("Estimating GDFM: static rank=$r, dynamic rank=$q")
-    println()
+    _status("Estimating GDFM: static rank=$r, dynamic rank=$q")
+    _status()
 
     model = estimate_gdfm(X, q; r=r)
 
@@ -1004,8 +1004,8 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
     output_result(var_df; format=Symbol(format), output=output,
                   title="GDFM Common Variance Shares")
 
-    println()
-    println("Average common variance share: $(round(mean(var_shares); digits=4))")
+    _status()
+    _status("Average common variance share: $(round(mean(var_shares); digits=4))")
     return model
 end
 
@@ -1015,14 +1015,14 @@ function _estimate_arch(; data::String, column::Int=1, q::Int=1,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
     y, vname = load_univariate_series(data, column)
-    println("Estimating ARCH($q): variable=$vname, observations=$(length(y))")
-    println()
+    _status("Estimating ARCH($q): variable=$vname, observations=$(length(y))")
+    _status()
     model = estimate_arch(y, q)
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]]
     _vol_estimate_output(model, vname, param_names, "ARCH($q)"; format=format, output=output)
     uc = unconditional_variance(model)
-    println("Unconditional variance: $(round(uc; digits=4))")
+    _status("Unconditional variance: $(round(uc; digits=4))")
     return model
 end
 
@@ -1030,16 +1030,16 @@ function _estimate_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
     y, vname = load_univariate_series(data, column)
-    println("Estimating GARCH($p,$q): variable=$vname, observations=$(length(y))")
-    println()
+    _status("Estimating GARCH($p,$q): variable=$vname, observations=$(length(y))")
+    _status()
     model = estimate_garch(y, p, q)
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]]
     _vol_estimate_output(model, vname, param_names, "GARCH($p,$q)"; format=format, output=output)
     hl = halflife(model)
-    println("Half-life: $(round(hl; digits=2)) periods")
+    _status("Half-life: $(round(hl; digits=2)) periods")
     uc = unconditional_variance(model)
-    println("Unconditional variance: $(round(uc; digits=4))")
+    _status("Unconditional variance: $(round(uc; digits=4))")
     return model
 end
 
@@ -1047,8 +1047,8 @@ function _estimate_egarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
     y, vname = load_univariate_series(data, column)
-    println("Estimating EGARCH($p,$q): variable=$vname, observations=$(length(y))")
-    println()
+    _status("Estimating EGARCH($p,$q): variable=$vname, observations=$(length(y))")
+    _status()
     model = estimate_egarch(y, p, q)
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]]
@@ -1060,14 +1060,14 @@ function _estimate_gjr_garch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                               output::String="", format::String="table",
                               plot::Bool=false, plot_save::String="")
     y, vname = load_univariate_series(data, column)
-    println("Estimating GJR-GARCH($p,$q): variable=$vname, observations=$(length(y))")
-    println()
+    _status("Estimating GJR-GARCH($p,$q): variable=$vname, observations=$(length(y))")
+    _status()
     model = estimate_gjr_garch(y, p, q)
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]]
     _vol_estimate_output(model, vname, param_names, "GJR-GARCH($p,$q)"; format=format, output=output)
     hl = halflife(model)
-    println("Half-life: $(round(hl; digits=2)) periods")
+    _status("Half-life: $(round(hl; digits=2)) periods")
     return model
 end
 
@@ -1075,8 +1075,8 @@ function _estimate_sv(; data::String, column::Int=1, draws::Int=5000,
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="")
     y, vname = load_univariate_series(data, column)
-    println("Estimating Stochastic Volatility: variable=$vname, observations=$(length(y)), draws=$draws")
-    println()
+    _status("Estimating Stochastic Volatility: variable=$vname, observations=$(length(y)), draws=$draws")
+    _status()
     model = estimate_sv(y; n_samples=draws)
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     param_names = ["mu", "phi", "sigma_eta"]
@@ -1091,8 +1091,8 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
-    println("Non-Gaussian SVAR: method=$method, contrast=$contrast, VAR($p), $n variables")
-    println()
+    _status("Non-Gaussian SVAR: method=$method, contrast=$contrast, VAR($p), $n variables")
+    _status()
 
     result = if method == "jade"
         identify_jade(model)
@@ -1108,17 +1108,17 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
 
     if hasproperty(result, :converged)
         if result.converged
-            printstyled("Converged in $(result.iterations) iterations\n"; color=:green)
+            _status_styled("Converged in $(result.iterations) iterations\n"; color=:green)
         else
-            printstyled("Did not converge after $(result.iterations) iterations\n"; color=:yellow)
+            _status_styled("Did not converge after $(result.iterations) iterations\n"; color=:yellow)
         end
     end
-    println()
+    _status()
 
     b0_df = DataFrame(result.B0, varnames)
     insertcols!(b0_df, 1, :equation => varnames)
     output_result(b0_df; format=Symbol(format), title="Structural Impact Matrix (B0)")
-    println()
+    _status()
 
     shocks = result.shocks
     T_shocks = size(shocks, 1)
@@ -1137,8 +1137,8 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
-    println("Non-Gaussian ML SVAR: distribution=$distribution, VAR($p), $n variables")
-    println()
+    _status("Non-Gaussian ML SVAR: distribution=$distribution, VAR($p), $n variables")
+    _status()
 
     result = if distribution == "mixture_normal"
         identify_mixture_normal(model)
@@ -1153,7 +1153,7 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
     b0_df = DataFrame(result.B0, varnames)
     insertcols!(b0_df, 1, :equation => varnames)
     output_result(b0_df; format=Symbol(format), title="Structural Impact Matrix (B0)")
-    println()
+    _status()
 
     output_kv(Pair{String,Any}[
         "Log-likelihood" => round(result.loglik; digits=4),
@@ -1164,19 +1164,19 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
     ]; format=format, title="Model Fit")
 
     if !isempty(result.dist_params)
-        println()
-        println("Distribution parameters:")
+        _status()
+        _status("Distribution parameters:")
         for (k, v) in pairs(result.dist_params)
             if v isa AbstractArray
-                println("  $k = $(round.(v; digits=4))")
+                _status("  $k = $(round.(v; digits=4))")
             else
-                println("  $k = $(round(v; digits=4))")
+                _status("  $k = $(round(v; digits=4))")
             end
         end
     end
 
     if !isnothing(result.se) && length(result.se) > 0
-        println()
+        _status()
         se_df = DataFrame(
             parameter=["B0[$i,$j]" for i in 1:n for j in 1:n],
             estimate=vec(result.B0),
@@ -1198,24 +1198,24 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
     n = size(Y, 2)
     r = cointegrating_rank(vecm)
 
-    println("Estimating VECM($(p-1)) with $n variables: $(join(varnames, ", "))")
-    println("Cointegration rank: $r, Deterministic: $deterministic, Method: $method")
-    println("Observations: $(size(Y, 1))")
-    println()
+    _status("Estimating VECM($(p-1)) with $n variables: $(join(varnames, ", "))")
+    _status("Cointegration rank: $r, Deterministic: $deterministic, Method: $method")
+    _status("Observations: $(size(Y, 1))")
+    _status()
 
-    report(vecm)
+    _status_report(() -> report(vecm))
 
     # Cointegrating vectors (beta)
     beta_df = DataFrame(vecm.beta, ["CV$i" for i in 1:r])
     insertcols!(beta_df, 1, :variable => varnames)
     output_result(beta_df; format=Symbol(format), output=output, title="Cointegrating Vectors (beta)")
-    println()
+    _status()
 
     # Adjustment coefficients (alpha)
     alpha_df = DataFrame(vecm.alpha, ["CV$i" for i in 1:r])
     insertcols!(alpha_df, 1, :equation => varnames)
     output_result(alpha_df; format=Symbol(format), output=output, title="Adjustment Coefficients (alpha)")
-    println()
+    _status()
 
     output_kv(Pair{String,Any}[
         "AIC" => round(vecm.aic; digits=4),
@@ -1249,24 +1249,24 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
     n = length(varnames)
     p = lags
 
-    println("Estimating Panel VAR($p) with $n variables: $(join(varnames, ", "))")
-    println("  Method: $method, Transformation: $transformation, Steps: $steps")
-    println("  Groups: $(panel.n_groups), Observations: $(panel.T_obs)")
+    _status("Estimating Panel VAR($p) with $n variables: $(join(varnames, ", "))")
+    _status("  Method: $method, Transformation: $transformation, Steps: $steps")
+    _status("  Groups: $(panel.n_groups), Observations: $(panel.T_obs)")
     if system
-        println("  System GMM (level + difference equations)")
+        _status("  System GMM (level + difference equations)")
     end
     if collapse
-        println("  Instruments collapsed")
+        _status("  Instruments collapsed")
     end
-    println()
+    _status()
 
-    report(model)
+    _status_report(() -> report(model))
 
     coef_df = _build_pvar_coef_table(model, varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
                   title="Panel VAR($p) Coefficients ($method)")
 
-    println()
+    _status()
     output_kv(Pair{String,Any}[
         "Groups" => panel.n_groups,
         "Total observations" => panel.T_obs,
@@ -1295,8 +1295,8 @@ function _estimate_smm(; data::String, config::String="",
         burn = smm_cfg["burn"]
     end
 
-    println("Estimating SMM: $n variables, weighting=$weighting, sim_ratio=$sim_ratio")
-    println()
+    _status("Estimating SMM: $n variables, weighting=$weighting, sim_ratio=$sim_ratio")
+    _status()
 
     # Compute sample moments
     moments = autocovariance_moments(Y; lags=1)
@@ -1321,10 +1321,10 @@ function _estimate_smm(; data::String, config::String="",
     output_result(est_df; format=Symbol(format), output=output,
                   title="SMM Estimation (weighting=$weighting, sim_ratio=$sim_ratio)")
 
-    println()
-    printstyled("  J-statistic: $(round(model.J_stat; digits=4))\n"; color=:cyan)
-    printstyled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
-    printstyled("  Converged:   $(model.converged)\n";
+    _status()
+    _status_styled("  J-statistic: $(round(model.J_stat; digits=4))\n"; color=:cyan)
+    _status_styled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
+    _status_styled("  Converged:   $(model.converged)\n";
                 color = model.converged ? :green : :red)
     return model
 end
@@ -1338,7 +1338,7 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
     favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, method, draws)
 
     if favar isa MacroEconometricModels.BayesianFAVAR
-        println("Bayesian FAVAR: $(favar.n_factors) factors, $(favar.n_key) key vars, $(favar.n_draws) draws")
+        _status("Bayesian FAVAR: $(favar.n_factors) factors, $(favar.n_key) key vars, $(favar.n_draws) draws")
         pairs = Pair{String,Any}[
             "Factors" => favar.n_factors,
             "Key variables" => favar.n_key,
@@ -1353,9 +1353,9 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
     coef_df = _build_var_coef_table(coef(var_model), favar.varnames, favar.p)
     output_result(coef_df; format=Symbol(format), output=output, title="FAVAR($lags) Coefficients")
 
-    println()
-    printstyled("  Factors: $(favar.n_factors), Key variables: $(favar.n_key)\n"; color=:cyan)
-    printstyled("  AIC: $(round(favar.aic; digits=2)), BIC: $(round(favar.bic; digits=2))\n"; color=:cyan)
+    _status()
+    _status_styled("  Factors: $(favar.n_factors), Key variables: $(favar.n_key)\n"; color=:cyan)
+    _status_styled("  AIC: $(round(favar.aic; digits=2)), BIC: $(round(favar.bic; digits=2))\n"; color=:cyan)
 
     _maybe_plot(favar; plot=plot, plot_save=plot_save)
     return favar
@@ -1374,7 +1374,7 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
 
     q = if factors === nothing
         auto_q = ic_criteria_gdfm(Y, min(10, n - 1))
-        printstyled("  Auto-selected dynamic factors: $(auto_q.q_opt)\n"; color=:cyan)
+        _status_styled("  Auto-selected dynamic factors: $(auto_q.q_opt)\n"; color=:cyan)
         auto_q.q_opt
     else
         factors
@@ -1385,15 +1385,15 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
         sign_check, _ = _build_check_func(config)
     end
 
-    println("Estimating Structural DFM: $q factors, id=$id, VAR lags=$var_lags, horizon=$horizon")
+    _status("Estimating Structural DFM: $q factors, id=$id, VAR lags=$var_lags, horizon=$horizon")
 
     sdfm = estimate_structural_dfm(Y, q;
         identification=Symbol(id), p=var_lags, H=horizon,
         sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel))
 
-    println("  Identification: $(sdfm.identification)")
-    println("  Factor VAR lags: $(sdfm.p_var)")
-    println("  Shocks: $(join(sdfm.shock_names, ", "))")
+    _status("  Identification: $(sdfm.identification)")
+    _status("  Factor VAR lags: $(sdfm.p_var)")
+    _status("  Shocks: $(join(sdfm.shock_names, ", "))")
 
     _maybe_plot(sdfm; plot=plot, plot_save=plot_save)
     return sdfm
@@ -1410,9 +1410,9 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
 
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     wls_tag = isnothing(w) ? "OLS" : "WLS"
-    println("$wls_tag Regression: $dep_name ~ $(join(xcols, " + "))")
-    println("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
-    println()
+    _status("$wls_tag Regression: $dep_name ~ $(join(xcols, " + "))")
+    _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
+    _status()
 
     model = estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w,
                          varnames=xcols, clusters=cl)
@@ -1420,7 +1420,7 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
     coef_df = _reg_coef_table(model, xcols)
     output_result(coef_df; format=Symbol(format), output=output, title="$wls_tag Regression Coefficients")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "R²"              => round(r2(model); digits=6),
         "Adj. R²"         => round(model.adj_r2; digits=6),
@@ -1469,18 +1469,18 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
     X = Matrix{Float64}(df[!, xcols])
     Z = Matrix{Float64}(df[!, inst_names])
 
-    println("IV (2SLS) Regression: $dep_col ~ $(join(xcols, " + "))")
-    println("  Endogenous: $(join(endog_names, ", "))")
-    println("  Instruments: $(join(inst_names, ", "))")
-    println("  Observations: $(length(y)), Cov type: $cov_type")
-    println()
+    _status("IV (2SLS) Regression: $dep_col ~ $(join(xcols, " + "))")
+    _status("  Endogenous: $(join(endog_names, ", "))")
+    _status("  Instruments: $(join(inst_names, ", "))")
+    _status("  Observations: $(length(y)), Cov type: $cov_type")
+    _status()
 
     model = estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
 
     coef_df = _reg_coef_table(model, xcols)
     output_result(coef_df; format=Symbol(format), output=output, title="IV (2SLS) Regression Coefficients")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "R²"              => round(r2(model); digits=6),
         "Adj. R²"         => round(model.adj_r2; digits=6),
@@ -1505,9 +1505,9 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
     cl = _load_clusters(data, clusters)
 
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
-    println("Logit Regression: $dep_name ~ $(join(xcols, " + "))")
-    println("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
-    println()
+    _status("Logit Regression: $dep_name ~ $(join(xcols, " + "))")
+    _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
+    _status()
 
     model = estimate_logit(y, X; cov_type=Symbol(cov_type), varnames=xcols,
                            clusters=cl, maxiter=maxiter, tol=tol)
@@ -1515,7 +1515,7 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
     coef_df = _reg_coef_table(model, xcols)
     output_result(coef_df; format=Symbol(format), output=output, title="Logit Regression Coefficients")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "Pseudo R²"       => round(r2(model); digits=6),
         "Log-likelihood"  => round(loglikelihood(model); digits=4),
@@ -1538,9 +1538,9 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     cl = _load_clusters(data, clusters)
 
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
-    println("Probit Regression: $dep_name ~ $(join(xcols, " + "))")
-    println("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
-    println()
+    _status("Probit Regression: $dep_name ~ $(join(xcols, " + "))")
+    _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
+    _status()
 
     model = estimate_probit(y, X; cov_type=Symbol(cov_type), varnames=xcols,
                             clusters=cl, maxiter=maxiter, tol=tol)
@@ -1548,7 +1548,7 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     coef_df = _reg_coef_table(model, xcols)
     output_result(coef_df; format=Symbol(format), output=output, title="Probit Regression Coefficients")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "Pseudo R²"       => round(r2(model); digits=6),
         "Log-likelihood"  => round(loglikelihood(model); digits=4),
@@ -1575,8 +1575,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
 
     model_sym = _to_sym(method)
     cov_sym = _to_sym(cov_type)
-    println("Panel Regression ($method): $dep ~ $(join(indep_syms, " + "))")
-    println()
+    _status("Panel Regression ($method): $dep ~ $(join(indep_syms, " + "))")
+    _status()
 
     model = estimate_xtreg(pd, Symbol(dep), indep_syms;
         model=model_sym, twoway=twoway, cov_type=cov_sym)
@@ -1585,7 +1585,7 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     output_result(coef_df; format=Symbol(format), output=output,
         title="Panel Regression Coefficients ($method)")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "R2 (within)"  => round(model.within_r2; digits=6),
         "R2 (between)" => round(model.between_r2; digits=6),
@@ -1612,9 +1612,9 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
     endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
     inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
 
-    println("Panel IV ($method): $dep ~ $(join([exog_syms; endog_syms], " + "))")
-    println("  Instruments: $(join(inst_syms, ", "))")
-    println()
+    _status("Panel IV ($method): $dep ~ $(join([exog_syms; endog_syms], " + "))")
+    _status("  Instruments: $(join(inst_syms, ", "))")
+    _status()
 
     model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
         instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
@@ -1633,8 +1633,8 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    println("Panel Logit ($method): $dep ~ $(join(indep_syms, " + "))")
-    println()
+    _status("Panel Logit ($method): $dep ~ $(join(indep_syms, " + "))")
+    _status()
 
     model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
@@ -1643,7 +1643,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
     output_result(coef_df; format=Symbol(format), output=output,
         title="Panel Logit Coefficients ($method)")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "Pseudo R2"       => round(model.pseudo_r2; digits=6),
         "Log-likelihood"  => round(model.loglik; digits=4),
@@ -1665,8 +1665,8 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    println("Panel Probit ($method): $dep ~ $(join(indep_syms, " + "))")
-    println()
+    _status("Panel Probit ($method): $dep ~ $(join(indep_syms, " + "))")
+    _status()
 
     model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
@@ -1675,7 +1675,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
     output_result(coef_df; format=Symbol(format), output=output,
         title="Panel Probit Coefficients ($method)")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "Pseudo R2"       => round(model.pseudo_r2; digits=6),
         "Log-likelihood"  => round(model.loglik; digits=4),
@@ -1698,8 +1698,8 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    println("Ordered Logit: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("Ordered Logit: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
@@ -1720,10 +1720,10 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
         z_stat = round.(z; digits=4),
         p_value = round.(p; digits=4),
     )
-    println()
+    _status()
     output_result(coef_df; format=Symbol(format), output=output, title="Ordered Logit Coefficients")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "Pseudo R2"       => round(model.pseudo_r2; digits=6),
         "Log-likelihood"  => round(model.loglik; digits=4),
@@ -1744,8 +1744,8 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    println("Ordered Probit: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("Ordered Probit: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
@@ -1759,10 +1759,10 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
     coef_df = DataFrame(
         Variable = xcols, Coefficient = round.(b; digits=6),
         Std_Error = round.(se; digits=6), z_stat = round.(z; digits=4), p_value = round.(p; digits=4))
-    println()
+    _status()
     output_result(coef_df; format=Symbol(format), output=output, title="Ordered Probit Coefficients")
 
-    println()
+    _status()
     pairs = Pair{String,Any}[
         "Pseudo R2" => round(model.pseudo_r2; digits=6),
         "Log-likelihood" => round(model.loglik; digits=4),
@@ -1779,8 +1779,8 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    println("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
-    println()
+    _status("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
+    _status()
 
     model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
 
@@ -1798,7 +1798,7 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
             p_value = round.(p; digits=4))
         output_result(cat_df; format=Symbol(format), output=output,
             title="Category $(model.categories[j]) vs $(model.categories[1])")
-        println()
+        _status()
     end
 
     pairs = Pair{String,Any}[
