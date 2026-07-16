@@ -386,17 +386,25 @@ struct VECMModel{T<:Real}
     U::Matrix{T}; Sigma::Matrix{T}
     aic::T; bic::T; hqic::T; loglik::T
     deterministic::Symbol; method::Symbol
+    johansen_result::Union{Nothing,JohansenResult{T}}  # align with real MEMs (C020)
     varnames::Vector{String}
 end
 
-# Real MEMs VECMModel carries varnames (vecm/types.jl:61)
+# Real MEMs VECMModel carries johansen_result + varnames
 VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
           Pi::Matrix{T}, Gamma::Vector{Matrix{T}}, mu::Vector{T}, U::Matrix{T},
           Sigma::Matrix{T}, aic::T, bic::T, hqic::T, loglik::T,
           deterministic::Symbol, method::Symbol) where {T<:Real} =
     VECMModel(Y, p, rank, alpha, beta, Pi, Gamma, mu, U, Sigma,
-              aic, bic, hqic, loglik, deterministic, method,
+              aic, bic, hqic, loglik, deterministic, method, nothing,
               ["y$i" for i in 1:size(Y, 2)])
+
+VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
+          Pi::Matrix{T}, Gamma::Vector{Matrix{T}}, mu::Vector{T}, U::Matrix{T},
+          Sigma::Matrix{T}, aic::T, bic::T, hqic::T, loglik::T,
+          deterministic::Symbol, method::Symbol, varnames::Vector{String}) where {T<:Real} =
+    VECMModel(Y, p, rank, alpha, beta, Pi, Gamma, mu, U, Sigma,
+              aic, bic, hqic, loglik, deterministic, method, nothing, varnames)
 
 struct VECMForecast{T<:Real}
     levels::Matrix{T}; differences::Matrix{T}

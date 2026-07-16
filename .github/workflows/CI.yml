@@ -53,6 +53,11 @@ jobs:
             Pkg.instantiate()
           '
 
+      - name: Mock surface vs real MEMs (TS-3 / F32)
+        # Only need real MEMs once per matrix; run on Ubuntu to keep wall-clock low
+        if: matrix.os == 'ubuntu-latest'
+        run: julia --project test/tools/check_mock_surface.jl
+
       - name: Run tests
         run: julia --code-coverage=user --project test/runtests.jl
 
