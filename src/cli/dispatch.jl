@@ -68,6 +68,11 @@ function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=nod
     subcmd_name = args[1]
     rest = args[2:end]
 
+    # schema takes a variable-length command path — dedicated dispatcher (P1-5)
+    if subcmd_name == "schema" && haskey(node.subcmds, "schema")
+        return dispatch_schema(rest; prog=prog * " schema")
+    end
+
     # If first arg is a known subcommand, recurse into it (carries --help through)
     # F62: single get() instead of haskey+index pair
     subcmd = get(node.subcmds, subcmd_name, nothing)
