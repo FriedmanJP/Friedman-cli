@@ -39,6 +39,10 @@ include("config.jl")
 # Shared utilities (must come before command files)
 include("commands/shared.jl")
 
+# Declarative registry (P2-1) — before command files that emit CommandSpecs
+include("registry/spec.jl")
+include("registry/adapter.jl")
+
 # Commands (action-first hierarchy)
 include("commands/estimate.jl")
 include("commands/test.jl")

@@ -14,84 +14,112 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Spectral analysis commands: acf, periodogram, density, cross, transfer
+# Spectral analysis — registry pilot (P2-1 / C021)
+
+function spectral_specs()::Vector{CommandSpec}
+    data_arg = [ArgSpec(name="data", description="Path to CSV data file")]
+    plot_opts = [OUTPUT_OPTIONS; PLOT_OPTIONS]
+    plot_flags = copy(PLOT_FLAGS)
+
+    return [
+        CommandSpec(
+            path=["spectral", "acf"],
+            summary="Autocorrelation / partial autocorrelation / cross-correlation",
+            args=data_arg,
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1,
+                           description="Column index (1-based)"),
+                OptionSpec(name="max-lag", type=Int, default=nothing,
+                           description="Maximum lag (default: min(20, T-1))"),
+                OptionSpec(name="ccf-with", type=Int, default=nothing,
+                           description="Column index for cross-correlation"),
+                plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:acf_pacf, description="ACF / PACF table")],
+            category="spectral",
+            handler=wrap_legacy(_spectral_acf),
+        ),
+        CommandSpec(
+            path=["spectral", "periodogram"],
+            summary="Raw periodogram",
+            args=data_arg,
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1,
+                           description="Column index (1-based)"),
+                plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:periodogram, description="Periodogram")],
+            category="spectral",
+            handler=wrap_legacy(_spectral_periodogram),
+        ),
+        CommandSpec(
+            path=["spectral", "density"],
+            summary="Spectral density estimation",
+            args=data_arg,
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1,
+                           description="Column index (1-based)"),
+                OptionSpec(name="method", short="m", type=String, default="welch",
+                           choices=["periodogram", "welch", "smoothed", "ar"],
+                           description="periodogram|welch|smoothed|ar"),
+                OptionSpec(name="bandwidth", type=Float64, default=nothing,
+                           description="Smoothing bandwidth"),
+                plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:spectral_density, description="Spectral density")],
+            category="spectral",
+            handler=wrap_legacy(_spectral_density),
+        ),
+        CommandSpec(
+            path=["spectral", "cross"],
+            summary="Cross-spectral analysis (coherence, phase, gain)",
+            args=data_arg,
+            options=[
+                OptionSpec(name="var1", type=Int, default=1,
+                           description="First variable column index"),
+                OptionSpec(name="var2", type=Int, default=2,
+                           description="Second variable column index"),
+                plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:cross_spectral, description="Cross-spectrum")],
+            category="spectral",
+            handler=wrap_legacy(_spectral_cross),
+        ),
+        CommandSpec(
+            path=["spectral", "transfer"],
+            summary="Filter transfer function (theoretical frequency response)",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="filter", type=String, default="hp",
+                           choices=["hp", "bk", "hamilton", "ideal"],
+                           description="hp|bk|hamilton|ideal"),
+                OptionSpec(name="lambda", type=Float64, default=1600.0,
+                           description="Filter parameter (e.g. HP lambda)"),
+                OptionSpec(name="nobs", type=Int, default=200,
+                           description="Number of observations (for frequency grid)"),
+                plot_opts...,
+            ],
+            flags=plot_flags,
+            tables=[TableSpec(name=:transfer, description="Transfer function")],
+            category="spectral",
+            handler=wrap_legacy(_spectral_transfer),
+        ),
+    ]
+end
 
 function register_spectral_commands!()
-    spec_acf = LeafCommand("acf", _spectral_acf;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("max-lag"; type=Int, default=nothing, description="Maximum lag (default: min(20, T-1))"),
-            Option("ccf-with"; type=Int, default=nothing, description="Column index for cross-correlation"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Autocorrelation / partial autocorrelation / cross-correlation")
-
-    spec_periodogram = LeafCommand("periodogram", _spectral_periodogram;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Raw periodogram")
-
-    spec_density = LeafCommand("density", _spectral_density;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
-            Option("method"; short="m", type=String, default="welch", description="periodogram|welch|smoothed|ar"),
-            Option("bandwidth"; type=Float64, default=nothing, description="Smoothing bandwidth"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Spectral density estimation")
-
-    spec_cross = LeafCommand("cross", _spectral_cross;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("var1"; type=Int, default=1, description="First variable column index"),
-            Option("var2"; type=Int, default=2, description="Second variable column index"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Cross-spectral analysis (coherence, phase, gain)")
-
-    spec_transfer = LeafCommand("transfer", _spectral_transfer;
-        args=Argument[],
-        options=[
-            Option("filter"; type=String, default="hp", description="hp|bk|hamilton|ideal"),
-            Option("lambda"; type=Float64, default=1600.0, description="Filter parameter (e.g. HP lambda)"),
-            Option("nobs"; type=Int, default=200, description="Number of observations (for frequency grid)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Filter transfer function (theoretical frequency response)")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "acf"         => spec_acf,
-        "periodogram" => spec_periodogram,
-        "density"     => spec_density,
-        "cross"       => spec_cross,
-        "transfer"    => spec_transfer,
-    )
-    return NodeCommand("spectral", subcmds,
-        "Spectral analysis: ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function")
+    specs = spectral_specs()
+    register!(specs)
+    return build_node("spectral", specs;
+        description="Spectral analysis: ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function")
 end
 
 # --------------------------------------------------------------------------
-# Handlers
+# Handlers (legacy kwargs — wrapped via wrap_legacy for the registry pilot)
 # --------------------------------------------------------------------------
 
 function _spectral_acf(; data::String, column::Int=1,
