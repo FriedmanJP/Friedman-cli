@@ -1,0 +1,1402 @@
+# Fitted values / residuals — collapsed family (C025 / P2-3 / F9)
+# Surface unchanged: `predict <model>` and `residuals <model>` remain distinct paths.
+
+# Model kinds shared by predict + residuals (23). Specs generated from this table.
+# Per-kind extra options stay on the relevant leaves only.
+
+
+
+# ── VAR Predict ─────────────────────────────────────────
+
+function _predict_var(; data::String="", lags=nothing,
+                       output::String="", format::String="table",
+                       model=nothing)
+    if isnothing(model)
+        model, Y, varnames, p = _load_and_estimate_var(data, lags)
+    else
+        varnames = model.varnames
+        p = model.p
+    end
+    _status("Computing VAR($p) in-sample predictions: $(length(varnames)) variables")
+    _status()
+
+    fitted = predict(model)
+    T_eff = size(fitted, 1)
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T_eff
+    for (vi, vname) in enumerate(varnames)
+        pred_df[!, vname] = fitted[:, vi]
+    end
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="VAR($p) In-Sample Predictions (T_eff=$T_eff)")
+end
+
+# ── BVAR Predict ────────────────────────────────────────
+
+function _predict_bvar(; data::String="", lags::Int=4, draws::Int=2000,
+                        sampler::String="direct", config::String="",
+                        output::String="", format::String="table",
+                        model=nothing)
+    if isnothing(model)
+        post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
+    else
+        post = model
+        varnames = post.varnames
+        p = post.p
+        Y = post.Y
+    end
+
+    _status("Computing BVAR($p) in-sample predictions (posterior mean)")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
+
+    var_model = posterior_mean_model(post; data=Y)
+    fitted = predict(var_model)
+    T_eff = size(fitted, 1)
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T_eff
+    for (vi, vname) in enumerate(varnames)
+        pred_df[!, vname] = fitted[:, vi]
+    end
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="BVAR($p) In-Sample Predictions (posterior mean, T_eff=$T_eff)")
+end
+
+# ── ARIMA Predict ───────────────────────────────────────
+
+function _predict_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
+                          method::String="css_mle", auto::Bool=false,
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        method_sym = Symbol(method)
+        safe_method = method_sym == :css_mle ? :mle : method_sym
+
+        model = if isnothing(p) || auto
+            _status("Auto ARIMA predict: variable=$vname, observations=$(length(y))")
+            _status()
+            m = auto_arima(y; method=safe_method)
+            label = _model_label(ar_order(m), diff_order(m), ma_order(m))
+            _status_styled("Selected model: $label\n"; bold=true)
+            _status()
+            m
+        else
+            label = _model_label(p, d, q)
+            _status("$label predict: variable=$vname")
+            _status()
+            _estimate_arima_model(y, p, d, q; method=method_sym)
+        end
+    end
+
+    fitted = predict(model)
+
+    p_sel = ar_order(model)
+    d_sel = diff_order(model)
+    q_sel = ma_order(model)
+    label = _model_label(p_sel, d_sel, q_sel)
+
+    pred_df = DataFrame(
+        t=1:length(fitted),
+        fitted=round.(fitted; digits=6)
+    )
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="$label In-Sample Predictions for $vname")
+end
+
+# ── VECM Predict ───────────────────────────────────────
+
+function _predict_vecm(; data::String="", lags::Int=2, rank::String="auto",
+                         deterministic::String="constant",
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
+    else
+        vecm = model
+        varnames = vecm.varnames
+        p = vecm.p
+    end
+    r = cointegrating_rank(vecm)
+
+    _status("Computing VECM in-sample predictions: rank=$r, lags=$p")
+    _status()
+
+    var_model = to_var(vecm)
+    fitted = predict(var_model)
+    T_eff = size(fitted, 1)
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T_eff
+    for (vi, vname) in enumerate(varnames)
+        pred_df[!, vname] = fitted[:, vi]
+    end
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="VECM In-Sample Predictions (rank=$r, T_eff=$T_eff)")
+end
+
+# ── Static Factor Predict ─────────────────────────────
+
+function _predict_static(; data::String="", nfactors=nothing,
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        X, varnames = load_multivariate_data(data)
+
+        r = if isnothing(nfactors)
+            ic = ic_criteria(X, min(20, size(X, 2)))
+            ic.r_IC1
+        else
+            nfactors
+        end
+
+        fm = estimate_factors(X, r)
+    else
+        fm = model
+        varnames = fm.varnames
+    end
+    fitted = predict(fm)
+    T = size(fitted, 1)
+
+    _status("Static factor model: $r factors, common component (T=$T)")
+    _status()
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T
+    for (vi, vname) in enumerate(varnames)
+        pred_df[!, vname] = fitted[:, vi]
+    end
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Static Factor Common Component ($r factors, T=$T)")
+end
+
+# ── Dynamic Factor Predict ────────────────────────────
+
+function _predict_dynamic(; data::String="", nfactors=nothing, factor_lags::Int=1,
+                            method::String="twostep",
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        X, varnames = load_multivariate_data(data)
+
+        r = if isnothing(nfactors)
+            ic = ic_criteria(X, min(10, size(X, 2)))
+            ic.r_IC1
+        else
+            nfactors
+        end
+
+        fm = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
+    else
+        fm = model
+        varnames = fm.varnames
+    end
+    fitted = predict(fm)
+    T = size(fitted, 1)
+
+    _status("Dynamic factor model: $r factors, p=$factor_lags, common component (T=$T)")
+    _status()
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T
+    for (vi, vname) in enumerate(varnames)
+        pred_df[!, vname] = fitted[:, vi]
+    end
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Dynamic Factor Common Component ($r factors, p=$factor_lags, T=$T)")
+end
+
+# ── GDFM Predict ──────────────────────────────────────
+
+function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing,
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        X, varnames = load_multivariate_data(data)
+
+        q = if isnothing(dynamic_rank)
+            ic = ic_criteria_gdfm(X, min(5, size(X, 2)))
+            ic.q_ratio
+        else
+            dynamic_rank
+        end
+
+        gm = estimate_gdfm(X, q)
+    else
+        gm = model
+        varnames = gm.varnames
+    end
+    fitted = predict(gm)
+    T = size(fitted, 1)
+
+    _status("GDFM: q=$q dynamic factors, common component (T=$T)")
+    _status()
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T
+    for (vi, vname) in enumerate(varnames)
+        pred_df[!, vname] = fitted[:, vi]
+    end
+
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="GDFM Common Component (q=$q, T=$T)")
+end
+
+# ── ARCH Predict ──────────────────────────────────────
+
+function _predict_arch(; data::String="", column::Int=1, q::Int=1,
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_arch(y, q)
+    else
+        vname = "series"
+    end
+    cond_var = predict(model)
+
+    _status("ARCH($q) conditional variance: variable=$vname")
+    _status()
+
+    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
+                        volatility=round.(sqrt.(cond_var); digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="ARCH($q) Conditional Variance ($vname)")
+end
+
+# ── GARCH Predict ─────────────────────────────────────
+
+function _predict_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_garch(y, p, q)
+    else
+        vname = "series"
+    end
+    cond_var = predict(model)
+
+    _status("GARCH($p,$q) conditional variance: variable=$vname")
+    _status()
+
+    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
+                        volatility=round.(sqrt.(cond_var); digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="GARCH($p,$q) Conditional Variance ($vname)")
+end
+
+# ── EGARCH Predict ────────────────────────────────────
+
+function _predict_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_egarch(y, p, q)
+    else
+        vname = "series"
+    end
+    cond_var = predict(model)
+
+    _status("EGARCH($p,$q) conditional variance: variable=$vname")
+    _status()
+
+    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
+                        volatility=round.(sqrt.(cond_var); digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="EGARCH($p,$q) Conditional Variance ($vname)")
+end
+
+# ── GJR-GARCH Predict ────────────────────────────────
+
+function _predict_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
+                              output::String="", format::String="table",
+                              model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_gjr_garch(y, p, q)
+    else
+        vname = "series"
+    end
+    cond_var = predict(model)
+
+    _status("GJR-GARCH($p,$q) conditional variance: variable=$vname")
+    _status()
+
+    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
+                        volatility=round.(sqrt.(cond_var); digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="GJR-GARCH($p,$q) Conditional Variance ($vname)")
+end
+
+# ── SV Predict ────────────────────────────────────────
+
+function _predict_sv(; data::String="", column::Int=1, draws::Int=5000,
+                       output::String="", format::String="table",
+                       model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_sv(y; n_samples=draws)
+    else
+        vname = "series"
+    end
+    cond_var = predict(model)
+
+    _status("SV posterior mean volatility: variable=$vname, draws=$draws")
+    _status()
+
+    pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
+                        volatility=round.(sqrt.(cond_var); digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="SV Posterior Mean Volatility ($vname)")
+end
+
+# ── FAVAR Predict ─────────────────────────────────────────
+
+function _predict_favar(; data::String="", factors=nothing, lags::Int=2,
+                         key_vars::String="",
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    else
+        favar = model
+        varnames = favar.varnames
+    end
+    var_model = to_var(favar)
+
+    _status("FAVAR In-Sample Prediction")
+    _status()
+
+    fitted = predict(var_model)
+    T_eff = size(fitted, 1)
+
+    pred_df = DataFrame()
+    pred_df.t = 1:T_eff
+    for v in 1:size(fitted, 2)
+        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
+        pred_df[!, vname] = round.(fitted[:, v]; digits=6)
+    end
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="FAVAR In-Sample Predictions (T_eff=$T_eff)")
+end
+
+# ── Regression Predict ────────────────────────────────────
+
+function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
+                       weights::String="", clusters::String="",
+                       output::String="", format::String="table",
+                       model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; weights_col=weights, clusters_col=clusters)
+        w = _load_weights(data, weights)
+        cl = _load_clusters(data, clusters)
+        model = estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w, varnames=xcols, clusters=cl)
+        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        wls_tag = isnothing(w) ? "OLS" : "WLS"
+    else
+        xcols = model.varnames
+        dep_name = "y"
+        wls_tag = "OLS"
+    end
+    _status("$wls_tag Fitted Values: $dep_name ~ $(join(xcols, " + "))")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output, title="$wls_tag Fitted Values")
+end
+
+# ── Logit Predict ─────────────────────────────────────────
+
+function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1",
+                         clusters::String="", threshold::Float64=0.5,
+                         marginal_effects::Bool=false, odds_ratio::Bool=false,
+                         classification_table::Bool=false,
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        model = estimate_logit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    else
+        dep_name = "y"
+    end
+
+    if marginal_effects
+        me = MacroEconometricModels.marginal_effects(model)
+        me_df = DataFrame(Variable=me.varnames, Effect=round.(me.effects; digits=6),
+            SE=round.(me.se; digits=6), z=round.(me.z_stat; digits=4),
+            p_value=round.(me.p_values; digits=4),
+            CI_Lower=round.(me.ci_lower; digits=6), CI_Upper=round.(me.ci_upper; digits=6))
+        output_result(me_df; format=Symbol(format), output=output,
+                      title="Average Marginal Effects (Logit)")
+    elseif odds_ratio
+        or = MacroEconometricModels.odds_ratio(model)
+        or_df = DataFrame(Variable=or.varnames, Odds_Ratio=round.(or.odds_ratio; digits=6),
+            CI_Lower=round.(or.ci_lower; digits=6), CI_Upper=round.(or.ci_upper; digits=6))
+        output_result(or_df; format=Symbol(format), output=output,
+                      title="Odds Ratios (Logit)")
+    elseif classification_table
+        ct = MacroEconometricModels.classification_table(model; threshold=threshold)
+        _status("Classification Table (threshold=$threshold):")
+        for (k, v) in sort(collect(ct))
+            _status("  $k: $v")
+        end
+    else
+        _status("Logit Fitted Probabilities: $dep_name")
+        _status()
+        fitted = predict(model)
+        pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+        output_result(pred_df; format=Symbol(format), output=output,
+                      title="Logit Fitted Probabilities")
+    end
+end
+
+# ── Probit Predict ────────────────────────────────────────
+
+function _predict_probit(; data::String="", dep::String="", cov_type::String="hc1",
+                          clusters::String="", threshold::Float64=0.5,
+                          marginal_effects::Bool=false,
+                          classification_table::Bool=false,
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        model = estimate_probit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    else
+        dep_name = "y"
+    end
+
+    if marginal_effects
+        me = MacroEconometricModels.marginal_effects(model)
+        me_df = DataFrame(Variable=me.varnames, Effect=round.(me.effects; digits=6),
+            SE=round.(me.se; digits=6), z=round.(me.z_stat; digits=4),
+            p_value=round.(me.p_values; digits=4),
+            CI_Lower=round.(me.ci_lower; digits=6), CI_Upper=round.(me.ci_upper; digits=6))
+        output_result(me_df; format=Symbol(format), output=output,
+                      title="Average Marginal Effects (Probit)")
+    elseif classification_table
+        ct = MacroEconometricModels.classification_table(model; threshold=threshold)
+        _status("Classification Table (threshold=$threshold):")
+        for (k, v) in sort(collect(ct))
+            _status("  $k: $v")
+        end
+    else
+        _status("Probit Fitted Probabilities: $dep_name")
+        _status()
+        fitted = predict(model)
+        pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+        output_result(pred_df; format=Symbol(format), output=output,
+                      title="Probit Fitted Probabilities")
+    end
+end
+
+# ── Panel Regression Predict ────────────────────────────
+
+function _predict_preg(; data::String, dep::String="", indep::String="",
+                        method::String="fe", cov_type::String="cluster",
+                        id_col::String="", time_col::String="",
+                        output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel Regression Fitted Values ($method): $dep")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Panel Regression Fitted Values ($method)")
+end
+
+function _predict_piv(; data::String, dep::String="", exog::String="",
+                       endog::String="", instruments::String="",
+                       method::String="fe", cov_type::String="cluster",
+                       id_col::String="", time_col::String="",
+                       output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    isempty(endog) && error("--endog is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+
+    exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
+    endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
+    inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
+
+    model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
+        instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel IV Fitted Values ($method): $dep")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Panel IV Fitted Values ($method)")
+end
+
+function _predict_plogit(; data::String, dep::String="", indep::String="",
+                          method::String="pooled", cov_type::String="cluster",
+                          id_col::String="", time_col::String="",
+                          output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel Logit Fitted Probabilities ($method): $dep")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Panel Logit Fitted Probabilities ($method)")
+end
+
+function _predict_pprobit(; data::String, dep::String="", indep::String="",
+                           method::String="pooled", cov_type::String="cluster",
+                           id_col::String="", time_col::String="",
+                           output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel Probit Fitted Probabilities ($method): $dep")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Panel Probit Fitted Probabilities ($method)")
+end
+
+# ── Ordered/Multinomial Predict ─────────────────────────
+
+function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
+                          clusters::String="",
+                          output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    _status("Ordered Logit Predicted Probabilities: $dep_name")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Ordered Logit Predicted Probabilities")
+end
+
+function _predict_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
+                           clusters::String="",
+                           output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    _status("Ordered Probit Predicted Probabilities: $dep_name")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Ordered Probit Predicted Probabilities")
+end
+
+function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ols",
+                          output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+
+    _status("Multinomial Logit Predicted Probabilities: $dep_name")
+    _status()
+
+    fitted = predict(model)
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    output_result(pred_df; format=Symbol(format), output=output,
+                  title="Multinomial Logit Predicted Probabilities")
+end
+
+
+
+# ── VAR Residuals ───────────────────────────────────────
+
+function _residuals_var(; data::String="", lags=nothing,
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        model, Y, varnames, p = _load_and_estimate_var(data, lags)
+    else
+        varnames = model.varnames
+        p = model.p
+    end
+    _status("Computing VAR($p) residuals: $(length(varnames)) variables")
+    _status()
+
+    resid = residuals(model)
+    T_eff = size(resid, 1)
+
+    res_df = DataFrame()
+    res_df.t = 1:T_eff
+    for (vi, vname) in enumerate(varnames)
+        res_df[!, vname] = resid[:, vi]
+    end
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="VAR($p) Residuals (T_eff=$T_eff)")
+end
+
+# ── BVAR Residuals ──────────────────────────────────────
+
+function _residuals_bvar(; data::String="", lags::Int=4, draws::Int=2000,
+                           sampler::String="direct", config::String="",
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
+    else
+        post = model
+        varnames = post.varnames
+        p = post.p
+        Y = post.Y
+    end
+
+    _status("Computing BVAR($p) residuals (posterior mean)")
+    _status("  Sampler: $sampler, Draws: $draws")
+    _status()
+
+    var_model = posterior_mean_model(post; data=Y)
+    resid = residuals(var_model)
+    T_eff = size(resid, 1)
+
+    res_df = DataFrame()
+    res_df.t = 1:T_eff
+    for (vi, vname) in enumerate(varnames)
+        res_df[!, vname] = resid[:, vi]
+    end
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="BVAR($p) Residuals (posterior mean, T_eff=$T_eff)")
+end
+
+# ── ARIMA Residuals ─────────────────────────────────────
+
+function _residuals_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
+                            method::String="css_mle", auto::Bool=false,
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        method_sym = Symbol(method)
+        safe_method = method_sym == :css_mle ? :mle : method_sym
+
+        model = if isnothing(p) || auto
+            _status("Auto ARIMA residuals: variable=$vname, observations=$(length(y))")
+            _status()
+            m = auto_arima(y; method=safe_method)
+            label = _model_label(ar_order(m), diff_order(m), ma_order(m))
+            _status_styled("Selected model: $label\n"; bold=true)
+            _status()
+            m
+        else
+            label = _model_label(p, d, q)
+            _status("$label residuals: variable=$vname")
+            _status()
+            _estimate_arima_model(y, p, d, q; method=method_sym)
+        end
+    end
+
+    resid = residuals(model)
+
+    p_sel = ar_order(model)
+    d_sel = diff_order(model)
+    q_sel = ma_order(model)
+    label = _model_label(p_sel, d_sel, q_sel)
+
+    res_df = DataFrame(
+        t=1:length(resid),
+        residual=round.(resid; digits=6)
+    )
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="$label Residuals for $vname")
+end
+
+# ── VECM Residuals ─────────────────────────────────────
+
+function _residuals_vecm(; data::String="", lags::Int=2, rank::String="auto",
+                           deterministic::String="constant",
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
+    else
+        vecm = model
+        varnames = vecm.varnames
+        p = vecm.p
+    end
+    r = cointegrating_rank(vecm)
+
+    _status("Computing VECM residuals: rank=$r, lags=$p")
+    _status()
+
+    var_model = to_var(vecm)
+    resid = residuals(var_model)
+    T_eff = size(resid, 1)
+
+    res_df = DataFrame()
+    res_df.t = 1:T_eff
+    for (vi, vname) in enumerate(varnames)
+        res_df[!, vname] = resid[:, vi]
+    end
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="VECM Residuals (rank=$r, T_eff=$T_eff)")
+end
+
+# ── Static Factor Residuals ───────────────────────────
+
+function _residuals_static(; data::String="", nfactors=nothing,
+                             output::String="", format::String="table",
+                             model=nothing)
+    if isnothing(model)
+        X, varnames = load_multivariate_data(data)
+
+        r = if isnothing(nfactors)
+            ic = ic_criteria(X, min(20, size(X, 2)))
+            ic.r_IC1
+        else
+            nfactors
+        end
+
+        fm = estimate_factors(X, r)
+    else
+        fm = model
+        varnames = fm.varnames
+    end
+    resid = residuals(fm)
+    T = size(resid, 1)
+
+    _status("Static factor model residuals: $r factors, idiosyncratic component (T=$T)")
+    _status()
+
+    res_df = DataFrame()
+    res_df.t = 1:T
+    for (vi, vname) in enumerate(varnames)
+        res_df[!, vname] = resid[:, vi]
+    end
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Static Factor Idiosyncratic Component ($r factors, T=$T)")
+end
+
+# ── Dynamic Factor Residuals ──────────────────────────
+
+function _residuals_dynamic(; data::String="", nfactors=nothing, factor_lags::Int=1,
+                              method::String="twostep",
+                              output::String="", format::String="table",
+                              model=nothing)
+    if isnothing(model)
+        X, varnames = load_multivariate_data(data)
+
+        r = if isnothing(nfactors)
+            ic = ic_criteria(X, min(10, size(X, 2)))
+            ic.r_IC1
+        else
+            nfactors
+        end
+
+        fm = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
+    else
+        fm = model
+        varnames = fm.varnames
+    end
+    resid = residuals(fm)
+    T = size(resid, 1)
+
+    _status("Dynamic factor model residuals: $r factors, p=$factor_lags, idiosyncratic component (T=$T)")
+    _status()
+
+    res_df = DataFrame()
+    res_df.t = 1:T
+    for (vi, vname) in enumerate(varnames)
+        res_df[!, vname] = resid[:, vi]
+    end
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Dynamic Factor Idiosyncratic Component ($r factors, p=$factor_lags, T=$T)")
+end
+
+# ── GDFM Residuals ────────────────────────────────────
+
+function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing,
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        X, varnames = load_multivariate_data(data)
+
+        q = if isnothing(dynamic_rank)
+            ic = ic_criteria_gdfm(X, min(5, size(X, 2)))
+            ic.q_ratio
+        else
+            dynamic_rank
+        end
+
+        gm = estimate_gdfm(X, q)
+    else
+        gm = model
+        varnames = gm.varnames
+    end
+    resid = residuals(gm)
+    T = size(resid, 1)
+
+    _status("GDFM residuals: q=$q dynamic factors, idiosyncratic component (T=$T)")
+    _status()
+
+    res_df = DataFrame()
+    res_df.t = 1:T
+    for (vi, vname) in enumerate(varnames)
+        res_df[!, vname] = resid[:, vi]
+    end
+
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="GDFM Idiosyncratic Component (q=$q, T=$T)")
+end
+
+# ── ARCH Residuals ────────────────────────────────────
+
+function _residuals_arch(; data::String="", column::Int=1, q::Int=1,
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_arch(y, q)
+    else
+        vname = "series"
+    end
+    resid = residuals(model)
+
+    _status("ARCH($q) standardized residuals: variable=$vname")
+    _status()
+
+    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="ARCH($q) Standardized Residuals ($vname)")
+end
+
+# ── GARCH Residuals ───────────────────────────────────
+
+function _residuals_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_garch(y, p, q)
+    else
+        vname = "series"
+    end
+    resid = residuals(model)
+
+    _status("GARCH($p,$q) standardized residuals: variable=$vname")
+    _status()
+
+    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="GARCH($p,$q) Standardized Residuals ($vname)")
+end
+
+# ── EGARCH Residuals ──────────────────────────────────
+
+function _residuals_egarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
+                             output::String="", format::String="table",
+                             model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_egarch(y, p, q)
+    else
+        vname = "series"
+    end
+    resid = residuals(model)
+
+    _status("EGARCH($p,$q) standardized residuals: variable=$vname")
+    _status()
+
+    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="EGARCH($p,$q) Standardized Residuals ($vname)")
+end
+
+# ── GJR-GARCH Residuals ──────────────────────────────
+
+function _residuals_gjr_garch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
+                                output::String="", format::String="table",
+                                model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_gjr_garch(y, p, q)
+    else
+        vname = "series"
+    end
+    resid = residuals(model)
+
+    _status("GJR-GARCH($p,$q) standardized residuals: variable=$vname")
+    _status()
+
+    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="GJR-GARCH($p,$q) Standardized Residuals ($vname)")
+end
+
+# ── SV Residuals ──────────────────────────────────────
+
+function _residuals_sv(; data::String="", column::Int=1, draws::Int=5000,
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        model = estimate_sv(y; n_samples=draws)
+    else
+        vname = "series"
+    end
+    resid = residuals(model)
+
+    _status("SV standardized residuals: variable=$vname, draws=$draws")
+    _status()
+
+    res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="SV Standardized Residuals ($vname)")
+end
+
+# ── FAVAR Residuals ───────────────────────────────────────
+
+function _residuals_favar(; data::String="", factors=nothing, lags::Int=2,
+                           key_vars::String="",
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
+    else
+        favar = model
+        varnames = favar.varnames
+    end
+    var_model = to_var(favar)
+
+    _status("FAVAR Residuals")
+    _status()
+
+    resid = residuals(var_model)
+    T_eff = size(resid, 1)
+
+    res_df = DataFrame()
+    res_df.t = 1:T_eff
+    for v in 1:size(resid, 2)
+        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
+        res_df[!, vname] = round.(resid[:, v]; digits=6)
+    end
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="FAVAR Residuals (T_eff=$T_eff)")
+end
+
+# ── Regression Residuals ──────────────────────────────────
+
+function _residuals_reg(; data::String="", dep::String="", cov_type::String="hc1",
+                         weights::String="", clusters::String="",
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; weights_col=weights, clusters_col=clusters)
+        w = _load_weights(data, weights)
+        cl = _load_clusters(data, clusters)
+        model = estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w, varnames=xcols, clusters=cl)
+        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        wls_tag = isnothing(w) ? "OLS" : "WLS"
+    else
+        xcols = model.varnames
+        dep_name = "y"
+        wls_tag = "OLS"
+    end
+    _status("$wls_tag Residuals: $dep_name ~ $(join(xcols, " + "))")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output, title="$wls_tag Residuals")
+end
+
+# ── Logit Residuals ───────────────────────────────────────
+
+function _residuals_logit(; data::String="", dep::String="", cov_type::String="hc1",
+                           clusters::String="",
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        model = estimate_logit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    else
+        xcols = model.varnames
+        dep_name = "y"
+    end
+    _status("Logit Residuals: $dep_name ~ $(join(xcols, " + "))")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output, title="Logit Residuals")
+end
+
+# ── Probit Residuals ──────────────────────────────────────
+
+function _residuals_probit(; data::String="", dep::String="", cov_type::String="hc1",
+                            clusters::String="",
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        model = estimate_probit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    else
+        xcols = model.varnames
+        dep_name = "y"
+    end
+    _status("Probit Residuals: $dep_name ~ $(join(xcols, " + "))")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output, title="Probit Residuals")
+end
+
+# ── Panel Regression Residuals ──────────────────────────
+
+function _residuals_preg(; data::String="", dep::String="", indep::String="",
+                          method::String="fe", cov_type::String="cluster",
+                          id_col::String="", time_col::String="",
+                          output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel Regression Residuals ($method): $dep")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Panel Regression Residuals ($method)")
+end
+
+function _residuals_piv(; data::String="", dep::String="", exog::String="",
+                         endog::String="", instruments::String="",
+                         method::String="fe", cov_type::String="cluster",
+                         id_col::String="", time_col::String="",
+                         output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    isempty(endog) && error("--endog is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+
+    exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
+    endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
+    inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
+
+    model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
+        instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel IV Residuals ($method): $dep")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Panel IV Residuals ($method)")
+end
+
+function _residuals_plogit(; data::String="", dep::String="", indep::String="",
+                            method::String="pooled", cov_type::String="cluster",
+                            id_col::String="", time_col::String="",
+                            output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel Logit Residuals ($method): $dep")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Panel Logit Residuals ($method)")
+end
+
+function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
+                             method::String="pooled", cov_type::String="cluster",
+                             id_col::String="", time_col::String="",
+                             output::String="", format::String="table")
+    isempty(dep) && error("--dep is required")
+    pd = _load_panel_for_preg(data, id_col, time_col)
+    indep_syms = _parse_indep_vars(pd, dep, indep)
+
+    model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
+        model=_to_sym(method), cov_type=_to_sym(cov_type))
+
+    _status("Panel Probit Residuals ($method): $dep")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Panel Probit Residuals ($method)")
+end
+
+# ── Ordered/Multinomial Residuals ───────────────────────
+
+function _residuals_ologit(; data::String="", dep::String="", cov_type::String="hc1",
+                            clusters::String="",
+                            output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    _status("Ordered Logit Residuals: $dep_name")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Ordered Logit Residuals")
+end
+
+function _residuals_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
+                             clusters::String="",
+                             output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+
+    _status("Ordered Probit Residuals: $dep_name")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Ordered Probit Residuals")
+end
+
+function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="ols",
+                            clusters::String="",
+                            output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+
+    _status("Multinomial Logit Residuals: $dep_name")
+    _status()
+
+    resid = residuals(model)
+    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    output_result(res_df; format=Symbol(format), output=output,
+                  title="Multinomial Logit Residuals")
+end
+
+
+function _fitted_data_arg()
+    return [ArgSpec(name="data", description="Path to CSV data file")]
+end
+
+function _fitted_base_options(; include_lags=true, include_column=false, include_reg=false, include_preg=false)
+    opts = OptionSpec[]
+    if include_reg
+        append!(opts, REG_OPTIONS)
+    elseif include_preg
+        append!(opts, PREG_OPTIONS)
+    else
+        if include_lags
+            push!(opts, OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order"))
+        end
+        if include_column
+            push!(opts, OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"))
+        end
+        append!(opts, OUTPUT_OPTIONS)
+    end
+    return opts
+end
+
+# Extra option sets for discrete choice / special leaves
+const _LOGIT_EXTRA = [
+    OptionSpec(name="marginal-effects", type=String, default="", description="Compute marginal effects (empty=off)"),
+    OptionSpec(name="odds-ratio", type=String, default="", description="Odds ratios (logit)"),
+    OptionSpec(name="classification-table", type=String, default="", description="Classification table"),
+    OptionSpec(name="threshold", type=Float64, default=0.5, description="Classification threshold"),
+]
+const _ORDERED_EXTRA = [
+    OptionSpec(name="marginal-effects", type=String, default="", description="Marginal effects"),
+    OptionSpec(name="category", type=Int, default=0, description="Category index"),
+]
+const _MLOGIT_EXTRA = [
+    OptionSpec(name="marginal-effects", type=String, default="", description="Marginal effects"),
+    OptionSpec(name="base-category", type=Int, default=1, description="Base category"),
+]
+
+# kind => (handler_predict, handler_residuals, opts_builder_symbol)
+const FITTED_MODEL_KINDS = [
+    (; name="var",        pred=_predict_var,        res=_residuals_var,        kind=:var),
+    (; name="bvar",       pred=_predict_bvar,       res=_residuals_bvar,       kind=:bvar),
+    (; name="arima",      pred=_predict_arima,      res=_residuals_arima,      kind=:arima),
+    (; name="vecm",       pred=_predict_vecm,       res=_residuals_vecm,       kind=:vecm),
+    (; name="static",     pred=_predict_static,     res=_residuals_static,     kind=:factor),
+    (; name="dynamic",    pred=_predict_dynamic,    res=_residuals_dynamic,    kind=:factor),
+    (; name="gdfm",       pred=_predict_gdfm,       res=_residuals_gdfm,       kind=:factor),
+    (; name="arch",       pred=_predict_arch,       res=_residuals_arch,       kind=:vol),
+    (; name="garch",      pred=_predict_garch,      res=_residuals_garch,      kind=:vol),
+    (; name="egarch",     pred=_predict_egarch,     res=_residuals_egarch,     kind=:vol),
+    (; name="gjr_garch",  pred=_predict_gjr_garch,  res=_residuals_gjr_garch,  kind=:vol),
+    (; name="sv",         pred=_predict_sv,         res=_residuals_sv,         kind=:vol),
+    (; name="favar",      pred=_predict_favar,      res=_residuals_favar,      kind=:favar),
+    (; name="reg",        pred=_predict_reg,        res=_residuals_reg,        kind=:reg),
+    (; name="logit",      pred=_predict_logit,      res=_residuals_logit,      kind=:logit),
+    (; name="probit",     pred=_predict_probit,     res=_residuals_probit,     kind=:probit),
+    (; name="preg",       pred=_predict_preg,       res=_residuals_preg,       kind=:preg),
+    (; name="piv",        pred=_predict_piv,        res=_residuals_piv,        kind=:preg),
+    (; name="plogit",     pred=_predict_plogit,     res=_residuals_plogit,     kind=:preg),
+    (; name="pprobit",    pred=_predict_pprobit,    res=_residuals_pprobit,    kind=:preg),
+    (; name="ologit",     pred=_predict_ologit,     res=_residuals_ologit,     kind=:ologit),
+    (; name="oprobit",    pred=_predict_oprobit,    res=_residuals_oprobit,    kind=:oprobit),
+    (; name="mlogit",     pred=_predict_mlogit,     res=_residuals_mlogit,     kind=:mlogit),
+]
+
+function _opts_for_kind(kind::Symbol, verb::Symbol)
+    if kind === :reg
+        opts = copy(REG_OPTIONS)
+        # weights for reg
+        push!(opts, OptionSpec(name="weights", type=String, default="", description="Weights column"))
+        return opts
+    elseif kind === :preg
+        return copy(PREG_OPTIONS)
+    elseif kind === :vol || kind === :arima
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :factor
+        return [
+            OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors"),
+            OptionSpec(name="lags", short="p", type=Int, default=1, description="Lags"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :logit
+        return [REG_OPTIONS...; (verb === :predict ? _LOGIT_EXTRA : OptionSpec[])]
+    elseif kind === :probit
+        return [REG_OPTIONS...; (verb === :predict ? filter(o -> o.name != "odds-ratio", _LOGIT_EXTRA) : OptionSpec[])]
+    elseif kind === :ologit || kind === :oprobit
+        return [REG_OPTIONS...; (verb === :predict ? _ORDERED_EXTRA : OptionSpec[])]
+    elseif kind === :mlogit
+        return [REG_OPTIONS...; (verb === :predict ? _MLOGIT_EXTRA : OptionSpec[])]
+    elseif kind === :bvar
+        return [
+            OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+            OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+            OptionSpec(name="sampler", type=String, default="direct", description="Sampler"),
+            OptionSpec(name="config", type=String, default="", description="TOML prior config"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :favar
+        return [
+            OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors"),
+            OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lags"),
+            OptionSpec(name="key-vars", type=String, default="", description="Key variables"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :vecm
+        return [
+            OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
+            OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank"),
+            OUTPUT_OPTIONS...,
+        ]
+    else # :var default
+        return [
+            OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+            OUTPUT_OPTIONS...,
+        ]
+    end
+end
+
+function _specs_for_verb(verb::Symbol, title_prefix::String)
+    specs = CommandSpec[]
+    for m in FITTED_MODEL_KINDS
+        handler = verb === :predict ? m.pred : m.res
+        path0 = verb === :predict ? "predict" : "residuals"
+        push!(specs, CommandSpec(
+            path=[path0, m.name],
+            summary="$title_prefix ($(m.name))",
+            args=_fitted_data_arg(),
+            options=_opts_for_kind(m.kind, verb),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=Symbol("$(path0)_$(m.name)"), description=title_prefix)],
+            category=path0,
+            handler=wrap_legacy(handler),
+        ))
+    end
+    return specs
+end
+
+function predict_specs()::Vector{CommandSpec}
+    return _specs_for_verb(:predict, "In-sample fitted values")
+end
+
+function residuals_specs()::Vector{CommandSpec}
+    return _specs_for_verb(:residuals, "Model residuals")
+end
+
+function register_predict_commands!()
+    specs = predict_specs()
+    register!(specs)
+    return build_node("predict", specs; description="In-sample fitted values / predictions")
+end
+
+function register_residuals_commands!()
+    specs = residuals_specs()
+    register!(specs)
+    return build_node("residuals", specs; description="Model residuals")
+end
