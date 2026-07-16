@@ -16,124 +16,165 @@
 
 # FEVD commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: friedman fevd var ...)
 
-function register_fevd_commands!()
-    fevd_var = LeafCommand("var", _fevd_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-            Option("horizons"; short="h", type=Int, default=20, description="Forecast horizon"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute forecast error variance decomposition")
-
-    fevd_bvar = LeafCommand("bvar", _fevd_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("horizons"; short="h", type=Int, default=20, description="Forecast horizon"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("config"; type=String, default="", description="TOML config for identification/prior"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute Bayesian forecast error variance decomposition")
-
-    fevd_lp = LeafCommand("lp", _fevd_lp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("horizons"; short="h", type=Int, default=20, description="Forecast horizon"),
-            Option("lags"; short="p", type=Int, default=4, description="LP control lags"),
-            Option("var-lags"; type=Int, default=nothing, description="VAR lag order for identification"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("vcov"; type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute forecast error variance decomposition via structural LP")
-
-    fevd_vecm = LeafCommand("vecm", _fevd_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("horizons"; short="h", type=Int, default=20, description="Forecast horizon"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute FEVD via VECM → VAR representation")
-
-    fevd_pvar = LeafCommand("pvar", _fevd_pvar;
-        args=[Argument("data"; description="Path to CSV panel data file")],
-        options=[
-            Option("id-col"; type=String, default="", description="Panel group identifier column"),
-            Option("time-col"; type=String, default="", description="Time period column"),
-            Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("horizons"; short="h", type=Int, default=10, description="Forecast horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute Panel VAR forecast error variance decomposition")
-
-    fevd_favar = LeafCommand("favar", _fevd_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices"),
-            Option("horizons"; short="h", type=Int, default=20, description="FEVD horizon"),
-            Option("id"; type=String, default="cholesky", description="Identification method"),
-            Option("config"; type=String, default="", description="TOML config for restrictions"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="FAVAR forecast error variance decomposition")
-
-    fevd_sdfm = LeafCommand("sdfm", _fevd_sdfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="q", type=Int, default=nothing, description="Number of dynamic factors"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign"),
-            Option("var-lags"; type=Int, default=1, description="Factor VAR lag order"),
-            Option("horizons"; short="h", type=Int, default=20, description="FEVD horizon"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Structural DFM forecast error variance decomposition")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"   => fevd_var,
-        "bvar"  => fevd_bvar,
-        "lp"    => fevd_lp,
-        "vecm"  => fevd_vecm,
-        "pvar"  => fevd_pvar,
-        "favar" => fevd_favar,
-        "sdfm"  => fevd_sdfm,
-    )
-    return NodeCommand("fevd", subcmds, "Forecast Error Variance Decomposition")
+function fevd_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["fevd", "var"],
+            summary="Compute forecast error variance decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_var, description="Compute forecast error variance decomposition")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_var),
+        ),
+        CommandSpec(
+            path=["fevd", "bvar"],
+            summary="Compute Bayesian forecast error variance decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_bvar, description="Compute Bayesian forecast error variance decomposition")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_bvar),
+        ),
+        CommandSpec(
+            path=["fevd", "lp"],
+            summary="Compute forecast error variance decomposition via structural LP",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
+                OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_lp, description="Compute forecast error variance decomposition via structural LP")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_lp),
+        ),
+        CommandSpec(
+            path=["fevd", "vecm"],
+            summary="Compute FEVD via VECM → VAR representation",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_vecm, description="Compute FEVD via VECM → VAR representation")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_vecm),
+        ),
+        CommandSpec(
+            path=["fevd", "pvar"],
+            summary="Compute Panel VAR forecast error variance decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=10, description="Forecast horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_pvar, description="Compute Panel VAR forecast error variance decomposition")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_pvar),
+        ),
+        CommandSpec(
+            path=["fevd", "favar"],
+            summary="FAVAR forecast error variance decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="FEVD horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="Identification method"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for restrictions"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_favar, description="FAVAR forecast error variance decomposition")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_favar),
+        ),
+        CommandSpec(
+            path=["fevd", "sdfm"],
+            summary="Structural DFM forecast error variance decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="FEVD horizon"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:fevd_sdfm, description="Structural DFM forecast error variance decomposition")],
+            category="fevd",
+            handler=wrap_legacy(_fevd_sdfm),
+        )
+    ]
 end
+
+function register_fevd_commands!()
+    specs = fevd_specs()
+    register!(specs)
+    return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
+end
+
 
 # ── VAR FEVD ─────────────────────────────────────────────
 

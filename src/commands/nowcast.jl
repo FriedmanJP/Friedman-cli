@@ -16,94 +16,85 @@
 
 # Nowcast commands: dfm, bvar, bridge, news, forecast
 
+function nowcast_specs()::Vector{CommandSpec}
+    data_arg = [ArgSpec(name="data", description="Path to CSV data file")]
+    out_fmt = [
+        OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+        OptionSpec(name="format", short="f", type=String, default="table",
+                   choices=["table", "csv", "json"], description="table|csv|json"),
+    ]
+    return [
+        CommandSpec(path=["nowcast", "dfm"], summary="Nowcast via Dynamic Factor Model (EM algorithm)",
+            args=data_arg,
+            options=[
+                OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables (first N columns)"),
+                OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables (remaining columns)"),
+                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
+                OptionSpec(name="idio", type=String, default="ar1", description="Idiosyncratic component: ar1|iid"),
+                OptionSpec(name="max-iter", type=Int, default=100, description="Maximum EM iterations"),
+                OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
+                out_fmt..., PLOT_OPTIONS...,
+            ],
+            flags=copy(PLOT_FLAGS), category="nowcast", handler=wrap_legacy(_nowcast_dfm)),
+        CommandSpec(path=["nowcast", "bvar"], summary="Nowcast via Bayesian VAR",
+            args=data_arg,
+            options=[
+                OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
+                OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
+                OptionSpec(name="lags", short="p", type=Int, default=5, description="VAR lags"),
+                OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
+                out_fmt...,
+            ],
+            category="nowcast", handler=wrap_legacy(_nowcast_bvar)),
+        CommandSpec(path=["nowcast", "bridge"], summary="Nowcast via bridge equations",
+            args=data_arg,
+            options=[
+                OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
+                OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
+                OptionSpec(name="lag-m", type=Int, default=1, description="Monthly indicator lags"),
+                OptionSpec(name="lag-q", type=Int, default=1, description="Quarterly indicator lags"),
+                OptionSpec(name="lag-y", type=Int, default=1, description="Dependent variable lags"),
+                OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
+                out_fmt...,
+            ],
+            category="nowcast", handler=wrap_legacy(_nowcast_bridge)),
+        CommandSpec(path=["nowcast", "news"], summary="Nowcast news decomposition (Banbura & Modugno 2014)",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="data-new", type=String, default="", description="Path to new vintage CSV"),
+                OptionSpec(name="data-old", type=String, default="", description="Path to old vintage CSV"),
+                OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
+                OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
+                OptionSpec(name="method", type=String, default="dfm", choices=["dfm", "bvar"], description="dfm|bvar"),
+                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM)"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
+                OptionSpec(name="target-period", type=Int, default=0, description="Target period (0=last)"),
+                OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
+                out_fmt..., PLOT_OPTIONS...,
+            ],
+            flags=copy(PLOT_FLAGS), category="nowcast", handler=wrap_legacy(_nowcast_news)),
+        CommandSpec(path=["nowcast", "forecast"], summary="Forecast from a nowcasting model",
+            args=data_arg,
+            options=[
+                OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
+                OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
+                OptionSpec(name="method", type=String, default="dfm", choices=["dfm", "bvar", "bridge"], description="dfm|bvar|bridge"),
+                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM)"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
+                OptionSpec(name="horizons", short="h", type=Int, default=4, description="Forecast horizon"),
+                OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
+                out_fmt..., PLOT_OPTIONS...,
+            ],
+            flags=copy(PLOT_FLAGS), category="nowcast", handler=wrap_legacy(_nowcast_forecast)),
+    ]
+end
+
 function register_nowcast_commands!()
-    nc_dfm = LeafCommand("dfm", _nowcast_dfm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("monthly-vars"; type=Int, default=0, description="Number of monthly variables (first N columns)"),
-            Option("quarterly-vars"; type=Int, default=0, description="Number of quarterly variables (remaining columns)"),
-            Option("factors"; short="r", type=Int, default=2, description="Number of factors"),
-            Option("lags"; short="p", type=Int, default=1, description="Factor VAR lags"),
-            Option("idio"; type=String, default="ar1", description="Idiosyncratic component: ar1|iid"),
-            Option("max-iter"; type=Int, default=100, description="Maximum EM iterations"),
-            Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Nowcast via Dynamic Factor Model (EM algorithm)")
-
-    nc_bvar = LeafCommand("bvar", _nowcast_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("monthly-vars"; type=Int, default=0, description="Number of monthly variables"),
-            Option("quarterly-vars"; type=Int, default=0, description="Number of quarterly variables"),
-            Option("lags"; short="p", type=Int, default=5, description="VAR lags"),
-            Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Nowcast via Bayesian VAR")
-
-    nc_bridge = LeafCommand("bridge", _nowcast_bridge;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("monthly-vars"; type=Int, default=0, description="Number of monthly variables"),
-            Option("quarterly-vars"; type=Int, default=0, description="Number of quarterly variables"),
-            Option("lag-m"; type=Int, default=1, description="Monthly indicator lags"),
-            Option("lag-q"; type=Int, default=1, description="Quarterly indicator lags"),
-            Option("lag-y"; type=Int, default=1, description="Dependent variable lags"),
-            Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-        ],
-        description="Nowcast via bridge equations")
-
-    nc_news = LeafCommand("news", _nowcast_news;
-        args=Argument[],
-        options=[
-            Option("data-new"; type=String, default="", description="Path to new vintage CSV"),
-            Option("data-old"; type=String, default="", description="Path to old vintage CSV"),
-            Option("monthly-vars"; type=Int, default=0, description="Number of monthly variables"),
-            Option("quarterly-vars"; type=Int, default=0, description="Number of quarterly variables"),
-            Option("method"; type=String, default="dfm", description="dfm|bvar"),
-            Option("factors"; short="r", type=Int, default=2, description="Number of factors (DFM)"),
-            Option("lags"; short="p", type=Int, default=1, description="Factor VAR lags"),
-            Option("target-period"; type=Int, default=0, description="Target period (0=last)"),
-            Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Nowcast news decomposition (Banbura & Modugno 2014)")
-
-    nc_forecast = LeafCommand("forecast", _nowcast_forecast;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("monthly-vars"; type=Int, default=0, description="Number of monthly variables"),
-            Option("quarterly-vars"; type=Int, default=0, description="Number of quarterly variables"),
-            Option("method"; type=String, default="dfm", description="dfm|bvar|bridge"),
-            Option("factors"; short="r", type=Int, default=2, description="Number of factors (DFM)"),
-            Option("lags"; short="p", type=Int, default=1, description="Factor VAR lags"),
-            Option("horizons"; short="h", type=Int, default=4, description="Forecast horizon"),
-            Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Forecast from a nowcasting model")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "dfm"      => nc_dfm,
-        "bvar"     => nc_bvar,
-        "bridge"   => nc_bridge,
-        "news"     => nc_news,
-        "forecast" => nc_forecast,
-    )
-    return NodeCommand("nowcast", subcmds, "Nowcasting: DFM, BVAR, bridge equations, news decomposition")
+    specs = nowcast_specs()
+    register!(specs)
+    return build_node("nowcast", specs;
+        description="Nowcasting: DFM, BVAR, bridge equations, news decomposition")
 end
 
 # ── Helpers ──────────────────────────────────────────────

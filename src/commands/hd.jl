@@ -16,90 +16,121 @@
 
 # Historical Decomposition commands: var, bvar, lp (action-first: friedman hd var ...)
 
-function register_hd_commands!()
-    hd_var = LeafCommand("var", _hd_var;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute historical decomposition of shocks")
-
-    hd_bvar = LeafCommand("bvar", _hd_bvar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="Lag order"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("draws"; short="n", type=Int, default=2000, description="MCMC draws"),
-            Option("sampler"; type=String, default="direct", description="direct|gibbs"),
-            Option("config"; type=String, default="", description="TOML config for identification/prior"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute Bayesian historical decomposition")
-
-    hd_lp = LeafCommand("lp", _hd_lp;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=4, description="LP control lags"),
-            Option("var-lags"; type=Int, default=nothing, description="VAR lag order for identification"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("vcov"; type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute historical decomposition via structural LP")
-
-    hd_vecm = LeafCommand("vecm", _hd_vecm;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("lags"; short="p", type=Int, default=2, description="Lag order (in levels)"),
-            Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-            Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
-            Option("id"; type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-            Option("config"; type=String, default="", description="TOML config for identification"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="Compute historical decomposition via VECM → VAR representation")
-
-    hd_favar = LeafCommand("favar", _hd_favar;
-        args=[Argument("data"; description="Path to CSV data file")],
-        options=[
-            Option("factors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
-            Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
-            Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
-            Option("horizons"; short="h", type=Int, default=20, description="HD horizon"),
-            Option("id"; type=String, default="cholesky", description="Identification method"),
-            Option("config"; type=String, default="", description="TOML config for restrictions"),
-            Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
-        ],
-        flags=[Flag("plot"; description="Open interactive plot in browser")],
-        description="FAVAR historical decomposition")
-
-    subcmds = Dict{String,Union{NodeCommand,LeafCommand}}(
-        "var"   => hd_var,
-        "bvar"  => hd_bvar,
-        "lp"    => hd_lp,
-        "vecm"  => hd_vecm,
-        "favar" => hd_favar,
-    )
-    return NodeCommand("hd", subcmds, "Historical Decomposition")
+function hd_specs()::Vector{CommandSpec}
+    return [
+        CommandSpec(
+            path=["hd", "var"],
+            summary="Compute historical decomposition of shocks",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:hd_var, description="Compute historical decomposition of shocks")],
+            category="hd",
+            handler=wrap_legacy(_hd_var),
+        ),
+        CommandSpec(
+            path=["hd", "bvar"],
+            summary="Compute Bayesian historical decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:hd_bvar, description="Compute Bayesian historical decomposition")],
+            category="hd",
+            handler=wrap_legacy(_hd_bvar),
+        ),
+        CommandSpec(
+            path=["hd", "lp"],
+            summary="Compute historical decomposition via structural LP",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
+                OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:hd_lp, description="Compute historical decomposition via structural LP")],
+            category="hd",
+            handler=wrap_legacy(_hd_lp),
+        ),
+        CommandSpec(
+            path=["hd", "vecm"],
+            summary="Compute historical decomposition via VECM → VAR representation",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:hd_vecm, description="Compute historical decomposition via VECM → VAR representation")],
+            category="hd",
+            handler=wrap_legacy(_hd_vecm),
+        ),
+        CommandSpec(
+            path=["hd", "favar"],
+            summary="FAVAR historical decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
+                OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="HD horizon"),
+                OptionSpec(name="id", type=String, default="cholesky", description="Identification method"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for restrictions"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:hd_favar, description="FAVAR historical decomposition")],
+            category="hd",
+            handler=wrap_legacy(_hd_favar),
+        )
+    ]
 end
+
+function register_hd_commands!()
+    specs = hd_specs()
+    register!(specs)
+    return build_node("hd", specs; description="Historical Decomposition")
+end
+
 
 # ── VAR HD ───────────────────────────────────────────────
 
