@@ -7,22 +7,10 @@ Friedman-cli is a Julia CLI application with a custom command-line framework ada
 ```
 bin/friedman ARGS
   → Pkg.activate(project_dir)
-  → Friedman.main(ARGS)
-    → build_app()                          # constructs Entry with full command tree
-      → register_estimate_commands!()      # 13 register functions, one per top-level command
-      → register_test_commands!()
-      → register_irf_commands!()
-      → register_fevd_commands!()
-      → register_hd_commands!()
-      → register_forecast_commands!()
-      → register_predict_commands!()
-      → register_residuals_commands!()
-      → register_filter_commands!()
-      → register_data_commands!()
-      → register_nowcast_commands!()
-      → register_dsge_commands!()
-      → register_did_commands!()
-    → dispatch(entry, args)
+  → Friedman.main(ARGS) → run_cli(ARGS)
+    → Friedman.APP                         # memoized Entry (const APP = build_app() at precompile)
+      # build_app() registers all top-level command groups once
+    → dispatch(APP, args)
       → dispatch_node()                    # walks NodeCommand tree by matching tokens
       → dispatch_leaf()                    # tokenize → bind_args → leaf.handler(; bound...)
 ```
@@ -87,7 +75,7 @@ Unknown subcommands print an error and show help. `--help` at any level prints c
 
 ```
 src/
-  Friedman.jl             # Main module: imports, includes, build_app(), main()
+  Friedman.jl             # Main module: imports, includes, build_app(), const APP, run_cli, main()
   cli/
     types.jl              # 6 CLI structs (Argument, Option, Flag, Leaf/Node/Entry)
     parser.jl             # tokenize(), bind_args(), convert_value()

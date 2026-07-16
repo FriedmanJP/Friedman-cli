@@ -17,7 +17,7 @@ irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1
 ## What the Installer Does
 
 1. **Checks for Julia 1.12** — if not found, installs [juliaup](https://github.com/JuliaLang/juliaup) (the official Julia version manager) and adds Julia 1.12. Your default Julia version is never changed.
-2. **Downloads a precompiled sysimage** — platform-specific binary from GitHub Releases (~670 MB)
+2. **Downloads a precompiled sysimage** — platform-specific binary from GitHub Releases (size varies by platform; release builds use `--strip-metadata` when healthy)
 3. **Installs to `~/.friedman-cli/`** — self-contained directory with sysimage, source, and launcher
 4. **Adds to PATH** — creates a symlink in `~/.local/bin/` (macOS/Linux) or adds to user PATH (Windows)
 
