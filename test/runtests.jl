@@ -2587,6 +2587,8 @@ end
 # Include io.jl at top level so it can see PrettyTables exports
 let project_root = dirname(@__DIR__)
     include(joinpath(project_root, "src", "io.jl"))
+    include(joinpath(project_root, "src", "output", "envelope.jl"))
+    include(joinpath(project_root, "src", "output", "render.jl"))
 end
 
 # PrettyTables v3 changed its API (tf/show_subheader removed).
@@ -2599,6 +2601,32 @@ function _write_table(df::DataFrame, output::String, title::String)
         isempty(output) || close(io)
     end
     isempty(output) || println("Results written to $output")
+end
+
+@testset "envelope core" begin
+    env = Envelope(command="estimate var")
+    add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
+    add_table!(env, :criteria, DataFrame(metric=["aic"], value=[NaN]))
+    add_scalar!(env, "lags", 2)
+    buf = IOBuffer(); render(env, :json, buf)
+    doc = JSON3.read(String(take!(buf)))
+    @test doc.schema_version == 1
+    @test doc.status == "ok"
+    @test doc.data.criteria.rows[1][2] == "NaN"          # F20: no silent null
+    @test length(collect(keys(doc.data))) == 2 || length(collect(keys(doc.data))) == 3  # tables + optional scalar
+    # primary table columns present
+    @test "coefficients" in string.(keys(doc.data))
+    @test "criteria" in string.(keys(doc.data))
+    buf = IOBuffer(); render(env, :csv, buf)
+    @test startswith(String(take!(buf)), "variable,est")  # primary table only
+
+    err = Envelope(command="estimate var")
+    set_error!(err, "data/file-not-found", "file not found: x.csv"; hint="check the path")
+    buf = IOBuffer(); render(err, :json, buf)
+    doc = JSON3.read(String(take!(buf)))
+    @test doc.status == "error" && doc.error.code == "data/file-not-found"
+
+    @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
 end
 
 @testset "IO utilities" begin

@@ -30,6 +30,8 @@ include("cli/dispatch.jl")
 
 # IO and config
 include("io.jl")
+include("output/envelope.jl")
+include("output/render.jl")
 include("config.jl")
 
 # Shared utilities (must come before command files)
