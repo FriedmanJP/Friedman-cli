@@ -90,6 +90,9 @@ function build_app()
     return Entry("friedman", root; version=FRIEDMAN_VERSION)
 end
 
+"""Memoized command tree, built once at precompile time (F57)."""
+const APP = build_app()
+
 """
     run_cli(args)::Cint
 
@@ -104,7 +107,7 @@ function run_cli(args::Vector{String})::Cint
         return Cint(0)
     end
 
-    app = build_app()
+    app = APP
     try
         dispatch(app, args)
         return Cint(0)

@@ -229,7 +229,7 @@ function start_repl()
         # REPL stdlib not available (e.g. compiled sysimage); tab completion disabled
     end
 
-    app = build_app()
+    app = APP
     s = SESSION
     session_clear!(s)
 
