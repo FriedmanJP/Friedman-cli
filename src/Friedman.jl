@@ -112,23 +112,27 @@ function run_cli(args::Vector{String})::Cint
 
     app = APP
     try
-        dispatch(app, args)
+        remaining = _extract_global_flags!(copy(args))
+        _LAST_ARGV[] = copy(args)
+        dispatch(app, remaining)
         return Cint(0)
     catch e
         if e isa CliError
-            printstyled(stderr, "Error: "; bold=true, color=:red)
+            _status_styled("Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
             return Cint(exit_class(e))
         elseif e isa ParseError || e isa DispatchError
-            printstyled(stderr, "Error: "; bold=true, color=:red)
+            _status_styled("Error: "; bold=true, color=:red)
             println(stderr, e.message)
             return Cint(2)  # usage
         else
-            printstyled(stderr, "Error: "; bold=true, color=:red)
+            _status_styled("Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
             println(stderr, "this is likely a bug — please report")
             return Cint(1)
         end
+    finally
+        _QUIET[] = false
     end
 end
 

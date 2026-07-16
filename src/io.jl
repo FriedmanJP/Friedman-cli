@@ -21,13 +21,74 @@
 # `_QUIET` is set by the global-flag pre-pass (C014).
 
 const _QUIET = Ref(false)
+const _COLOR = Ref(true)
+const _SEED = Ref{Union{Nothing,Int}}(nothing)
+const _LAST_ARGV = Ref{Vector{String}}(String[])
+
 _status(parts...) = _QUIET[] || println(stderr, parts...)
 function _status_styled(args...; kwargs...)
     _QUIET[] && return nothing
+    if !_COLOR[]
+        print(stderr, args...)
+        return nothing
+    end
     printstyled(stderr, args...; kwargs...)
 end
 """Run `f` with stdout redirected to stderr unless quiet (MEMs report() dumps)."""
 _status_report(f::Function) = _QUIET[] || redirect_stdout(f, stderr)
+
+"""
+    _extract_global_flags!(args) → (remaining, force_json)
+
+Scan argv left-to-right until the first non-flag token (P1-6). Mutates quiet/color/seed
+state and strips global flags from the returned vector.
+"""
+function _extract_global_flags!(args::Vector{String})
+    _QUIET[] = false
+    _COLOR[] = !haskey(ENV, "NO_COLOR")
+    _SEED[] = nothing
+    force_json = false
+    i = 1
+    n = length(args)
+    # Only leading globals (until first non-global token) — F61
+    while i <= n
+        tok = args[i]
+        if tok == "--quiet" || tok == "-q"
+            _QUIET[] = true
+            i += 1
+        elseif tok == "--no-color"
+            _COLOR[] = false
+            i += 1
+        elseif tok == "--json"
+            force_json = true
+            i += 1
+        elseif tok == "--seed"
+            i + 1 <= n || throw(CliError("usage/bad-seed", "--seed requires an integer argument"))
+            s = tryparse(Int, args[i + 1])
+            s === nothing && throw(CliError("usage/bad-seed", "invalid --seed value '$(args[i + 1])'"))
+            _SEED[] = s
+            Random.seed!(s)
+            i += 2
+        elseif startswith(tok, "--seed=")
+            raw = tok[8:end]
+            s = tryparse(Int, raw)
+            s === nothing && throw(CliError("usage/bad-seed", "invalid --seed value '$raw'"))
+            _SEED[] = s
+            Random.seed!(s)
+            i += 1
+        else
+            break
+        end
+    end
+    remaining = args[i:end]
+    if force_json
+        has_fmt = any(t -> startswith(t, "--format") || t == "-f", remaining)
+        if !has_fmt
+            remaining = vcat(remaining, String["--format", "json"])
+        end
+    end
+    return remaining
+end
 
 # ── Path Validation ──────────────────────────────────────
 

@@ -113,12 +113,26 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
         # Single-envelope JSON accumulation (P1-1 / F17); legacy path when env set
         fmt = get(Dict(pairs(bound)), :format, nothing)
         use_env = fmt == "json" && get(ENV, "FRIEDMAN_LEGACY_OUTPUT", "") != "1"
+        t0 = time_ns()
         if use_env
-            _ENVELOPE[] = Envelope(command=prog)
+            env = Envelope(command=prog)
+            env.meta = Dict{String,Any}(
+                "cli_version"  => string(FRIEDMAN_VERSION),
+                "julia"        => string(VERSION),
+                "seed"         => _SEED[],
+                "argv"         => copy(_LAST_ARGV[]),
+            )
+            try
+                env.meta["mems_version"] = string(pkgversion(MacroEconometricModels))
+            catch
+                env.meta["mems_version"] = "unknown"
+            end
+            _ENVELOPE[] = env
         end
         try
             result = leaf.handler(; merged...)
             if use_env && _ENVELOPE[] !== nothing
+                _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 render(_ENVELOPE[], :json, stdout)
             end
             return result
@@ -130,6 +144,7 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
                 else
                     set_error!(_ENVELOPE[], "internal/error", sprint(showerror, e))
                 end
+                _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 render(_ENVELOPE[], :json, stdout)
             end
             rethrow()

@@ -74,6 +74,26 @@ end
         @test entry.version == v"0.1.0"
     end
 
+    @testset "strict parsing" begin
+        leaf = LeafCommand("x", (; kwargs...) -> kwargs;
+            args=[Argument("data")],
+            options=[Option("lags"; type=Int, default=2),
+                     Option("threshold"; type=Float64, default=0.5),
+                     Option("format"; type=String, default="table",
+                            choices=["table", "csv", "json"])],
+            flags=Flag[])
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--lgas", "4"]), leaf)
+        err = try bind_args(tokenize(["d.csv", "--lgas", "4"]), leaf) catch e; e end
+        @test occursin("did you mean --lags", err.message)
+        b = bind_args(tokenize(["d.csv", "--threshold", "-0.5"]), leaf)
+        @test b.threshold == -0.5
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--format", "xml"]), leaf)
+        err = try bind_args(tokenize(["d.csv", "--format", "xml"]), leaf) catch e; e end
+        @test occursin("table", err.message) && occursin("json", err.message)
+        @test convert_value(Bool, "yes", "x") === true
+        @test convert_value(Bool, "0", "x") === false
+    end
+
     @testset "Tokenizer" begin
         # Basic positional args
         parsed = tokenize(["file.csv", "other.csv"])
