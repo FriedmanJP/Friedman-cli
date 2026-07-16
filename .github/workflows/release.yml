@@ -54,6 +54,19 @@ jobs:
         run: julia build_release.jl
         timeout-minutes: 60
 
+      - name: Smoke-test binary
+        shell: bash
+        run: |
+          BIN=build/friedman/bin/friedman
+          [ "$RUNNER_OS" = "Windows" ] && BIN=build/friedman/bin/friedman.cmd
+          "$BIN" --version
+          "$BIN" --help > /dev/null
+          printf 'y1,y2\n' > smoke.csv
+          for t in $(seq 1 60); do printf '%s,%s\n' "$t.1" "$((t % 7)).3" >> smoke.csv; done
+          "$BIN" estimate var smoke.csv --lags 1 --format json > smoke_out.json
+          python3 -c "import json,sys; json.load(open('smoke_out.json'))" \
+            || echo "::warning::stdout not single JSON yet (expected until Phase 1 P1-1/P1-2)"
+
       - name: Get version
         id: version
         shell: bash
