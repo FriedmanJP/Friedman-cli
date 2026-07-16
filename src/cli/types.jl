@@ -33,9 +33,10 @@ Argument(name::String; type::Type=String, required::Bool=true, default=nothing, 
     Argument(name, type, required, default, description)
 
 """
-    Option(name, short, type, default, description)
+    Option(name, short, type, default, description, choices)
 
 A named command-line option (e.g. `--lags=2` or `-l 2`).
+`choices` is an optional allow-list of raw string values (F4).
 """
 struct Option
     name::String
@@ -43,10 +44,12 @@ struct Option
     type::Type
     default::Any
     description::String
+    choices::Union{Nothing,Vector{String}}
 end
 
-Option(name::String; short::String="", type::Type=String, default=nothing, description::String="") =
-    Option(name, short, type, default, description)
+Option(name::String; short::String="", type::Type=String, default=nothing,
+       description::String="", choices::Union{Nothing,Vector{String}}=nothing) =
+    Option(name, short, type, default, description, choices)
 
 """
     Flag(name, short, description)

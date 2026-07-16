@@ -369,7 +369,7 @@ function register_did_commands!()
             Option("n-boot"; type=Int, default=200, description="Bootstrap replications (dcdh only)"),
             Option("base-period"; type=String, default="varying", description="varying|universal (Callaway-Sant'Anna only)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -388,7 +388,7 @@ function register_did_commands!()
             Option("cluster"; type=String, default="unit", description="unit|time|twoway"),
             Option("conf-level"; type=Float64, default=0.95, description="Confidence level"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -411,7 +411,7 @@ function register_did_commands!()
             Option("pmd"; type=String, default="", description="Pre-treatment matching: ccs|ipw|<integer>"),
             Option("nonabsorbing"; type=String, default="", description="Non-absorbing treatment (integer periods)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[
@@ -434,7 +434,7 @@ function register_did_commands!()
             Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
             _DID_PANEL_OPTIONS...,
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -454,7 +454,7 @@ function register_did_commands!()
             Option("method"; type=String, default="did", description="did|event-study"),
             Option("did-method"; type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Pre-trend test for parallel trends assumption")
 
@@ -464,7 +464,7 @@ function register_did_commands!()
             Option("treatment"; type=String, default="", description="Treatment indicator column name (required)"),
             _DID_PANEL_OPTIONS...,
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Negative weight check (de Chaisemartin-D'Haultfoeuille 2020)")
 
@@ -483,7 +483,7 @@ function register_did_commands!()
             Option("method"; type=String, default="did", description="did|event-study"),
             Option("did-method"; type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],

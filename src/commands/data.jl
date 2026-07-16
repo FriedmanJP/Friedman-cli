@@ -20,7 +20,7 @@ function register_data_commands!()
     data_list = LeafCommand("list", _data_list;
         args=Argument[],
         options=[
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="List available example datasets")
@@ -29,7 +29,7 @@ function register_data_commands!()
         args=[Argument("name"; description="Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path")],
         options=[
             Option("output"; short="o", type=String, default="", description="Output CSV file path"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("vars"; type=String, default="", description="Comma-separated variable subset"),
             Option("country"; type=String, default="", description="Country filter (for PWT panel data)"),
             Option("dates"; type=String, default="", description="Column name for date labels"),
@@ -41,7 +41,7 @@ function register_data_commands!()
     data_describe = LeafCommand("describe", _data_describe;
         args=[Argument("data"; description="Path to CSV data file")],
         options=[
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Summary statistics for a dataset")
@@ -49,7 +49,7 @@ function register_data_commands!()
     data_diagnose = LeafCommand("diagnose", _data_diagnose;
         args=[Argument("data"; description="Path to CSV data file")],
         options=[
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Data quality diagnostics (NaN, Inf, constant columns)")
@@ -59,7 +59,7 @@ function register_data_commands!()
         options=[
             Option("method"; short="m", type=String, default="listwise", description="listwise|interpolate|mean"),
             Option("output"; short="o", type=String, default="", description="Output CSV file path"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Clean data (handle NaN/Inf/constant columns)")
 
@@ -68,7 +68,7 @@ function register_data_commands!()
         options=[
             Option("tcodes"; type=String, default="", description="Comma-separated FRED transformation codes"),
             Option("output"; short="o", type=String, default="", description="Output CSV file path"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Apply FRED transformation codes")
 
@@ -82,7 +82,7 @@ function register_data_commands!()
             Option("lags"; short="p", type=Int, default=4, description="Number of lags (Hamilton/BN)"),
             Option("columns"; short="c", type=String, default="", description="Column indices, comma-separated (default: all)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Apply time series filter (unified interface)")
 
@@ -90,7 +90,7 @@ function register_data_commands!()
         args=[Argument("data"; description="Path to CSV data file")],
         options=[
             Option("model"; type=String, default="", description="Model type (var|bvar|vecm|arima|garch|sv|lp|gmm|factor)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Validate data suitability for a model type")
@@ -102,7 +102,7 @@ function register_data_commands!()
             Option("factors"; short="r", type=Int, default=3, description="Number of factors"),
             Option("lags"; short="p", type=Int, default=2, description="Factor VAR lags"),
             Option("output"; short="o", type=String, default="", description="Export file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Balance panel with missing data via DFM imputation")
 
@@ -111,7 +111,7 @@ function register_data_commands!()
         options=[
             Option("vars"; type=String, default="", description="Column names to check (comma-separated; default: all)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Drop rows with missing/NaN values")
 
@@ -120,7 +120,7 @@ function register_data_commands!()
         options=[
             Option("rows"; type=String, default="", description="Row indices (e.g. 1:100, 1,5,10)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Filter rows by index range")
 

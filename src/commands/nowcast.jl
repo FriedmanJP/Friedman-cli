@@ -28,7 +28,7 @@ function register_nowcast_commands!()
             Option("max-iter"; type=Int, default=100, description="Maximum EM iterations"),
             Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -42,7 +42,7 @@ function register_nowcast_commands!()
             Option("lags"; short="p", type=Int, default=5, description="VAR lags"),
             Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Nowcast via Bayesian VAR")
 
@@ -56,7 +56,7 @@ function register_nowcast_commands!()
             Option("lag-y"; type=Int, default=1, description="Dependent variable lags"),
             Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Nowcast via bridge equations")
 
@@ -73,7 +73,7 @@ function register_nowcast_commands!()
             Option("target-period"; type=Int, default=0, description="Target period (0=last)"),
             Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -90,7 +90,7 @@ function register_nowcast_commands!()
             Option("horizons"; short="h", type=Int, default=4, description="Forecast horizon"),
             Option("target-var"; type=Int, default=0, description="Target variable index (0=last)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],

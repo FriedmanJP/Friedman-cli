@@ -28,7 +28,7 @@ function register_test_commands!()
             Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
             Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto via AIC)"),
             Option("trend"; type=String, default="constant", description="none|constant|trend|both"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Augmented Dickey-Fuller unit root test")
@@ -38,7 +38,7 @@ function register_test_commands!()
         options=[
             Option("column"; short="c", type=Int, default=1, description="Column index to test"),
             Option("trend"; type=String, default="constant", description="constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="KPSS stationarity test")
@@ -48,7 +48,7 @@ function register_test_commands!()
         options=[
             Option("column"; short="c", type=Int, default=1, description="Column index to test"),
             Option("trend"; type=String, default="constant", description="none|constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Phillips-Perron unit root test")
@@ -59,7 +59,7 @@ function register_test_commands!()
             Option("column"; short="c", type=Int, default=1, description="Column index to test"),
             Option("trend"; type=String, default="both", description="intercept|trend|both"),
             Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Zivot-Andrews unit root test with structural break")
@@ -69,7 +69,7 @@ function register_test_commands!()
         options=[
             Option("column"; short="c", type=Int, default=1, description="Column index to test"),
             Option("trend"; type=String, default="constant", description="constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Ng-Perron unit root test")
@@ -79,7 +79,7 @@ function register_test_commands!()
         options=[
             Option("lags"; short="p", type=Int, default=2, description="Lag order"),
             Option("trend"; type=String, default="constant", description="none|constant|trend"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Johansen cointegration test")
@@ -89,7 +89,7 @@ function register_test_commands!()
         options=[
             Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Normality test suite for VAR residuals")
 
@@ -101,7 +101,7 @@ function register_test_commands!()
             Option("method"; type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests)"),
             Option("contrast"; type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Test identifiability conditions for non-Gaussian SVAR")
 
@@ -113,7 +113,7 @@ function register_test_commands!()
             Option("config"; type=String, default="", description="TOML config (for transition/regime variables)"),
             Option("regimes"; type=Int, default=2, description="Number of regimes"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Heteroskedasticity-based SVAR identification")
 
@@ -122,7 +122,7 @@ function register_test_commands!()
         options=[
             Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
             Option("lags"; short="p", type=Int, default=4, description="Number of lags for ARCH-LM test"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="ARCH-LM test for conditional heteroskedasticity")
@@ -132,7 +132,7 @@ function register_test_commands!()
         options=[
             Option("column"; short="c", type=Int, default=1, description="Column index to test (1-based)"),
             Option("lags"; short="p", type=Int, default=10, description="Number of lags for Ljung-Box test"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Ljung-Box test on squared residuals")
@@ -143,7 +143,7 @@ function register_test_commands!()
         options=[
             Option("max-lags"; type=Int, default=12, description="Maximum lag order to test"),
             Option("criterion"; type=String, default="aic", description="aic|bic|hqc"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Select optimal lag order for VAR")
@@ -152,7 +152,7 @@ function register_test_commands!()
         args=[Argument("data"; description="Path to CSV data file")],
         options=[
             Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Check VAR stationarity (eigenvalues of companion matrix)")
@@ -173,7 +173,7 @@ function register_test_commands!()
             Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
             Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
             Option("model"; type=String, default="vecm", description="var|vecm (model type for Granger test)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         flags=[
@@ -188,7 +188,7 @@ function register_test_commands!()
             Option("id-col"; type=String, default="", description="Panel group identifier column"),
             Option("time-col"; type=String, default="", description="Time period column"),
             Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Hansen J overidentification test for Panel VAR")
@@ -200,7 +200,7 @@ function register_test_commands!()
             Option("time-col"; type=String, default="", description="Time period column"),
             Option("max-lags"; type=Int, default=4, description="Maximum lag order to test"),
             Option("criterion"; type=String, default="bic", description="bic|aic|hqic"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="MMSC model selection criteria for Panel VAR lag order")
@@ -212,7 +212,7 @@ function register_test_commands!()
             Option("time-col"; type=String, default="", description="Time period column"),
             Option("max-lags"; type=Int, default=4, description="Maximum lag order to test"),
             Option("criterion"; type=String, default="bic", description="bic|aic|hqic"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Panel VAR lag order selection")
@@ -223,7 +223,7 @@ function register_test_commands!()
             Option("id-col"; type=String, default="", description="Panel group identifier column"),
             Option("time-col"; type=String, default="", description="Time period column"),
             Option("lags"; short="p", type=Int, default=1, description="Lag order"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Panel VAR stability check (eigenvalues of companion matrix)")
@@ -245,7 +245,7 @@ function register_test_commands!()
         options=[
             Option("lags1"; type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
             Option("lags2"; type=Int, default=nothing, description="Lag order for unrestricted model (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Likelihood Ratio test (restricted vs unrestricted model)")
@@ -258,7 +258,7 @@ function register_test_commands!()
         options=[
             Option("lags1"; type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
             Option("lags2"; type=Int, default=nothing, description="Lag order for unrestricted model (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Lagrange Multiplier test (restricted vs unrestricted model)")
@@ -271,7 +271,7 @@ function register_test_commands!()
             Option("response"; type=Int, default=1, description="Response variable column index (1-based)"),
             Option("test"; type=String, default="supwald", description="supwald|suplr|suplm|expwald|explr|explm|meanwald|meanlr|meanlm"),
             Option("trimming"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
@@ -285,7 +285,7 @@ function register_test_commands!()
             Option("max-breaks"; type=Int, default=5, description="Maximum number of breaks"),
             Option("trimming"; type=Float64, default=0.15, description="Trimming proportion"),
             Option("criterion"; type=String, default="bic", description="bic|lwz"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
@@ -301,7 +301,7 @@ function register_test_commands!()
             Option("method"; type=String, default="pooled", description="pooled|individual"),
             Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
             Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="PANIC panel unit root test (Bai & Ng 2004)")
@@ -313,7 +313,7 @@ function register_test_commands!()
             Option("deterministic"; type=String, default="constant", description="constant|trend"),
             Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
             Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Pesaran CIPS panel unit root test (2007)")
@@ -324,7 +324,7 @@ function register_test_commands!()
             Option("factors"; type=String, default="auto", description="Number of factors (auto|N)"),
             Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
             Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Moon-Perron panel unit root test (2004)")
@@ -336,7 +336,7 @@ function register_test_commands!()
             Option("method"; type=String, default="breitung_eickmeier", description="breitung_eickmeier|chen_dolado_gonzalo|han_inoue"),
             Option("id-col"; type=String, default="", description="Panel unit ID column (optional)"),
             Option("time-col"; type=String, default="", description="Time column (optional)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Factor break test (Breitung-Eickmeier / Chen-Dolado-Gonzalo / Han-Inoue)")
@@ -352,7 +352,7 @@ function register_test_commands!()
             Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
             Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
             Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Fourier ADF unit root test (Enders & Lee 2012)")
@@ -364,7 +364,7 @@ function register_test_commands!()
             Option("regression"; type=String, default="constant", description="constant|trend"),
             Option("fmax"; type=Int, default=3, description="Maximum Fourier frequency"),
             Option("bandwidth"; type=Int, default=nothing, description="Bandwidth (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Fourier KPSS stationarity test (Becker et al. 2006)")
@@ -376,7 +376,7 @@ function register_test_commands!()
             Option("regression"; type=String, default="constant", description="constant|trend"),
             Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
             Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="DF-GLS unit root test (Elliott, Rothenberg & Stock 1996)")
@@ -390,7 +390,7 @@ function register_test_commands!()
             Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
             Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
             Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="LM unit root test with structural breaks (Lee & Strazicich 2003/2013)")
@@ -403,7 +403,7 @@ function register_test_commands!()
             Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
             Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
             Option("trim"; type=Float64, default=0.10, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="ADF unit root test with two structural breaks (Narayan & Popp 2010)")
@@ -415,7 +415,7 @@ function register_test_commands!()
             Option("lags"; type=String, default="aic", description="Lag order (aic|bic|N)"),
             Option("max-lags"; type=Int, default=nothing, description="Max lags (default: auto)"),
             Option("trim"; type=Float64, default=0.15, description="Trimming proportion"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Gregory-Hansen cointegration test with structural break (1996)")
@@ -425,7 +425,7 @@ function register_test_commands!()
         options=[
             Option("dep"; type=String, default="", description="Dependent variable name (default: first numeric column)"),
             Option("cov-type"; type=String, default="hc1", description="Covariance estimator (ols|hc0|hc1|hc2|hc3)"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Variance Inflation Factor (multicollinearity diagnostic)")
@@ -434,42 +434,42 @@ function register_test_commands!()
     test_hausman = LeafCommand("hausman", _test_hausman;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Hausman specification test (FE vs RE)")
 
     test_breusch_pagan = LeafCommand("breusch-pagan", _test_breusch_pagan;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Breusch-Pagan LM test for random effects")
 
     test_f_fe = LeafCommand("f-fe", _test_f_fe;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="F-test for individual fixed effects")
 
     test_pesaran_cd = LeafCommand("pesaran-cd", _test_pesaran_cd;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Pesaran CD test for cross-sectional dependence")
 
     test_wooldridge_ar = LeafCommand("wooldridge-ar", _test_wooldridge_ar;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Wooldridge test for serial correlation in panel data")
 
     test_modified_wald = LeafCommand("modified-wald", _test_modified_wald;
         args=[Argument("data"; description="Path to CSV panel data file")],
         options=[_PREG_COMMON_OPTIONS[1:2]..., _PREG_COMMON_OPTIONS[3:4]...,
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Modified Wald test for groupwise heteroskedasticity")
 
@@ -477,14 +477,14 @@ function register_test_commands!()
     test_fisher_spec = LeafCommand("fisher", _test_fisher;
         args=[Argument("data"; description="Path to CSV data file")],
         options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Fisher's test for periodicity")
 
     test_bartlett_wn = LeafCommand("bartlett-wn", _test_bartlett_wn;
         args=[Argument("data"; description="Path to CSV data file")],
         options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Bartlett white noise test")
 
@@ -492,14 +492,14 @@ function register_test_commands!()
         args=[Argument("data"; description="Path to CSV data file")],
         options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
                  Option("lags"; short="p", type=Int, default=20, description="Number of lags"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Box-Pierce portmanteau test for white noise")
 
     test_durbin_watson = LeafCommand("durbin-watson", _test_durbin_watson;
         args=[Argument("data"; description="Path to CSV data file")],
         options=[Option("column"; short="c", type=Int, default=1, description="Column index"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Durbin-Watson test for autocorrelation")
 
@@ -508,7 +508,7 @@ function register_test_commands!()
         args=[Argument("data"; description="Path to CSV data file")],
         options=[Option("dep"; type=String, default="", description="Dependent variable"),
                  Option("cov-type"; type=String, default="hc1", description="Covariance type"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Brant test for parallel regression (ordered models)")
 
@@ -516,7 +516,7 @@ function register_test_commands!()
         args=[Argument("data"; description="Path to CSV data file")],
         options=[Option("dep"; type=String, default="", description="Dependent variable"),
                  Option("omit-category"; type=Int, default=nothing, description="Category to omit for IIA test"),
-                 Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+                 Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                  Option("output"; short="o", type=String, default="", description="Export results to file")],
         description="Hausman-McFadden IIA test for multinomial logit")
 

@@ -34,12 +34,16 @@ struct ParsedArgs
     flags::Set{String}
 end
 
+"""True if `t` looks like an option value (not a flag), including negative numbers (F2)."""
+_looks_like_value(t::AbstractString) = !startswith(t, "-") || occursin(r"^-(\.?\d)", t)
+
 """
     tokenize(tokens) → ParsedArgs
 
 Parse raw CLI tokens into positional args, options, and flags.
 Handles: `--option=value`, `--option value`, `-o value`, `--flag`, `-f`, positional args.
 `--` stops option parsing (everything after is positional).
+Negative numeric values (`-0.5`, `-3`) bind as option values (F2).
 """
 function tokenize(tokens::Vector{String})
     positional = String[]
@@ -60,7 +64,7 @@ function tokenize(tokens::Vector{String})
             if contains(body, '=')
                 k, v = split(body, '='; limit=2)
                 options[k] = v
-            elseif i + 1 <= length(tokens) && !startswith(tokens[i+1], "-")
+            elseif i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
                 options[body] = tokens[i+1]
                 i += 1
             else
@@ -72,7 +76,7 @@ function tokenize(tokens::Vector{String})
             short = tok[2:end]
             if length(short) == 1
                 # Single short option
-                if i + 1 <= length(tokens) && !startswith(tokens[i+1], "-")
+                if i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
                     options[short] = tokens[i+1]
                     i += 1
                 else
@@ -104,6 +108,9 @@ function resolve_option(parsed::ParsedArgs, opt::Option)
         raw = get(parsed.options, opt.short, nothing)
     end
     isnothing(raw) && return opt.default
+    if opt.choices !== nothing && !(raw in opt.choices)
+        throw(ParseError("option --$(opt.name) must be one of $(join(opt.choices, "|")), got '$raw'"))
+    end
     return convert_value(opt.type, raw, opt.name)
 end
 
@@ -143,17 +150,56 @@ function convert_value(::Type{Symbol}, raw::String, ::String)
     return Symbol(raw)
 end
 
+function convert_value(::Type{Bool}, raw::String, name::String)
+    s = lowercase(raw)
+    s in ("true", "1", "yes", "y") && return true
+    s in ("false", "0", "no", "n") && return false
+    throw(ParseError("option --$name expects a boolean (true/false/1/0/yes/no), got '$raw'"))
+end
+
 function convert_value(::Type{T}, raw::String, name::String) where T
+    if !hasmethod(tryparse, Tuple{Type{T}, String})
+        throw(ParseError("option --$name: cannot convert '$raw' to $T"))
+    end
     v = tryparse(T, raw)
     isnothing(v) && throw(ParseError("option --$name: cannot convert '$raw' to $T"))
     return v
 end
 
+"""Levenshtein distance (F1 suggestions)."""
+function _levenshtein(a::AbstractString, b::AbstractString)
+    m, n = length(a), length(b)
+    d = zeros(Int, m + 1, n + 1)
+    for i in 0:m; d[i+1, 1] = i; end
+    for j in 0:n; d[1, j+1] = j; end
+    for j in 1:n
+        for i in 1:m
+            cost = a[i] == b[j] ? 0 : 1
+            d[i+1, j+1] = min(d[i, j+1] + 1, d[i+1, j] + 1, d[i, j] + cost)
+        end
+    end
+    return d[m+1, n+1]
+end
+
+"""Nearest known option within distance 2, else `nothing`."""
+function _nearest(word::AbstractString, cands)
+    best = nothing
+    best_d = 3
+    for c in cands
+        d = _levenshtein(word, c)
+        if d < best_d
+            best_d = d
+            best = c
+        end
+    end
+    return best_d <= 2 ? best : nothing
+end
+
 """
-    bind_args(parsed, cmd) → (positional_values, option_dict, flag_dict)
+    bind_args(parsed, cmd) → NamedTuple
 
 Bind parsed tokens to a LeafCommand's declared arguments, options, and flags.
-Returns a NamedTuple of all bound values.
+Unknown options throw ParseError with a did-you-mean hint (F1).
 """
 function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
     # Bind positional arguments
@@ -172,6 +218,32 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
     if length(parsed.positional) > length(cmd.args)
         extras = parsed.positional[length(cmd.args)+1:end]
         throw(ParseError("unexpected arguments: $(join(extras, ", "))"))
+    end
+
+    # Unknown option / flag detection (F1)
+    known = Set{String}()
+    for o in cmd.options
+        push!(known, o.name)
+        isempty(o.short) || push!(known, o.short)
+    end
+    for f in cmd.flags
+        push!(known, f.name)
+        isempty(f.short) || push!(known, f.short)
+    end
+    push!(known, "help"); push!(known, "h")
+    for k in keys(parsed.options)
+        if !(k in known)
+            sugg = _nearest(k, known)
+            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
+            throw(ParseError("unknown option --$k$hint"))
+        end
+    end
+    for k in parsed.flags
+        if !(k in known)
+            sugg = _nearest(k, known)
+            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
+            throw(ParseError("unknown option --$k$hint"))
+        end
     end
 
     # Bind options

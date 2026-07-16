@@ -23,7 +23,7 @@ function register_predict_commands!()
         options=[
             Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="In-sample fitted values from VAR model")
 
@@ -35,7 +35,7 @@ function register_predict_commands!()
             Option("sampler"; type=String, default="direct", description="direct|gibbs"),
             Option("config"; type=String, default="", description="TOML config for prior hyperparameters"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="In-sample fitted values from Bayesian VAR (posterior mean)")
 
@@ -48,7 +48,7 @@ function register_predict_commands!()
             Option("q"; type=Int, default=0, description="MA order"),
             Option("method"; short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         flags=[Flag("auto"; short="a", description="Use auto ARIMA selection")],
         description="In-sample fitted values from ARIMA model")
@@ -60,7 +60,7 @@ function register_predict_commands!()
             Option("rank"; short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
             Option("deterministic"; type=String, default="constant", description="none|constant|trend"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="In-sample fitted values from VECM (via VAR representation)")
 
@@ -69,7 +69,7 @@ function register_predict_commands!()
         options=[
             Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Common component from static factor model (F * Λ')")
 
@@ -80,7 +80,7 @@ function register_predict_commands!()
             Option("factor-lags"; short="p", type=Int, default=1, description="Factor VAR lag order"),
             Option("method"; type=String, default="twostep", description="twostep|em"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Common component from dynamic factor model (F * Λ')")
 
@@ -90,7 +90,7 @@ function register_predict_commands!()
             Option("nfactors"; short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
             Option("dynamic-rank"; short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Common component from generalized dynamic factor model")
 
@@ -100,7 +100,7 @@ function register_predict_commands!()
             Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Conditional variance from ARCH model")
 
@@ -111,7 +111,7 @@ function register_predict_commands!()
             Option("p"; type=Int, default=1, description="GARCH order"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Conditional variance from GARCH model")
 
@@ -122,7 +122,7 @@ function register_predict_commands!()
             Option("p"; type=Int, default=1, description="EGARCH order"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Conditional variance from EGARCH model")
 
@@ -133,7 +133,7 @@ function register_predict_commands!()
             Option("p"; type=Int, default=1, description="GJR-GARCH order"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Conditional variance from GJR-GARCH model")
 
@@ -143,7 +143,7 @@ function register_predict_commands!()
             Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
             Option("draws"; short="n", type=Int, default=5000, description="MCMC draws"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Posterior mean volatility from stochastic volatility model")
 
@@ -154,7 +154,7 @@ function register_predict_commands!()
             Option("lags"; short="p", type=Int, default=2, description="VAR lag order"),
             Option("key-vars"; type=String, default="", description="Key variable names or indices (comma-separated)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="FAVAR in-sample fitted values")
 

@@ -821,7 +821,7 @@ const _REG_COMMON_OPTIONS = [
     Option("cov-type"; type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3|cluster"),
     Option("clusters"; type=String, default="", description="Cluster variable column name"),
     Option("output"; short="o", type=String, default="", description="Export results to file"),
-    Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+    Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
 ]
 
 """
@@ -893,7 +893,7 @@ const _PREG_COMMON_OPTIONS = [
     Option("cov-type"; type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
     Option("method"; short="m", type=String, default="fe", description="Estimation method"),
     Option("output"; short="o", type=String, default="", description="Export results to file"),
-    Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+    Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
 ]
 
 """Load panel CSV for panel regression. Returns PanelData."""

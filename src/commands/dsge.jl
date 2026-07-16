@@ -28,7 +28,7 @@ function register_dsge_commands!()
             Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
             Option("periods"; type=Int, default=40, description="Number of periods for OccBin simulation"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -44,7 +44,7 @@ function register_dsge_commands!()
             Option("n-sim"; type=Int, default=0, description="Simulation-based IRF draws (0=analytical)"),
             Option("constraints"; type=String, default="", description="Path to OccBin constraints TOML"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -57,7 +57,7 @@ function register_dsge_commands!()
             Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
             Option("horizon"; short="h", type=Int, default=40, description="FEVD horizon"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -72,7 +72,7 @@ function register_dsge_commands!()
             Option("burn"; type=Int, default=100, description="Burn-in periods to discard"),
             Option("seed"; type=Int, default=0, description="Random seed (0=no seed)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[
@@ -95,7 +95,7 @@ function register_dsge_commands!()
             Option("sim-ratio"; type=Int, default=5, description="Simulation-to-data ratio (SMM)"),
             Option("bounds"; type=String, default="", description="Path to parameter bounds TOML"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate DSGE model parameters from data")
 
@@ -107,7 +107,7 @@ function register_dsge_commands!()
             Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
             Option("periods"; type=Int, default=100, description="Simulation periods"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -119,7 +119,7 @@ function register_dsge_commands!()
             Option("constraints"; type=String, default="", description="Path to OccBin constraints TOML"),
             Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Compute the steady state of a DSGE model")
 
@@ -131,7 +131,7 @@ function register_dsge_commands!()
             Option("states"; type=String, default="observables", description="observables|all"),
             Option("measurement-error"; type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -154,7 +154,7 @@ function register_dsge_commands!()
         Option("order"; type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
         Option("constraint-solver"; type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
         Option("output"; short="o", type=String, default="", description="Export results to file"),
-        Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+        Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
     ]
 
     bayes_estimate = LeafCommand("estimate", _dsge_bayes_estimate;

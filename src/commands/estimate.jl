@@ -23,7 +23,7 @@ function register_estimate_commands!()
             Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
             Option("trend"; type=String, default="constant", description="none|constant|trend|both"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate a VAR(p) model")
 
@@ -37,7 +37,7 @@ function register_estimate_commands!()
             Option("method"; type=String, default="mean", description="mean|median (posterior extraction)"),
             Option("config"; type=String, default="", description="TOML config for prior hyperparameters"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate a Bayesian VAR model (includes posterior extraction)")
 
@@ -58,7 +58,7 @@ function register_estimate_commands!()
             Option("treatment"; type=Int, default=1, description="Treatment variable index (propensity/robust only)"),
             Option("score-method"; type=String, default="logit", description="logit|probit (propensity/robust only)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate local projections (standard|iv|smooth|state|propensity|robust)")
 
@@ -74,7 +74,7 @@ function register_estimate_commands!()
             Option("max-q"; type=Int, default=5, description="Max MA order for auto selection"),
             Option("criterion"; type=String, default="bic", description="aic|bic (for auto selection)"),
             Option("method"; short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
         ],
         description="Estimate ARIMA(p,d,q) model (auto-selects order when --p omitted)")
@@ -85,7 +85,7 @@ function register_estimate_commands!()
             Option("config"; type=String, default="", description="TOML config for moment conditions and instruments"),
             Option("weighting"; short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate a GMM model")
 
@@ -95,7 +95,7 @@ function register_estimate_commands!()
             Option("nfactors"; short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
             Option("criterion"; type=String, default="ic1", description="ic1|ic2|ic3 for auto selection"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -108,7 +108,7 @@ function register_estimate_commands!()
             Option("factor-lags"; short="p", type=Int, default=1, description="Factor VAR lag order"),
             Option("method"; type=String, default="twostep", description="twostep|em"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -120,7 +120,7 @@ function register_estimate_commands!()
             Option("nfactors"; short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
             Option("dynamic-rank"; short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate generalized dynamic factor model")
 
@@ -130,7 +130,7 @@ function register_estimate_commands!()
             Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -143,7 +143,7 @@ function register_estimate_commands!()
             Option("p"; type=Int, default=1, description="GARCH order"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -156,7 +156,7 @@ function register_estimate_commands!()
             Option("p"; type=Int, default=1, description="EGARCH order"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -169,7 +169,7 @@ function register_estimate_commands!()
             Option("p"; type=Int, default=1, description="GARCH order"),
             Option("q"; type=Int, default=1, description="ARCH order"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -181,7 +181,7 @@ function register_estimate_commands!()
             Option("column"; short="c", type=Int, default=1, description="Column index (1-based)"),
             Option("draws"; short="n", type=Int, default=5000, description="MCMC draws"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -194,7 +194,7 @@ function register_estimate_commands!()
             Option("method"; type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic"),
             Option("contrast"; type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="ICA-based non-Gaussian SVAR identification")
 
@@ -204,7 +204,7 @@ function register_estimate_commands!()
             Option("lags"; short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
             Option("distribution"; short="d", type=String, default="student_t", description="student_t|skew_t|ghd|mixture_normal|pml|skew_normal"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Maximum likelihood non-Gaussian SVAR identification")
 
@@ -223,7 +223,7 @@ function register_estimate_commands!()
             Option("min-lag-endo"; type=Int, default=2, description="Minimum lag for endogenous instruments"),
             Option("max-lag-endo"; type=Int, default=99, description="Maximum lag for endogenous instruments"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         flags=[
             Flag("system"; description="Use system GMM (adds level equations)"),
@@ -240,7 +240,7 @@ function register_estimate_commands!()
             Option("method"; type=String, default="johansen", description="johansen|engle_granger"),
             Option("significance"; type=Float64, default=0.05, description="Significance level for rank selection"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate a Vector Error Correction Model (VECM)")
 
@@ -253,7 +253,7 @@ function register_estimate_commands!()
             Option("sim-ratio"; type=Int, default=5, description="Simulation-to-sample ratio"),
             Option("burn"; type=Int, default=100, description="Burn-in periods"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Estimate via Simulated Method of Moments")
 
@@ -266,7 +266,7 @@ function register_estimate_commands!()
             Option("method"; type=String, default="two_step", description="two_step|bayesian"),
             Option("draws"; short="n", type=Int, default=5000, description="MCMC draws (bayesian only)"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -283,7 +283,7 @@ function register_estimate_commands!()
             Option("bandwidth"; type=Int, default=0, description="Spectral bandwidth (0=auto)"),
             Option("kernel"; type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
             Option("plot-save"; type=String, default="", description="Save plot to HTML file"),
         ],
         flags=[Flag("plot"; description="Open interactive plot in browser")],
@@ -305,7 +305,7 @@ function register_estimate_commands!()
             Option("instruments"; type=String, default="", description="Instrument column names, comma-separated (required)"),
             Option("cov-type"; type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Instrumental variables (2SLS) regression")
 
@@ -345,7 +345,7 @@ function register_estimate_commands!()
             Option("id-col"; type=String, default="", description="Panel group ID column"),
             Option("time-col"; type=String, default="", description="Panel time column"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Panel IV/2SLS regression")
 
@@ -387,7 +387,7 @@ function register_estimate_commands!()
             Option("dep"; type=String, default="", description="Dependent variable column name"),
             Option("cov-type"; type=String, default="ols", description="ols|hc0|hc1|hc2|hc3"),
             Option("output"; short="o", type=String, default="", description="Export results to file"),
-            Option("format"; short="f", type=String, default="table", description="table|csv|json"),
+            Option("format"; short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
         ],
         description="Multinomial logistic regression")
 
