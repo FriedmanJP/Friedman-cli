@@ -1,15 +1,57 @@
+# Component-scoped coverage gates (TS-12 / C037 / F37)
+# Engine/contract: 95% project. Command handlers: patch 85% (T3 is the real gate).
+
 coverage:
   status:
     project:
       default:
+        target: auto
+        threshold: 2%
+        if_ci_failed: error
+      engine:
         target: 95%
         threshold: 1%
+        paths:
+          - src/cli/
+          - src/registry/
+          - src/output/
+          - src/io.jl
+          - src/config.jl
+          - src/Friedman.jl
+      commands:
+        target: 80%
+        threshold: 2%
+        paths:
+          - src/commands/
     patch:
       default:
-        target: 90%
+        target: 85%
         threshold: 1%
+      engine:
+        target: 90%
+        paths:
+          - src/cli/
+          - src/registry/
+          - src/output/
+          - src/io.jl
+      commands:
+        target: 85%
+        paths:
+          - src/commands/
+
+flags:
+  engine:
+    paths:
+      - src/cli/
+      - src/registry/
+      - src/output/
+      - src/io.jl
+      - src/config.jl
+  commands:
+    paths:
+      - src/commands/
 
 comment:
-  layout: "condensed_header, condensed_files, condensed_footer"
+  layout: "condensed_header, condensed_files, condensed_footer, flags"
   behavior: default
   require_changes: false

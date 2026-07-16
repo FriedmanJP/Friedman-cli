@@ -1,0 +1,97 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Pinned MEMs — release confidence (must stay green)
+  full-pinned:
+    name: Full T3 — pinned MEMs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        with:
+          version: "1.12"
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Instantiate (pinned MEMs)
+        shell: bash
+        run: |
+          julia --project=test/integration -e '
+            using Pkg
+            Pkg.develop(path=".")
+            Pkg.rm("MacroEconometricModels")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
+            Pkg.instantiate()
+          '
+      - name: Run full integration suite
+        shell: bash
+        run: julia --project=test/integration test/integration/runtests_full.jl
+      - name: Open issue on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TITLE="[nightly-pinned] full T3 failed on ${{ matrix.os }}"
+          # Dedup: skip if open issue with same title exists
+          if gh issue list --state open --search "$TITLE in:title" --json number --jq 'length' | grep -q '^0$'; then
+            gh issue create --title "$TITLE" --label "nightly,test-pyramid" \
+              --body "Nightly **pinned-MEMs** integration failed on \`${{ matrix.os }}\`. See run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            echo "Open issue already exists for this title"
+          fi
+
+  # MEMs dev — upstream early warning (allowed to fail; opens issues)
+  full-mems-dev:
+    name: Full T3 — MEMs dev (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        with:
+          version: "1.12"
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Instantiate (MEMs dev)
+        shell: bash
+        run: |
+          julia --project=test/integration -e '
+            using Pkg
+            Pkg.develop(path=".")
+            Pkg.rm("MacroEconometricModels")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="dev")
+            Pkg.instantiate()
+          '
+      - name: Run full integration suite (MEMs dev)
+        shell: bash
+        run: julia --project=test/integration test/integration/runtests_full.jl
+      - name: Open issue on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TITLE="[nightly-mems-dev] full T3 failed on ${{ matrix.os }}"
+          if gh issue list --state open --search "$TITLE in:title" --json number --jq 'length' | grep -q '^0$'; then
+            gh issue create --title "$TITLE" --label "nightly,test-pyramid,upstream" \
+              --body "Nightly **MEMs-dev** integration failed on \`${{ matrix.os }}\` (early-warning). See run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            echo "Open issue already exists for this title"
+          fi

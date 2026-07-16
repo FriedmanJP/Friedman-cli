@@ -3370,7 +3370,8 @@ include(joinpath(@__DIR__, "test_repl.jl"))
 # ──────────────────────────────────────────────────────────────
 # build_app() and main() tests (uses register_*_commands! from test_commands.jl)
 # ──────────────────────────────────────────────────────────────
-include(joinpath(@__DIR__, "test_main.jl"))
+# test_main.jl mirror deleted (C036 / TS-11 / F33).
+# Real build_app/run_cli coverage lives in test/integration/test_entry.jl (T3).
 
 # ──────────────────────────────────────────────────────────────
 # CLI structure tests using real register_*_commands!() functions
@@ -3881,17 +3882,18 @@ end
         m = h_load(ctx2)
         @test m.m == :var
 
-        # registry options present
-        app = build_app()
-        @test any(o -> o.name == "save-model", app.root.subcmds["estimate"].subcmds["var"].options)
-        @test any(o -> o.name == "model", app.root.subcmds["irf"].subcmds["var"].options)
-        @test haskey(app.root.subcmds, "model")
-        @test haskey(app.root.subcmds["model"].subcmds, "info")
-        @test haskey(app.root.subcmds, "completions")
-        @test haskey(app.root.subcmds["completions"].subcmds, "bash")
+        # registry options present (use register_* — no test_main build_app mirror)
+        est = register_estimate_commands!()
+        irf = register_irf_commands!()
+        @test any(o -> o.name == "save-model", est.subcmds["var"].options)
+        @test any(o -> o.name == "model", irf.subcmds["var"].options)
+        mod = register_model_commands!()
+        @test haskey(mod.subcmds, "info")
+        comp = register_completions_commands!()
+        @test haskey(comp.subcmds, "bash")
 
         # data optional when --model set
-        leaf = app.root.subcmds["irf"].subcmds["var"]
+        leaf = irf.subcmds["var"]
         parsed = tokenize(["--model", tmp])
         bound = bind_args(parsed, leaf)
         @test bound.data == "" || bound.data === nothing

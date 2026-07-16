@@ -54,17 +54,53 @@ jobs:
         run: julia build_release.jl
         timeout-minutes: 60
 
-      - name: Smoke-test binary
+      - name: Smoke-test binary (C034 hard JSON + schema + exit codes)
         shell: bash
         run: |
+          set -euo pipefail
           BIN=build/friedman/bin/friedman
           [ "$RUNNER_OS" = "Windows" ] && BIN=build/friedman/bin/friedman.cmd
+
+          # --version / --help
           "$BIN" --version
           "$BIN" --help > /dev/null
+
+          # Fixture
           printf 'y1,y2\n' > smoke.csv
           for t in $(seq 1 60); do printf '%s,%s\n' "$t.1" "$((t % 7)).3" >> smoke.csv; done
-          "$BIN" estimate var smoke.csv --lags 1 --format json > smoke_out.json
-          python3 -c "import json,sys; json.load(open('smoke_out.json'))"
+
+          # Hard gate: exactly one JSON document (no ::warning fallback)
+          "$BIN" --quiet estimate var smoke.csv --lags 1 --format json > smoke_out.json
+          python3 - <<'PY'
+          import json, sys
+          raw = open("smoke_out.json").read().strip()
+          assert raw, "empty stdout"
+          json.loads(raw)  # raises if not valid JSON or trailing garbage with strict loads
+          # ensure single top-level value: re-parse and check no multi-doc
+          decoder = json.JSONDecoder()
+          obj, idx = decoder.raw_decode(raw)
+          assert raw[idx:].strip() == "", f"trailing garbage after JSON: {raw[idx:]!r}"
+          assert obj.get("status") == "ok" or obj.get("schema_version") == 1
+          print("json hard gate ok")
+          PY
+
+          # schema command → valid JSON
+          "$BIN" schema estimate var > schema_out.json
+          python3 -c "import json; json.load(open('schema_out.json')); print('schema json ok')"
+
+          # exit codes: unknown command → 2, missing file → 3
+          set +e
+          "$BIN" nosuchcmd >/dev/null 2>&1
+          ec=$?
+          set -e
+          test "$ec" -eq 2 || { echo "expected exit 2 for unknown command, got $ec"; exit 1; }
+
+          set +e
+          "$BIN" estimate var /nope/missing.csv >/dev/null 2>&1
+          ec=$?
+          set -e
+          test "$ec" -eq 3 || { echo "expected exit 3 for missing file, got $ec"; exit 1; }
+          echo "exit-code checks ok"
 
       - name: Get version
         id: version

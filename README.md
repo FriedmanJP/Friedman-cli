@@ -1,6 +1,7 @@
 # Friedman-cli
 
 [![CI](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml/badge.svg)](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml)
+[![Nightly](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/nightly.yml/badge.svg)](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/nightly.yml)
 [![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg?token=TIYTWTJG36)](https://codecov.io/gh/FriedmanJP/Friedman-cli)
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 

@@ -384,3 +384,6 @@ end
         rm(fmod; force=true)
     end
 end
+
+# Real entry-point coverage (C036) — also on core/CI path
+include(joinpath(@__DIR__, "test_entry.jl"))

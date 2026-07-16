@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - dev
   pull_request:
   workflow_dispatch:
 
@@ -12,10 +13,11 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
-  test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+  # T0/T1/T2 — engine + contract + golden (fast; every push; 3 OS)
+  engine:
+    name: Engine+contract (Julia ${{ matrix.version }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
       actions: write
       contents: read
@@ -23,28 +25,33 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: '1.12'
+          - version: "1.12"
             os: ubuntu-latest
             arch: x64
-          - version: '1.12'
+            allow_failure: false
+          - version: "1.12"
             os: macos-latest
             arch: arm64
-          - version: '1.12'
+            allow_failure: false
+          - version: "1.12"
             os: windows-latest
             arch: x64
-
+            allow_failure: false
+          # Early warning for next Julia (TS-10)
+          - version: "1"
+            os: ubuntu-latest
+            arch: x64
+            allow_failure: true
+    continue-on-error: ${{ matrix.allow_failure }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
-
       - name: Install dependencies
-        # rev must equal [compat] MacroEconometricModels in Project.toml (F30)
+        shell: bash
         run: |
           julia --project -e '
             using Pkg
@@ -52,49 +59,41 @@ jobs:
             Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
             Pkg.instantiate()
           '
-
       - name: Mock surface vs real MEMs (TS-3 / F32)
-        # Only need real MEMs once per matrix; run on Ubuntu to keep wall-clock low
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         run: julia --project test/tools/check_mock_surface.jl
-
       - name: Docs generation --check (P2-6 / C028)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         run: |
           julia --project docs/generate_cli_reference.jl --check
           julia --project docs/capture_examples.jl --check
-
-      - name: Run tests
+      - name: Run engine/unit tests (T0/T1/T2)
+        shell: bash
         run: julia --code-coverage=user --project test/runtests.jl
-
       - name: Process coverage
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
         with:
           directories: src
-
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
 
-  # T3 integration core vs real MEMs (TS-6 / C031 / F35)
+  # T3 core — real MEMs (ubuntu every push)
   integration-core:
-    name: Integration core (real MEMs)
+    name: Integration core (T3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
           version: "1.12"
-
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
-
       - name: Instantiate integration project
         run: |
           julia --project=test/integration -e '
@@ -104,9 +103,34 @@ jobs:
             Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
             Pkg.instantiate()
           '
-
       - name: Run integration-core
         run: julia --project=test/integration test/integration/runtests.jl
+
+  # T4 E2E — subprocess battery on PRs (+ push)
+  e2e:
+    name: E2E subprocess (T4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        with:
+          version: "1.12"
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Install dependencies
+        run: |
+          julia --project -e '
+            using Pkg
+            Pkg.rm("MacroEconometricModels")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
+            Pkg.instantiate()
+          '
+      - name: Run T4 E2E battery
+        env:
+          FRIEDMAN_E2E: "1"
+          CI: "1"
+        run: julia --project test/test_e2e.jl
 
   # Upstream early-warning radar: latest Julia + MEMs dev. Allowed to fail.
   canary:
@@ -116,13 +140,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
-          version: '1'
-
+          version: "1"
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
-
       - name: Install dependencies (MEMs dev)
         run: |
           julia --project -e '
@@ -131,6 +152,5 @@ jobs:
             Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="dev")
             Pkg.instantiate()
           '
-
       - name: Run tests
         run: julia --project test/runtests.jl
