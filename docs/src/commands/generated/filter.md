@@ -3,7 +3,7 @@
 
 Generated reference for `friedman filter` and its subcommands.
 
-**Leaves:** 5
+**Leaves:** 6
 
 ### `friedman filter bhp`
 
@@ -130,6 +130,36 @@ Hodrick-Prescott filter
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `filter_result` (Trend/cycle)
+
+---
+
+### `friedman filter x13`
+
+X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--frequency` | — | `Int64` | `12` | — | Seasonal period: 4 (quarterly) or 12 (monthly) |
+| `--method` | — | `String` | `seats` | `seats`, `x11` | Preferred decomposition: seats|x11 |
+| `--transform` | — | `String` | `auto` | `auto`, `log`, `none` | Pre-transformation |
+| `--critical-value` | — | `Float64` | `0.0` | — | Outlier critical value (0 = automatic) |
+| `--outliers` | — | `String` | `true` | `true`, `false` | Detect AO/LS/TC outliers (default true) |
+| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--trading-day` | — | Include trading-day regressors |
+| `--easter` | — | Include Easter effect regressor |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `adjusted` (Seasonally adjusted series); `trend` (Trend-cycle); `seasonal_factors` (Seasonal component); `irregular` (Irregular component); `diagnostics` (ARIMA order, AIC, outliers)
 
 ---
 

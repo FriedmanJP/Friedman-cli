@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 16
+**Leaves:** 28
 
 ### `friedman dsge bayes compare`
 
@@ -299,6 +299,63 @@ Path to DSGE model file (.toml or .jl)
 
 ---
 
+### `friedman dsge ct solve`
+
+Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--rho` | — | `Float64` | `0.05` | — | Discount rate |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
+| `--delta` | — | `Float64` | `0.05` | — | Depreciation |
+| `--z` | — | `Float64` | `1.0` | — | TFP level |
+| `--a-min` | — | `Float64` | `0.0` | — | Asset grid lower bound |
+| `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points (I) |
+| `--max-iter` | — | `Int64` | `100` | — | Outer equilibrium iterations |
+| `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--two-asset` | — | Solve Kaplan-Moll-Violante two-asset model instead |
+
+**Output tables:** `prices` (Equilibrium r, w); `aggregates` (K, L and convergence)
+
+---
+
+### `friedman dsge ct transition`
+
+MIT-shock perfect-foresight transition (ct_mit_shock)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--rho` | — | `Float64` | `0.05` | — | Discount rate |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
+| `--delta` | — | `Float64` | `0.05` | — | Depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
+| `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP multiplier (Z_0 = shock-size * z) |
+| `--periods` | — | `Int64` | `40` | — | Transition length (time points) |
+| `--dt` | — | `Float64` | `0.25` | — | Time step |
+| `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points |
+| `--max-iter` | — | `Int64` | `100` | — | Shooting iterations |
+| `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `transition` (MIT-shock path (t, Z, K, r, w, C))
+
+---
+
 ### `friedman dsge estimate`
 
 Path to DSGE model file (.toml or .jl)
@@ -348,6 +405,188 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `fevd` (Path to DSGE model file (.toml or .jl))
+
+---
+
+### `friedman dsge ha distribution-irf`
+
+Wealth distribution IRF after an aggregate shock (Reiter only)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
+| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `distribution_irf` (Distribution mass deviations (summary moments))
+
+---
+
+### `friedman dsge ha fevd`
+
+Aggregate FEVD from linearized HA-DSGE solution
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj|reiter |
+| `--horizon` | `-h` | `Int64` | `40` | — | FEVD horizon |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `fevd` (Forecast error variance decomposition)
+
+---
+
+### `friedman dsge ha inequality-irf`
+
+Gini and wealth-percentile IRFs after an aggregate shock
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
+| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `inequality_irf` (Gini and percentile paths)
+
+---
+
+### `friedman dsge ha irf`
+
+Aggregate IRFs from linearized HA-DSGE solution
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj|reiter (krusell-smith has no linear IRF) |
+| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `irf` (Aggregate impulse responses)
+
+---
+
+### `friedman dsge ha simulate`
+
+Simulate aggregate paths from linearized HA-DSGE
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj|reiter |
+| `--periods` | — | `Int64` | `200` | — | Simulation periods |
+| `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `simulate` (Simulated aggregate deviations)
+
+---
+
+### `friedman dsge ha simulate-panel`
+
+Simulate individual asset holdings from steady-state policies
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-agents` | — | `Int64` | `1000` | — | Number of agents |
+| `--periods` | — | `Int64` | `100` | — | Time periods |
+| `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `panel` (Panel summary (mean assets over time))
+
+---
+
+### `friedman dsge ha solve`
+
+Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin (huggett|krusell-smith|one-asset-hank|two-asset-hank) or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `ssj` | `ssj`, `reiter`, `krusell-smith` | HA solution method: ssj|reiter|krusell-smith |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states (SSJ/Reiter) |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `diagnostics` (Solution diagnostics); `aggregates` (Steady-state aggregates); `prices` (Steady-state prices)
+
+---
+
+### `friedman dsge ha steady-state`
+
+Compute HA-DSGE stationary equilibrium
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `aggregates` (Steady-state aggregates); `prices` (Steady-state prices); `diagnostics` (Convergence diagnostics)
 
 ---
 
@@ -402,6 +641,51 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `irf` (Path to DSGE model file (.toml or .jl))
+
+---
+
+### `friedman dsge olg simulate`
+
+Blanchard OLG transitional dynamics from k0 along the saddle path
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--beta` | — | `Float64` | `0.96` | — | Discount factor |
+| `--delta` | — | `Float64` | `0.08` | — | Depreciation |
+| `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--debt` | — | `Float64` | `0.0` | — | Government debt b |
+| `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 80% of steady-state k) |
+| `--horizon` | `-h` | `Int64` | `50` | — | Transition periods H |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `path` (Transition paths k, C, r, w)
+
+---
+
+### `friedman dsge olg solve`
+
+Blanchard perpetual-youth OLG: steady state + saddle path
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--beta` | — | `Float64` | `0.96` | — | Discount factor |
+| `--delta` | — | `Float64` | `0.08` | — | Depreciation |
+| `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--debt` | — | `Float64` | `0.0` | — | Government debt b (see MEMs#237 if b≠0) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `steady_state` (Steady-state levels); `dynamics` (Saddle-path diagnostics)
 
 ---
 
