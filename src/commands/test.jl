@@ -164,7 +164,7 @@ function test_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_test_heteroskedasticity),
         ),
         CommandSpec(
-            path=["test", "arch_lm"],
+            path=["test", "arch-lm"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
@@ -176,10 +176,11 @@ function test_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=[TableSpec(name=:arch_lm, description="Path to CSV data file")],
             category="test",
+            aliases=["arch_lm"],
             handler=wrap_legacy(_test_arch_lm),
         ),
         CommandSpec(
-            path=["test", "ljung_box"],
+            path=["test", "ljung-box"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
@@ -191,6 +192,7 @@ function test_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=[TableSpec(name=:ljung_box, description="Path to CSV data file")],
             category="test",
+            aliases=["ljung_box"],
             handler=wrap_legacy(_test_ljung_box),
         ),
         CommandSpec(
@@ -244,7 +246,7 @@ function test_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_test_granger),
         ),
         CommandSpec(
-            path=["test", "pvar", "hansen_j"],
+            path=["test", "pvar", "hansen-j"],
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
@@ -257,6 +259,7 @@ function test_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=[TableSpec(name=:pvar_hansen_j, description="Path to CSV panel data file")],
             category="test",
+            aliases=["hansen_j"],
             handler=wrap_legacy(_test_pvar_hansen_j),
         ),
         CommandSpec(

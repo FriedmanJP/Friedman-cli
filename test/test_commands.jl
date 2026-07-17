@@ -424,12 +424,51 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        @test length(node.subcmds) == 31
+        # 31 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 32 keys (C044)
+        @test length(node.subcmds) == 32
         for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr_garch", "sv", "fastica", "ml", "vecm", "pvar",
+                     "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
+        end
+        @test haskey(node.subcmds, "gjr_garch")  # hidden alias
+        @test node.subcmds["gjr_garch"].name == "gjr-garch"
+    end
+
+    @testset "C044 kebab primary + snake alias deprecation" begin
+        node = register_estimate_commands!()
+        # Help lists kebab only, not snake alias
+        help_io = IOBuffer()
+        print_help(help_io, node; prog="friedman estimate")
+        help_text = String(take!(help_io))
+        @test contains(help_text, "gjr-garch")
+        @test !contains(help_text, "gjr_garch")
+
+        # Snake alias dispatches and prints deprecation on stderr
+        mktempdir() do dir
+            csv = _make_csv(dir; T=80, n=1, colnames=["ret"])
+            streams = cd(dir) do
+                _capture_all() do
+                    _dispatch_via_app(["estimate", "gjr_garch", csv, "--p", "1", "--q", "1",
+                                       "--format", "table"])
+                end
+            end
+            @test contains(streams.err, "deprecated")
+            @test contains(streams.err, "gjr-garch")
+            @test contains(streams.err, "gjr_garch")
+        end
+
+        # Kebab primary: no deprecation line
+        mktempdir() do dir
+            csv = _make_csv(dir; T=80, n=1, colnames=["ret"])
+            streams = cd(dir) do
+                _capture_all() do
+                    _dispatch_via_app(["estimate", "gjr-garch", csv, "--p", "1", "--q", "1",
+                                       "--format", "table"])
+                end
+            end
+            @test !contains(streams.err, "deprecated")
         end
     end
 
@@ -1175,10 +1214,11 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        @test length(node.subcmds) == 41
+        # 41 primary + 2 snake aliases (arch_lm, ljung_box) = 43 keys (C044)
+        @test length(node.subcmds) == 43
         for cmd in ["adf", "kpss", "pp", "za", "np", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
-                     "arch_lm", "ljung_box", "var", "granger", "pvar", "lr", "lm",
+                     "arch-lm", "ljung-box", "var", "granger", "pvar", "lr", "lm",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
                      "adf-2break", "gregory-hansen", "vif",
@@ -1187,16 +1227,19 @@ end  # Estimate handlers
                      "brant", "hausman-iia"]
             @test haskey(node.subcmds, cmd)
         end
+        @test haskey(node.subcmds, "arch_lm") && node.subcmds["arch_lm"].name == "arch-lm"
+        @test haskey(node.subcmds, "ljung_box") && node.subcmds["ljung_box"].name == "ljung-box"
         # VAR is a nested NodeCommand with lagselect and stability
         var_node = node.subcmds["var"]
         @test var_node isa NodeCommand
         @test haskey(var_node.subcmds, "lagselect")
         @test haskey(var_node.subcmds, "stability")
-        # PVAR is a nested NodeCommand with 4 children
+        # PVAR: 4 primary + 1 alias (hansen_j) = 5 keys (C044)
         pvar_node = node.subcmds["pvar"]
         @test pvar_node isa NodeCommand
-        @test length(pvar_node.subcmds) == 4
-        @test haskey(pvar_node.subcmds, "hansen_j")
+        @test length(pvar_node.subcmds) == 5
+        @test haskey(pvar_node.subcmds, "hansen-j")
+        @test haskey(pvar_node.subcmds, "hansen_j")  # alias
         @test haskey(pvar_node.subcmds, "mmsc")
         @test haskey(pvar_node.subcmds, "lagselect")
         @test haskey(pvar_node.subcmds, "stability")
@@ -1957,11 +2000,13 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        @test length(node.subcmds) == 14
+        # 14 primary + 1 alias (gjr_garch) = 15 keys (C044)
+        @test length(node.subcmds) == 15
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr_garch", "sv", "vecm", "favar"]
+                     "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
         end
+        @test haskey(node.subcmds, "gjr_garch")
     end
 
     @testset "_forecast_var" begin
@@ -2254,7 +2299,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 31
+        @test length(node.subcmds) == 32  # 31 primary + gjr_garch alias
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -2279,13 +2324,13 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 14
+        @test length(node.subcmds) == 15  # 14 primary + gjr_garch alias
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 41
+        @test length(node.subcmds) == 43  # 41 primary + 2 snake aliases
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -2592,13 +2637,15 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        @test length(node.subcmds) == 23
+        # 23 primary + 1 alias = 24 keys (C044)
+        @test length(node.subcmds) == 24
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr_garch", "sv", "favar",
+                     "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
+        @test haskey(node.subcmds, "gjr_garch")
     end
 
     @testset "_predict_var" begin
@@ -2993,13 +3040,15 @@ end  # Predict handlers
         node = register_residuals_commands!()
         @test node isa NodeCommand
         @test node.name == "residuals"
-        @test length(node.subcmds) == 23
+        # 23 primary + 1 alias = 24 keys (C044)
+        @test length(node.subcmds) == 24
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr_garch", "sv", "favar",
+                     "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
+        @test haskey(node.subcmds, "gjr_garch")
     end
 
     @testset "_residuals_var" begin
@@ -3666,7 +3715,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 31
+        @test length(node.subcmds) == 32  # 31 primary + gjr_garch alias
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -3687,7 +3736,8 @@ end  # Filter handlers
         node = register_test_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa NodeCommand
-        @test length(node.subcmds["pvar"].subcmds) == 4
+        @test length(node.subcmds["pvar"].subcmds) == 5  # 4 primary + hansen_j alias
+        @test haskey(node.subcmds["pvar"].subcmds, "hansen-j")
         @test haskey(node.subcmds["pvar"].subcmds, "hansen_j")
         @test haskey(node.subcmds["pvar"].subcmds, "mmsc")
         @test haskey(node.subcmds["pvar"].subcmds, "lagselect")
@@ -3696,7 +3746,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 41
+        @test length(node.subcmds) == 43  # 41 primary + 2 aliases
     end
 
     @testset "_parse_varlist" begin

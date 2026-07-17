@@ -100,6 +100,9 @@ end
 NodeCommand(name::String; subcmds::Dict{String,Union{NodeCommand,LeafCommand}}=Dict{String,Union{NodeCommand,LeafCommand}}(), description::String="") =
     NodeCommand(name, subcmds, description)
 
+"""True when a subcmds entry is a hidden alias (key differs from leaf.name). C044."""
+is_hidden_alias(name::String, cmd) = cmd isa LeafCommand && cmd.name != name
+
 """
     Entry(name, root, version)
 

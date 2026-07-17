@@ -64,14 +64,14 @@ friedman [command] [subcommand] [args...] [options...]
 
 | Command | Subcommands | Description |
 |---------|-------------|-------------|
-| `estimate` | `var` `bvar` `lp` `arima` `gmm` `smm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `fastica` `ml` `vecm` `pvar` `favar` `sdfm` `reg` `iv` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Estimate models (31 model types, incl. panel reg, ordered/multinomial choice) |
-| `test` | `adf` `kpss` `pp` `za` `np` `johansen` `normality` `identifiability` `heteroskedasticity` `arch_lm` `ljung_box` `granger` `lr` `lm` `andrews` `bai-perron` `panic` `cips` `moon-perron` `factor-break` `fourier-adf` `fourier-kpss` `dfgls` `lm-unitroot` `adf-2break` `gregory-hansen` `vif` + panel spec tests + spectral diagnostics + discrete choice tests + `var` (`lagselect` `stability`) + `pvar` (`hansen_j` `mmsc` `lagselect` `stability`) | Statistical tests (41+ leaves + nested) |
+| `estimate` | `var` `bvar` `lp` `arima` `gmm` `smm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `fastica` `ml` `vecm` `pvar` `favar` `sdfm` `reg` `iv` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Estimate models (31 model types, incl. panel reg, ordered/multinomial choice) |
+| `test` | `adf` `kpss` `pp` `za` `np` `johansen` `normality` `identifiability` `heteroskedasticity` `arch-lm` `ljung-box` `granger` `lr` `lm` `andrews` `bai-perron` `panic` `cips` `moon-perron` `factor-break` `fourier-adf` `fourier-kpss` `dfgls` `lm-unitroot` `adf-2break` `gregory-hansen` `vif` + panel spec tests + spectral diagnostics + discrete choice tests + `var` (`lagselect` `stability`) + `pvar` (`hansen-j` `mmsc` `lagselect` `stability`) | Statistical tests (41+ leaves + nested) |
 | `irf` | `var` `bvar` `lp` `vecm` `pvar` `favar` `sdfm` | Impulse response functions |
 | `fevd` | `var` `bvar` `lp` `vecm` `pvar` `favar` `sdfm` | Forecast error variance decomposition |
 | `hd` | `var` `bvar` `lp` `vecm` `favar` | Historical decomposition |
-| `forecast` | `var` `bvar` `lp` `arima` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `vecm` `favar` | Forecasting (14 model types) |
-| `predict` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | In-sample fitted values (23 model types) |
-| `residuals` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Model residuals (23 model types) |
+| `forecast` | `var` `bvar` `lp` `arima` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `vecm` `favar` | Forecasting (14 model types) |
+| `predict` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | In-sample fitted values (23 model types) |
+| `residuals` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Model residuals (23 model types) |
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` `x13` | Time series filters (+ X-13ARIMA-SEATS) |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
@@ -230,7 +230,7 @@ friedman estimate garch data.csv --column=1 --p=1 --q=1
 friedman estimate egarch data.csv --column=1 --p=1 --q=1
 
 # GJR-GARCH(p,q)
-friedman estimate gjr_garch data.csv --column=1 --p=1 --q=1
+friedman estimate gjr-garch data.csv --column=1 --p=1 --q=1
 
 # Stochastic volatility
 friedman estimate sv data.csv --column=1 --draws=2000
@@ -259,8 +259,8 @@ friedman test identifiability data.csv --test=all
 friedman test heteroskedasticity data.csv --method=markov --regimes=2
 
 # Residual diagnostics
-friedman test arch_lm data.csv --lags=4
-friedman test ljung_box data.csv --lags=10
+friedman test arch-lm data.csv --lags=4
+friedman test ljung-box data.csv --lags=10
 
 # Granger causality
 friedman test granger data.csv --cause=1 --effect=2 --lags=4
@@ -271,7 +271,7 @@ friedman test lr data.csv data.csv --lags1=2 --lags2=4
 friedman test lm data.csv data.csv --lags1=2 --lags2=4
 
 # Panel VAR diagnostics
-friedman test pvar hansen_j data.csv --id-col=country --time-col=year --lags=2
+friedman test pvar hansen-j data.csv --id-col=country --time-col=year --lags=2
 friedman test pvar mmsc data.csv --id-col=country --time-col=year --max-lags=8
 friedman test pvar lagselect data.csv --id-col=country --time-col=year --max-lags=8
 friedman test pvar stability data.csv --id-col=country --time-col=year --lags=2
@@ -418,7 +418,7 @@ friedman forecast gdfm data.csv --dynamic-rank=2 --horizon=12
 friedman forecast arch data.csv --column=1 --horizons=12
 friedman forecast garch data.csv --column=1 --horizons=12
 friedman forecast egarch data.csv --column=1 --horizons=12
-friedman forecast gjr_garch data.csv --column=1 --horizons=12
+friedman forecast gjr-garch data.csv --column=1 --horizons=12
 friedman forecast sv data.csv --column=1 --horizons=12
 
 # VECM forecast (bootstrap CIs)

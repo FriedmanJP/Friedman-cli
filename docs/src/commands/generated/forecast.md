@@ -229,7 +229,7 @@ Path to CSV data file
 
 ---
 
-### `friedman forecast gjr_garch`
+### `friedman forecast gjr-garch`
 
 Path to CSV data file
 

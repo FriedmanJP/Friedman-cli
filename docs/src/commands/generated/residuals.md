@@ -170,9 +170,9 @@ Model residuals (gdfm)
 
 ---
 
-### `friedman residuals gjr_garch`
+### `friedman residuals gjr-garch`
 
-Model residuals (gjr_garch)
+Model residuals (gjr-garch)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

@@ -145,6 +145,38 @@ function to_leaf(spec::CommandSpec)
 end
 
 """
+    _alias_leaf(leaf, alias, canonical) → LeafCommand
+
+Hidden snake_case alias for a kebab primary (C044 / F16).
+Registered under `alias` in the subcmds dict; `leaf.name` stays `canonical` so
+help/schema can hide aliases where `subcmds` key ≠ leaf.name.
+Prints a one-line stderr deprecation on use (not suppressed into stdout).
+"""
+function _alias_leaf(leaf::LeafCommand, alias::String, canonical::String)
+    inner = leaf.handler
+    function wrapper(; kwargs...)
+        printstyled(stderr, "warning: '$alias' is deprecated; use '$canonical' (removed in v1.0)\n";
+                    color=:yellow)
+        return inner(; kwargs...)
+    end
+    return LeafCommand(canonical, wrapper;
+        args=leaf.args, options=leaf.options, flags=leaf.flags,
+        description=leaf.description)
+end
+
+"""Register primary leaf plus any CommandSpec.aliases under a subcmds dict."""
+function _register_leaf!(cmds::Dict{String,Union{NodeCommand,LeafCommand}},
+                         primary::String, leaf::LeafCommand, aliases::Vector{String})
+    cmds[primary] = leaf
+    for alias in aliases
+        alias == primary && continue
+        haskey(cmds, alias) && error("alias '$alias' collides with existing subcommand")
+        cmds[alias] = _alias_leaf(leaf, alias, primary)
+    end
+    return cmds
+end
+
+"""
     build_node(name, specs; description="") → NodeCommand
 
 Build a node from CommandSpecs sharing path prefix `name`.
@@ -158,7 +190,8 @@ function build_node(name::String, specs::Vector{CommandSpec}; description::Strin
         length(spec.path) >= 2 || error("spec path must be [node, leaf, ...]: $(spec.path)")
         spec.path[1] == name || error("spec path[1]=$(spec.path[1]) != node $name")
         if length(spec.path) == 2
-            subcmds[spec.path[2]] = to_leaf(spec)
+            leaf = to_leaf(spec)
+            _register_leaf!(subcmds, spec.path[2], leaf, spec.aliases)
         elseif length(spec.path) == 3
             mid = spec.path[2]
             push!(get!(nested, mid, CommandSpec[]), spec)
@@ -170,7 +203,8 @@ function build_node(name::String, specs::Vector{CommandSpec}; description::Strin
         # child leaves: path[3] becomes leaf name under mid node
         child_cmds = Dict{String,Union{NodeCommand,LeafCommand}}()
         for spec in nspecs
-            child_cmds[spec.path[3]] = to_leaf(spec)
+            leaf = to_leaf(spec)
+            _register_leaf!(child_cmds, spec.path[3], leaf, spec.aliases)
         end
         # description from first child category or mid name
         subcmds[mid] = NodeCommand(mid, child_cmds, mid)

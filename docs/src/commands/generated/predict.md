@@ -170,9 +170,9 @@ In-sample fitted values (gdfm)
 
 ---
 
-### `friedman predict gjr_garch`
+### `friedman predict gjr-garch`
 
-In-sample fitted values (gjr_garch)
+In-sample fitted values (gjr-garch)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

@@ -72,7 +72,7 @@ Path to CSV data file
 
 ---
 
-### `friedman test arch_lm`
+### `friedman test arch-lm`
 
 Path to CSV data file
 
@@ -532,7 +532,7 @@ Path to CSV data file
 
 ---
 
-### `friedman test ljung_box`
+### `friedman test ljung-box`
 
 Path to CSV data file
 
@@ -753,7 +753,7 @@ Path to CSV data file
 
 ---
 
-### `friedman test pvar hansen_j`
+### `friedman test pvar hansen-j`
 
 Path to CSV panel data file
 

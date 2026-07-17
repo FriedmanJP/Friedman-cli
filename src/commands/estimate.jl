@@ -16,6 +16,9 @@
 
 # Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit, preg, piv, plogit, pprobit, ologit, oprobit, mlogit
 
+# C044: kebab primary CLI name; snake kept as hidden alias where renamed
+const _VOL_CLI_NAMES = Dict("gjr_garch" => ("gjr-garch", ["gjr_garch"]))
+
 """Generate CommandSpecs for the volatility family (estimate / forecast / predict / residuals)."""
 function _vol_specs(verb::Symbol)::Vector{CommandSpec}
     handlers = if verb === :estimate
@@ -68,14 +71,16 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
                 OUTPUT_OPTIONS...,
             ]
         end
+        cli_name, aliases = get(_VOL_CLI_NAMES, vol.name, (vol.name, String[]))
         push!(specs, CommandSpec(
-            path=[string(verb), vol.name],
+            path=[string(verb), cli_name],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=opts,
             flags=flags,
-            tables=[TableSpec(name=Symbol("$(verb)_$(vol.name)"), description="Path to CSV data file")],
+            tables=[TableSpec(name=Symbol("$(verb)_$(replace(cli_name, "-" => "_"))"), description="Path to CSV data file")],
             category=string(verb),
+            aliases=aliases,
             handler=wrap_legacy(handlers[vol.name]),
         ))
     end

@@ -234,7 +234,7 @@ Path to CSV data file
 
 ---
 
-### `friedman estimate gjr_garch`
+### `friedman estimate gjr-garch`
 
 Path to CSV data file
 

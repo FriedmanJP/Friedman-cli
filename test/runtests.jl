@@ -3583,17 +3583,18 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # Verify estimate now has 31 subcommands
-    @test length(est_node.subcmds) == 31
+    # 31 primary leaves + 1 snake alias (gjr_garch) = 32 keys (C044)
+    @test length(est_node.subcmds) == 32
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
     for key in ["var", "bvar", "lp", "arima", "gmm", "static", "dynamic", "gdfm",
-                 "arch", "garch", "egarch", "gjr_garch", "sv", "fastica", "ml",
+                 "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml",
                  "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit"]
         @test haskey(est_node.subcmds, key)
         @test est_node.subcmds[key] isa LeafCommand
     end
+    @test haskey(est_node.subcmds, "gjr_garch")  # hidden alias
 
     # FAVAR has key-vars option
     favar_cmd = est_node.subcmds["favar"]
@@ -3741,9 +3742,9 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 14 subcommands (13 original + favar)
+    # Forecast: 14 primary + gjr_garch alias (C044)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 14
+    @test length(fc_node.subcmds) == 15
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
@@ -3754,18 +3755,18 @@ end
     fc_favar_flags = [f.name for f in fc_favar.flags]
     @test "panel-forecast" in fc_favar_flags
 
-    # Predict: 23 subcommands
+    # Predict: 23 primary + gjr_garch alias (C044)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 23
+    @test length(pred_node.subcmds) == 24
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
     pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
-    # Residuals: 23 subcommands
+    # Residuals: 23 primary + gjr_garch alias (C044)
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 23
+    @test length(res_node.subcmds) == 24
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
@@ -3776,8 +3777,8 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # Test node now has 41 subcommands
-    @test length(test_node.subcmds) == 41
+    # 41 primary + 2 snake aliases (C044)
+    @test length(test_node.subcmds) == 43
 
     # Andrews structural break test
     @test haskey(test_node.subcmds, "andrews")

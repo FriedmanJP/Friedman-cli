@@ -1080,7 +1080,8 @@ const FITTED_MODEL_KINDS = [
     (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol),
     (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol),
     (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol),
-    (; name="gjr_garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol),
+    # C044: kebab primary; snake alias applied in _specs_for_verb
+    (; name="gjr-garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol),
     (; name="sv",         pred=_VOL_PREDICT_HANDLERS["sv"],         res=_VOL_RESIDUALS_HANDLERS["sv"],         kind=:vol),
     (; name="favar",      pred=_predict_favar,      res=_residuals_favar,      kind=:favar),
     (; name="reg",        pred=_predict_reg,        res=_residuals_reg,        kind=:reg),
@@ -1151,19 +1152,25 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     end
 end
 
+# C044 snake→kebab aliases for fitted leaves
+const _FITTED_CLI_ALIASES = Dict("gjr-garch" => ["gjr_garch"])
+
 function _specs_for_verb(verb::Symbol, title_prefix::String)
     specs = CommandSpec[]
     for m in FITTED_MODEL_KINDS
         handler = verb === :predict ? m.pred : m.res
         path0 = verb === :predict ? "predict" : "residuals"
+        aliases = get(_FITTED_CLI_ALIASES, m.name, String[])
+        tbl = replace(m.name, "-" => "_")
         push!(specs, CommandSpec(
             path=[path0, m.name],
             summary="$title_prefix ($(m.name))",
             args=_fitted_data_arg(),
             options=_opts_for_kind(m.kind, verb),
             flags=FlagSpec[],
-            tables=[TableSpec(name=Symbol("$(path0)_$(m.name)"), description=title_prefix)],
+            tables=[TableSpec(name=Symbol("$(path0)_$tbl"), description=title_prefix)],
             category=path0,
+            aliases=aliases,
             handler=wrap_legacy(handler),
         ))
     end
