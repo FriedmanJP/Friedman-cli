@@ -1,6 +1,6 @@
 # filter
 
-Time series filtering and trend-cycle decomposition. 5 subcommands: `hp`, `hamilton`, `bn`, `bk`, `bhp`.
+Time series filtering and trend-cycle decomposition. 6 subcommands: `hp`, `hamilton`, `bn`, `bk`, `bhp`, `x13`.
 
 All filter commands produce trend and cycle components, plus variance ratio diagnostics.
 
@@ -109,3 +109,43 @@ friedman filter bhp data.csv --stopping=fixed --max-iter=50
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
+
+## filter x13
+
+X-13ARIMA-SEATS seasonal adjustment via MacroEconometricModels' pure-Julia port
+(Census X-11 / SEATS methods; no external binary required).
+
+```bash
+# Monthly series, X-11 decomposition
+friedman filter x13 monthly.csv --frequency=12 --method=x11
+
+# Quarterly SEATS with trading-day + Easter
+friedman filter x13 quarterly.csv --frequency=4 --method=seats --trading-day --easter
+
+# Single column, log transform
+friedman filter x13 data.csv --columns=1 --transform=log --outliers=true
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--frequency` | | Int | 12 | Seasonal period: 4 (quarterly) or 12 (monthly) |
+| `--method` | | String | `seats` | Preferred decomposition: `seats` or `x11` |
+| `--transform` | | String | `auto` | `auto`, `log`, or `none` |
+| `--trading-day` | | Flag | | Trading-day regressors |
+| `--easter` | | Flag | | Easter effect regressor |
+| `--outliers` | | String | `true` | Detect AO/LS/TC outliers (`true`/`false`) |
+| `--critical-value` | | Float64 | 0.0 | Outlier critical value (0 = automatic) |
+| `--columns` | `-c` | String | all | Column indices, comma-separated |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot |
+| `--plot-save` | | String | | Save plot HTML |
+
+**Output tables:** seasonally adjusted, trend, seasonal factors, irregular, diagnostics
+(ARIMA order, AIC, outlier count).
+
+**Errors:** `data/too-short` if T < 3×frequency; `env/x13-missing` (exit 6) if the
+backend is unavailable (reserved; MEMs 0.6.7 ships pure-Julia X-13).
+
+**Note:** Upstream MEMs #205 discusses exact-ML likelihood determinant questions for
+some SEATS paths — treat SEATS AIC as diagnostic, not a formal likelihood ratio.

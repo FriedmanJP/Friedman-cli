@@ -76,7 +76,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `forecast` | `var` `bvar` `lp` `arima` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `vecm` `favar` | Forecasting (14 model types) |
 | `predict` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | In-sample fitted values (23 model types) |
 | `residuals` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr_garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Model residuals (23 model types) |
-| `filter` | `hp` `hamilton` `bn` `bk` `bhp` | Time series filters |
+| `filter` | `hp` `hamilton` `bn` `bk` `bhp` `x13` | Time series filters (+ X-13ARIMA-SEATS) |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
 | `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.6.7) |
@@ -478,6 +478,9 @@ friedman filter bk data.csv --column=1 --pl=6 --pu=32
 
 # Boosted HP filter (Phillips & Shi 2021)
 friedman filter bhp data.csv --column=1 --lambda=1600 --stopping=BIC
+
+# X-13ARIMA-SEATS seasonal adjustment
+friedman filter x13 monthly.csv --frequency=12 --method=x11
 ```
 
 ### Data Management

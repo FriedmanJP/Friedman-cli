@@ -100,6 +100,42 @@ function filter_specs()::Vector{CommandSpec}
             category="filter",
             handler=wrap_legacy(_filter_bhp),
         ),
+        # C042 — X-13ARIMA-SEATS (pure-Julia MEMs port; no external binary required)
+        CommandSpec(
+            path=["filter", "x13"],
+            summary="X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)",
+            args=data_arg,
+            options=[
+                OptionSpec(name="frequency", type=Int, default=12,
+                           description="Seasonal period: 4 (quarterly) or 12 (monthly)"),
+                OptionSpec(name="method", type=String, default="seats",
+                           choices=["seats", "x11"],
+                           description="Preferred decomposition: seats|x11"),
+                OptionSpec(name="transform", type=String, default="auto",
+                           choices=["auto", "log", "none"],
+                           description="Pre-transformation"),
+                OptionSpec(name="critical-value", type=Float64, default=0.0,
+                           description="Outlier critical value (0 = automatic)"),
+                OptionSpec(name="outliers", type=String, default="true",
+                           choices=["true", "false"],
+                           description="Detect AO/LS/TC outliers (default true)"),
+                col, plot_opts...,
+            ],
+            flags=[
+                FlagSpec(name="trading-day", description="Include trading-day regressors"),
+                FlagSpec(name="easter", description="Include Easter effect regressor"),
+                plot_flags...,
+            ],
+            tables=[
+                TableSpec(name=:adjusted, description="Seasonally adjusted series"),
+                TableSpec(name=:trend, description="Trend-cycle"),
+                TableSpec(name=:seasonal_factors, description="Seasonal component"),
+                TableSpec(name=:irregular, description="Irregular component"),
+                TableSpec(name=:diagnostics, description="ARIMA order, AIC, outliers"),
+            ],
+            category="filter",
+            handler=wrap_legacy(_filter_x13),
+        ),
     ]
 end
 
@@ -387,4 +423,113 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
     output_result(result_df; format=Symbol(format), output=output,
                   title="Boosted HP Filter (λ=$(lambda), stopping=$stopping)")
     _print_variance_ratios(sel_names, cycles, originals)
+end
+
+# ── X-13ARIMA-SEATS (C042 / MEMs 0.6.7 pure-Julia port) ───
+
+function _filter_x13(; data::String,
+                      frequency::Int=12,
+                      method::String="seats",
+                      transform::String="auto",
+                      trading_day::Bool=false,
+                      easter::Bool=false,
+                      outliers::String="true",
+                      critical_value::Float64=0.0,
+                      columns::String="",
+                      output::String="", format::String="table",
+                      plot::Bool=false, plot_save::String="")
+    frequency in (4, 12) || throw(CliError("usage/invalid-option",
+        "--frequency must be 4 (quarterly) or 12 (monthly), got $frequency"))
+    method_sym = Symbol(lowercase(method))
+    method_sym in (:seats, :x11) || throw(CliError("usage/invalid-option",
+        "--method must be seats or x11, got '$method'"))
+    transform_sym = Symbol(lowercase(transform))
+    transform_sym in (:auto, :log, :none) || throw(CliError("usage/invalid-option",
+        "--transform must be auto|log|none, got '$transform'"))
+    outliers_on = lowercase(outliers) == "true"
+
+    df = load_data(data)
+    Y = df_to_matrix(df)
+    varnames = variable_names(df)
+    T_obs, n = size(Y)
+    col_idx = _parse_columns(columns, n)
+
+    min_T = 3 * frequency
+    T_obs < min_T && throw(CliError("data/too-short",
+        "X-13 requires at least 3×frequency = $min_T observations, got T=$T_obs",
+        hint="use a longer series or lower --frequency"))
+
+    _status("X-13ARIMA-SEATS (method=$method_sym, frequency=$frequency): " *
+            "$(length(col_idx)) variable(s), T=$T_obs")
+    # Note: pure-Julia MEMs port (no external Census X-13 binary). Upstream #205
+    # documents exact-ML likelihood determinant questions for SEATS paths.
+    _status()
+
+    adj_df = DataFrame(t = 1:T_obs)
+    trend_df = DataFrame(t = 1:T_obs)
+    seas_df = DataFrame(t = 1:T_obs)
+    irr_df = DataFrame(t = 1:T_obs)
+    diag_rows = NamedTuple[]
+
+    for ci in col_idx
+        vname = varnames[ci]
+        y = Y[:, ci]
+        res = try
+            MacroEconometricModels.x13_filter(y;
+                frequency=frequency,
+                method=method_sym,
+                transform=transform_sym,
+                trading_day=trading_day,
+                easter=easter,
+                outliers=outliers_on,
+                critical_value=critical_value)
+        catch e
+            msg = sprint(showerror, e)
+            # Reserved for platforms/builds that still require an external binary
+            if occursin(r"(?i)(x-?13|binary|not found|could not find|executable)", msg)
+                throw(CliError("env/x13-missing",
+                    "X-13 seasonal adjustment is unavailable: $msg",
+                    hint="MEMs ships a pure-Julia X-13 port; if you see this, check MacroEconometricModels install"))
+            end
+            if e isa ArgumentError
+                throw(CliError("data/invalid", string(e)))
+            end
+            rethrow()
+        end
+
+        _maybe_plot(res; plot=plot,
+                    plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname))
+
+        adj_df[!, vname] = round.(res.adjusted; digits=6)
+        trend_df[!, vname] = round.(res.trend; digits=6)
+        seas_df[!, vname] = round.(res.seasonal; digits=6)
+        irr_df[!, vname] = round.(res.irregular; digits=6)
+
+        order = res.arima_order
+        order_str = order isa Tuple ? join(string.(order), ",") : string(order)
+        push!(diag_rows, (
+            variable = vname,
+            method = string(res.method),
+            frequency = res.frequency,
+            transform = string(res.transform),
+            arima_order = order_str,
+            aic = round(Float64(res.aic); digits=4),
+            sigma2 = round(Float64(res.sigma2); digits=6),
+            n_outliers = Int(res.n_outliers),
+            T_obs = Int(res.T_obs),
+        ))
+        _status("  $vname: method=$(res.method), ARIMA=($order_str), outliers=$(res.n_outliers)")
+    end
+
+    diag_df = DataFrame(diag_rows)
+    output_result(adj_df; format=Symbol(format), output=output,
+                  title="X-13 Seasonally Adjusted")
+    output_result(trend_df; format=Symbol(format), output=output,
+                  title="X-13 Trend")
+    output_result(seas_df; format=Symbol(format), output=output,
+                  title="X-13 Seasonal Factors")
+    output_result(irr_df; format=Symbol(format), output=output,
+                  title="X-13 Irregular")
+    output_result(diag_df; format=Symbol(format), output=output,
+                  title="X-13 Diagnostics")
 end

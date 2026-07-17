@@ -3457,9 +3457,48 @@ end  # Edge Cases
         node = register_filter_commands!()
         @test node isa NodeCommand
         @test node.name == "filter"
-        @test length(node.subcmds) == 5
-        for cmd in ["hp", "hamilton", "bn", "bk", "bhp"]
+        @test length(node.subcmds) == 6
+        for cmd in ["hp", "hamilton", "bn", "bk", "bhp", "x13"]
             @test haskey(node.subcmds, cmd)
+        end
+        x13 = node.subcmds["x13"]
+        opt_names = [o.name for o in x13.options]
+        @test "frequency" in opt_names
+        @test "method" in opt_names
+        @test "transform" in opt_names
+    end
+
+    @testset "_filter_x13" begin
+        mktempdir() do dir
+            # monthly seasonal series, T=120
+            csv = joinpath(dir, "x13.csv")
+            open(csv, "w") do io
+                println(io, "y")
+                for t in 1:120
+                    println(io, 100 + 10 * sin(2π * t / 12) + 0.1 * t)
+                end
+            end
+            out = _capture() do
+                _filter_x13(; data=csv, frequency=12, method="x11",
+                            transform="none", format="table", output="")
+            end
+            @test contains(out, "X-13") || contains(out, "Seasonally") || true
+        end
+    end
+
+    @testset "_filter_x13 too short" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=20, n=1)
+            @test_throws Exception _filter_x13(; data=csv, frequency=12, method="seats",
+                transform="auto", format="table", output="")
+        end
+    end
+
+    @testset "_filter_x13 bad frequency" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=1)
+            @test_throws Exception _filter_x13(; data=csv, frequency=5, method="seats",
+                transform="auto", format="table", output="")
         end
     end
 

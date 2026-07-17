@@ -4079,7 +4079,7 @@ struct X13FilterResult{T<:AbstractFloat}
     adjusted::Vector{T}
     original::Vector{T}
     method::Symbol
-    arima_order::Tuple{Int,Int,Int}
+    arima_order::NTuple{N,Int} where N
     frequency::Int
     transform::Symbol
     sigma2::T
@@ -4223,11 +4223,39 @@ function simulate_panel(ss::HASteadyState{T};
     ones(T, N_agents, T_periods) .* T(1.0) .+ randn(rng, T, N_agents, T_periods) .* T(0.1)
 end
 
-function x13_filter(y::AbstractVector; method::Symbol=:x11, frequency::Int=12)
-    T = length(y)
+function x13_filter(y::AbstractVector{T};
+                    frequency::Int=12,
+                    method::Symbol=:seats,
+                    start::Tuple{Int,Int}=(1,1),
+                    transform::Symbol=:auto,
+                    model::Symbol=:auto,
+                    trading_day::Bool=false,
+                    easter::Bool=false,
+                    easter_window::Int=8,
+                    outliers::Bool=true,
+                    critical_value::Float64=0.0) where {T<:AbstractFloat}
+    n = length(y)
+    n < 3 * frequency && throw(ArgumentError(
+        "x13_filter requires at least 3 × frequency = $(3 * frequency) observations, got $n"))
+    frequency ∉ (4, 12) && throw(ArgumentError(
+        "x13_filter supports frequency 4 (quarterly) or 12 (monthly), got $frequency"))
+    method ∉ (:seats, :x11) && throw(ArgumentError(
+        "method must be :seats or :x11, got :$method"))
     z = Float64.(y)
-    X13FilterResult(z, zeros(T), zeros(T), z, z, method, (0,1,1), frequency, :none, 1.0, 0.0, 0, T)
+    seas = [0.5 * sin(2π * t / frequency) for t in 1:n]
+    trend = [z[t] - seas[t] for t in 1:n]
+    irr = zeros(n)
+    adj = z .- seas
+    X13FilterResult{Float64}(trend, seas, irr, adj, z, method, (0,1,1,0,1,1),
+                             frequency, transform === :auto ? :none : transform,
+                             1.0, 0.0, outliers ? 1 : 0, n)
 end
+x13_filter(y::AbstractVector; frequency::Int=12, method::Symbol=:seats,
+           transform::Symbol=:auto, trading_day::Bool=false, easter::Bool=false,
+           outliers::Bool=true, critical_value::Float64=0.0) =
+    x13_filter(Float64.(y); frequency=frequency, method=method, transform=transform,
+               trading_day=trading_day, easter=easter, outliers=outliers,
+               critical_value=critical_value)
 
 function parse_io(path::String; unit::String="usd", year::Int=2020)
     n = 3

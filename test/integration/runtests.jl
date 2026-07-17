@@ -433,6 +433,24 @@ end
         @test tbl !== nothing
         @test length(table_rows(tbl)) >= 20
     end
+
+    # C042 — X-13ARIMA-SEATS (pure-Julia MEMs port; always available)
+    @testset "filter x13 monthly" begin
+        csv = tempname() * ".csv"
+        open(csv, "w") do io
+            println(io, "y")
+            for t in 1:120
+                println(io, 100 + 10 * sin(2π * t / 12) + 0.05 * t + 0.3 * randn())
+            end
+        end
+        r = run_json(["filter", "x13", csv, "--frequency", "12", "--method", "x11",
+                      "--transform", "none"])
+        assert_envelope_ok(r; label="filter x13")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        @test length(table_rows(tbl)) >= 100
+        rm(csv; force=true)
+    end
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

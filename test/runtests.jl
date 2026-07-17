@@ -2427,15 +2427,30 @@ using .MacroEconometricModels
             ],
             description="Boosted HP filter")
 
+        filt_x13 = LeafCommand("x13", handler;
+            args=[Argument("data"; description="Data file")],
+            options=[
+                Option("frequency"; type=Int, default=12, description="Seasonal period"),
+                Option("method"; type=String, default="seats", description="seats|x11"),
+                Option("transform"; type=String, default="auto", description="auto|log|none"),
+                Option("critical-value"; type=Float64, default=0.0, description="Outlier CV"),
+                Option("outliers"; type=String, default="true", description="true|false"),
+                Option("columns"; short="c", type=String, default="", description="Columns"),
+                Option("output"; short="o", type=String, default="", description="Output"),
+                Option("format"; short="f", type=String, default="table", description="Format"),
+            ],
+            flags=[Flag("trading-day"), Flag("easter"), Flag("plot")],
+            description="X-13ARIMA-SEATS")
+
         filter_node = NodeCommand("filter",
             Dict{String,Union{NodeCommand,LeafCommand}}(
                 "hp" => filt_hp, "hamilton" => filt_hamilton, "bn" => filt_bn,
-                "bk" => filt_bk, "bhp" => filt_bhp),
+                "bk" => filt_bk, "bhp" => filt_bhp, "x13" => filt_x13),
             "Time series filters")
 
         @test filter_node.name == "filter"
-        @test length(filter_node.subcmds) == 5
-        for cmd in ["hp", "hamilton", "bn", "bk", "bhp"]
+        @test length(filter_node.subcmds) == 6
+        for cmd in ["hp", "hamilton", "bn", "bk", "bhp", "x13"]
             @test haskey(filter_node.subcmds, cmd)
             @test filter_node.subcmds[cmd] isa LeafCommand
         end
@@ -2446,6 +2461,7 @@ using .MacroEconometricModels
         @test length(filter_node.subcmds["bn"].options) == 5
         @test length(filter_node.subcmds["bk"].options) == 6
         @test length(filter_node.subcmds["bhp"].options) == 7
+        @test length(filter_node.subcmds["x13"].options) == 8
 
         # Help text
         buf = IOBuffer()
@@ -2456,6 +2472,7 @@ using .MacroEconometricModels
         @test contains(help_text, "bn")
         @test contains(help_text, "bk")
         @test contains(help_text, "bhp")
+        @test contains(help_text, "x13")
 
         # Arg binding: filter hp data.csv --lambda=1600
         parsed = tokenize(["data.csv", "--lambda=1600.0"])
