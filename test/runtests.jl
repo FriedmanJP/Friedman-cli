@@ -2763,6 +2763,33 @@ end
     @test exit_class(CliError("usage/bad-format", "…")) == 2
     @test exit_class(CliError("model/singular", "…")) == 5
     @test exit_class(CliError("env/network", "…")) == 6
+
+    # C050: MEMs domain exceptions (MacroModelError hierarchy) → typed CliError.
+    # Mock exception types are same-named subtypes of MacroModelError.
+    conv = _domain_error_class(MacroEconometricModels.ConvergenceError("no convergence", 500, 1e-2))
+    @test conv isa CliError
+    @test conv.code == "model/convergence"
+    @test exit_class(conv) == 5
+    @test occursin("no convergence", conv.message)
+
+    ident = _domain_error_class(MacroEconometricModels.IdentificationError("under-identified"))
+    @test ident.code == "model/identification"
+    @test exit_class(ident) == 5
+
+    sing = _domain_error_class(MacroEconometricModels.SingularSystemError("singular", 1e18))
+    @test sing.code == "model/singular"
+    @test exit_class(sing) == 5
+
+    ser = _domain_error_class(MacroEconometricModels.SerializationError("bad handle version"))
+    @test ser.code == "data/serialization"
+    @test exit_class(ser) == 3
+
+    # Non-MEMs exceptions have no typed mapping → caller falls back to exit 1.
+    @test _domain_error_class(ArgumentError("x")) === nothing
+    @test _domain_error_class(ErrorException("x")) === nothing
+    # A message is always recoverable (prefers `.msg`, else showerror).
+    @test _err_message(MacroEconometricModels.IdentificationError("hi")) == "hi"
+    @test _err_message(ErrorException("boom")) == "boom"
 end
 
 @testset "IO utilities" begin

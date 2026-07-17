@@ -53,4 +53,29 @@ using Friedman
         # data
         @test Int(Friedman.run_cli(["estimate", "var", "/nonexistent/file.csv"])) == 3
     end
+
+    @testset "MEMs logging routing (#348 / C050)" begin
+        # Not quiet: @info and @warn both surface.
+        Friedman._QUIET[] = false
+        buf = IOBuffer()
+        Base.CoreLogging.with_logger(Friedman._mems_logger(buf)) do
+            @info "info-line-marker"
+            @warn "warn-line-marker"
+        end
+        verbose = String(take!(buf))
+        @test occursin("info-line-marker", verbose)
+        @test occursin("warn-line-marker", verbose)
+
+        # Quiet: @info dropped, @warn kept (@error would also survive).
+        Friedman._QUIET[] = true
+        qbuf = IOBuffer()
+        Base.CoreLogging.with_logger(Friedman._mems_logger(qbuf)) do
+            @info "info-line-marker"
+            @warn "warn-line-marker"
+        end
+        quiet = String(take!(qbuf))
+        Friedman._QUIET[] = false
+        @test !occursin("info-line-marker", quiet)
+        @test occursin("warn-line-marker", quiet)
+    end
 end

@@ -121,13 +121,14 @@ src/
 | `Statistics` (stdlib) | Mean, median calculations |
 | `SparseArrays` (stdlib) | Sparse matrix operations |
 | `Random` (stdlib) | Random number generation (DSGE simulation) |
+| `Logging` (stdlib) | Route MEMs `@info`/`@warn` to stderr; `--quiet` drops info (C050) |
 
 ## Compatibility
 
 | | Version |
 |---|---------|
 | Julia | `>= 1.12` |
-| MacroEconometricModels | `0.6.7` |
+| MacroEconometricModels | `0.7.0` |
 
 ## Totals
 

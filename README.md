@@ -5,11 +5,11 @@
 [![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg?token=TIYTWTJG36)](https://codecov.io/gh/FriedmanJP/Friedman-cli)
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 
-Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.6.7).
+Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.7.0).
 
 > **v0.5.0+ agent contract:** with `--format=json`, stdout is **exactly one** versioned JSON envelope; status goes to **stderr**. Exit codes: 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal. See the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/). `FRIEDMAN_LEGACY_OUTPUT=1` restores pre-0.5 JSON for one minor release.
 >
-> **v0.6.0:** targets MacroEconometricModels **v0.6.7** from the Julia General registry. Pin rule: CI/release/integration use registry resolve against `[compat] MacroEconometricModels = "0.6.7"` (canary/nightly-dev may track MEMs `dev`).
+> **MEMs 0.7.0 re-platform (M5a, in progress on `dev`):** targets MacroEconometricModels **v0.7.0** from the Julia General registry. Pin rule: CI/release/integration use registry resolve against `[compat] MacroEconometricModels = "0.7.0"` (canary/nightly-dev may track MEMs `dev`). At this baseline JuMP + Ipopt become required upstream deps (bundled — see the solver note below).
 
 16 top-level commands (incl. `schema`, `model`, `completions`), ~222 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `schema`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
 
@@ -75,7 +75,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` `x13` | Time series filters (+ X-13ARIMA-SEATS) |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
-| `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.6.7) |
+| `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.7.0) |
 | `spectral` | `acf` `periodogram` `density` `cross` `transfer` | Spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function) |
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
 | `schema` | — | Machine-readable self-description (raw JSON) |
@@ -539,7 +539,7 @@ friedman dsge solve model.toml --method=perturbation --order=2
 friedman dsge solve model.toml --method=perturbation --order=3
 friedman dsge solve model.toml --method=projection --degree=5 --grid=chebyshev
 
-# HA-DSGE builtins (MEMs 0.6.7): huggett | krusell-smith | one-asset-hank | two-asset-hank
+# HA-DSGE builtins (MEMs 0.7.0): huggett | krusell-smith | one-asset-hank | two-asset-hank
 friedman dsge ha steady-state huggett
 friedman dsge ha solve huggett --method=reiter --n-reduced=20
 friedman dsge ha irf huggett --method=reiter --horizon=40

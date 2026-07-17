@@ -54,6 +54,32 @@ module Distributions
 end
 using .Distributions: Distribution, Beta, Normal, InverseGamma, Gamma, Uniform
 
+# ─── Typed exception hierarchy (MEMs 0.7.0 / #245; mocked for C050) ─────────
+# Real MEMs roots all domain errors at `MacroModelError <: Exception`. The CLI's
+# `_domain_error_class` (src/output/errors.jl) matches these by type NAME, so the
+# mock only needs same-named throwable types with a `.msg` field.
+abstract type MacroModelError <: Exception end
+struct ConvergenceError <: MacroModelError
+    msg::String; iters::Int; residual::Float64
+end
+ConvergenceError(msg::AbstractString) = ConvergenceError(String(msg), 0, NaN)
+struct IdentificationError <: MacroModelError
+    msg::String
+end
+struct SingularSystemError <: MacroModelError
+    msg::String; cond::Float64
+end
+SingularSystemError(msg::AbstractString) = SingularSystemError(String(msg), Inf)
+struct SerializationError <: MacroModelError
+    msg::String
+end
+Base.showerror(io::IO, e::MacroModelError) = print(io, nameof(typeof(e)), ": ", e.msg)
+
+# ─── New abstract model supertypes (MEMs 0.7.0 modules; wrapped in C062–C073) ─
+abstract type AbstractMGARCHModel end
+abstract type AbstractNonlinearTSModel end
+abstract type AbstractStateSpaceModel end
+
 # ─── Core Types ───────────────────────────────────────────
 
 struct VARModel{T<:Real}
