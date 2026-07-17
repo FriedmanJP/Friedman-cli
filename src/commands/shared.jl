@@ -963,10 +963,15 @@ function _load_dsge_model(path::String)
         param_dict = dsge_cfg["parameters"]
         endog = Symbol.(dsge_cfg["endogenous"])
         exog = Symbol.(dsge_cfg["exogenous"])
+        is_linear = Bool(get(dsge_cfg, "linear", false))
 
-        spec = MacroEconometricModels.DSGESpec(; n_endog=length(endog), n_exog=length(exog))
+        # Pass linear= so pre-linearized specs (MEMs #115/#116) are not re-parsed as nonlinear.
+        # Real MEMs constructs DSGESpec via @dsge; the mock accepts n_endog/n_exog/linear kwargs.
+        spec = MacroEconometricModels.DSGESpec(; n_endog=length(endog), n_exog=length(exog),
+                                                 linear=is_linear)
 
-        _status("Loaded DSGE model from TOML: $(length(endog)) endogenous, $(length(exog)) exogenous, $(length(dsge_cfg["equations"])) equations")
+        lin_note = is_linear ? ", linear=true" : ""
+        _status("Loaded DSGE model from TOML: $(length(endog)) endogenous, $(length(exog)) exogenous, $(length(dsge_cfg["equations"])) equations$lin_note")
         return spec
 
     elseif ext == ".jl"

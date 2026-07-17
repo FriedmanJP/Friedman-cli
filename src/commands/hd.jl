@@ -14,7 +14,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Historical Decomposition commands: var, bvar, lp (action-first: friedman hd var ...)
+# Historical Decomposition commands: var, bvar, lp, vecm, favar
+# (action-first: friedman hd var ...)
+#
+# C043 / MEMs 0.6.7 HD parity audit:
+#   historical_decomposition is exported for VAR, BVAR, LP, VECM, FAVAR, DSGE
+#   (linear + perturbation + Bayesian). There is NO method for PVARModel or
+#   StructuralDFM at this pin — do not add `hd pvar` / `hd sdfm` until MEMs
+#   exposes them. Documented in docs/src/commands/hd.md.
 
 function hd_specs()::Vector{CommandSpec}
     return [

@@ -8,12 +8,13 @@ Friedman supports DSGE models specified as TOML files or Julia scripts. See [Con
 
 ### TOML (`.toml`)
 
-The model is defined in the `[model]` section with `endogenous`, `exogenous`, `parameters`, and `[[model.equations]]` entries. An optional `[solver]` section specifies the solution method.
+The model is defined in the `[model]` section with `endogenous`, `exogenous`, `parameters`, and `[[model.equations]]` entries. Set `linear = true` for pre-linearized models (variables are deviations from steady state). An optional `[solver]` section specifies the solution method.
 
 ```toml
 [model]
 endogenous = ["y", "c", "k", "n"]
 exogenous = ["eps_a"]
+# linear = true
 
 [model.parameters]
 alpha = 0.36
@@ -57,6 +58,7 @@ Solve a DSGE model. Supports 5 solution methods and OccBin occasionally binding 
 ```bash
 friedman dsge solve rbc.toml
 friedman dsge solve rbc.toml --method=perturbation --order=2
+friedman dsge solve rbc.toml --method=perturbation --order=3
 friedman dsge solve rbc.toml --method=projection --degree=7 --grid=chebyshev
 friedman dsge solve rbc.toml --constraints=occbin.toml --periods=60
 ```
@@ -64,7 +66,7 @@ friedman dsge solve rbc.toml --constraints=occbin.toml --periods=60
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--method` | | String | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi` |
-| `--order` | | Int | 1 | Perturbation order (1 or 2) |
+| `--order` | | Int | 1 | Perturbation order (`1`, `2`, or `3`) |
 | `--degree` | | Int | 5 | Polynomial degree (projection/pfi) |
 | `--grid` | | String | `auto` | Grid type: `auto`, `chebyshev`, `smolyak` |
 | `--constraints` | | String | | Path to OccBin constraints TOML |
@@ -115,19 +117,21 @@ Forecast error variance decomposition from a solved DSGE model.
 ```bash
 friedman dsge fevd rbc.toml --horizon=40
 friedman dsge fevd rbc.toml --method=perturbation --order=2
+friedman dsge fevd rbc.toml --method=perturbation --order=2 --unconditional
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--method` | | String | `gensys` | Solution method |
-| `--order` | | Int | 1 | Perturbation order |
-| `--horizon` | `-h` | Int | 40 | FEVD horizon |
+| `--order` | | Int | 1 | Perturbation order (`1`, `2`, or `3`) |
+| `--horizon` | `-h` | Int | 40 | FEVD horizon (ignored for asymptotic `--unconditional`) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+| `--unconditional` | | Flag | | Unconditional (asymptotic) FEVD via Andreasen et al. (2018); requires `--method=perturbation` and `--order` ≥ 2 |
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-variable FEVD proportions table (columns = shocks, rows = horizons).
+**Output:** Per-variable FEVD proportions table (columns = shocks, rows = horizons). With `--unconditional`, horizon is asymptotic (H=1).
 
 ## dsge hd
 

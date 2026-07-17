@@ -402,6 +402,7 @@ Path to DSGE model file (.toml or .jl)
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `--unconditional` | — | Unconditional (asymptotic) FEVD for order≥2 perturbation (Andreasen et al. 2018) |
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `fevd` (Path to DSGE model file (.toml or .jl))

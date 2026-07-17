@@ -76,6 +76,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
+                FlagSpec(name="unconditional", description="Unconditional (asymptotic) FEVD for order≥2 perturbation (Andreasen et al. 2018)"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:fevd, description="Path to DSGE model file (.toml or .jl)")],
@@ -802,14 +803,28 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
 end
 
 function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
-                     horizon::Int=40,
+                     horizon::Int=40, unconditional::Bool=false,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="")
     spec = _load_dsge_model(model)
     sol = _solve_dsge(spec; method=method, order=order)
 
-    _status("\nComputing FEVD: horizon=$horizon")
-    fevd_result = fevd(sol, horizon)
+    if unconditional
+        # MEMs: unconditional FEVD is only defined for PerturbationSolution with order ≥ 2
+        if !(sol isa MacroEconometricModels.PerturbationSolution)
+            throw(CliError("usage/invalid-option",
+                "--unconditional requires --method=perturbation (got solution type $(typeof(sol).name.name))"))
+        end
+        if sol.order < 2
+            throw(CliError("usage/invalid-option",
+                "--unconditional requires --order ≥ 2 (got order=$(sol.order))"))
+        end
+        _status("\nComputing unconditional FEVD (order=$(sol.order) perturbation)")
+        fevd_result = fevd(sol, horizon; unconditional=true)
+    else
+        _status("\nComputing FEVD: horizon=$horizon")
+        fevd_result = fevd(sol, horizon)
+    end
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
@@ -817,6 +832,7 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
     ne = size(fevd_result.proportions, 2)
     n_h = size(fevd_result.proportions, 3)
 
+    mode_label = unconditional ? "unconditional" : "method=$method, h=$horizon"
     for vi in 1:min(n_v, length(spec.varnames))
         vname = spec.varnames[vi]
         fevd_df = DataFrame()
@@ -827,7 +843,7 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
         end
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
-                      title="DSGE FEVD: $vname (method=$method, h=$horizon)")
+                      title="DSGE FEVD: $vname ($mode_label)")
     end
 end
 

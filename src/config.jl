@@ -387,6 +387,11 @@ function get_dsge(config::Dict)
     eqs_raw = get(model, "equations", Dict[])
     result["equations"] = String[eq["expr"] for eq in eqs_raw if haskey(eq, "expr")]
 
+    # Pre-linearized model flag (MEMs DSGESpec.linear / @dsge `linear: true`)
+    lin_raw = get(model, "linear", false)
+    result["linear"] = lin_raw isa Bool ? lin_raw :
+                       lowercase(string(lin_raw)) in ("true", "1", "yes")
+
     # Optional solver section
     solver = get(config, "solver", Dict())
     result["solver_method"] = get(solver, "method", "gensys")

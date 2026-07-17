@@ -1680,8 +1680,9 @@ struct DSGESpec{T<:Real}
     endog::Vector{Symbol}; exog::Vector{Symbol}; params::Vector{Symbol}
     param_values::Dict{Symbol,T}; n_endog::Int; n_exog::Int; n_params::Int
     varnames::Vector{String}; steady_state::Vector{T}
+    linear::Bool
 end
-function DSGESpec(; n_endog=3, n_exog=1)
+function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false, kwargs...)
     endog = [Symbol("y$i") for i in 1:n_endog]
     exog = [Symbol("e$i") for i in 1:n_exog]
     params = [:alpha, :beta, :delta]
@@ -1689,7 +1690,7 @@ function DSGESpec(; n_endog=3, n_exog=1)
     varnames = ["y$i" for i in 1:n_endog]
     ss = zeros(Float64, n_endog)
     DSGESpec{Float64}(endog, exog, params, param_values, n_endog, n_exog, length(params),
-                      varnames, ss)
+                      varnames, ss, linear)
 end
 
 struct LinearDSGE{T<:Real}
@@ -1946,9 +1947,11 @@ function fevd(sol::DSGESolution{T}, horizon::Int; kwargs...) where T
     props = ones(T, n, ne, horizon) / T(ne)
     FEVD(props, props)
 end
-function fevd(sol::PerturbationSolution{T}, horizon::Int; kwargs...) where T
+function fevd(sol::PerturbationSolution{T}, horizon::Int; unconditional::Bool=false, kwargs...) where T
     n = sol.spec.n_endog; ne = sol.spec.n_exog
-    props = ones(T, n, ne, horizon) / T(ne)
+    # Unconditional (order≥2) returns asymptotic H=1 proportions (MEMs Andreasen path)
+    n_h = (unconditional && sol.order >= 2) ? 1 : horizon
+    props = ones(T, n, ne, n_h) / T(ne)
     FEVD(props, props)
 end
 
@@ -4153,7 +4156,7 @@ function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
     n_sys = max(n_red + 1, 2)
     endog = [Symbol("x_$i") for i in 1:n_sys]
     dummy_dsge = DSGESpec{T}(endog, [:epsilon], Symbol[], Dict{Symbol,T}(),
-                             n_sys, 1, 0, string.(endog), zeros(T, n_sys))
+                             n_sys, 1, 0, string.(endog), zeros(T, n_sys), false)
     G1 = Matrix{T}(I, n_sys, n_sys) * T(0.5)
     impact = ones(T, n_sys, 1) * T(0.1)
     lin = LinearDSGE{T}(Matrix{T}(I, n_sys, n_sys), G1, zeros(T, n_sys), impact,

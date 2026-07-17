@@ -176,6 +176,7 @@ Used by `dsge solve`, `dsge irf`, `dsge fevd`, `dsge simulate`, `dsge estimate`,
 [model]
 endogenous = ["y", "c", "k", "n"]
 exogenous = ["eps_a"]
+# linear = true   # optional: pre-linearized model (variables are deviations from SS)
 
 [model.parameters]
 alpha = 0.36
@@ -198,14 +199,14 @@ expr = "y = exp(eps_a) * k(-1)^alpha * n^(1-alpha)"
 
 [solver]
 method = "gensys"    # gensys|klein|perturbation|projection|pfi
-order = 1            # perturbation order
+order = 1            # perturbation order (1, 2, or 3)
 degree = 5           # polynomial degree (projection/pfi)
 grid = "auto"        # auto|chebyshev|smolyak
 ```
 
 | Section | Description |
 |---------|-------------|
-| `[model]` | Lists endogenous/exogenous variables |
+| `[model]` | Lists endogenous/exogenous variables; optional `linear = true` for pre-linearized specs (MEMs `DSGESpec.linear`) |
 | `[model.parameters]` | Deep parameters with values |
 | `[[model.equations]]` | Model equations (one per block, `expr` field) |
 | `[solver]` | Solution method and settings |

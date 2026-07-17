@@ -90,3 +90,33 @@ friedman hd vecm data.csv --rank=2 --deterministic=constant --lags=4
 | `--plot-save` | | String | | Save plot to HTML file |
 
 **Output:** Per-variable table with columns: period, actual value, initial conditions, contribution from each shock.
+
+## hd favar
+
+FAVAR historical decomposition (factor-augmented VAR).
+
+```bash
+friedman hd favar data.csv --lags=2 --key-vars=GDP,CPI,FFR
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--factors` | `-r` | Int | auto | Number of factors |
+| `--lags` | `-p` | Int | 2 | VAR lag order |
+| `--key-vars` | | String | | Key variable names or indices |
+| `--horizons` | `-h` | Int | 20 | HD horizon |
+| `--id` | | String | `cholesky` | Identification method |
+| `--config` | | String | | TOML config for restrictions |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
+
+## Not available at MEMs 0.6.7 (C043 audit)
+
+| Leaf | Status | Reason |
+|------|--------|--------|
+| `hd pvar` | **Not shipped** | MEMs `historical_decomposition` has no method for `PVARModel` at v0.6.7 |
+| `hd sdfm` | **Not shipped** | MEMs `historical_decomposition` has no method for `StructuralDFM` at v0.6.7 |
+
+When upstream adds these methods, ship the leaves as riders. Do not invent CLI wrappers over unsupported APIs.

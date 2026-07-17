@@ -3270,12 +3270,14 @@ using TOML
         @test result["exogenous"] == ["e_A"]
         @test length(result["equations"]) == 3
         @test result["equations"][1] == "C[t] + K[t] = Y[t]"
+        @test result["linear"] === false
     end
 
     @testset "get_dsge — missing model section" begin
         cfg = Dict{String,Any}()
         result = get_dsge(cfg)
         @test isempty(result["endogenous"])
+        @test result["linear"] === false
     end
 
     @testset "get_dsge — solver defaults" begin
@@ -3296,6 +3298,22 @@ using TOML
         result = get_dsge(cfg)
         @test result["solver_method"] == "perturbation"
         @test result["solver_order"] == 2
+    end
+
+    @testset "get_dsge — linear key (C043)" begin
+        cfg = Dict(
+            "model" => Dict(
+                "linear" => true,
+                "endogenous" => ["Y"], "exogenous" => ["e"],
+                "parameters" => Dict{String,Any}(), "equations" => Dict[]
+            )
+        )
+        result = get_dsge(cfg)
+        @test result["linear"] === true
+        cfg2 = Dict("model" => Dict("linear" => "true", "endogenous" => ["Y"],
+                                    "exogenous" => String[], "parameters" => Dict{String,Any}(),
+                                    "equations" => Dict[]))
+        @test get_dsge(cfg2)["linear"] === true
     end
 
     @testset "get_dsge_constraints — bounds" begin

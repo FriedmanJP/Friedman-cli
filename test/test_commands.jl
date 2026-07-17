@@ -5178,6 +5178,29 @@ end
         end
     end
 
+    @testset "_dsge_solve — order=3 perturbation (C043)" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                sol = _dsge_solve(; model=toml_path, method="perturbation", order=3, format="table")
+                @test sol isa MacroEconometricModels.PerturbationSolution
+                @test sol.order == 3
+            end
+        end
+    end
+
     @testset "_dsge_solve — OccBin constraints" begin
         mktempdir() do dir
             toml_path = joinpath(dir, "model.toml")
@@ -5555,6 +5578,69 @@ end
             out = _capture() do
                 _dsge_fevd(; model=toml_path, horizon=20, format="table")
             end
+        end
+    end
+
+    @testset "_dsge_fevd — unconditional order≥2 (C043)" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            out = _capture() do
+                _dsge_fevd(; model=toml_path, method="perturbation", order=2,
+                           horizon=20, unconditional=true, format="table")
+            end
+            @test occursin("unconditional", out) || occursin("FEVD", out)
+        end
+    end
+
+    @testset "_dsge_fevd — unconditional rejects gensys (C043)" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            @test_throws Exception _dsge_fevd(; model=toml_path, method="gensys",
+                                               unconditional=true, format="table")
+        end
+    end
+
+    @testset "_dsge_fevd — unconditional rejects order=1 (C043)" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C", "K"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + K[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            [[model.equations]]
+            expr = "K[t] = e[t]"
+            """)
+            @test_throws Exception _dsge_fevd(; model=toml_path, method="perturbation",
+                                               order=1, unconditional=true, format="table")
         end
     end
 
