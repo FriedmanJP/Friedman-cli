@@ -127,7 +127,7 @@ src/
 | | Version |
 |---|---------|
 | Julia | `>= 1.12` |
-| MacroEconometricModels | `0.4.1` |
+| MacroEconometricModels | `0.6.7` |
 
 ## Totals
 

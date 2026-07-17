@@ -56,7 +56,7 @@ jobs:
           julia --project -e '
             using Pkg
             Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
             Pkg.instantiate()
           '
       - name: Mock surface vs real MEMs (TS-3 / F32)
@@ -100,7 +100,7 @@ jobs:
             using Pkg
             Pkg.develop(path=".")
             Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
             Pkg.instantiate()
           '
       - name: Run integration-core
@@ -123,7 +123,7 @@ jobs:
           julia --project -e '
             using Pkg
             Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="v0.4.1")
+            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
             Pkg.instantiate()
           '
       - name: Run T4 E2E battery

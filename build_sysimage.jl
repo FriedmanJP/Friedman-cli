@@ -17,14 +17,32 @@ precompile_script = joinpath(@__DIR__, "precompile_exec.jl")
 open(precompile_script, "w") do io
     write(io, """
     using Friedman
-    # Exercise build_app and help paths
-    app = Friedman.build_app()
+    # Real handler paths (F45); no in-package @compile_workload (F46)
+    fixture = joinpath(@__DIR__, "precompile_fixture.csv")
+    open(fixture, "w") do f
+        println(f, "y1,y2,y3")
+        for t in 1:80
+            println(f, string(sin(t/3)) * "," * string(cos(t/4)) * "," *
+                       string(sin(t/5) + cos(t/7)))
+        end
+    end
+    app = Friedman.APP
     Friedman.dispatch(app, ["--help"])
-    Friedman.dispatch(app, ["estimate", "--help"])
-    Friedman.dispatch(app, ["test", "--help"])
-    Friedman.dispatch(app, ["irf", "--help"])
-    Friedman.dispatch(app, ["forecast", "--help"])
     Friedman.dispatch(app, ["--version"])
+    for cmd in ["estimate", "test", "irf", "forecast", "filter", "data",
+                "dsge", "did", "spectral", "nowcast"]
+        Friedman.dispatch(app, [cmd, "--help"])
+    end
+    outdir = mktempdir()
+    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1",
+                            "--format", "json"])
+    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1",
+                            "--format", "csv", "--output", joinpath(outdir, "o.csv")])
+    Friedman.dispatch(app, ["irf", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["test", "adf", fixture])
+    Friedman.dispatch(app, ["filter", "hp", fixture])
+    Friedman.dispatch(app, ["forecast", "var", fixture, "--lags", "1"])
     """)
 end
 
