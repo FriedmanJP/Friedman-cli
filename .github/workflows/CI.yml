@@ -96,11 +96,14 @@ jobs:
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Instantiate integration project
         run: |
+          # MEMs 0.6.7 is untagged in the registry (tip 2b65092); add from git BEFORE
+          # developing Friedman so compat 0.6.7 is satisfied without registry 0.6.6 cap.
           julia --project=test/integration -e '
             using Pkg
-            Pkg.develop(path=".")
-            Pkg.rm("MacroEconometricModels")
+            try Pkg.rm("Friedman") catch end
+            try Pkg.rm("MacroEconometricModels") catch end
             Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
+            Pkg.develop(path=".")
             Pkg.instantiate()
           '
       - name: Run integration-core

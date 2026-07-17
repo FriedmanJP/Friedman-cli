@@ -28,11 +28,13 @@ jobs:
       - name: Instantiate (pinned MEMs)
         shell: bash
         run: |
+          # Add untagged MEMs 0.6.7 tip before develop (registry stops at 0.6.6)
           julia --project=test/integration -e '
             using Pkg
-            Pkg.develop(path=".")
-            Pkg.rm("MacroEconometricModels")
+            try Pkg.rm("Friedman") catch end
+            try Pkg.rm("MacroEconometricModels") catch end
             Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
+            Pkg.develop(path=".")
             Pkg.instantiate()
           '
       - name: Run full integration suite
@@ -74,9 +76,10 @@ jobs:
         run: |
           julia --project=test/integration -e '
             using Pkg
-            Pkg.develop(path=".")
-            Pkg.rm("MacroEconometricModels")
+            try Pkg.rm("Friedman") catch end
+            try Pkg.rm("MacroEconometricModels") catch end
             Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="dev")
+            Pkg.develop(path=".")
             Pkg.instantiate()
           '
       - name: Run full integration suite (MEMs dev)
