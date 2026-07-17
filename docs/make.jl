@@ -38,6 +38,7 @@ makedocs(;
             "data (guide)" => "commands/data.md",
             "nowcast (guide)" => "commands/nowcast.md",
             "dsge (guide)" => "commands/dsge.md",
+            "HA-DSGE workflow" => "commands/ha-dsge.md",
             "did (guide)" => "commands/did.md",
             "favar & sdfm (guide)" => "commands/favar.md",
             "structural breaks (guide)" => "commands/structural-breaks.md",

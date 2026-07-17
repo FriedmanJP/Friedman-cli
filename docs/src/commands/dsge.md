@@ -1,8 +1,18 @@
 # dsge
 
-DSGE modeling from the terminal. 8 direct subcommands (`solve`, `irf`, `fevd`, `hd`, `simulate`, `estimate`, `perfect-foresight`, `steady-state`) plus a `bayes` node with 8 sub-leaves for the full Bayesian DSGE workflow.
+DSGE modeling from the terminal. Representative-agent leaves (`solve`, `irf`, `fevd`, `hd`, `simulate`, `estimate`, `perfect-foresight`, `steady-state`), a `bayes` node (8 sub-leaves), plus heterogeneous-agent / OLG nodes:
 
-Friedman supports DSGE models specified as TOML files or Julia scripts. See [Configuration](../configuration.md#dsge-model) for TOML format details.
+| Node | Role | Guide |
+|------|------|--------|
+| (top-level leaves) | Linear / nonlinear RA-DSGE, OccBin, estimation | this page |
+| `dsge bayes` | Full Bayesian RA-DSGE workflow | [Bayesian DSGE](#dsge-bayes) |
+| `dsge ha` | Incomplete-markets HA-DSGE (builtins + `HADSGESpec`) | **[HA-DSGE workflow](ha-dsge.md)** |
+| `dsge ct` | Continuous-time Aiyagari / two-asset KMV | [CT section](#continuous-time-ha-dsge-ct--c041) |
+| `dsge olg` | Blanchard perpetual-youth OLG | [OLG section](#blanchard-olg-dsge-olg--c041) |
+
+**Deferred:** `dsge ha estimate` — blocked on [MEMs#228](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/228) (observables mapped to arbitrary reduced states). Ship when that issue closes.
+
+Friedman supports RA models as TOML or Julia (`DSGESpec`) files, and HA models as builtins or `.jl` (`HADSGESpec`). See [Configuration](../configuration.md#dsge-model) for TOML format details. Option tables: [generated `dsge` reference](generated/dsge.md).
 
 ## Model Input Formats
 
@@ -410,33 +420,18 @@ Projection and PFI methods support `--degree` (polynomial degree) and `--grid` (
 
 ## HA-DSGE (`dsge ha`) — C040 / MEMs v0.6.7
 
-Heterogeneous-agent DSGE workflow. Models are either **builtins** (via `load_ha_example`)
-or a `.jl` file evaluating to `HADSGESpec`.
+Heterogeneous-agent DSGE: **builtins** (`huggett`, `krusell-smith`, `one-asset-hank`, `two-asset-hank`) or a `.jl` file evaluating to `HADSGESpec`.
 
-**Builtins:** `huggett`, `krusell-smith`, `one-asset-hank`, `two-asset-hank`
+**Methods:** `ssj` · `reiter` · `krusell-smith`
 
-**Methods:** `ssj` (sequence-space Jacobian), `reiter` (Reiter linearization), `krusell-smith` (PLM fixed point)
-
-**Deferred:** `dsge ha estimate` is not shipped — blocked on MEMs#228 (observables mapped to arbitrary reduced states). Un-defer when that issue closes.
+**Deferred:** `dsge ha estimate` — MEMs#228. Full progressive examples with captured JSON: **[HA-DSGE workflow guide](ha-dsge.md)**.
 
 ```bash
-# Steady state
 friedman dsge ha steady-state huggett
-
-# Solve (Reiter linearization)
 friedman dsge ha solve huggett --method=reiter --n-reduced=20
-
-# Aggregate IRF / FEVD / simulate (ssj or reiter)
 friedman dsge ha irf huggett --method=reiter --horizon=40
-friedman dsge ha fevd huggett --method=reiter --horizon=40
-friedman dsge ha simulate huggett --method=reiter --periods=200 --seed=1
-
-# Distribution / inequality IRFs (Reiter only — SSJ has no distribution basis)
-friedman dsge ha distribution-irf huggett --method=reiter --horizon=40
-friedman dsge ha inequality-irf huggett --method=reiter --horizon=40
-
-# Individual panel from steady-state policies
-friedman dsge ha simulate-panel huggett --n-agents=1000 --periods=100 --seed=1
+friedman dsge ha distribution-irf huggett --method=reiter   # Reiter only
+friedman dsge ha simulate-panel huggett --n-agents=1000 --seed=1
 ```
 
 | Subcommand | Method constraint | Notes |
@@ -447,8 +442,6 @@ friedman dsge ha simulate-panel huggett --n-agents=1000 --periods=100 --seed=1
 | `distribution-irf` | reiter | Wealth distribution mass deviations |
 | `inequality-irf` | reiter | Gini + p10…p90 paths |
 | `simulate-panel` | — | Summary mean/sd assets over time |
-
-Common options: `--format`/`-f`, `--output`/`-o`, `--horizon`/`-h`, `--n-reduced`, `--seed`.
 
 ## Continuous-time HA (`dsge ct`) — C041
 
