@@ -52,13 +52,7 @@ jobs:
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Install dependencies
         shell: bash
-        run: |
-          julia --project -e '
-            using Pkg
-            Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
-            Pkg.instantiate()
-          '
+        run: julia --project -e 'using Pkg; Pkg.instantiate()'
       - name: Mock surface vs real MEMs (TS-3 / F32)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         run: julia --project test/tools/check_mock_surface.jl
@@ -96,13 +90,10 @@ jobs:
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Instantiate integration project
         run: |
-          # MEMs 0.6.7 is untagged in the registry (tip 2b65092); add from git BEFORE
-          # developing Friedman so compat 0.6.7 is satisfied without registry 0.6.6 cap.
+          # Registry MacroEconometricModels@0.6.7 satisfies [compat]; develop Friedman then instantiate.
           julia --project=test/integration -e '
             using Pkg
             try Pkg.rm("Friedman") catch end
-            try Pkg.rm("MacroEconometricModels") catch end
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
             Pkg.develop(path=".")
             Pkg.instantiate()
           '
@@ -122,13 +113,7 @@ jobs:
           version: "1.12"
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Install dependencies
-        run: |
-          julia --project -e '
-            using Pkg
-            Pkg.rm("MacroEconometricModels")
-            Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git", rev="2b65092421a89df34cb82c773b36117dcda11553")
-            Pkg.instantiate()
-          '
+        run: julia --project -e 'using Pkg; Pkg.instantiate()'
       - name: Run T4 E2E battery
         env:
           FRIEDMAN_E2E: "1"

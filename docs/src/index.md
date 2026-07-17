@@ -55,11 +55,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 # Install
 git clone https://github.com/FriedmanJP/Friedman-cli.git
 cd Friedman-cli
-julia --project -e '
-using Pkg
-Pkg.rm("MacroEconometricModels")
-Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git")
-'
+julia --project -e 'using Pkg; Pkg.instantiate()'
 
 # Estimate a VAR(2) model
 julia --project bin/friedman estimate var data.csv --lags=2

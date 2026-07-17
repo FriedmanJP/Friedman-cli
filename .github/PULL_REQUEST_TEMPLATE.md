@@ -20,7 +20,7 @@ If this PR touches `src/commands/` adapters or estimation wiring:
 
 ## MEMs bump protocol (if bumping MacroEconometricModels)
 
-1. Bump `[compat]` + pin in CI/install scripts  
+1. Bump `[compat]` (and integration Project.toml); re-resolve Manifests from the **General registry**  
 2. Run T3 integration core (+ full if risky)  
 3. Read diffs / fix field renames  
 4. Regen goldens: `julia --project test/tools/regen_golden.jl`  

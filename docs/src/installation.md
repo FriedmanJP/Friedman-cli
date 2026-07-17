@@ -74,11 +74,7 @@ For development or if you prefer to build locally:
 ```bash
 git clone https://github.com/FriedmanJP/Friedman-cli.git
 cd Friedman-cli
-julia --project -e '
-  using Pkg
-  Pkg.rm("MacroEconometricModels")
-  Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git")
-'
+julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
 Run directly:

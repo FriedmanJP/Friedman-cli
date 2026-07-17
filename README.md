@@ -9,7 +9,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 
 > **v0.5.0+ agent contract:** with `--format=json`, stdout is **exactly one** versioned JSON envelope; status goes to **stderr**. Exit codes: 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal. See the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/). `FRIEDMAN_LEGACY_OUTPUT=1` restores pre-0.5 JSON for one minor release.
 >
-> **v0.6.0:** targets MacroEconometricModels **v0.6.7** (dev tip `2b65092` until a `v0.6.7` tag exists). Pin rule: CI/release/integration rev must match `[compat] MacroEconometricModels`.
+> **v0.6.0:** targets MacroEconometricModels **v0.6.7** from the Julia General registry. Pin rule: CI/release/integration use registry resolve against `[compat] MacroEconometricModels = "0.6.7"` (canary/nightly-dev may track MEMs `dev`).
 
 15 top-level commands (incl. `schema`), ~204 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `schema`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
 
@@ -49,11 +49,7 @@ The installer checks for Julia 1.12 (installs [juliaup](https://github.com/Julia
 ```bash
 git clone https://github.com/FriedmanJP/Friedman-cli.git
 cd Friedman-cli
-julia --project -e '
-using Pkg
-Pkg.rm("MacroEconometricModels")
-Pkg.add(url="https://github.com/FriedmanJP/MacroEconometricModels.jl.git")
-'
+julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
 See [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/installation/) for specific version install, manual install from GitHub Releases, upgrading, and uninstalling.
