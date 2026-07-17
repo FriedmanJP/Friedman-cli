@@ -944,23 +944,28 @@ end
 """
     _load_dsge_model(path) → DSGESpec
 
-Load a DSGE model from a .toml or .jl file.
-- .toml: parse [model] section, construct DSGESpec via TOML config
-- .jl: include() the file, expect a `model` variable of type DSGESpec
+Load a representative-agent DSGE model from a `.toml` or `.jl` file.
+
+- `.toml`: parse `[model]` (incl. optional `linear = true` → `DSGESpec.linear`)
+- `.jl`: last expression must be `DSGESpec`
+
+If a `.jl` file evaluates to `HADSGESpec`, throw `usage/wrong-command` (exit 2)
+pointing the user at `dsge ha …` — never crash downstream (C046 / P4-9).
 """
 function _load_dsge_model(path::String)
     _validate_input_path(path)
-    isfile(path) || error("model file not found: $path")
+    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path"))
     ext = lowercase(splitext(path)[2])
 
     if ext == ".toml"
         config = load_config(path)
         dsge_cfg = get_dsge(config)
 
-        isempty(dsge_cfg["endogenous"]) && error("TOML model must have [model] with endogenous variables")
-        isempty(dsge_cfg["equations"]) && error("TOML model must have [[model.equations]]")
+        isempty(dsge_cfg["endogenous"]) && throw(CliError("config/invalid",
+            "TOML model must have [model] with endogenous variables"))
+        isempty(dsge_cfg["equations"]) && throw(CliError("config/invalid",
+            "TOML model must have [[model.equations]]"))
 
-        param_dict = dsge_cfg["parameters"]
         endog = Symbol.(dsge_cfg["endogenous"])
         exog = Symbol.(dsge_cfg["exogenous"])
         is_linear = Bool(get(dsge_cfg, "linear", false))
@@ -978,14 +983,21 @@ function _load_dsge_model(path::String)
         mod = Module()
         Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
         result = Base.include(mod, path)
-        result isa MacroEconometricModels.DSGESpec || error(
-            ".jl model file must evaluate to a DSGESpec (last expression), got $(typeof(result))")
+        if result isa MacroEconometricModels.HADSGESpec
+            throw(CliError("usage/wrong-command",
+                "this is a heterogeneous-agent spec — use `dsge ha …`",
+                hint="e.g. friedman dsge ha solve $(path) --method reiter"))
+        end
+        result isa MacroEconometricModels.DSGESpec || throw(CliError("config/invalid",
+            ".jl model file must evaluate to a DSGESpec (last expression), got $(typeof(result))"))
         spec = result
-        _status("Loaded DSGE model from Julia file: $(spec.n_endog) endogenous, $(spec.n_exog) exogenous")
+        lin_note = (hasproperty(spec, :linear) && spec.linear) ? ", linear=true" : ""
+        _status("Loaded DSGE model from Julia file: $(spec.n_endog) endogenous, $(spec.n_exog) exogenous$lin_note")
         return spec
 
     else
-        error("unsupported model file extension '$ext' — use .toml or .jl")
+        throw(CliError("usage/invalid-option",
+            "unsupported model file extension '$ext' — use .toml or .jl"))
     end
 end
 
@@ -1060,6 +1072,11 @@ function _load_ha_model(model::String)
     mod = Module()
     Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
     result = Base.include(mod, model)
+    if result isa MacroEconometricModels.DSGESpec
+        throw(CliError("usage/wrong-command",
+            "this is a representative-agent DSGESpec — use `dsge solve|irf|…`, not `dsge ha`",
+            hint="e.g. friedman dsge solve $(model)"))
+    end
     result isa MacroEconometricModels.HADSGESpec || throw(CliError("config/invalid",
         ".jl HA model must evaluate to HADSGESpec, got $(typeof(result))"))
     _status("Loaded HADSGESpec from Julia file (model=$(result.model))")

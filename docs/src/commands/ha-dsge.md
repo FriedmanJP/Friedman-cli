@@ -733,7 +733,7 @@ See [dsge guide — CT and OLG](dsge.md#continuous-time-ha-dsge-ct--c041) for op
 1. **Distribution / inequality IRF with SSJ** — fails closed; switch to `--method reiter`.
 2. **Large builtins** — `two-asset-hank` is expensive; prototype on `huggett`.
 3. **Agent contract** — with `--format json`, stdout is one envelope; status is stderr ([Agent Guide](../agent-guide.md)).
-4. **Wrong command for HA specs** — a `.jl` file returning `HADSGESpec` belongs under `dsge ha …`, not `dsge solve` (loader hardening routes or errors cleanly).
+4. **Wrong command for HA specs** — a `.jl` file returning `HADSGESpec` under `dsge solve|irf|…` raises `usage/wrong-command` (exit 2) pointing at `dsge ha …`. Conversely, a RA `DSGESpec` under `dsge ha` is rejected the same way.
 
 ---
 

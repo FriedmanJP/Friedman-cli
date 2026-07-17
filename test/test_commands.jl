@@ -5074,6 +5074,84 @@ end  # Plot Support
         end
     end
 
+    @testset "_load_dsge_model — linear=true TOML (C046/C043)" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            linear = true
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * Y[t]"
+            """)
+            out = _capture() do
+                spec = _load_dsge_model(toml_path)
+                @test spec isa MacroEconometricModels.DSGESpec
+                @test hasproperty(spec, :linear)
+                @test spec.linear === true
+            end
+            @test contains(out, "linear=true")
+        end
+    end
+
+    @testset "_load_dsge_model — HADSGESpec .jl → usage/wrong-command (C046)" begin
+        mktempdir() do dir
+            jl_path = joinpath(dir, "ha_model.jl")
+            write(jl_path, """
+            MacroEconometricModels.load_ha_example(:huggett)
+            """)
+            err = try
+                _load_dsge_model(jl_path)
+                nothing
+            catch e
+                e
+            end
+            @test err isa CliError
+            @test err.code == "usage/wrong-command"
+            @test contains(err.message, "heterogeneous-agent")
+            @test contains(err.message, "dsge ha")
+            @test exit_class(err) == 2
+        end
+    end
+
+    @testset "_load_ha_model — DSGESpec .jl → usage/wrong-command (C046)" begin
+        mktempdir() do dir
+            jl_path = joinpath(dir, "ra_model.jl")
+            write(jl_path, """
+            MacroEconometricModels.DSGESpec(; n_endog=2, n_exog=1)
+            """)
+            err = try
+                _load_ha_model(jl_path)
+                nothing
+            catch e
+                e
+            end
+            @test err isa CliError
+            @test err.code == "usage/wrong-command"
+            @test contains(err.message, "representative-agent") || contains(err.message, "DSGESpec")
+            @test exit_class(err) == 2
+        end
+    end
+
+    @testset "_load_ha_model — HADSGESpec .jl file (C046)" begin
+        mktempdir() do dir
+            jl_path = joinpath(dir, "ha_model.jl")
+            write(jl_path, """
+            MacroEconometricModels.load_ha_example(:huggett)
+            """)
+            out = _capture() do
+                spec = _load_ha_model(jl_path)
+                @test spec isa MacroEconometricModels.HADSGESpec
+                @test spec.model == :huggett
+            end
+            @test contains(out, "HADSGESpec") || contains(out, "huggett")
+        end
+    end
+
     @testset "_solve_dsge — default method" begin
         spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
         out = _capture() do
