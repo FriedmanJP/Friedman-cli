@@ -10,7 +10,7 @@
 #   ```bash
 #   friedman dsge ha steady-state huggett --format json
 #   ```
-#   ```
+#   ```json
 #   <captured stdout>
 #   ```
 #
@@ -18,7 +18,7 @@
 # - Only the first non-comment line of the bash fence is executed.
 # - `friedman …` is rewritten to `julia --project bin/friedman …` from the repo root.
 # - Status/prose goes to stderr and is discarded; stdout is the capture body.
-# - JSON envelopes are normalized (drop meta.elapsed_ms / meta.argv) before compare.
+# - Compare normalizes: strip volatile meta, sort keys, round floats (cross-OS HA solvers).
 
 using Dates
 using JSON3
@@ -26,6 +26,7 @@ using JSON3
 const ROOT = dirname(@__DIR__)
 const CHECK = "--check" in ARGS
 const BIN = joinpath(ROOT, "bin", "friedman")
+const FLOAT_SIGDIGITS = 8
 
 # ── Normalization ─────────────────────────────────────────────
 
@@ -39,35 +40,78 @@ function _json_to_dict(obj)
     end
 end
 
+function _sort_keys(d::AbstractDict)
+    out = Dict{String,Any}()
+    for k in sort!(collect(String.(keys(d))))
+        out[k] = d[k]
+    end
+    return out
+end
+
+"""Canonicalize numbers for cross-platform compare (HA solvers differ in ULPs)."""
+function _canon_value(x)
+    if x isa Bool
+        return x
+    elseif x isa Integer
+        return Float64(x)
+    elseif x isa AbstractFloat
+        # round to fixed sigdigits; map tiny values near zero
+        v = Float64(x)
+        abs(v) < 1e-14 && return 0.0
+        return round(v; sigdigits=FLOAT_SIGDIGITS)
+    elseif x isa AbstractString
+        return String(x)
+    elseif x isa AbstractDict
+        d = Dict{String,Any}()
+        for (k, v) in pairs(x)
+            d[String(k)] = _canon_value(v)
+        end
+        return _sort_keys(d)
+    elseif x isa AbstractVector
+        return Any[_canon_value(v) for v in x]
+    elseif x === nothing
+        return nothing
+    else
+        return x
+    end
+end
+
+function _strip_volatile_meta!(d::AbstractDict)
+    if haskey(d, "meta") && d["meta"] isa AbstractDict
+        meta = Dict{String,Any}(String(k) => v for (k, v) in pairs(d["meta"]))
+        for k in ("elapsed_ms", "argv", "julia", "cli_version", "mems_version", "seed")
+            delete!(meta, k)
+        end
+        d["meta"] = _sort_keys(meta)
+    end
+    return d
+end
+
 """Pretty JSON for docs; strip volatile meta fields."""
 function _pretty_json(s::AbstractString)::String
     s = strip(String(s))
     isempty(s) && return s
     try
-        obj = JSON3.read(s)
-        d = _json_to_dict(obj)
-        if d isa AbstractDict && haskey(d, "meta") && d["meta"] isa AbstractDict
-            meta = d["meta"]
-            delete!(meta, "elapsed_ms")
-            delete!(meta, "argv")
-        end
+        d = _json_to_dict(JSON3.read(s))
+        d isa AbstractDict && _strip_volatile_meta!(d)
+        d = _canon_value(d)
         return sprint(io -> JSON3.pretty(io, d))
     catch
-        return join(rstrip.(split(s, '\n')), "\n")
+        return join(rstrip.(split(replace(s, "\r\n" => "\n"), '\n')), "\n")
     end
 end
 
+"""Stable compare string: sorted keys, rounded floats, no volatile meta."""
 function _normalize_for_compare(s::AbstractString)
-    # re-parse both sides so pretty vs compact compare equal
+    s = strip(replace(String(s), "\r\n" => "\n"))
+    isempty(s) && return s
     try
-        a = _json_to_dict(JSON3.read(strip(String(s))))
-        if a isa AbstractDict && haskey(a, "meta") && a["meta"] isa AbstractDict
-            delete!(a["meta"], "elapsed_ms")
-            delete!(a["meta"], "argv")
-        end
-        return String(JSON3.write(a))
+        d = _json_to_dict(JSON3.read(s))
+        d isa AbstractDict && _strip_volatile_meta!(d)
+        d = _canon_value(d)
+        return String(JSON3.write(d))
     catch
-        return replace(strip(String(s)), r"\s+" => " ")
+        return replace(s, r"\s+" => " ")
     end
 end
 
@@ -78,7 +122,6 @@ function _friedman_cmd(line::AbstractString)::Cmd
     startswith(line, "friedman ") || error("capture runner expects a `friedman …` command, got: $line")
     rest = line[length("friedman ")+1:end]
     args = String.(split(rest))
-    # Base.julia_cmd() is a Cmd; take the julia binary path
     julia = Base.julia_cmd().exec[1]
     return Cmd([julia, "--project=$(ROOT)", BIN, args...])
 end
@@ -99,50 +142,30 @@ end
 
 # ── Markdown parse / rewrite ───────────────────────────────────
 
-"""
-Parse a markdown file into segments alternating prose and capture blocks.
-
-A capture block is:
-  <!-- capture -->
-  ```bash
-  ...
-  ```
-  ```
-  ...output...
-  ```
-  (output fence language optional; bare ``` also accepted)
-"""
 struct CaptureBlock
     bash::String
     output::String
-    start_idx::Int   # index of <!-- capture --> in original text
-    end_idx::Int     # exclusive end after output fence
+    start_idx::Int
+    end_idx::Int
 end
 
 function _find_captures(text::String)::Vector{CaptureBlock}
     blocks = CaptureBlock[]
-    # Regex: capture tag, bash fence, output fence
     re = r"<!--\s*capture\s*-->\s*```bash\n(.*?)```\s*```(?:\w*)\n(.*?)```"s
     for m in eachmatch(re, text)
-        bash = String(m.captures[1])
-        out = String(m.captures[2])
-        push!(blocks, CaptureBlock(bash, out, m.offset, m.offset + length(m.match)))
+        push!(blocks, CaptureBlock(String(m.captures[1]), String(m.captures[2]),
+                                   m.offset, m.offset + length(m.match)))
     end
     return blocks
 end
 
 function _replace_block(text::String, block::CaptureBlock, new_output::String)::String
-    # Rebuild the whole capture unit
-    # Keep bash fence exactly as in source (from match)
     re = r"<!--\s*capture\s*-->\s*```bash\n(.*?)```\s*```(?:\w*)\n(.*?)```"s
-    # Replace only the matched region for this block by offset
     head = text[1:block.start_idx-1]
-    # Find original match string length
     m = match(re, text, block.start_idx)
     m === nothing && error("capture block vanished during rewrite")
     tail = text[m.offset + length(m.match):end]
     bash = String(m.captures[1])
-    # Prefer ```json when output looks like JSON
     lang = startswith(strip(new_output), "{") || startswith(strip(new_output), "[") ? "json" : ""
     unit = string(
         "<!-- capture -->\n",
@@ -165,7 +188,6 @@ function main()
     sort!(files)
 
     n_blocks = 0
-    n_stale = 0
     n_refreshed = 0
     failures = String[]
 
@@ -175,20 +197,23 @@ function main()
         isempty(blocks) && continue
         n_blocks += length(blocks)
         rel = relpath(f, ROOT)
-        # Process from end so earlier offsets stay valid when rewriting
+        original = text
         for block in reverse(blocks)
             try
                 fresh_raw = _run_capture(block.bash)
                 fresh = _pretty_json(fresh_raw)
                 if CHECK
                     if _normalize_for_compare(fresh) != _normalize_for_compare(block.output)
-                        n_stale += 1
-                        push!(failures, "$rel: stale capture for `$(strip(split(block.bash, '\n')[1]))`")
+                        n_diff_preview = begin
+                            a = _normalize_for_compare(fresh)
+                            b = _normalize_for_compare(block.output)
+                            "len actual=$(length(a)) golden=$(length(b))"
+                        end
+                        push!(failures, "$rel: stale capture for `$(strip(split(block.bash, '\n')[1]))` ($n_diff_preview)")
                     end
                 else
-                    # Refresh when semantic content OR pretty formatting differs
                     if _normalize_for_compare(fresh) != _normalize_for_compare(block.output) ||
-                       strip(block.output) != strip(fresh)
+                       strip(replace(block.output, "\r\n" => "\n")) != strip(fresh)
                         text = _replace_block(text, block, fresh)
                         n_refreshed += 1
                     end
@@ -197,13 +222,9 @@ function main()
                 push!(failures, "$rel: $(sprint(showerror, e))")
             end
         end
-        if !CHECK && n_refreshed > 0
-            # Only write if we changed this file (recount refreshed is global; check content)
-            # Re-read whether text differs from disk
-            if text != read(f, String)
-                write(f, text)
-                println("updated $rel")
-            end
+        if !CHECK && text != original
+            write(f, text)
+            println("updated $rel")
         end
     end
 

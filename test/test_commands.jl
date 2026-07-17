@@ -8023,13 +8023,14 @@ end  # Command Handlers
         end
     end
 
-    # Renderer goldens
+    # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)
     env = Envelope(command="estimate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
     add_scalar!(env, "lags", 2)
     buf = IOBuffer(); render(env, :csv, buf)
     csv_out = replace(String(take!(buf)), "\r\n" => "\n")
-    @test csv_out == read(joinpath(_GOLDEN_DIR, "render.csv.txt"), String)
+    golden_csv = replace(read(joinpath(_GOLDEN_DIR, "render.csv.txt"), String), "\r\n" => "\n")
+    @test csv_out == golden_csv
     buf = IOBuffer(); render(env, :json, buf)
     @test _golden_compare(String(take!(buf)), joinpath(_GOLDEN_DIR, "render.envelope.json"))
 

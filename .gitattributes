@@ -1,0 +1,22 @@
+# Normalize text for cross-platform CI (Windows CRLF must not break golden compares)
+* text=auto eol=lf
+
+# Explicit LF for goldens and capture fixtures
+test/golden/** text eol=lf
+docs/src/**/*.md text eol=lf
+*.jl text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.csv text eol=lf
+
+# Binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.dll binary
+*.so binary
+*.dylib binary
