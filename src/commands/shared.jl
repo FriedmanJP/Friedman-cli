@@ -784,13 +784,14 @@ function load_panel_data(data::String, id_col::String, time_col::String)
     df = load_data(data)
     id_col in names(df) || throw(CliError("data/missing-column", "id column '$id_col' not found in data (columns: $(join(names(df), ", ")))"))
     time_col in names(df) || throw(CliError("data/missing-column", "time column '$time_col' not found in data (columns: $(join(names(df), ", ")))"))
-    group_ids = Int.(df[!, id_col])
-    time_ids = Int.(df[!, time_col])
-    # Get numeric columns excluding id and time
+    # Get numeric variable columns excluding id and time (matches xtset's own
+    # num_cols filter; passed explicitly so the panel keeps CLI-facing names).
     varnames = [n for n in variable_names(df) if n != id_col && n != time_col]
     isempty(varnames) && error("no numeric variables found after excluding id/time columns")
-    Y = Matrix{Float64}(df[!, varnames])
-    return xtset(Y, group_ids, time_ids; varnames=varnames)
+    # MEMs 0.7.0 xtset takes (df, group_col::Symbol, time_col::Symbol; ...) and
+    # resolves group/time ID mapping internally (C054: the old Matrix/Vector
+    # signature was removed upstream).
+    return xtset(df, Symbol(id_col), Symbol(time_col); varnames=varnames)
 end
 
 """
@@ -810,17 +811,20 @@ function _load_and_estimate_pvar(data::String, id_col::String, time_col::String,
     pre = _parse_varlist(predet)
     exo = _parse_varlist(exog)
 
+    # MEMs 0.7.0 renamed the variable-role kwargs (C054): dependent→dependent_vars,
+    # predetermined→predet_vars, exogenous→exog_vars, system→system_instruments.
+    # predet_vars/exog_vars are now plain String vectors (empty = none).
     model = if method == "feols"
         estimate_pvar_feols(panel, lags;
-            dependent=isempty(dep) ? nothing : dep,
-            exogenous=isempty(exo) ? nothing : exo)
+            dependent_vars=isempty(dep) ? nothing : dep,
+            exog_vars=exo)
     else
         estimate_pvar(panel, lags;
             transformation=Symbol(transformation), steps=Symbol(steps),
-            system=system, collapse=collapse,
-            dependent=isempty(dep) ? nothing : dep,
-            predetermined=isempty(pre) ? nothing : pre,
-            exogenous=isempty(exo) ? nothing : exo,
+            system_instruments=system, collapse=collapse,
+            dependent_vars=isempty(dep) ? nothing : dep,
+            predet_vars=pre,
+            exog_vars=exo,
             min_lag_endo=min_lag_endo, max_lag_endo=max_lag_endo)
     end
     return model, panel, panel.varnames

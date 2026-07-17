@@ -101,6 +101,17 @@ function _domain_error_class(e)
                         hint="the saved artifact is unreadable or version-incompatible")
     elseif _has_supertype_named(typeof(e), :MacroModelError)
         return CliError("model/error", _err_message(e))
+    elseif e isa ArgumentError && _is_orientation_error(_err_message(e))
+        # MEMs' `_orient_data` (DSGE bayes/HA paths, #142) throws a plain
+        # ArgumentError when no data dimension matches the observable count.
+        # It is untyped upstream, so match its distinctive message.
+        return CliError("data/orientation", _err_message(e);
+                        hint="pass data as T×n (time in rows, variables in columns); transpose if it is n×T")
     end
     return nothing
 end
+
+"""True if `msg` is MEMs' data-orientation ArgumentError (#142). Matched on a
+stable ASCII substring since upstream does not give it a typed exception."""
+_is_orientation_error(msg::AbstractString) =
+    occursin("neither dimension equals the number of observables", msg)

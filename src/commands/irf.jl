@@ -496,16 +496,18 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
     _status("Computing Panel VAR IRFs: type=$irf_type, horizons=$horizons, bootstrap=$boot_draws")
     _status()
 
-    # Compute IRFs with bootstrap CIs
+    # Compute IRFs with bootstrap CIs. MEMs 0.7.0 (C054) renamed kwargs
+    # (n_boot→n_draws, conf_level→ci) and returns a NamedTuple
+    # (irf, lower, upper, draws) instead of an ImpulseResponse struct.
     irf_result = pvar_bootstrap_irf(model, horizons;
-        n_boot=boot_draws, conf_level=confidence, irf_type=Symbol(irf_type))
+        n_draws=boot_draws, ci=confidence, irf_type=Symbol(irf_type))
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
     # Output per-shock IRF tables
     for shock in 1:n
         shock_name = _shock_name(varnames, shock)
-        irf_df = build_irf_table(irf_result.values, irf_result.ci_lower, irf_result.ci_upper,
+        irf_df = build_irf_table(irf_result.irf, irf_result.lower, irf_result.upper,
                                  varnames, shock)
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),

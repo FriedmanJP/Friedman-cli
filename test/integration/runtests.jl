@@ -106,6 +106,21 @@ function metric_value(tbl, metric_name::AbstractString)
     return nothing
 end
 
+"""A specific named table from envelope data (dict of tables), or nothing."""
+function named_table(doc, name::Symbol)
+    doc === nothing && return nothing
+    data = try
+        doc.data
+    catch
+        nothing
+    end
+    data === nothing && return nothing
+    haskey(data, name) ? data[name] : nothing
+end
+
+"""Column index by name in a table, or nothing."""
+col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
+
 # ── Tests ─────────────────────────────────────────────────────
 
 @testset "Integration core vs real MEMs (TS-6)" begin
@@ -313,21 +328,33 @@ end
     end
 
     @testset "test johansen on cointegrated pair" begin
+        # C054 #270: the Johansen rank off-by-one is fixed upstream. A single
+        # cointegrating relation must reject r=0 and fail to reject r=1, i.e.
+        # the selected rank is exactly 1 (not 2, which the old bug produced).
         csv = dgp_coint(; T=300, seed=31)
         r = run_json(["test", "johansen", csv, "--lags", "2"])
         assert_envelope_ok(r; label="test johansen")
-        _, tbl = first_table(r.doc)
-        @test tbl !== nothing
-        @test length(table_rows(tbl)) >= 1
+        trace = named_table(r.doc, :johansen_trace_test)
+        @test trace !== nothing
+        rows = [collect(x) for x in table_rows(trace)]
+        ri = col_index(trace, "rank"); rj = col_index(trace, "reject")
+        rejat(k) = (row = rows[findfirst(x -> Int(x[ri]) == k, rows)]; string(row[rj]))
+        @test rejat(0) == "yes"   # reject r=0 → at least one cointegrating vector
+        @test rejat(1) == "no"    # fail to reject r=1 → exactly one (rank = 1)
         rm(csv; force=true)
     end
 
-    @testset "estimate vecm" begin
+    @testset "estimate vecm --rank auto selects rank 1" begin
+        # C054 #270: auto rank selection on a cointegrated pair → exactly one
+        # cointegrating vector (CV1), recovering β ≈ [1, -1].
         csv = dgp_coint(; T=300, seed=33)
-        r = run_json(["estimate", "vecm", csv, "--lags", "2", "--rank", "1"])
-        assert_envelope_ok(r; label="estimate vecm")
-        _, tbl = first_table(r.doc)
-        @test tbl !== nothing
+        r = run_json(["estimate", "vecm", csv, "--lags", "2", "--rank", "auto"])
+        assert_envelope_ok(r; label="estimate vecm --rank auto")
+        beta = named_table(r.doc, :cointegrating_vectors_beta)
+        @test beta !== nothing
+        cols = table_cols(beta)
+        @test "CV1" in cols        # exactly one cointegrating vector auto-selected
+        @test !("CV2" in cols)
         rm(csv; force=true)
     end
 

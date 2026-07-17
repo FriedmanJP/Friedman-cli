@@ -2784,6 +2784,15 @@ end
     @test ser.code == "data/serialization"
     @test exit_class(ser) == 3
 
+    # C054 #142: MEMs `_orient_data` ArgumentError → data/orientation (exit 3).
+    orient = _domain_error_class(ArgumentError(
+        "data has shape (3, 100) but neither dimension equals the number of " *
+        "observables n_obs=2. Pass data as T×n (time in rows, variables in columns)."))
+    @test orient isa CliError
+    @test orient.code == "data/orientation"
+    @test exit_class(orient) == 3
+    @test occursin("transpose", orient.hint)
+
     # Non-MEMs exceptions have no typed mapping → caller falls back to exit 1.
     @test _domain_error_class(ArgumentError("x")) === nothing
     @test _domain_error_class(ErrorException("x")) === nothing

@@ -1335,15 +1335,23 @@ function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
     _status("MMSC Model Selection: max lags=$max_lags, criterion=$criterion")
     _status()
 
-    result = pvar_mmsc(panel, max_lags; criterion=Symbol(criterion))
+    # MEMs 0.7.0 (C054): pvar_mmsc is now a single-model criterion; MMSC-based
+    # lag selection is pvar_lag_selection, which returns a (table, best_bic,
+    # best_aic, best_hqic, models) NamedTuple (`.table` is an [p, BIC, AIC, HQIC]
+    # Matrix{Any}) and computes all three criteria at once.
+    result = pvar_lag_selection(panel, max_lags)
 
-    res_df = DataFrame(result.results)
-    rename!(res_df, :p => :lags, :bic => :BIC, :aic => :AIC, :hqic => :HQIC)
+    res_df = DataFrame(result.table, [:lags, :BIC, :AIC, :HQIC])
     output_result(res_df; format=Symbol(format), output=output, title="MMSC Results")
 
     _status()
-    _status_styled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
+    _status_styled("Optimal lag order ($criterion): $(_pvar_best_lag(result, criterion))\n"; bold=true)
 end
+
+"""Optimal lag from a pvar_lag_selection result for the requested criterion."""
+_pvar_best_lag(result, criterion::AbstractString) =
+    criterion == "aic"  ? result.best_aic  :
+    criterion == "hqic" ? result.best_hqic : result.best_bic
 
 function _test_pvar_lagselect(; data::String, id_col::String="", time_col::String="",
                                 max_lags::Int=4, criterion::String="bic",
@@ -1356,14 +1364,13 @@ function _test_pvar_lagselect(; data::String, id_col::String="", time_col::Strin
     _status("Panel VAR Lag Selection: max lags=$max_lags, criterion=$criterion")
     _status()
 
-    result = pvar_lag_selection(panel, max_lags; criterion=Symbol(criterion))
+    result = pvar_lag_selection(panel, max_lags)
 
-    res_df = DataFrame(result.results)
-    rename!(res_df, :p => :lags, :bic => :BIC, :aic => :AIC, :hqic => :HQIC)
+    res_df = DataFrame(result.table, [:lags, :BIC, :AIC, :HQIC])
     output_result(res_df; format=Symbol(format), output=output, title="Lag Selection Results")
 
     _status()
-    _status_styled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
+    _status_styled("Optimal lag order ($criterion): $(_pvar_best_lag(result, criterion))\n"; bold=true)
 end
 
 function _test_pvar_stability(; data::String, id_col::String="", time_col::String="",

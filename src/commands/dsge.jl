@@ -1031,7 +1031,11 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     Y = df_to_matrix(df)
 
     param_names = [strip(p) for p in split(params, ",")]
-    theta0 = ones(Float64, length(param_names)) * 0.5
+    # theta0 as a name→value Dict (MEMs #136 / C054): the by-name path resolves
+    # start values against the (internally sorted) prior keys, so it is immune to
+    # silent alphabetical reordering AND validates that --params matches the
+    # priors' parameter set. A bare positional vector would only be length-checked.
+    theta0 = Dict(Symbol(p) => 0.5 for p in param_names)
 
     priors_config = load_config(priors)
     # Bridge {dist,a,b} TOML → Dict{Symbol,<:Distribution} (MEMs requires distribution

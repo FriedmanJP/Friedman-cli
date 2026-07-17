@@ -1218,22 +1218,49 @@ end
 
 # ─── Panel VAR Functions ────────────────────────────────────
 
-function xtset(data::AbstractMatrix, group_col::AbstractVector, time_col::AbstractVector;
-               varnames=nothing)
-    T_obs, n = size(data)
-    groups = sort(unique(group_col))
-    n_groups = length(groups)
-    vn = isnothing(varnames) ? ["var$i" for i in 1:n] : varnames
-    PanelData(Float64.(data), vn, Int.(group_col), Int.(time_col),
-              n_groups, n, T_obs, true)
+# MEMs 0.7.0 signature: xtset(df, group_col::Symbol, time_col::Symbol; ...).
+# `df` is left untyped so the mock module needs no DataFrames import — column
+# access dispatches on the passed DataFrame via Base (propertynames/size/getindex).
+function xtset(df, group_col::Symbol, time_col::Symbol;
+               varnames=nothing, frequency=nothing, tcode=nothing,
+               desc="", vardesc=nothing, cohort=nothing)
+    exclude = Set{Symbol}([group_col, time_col])
+    cohort === nothing || push!(exclude, cohort)
+    num_cols = [c for c in propertynames(df)
+                if !(c in exclude) && eltype(df[!, c]) <: Union{Missing,Number}]
+    n = length(num_cols)
+    vn = varnames === nothing ? String[string(c) for c in num_cols] : Vector{String}(varnames)
+    T_obs = size(df, 1)
+    data = Matrix{Float64}(undef, T_obs, n)
+    for (j, c) in enumerate(num_cols)
+        col = df[!, c]
+        for i in 1:T_obs
+            v = col[i]
+            data[i, j] = ismissing(v) ? NaN : Float64(v)
+        end
+    end
+    raw_g = df[!, group_col]
+    ug = unique(raw_g)
+    gmap = Dict(g => i for (i, g) in enumerate(ug))
+    gid = Int[gmap[g] for g in raw_g]
+    raw_t = df[!, time_col]
+    tid = eltype(raw_t) <: Integer ? Int.(raw_t) : begin
+        ut = sort(unique(raw_t)); tmap = Dict(t => i for (i, t) in enumerate(ut))
+        Int[tmap[t] for t in raw_t]
+    end
+    PanelData(data, vn, gid, tid, length(ug), n, T_obs, true)
 end
 
 isbalanced(pd::PanelData) = pd.balanced
 ngroups(pd::PanelData) = pd.n_groups
 
+# MEMs 0.7.0 kwargs (C054): system→system_instruments, dependent→dependent_vars,
+# predetermined→predet_vars, exogenous→exog_vars. Kwargs enumerated (no catch-all)
+# to stay within the check_mock_surface absorber budget.
 function estimate_pvar(panel::PanelData, p::Int;
-                       transformation=:fd, steps=:twostep, system=false, collapse=false,
-                       dependent=nothing, predetermined=nothing, exogenous=nothing,
+                       transformation=:fd, steps=:twostep, system_instruments=false,
+                       collapse=false, dependent_vars=nothing,
+                       predet_vars=String[], exog_vars=String[],
                        min_lag_endo=2, max_lag_endo=99)
     n = panel.n_vars
     k = n * p + 1
@@ -1241,13 +1268,13 @@ function estimate_pvar(panel::PanelData, p::Int;
     Sigma = Matrix{Float64}(I(n)) * 0.01
     se = ones(k, n) * 0.05
     pvals = ones(k, n) * 0.02
-    n_inst = system ? 2 * k : k + p
+    n_inst = system_instruments ? 2 * k : k + p
     PVARModel(Phi, Sigma, se, pvals, n, p, :gmm, transformation, steps,
               panel.n_groups, panel.T_obs ÷ panel.n_groups, panel.T_obs, n_inst)
 end
 
 function estimate_pvar_feols(panel::PanelData, p::Int;
-                              dependent=nothing, exogenous=nothing)
+                              dependent_vars=nothing, exog_vars=String[])
     n = panel.n_vars
     k = n * p + 1
     Phi = ones(k, n) * 0.25
@@ -1273,19 +1300,20 @@ function pvar_girf(model::PVARModel, horizon::Int)
     ImpulseResponse(vals, nothing, nothing)
 end
 
+# MEMs 0.7.0 (C054): kwargs n_boot→n_draws, conf_level→ci; returns a NamedTuple
+# (irf, lower, upper, draws) of raw (H+1)×n×n arrays, not an ImpulseResponse.
 function pvar_bootstrap_irf(model::PVARModel, horizon::Int;
-                             n_boot=500, conf_level=0.95, irf_type=:oirf)
+                             n_draws=500, ci=0.95, irf_type=:oirf)
     n = model.m
     vals = ones(horizon + 1, n, n) * 0.1
-    ci_lo = vals .- 0.5
-    ci_hi = vals .+ 0.5
-    ImpulseResponse(vals, ci_lo, ci_hi)
+    (irf=vals, lower=vals .- 0.5, upper=vals .+ 0.5,
+     draws=ones(horizon + 1, n, n, n_draws) * 0.1)
 end
 
+# MEMs 0.7.0 (C054): returns a raw (H+1)×n×n array [horizon, variable, shock].
 function pvar_fevd(model::PVARModel, horizon::Int)
     n = model.m
-    props = ones(n, n, horizon) / n
-    FEVD(props, props)
+    ones(horizon + 1, n, n) / n
 end
 
 function pvar_stability(model::PVARModel)
@@ -1305,14 +1333,22 @@ function pvar_hansen_j(model::PVARModel)
                    model.n_instruments, model.m * model.p + model.m)
 end
 
-function pvar_mmsc(panel::PanelData, max_p::Int; criterion=:bic)
-    results = [(p=p, bic=-100.0+p, aic=-110.0+p, hqic=-105.0+p) for p in 1:max_p]
-    (results=results, optimal_lag=1, criterion=criterion)
+# MEMs 0.7.0 (C054): pvar_mmsc is a single-model criterion (was a selection loop).
+function pvar_mmsc(model::PVARModel; hq_criterion=2.1)
+    (mbic=-100.0, maic=-110.0, mqic=-105.0)
 end
 
-function pvar_lag_selection(panel::PanelData, max_p::Int; criterion=:bic)
-    results = [(p=p, bic=-100.0+p, aic=-110.0+p, hqic=-105.0+p) for p in 1:max_p]
-    (results=results, optimal_lag=1, criterion=criterion)
+# MEMs 0.7.0 (C054): returns (table, best_bic, best_aic, best_hqic, models);
+# `.table` is a Matrix{Any} with columns [p, BIC, AIC, HQIC].
+function pvar_lag_selection(panel::PanelData, max_p::Int; dependent_vars=nothing)
+    tbl = Matrix{Any}(undef, max_p, 4)
+    for p in 1:max_p
+        tbl[p, 1] = p
+        tbl[p, 2] = string(-100.0 + p)
+        tbl[p, 3] = string(-110.0 + p)
+        tbl[p, 4] = string(-105.0 + p)
+    end
+    (table=tbl, best_bic=1, best_aic=1, best_hqic=1, models=PVARModel[])
 end
 
 # Enhanced Granger causality for VAR
@@ -2430,15 +2466,19 @@ struct BayesianDSGE{T<:Real}
     solution::DSGESolution{T}
 end
 
-function estimate_dsge_bayes(spec::DSGESpec{T}, data::Matrix, theta0::Vector;
+# theta0 accepts a positional Vector OR a name→value Dict/NamedTuple (MEMs #136).
+function estimate_dsge_bayes(spec::DSGESpec{T},
+        data::Matrix, theta0::Union{AbstractVector,AbstractDict,NamedTuple};
         priors=Dict(), method=:smc, observables=Symbol[],
         n_smc=5000, n_particles=500, n_mh_steps=1,
         n_draws=10000, burnin=5000, ess_target=0.5,
         measurement_error=nothing, solver=:gensys,
         solver_kwargs=NamedTuple(), delayed_acceptance=false,
         n_screen=200, rng=nothing, solver_obj=nothing) where T
-    np = length(theta0)
-    draws = randn(T, n_draws, np) .* T(0.01) .+ theta0'
+    theta0v = theta0 isa AbstractDict ? collect(values(theta0)) :
+              theta0 isa NamedTuple ? collect(theta0) : collect(theta0)
+    np = length(theta0v)
+    draws = randn(T, n_draws, np) .* T(0.01) .+ Float64.(theta0v)'
     log_post = fill(T(-100.0), n_draws)
     pnames = ["param_$i" for i in 1:np]
     ess_hist = fill(T(n_smc * 0.8), 20)

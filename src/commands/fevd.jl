@@ -392,11 +392,15 @@ function _fevd_pvar(; data::String="", id_col::String="", time_col::String="",
     _status("Computing Panel VAR FEVD: horizons=$horizons")
     _status()
 
-    fevd_result = pvar_fevd(model, horizons)
+    # MEMs 0.7.0 (C054): pvar_fevd now returns a raw (H+1)×n×n array indexed
+    # [horizon, variable, shock] (was a struct with `.proportions`). Permute to
+    # [variable, shock, horizon] and drop horizon 0 to keep the 1..H tables.
+    fevd_arr = pvar_fevd(model, horizons)
 
-    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(fevd_arr; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.proportions, varnames, horizons;
+    proportions = permutedims(fevd_arr[2:end, :, :], (2, 3, 1))
+    _output_fevd_tables(proportions, varnames, horizons;
                         id="cholesky", title_prefix="Panel VAR FEVD",
                         format=format, output=output)
 end
