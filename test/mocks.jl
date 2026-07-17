@@ -65,25 +65,42 @@ ImpulseResponse(v::Array{T,3}, cl, cu) where T = ImpulseResponse(v, cl, cu, size
     ["var$i" for i in 1:size(v,2)], ["shock$i" for i in 1:size(v,3)], :cholesky)
 
 struct BayesianImpulseResponse{T}
-    quantiles::Array{T,4}; mean::Array{T,3}
-    horizon::Int; variables::Vector{String}; shocks::Vector{String}; quantile_levels::Vector{T}
+    quantiles::Array{T,4}
+    point_estimate::Array{T,3}
+    horizon::Int
+    variables::Vector{String}
+    shocks::Vector{String}
+    quantile_levels::Vector{T}
+    _draws::Array{T,4}
+    n_requested::Int
+    n_effective::Int
+    n_failed::Int
 end
 # Convenience 3-arg constructor for backward compat
 BayesianImpulseResponse(m::Array{T,3}, q::Array{T,4}, ql::Vector{T}) where T =
     BayesianImpulseResponse(q, m, size(m,1),
-    ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql)
+    ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql,
+    zeros(T, size(q)...), 0, size(q, 4), 0)
 
 struct FEVD{T}
     decomposition::Array{T,3}; proportions::Array{T,3}
 end
 struct BayesianFEVD{T}
-    quantiles::Array{T,4}; mean::Array{T,3}
-    horizon::Int; variables::Vector{String}; shocks::Vector{String}; quantile_levels::Vector{T}
+    quantiles::Array{T,4}
+    point_estimate::Array{T,3}
+    horizon::Int
+    variables::Vector{String}
+    shocks::Vector{String}
+    quantile_levels::Vector{T}
+    n_requested::Int
+    n_effective::Int
+    n_failed::Int
 end
 # Convenience 3-arg constructor for backward compat
 BayesianFEVD(m::Array{T,3}, q::Array{T,4}, ql::Vector{T}) where T =
     BayesianFEVD(q, m, size(m,1),
-    ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql)
+    ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql,
+    0, size(q, 4), 0)
 
 struct HistoricalDecomposition{T}
     contributions::Array{T,3}; initial_conditions::Matrix{T}; actual::Matrix{T}
@@ -96,15 +113,26 @@ HistoricalDecomposition(c::Array{T,3}, ic, a, s, te::Int) where T =
     ["var$i" for i in 1:size(c,2)], ["shock$i" for i in 1:size(c,3)], :cholesky)
 
 struct BayesianHistoricalDecomposition{T}
-    quantiles::Array{T,4}; mean::Array{T,3}; initial_quantiles::Array{T,3}
-    initial_mean::Matrix{T}; shocks_mean::Matrix{T}; actual::Matrix{T}
-    T_eff::Int; variables::Vector{String}; shock_names::Vector{String}
-    quantile_levels::Vector{T}; method::Symbol
+    quantiles::Array{T,4}
+    point_estimate::Array{T,3}
+    initial_quantiles::Array{T,3}
+    initial_point_estimate::Matrix{T}
+    shocks_point_estimate::Matrix{T}
+    actual::Matrix{T}
+    T_eff::Int
+    variables::Vector{String}
+    shock_names::Vector{String}
+    quantile_levels::Vector{T}
+    method::Symbol
+    n_requested::Int
+    n_effective::Int
+    n_failed::Int
 end
 # Convenience 4-arg constructor for backward compat
 BayesianHistoricalDecomposition(m::Array{T,3}, im::Matrix{T}, q::Array{T,4}, ql::Vector{T}) where T =
-    BayesianHistoricalDecomposition(q, m, zeros(T, 0, 0, 0), im, zeros(T, 0, 0), zeros(T, 0, 0),
-    size(m,1), ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql, :cholesky)
+    BayesianHistoricalDecomposition(q, m, zeros(T, 0, 0, 0), im, zeros(T, size(m,1), size(m,3)), zeros(T, size(m,1), size(m,2)),
+    size(m,1), ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql, :cholesky,
+    0, size(q, 4), 0)
 
 struct ZeroRestriction
     variable::Int; shock::Int; horizon::Int
@@ -195,7 +223,21 @@ DynamicFactorModel(f::Matrix{T}, l, c) where T =
     ones(T, size(f,2)), fill(T(0.5), size(f,2)), cumsum(fill(T(0.5), size(f,2))),
     size(f, 2), 1, :twostep, true, true, 100, T(-250.0))
 struct GeneralizedDynamicFactorModel{T}
-    common_component::Matrix{T}; loadings::Matrix{T}
+    X::Matrix{T}
+    factors::Matrix{T}
+    common_component::Matrix{T}
+    idiosyncratic::Matrix{T}
+    loadings_spectral::Array{T,3}
+    spectral_density_X::Array{T,3}
+    spectral_density_chi::Array{T,3}
+    eigenvalues_spectral::Matrix{T}
+    frequencies::Vector{T}
+    q::Int
+    r::Int
+    bandwidth::Int
+    kernel::Symbol
+    standardized::Bool
+    variance_explained::Vector{T}
 end
 struct FactorForecast{T}
     factors::Matrix{T}; observables::Matrix{T}
@@ -212,16 +254,70 @@ FactorForecast(f::Matrix{T}, o, ol, ou, ose, h::Int, cl::T) where T =
 # ─── ARIMA Types ──────────────────────────────────────────
 
 struct ARModel{T}
-    coefficients::Vector{T}; p::Int; sigma::T; aic_val::T; bic_val::T; ll::T
+    y::Vector{T}
+    p::Int
+    c::T
+    phi::Vector{T}
+    sigma2::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
 end
 struct MAModel{T}
-    coefficients::Vector{T}; q::Int; sigma::T; aic_val::T; bic_val::T; ll::T
+    y::Vector{T}
+    q::Int
+    c::T
+    theta::Vector{T}
+    sigma2::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
 end
 struct ARMAModel{T}
-    coefficients::Vector{T}; p::Int; q::Int; sigma::T; aic_val::T; bic_val::T; ll::T
+    y::Vector{T}
+    p::Int
+    q::Int
+    c::T
+    phi::Vector{T}
+    theta::Vector{T}
+    sigma2::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
 end
 struct ARIMAModel{T}
-    coefficients::Vector{T}; p::Int; d::Int; q::Int; sigma::T; aic_val::T; bic_val::T; ll::T
+    y::Vector{T}
+    y_diff::Vector{T}
+    p::Int
+    d::Int
+    q::Int
+    c::T
+    phi::Vector{T}
+    theta::Vector{T}
+    sigma2::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
 end
 struct ARIMAForecast{T}
     forecast::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}; se::Vector{T}
@@ -800,7 +896,17 @@ function ic_criteria_gdfm(X, max_q; standardize=true)
 end
 function estimate_gdfm(X, q; r=2, standardize=true, bandwidth=0, kernel=:bartlett)
     T_obs, n = size(X)
-    GeneralizedDynamicFactorModel(ones(T_obs, n)*0.5, ones(n, q)*0.3)
+    bw = bandwidth == 0 ? 5 : bandwidth
+    fac = ones(T_obs, r) * 0.1
+    cc = ones(T_obs, n) * 0.5
+    idio = ones(T_obs, n) * 0.1
+    load_s = ones(n, r, 10) * 0.3
+    sx = ones(n, n, 10) * 0.1
+    schi = ones(n, n, 10) * 0.05
+    eigs = ones(r, 10)
+    freqs = collect(range(0, stop=π, length=10))
+    GeneralizedDynamicFactorModel(Float64.(X), fac, cc, idio, load_s, sx, schi, eigs, freqs,
+        q, r, bw, kernel, standardize, fill(0.5, r))
 end
 function common_variance_share(model::GeneralizedDynamicFactorModel)
     n = size(model.common_component, 2)
@@ -845,12 +951,30 @@ gmm_summary(model::GMMModel) = (n_moments=model.n_moments, n_params=model.n_para
 j_test(model::GMMModel) = (J_stat=model.J_stat, p_value=model.J_pvalue, df=model.n_moments - model.n_params)
 
 # ARIMA functions
-estimate_ar(y, p; method=:ols) = ARModel(ones(p)*0.3, p, 0.5, -100.0, -95.0, -50.0)
-estimate_ma(y, q; method=:css_mle) = MAModel(ones(q)*0.3, q, 0.5, -100.0, -95.0, -50.0)
-estimate_arma(y, p, q; method=:css_mle) = ARMAModel(ones(p+q)*0.3, p, q, 0.5, -100.0, -95.0, -50.0)
-estimate_arima(y, p, d, q; method=:css_mle) = ARIMAModel(ones(p+q)*0.3, p, d, q, 0.5, -100.0, -95.0, -50.0)
-auto_arima(y; max_p=5, max_q=5, max_d=2, criterion=:bic, method=:mle) =
-    ARIMAModel(ones(2)*0.3, 1, 1, 1, 0.5, -100.0, -95.0, -50.0)
+function _ar_like_y(y)
+    v = Float64.(vec(y))
+    T = length(v)
+    return v, ones(T) * 0.01, ones(T) * 0.1
+end
+function estimate_ar(y, p; method=:ols)
+    v, res, fit = _ar_like_y(y)
+    ARModel(v, p, 0.0, ones(p)*0.3, 0.5, res, fit, -50.0, -100.0, -95.0, method, true, 10)
+end
+function estimate_ma(y, q; method=:css_mle)
+    v, res, fit = _ar_like_y(y)
+    MAModel(v, q, 0.0, ones(q)*0.3, 0.5, res, fit, -50.0, -100.0, -95.0, method, true, 10)
+end
+function estimate_arma(y, p, q; method=:css_mle)
+    v, res, fit = _ar_like_y(y)
+    ARMAModel(v, p, q, 0.0, ones(p)*0.3, ones(q)*0.3, 0.5, res, fit, -50.0, -100.0, -95.0, method, true, 10)
+end
+function estimate_arima(y, p, d, q; method=:css_mle)
+    v, res, fit = _ar_like_y(y)
+    ARIMAModel(v, v, p, d, q, 0.0, ones(max(p,1))*0.3, ones(max(q,1))*0.3, 0.5, res, fit, -50.0, -100.0, -95.0, method, true, 10)
+end
+function auto_arima(y; max_p=5, max_q=5, max_d=2, criterion=:bic, method=:mle)
+    estimate_arima(y, 1, 1, 1; method=method)
+end
 
 ar_order(m::ARModel) = m.p;       ar_order(m::MAModel) = 0
 ar_order(m::ARMAModel) = m.p;     ar_order(m::ARIMAModel) = m.p
@@ -858,8 +982,8 @@ ma_order(m::ARModel) = 0;         ma_order(m::MAModel) = m.q
 ma_order(m::ARMAModel) = m.q;     ma_order(m::ARIMAModel) = m.q
 diff_order(m::ARModel) = 0;       diff_order(m::MAModel) = 0
 diff_order(m::ARMAModel) = 0;     diff_order(m::ARIMAModel) = m.d
-aic(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.aic_val
-bic(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.bic_val
+aic(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.aic
+bic(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.bic
 function forecast(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}, h::Int; conf_level=0.95)
     fc = ones(h) * 0.1
     ARIMAForecast(fc, fc .- 0.5, fc .+ 0.5, ones(h) * 0.1, h)
@@ -1877,8 +2001,13 @@ export estimate_smm, autocovariance_moments, to_unconstrained, to_constrained, t
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 
 struct BVARForecast{T<:AbstractFloat}
-    forecast::Matrix{T}; ci_lower::Matrix{T}; ci_upper::Matrix{T}
-    horizon::Int; ci_method::Symbol; conf_level::T; varnames::Vector{String}
+    forecast::Matrix{T}
+    ci_lower::Matrix{T}
+    ci_upper::Matrix{T}
+    horizon::Int
+    conf_level::T
+    point_estimate::Symbol
+    varnames::Vector{String}
 end
 
 point_forecast(f::Union{VARForecast,BVARForecast}) = f.forecast
@@ -1890,7 +2019,8 @@ forecast_horizon(f::Union{VARForecast,BVARForecast}) = f.horizon
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)
     n = post.n
     fc = ones(h, n) * 0.1
-    BVARForecast{Float64}(fc, fc .- 0.5, fc .+ 0.5, h, ci_method, conf_level,
+    pe = ci_method isa Symbol ? ci_method : :mean
+    BVARForecast{Float64}(fc, fc .- 0.5, fc .+ 0.5, h, Float64(conf_level), pe,
                            ["var$i" for i in 1:n])
 end
 
@@ -1920,14 +2050,31 @@ struct EventStudyLP{T<:Real}
 end
 
 struct LPDiDResult{T<:AbstractFloat}
-    coefficients::Vector{T}; se_vec::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}
-    event_times::Vector{Int}; reference_period::Int; nobs_h::Vector{Int}
-    pooled_post_result::Union{NamedTuple,Nothing}; pooled_pre_result::Union{NamedTuple,Nothing}
-    vcov_all::Vector; outcome_name::String; treatment_name::String
-    T_obs::Int; n_groups::Int; spec_type::Symbol
-    pmd::Union{Nothing,Symbol,Int}; reweight::Bool; nocomp::Bool
-    ylags::Int; dylags::Int; pre_window::Int; post_window::Int
-    cluster::Symbol; conf_level::T; pd::PanelData{T}
+    coefficients::Vector{T}
+    se::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    event_times::Vector{Int}
+    reference_period::Int
+    nobs_per_horizon::Vector{Int}
+    pooled_post::Union{NamedTuple,Nothing}
+    pooled_pre::Union{NamedTuple,Nothing}
+    vcov::Vector
+    outcome_var::String
+    treatment_var::String
+    T_obs::Int
+    n_groups::Int
+    specification::Symbol
+    pmd::Union{Nothing,Symbol,Int}
+    reweight::Bool
+    nocomp::Bool
+    ylags::Int
+    dylags::Int
+    pre_window::Int
+    post_window::Int
+    cluster::Symbol
+    conf_level::T
+    data::PanelData{T}
 end
 
 struct BaconDecomposition{T<:Real}
@@ -2074,10 +2221,19 @@ struct FAVARModel{T<:Real}
 end
 
 struct BayesianFAVAR{T<:Real}
-    Y::Matrix{T}; p::Int; n_factors::Int; n_key::Int
-    factors::Matrix{T}; loadings::Matrix{T}
-    varnames::Vector{String}; panel_varnames::Vector{String}
-    n_draws::Int
+    B_draws::Array{T,3}
+    Sigma_draws::Array{T,3}
+    factor_draws::Array{T,3}
+    loadings_draws::Array{T,3}
+    X_panel::Matrix{T}
+    panel_varnames::Vector{String}
+    Y_key_indices::Vector{Int}
+    n_factors::Int
+    n_key::Int
+    n::Int
+    p::Int
+    data::Matrix{T}
+    varnames::Vector{String}
 end
 
 function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
@@ -2094,7 +2250,12 @@ function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
     vnames = ["aug$i" for i in 1:n_aug]
     pvnames = panel_varnames === nothing ? ["var$i" for i in 1:n_vars] : panel_varnames
     if method == :bayesian
-        return BayesianFAVAR{T}(Y, p, r, n_key, factors, loadings, vnames, pvnames, n_draws)
+        B_draws = ones(T, size(B, 1), size(B, 2), n_draws) * T(0.1)
+        Sigma_draws = ones(T, n_aug, n_aug, n_draws) * T(0.5)
+        factor_draws = ones(T, n_obs, r, n_draws) * T(0.1)
+        loadings_draws = ones(T, n_vars, r, n_draws) * T(0.3)
+        return BayesianFAVAR{T}(B_draws, Sigma_draws, factor_draws, loadings_draws,
+            X, pvnames, key_indices, r, n_key, n_aug, p, Y, vnames)
     end
     FAVARModel{T}(Y, p, B, U, Sigma, factors, loadings, r, n_key,
                    T(-100.0), T(-95.0), T(-90.0), vnames, pvnames)
@@ -2276,9 +2437,14 @@ struct PANICResult{T<:AbstractFloat}
 end
 
 struct PesaranCIPSResult{T<:AbstractFloat}
-    cips::T; pvalue::T; individual_cadf::Vector{T}
-    critical_values::Dict{Int,T}; lags::Int; deterministic::Symbol
-    nobs::Int; n_units::Int
+    cips_statistic::T
+    pvalue::T
+    individual_cadf_stats::Vector{T}
+    critical_values::Dict{Int,T}
+    lags::Int
+    deterministic::Symbol
+    nobs::Int
+    n_units::Int
 end
 
 struct MoonPerronResult{T<:AbstractFloat}
@@ -2287,8 +2453,13 @@ struct MoonPerronResult{T<:AbstractFloat}
 end
 
 struct FactorBreakResult{T<:AbstractFloat}
-    statistic::T; pvalue::T; break_date::Int; method::Symbol
-    r::Int; nobs::Int; n_units::Int
+    statistic::T
+    pvalue::T
+    break_date::Int
+    method::Symbol
+    n_factors::Int
+    nobs::Int
+    n_vars::Int
 end
 
 function panic_test(X::AbstractMatrix{T}; r=:auto, method=:pooled) where T
@@ -2347,28 +2518,69 @@ export panel_unit_root_summary
 # ─── Cross-Sectional Regression Types & Functions ──────────────────
 
 struct RegModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}; ssr::T; tss::T; r2::T; adj_r2::T
-    f_stat::T; f_pvalue::T; loglik::T; aic::T; bic::T
-    nobs::Int; rank::Int; dof_resid::Int; cov_type::Symbol
-    weights::Union{Vector{T},Nothing}; varnames::Vector{String}
-    clusters::Union{Vector{Int},Nothing}; method::Symbol
-    Z::Union{Matrix{T},Nothing}; endogenous::Union{Vector{Int},Nothing}
-    first_stage_f::Union{T,Nothing}; sargan_stat::Union{T,Nothing}; sargan_pval::Union{T,Nothing}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    ssr::T
+    tss::T
+    r2::T
+    adj_r2::T
+    f_stat::T
+    f_pval::T
+    loglik::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    method::Symbol
+    cov_type::Symbol
+    weights::Union{Vector{T},Nothing}
+    Z::Union{Matrix{T},Nothing}
+    endogenous::Union{Vector{Int},Nothing}
+    first_stage_f::Union{T,Nothing}
+    sargan_stat::Union{T,Nothing}
+    sargan_pval::Union{T,Nothing}
+    cragg_donald_f::Union{T,Nothing}
+    kleibergen_paap_f::Union{T,Nothing}
+    stock_yogo_10pct::Union{T,Nothing}
 end
 
 struct LogitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}; loglik::T; loglik_null::T; pseudo_r2::T
-    aic::T; bic::T; nobs::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
 end
 
 struct ProbitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}; loglik::T; loglik_null::T; pseudo_r2::T
-    aic::T; bic::T; nobs::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
 end
 
 struct MarginalEffects{T<:Real}
@@ -2379,7 +2591,7 @@ end
 
 # StatsAPI dispatches for RegModel
 coef(m::RegModel) = m.beta
-vcov(m::RegModel) = m.var_beta
+vcov(m::RegModel) = m.vcov_mat
 residuals(m::RegModel) = m.residuals
 predict(m::RegModel) = m.fitted
 stderror(m::RegModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta, 1)]
@@ -2392,7 +2604,7 @@ confint(m::RegModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m.beta .+
 
 # StatsAPI dispatches for LogitModel
 coef(m::LogitModel) = m.beta
-vcov(m::LogitModel) = m.var_beta
+vcov(m::LogitModel) = m.vcov_mat
 residuals(m::LogitModel) = m.residuals
 predict(m::LogitModel) = m.fitted
 stderror(m::LogitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta, 1)]
@@ -2405,7 +2617,7 @@ confint(m::LogitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m.beta 
 
 # StatsAPI dispatches for ProbitModel
 coef(m::ProbitModel) = m.beta
-vcov(m::ProbitModel) = m.var_beta
+vcov(m::ProbitModel) = m.vcov_mat
 residuals(m::ProbitModel) = m.residuals
 predict(m::ProbitModel) = m.fitted
 stderror(m::ProbitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta, 1)]
@@ -2423,7 +2635,7 @@ function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
                       clusters=nothing) where T
     n, k = size(X)
     beta = ones(T, k) * T(0.5)
-    var_beta = Matrix{T}(I(k)) * T(0.01)
+    vcov_mat = Matrix{T}(I(k)) * T(0.01)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     ssr = sum(resids .^ 2)
@@ -2436,17 +2648,17 @@ function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
     aic_val = T(210.0)
     bic_val = T(220.0)
     vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
-    RegModel{T}(y, X, beta, var_beta, resids, fitted_vals, ssr, tss,
+    RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
-                n, k, n - k, cov_type, weights, vnames, clusters, :ols,
-                nothing, nothing, nothing, nothing, nothing)
+                vnames, :ols, cov_type, weights, nothing, nothing,
+                nothing, nothing, nothing, nothing, nothing, nothing)
 end
 
 function estimate_iv(y::AbstractVector{T}, X::AbstractMatrix{T}, Z::AbstractMatrix{T};
                      endogenous=Int[], cov_type=:hc1, varnames=nothing) where T
     n, k = size(X)
     beta = ones(T, k) * T(0.5)
-    var_beta = Matrix{T}(I(k)) * T(0.01)
+    vcov_mat = Matrix{T}(I(k)) * T(0.01)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     ssr = sum(resids .^ 2)
@@ -2462,10 +2674,10 @@ function estimate_iv(y::AbstractVector{T}, X::AbstractMatrix{T}, Z::AbstractMatr
     first_f = T(15.0)
     sargan_s = T(2.5)
     sargan_p = T(0.30)
-    RegModel{T}(y, X, beta, var_beta, resids, fitted_vals, ssr, tss,
+    RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
-                n, k, n - k, cov_type, nothing, vnames, nothing, :iv,
-                Z, endogenous, first_f, sargan_s, sargan_p)
+                vnames, :iv, cov_type, nothing, Z, endogenous,
+                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0))
 end
 
 function _build_logit_probit(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{T};
@@ -2473,7 +2685,7 @@ function _build_logit_probit(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{
                              maxiter=100, tol=1e-8) where {T, M}
     n, k = size(X)
     beta = ones(T, k) * T(0.3)
-    var_beta = Matrix{T}(I(k)) * T(0.02)
+    vcov_mat = Matrix{T}(I(k)) * T(0.02)
     fitted_vals = ones(T, n) * T(0.5)
     resids = y .- fitted_vals
     ll = T(-80.0)
@@ -2482,8 +2694,8 @@ function _build_logit_probit(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{
     aic_val = T(170.0)
     bic_val = T(180.0)
     vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
-    M{T}(y, X, beta, var_beta, resids, fitted_vals, ll, ll_null, pseudo,
-          aic_val, bic_val, n, vnames, true, 5, cov_type)
+    M{T}(y, X, beta, vcov_mat, resids, fitted_vals, ll, ll_null, pseudo,
+          aic_val, bic_val, vnames, true, 5, cov_type)
 end
 
 function estimate_logit(y::AbstractVector{T}, X::AbstractMatrix{T};
@@ -2562,27 +2774,62 @@ struct FourierKPSSResult{T<:AbstractFloat}
 end
 
 struct DFGLSResult{T<:AbstractFloat}
-    tau_statistic::T; pt_statistic::T; mgls_statistics::Dict{Symbol,T}
-    pvalue::T; lags::Int; regression::Symbol; critical_values::Dict{Int,T}; nobs::Int
+    statistic::T
+    pvalue::T
+    pt_statistic::T
+    pt_pvalue::T
+    MZa::T
+    MZt::T
+    MSB::T
+    MPT::T
+    lags::Int
+    regression::Symbol
+    critical_values::Dict{Int,T}
+    pt_critical_values::Dict{Int,T}
+    mgls_critical_values::Dict{Symbol,Dict{Int,T}}
+    nobs::Int
 end
 
 struct LMUnitRootResult{T<:AbstractFloat}
-    statistic::T; pvalue::T; break_indices::Union{Nothing,Vector{Int}}
-    break_fractions::Union{Nothing,Vector{T}}; breaks::Int; regression::Symbol
-    critical_values::Dict{Int,T}; lags::Int; nobs::Int
+    statistic::T
+    pvalue::T
+    breaks::Int
+    break_dates::Union{Nothing,Vector{Int}}
+    break_fractions::Union{Nothing,Vector{T}}
+    lags::Int
+    regression::Symbol
+    critical_values::Dict{Int,T}
+    nobs::Int
 end
 
 struct ADF2BreakResult{T<:AbstractFloat}
-    statistic::T; pvalue::T; break_index1::Int; break_index2::Int
-    break_fraction1::T; break_fraction2::T; lags::Int; model::Symbol
-    critical_values::Dict{Int,T}; nobs::Int
+    statistic::T
+    pvalue::T
+    break1::Int
+    break2::Int
+    break1_fraction::T
+    break2_fraction::T
+    lags::Int
+    model::Symbol
+    critical_values::Dict{Int,T}
+    nobs::Int
 end
 
 struct GregoryHansenResult{T<:AbstractFloat}
-    adf_statistic::T; adf_pvalue::T; adf_break_index::Int
-    zt_statistic::T; zt_pvalue::T; zt_break_index::Int
-    za_statistic::T; za_pvalue::T; za_break_index::Int
-    model::Symbol; critical_values::Dict{Int,T}; nobs::Int
+    adf_statistic::T
+    adf_pvalue::T
+    zt_statistic::T
+    zt_pvalue::T
+    za_statistic::T
+    za_pvalue::T
+    adf_break::Int
+    zt_break::Int
+    za_break::Int
+    model::Symbol
+    n_regressors::Int
+    adf_critical_values::Dict{Int,T}
+    za_critical_values::Dict{Int,T}
+    nobs::Int
 end
 
 function fourier_adf_test(y::AbstractVector{T};
@@ -2612,9 +2859,12 @@ function dfgls_test(y::AbstractVector{T};
         regression=:constant, lags=:aic, max_lags=nothing) where T
     n = length(y)
     p = lags == :aic ? max(1, round(Int, n^(1/3))) : lags
-    mgls = Dict(:MZa => T(-15.0), :MZt => T(-2.7), :MSB => T(0.18), :MPT => T(3.5))
     cvs = Dict(1 => T(-3.48), 5 => T(-2.89), 10 => T(-2.57))
-    DFGLSResult{T}(T(-3.2), T(4.5), mgls, T(0.02), p, regression, cvs, n)
+    pt_cvs = Dict(1 => T(4.5), 5 => T(3.2), 10 => T(2.5))
+    mgls_cvs = Dict(:MZa => cvs, :MZt => cvs, :MSB => cvs, :MPT => cvs)
+    DFGLSResult{T}(T(-3.2), T(0.02), T(4.5), T(0.05),
+        T(-15.0), T(-2.7), T(0.18), T(3.5),
+        p, regression, cvs, pt_cvs, mgls_cvs, n)
 end
 
 function lm_unitroot_test(y::AbstractVector{T};
@@ -2625,7 +2875,7 @@ function lm_unitroot_test(y::AbstractVector{T};
     cvs = Dict(1 => T(-4.24), 5 => T(-3.57), 10 => T(-3.21))
     bi = breaks > 0 ? [div(n, i + 1) for i in 1:breaks] : nothing
     bf = breaks > 0 ? [T(1.0 / (i + 1)) for i in 1:breaks] : nothing
-    LMUnitRootResult{T}(T(-3.8), T(0.03), bi, bf, breaks, regression, cvs, p, n)
+    LMUnitRootResult{T}(T(-3.8), T(0.03), breaks, bi, bf, p, regression, cvs, n)
 end
 
 function adf_2break_test(y::AbstractVector{T};
@@ -2644,10 +2894,8 @@ function gregory_hansen_test(Y::AbstractMatrix{T};
     n = size(Y, 1)
     bp = div(n, 2)
     cvs = Dict(1 => T(-5.13), 5 => T(-4.61), 10 => T(-4.34))
-    GregoryHansenResult{T}(T(-4.8), T(0.03), bp,
-        T(-4.5), T(0.04), bp + 2,
-        T(-35.0), T(0.02), bp - 1,
-        model, cvs, n)
+    GregoryHansenResult{T}(T(-4.8), T(0.03), T(-4.5), T(0.04), T(-35.0), T(0.02),
+        bp, bp + 2, bp - 1, model, 1, cvs, cvs, n)
 end
 
 export FourierADFResult, FourierKPSSResult, DFGLSResult
@@ -2674,8 +2922,7 @@ function irf(result::BayesianDSGE{T}, horizon::Int;
     q = Array{T,4}(undef, horizon + 1, nv, ns, length(quantiles))
     fill!(q, T(0.1))
     m = zeros(T, horizon + 1, nv, ns)
-    BayesianImpulseResponse{T}(q, m, horizon,
-        String.(result.param_names), ["shock$i" for i in 1:ns], T.(quantiles))
+    BayesianImpulseResponse(m, q, T.(quantiles))
 end
 
 # fevd dispatch on BayesianDSGE
@@ -2687,8 +2934,7 @@ function fevd(result::BayesianDSGE{T}, horizon::Int;
     q = Array{T,4}(undef, horizon, nv, ns, length(quantiles))
     fill!(q, T(1.0 / ns))
     m = fill(T(1.0 / ns), horizon, nv, ns)
-    BayesianFEVD{T}(q, m, horizon,
-        String.(result.param_names), ["shock$i" for i in 1:ns], T.(quantiles))
+    BayesianFEVD(m, q, T.(quantiles))
 end
 
 # simulate dispatch on BayesianDSGE
@@ -2824,63 +3070,53 @@ export total_shock_contribution
 # ─── Spectral Analysis Types & Functions (v0.4.0) ────────────
 
 struct ACFResult{T<:AbstractFloat}
+    lags::Vector{Int}
     acf::Vector{T}
     pacf::Vector{T}
-    lags::Vector{Int}
-    conf_level::T
-    ci_band::T
-    varname::String
-    nobs::Int
+    ci::T
+    ccf::Union{Nothing,Vector{T}}
     q_stats::Vector{T}
     q_pvalues::Vector{T}
+    nobs::Int
 end
 
 struct SpectralDensityResult{T<:AbstractFloat}
-    frequencies::Vector{T}
-    spectrum::Vector{T}
-    log_spectrum::Vector{T}
+    freq::Vector{T}
+    density::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    method::Symbol
     bandwidth::T
-    kernel::Symbol
     nobs::Int
-    varname::String
 end
 
 struct CrossSpectrumResult{T<:AbstractFloat}
-    frequencies::Vector{T}
-    cross_spectrum::Vector{Complex{T}}
+    freq::Vector{T}
+    co_spectrum::Vector{T}
+    quad_spectrum::Vector{T}
     coherence::Vector{T}
     phase::Vector{T}
     gain::Vector{T}
-    var1::String
-    var2::String
     nobs::Int
 end
 
 struct TransferFunctionResult{T<:AbstractFloat}
-    frequencies::Vector{T}
+    freq::Vector{T}
     gain::Vector{T}
     phase::Vector{T}
-    coherence::Vector{T}
-    var_input::String
-    var_output::String
-    nobs::Int
+    filter::Symbol
 end
 
 struct FisherTestResult{T<:AbstractFloat}
     statistic::T
     pvalue::T
-    dominant_frequency::T
-    periodogram_values::Vector{T}
-    frequencies::Vector{T}
+    peak_freq::T
     nobs::Int
 end
 
 struct BartlettWhiteNoiseResult{T<:AbstractFloat}
     statistic::T
     pvalue::T
-    lags_tested::Int
-    individual_stats::Vector{T}
-    individual_pvalues::Vector{T}
     nobs::Int
 end
 
@@ -2889,15 +3125,12 @@ struct BoxPierceResult{T<:AbstractFloat}
     pvalue::T
     df::Int
     lags::Int
-    ljung_box::Bool
     nobs::Int
 end
 
 struct DurbinWatsonResult{T<:AbstractFloat}
     statistic::T
-    decision::Symbol
-    lower_bound::T
-    upper_bound::T
+    pvalue::T
     nobs::Int
 end
 
@@ -2911,7 +3144,7 @@ function acf(y::AbstractVector{T}; lags::Int=20, maxlag::Union{Int,Nothing}=noth
     q_stats = [T(k+1) * T(0.1) for k in 0:nlags]
     q_pvals = [T(0.05) for _ in 0:nlags]
     lags_vec = collect(0:nlags)
-    ACFResult{T}(acf_vals, pacf_vals, lags_vec, T(conf_level), ci, varname, n, q_stats, q_pvals)
+    ACFResult{T}(lags_vec, acf_vals, pacf_vals, ci, nothing, q_stats, q_pvals, n)
 end
 
 function pacf(y::AbstractVector{T}; lags::Int=20, maxlag::Union{Int,Nothing}=nothing,
@@ -2944,7 +3177,7 @@ function periodogram(y::AbstractVector{T}; varname::String="y") where T
     freqs = [T(k) / n for k in 1:div(n, 2)]
     spec = abs2.(randn(T, length(freqs))) .+ T(0.01)
     log_spec = log.(spec)
-    SpectralDensityResult{T}(freqs, spec, log_spec, T(0.0), :none, n, varname)
+    SpectralDensityResult{T}(freqs, spec, fill(T(0.0), length(freqs)), fill(T(0.0), length(freqs)), :periodogram, T(0.0), n)
 end
 
 function spectral_density(y::AbstractVector{T}; method::Symbol=:welch, bandwidth=nothing,
@@ -2952,9 +3185,8 @@ function spectral_density(y::AbstractVector{T}; method::Symbol=:welch, bandwidth
     n = length(y)
     freqs = [T(k) / n for k in 1:div(n, 2)]
     bw = isnothing(bandwidth) ? T(sqrt(n)) : T(bandwidth)
-    spec = abs2.(randn(T, length(freqs))) .+ T(0.01)
-    log_spec = log.(spec)
-    SpectralDensityResult{T}(freqs, spec, log_spec, bw, kernel, n, varname)
+    dens = abs2.(randn(T, length(freqs))) .+ T(0.01)
+    SpectralDensityResult{T}(freqs, dens, dens .* T(0.5), dens .* T(1.5), method, bw, n)
 end
 
 function cross_spectrum(y1::AbstractVector{T}, y2::AbstractVector{T};
@@ -2967,7 +3199,7 @@ function cross_spectrum(y1::AbstractVector{T}, y2::AbstractVector{T};
     coh = abs.(cs) ./ (abs.(cs) .+ T(0.1))
     ph = angle.(cs)
     gain = abs.(cs)
-    CrossSpectrumResult{T}(freqs, cs, coh, ph, gain, var1, var2, n)
+    CrossSpectrumResult{T}(freqs, real.(cs), imag.(cs), coh, ph, gain, n)
 end
 
 function transfer_function(input::AbstractVector{T}, output::AbstractVector{T};
@@ -2979,7 +3211,7 @@ function transfer_function(input::AbstractVector{T}, output::AbstractVector{T};
     gain = abs.(randn(T, nf)) .+ T(0.5)
     phase = randn(T, nf)
     coherence = rand(T, nf) .* T(0.8) .+ T(0.1)
-    TransferFunctionResult{T}(freqs, gain, phase, coherence, var_input, var_output, n)
+    TransferFunctionResult{T}(freqs, gain, phase, :empirical)
 end
 
 function transfer_function(filter_name::Symbol; lambda::Real=1600.0, nobs::Int=200,
@@ -2989,55 +3221,105 @@ function transfer_function(filter_name::Symbol; lambda::Real=1600.0, nobs::Int=2
     nf = length(freqs)
     gain = abs.(randn(nf)) .+ 0.5
     phase = randn(nf)
-    coherence = rand(nf) .* 0.8 .+ 0.1
-    TransferFunctionResult{Float64}(freqs, gain, phase, coherence, string(filter_name), "output", n)
+    TransferFunctionResult{Float64}(freqs, gain, phase, filter_name)
 end
 
 function fisher_test(y::AbstractVector{T}) where T
     n = length(y)
-    freqs = [T(k) / n for k in 1:div(n, 2)]
-    pvals = abs2.(randn(T, length(freqs))) .+ T(0.01)
-    FisherTestResult{T}(T(8.5), T(0.02), T(0.1), pvals, freqs, n)
+    FisherTestResult{T}(T(8.5), T(0.05), T(0.1), n)
 end
 
 function bartlett_white_noise_test(y::AbstractVector{T}; lags::Int=20) where T
     n = length(y)
-    ind_stats = fill(T(1.5), lags)
-    ind_pvals = fill(T(0.15), lags)
-    BartlettWhiteNoiseResult{T}(T(2.5), T(0.10), lags, ind_stats, ind_pvals, n)
+    BartlettWhiteNoiseResult{T}(T(12.0), T(0.15), n)
 end
 
 function box_pierce_test(y::AbstractVector{T}; lags::Int=20, ljung_box::Bool=true) where T
     n = length(y)
-    stat = ljung_box ? T(25.0) : T(22.0)
-    pval = T(0.10)
-    BoxPierceResult{T}(stat, pval, lags, lags, ljung_box, n)
+    BoxPierceResult{T}(T(25.0), T(0.10), lags, lags, n)
 end
 
 function durbin_watson_test(residuals::AbstractVector{T}) where T
     n = length(residuals)
-    dw = T(2.0) + randn(T) * T(0.1)
-    dec = abs(dw - T(2.0)) < T(0.5) ? :no_autocorrelation : :inconclusive
-    DurbinWatsonResult{T}(dw, dec, T(1.5), T(2.5), n)
+    DurbinWatsonResult{T}(T(2.0), T(0.5), n)
 end
 
-# Field aliases for spectral handler compat
-Base.getproperty(r::SpectralDensityResult, s::Symbol) =
-    s === :freq     ? getfield(r, :frequencies) :
-    s === :density  ? getfield(r, :spectrum) :
-    s === :ci_lower ? getfield(r, :spectrum) .- 0.1 :
-    s === :ci_upper ? getfield(r, :spectrum) .+ 0.1 :
-    getfield(r, s)
-
-Base.getproperty(r::CrossSpectrumResult, s::Symbol) =
-    s === :freq         ? getfield(r, :frequencies) :
-    s === :co_spectrum  ? real.(getfield(r, :cross_spectrum)) :
-    s === :quad_spectrum ? imag.(getfield(r, :cross_spectrum)) :
-    getfield(r, s)
-
-Base.getproperty(r::TransferFunctionResult, s::Symbol) =
-    s === :freq ? getfield(r, :frequencies) :
-    getfield(r, s)
+# Field aliases for spectral handler compat (legacy mock names → real fields)
+function Base.getproperty(r::SpectralDensityResult, s::Symbol)
+    s === :spectrum && return getfield(r, :density)
+    s === :frequencies && return getfield(r, :freq)
+    s === :log_spectrum && return log.(max.(getfield(r, :density), eps(eltype(getfield(r, :density)))))
+    s === :kernel && return :none
+    s === :varname && return "y"
+    return getfield(r, s)
+end
+function Base.getproperty(r::CrossSpectrumResult, s::Symbol)
+    s === :frequencies && return getfield(r, :freq)
+    s === :cross_spectrum && return complex.(getfield(r, :co_spectrum), getfield(r, :quad_spectrum))
+    s === :var1 && return "y1"
+    s === :var2 && return "y2"
+    return getfield(r, s)
+end
+function Base.getproperty(r::TransferFunctionResult, s::Symbol)
+    s === :frequencies && return getfield(r, :freq)
+    s === :coherence && return ones(eltype(getfield(r, :gain)), length(getfield(r, :gain)))
+    s === :var_input && return string(getfield(r, :filter))
+    s === :var_output && return "output"
+    s === :nobs && return length(getfield(r, :freq)) * 2
+    return getfield(r, s)
+end
+function Base.getproperty(r::ACFResult, s::Symbol)
+    s === :ci_band && return getfield(r, :ci)
+    s === :conf_level && return 0.95
+    s === :varname && return "y"
+    return getfield(r, s)
+end
+function Base.getproperty(r::FisherTestResult, s::Symbol)
+    s === :dominant_frequency && return getfield(r, :peak_freq)
+    s === :periodogram_values && return Float64[]
+    s === :frequencies && return Float64[]
+    return getfield(r, s)
+end
+function Base.getproperty(r::BartlettWhiteNoiseResult, s::Symbol)
+    s === :lags_tested && return 0
+    s === :individual_stats && return Float64[]
+    s === :individual_pvalues && return Float64[]
+    return getfield(r, s)
+end
+function Base.getproperty(r::BoxPierceResult, s::Symbol)
+    s === :ljung_box && return true
+    return getfield(r, s)
+end
+function Base.getproperty(r::DurbinWatsonResult, s::Symbol)
+    s === :decision && return :inconclusive
+    s === :lower_bound && return 1.5
+    s === :upper_bound && return 2.5
+    return getfield(r, s)
+end
+function Base.getproperty(r::DFGLSResult, s::Symbol)
+    s === :tau_statistic && return getfield(r, :statistic)
+    s === :mgls_statistics && return Dict(:MZa => getfield(r, :MZa), :MZt => getfield(r, :MZt),
+                                          :MSB => getfield(r, :MSB), :MPT => getfield(r, :MPT))
+    return getfield(r, s)
+end
+function Base.getproperty(r::LMUnitRootResult, s::Symbol)
+    s === :break_indices && return getfield(r, :break_dates)
+    return getfield(r, s)
+end
+function Base.getproperty(r::ADF2BreakResult, s::Symbol)
+    s === :break_index1 && return getfield(r, :break1)
+    s === :break_index2 && return getfield(r, :break2)
+    s === :break_fraction1 && return getfield(r, :break1_fraction)
+    s === :break_fraction2 && return getfield(r, :break2_fraction)
+    return getfield(r, s)
+end
+function Base.getproperty(r::GregoryHansenResult, s::Symbol)
+    s === :adf_break_index && return getfield(r, :adf_break)
+    s === :zt_break_index && return getfield(r, :zt_break)
+    s === :za_break_index && return getfield(r, :za_break)
+    s === :critical_values && return getfield(r, :adf_critical_values)
+    return getfield(r, s)
+end
 
 export ACFResult, SpectralDensityResult, CrossSpectrumResult, TransferFunctionResult
 export FisherTestResult, BartlettWhiteNoiseResult, BoxPierceResult, DurbinWatsonResult
@@ -3048,46 +3330,118 @@ export fisher_test, bartlett_white_noise_test, box_pierce_test, durbin_watson_te
 # ─── Panel Regression Types & Functions (v0.4.0) ─────────────
 
 struct PanelRegModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}
-    within_r2::T; overall_r2::T; between_r2::T
-    f_stat::T; f_pvalue::T; loglik::T; aic::T; bic::T
-    nobs::Int; n_groups::Int; rank::Int; dof_resid::Int
-    cov_type::Symbol; fe_type::Symbol; varnames::Vector{String}
-    clusters::Union{Vector{Int},Nothing}; panel::PanelData{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    y::Vector{T}
+    X::Matrix{T}
+    r2_within::T
+    r2_between::T
+    r2_overall::T
+    sigma_u::T
+    sigma_e::T
+    rho::T
+    theta::T
+    f_stat::T
+    f_pval::T
+    loglik::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    method::Symbol
+    twoway::Bool
+    cov_type::Symbol
+    n_obs::Int
+    n_groups::Int
+    n_periods_avg::T
+    group_effects::Union{Nothing,Vector{T}}
+    data::PanelData{T}
+    dynamic_diagnostics::Union{Nothing,NamedTuple}
 end
 
 struct PanelIVModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; Z::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}
-    within_r2::T; overall_r2::T
-    f_stat::T; f_pvalue::T; first_stage_f::T; sargan_stat::T; sargan_pval::T
-    nobs::Int; n_groups::Int; rank::Int; dof_resid::Int
-    cov_type::Symbol; fe_type::Symbol; varnames::Vector{String}
-    clusters::Union{Vector{Int},Nothing}; panel::PanelData{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    y::Vector{T}
+    X::Matrix{T}
+    Z::Matrix{T}
+    r2_within::T
+    r2_between::T
+    r2_overall::T
+    sigma_u::T
+    sigma_e::T
+    rho::T
+    first_stage_f::T
+    sargan_stat::T
+    sargan_pval::T
+    cragg_donald_f::T
+    kleibergen_paap_f::T
+    stock_yogo_10pct::T
+    varnames::Vector{String}
+    endog_names::Vector{String}
+    instrument_names::Vector{String}
+    method::Symbol
+    cov_type::Symbol
+    n_obs::Int
+    n_groups::Int
+    data::PanelData{T}
 end
 
 struct PanelLogitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}
-    loglik::T; loglik_null::T; pseudo_r2::T; aic::T; bic::T
-    nobs::Int; n_groups::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
-    fe_type::Symbol; panel::PanelData{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    y::Vector{T}
+    X::Matrix{T}
+    fitted::Vector{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    sigma_u::T
+    rho::T
+    varnames::Vector{String}
+    method::Symbol
+    cov_type::Symbol
+    converged::Bool
+    iterations::Int
+    n_obs::Int
+    n_groups::Int
+    data::PanelData{T}
 end
 
 struct PanelProbitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Vector{T}
-    loglik::T; loglik_null::T; pseudo_r2::T; aic::T; bic::T
-    nobs::Int; n_groups::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
-    fe_type::Symbol; panel::PanelData{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    y::Vector{T}
+    X::Matrix{T}
+    fitted::Vector{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    sigma_u::T
+    rho::T
+    varnames::Vector{String}
+    method::Symbol
+    cov_type::Symbol
+    converged::Bool
+    iterations::Int
+    n_obs::Int
+    n_groups::Int
+    data::PanelData{T}
 end
 
 struct PanelTestResult{T<:Real}
-    test_name::String; statistic::T; pvalue::T; df::Union{Int,Tuple{Int,Int}}
-    nobs::Int; n_groups::Int
+    test_name::String
+    statistic::T
+    pvalue::T
+    df::Union{Int,Tuple{Int,Int},Nothing}
+    description::String
 end
 
 # StatsAPI dispatches for panel regression types
@@ -3095,10 +3449,10 @@ coef(m::PanelRegModel) = m.beta
 coef(m::PanelIVModel) = m.beta
 coef(m::PanelLogitModel) = m.beta
 coef(m::PanelProbitModel) = m.beta
-vcov(m::PanelRegModel) = m.var_beta
-vcov(m::PanelIVModel) = m.var_beta
-vcov(m::PanelLogitModel) = m.var_beta
-vcov(m::PanelProbitModel) = m.var_beta
+vcov(m::PanelRegModel) = m.vcov_mat
+vcov(m::PanelIVModel) = m.vcov_mat
+vcov(m::PanelLogitModel) = m.vcov_mat
+vcov(m::PanelProbitModel) = m.vcov_mat
 residuals(m::PanelRegModel) = m.residuals
 residuals(m::PanelIVModel) = m.residuals
 residuals(m::PanelLogitModel) = m.residuals
@@ -3107,10 +3461,10 @@ predict(m::PanelRegModel) = m.fitted
 predict(m::PanelIVModel) = m.fitted
 predict(m::PanelLogitModel) = m.fitted
 predict(m::PanelProbitModel) = m.fitted
-stderror(m::PanelRegModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta,1)]
-stderror(m::PanelIVModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta,1)]
-stderror(m::PanelLogitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta,1)]
-stderror(m::PanelProbitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta,1)]
+stderror(m::PanelRegModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
+stderror(m::PanelIVModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
+stderror(m::PanelLogitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
+stderror(m::PanelProbitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
 nobs(m::PanelRegModel) = m.nobs
 nobs(m::PanelIVModel) = m.nobs
 nobs(m::PanelLogitModel) = m.nobs
@@ -3137,36 +3491,39 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         varnames=nothing) where T
     n, k = pd.T_obs, length(covariates) + 1
     beta = ones(T, k) * T(0.5)
-    var_beta = Matrix{T}(I(k)) * T(0.01)
+    vcov_mat = Matrix{T}(I(k)) * T(0.01)
     y = pd.data[:, 1]
     X = ones(T, n, k)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
-    cl = isnothing(clusters) ? pd.group_id : clusters
-    PanelRegModel{T}(y, X, beta, var_beta, resids, fitted_vals,
-        T(0.35), T(0.30), T(0.25), T(20.0), T(0.001), T(-200.0), T(410.0), T(420.0),
-        n, pd.n_groups, k, n - k - pd.n_groups,
-        cov_type, fe, vnames, cl, pd)
+    meth = model isa Symbol ? model : :fe
+    PanelRegModel{T}(beta, vcov_mat, resids, fitted_vals, y, X,
+        T(0.35), T(0.25), T(0.30), T(0.5), T(1.0), T(0.2), T(0.5),
+        T(20.0), T(0.001), T(-200.0), T(410.0), T(420.0),
+        vnames, meth, Bool(twoway), cov_type, n, pd.n_groups, T(n / max(pd.n_groups, 1)),
+        nothing, pd, nothing)
 end
 
 function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
         instruments=Symbol[], model=:fe, fe=:twoway, cov_type=:cluster, clusters=nothing, varnames=nothing) where T
     n, k = pd.T_obs, length(covariates) + 1
-    kz = length(instruments) + 1
+    kz = max(1, length(instruments) + 1)
     beta = ones(T, k) * T(0.5)
-    var_beta = Matrix{T}(I(k)) * T(0.01)
+    vcov_mat = Matrix{T}(I(k)) * T(0.01)
     y = pd.data[:, 1]
     X = ones(T, n, k)
     Z = ones(T, n, kz)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
-    cl = isnothing(clusters) ? pd.group_id : clusters
-    PanelIVModel{T}(y, X, Z, beta, var_beta, resids, fitted_vals,
-        T(0.30), T(0.25), T(18.0), T(0.002), T(12.0), T(2.5), T(0.30),
-        n, pd.n_groups, k, n - k - pd.n_groups,
-        cov_type, fe, vnames, cl, pd)
+    endog_names = string.(endog)
+    inst_names = string.(instruments)
+    PanelIVModel{T}(beta, vcov_mat, resids, fitted_vals, y, X, Z,
+        T(0.30), T(0.20), T(0.25), T(0.5), T(1.0), T(0.2),
+        T(12.0), T(2.5), T(0.30), T(10.0), T(9.0), T(7.0),
+        vnames, endog_names, inst_names, model isa Symbol ? model : :fe, cov_type,
+        n, pd.n_groups, pd)
 end
 
 function estimate_xtlogit(pd::PanelData{T}, outcome, covariates;
@@ -3174,16 +3531,15 @@ function estimate_xtlogit(pd::PanelData{T}, outcome, covariates;
         maxiter=100, tol=1e-8) where T
     n, k = pd.T_obs, length(covariates) + 1
     beta = ones(T, k) * T(0.3)
-    var_beta = Matrix{T}(I(k)) * T(0.02)
+    vcov_mat = Matrix{T}(I(k)) * T(0.02)
     y = pd.data[:, 1]
     X = ones(T, n, k)
     fitted_vals = ones(T, n) * T(0.5)
-    resids = y .- fitted_vals
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
-    cl = isnothing(clusters) ? pd.group_id : clusters
-    PanelLogitModel{T}(y, X, beta, var_beta, resids, fitted_vals,
+    PanelLogitModel{T}(beta, vcov_mat, y, X, fitted_vals,
         T(-80.0), T(-100.0), T(0.20), T(170.0), T(180.0),
-        n, pd.n_groups, vnames, true, 10, cov_type, fe, pd)
+        T(0.5), T(0.2), vnames, model isa Symbol ? model : :pooled, cov_type,
+        true, 10, n, pd.n_groups, pd)
 end
 
 function estimate_xtprobit(pd::PanelData{T}, outcome, covariates;
@@ -3191,42 +3547,41 @@ function estimate_xtprobit(pd::PanelData{T}, outcome, covariates;
         maxiter=100, tol=1e-8) where T
     n, k = pd.T_obs, length(covariates) + 1
     beta = ones(T, k) * T(0.3)
-    var_beta = Matrix{T}(I(k)) * T(0.02)
+    vcov_mat = Matrix{T}(I(k)) * T(0.02)
     y = pd.data[:, 1]
     X = ones(T, n, k)
     fitted_vals = ones(T, n) * T(0.5)
-    resids = y .- fitted_vals
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
-    cl = isnothing(clusters) ? pd.group_id : clusters
-    PanelProbitModel{T}(y, X, beta, var_beta, resids, fitted_vals,
+    PanelProbitModel{T}(beta, vcov_mat, y, X, fitted_vals,
         T(-80.0), T(-100.0), T(0.20), T(170.0), T(180.0),
-        n, pd.n_groups, vnames, true, 10, cov_type, fe, pd)
+        T(0.5), T(0.2), vnames, model isa Symbol ? model : :pooled, cov_type,
+        true, 10, n, pd.n_groups, pd)
 end
 
 function hausman_test(fe_model::PanelRegModel{T}, re_model::PanelRegModel{T}) where T
     k = length(fe_model.beta)
-    PanelTestResult{T}("Hausman", T(8.5), T(0.03), k, fe_model.nobs, fe_model.n_groups)
+    PanelTestResult{T}("Hausman", T(10.0), T(0.01), k, "FE vs RE")
 end
 
 function breusch_pagan_test(model::PanelRegModel{T}) where T
-    PanelTestResult{T}("Breusch-Pagan LM", T(45.0), T(0.001), 1, model.nobs, model.n_groups)
+    PanelTestResult{T}("Breusch-Pagan LM", T(45.0), T(0.001), 1, "LM test for random effects")
 end
 
 function f_test_fe(model::PanelRegModel{T}) where T
-    df2 = model.nobs - model.n_groups - length(model.beta)
-    PanelTestResult{T}("F-test for FE", T(12.0), T(0.001), (model.n_groups - 1, df2), model.nobs, model.n_groups)
+    df2 = model.n_obs - model.n_groups - length(model.beta)
+    PanelTestResult{T}("F-test for FE", T(12.0), T(0.001), (model.n_groups - 1, df2), "joint FE significance")
 end
 
 function pesaran_cd_test(model::Union{PanelRegModel{T},PanelLogitModel{T},PanelProbitModel{T}}) where T
-    PanelTestResult{T}("Pesaran CD", T(3.5), T(0.001), 0, model.nobs, model.n_groups)
+    PanelTestResult{T}("Pesaran CD", T(3.5), T(0.001), 0, "cross-sectional dependence")
 end
 
 function wooldridge_ar_test(model::PanelRegModel{T}) where T
-    PanelTestResult{T}("Wooldridge AR(1)", T(5.2), T(0.02), 1, model.nobs, model.n_groups)
+    PanelTestResult{T}("Wooldridge AR(1)", T(5.2), T(0.02), 1, "serial correlation in panel")
 end
 
 function modified_wald_test(model::PanelRegModel{T}) where T
-    PanelTestResult{T}("Modified Wald", T(28.0), T(0.005), model.n_groups, model.nobs, model.n_groups)
+    PanelTestResult{T}("Modified Wald", T(28.0), T(0.005), model.n_groups, "groupwise heteroskedasticity")
 end
 
 export PanelRegModel, PanelIVModel, PanelLogitModel, PanelProbitModel, PanelTestResult
@@ -3237,53 +3592,98 @@ export wooldridge_ar_test, modified_wald_test
 # ─── Ordered/Multinomial & Data Utilities (v0.4.0) ───────────
 
 struct OrderedLogitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; thresholds::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Matrix{T}
-    loglik::T; loglik_null::T; pseudo_r2::T; aic::T; bic::T
-    nobs::Int; n_categories::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    cutpoints::Vector{T}
+    vcov_mat::Matrix{T}
+    fitted::Matrix{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    categories::Vector{Int}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
 end
 
 struct OrderedProbitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Vector{T}; thresholds::Vector{T}; var_beta::Matrix{T}
-    residuals::Vector{T}; fitted::Matrix{T}
-    loglik::T; loglik_null::T; pseudo_r2::T; aic::T; bic::T
-    nobs::Int; n_categories::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    cutpoints::Vector{T}
+    vcov_mat::Matrix{T}
+    fitted::Matrix{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    categories::Vector{Int}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
 end
 
 struct MultinomialLogitModel{T<:Real}
-    y::Vector{T}; X::Matrix{T}; beta::Matrix{T}; var_beta::Array{T,3}
-    residuals::Vector{T}; fitted::Matrix{T}
-    loglik::T; loglik_null::T; pseudo_r2::T; aic::T; bic::T
-    nobs::Int; n_categories::Int; base_category::Int; varnames::Vector{String}
-    converged::Bool; iterations::Int; cov_type::Symbol
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Matrix{T}
+    vcov_mat::Array{T,3}
+    fitted::Matrix{T}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    categories::Vector{Int}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
 end
 
 # StatsAPI dispatches for ordered/multinomial models
-coef(m::OrderedLogitModel) = vcat(m.beta, m.thresholds)
-coef(m::OrderedProbitModel) = vcat(m.beta, m.thresholds)
+coef(m::OrderedLogitModel) = vcat(m.beta, m.cutpoints)
+coef(m::OrderedProbitModel) = vcat(m.beta, m.cutpoints)
 coef(m::MultinomialLogitModel) = vec(m.beta)
-vcov(m::OrderedLogitModel) = m.var_beta
-vcov(m::OrderedProbitModel) = m.var_beta
-vcov(m::MultinomialLogitModel) = m.var_beta[:, :, 1]
-residuals(m::OrderedLogitModel) = m.residuals
-residuals(m::OrderedProbitModel) = m.residuals
-residuals(m::MultinomialLogitModel) = m.residuals
+vcov(m::OrderedLogitModel) = m.vcov_mat
+vcov(m::OrderedProbitModel) = m.vcov_mat
+vcov(m::MultinomialLogitModel) = m.vcov_mat[:, :, 1]
+residuals(m::OrderedLogitModel) = m.y .- m.fitted[:, 1]
+residuals(m::OrderedProbitModel) = m.y .- m.fitted[:, 1]
+residuals(m::MultinomialLogitModel) = m.y .- m.fitted[:, 1]
 predict(m::OrderedLogitModel) = m.fitted[:, 1]
 predict(m::OrderedProbitModel) = m.fitted[:, 1]
 predict(m::MultinomialLogitModel) = m.fitted[:, 1]
 
-# Alias cutpoints → thresholds, categories → unique(y) for compat with estimate.jl handlers
-Base.getproperty(m::OrderedLogitModel, s::Symbol) = s === :cutpoints ? getfield(m, :thresholds) : (s === :categories ? collect(1:getfield(m, :n_categories)) : getfield(m, s))
-Base.getproperty(m::OrderedProbitModel, s::Symbol) = s === :cutpoints ? getfield(m, :thresholds) : (s === :categories ? collect(1:getfield(m, :n_categories)) : getfield(m, s))
-Base.getproperty(m::MultinomialLogitModel, s::Symbol) = s === :categories ? collect(1:getfield(m, :n_categories)) : getfield(m, s)
-stderror(m::OrderedLogitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta,1)]
-stderror(m::OrderedProbitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta,1)]
-stderror(m::MultinomialLogitModel) = vcat([[sqrt(m.var_beta[i,i,c]) for i in 1:size(m.var_beta,1)] for c in 1:size(m.var_beta,3)]...)
-nobs(m::OrderedLogitModel) = m.nobs
-nobs(m::OrderedProbitModel) = m.nobs
-nobs(m::MultinomialLogitModel) = m.nobs
+# Compat aliases for handlers still using legacy field names
+function Base.getproperty(m::Union{OrderedLogitModel,OrderedProbitModel}, s::Symbol)
+    s === :thresholds && return getfield(m, :cutpoints)
+    s === :n_categories && return length(getfield(m, :categories))
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :nobs && return length(getfield(m, :y))
+    s === :residuals && return getfield(m, :y) .- getfield(m, :fitted)[:, 1]
+    return getfield(m, s)
+end
+function Base.getproperty(m::MultinomialLogitModel, s::Symbol)
+    s === :n_categories && return length(getfield(m, :categories))
+    s === :base_category && return first(getfield(m, :categories))
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :nobs && return length(getfield(m, :y))
+    s === :residuals && return getfield(m, :y) .- getfield(m, :fitted)[:, 1]
+    return getfield(m, s)
+end
+stderror(m::OrderedLogitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
+stderror(m::OrderedProbitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
+stderror(m::MultinomialLogitModel) = vcat([[sqrt(m.vcov_mat[i,i,c]) for i in 1:size(m.vcov_mat,1)] for c in 1:size(m.vcov_mat,3)]...)
+nobs(m::OrderedLogitModel) = length(m.y)
+nobs(m::OrderedProbitModel) = length(m.y)
+nobs(m::MultinomialLogitModel) = length(m.y)
 loglikelihood(m::OrderedLogitModel) = m.loglik
 loglikelihood(m::OrderedProbitModel) = m.loglik
 loglikelihood(m::MultinomialLogitModel) = m.loglik
@@ -3302,16 +3702,16 @@ function _build_ordered(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{T};
         maxiter::Int=100, tol::Real=1e-8) where {T, M}
     n, k = size(X)
     beta = ones(T, k) * T(0.3)
-    thresholds = [T(c) * T(0.5) for c in 1:(n_categories - 1)]
-    nb = k + length(thresholds)
-    var_beta = Matrix{T}(I(nb)) * T(0.02)
+    cutpoints = [T(c) * T(0.5) for c in 1:(n_categories - 1)]
+    nb = k + length(cutpoints)
+    vcov_mat = Matrix{T}(I(nb)) * T(0.02)
     fitted_mat = ones(T, n, n_categories) / n_categories
-    resids = y .- fitted_mat[:, 1]
     ll = T(-80.0); ll_null = T(-100.0)
     pseudo = one(T) - ll / ll_null
     vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
-    M{T}(y, X, beta, thresholds, var_beta, resids, fitted_mat, ll, ll_null, pseudo,
-         T(170.0), T(180.0), n, n_categories, vnames, true, 15, cov_type)
+    cats = collect(1:n_categories)
+    M{T}(y, X, beta, cutpoints, vcov_mat, fitted_mat, ll, ll_null, pseudo,
+         T(170.0), T(180.0), vnames, cats, true, 15, cov_type)
 end
 
 function estimate_ologit(y::AbstractVector{T}, X::AbstractMatrix{T};
@@ -3335,23 +3735,23 @@ function estimate_mlogit(y::AbstractVector{T}, X::AbstractMatrix{T};
     nc = n_categories
     beta = ones(T, k, nc) * T(0.3)
     beta[:, base_category] .= T(0.0)
-    var_beta = zeros(T, k, k, nc)
+    vcov_mat = zeros(T, k, k, nc)
     for c in 1:nc
-        var_beta[:, :, c] = Matrix{T}(I(k)) * T(0.02)
+        vcov_mat[:, :, c] = Matrix{T}(I(k)) * T(0.02)
     end
     fitted_mat = ones(T, n, nc) / nc
-    resids = y .- T(base_category)
     ll = T(-90.0); ll_null = T(-110.0)
     pseudo = one(T) - ll / ll_null
     vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
-    MultinomialLogitModel{T}(y, X, beta, var_beta, resids, fitted_mat, ll, ll_null, pseudo,
-        T(190.0), T(200.0), n, nc, base_category, vnames, true, 20, cov_type)
+    cats = collect(1:nc)
+    MultinomialLogitModel{T}(y, X, beta, vcov_mat, fitted_mat, ll, ll_null, pseudo,
+        T(190.0), T(200.0), vnames, cats, true, 20, cov_type)
 end
 
 function marginal_effects(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}};
         type=:ame, at=nothing, conf_level=0.95) where T
     k = length(m.beta)
-    nc = m.n_categories
+    nc = length(m.categories)
     effects = ones(T, k, nc) * T(0.1)
     MarginalEffects{T}(vec(effects), fill(T(0.02), k*nc), fill(T(5.0), k*nc),
         fill(T(0.001), k*nc), vec(effects) .- T(0.04), vec(effects) .+ T(0.04),
@@ -3361,7 +3761,7 @@ end
 function marginal_effects(m::MultinomialLogitModel{T};
         type=:ame, at=nothing, conf_level=0.95) where T
     k = size(m.beta, 1)
-    nc = m.n_categories
+    nc = length(m.categories)
     effects = ones(T, k, nc) * T(0.1)
     MarginalEffects{T}(vec(effects), fill(T(0.02), k*nc), fill(T(5.0), k*nc),
         fill(T(0.001), k*nc), vec(effects) .- T(0.04), vec(effects) .+ T(0.04),
@@ -3370,14 +3770,14 @@ end
 
 function brant_test(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}}) where T
     k = length(m.beta)
-    PanelTestResult{T}("Brant", T(5.0), T(0.25), k * (m.n_categories - 2),
-        m.nobs, 1)
+    nc = length(m.categories)
+    PanelTestResult{T}("Brant", T(5.0), T(0.25), k * (nc - 2),
+        "proportional odds test")
 end
 
 function hausman_iia(m::MultinomialLogitModel{T}; omit_category::Int=2) where T
     k = size(m.beta, 1)
-    PanelTestResult{T}("Hausman IIA", T(3.5), T(0.48), k,
-        m.nobs, m.n_categories)
+    PanelTestResult{T}("Hausman IIA", T(3.5), T(0.48), k, "IIA test")
 end
 
 function dropna(ts; vars=nothing, cols=nothing)
@@ -3388,8 +3788,276 @@ function keeprows(ts, indices::AbstractVector)
     ts
 end
 
+# Compat field aliases (handlers may still use legacy names)
+function Base.getproperty(m::PanelRegModel, s::Symbol)
+    s === :nobs && return getfield(m, :n_obs)
+    s === :within_r2 && return getfield(m, :r2_within)
+    s === :between_r2 && return getfield(m, :r2_between)
+    s === :overall_r2 && return getfield(m, :r2_overall)
+    s === :f_pvalue && return getfield(m, :f_pval)
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :fe_type && return getfield(m, :method)
+    s === :panel && return getfield(m, :data)
+    s === :dof_resid && return getfield(m, :n_obs) - length(getfield(m, :beta))
+    s === :rank && return length(getfield(m, :beta))
+    s === :clusters && return nothing
+    return getfield(m, s)
+end
+function Base.getproperty(m::PanelIVModel, s::Symbol)
+    s === :nobs && return getfield(m, :n_obs)
+    s === :within_r2 && return getfield(m, :r2_within)
+    s === :overall_r2 && return getfield(m, :r2_overall)
+    s === :f_pvalue && return getfield(m, :f_stat)  # no f_pval on real IV; expose f_stat
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :fe_type && return getfield(m, :method)
+    s === :panel && return getfield(m, :data)
+    s === :dof_resid && return getfield(m, :n_obs) - length(getfield(m, :beta))
+    s === :rank && return length(getfield(m, :beta))
+    s === :clusters && return nothing
+    return getfield(m, s)
+end
+function Base.getproperty(m::Union{PanelLogitModel,PanelProbitModel}, s::Symbol)
+    s === :nobs && return getfield(m, :n_obs)
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :fe_type && return getfield(m, :method)
+    s === :panel && return getfield(m, :data)
+    s === :residuals && return getfield(m, :y) .- getfield(m, :fitted)
+    return getfield(m, s)
+end
+function Base.getproperty(m::RegModel, s::Symbol)
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :f_pvalue && return getfield(m, :f_pval)
+    s === :nobs && return length(getfield(m, :y))
+    s === :rank && return length(getfield(m, :beta))
+    s === :dof_resid && return length(getfield(m, :y)) - length(getfield(m, :beta))
+    s === :clusters && return nothing
+    return getfield(m, s)
+end
+function Base.getproperty(m::Union{LogitModel,ProbitModel}, s::Symbol)
+    s === :var_beta && return getfield(m, :vcov_mat)
+    s === :nobs && return length(getfield(m, :y))
+    return getfield(m, s)
+end
+function Base.getproperty(m::BayesianImpulseResponse, s::Symbol)
+    s === :mean && return getfield(m, :point_estimate)
+    return getfield(m, s)
+end
+function Base.getproperty(m::BayesianFEVD, s::Symbol)
+    s === :mean && return getfield(m, :point_estimate)
+    return getfield(m, s)
+end
+function Base.getproperty(m::BayesianHistoricalDecomposition, s::Symbol)
+    s === :mean && return getfield(m, :point_estimate)
+    s === :initial_mean && return getfield(m, :initial_point_estimate)
+    s === :shocks_mean && return getfield(m, :shocks_point_estimate)
+    return getfield(m, s)
+end
+function Base.getproperty(m::LPDiDResult, s::Symbol)
+    s === :se_vec && return getfield(m, :se)
+    s === :nobs_h && return getfield(m, :nobs_per_horizon)
+    s === :pooled_post_result && return getfield(m, :pooled_post)
+    s === :pooled_pre_result && return getfield(m, :pooled_pre)
+    s === :vcov_all && return getfield(m, :vcov)
+    s === :outcome_name && return getfield(m, :outcome_var)
+    s === :treatment_name && return getfield(m, :treatment_var)
+    s === :spec_type && return getfield(m, :specification)
+    s === :pd && return getfield(m, :data)
+    return getfield(m, s)
+end
+function Base.getproperty(m::BVARForecast, s::Symbol)
+    s === :ci_method && return getfield(m, :point_estimate)
+    return getfield(m, s)
+end
+function Base.getproperty(m::BayesianFAVAR, s::Symbol)
+    s === :Y && return getfield(m, :data)
+    s === :factors && return dropdims(mean(getfield(m, :factor_draws); dims=3); dims=3)
+    s === :loadings && return dropdims(mean(getfield(m, :loadings_draws); dims=3); dims=3)
+    s === :n_draws && return size(getfield(m, :B_draws), 3)
+    return getfield(m, s)
+end
+function Base.getproperty(m::PesaranCIPSResult, s::Symbol)
+    s === :cips && return getfield(m, :cips_statistic)
+    s === :individual_cadf && return getfield(m, :individual_cadf_stats)
+    return getfield(m, s)
+end
+function Base.getproperty(m::FactorBreakResult, s::Symbol)
+    s === :r && return getfield(m, :n_factors)
+    s === :n_units && return getfield(m, :n_vars)
+    return getfield(m, s)
+end
+function Base.getproperty(m::GeneralizedDynamicFactorModel, s::Symbol)
+    s === :loadings && return dropdims(mean(getfield(m, :loadings_spectral); dims=3); dims=3)
+    return getfield(m, s)
+end
+function Base.getproperty(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}, s::Symbol)
+    s === :aic_val && return getfield(m, :aic)
+    s === :bic_val && return getfield(m, :bic)
+    s === :ll && return getfield(m, :loglik)
+    s === :sigma && return sqrt(getfield(m, :sigma2))
+    s === :coefficients && begin
+        if m isa ARModel
+            return getfield(m, :phi)
+        elseif m isa MAModel
+            return getfield(m, :theta)
+        elseif m isa ARMAModel
+            return vcat(getfield(m, :phi), getfield(m, :theta))
+        else
+            return vcat(getfield(m, :phi), getfield(m, :theta))
+        end
+    end
+    return getfield(m, s)
+end
+
+# --- C039 Phase-4 surface mocks (MEMs 0.6.7 fields ⊆ real) ---
+struct HADSGESpec{T<:AbstractFloat}
+    aggregate_spec::Any
+    individual::Any
+    income::Any
+    grid::Any
+    aggregation::Any
+    het_params::Dict{Symbol,T}
+    n_assets::Int
+    n_income::Int
+    model::Symbol
+end
+
+struct HASteadyState{T<:AbstractFloat}
+    policies::Any
+    distribution::Any
+    value_fn::Any
+    prices::Dict{Symbol,T}
+    aggregates::Dict{Symbol,T}
+    grid::Any
+    income::Any
+    converged::Bool
+    iterations::Int
+    euler_error::T
+    excess_demand::T
+end
+
+struct HADSGESolution{T<:AbstractFloat}
+    steady_state::HASteadyState{T}
+    linear_solution::Any
+    method::Symbol
+    spec::HADSGESpec{T}
+    reduction_basis::Any
+    n_full_states::Int
+    n_reduced::Int
+    explained_variance::T
+    jacobians::Any
+    C_obs::Matrix{T}
+    D_obs::Matrix{T}
+end
+
+struct CTAiyagari{T<:AbstractFloat}
+    alpha::T
+    rho::T
+    sigma::T
+    delta::T
+    Z::T
+    income::Any
+    a_min::T
+    a_max::T
+    I::Int
+end
+
+struct BlanchardOLG{T<:AbstractFloat}
+    alpha::T
+    beta::T
+    delta::T
+    gamma::T
+    Z::T
+    b::T
+end
+
+struct BlanchardOLGSteadyState{T<:AbstractFloat}
+    k::T
+    C::T
+    r::T
+    w::T
+    H::T
+    mpc::T
+    b::T
+    converged::Bool
+end
+
+struct BlanchardOLGSolution{T<:AbstractFloat}
+    ss::BlanchardOLGSteadyState{T}
+    M::Matrix{T}
+    eigenvalues::Vector{Complex{T}}
+    stable_eig::Vector{Complex{T}}
+    policy_slope::T
+    determinate::Bool
+end
+
+struct X13FilterResult{T<:AbstractFloat}
+    trend::Vector{T}
+    seasonal::Vector{T}
+    irregular::Vector{T}
+    adjusted::Vector{T}
+    original::Vector{T}
+    method::Symbol
+    arima_order::Tuple{Int,Int,Int}
+    frequency::Int
+    transform::Symbol
+    sigma2::T
+    aic::T
+    n_outliers::Int
+    T_obs::Int
+end
+
+struct IOData{T}
+    Z::Matrix{T}
+    Y::Matrix{T}
+    va::Matrix{T}
+    x::Vector{T}
+    sectors::Vector{String}
+    regions::Vector{String}
+    fd_cats::Vector{String}
+    va_cats::Vector{String}
+    extensions::Dict{String,Any}
+    unit::String
+    year::Int
+    source::String
+    meta::Dict{String,Any}
+end
+
+load_ha_example(name::String="aiyagari") = HADSGESpec{Float64}(
+    nothing, nothing, nothing, nothing, nothing, Dict{Symbol,Float64}(), 100, 5, :aiyagari)
+
+function x13_filter(y::AbstractVector; method::Symbol=:x11, frequency::Int=12)
+    T = length(y)
+    z = Float64.(y)
+    X13FilterResult(z, zeros(T), zeros(T), z, z, method, (0,1,1), frequency, :none, 1.0, 0.0, 0, T)
+end
+
+function parse_io(path::String; unit::String="usd", year::Int=2020)
+    n = 3
+    Z = Matrix{Float64}(I, n, n) .* 0.1
+    Y = ones(n, 1)
+    va = ones(n, 1)
+    x = ones(n)
+    IOData(Z, Y, va, x, ["s$i" for i in 1:n], String["r1"], String["fd1"], String["va1"],
+           Dict{String,Any}(), unit, year, "mock", Dict{String,Any}("path"=>path))
+end
+
+function blanchard_steady_state(m::BlanchardOLG)
+    BlanchardOLGSteadyState(1.0, 1.0, 0.05, 1.0, 1.0, 0.1, m.b, true)
+end
+
+function blanchard_solve(m::BlanchardOLG)
+    ss = blanchard_steady_state(m)
+    BlanchardOLGSolution(ss, Matrix{Float64}(I, 2, 2), ComplexF64[0.5, 1.2],
+                         ComplexF64[0.5], 0.9, true)
+end
+
 export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
+
+export HADSGESpec, HASteadyState, HADSGESolution, CTAiyagari
+export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
+export X13FilterResult, IOData
+export load_ha_example, x13_filter, parse_io, blanchard_steady_state, blanchard_solve
 
 end # module
