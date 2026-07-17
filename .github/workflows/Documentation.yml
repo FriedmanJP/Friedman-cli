@@ -40,6 +40,9 @@ jobs:
       - name: Build docs
         run: julia --project=docs docs/make.jl
         env:
+          # Deploy over HTTPS with the built-in GITHUB_TOKEN (permissions: contents: write
+          # above grant push to gh-pages). The SSH DOCUMENTER_KEY deploy key failed auth on
+          # the first real deploy — the v0.6.0 release tag — with "Could not read from remote
+          # repository" (git@github.com fetch → exit 128). deploydocs still only deploys from
+          # master (devbranch) + release tags; dev pushes build without deploying.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # deploydocs only pushes from master (D-9); build still runs on dev
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
