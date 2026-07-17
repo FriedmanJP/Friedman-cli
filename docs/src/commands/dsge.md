@@ -445,3 +445,37 @@ friedman dsge ha simulate-panel huggett --n-agents=1000 --periods=100 --seed=1
 | `simulate-panel` | — | Summary mean/sd assets over time |
 
 Common options: `--format`/`-f`, `--output`/`-o`, `--horizon`/`-h`, `--n-reduced`, `--seed`.
+
+## Continuous-time HA (`dsge ct`) — C041
+
+Continuous-time Aiyagari equilibrium and MIT-shock transitions. Optional `--two-asset` uses the Kaplan–Moll–Violante two-asset solver.
+
+```bash
+# Stationary equilibrium (smaller --grid-size for interactive work)
+friedman dsge ct solve --grid-size=100
+friedman dsge ct solve --two-asset
+
+# MIT-shock perfect-foresight path (impact TFP = shock-size × z)
+friedman dsge ct transition --periods=40 --shock-size=0.95 --dt=0.25
+```
+
+| Subcommand | API | Output tables |
+|------------|-----|---------------|
+| `solve` | `ct_steady_state` / `ct_two_asset_solve` | prices, aggregates |
+| `transition` | `ct_mit_shock` | t, Z, K, r, w, C path |
+
+## Blanchard OLG (`dsge olg`) — C041
+
+Perpetual-youth OLG (Blanchard 1985). Debt `b ≠ 0` surfaces a soft note (MEMs #237 history).
+
+```bash
+friedman dsge olg solve
+friedman dsge olg solve --debt=0.1 --gamma=0.98
+friedman dsge olg simulate --horizon=50          # k0 defaults to 0.8 k*
+friedman dsge olg simulate --k0=3.0 --horizon=40
+```
+
+| Subcommand | API | Output |
+|------------|-----|--------|
+| `solve` | `blanchard_solve` | steady state + saddle-path diagnostics |
+| `simulate` | `blanchard_transition` | k, C, r, w path |

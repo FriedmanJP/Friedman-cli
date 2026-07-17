@@ -3954,18 +3954,6 @@ struct HADSGESolution{T<:AbstractFloat}
     D_obs::Matrix{T}
 end
 
-struct CTAiyagari{T<:AbstractFloat}
-    alpha::T
-    rho::T
-    sigma::T
-    delta::T
-    Z::T
-    income::Any
-    a_min::T
-    a_max::T
-    I::Int
-end
-
 struct BlanchardOLG{T<:AbstractFloat}
     alpha::T
     beta::T
@@ -3989,10 +3977,99 @@ end
 struct BlanchardOLGSolution{T<:AbstractFloat}
     ss::BlanchardOLGSteadyState{T}
     M::Matrix{T}
-    eigenvalues::Vector{Complex{T}}
-    stable_eig::Vector{Complex{T}}
+    eigenvalues::Vector{ComplexF64}
+    stable_eig::T
     policy_slope::T
     determinate::Bool
+end
+
+# Continuous-time HA (C041)
+struct CTPoissonIncome{T<:AbstractFloat}
+    z::Vector{T}
+    lambda::Vector{T}
+end
+
+struct CTAiyagari{T<:AbstractFloat}
+    alpha::T
+    rho::T
+    sigma::T
+    delta::T
+    Z::T
+    income::CTPoissonIncome{T}
+    a_min::T
+    a_max::T
+    I::Int
+end
+
+function CTAiyagari(; alpha::Real=0.36, rho::Real=0.05, sigma::Real=2.0, delta::Real=0.05,
+                      Z::Real=1.0, z::AbstractVector=[0.1, 0.2],
+                      lambda::AbstractVector=[0.5, 0.5],
+                      a_min::Real=0.0, a_max::Real=30.0, I::Int=500)
+    T = Float64
+    inc = CTPoissonIncome{T}(collect(T, z), collect(T, lambda))
+    CTAiyagari{T}(T(alpha), T(rho), T(sigma), T(delta), T(Z), inc, T(a_min), T(a_max), I)
+end
+
+struct CTSteadyState{T<:AbstractFloat}
+    r::T
+    w::T
+    K::T
+    L::T
+    a::Vector{T}
+    g::Matrix{T}
+    v::Matrix{T}
+    c::Matrix{T}
+    s::Matrix{T}
+    A::Any
+    converged::Bool
+end
+
+struct CTTransition{T<:AbstractFloat}
+    t::Vector{T}
+    Z::Vector{T}
+    K::Vector{T}
+    r::Vector{T}
+    w::Vector{T}
+    C::Vector{T}
+    converged::Bool
+    iterations::Int
+end
+
+struct CTTwoAsset{T<:AbstractFloat}
+    sigma::T
+    rho::T
+    r_a::T
+    r_b::T
+    chi::T
+    w::T
+    income::Any
+    b_max::T
+    a_max::T
+    Ib::Int
+    Ia::Int
+end
+
+function CTTwoAsset(; sigma::Real=2.0, rho::Real=0.06, r_a::Real=0.05, r_b::Real=0.02,
+                      chi::Real=0.03, w::Real=1.0, b_max::Real=40.0, a_max::Real=70.0,
+                      Ib::Int=40, Ia::Int=25)
+    T = Float64
+    CTTwoAsset{T}(T(sigma), T(rho), T(r_a), T(r_b), T(chi), T(w), nothing,
+                  T(b_max), T(a_max), Ib, Ia)
+end
+
+struct CTTwoAssetSolution{T<:AbstractFloat}
+    b::Vector{T}
+    a::Vector{T}
+    V::Array{T,3}
+    c::Array{T,3}
+    d::Array{T,3}
+    sb::Array{T,3}
+    sa::Array{T,3}
+    g::Array{T,3}
+    B::T
+    A::T
+    gen::Any
+    hjb_converged::Bool
 end
 
 struct X13FilterResult{T<:AbstractFloat}
@@ -4162,24 +4239,80 @@ function parse_io(path::String; unit::String="usd", year::Int=2020)
            Dict{String,Any}(), unit, year, "mock", Dict{String,Any}("path"=>path))
 end
 
-function blanchard_steady_state(m::BlanchardOLG)
-    BlanchardOLGSteadyState(1.0, 1.0, 0.05, 1.0, 1.0, 0.1, m.b, true)
+function BlanchardOLG(; alpha::Real=0.36, beta::Real=0.96, delta::Real=0.08,
+                        gamma::Real=0.98, Z::Real=1.0, b::Real=0.0)
+    T = Float64
+    BlanchardOLG{T}(T(alpha), T(beta), T(delta), T(gamma), T(Z), T(b))
 end
 
-function blanchard_solve(m::BlanchardOLG)
-    ss = blanchard_steady_state(m)
-    BlanchardOLGSolution(ss, Matrix{Float64}(I, 2, 2), ComplexF64[0.5, 1.2],
-                         ComplexF64[0.5], 0.9, true)
+function blanchard_steady_state(m::BlanchardOLG{T}; tol::Real=1e-10, max_iter::Int=200) where T
+    BlanchardOLGSteadyState{T}(T(5.0), T(1.2), T(0.04), T(1.0), T(10.0),
+                               one(T) - m.beta * m.gamma, m.b, true)
+end
+
+function blanchard_solve(m::BlanchardOLG{T},
+                          ss::BlanchardOLGSteadyState{T}=blanchard_steady_state(m)) where T
+    BlanchardOLGSolution{T}(ss, Matrix{T}(I, 2, 2), ComplexF64[0.5, 1.2],
+                            T(0.85), T(0.16), true)
+end
+
+function blanchard_transition(m::BlanchardOLG{T}, sol::BlanchardOLGSolution{T}, k0::Real;
+                               H::Int=50) where T
+    kpath = [T(k0) + (sol.ss.k - T(k0)) * (one(T) - sol.stable_eig^t) for t in 0:H]
+    Cpath = [sol.ss.C + sol.policy_slope * (k - sol.ss.k) for k in kpath]
+    rpath = fill(sol.ss.r, H + 1)
+    wpath = fill(sol.ss.w, H + 1)
+    return (k=kpath, C=Cpath, r=rpath, w=wpath)
+end
+
+function ct_steady_state(m::CTAiyagari{T}; r_bounds=nothing, max_iter::Int=100,
+                          tol::Real=1e-6, hjb_max_iter::Int=100, hjb_tol::Real=1e-6,
+                          Delta::Real=1000.0) where T
+    a = collect(range(m.a_min, m.a_max; length=m.I))
+    g = ones(T, m.I, 2) ./ T(2 * m.I)
+    v = ones(T, m.I, 2)
+    c = ones(T, m.I, 2) * T(0.5)
+    s = zeros(T, m.I, 2)
+    CTSteadyState{T}(T(0.04), T(1.0), T(3.0), T(1.0), a, g, v, c, s, nothing, true)
+end
+
+function ct_mit_shock(m::CTAiyagari{T}, ss0::CTSteadyState{T}, Z_path::AbstractVector;
+                       dt::Real=0.25, max_iter::Int=300, tol::Real=1e-6,
+                       relax::Real=0.3) where T
+    N = length(Z_path)
+    t = collect(T, 0:N-1) .* T(dt)
+    Z = collect(T, Z_path)
+    K = fill(ss0.K, N); K[1] = ss0.K * T(0.98)
+    for i in 2:N
+        K[i] = ss0.K + (K[1] - ss0.K) * T(0.9)^(i - 1)
+    end
+    r = fill(ss0.r, N); w = fill(ss0.w, N); C = fill(ss0.K * ss0.r + ss0.w, N)
+    CTTransition{T}(t, Z, K, r, w, C, true, 5)
+end
+
+function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
+                             Delta::Real=1000.0) where T
+    b = collect(range(zero(T), m.b_max; length=m.Ib))
+    a = collect(range(zero(T), m.a_max; length=m.Ia))
+    V = ones(T, m.Ib, m.Ia, 2)
+    c = ones(T, m.Ib, m.Ia, 2) * T(0.5)
+    d = zeros(T, m.Ib, m.Ia, 2)
+    sb = zeros(T, m.Ib, m.Ia, 2)
+    sa = zeros(T, m.Ib, m.Ia, 2)
+    g = ones(T, m.Ib, m.Ia, 2) ./ T(2 * m.Ib * m.Ia)
+    CTTwoAssetSolution{T}(b, a, V, c, d, sb, sa, g, T(1.0), T(5.0), nothing, true)
 end
 
 export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
 
-export HADSGESpec, HASteadyState, HADSGESolution, KrusellSmithSolution, CTAiyagari
+export HADSGESpec, HASteadyState, HADSGESolution, KrusellSmithSolution
+export CTAiyagari, CTSteadyState, CTTransition, CTTwoAsset, CTTwoAssetSolution, CTPoissonIncome
 export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
 export X13FilterResult, IOData
 export load_ha_example, compute_steady_state, distribution_irf, inequality_irf, simulate_panel
-export x13_filter, parse_io, blanchard_steady_state, blanchard_solve
+export ct_steady_state, ct_mit_shock, ct_two_asset_solve
+export x13_filter, parse_io, blanchard_steady_state, blanchard_solve, blanchard_transition
 
 end # module

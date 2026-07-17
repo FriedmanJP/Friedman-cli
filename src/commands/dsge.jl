@@ -490,6 +490,111 @@ function dsge_specs()::Vector{CommandSpec}
             category="dsge",
             handler=wrap_legacy(_dsge_ha_simulate_panel),
         ),
+        # ── Continuous-time HA (C041) ──
+        CommandSpec(
+            path=["dsge", "ct", "solve"],
+            summary="Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
+                OptionSpec(name="rho", type=Float64, default=0.05, description="Discount rate"),
+                OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
+                OptionSpec(name="delta", type=Float64, default=0.05, description="Depreciation"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="TFP level"),
+                OptionSpec(name="a-min", type=Float64, default=0.0, description="Asset grid lower bound"),
+                OptionSpec(name="a-max", type=Float64, default=30.0, description="Asset grid upper bound"),
+                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points (I)"),
+                OptionSpec(name="max-iter", type=Int, default=100, description="Outer equilibrium iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-6, description="Convergence tolerance"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=[
+                FlagSpec(name="two-asset", description="Solve Kaplan-Moll-Violante two-asset model instead"),
+            ],
+            tables=[
+                TableSpec(name=:prices, description="Equilibrium r, w"),
+                TableSpec(name=:aggregates, description="K, L and convergence"),
+            ],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ct_solve),
+        ),
+        CommandSpec(
+            path=["dsge", "ct", "transition"],
+            summary="MIT-shock perfect-foresight transition (ct_mit_shock)",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
+                OptionSpec(name="rho", type=Float64, default=0.05, description="Discount rate"),
+                OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
+                OptionSpec(name="delta", type=Float64, default=0.05, description="Depreciation"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Steady-state TFP"),
+                OptionSpec(name="shock-size", type=Float64, default=0.95, description="Impact TFP multiplier (Z_0 = shock-size * z)"),
+                OptionSpec(name="periods", type=Int, default=40, description="Transition length (time points)"),
+                OptionSpec(name="dt", type=Float64, default=0.25, description="Time step"),
+                OptionSpec(name="a-max", type=Float64, default=30.0, description="Asset grid upper bound"),
+                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points"),
+                OptionSpec(name="max-iter", type=Int, default=100, description="Shooting iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-6, description="Convergence tolerance"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:transition, description="MIT-shock path (t, Z, K, r, w, C)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ct_transition),
+        ),
+        # ── Blanchard OLG (C041) ──
+        CommandSpec(
+            path=["dsge", "olg", "solve"],
+            summary="Blanchard perpetual-youth OLG: steady state + saddle path",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
+                OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
+                OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
+                OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b (see MEMs#237 if b≠0)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[
+                TableSpec(name=:steady_state, description="Steady-state levels"),
+                TableSpec(name=:dynamics, description="Saddle-path diagnostics"),
+            ],
+            category="dsge",
+            handler=wrap_legacy(_dsge_olg_solve),
+        ),
+        CommandSpec(
+            path=["dsge", "olg", "simulate"],
+            summary="Blanchard OLG transitional dynamics from k0 along the saddle path",
+            args=ArgSpec[],
+            options=[
+                OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
+                OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
+                OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
+                OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
+                OptionSpec(name="k0", type=Float64, default=0.0,
+                           description="Initial capital (0 = 80% of steady-state k)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=50, description="Transition periods H"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:path, description="Transition paths k, C, r, w")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_olg_simulate),
+        ),
     ]
 end
 
@@ -499,7 +604,7 @@ function register_dsge_commands!()
         s.path == ["dsge", "solve"] ? with_save_model([s])[1] : s
     end
     register!(specs)
-    return build_node("dsge", specs; description="DSGE models: solve, IRF, FEVD, simulate, estimate, Bayesian, OccBin, perfect foresight")
+    return build_node("dsge", specs; description="DSGE models: RA, Bayesian, HA, CT, OLG")
 end
 
 
@@ -1524,4 +1629,152 @@ function _dsge_ha_simulate_panel(; model::String,
     output_result(df; format=Symbol(format), output=output,
                   title="HA Panel Simulation Summary (N=$n_agents, T=$periods)")
     return panel
+end
+
+# ── Continuous-time HA + Blanchard OLG (C041) ───────────────
+
+function _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min, a_max, grid_size)
+    return MacroEconometricModels.CTAiyagari(;
+        alpha=alpha, rho=rho, sigma=sigma, delta=delta, Z=z,
+        a_min=a_min, a_max=a_max, I=grid_size)
+end
+
+function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64=2.0,
+                         delta::Float64=0.05, z::Float64=1.0,
+                         a_min::Float64=0.0, a_max::Float64=30.0, grid_size::Int=100,
+                         max_iter::Int=100, tol::Float64=1e-6,
+                         two_asset::Bool=false,
+                         output::String="", format::String="table")
+    if two_asset
+        _status("Solving continuous-time two-asset (KMV) model...")
+        m = MacroEconometricModels.CTTwoAsset(; sigma=sigma, rho=rho)
+        sol = MacroEconometricModels.ct_two_asset_solve(m; max_iter=max_iter, tol=tol)
+        # Summarize two-asset solution
+        gsum = sum(sol.g)
+        diag_df = DataFrame(
+            metric = ["hjb_converged", "B_liquid", "A_illiquid", "mass"],
+            value = [
+                Float64(sol.hjb_converged ? 1.0 : 0.0),
+                Float64(sol.B),
+                Float64(sol.A),
+                Float64(gsum),
+            ],
+        )
+        output_result(diag_df; format=Symbol(format), output=output,
+                      title="CT Two-Asset Solution")
+        return sol
+    end
+
+    _status("Solving continuous-time Aiyagari steady state (I=$grid_size)...")
+    m = _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min, a_max, grid_size)
+    ss = MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    _status_styled("  Converged: $(ss.converged)  r=$(round(ss.r; digits=5))  K=$(round(ss.K; digits=4))\n";
+                   color = ss.converged ? :green : :yellow)
+    price_df = DataFrame(name=["r", "w"], value=[ss.r, ss.w])
+    agg_df = DataFrame(name=["K", "L", "converged"],
+                       value=[ss.K, ss.L, Float64(ss.converged ? 1.0 : 0.0)])
+    output_result(price_df; format=Symbol(format), output=output, title="CT Aiyagari Prices")
+    output_result(agg_df; format=Symbol(format), output=output, title="CT Aiyagari Aggregates")
+    return ss
+end
+
+function _dsge_ct_transition(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64=2.0,
+                              delta::Float64=0.05, z::Float64=1.0,
+                              shock_size::Float64=0.95, periods::Int=40, dt::Float64=0.25,
+                              a_max::Float64=30.0, grid_size::Int=100,
+                              max_iter::Int=100, tol::Float64=1e-6,
+                              output::String="", format::String="table",
+                              plot::Bool=false, plot_save::String="")
+    periods >= 2 || throw(CliError("usage/invalid-option",
+        "--periods must be >= 2 (need impact + terminal)"))
+    _status("CT MIT-shock transition: periods=$periods, impact Z=$(shock_size)*$z")
+    m = _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min=0.0, a_max, grid_size)
+    ss = MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    # Z_path: impact then reversion to m.Z
+    Z_path = fill(Float64(m.Z), periods)
+    Z_path[1] = shock_size * Float64(m.Z)
+    tr = MacroEconometricModels.ct_mit_shock(m, ss, Z_path; dt=dt, max_iter=max_iter, tol=tol)
+    df = DataFrame(
+        t = tr.t,
+        Z = tr.Z,
+        K = tr.K,
+        r = tr.r,
+        w = tr.w,
+        C = tr.C,
+    )
+    _status_styled("  Transition converged: $(tr.converged) (iters=$(tr.iterations))\n";
+                   color = tr.converged ? :green : :yellow)
+    _maybe_plot(df; plot=plot, plot_save=plot_save)
+    output_result(df; format=Symbol(format), output=output,
+                  title="CT MIT-Shock Transition (impact=$(shock_size), T=$periods)")
+    return tr
+end
+
+function _dsge_olg_build(; alpha, beta, delta, gamma, z, debt)
+    return MacroEconometricModels.BlanchardOLG(;
+        alpha=alpha, beta=beta, delta=delta, gamma=gamma, Z=z, b=debt)
+end
+
+function _dsge_olg_maybe_warn_debt(debt::Float64)
+    if abs(debt) > 0
+        # MEMs#237 was fixed in later tips for C = r*k + w; still surface a soft note
+        # when debt is non-zero so agents know to re-check upstream notes.
+        _status_styled(
+            "  Note: debt b=$debt — verify MEMs Blanchard debt accounting (upstream #237).\n";
+            color=:yellow)
+    end
+end
+
+function _dsge_olg_solve(; alpha::Float64=0.36, beta::Float64=0.96, delta::Float64=0.08,
+                          gamma::Float64=0.98, z::Float64=1.0, debt::Float64=0.0,
+                          output::String="", format::String="table")
+    _dsge_olg_maybe_warn_debt(debt)
+    m = _dsge_olg_build(; alpha, beta, delta, gamma, z, debt)
+    _status("Solving Blanchard OLG (γ=$gamma, b=$debt)...")
+    sol = MacroEconometricModels.blanchard_solve(m)
+    ss = sol.ss
+    ss_df = DataFrame(
+        variable = ["k", "C", "r", "w", "H", "mpc", "b", "converged"],
+        value = [ss.k, ss.C, ss.r, ss.w, ss.H, ss.mpc, ss.b, Float64(ss.converged ? 1.0 : 0.0)],
+    )
+    dyn_df = DataFrame(
+        metric = ["stable_eig", "policy_slope", "determinate",
+                  "eig1_mod", "eig2_mod"],
+        value = [
+            Float64(sol.stable_eig),
+            Float64(sol.policy_slope),
+            Float64(sol.determinate ? 1.0 : 0.0),
+            Float64(abs(sol.eigenvalues[1])),
+            Float64(abs(sol.eigenvalues[2])),
+        ],
+    )
+    _status_styled("  Determinate: $(sol.determinate)  stable_eig=$(round(sol.stable_eig; digits=4))\n";
+                   color = sol.determinate ? :green : :red)
+    output_result(ss_df; format=Symbol(format), output=output, title="Blanchard OLG Steady State")
+    output_result(dyn_df; format=Symbol(format), output=output, title="Blanchard OLG Dynamics")
+    return sol
+end
+
+function _dsge_olg_simulate(; alpha::Float64=0.36, beta::Float64=0.96, delta::Float64=0.08,
+                             gamma::Float64=0.98, z::Float64=1.0, debt::Float64=0.0,
+                             k0::Float64=0.0, horizon::Int=50,
+                             output::String="", format::String="table",
+                             plot::Bool=false, plot_save::String="")
+    _dsge_olg_maybe_warn_debt(debt)
+    m = _dsge_olg_build(; alpha, beta, delta, gamma, z, debt)
+    sol = MacroEconometricModels.blanchard_solve(m)
+    k_init = k0 == 0.0 ? 0.8 * sol.ss.k : k0
+    _status("OLG transition: k0=$(round(k_init; digits=4)), H=$horizon, k*=$(round(sol.ss.k; digits=4))")
+    paths = MacroEconometricModels.blanchard_transition(m, sol, k_init; H=horizon)
+    df = DataFrame(
+        period = 0:horizon,
+        k = paths.k,
+        C = paths.C,
+        r = paths.r,
+        w = paths.w,
+    )
+    _maybe_plot(df; plot=plot, plot_save=plot_save)
+    output_result(df; format=Symbol(format), output=output,
+                  title="Blanchard OLG Transition (H=$horizon)")
+    return paths
 end

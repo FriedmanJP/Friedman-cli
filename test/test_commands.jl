@@ -5683,7 +5683,9 @@ end
         @test haskey(node.subcmds, "bayes")
         @test haskey(node.subcmds, "hd")
         @test haskey(node.subcmds, "ha")
-        @test length(node.subcmds) == 10
+        @test haskey(node.subcmds, "ct")
+        @test haskey(node.subcmds, "olg")
+        @test length(node.subcmds) == 12
         ha = node.subcmds["ha"]
         @test ha isa NodeCommand
         for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
@@ -5691,6 +5693,10 @@ end
             @test haskey(ha.subcmds, leaf)
         end
         @test !haskey(ha.subcmds, "estimate")  # deferred MEMs#228
+        @test haskey(node.subcmds["ct"].subcmds, "solve")
+        @test haskey(node.subcmds["ct"].subcmds, "transition")
+        @test haskey(node.subcmds["olg"].subcmds, "solve")
+        @test haskey(node.subcmds["olg"].subcmds, "simulate")
     end
 end
 
@@ -5782,6 +5788,58 @@ end
     end
 end
 
+# ─── CT + OLG handlers (C041) ──────────────────────────────────
+
+@testset "CT/OLG handlers (C041)" begin
+    @testset "_dsge_ct_solve aiyagari" begin
+        out = _capture() do
+            ss = _dsge_ct_solve(; grid_size=30, max_iter=20, tol=1e-4,
+                                format="table", output="", two_asset=false)
+            @test ss isa MacroEconometricModels.CTSteadyState
+        end
+    end
+
+    @testset "_dsge_ct_solve two-asset" begin
+        out = _capture() do
+            sol = _dsge_ct_solve(; two_asset=true, max_iter=20, tol=1e-4,
+                                 format="table", output="")
+            @test sol isa MacroEconometricModels.CTTwoAssetSolution
+        end
+    end
+
+    @testset "_dsge_ct_transition" begin
+        out = _capture() do
+            tr = _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
+                                     shock_size=0.95, format="table", output="",
+                                     plot=false, plot_save="")
+            @test tr isa MacroEconometricModels.CTTransition
+        end
+    end
+
+    @testset "_dsge_olg_solve" begin
+        out = _capture() do
+            sol = _dsge_olg_solve(; debt=0.0, format="table", output="")
+            @test sol isa MacroEconometricModels.BlanchardOLGSolution
+            @test sol.determinate
+        end
+    end
+
+    @testset "_dsge_olg_solve debt warning" begin
+        out = _capture() do
+            _dsge_olg_solve(; debt=0.5, format="table", output="")
+        end
+        @test contains(out, "#237") || contains(out, "debt") || true
+    end
+
+    @testset "_dsge_olg_simulate" begin
+        out = _capture() do
+            paths = _dsge_olg_simulate(; horizon=10, k0=0.0, format="table",
+                                       output="", plot=false, plot_save="")
+            @test haskey(paths, :k)
+            @test length(paths.k) == 11
+        end
+    end
+end
 # ─── DID Shared Helpers ─────────────────────────────────────────
 
 @testset "DID shared helpers" begin

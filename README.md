@@ -79,7 +79,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` | Time series filters |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
-| `dsge` | `solve` `irf` `fevd` `hd` `simulate` `estimate` `perfect-foresight` `steady-state` + `bayes` (…) + `ha` (`solve` `steady-state` `irf` `fevd` `simulate` `distribution-irf` `inequality-irf` `simulate-panel`) | Representative-agent + **HA-DSGE** (MEMs 0.6.7); `ha estimate` deferred (MEMs#228) |
+| `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.6.7) |
 | `spectral` | `acf` `periodogram` `density` `cross` `transfer` | Spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function) |
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
 | `schema` | — | Machine-readable self-description (raw JSON) |

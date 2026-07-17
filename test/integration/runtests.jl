@@ -409,6 +409,30 @@ end
         @test tbl !== nothing
         @test length(table_rows(tbl)) >= 5
     end
+
+    # C041 — CT Aiyagari + Blanchard OLG (small grids for CI time)
+    @testset "dsge ct solve aiyagari" begin
+        r = run_json(["dsge", "ct", "solve",
+                      "--grid-size", "40", "--max-iter", "40", "--tol", "1e-4"])
+        assert_envelope_ok(r; label="dsge ct solve")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+    end
+
+    @testset "dsge olg solve" begin
+        r = run_json(["dsge", "olg", "solve"])
+        assert_envelope_ok(r; label="dsge olg solve")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+    end
+
+    @testset "dsge olg simulate" begin
+        r = run_json(["dsge", "olg", "simulate", "--horizon", "20"])
+        assert_envelope_ok(r; label="dsge olg simulate")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        @test length(table_rows(tbl)) >= 20
+    end
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

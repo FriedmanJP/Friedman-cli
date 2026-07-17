@@ -3394,11 +3394,13 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "steady-state")
     @test haskey(dsge_node.subcmds, "hd")
     @test haskey(dsge_node.subcmds, "ha")
-    @test length(dsge_node.subcmds) == 10
+    @test haskey(dsge_node.subcmds, "ct")
+    @test haskey(dsge_node.subcmds, "olg")
+    @test length(dsge_node.subcmds) == 12
 
-    # Nested nodes: bayes, ha; remaining are leaves
+    # Nested nodes: bayes, ha, ct, olg; remaining are leaves
     for (name, cmd) in dsge_node.subcmds
-        if name in ("bayes", "ha")
+        if name in ("bayes", "ha", "ct", "olg")
             @test cmd isa NodeCommand
         else
             @test cmd isa LeafCommand
@@ -3412,6 +3414,13 @@ include(joinpath(@__DIR__, "test_repl.jl"))
         @test ha_node.subcmds[leaf] isa LeafCommand
     end
     @test !haskey(ha_node.subcmds, "estimate")  # deferred MEMs#228
+
+    ct_node = dsge_node.subcmds["ct"]
+    @test haskey(ct_node.subcmds, "solve")
+    @test haskey(ct_node.subcmds, "transition")
+    olg_node = dsge_node.subcmds["olg"]
+    @test haskey(olg_node.subcmds, "solve")
+    @test haskey(olg_node.subcmds, "simulate")
 
     # solve has model argument and key options
     solve_cmd = dsge_node.subcmds["solve"]

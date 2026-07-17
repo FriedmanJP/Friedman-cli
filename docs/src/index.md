@@ -26,7 +26,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Filters** | HP, Hamilton, Beveridge-Nelson, Baxter-King, Boosted HP | `filter hp`, `filter hamilton`, ... |
 | **Nowcasting** | DFM, BVAR, bridge equations, news decomposition | `nowcast dfm`, `nowcast bvar`, ... |
 | **Data Management** | Example datasets, diagnostics, transformations, validation, balancing | `data list`, `data load`, `data describe`, ... |
-| **DSGE** | Solve, IRF, FEVD, simulate, estimate, Bayesian, perfect foresight, steady state, **HA-DSGE** | `dsge solve`, `dsge bayes`, `dsge ha`, ... |
+| **DSGE** | RA + Bayesian + **HA** + **CT Aiyagari** + **Blanchard OLG** | `dsge solve`, `dsge ha`, `dsge ct`, `dsge olg`, ... |
 | **DID** | TWFE, Callaway-Sant'Anna, Sun-Abraham, BJS, dCdH, event study LP, LP-DiD | `did estimate`, `did event-study`, `did lp-did` |
 | **DID Diagnostics** | Bacon decomposition, pre-trend test, negative weights, HonestDiD | `did test bacon`, `did test pretrend`, ... |
 | **SMM** | Simulated Method of Moments estimation | `estimate smm` |
