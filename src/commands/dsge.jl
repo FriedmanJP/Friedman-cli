@@ -318,7 +318,8 @@ function dsge_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_dsge_bayes_hd),
         ),
         # ── HA-DSGE node (C040 / MEMs 0.6.7) ──
-        # estimate deferred: MEMs#228 (observables mapped to arbitrary reduced states)
+        # estimate un-deferred (C048): MEMs#228 fixed in 0.6.7 — observation matrix Z is
+        # now built from the reduction C rows, so HA Bayesian estimation is meaningful.
         CommandSpec(
             path=["dsge", "ha", "solve"],
             summary="Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)",
@@ -490,6 +491,39 @@ function dsge_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:panel, description="Panel summary (mean assets over time)")],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_simulate_panel),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "estimate"],
+            summary="Bayesian estimation of HA-DSGE parameters (RWMH; MEMs#228 fixed in 0.6.7)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="data", type=String, default="", description="Path to observed aggregates CSV (required)"),
+                OptionSpec(name="priors", type=String, default="", description="Path to priors TOML with [priors] section (required)"),
+                OptionSpec(name="observables", type=String, default="",
+                           description="Comma-separated observed aggregates (e.g. K,Y); default: first aggregates"),
+                OptionSpec(name="method", type=String, default="ssj",
+                           description="HA solution method re-solved each draw: ssj|reiter",
+                           choices=["ssj", "reiter"]),
+                OptionSpec(name="n-draws", type=Int, default=2000, description="Total RWMH draws (including burn-in)"),
+                OptionSpec(name="burnin", type=Int, default=500, description="Burn-in draws to discard"),
+                OptionSpec(name="t-horizon", type=Int, default=300,
+                           description="Sequence-space truncation length (SSJ); default 300 (ABRS 2021)"),
+                OptionSpec(name="n-reduced", type=Int, default=15, description="Reduced distribution states"),
+                OptionSpec(name="proposal-scale", type=Float64, default=0.01, description="Initial RWMH proposal scale"),
+                OptionSpec(name="adapt-interval", type=Int, default=100, description="Adapt proposal covariance every N draws"),
+                OptionSpec(name="measurement-error", type=String, default="none",
+                           description="Measurement error: none|auto (auto adds 10% per-obs variance)",
+                           choices=["none", "auto"]),
+                OptionSpec(name="seed", type=Int, default=0, description="Random seed (0=no seed)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:posterior, description="Posterior summary (mean, std, quantiles per parameter)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_estimate),
         ),
         # ── Continuous-time HA (C041) ──
         CommandSpec(
@@ -939,6 +973,44 @@ end
 
 # ── Bayesian DSGE Handlers ─────────────────────────────────────
 
+"""
+    _dsge_prior_distribution(name, spec) → Distribution
+
+Map one `[priors.<name>]` TOML entry (`{dist, a, b}` from `get_dsge_priors`) to a
+`Distributions.jl` object. The two numbers `a`, `b` are the distribution's
+positional constructor arguments (MEMs/Dynare convention): `beta` → `Beta(a,b)`,
+`normal` → `Normal(mean, sd)`, `inv_gamma` → `InverseGamma(a,b)`,
+`gamma` → `Gamma(a,b)`, `uniform` → `Uniform(lo, hi)`.
+"""
+function _dsge_prior_distribution(name::AbstractString, spec)
+    D = MacroEconometricModels.Distributions
+    dist = lowercase(strip(string(spec["dist"])))
+    a = Float64(spec["a"]); b = Float64(spec["b"])
+    dist == "beta"                                    ? D.Beta(a, b) :
+    dist in ("normal", "gaussian")                    ? D.Normal(a, b) :
+    dist in ("inv_gamma", "inverse_gamma", "invgamma") ? D.InverseGamma(a, b) :
+    dist == "gamma"                                   ? D.Gamma(a, b) :
+    dist == "uniform"                                 ? D.Uniform(a, b) :
+    throw(CliError("config/bad-prior",
+        "unknown prior dist '$(spec["dist"])' for parameter '$name'; " *
+        "use one of beta|normal|inv_gamma|gamma|uniform",
+        hint="see the [priors] TOML reference"))
+end
+
+"""
+    _dsge_priors_distributions(priors_config) → Dict{Symbol,<:Distribution}
+
+Bridge the `[priors]` TOML to the `Dict{Symbol,<:Distribution}` that MEMs
+`estimate_dsge_bayes` requires (both the RA `DSGESpec` and HA `HADSGESpec`
+methods). `get_dsge_priors` yields `{name => {dist,a,b}}`; each entry becomes a
+concrete distribution via [`_dsge_prior_distribution`].
+"""
+function _dsge_priors_distributions(priors_config::Dict)
+    raw = get_dsge_priors(priors_config)  # throws config/missing-key if no [priors]
+    return Dict(Symbol(name) => _dsge_prior_distribution(name, spec)
+                for (name, spec) in raw)
+end
+
 """Shared helper: run Bayesian DSGE estimation and return the result."""
 function _dsge_bayes_run_estimation(; model::String, data::String, params::String,
         priors::String, sampler::String, n_smc::Int, n_particles::Int,
@@ -962,7 +1034,9 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     theta0 = ones(Float64, length(param_names)) * 0.5
 
     priors_config = load_config(priors)
-    priors_dict = get_dsge_priors(priors_config)
+    # Bridge {dist,a,b} TOML → Dict{Symbol,<:Distribution} (MEMs requires distribution
+    # objects, not the raw config dict — C048; previously passed the wrong type).
+    priors_dict = _dsge_priors_distributions(priors_config)
 
     obs_syms = isempty(observables) ? Symbol[] : Symbol.(strip.(split(observables, ",")))
 
@@ -1645,6 +1719,74 @@ function _dsge_ha_simulate_panel(; model::String,
     output_result(df; format=Symbol(format), output=output,
                   title="HA Panel Simulation Summary (N=$n_agents, T=$periods)")
     return panel
+end
+
+# HA Bayesian estimation (C048; un-deferred after MEMs#228). RWMH re-solves the full
+# HA model at every draw (Auclert-Bardóczy-Rognlie-Straub 2021 "offline" approach), so
+# runs are intentionally small by default relative to RA SMC.
+function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
+                            observables::String="", method::String="ssj",
+                            n_draws::Int=2000, burnin::Int=500,
+                            t_horizon::Int=300, n_reduced::Int=15,
+                            proposal_scale::Float64=0.01, adapt_interval::Int=100,
+                            measurement_error::String="none", seed::Int=0,
+                            output::String="", format::String="table")
+    isempty(data) && throw(CliError("usage/missing-option",
+        "--data is required (path to observed aggregates CSV)"))
+    isempty(priors) && throw(CliError("usage/missing-option",
+        "--priors is required (path to priors TOML with a [priors] section)"))
+    meth = _parse_ha_method(method)
+    meth === :krusell_smith && throw(CliError("usage/invalid-option",
+        "HA Bayesian estimation requires --method=ssj or reiter " *
+        "(krusell-smith yields a PLM, not a linear state space for the Kalman filter)"))
+    me = measurement_error == "auto" ? :auto :
+         (measurement_error in ("none", "") ? nothing :
+          throw(CliError("usage/invalid-option", "--measurement-error must be none|auto")))
+
+    spec = _load_ha_model(model)
+    df = load_data(data)
+    Y = df_to_matrix(df)
+
+    priors_config = load_config(priors)
+    priors_dist = _dsge_priors_distributions(priors_config)
+    param_names = sort!(collect(keys(priors_dist)))          # match DSGEPrior sorted order
+    theta0 = Float64[mean(priors_dist[pn]) for pn in param_names]
+    obs_syms = isempty(observables) ? Symbol[] :
+               Symbol.(strip.(split(observables, ",")))
+
+    _status("HA-DSGE Bayesian Estimation (RWMH):")
+    _status("  Model: $(spec.model), method: $meth")
+    _status("  Parameters: $(join(String.(param_names), ", "))")
+    _status("  Observables: " * (isempty(obs_syms) ? "(default aggregates)" :
+                                 join(String.(obs_syms), ", ")))
+    _status("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars; draws=$n_draws, burnin=$burnin")
+    _status()
+
+    rng = seed > 0 ? Random.MersenneTwister(seed) : Random.default_rng()
+    result = MacroEconometricModels.estimate_dsge_bayes(spec, Y, theta0;
+        priors=priors_dist, observables=obs_syms,
+        n_draws=n_draws, burnin=burnin, measurement_error=me,
+        ha_method=meth, ha_kwargs=(T_horizon=t_horizon, n_reduced=n_reduced),
+        proposal_scale=proposal_scale, adapt_interval=adapt_interval, rng=rng)
+
+    draws = result.theta_draws
+    np = size(draws, 2)
+    est_df = DataFrame(
+        parameter = String.(result.param_names),
+        mean = [round(mean(draws[:, i]); digits=6) for i in 1:np],
+        std = [round(sqrt(var(draws[:, i])); digits=6) for i in 1:np],
+        q05 = [round(quantile(draws[:, i], 0.05); digits=6) for i in 1:np],
+        median = [round(median(draws[:, i]); digits=6) for i in 1:np],
+        q95 = [round(quantile(draws[:, i], 0.95); digits=6) for i in 1:np],
+    )
+    output_result(est_df; format=Symbol(format), output=output,
+                  title="HA-DSGE Bayesian Posterior (rwmh, method=$meth)")
+
+    _status()
+    _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
+    _status_styled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
+    _status_styled("  Effective draws: $(size(draws, 1)) (after burnin=$burnin)\n"; color=:cyan)
+    return result
 end
 
 # ── Continuous-time HA + Blanchard OLG (C041) ───────────────

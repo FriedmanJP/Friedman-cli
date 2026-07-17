@@ -23,6 +23,37 @@ using LinearAlgebra: I, diagm
 using Statistics: mean
 using Random
 
+# ─── Distributions re-export (real MEMs re-exports Distributions) ──────────
+# Minimal stand-in so the CLI's prior bridge (_dsge_priors_distributions →
+# MacroEconometricModels.Distributions.Beta/Normal/...) resolves under the mock.
+# Stores constructor args and supports Statistics.mean (used to seed theta0).
+module Distributions
+    import Statistics
+    abstract type VariateForm end
+    abstract type Univariate <: VariateForm end
+    abstract type ValueSupport end
+    abstract type Continuous <: ValueSupport end
+    abstract type Distribution{F<:VariateForm,S<:ValueSupport} end
+    const ContinuousUnivariateDistribution = Distribution{Univariate,Continuous}
+    struct Beta{T<:Real} <: ContinuousUnivariateDistribution; α::T; β::T; end
+    struct Normal{T<:Real} <: ContinuousUnivariateDistribution; μ::T; σ::T; end
+    struct InverseGamma{T<:Real} <: ContinuousUnivariateDistribution; α::T; θ::T; end
+    struct Gamma{T<:Real} <: ContinuousUnivariateDistribution; α::T; θ::T; end
+    struct Uniform{T<:Real} <: ContinuousUnivariateDistribution; a::T; b::T; end
+    Beta(a, b) = Beta{Float64}(Float64(a), Float64(b))
+    Normal(a, b) = Normal{Float64}(Float64(a), Float64(b))
+    InverseGamma(a, b) = InverseGamma{Float64}(Float64(a), Float64(b))
+    Gamma(a, b) = Gamma{Float64}(Float64(a), Float64(b))
+    Uniform(a, b) = Uniform{Float64}(Float64(a), Float64(b))
+    Statistics.mean(d::Beta) = d.α / (d.α + d.β)
+    Statistics.mean(d::Normal) = d.μ
+    Statistics.mean(d::InverseGamma) = d.α > 1 ? d.θ / (d.α - 1) : d.θ
+    Statistics.mean(d::Gamma) = d.α * d.θ
+    Statistics.mean(d::Uniform) = (d.a + d.b) / 2
+    export Distribution, Beta, Normal, InverseGamma, Gamma, Uniform
+end
+using .Distributions: Distribution, Beta, Normal, InverseGamma, Gamma, Uniform
+
 # ─── Core Types ───────────────────────────────────────────
 
 struct VARModel{T<:Real}
@@ -4224,6 +4255,27 @@ function simulate_panel(ss::HASteadyState{T};
                         N_agents::Int=1000, T_periods::Int=100,
                         rng=Random.default_rng()) where T
     ones(T, N_agents, T_periods) .* T(1.0) .+ randn(rng, T, N_agents, T_periods) .* T(0.1)
+end
+
+# HA Bayesian estimation (C048; un-deferred after MEMs#228). Returns BayesianDSGE with
+# RWMH method — mirrors the real HADSGESpec dispatch surface.
+function estimate_dsge_bayes(spec::HADSGESpec{T}, data::AbstractMatrix, theta0;
+        priors=Dict(), observables=Symbol[], n_draws::Int=5000, burnin::Int=1000,
+        measurement_error=nothing, ha_method::Symbol=:ssj,
+        ha_kwargs=NamedTuple(), proposal_scale=0.01, adapt_interval::Int=100,
+        rng=nothing) where {T<:AbstractFloat}
+    np = length(theta0)
+    n_kept = max(n_draws - burnin, 1)
+    tv = T.(collect(theta0))
+    draws = randn(T, n_kept, np) .* T(0.01) .+ reshape(tv, 1, np)
+    log_post = fill(T(-100.0), n_kept)
+    pnames = isempty(priors) ? ["param_$i" for i in 1:np] :
+             sort!([String(k) for k in keys(priors)])
+    ess_hist = fill(T(0.8), 10)
+    dspec = DSGESpec()
+    sol = solve(dspec; method=:gensys)
+    BayesianDSGE{T}(draws, log_post, pnames, T(-450.0 + np), :rwmh, T(0.30),
+                    ess_hist, dspec, sol)
 end
 
 function x13_filter(y::AbstractVector{T};

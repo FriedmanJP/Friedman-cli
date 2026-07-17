@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 28
+**Leaves:** 29
 
 ### `friedman dsge bayes compare`
 
@@ -428,6 +428,35 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 
 **Output tables:** `distribution_irf` (Distribution mass deviations (summary moments))
+
+---
+
+### `friedman dsge ha estimate`
+
+Bayesian estimation of HA-DSGE parameters (RWMH; MEMs#228 fixed in 0.6.7)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | Path to observed aggregates CSV (required) |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML with [priors] section (required) |
+| `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
+| `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj|reiter |
+| `--n-draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
+| `--burnin` | — | `Int64` | `500` | — | Burn-in draws to discard |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ); default 300 (ABRS 2021) |
+| `--n-reduced` | — | `Int64` | `15` | — | Reduced distribution states |
+| `--proposal-scale` | — | `Float64` | `0.01` | — | Initial RWMH proposal scale |
+| `--adapt-interval` | — | `Int64` | `100` | — | Adapt proposal covariance every N draws |
+| `--measurement-error` | — | `String` | `none` | `none`, `auto` | Measurement error: none|auto (auto adds 10% per-obs variance) |
+| `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `posterior` (Posterior summary (mean, std, quantiles per parameter))
 
 ---
 

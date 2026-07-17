@@ -410,6 +410,27 @@ end
         @test length(table_rows(tbl)) >= 5
     end
 
+    # C048 — HA Bayesian estimation (un-deferred after MEMs#228). RWMH re-solves the HA
+    # model each draw, so this is kept minimal (krusell-smith, 4 draws, tiny horizon/grid).
+    @testset "dsge ha estimate krusell-smith (C048)" begin
+        rng = Random.MersenneTwister(123)
+        csv = write_csv(DataFrame(K = 40.0 .+ 0.1 .* randn(rng, 16)); prefix="ha_k")
+        priors = tempname() * "_ha_priors.toml"
+        write(priors, "[priors]\n[priors.alpha]\ndist = \"normal\"\na = 0.36\nb = 0.05\n")
+        try
+            r = run_json(["dsge", "ha", "estimate", "krusell-smith",
+                          "--data", csv, "--priors", priors, "--observables", "K",
+                          "--method", "ssj", "--n-draws", "4", "--burnin", "1",
+                          "--t-horizon", "20", "--n-reduced", "6", "--seed", "1"])
+            assert_envelope_ok(r; label="dsge ha estimate")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test length(table_rows(tbl)) >= 1   # posterior summary row for alpha
+        finally
+            rm(csv; force=true); rm(priors; force=true)
+        end
+    end
+
     # C041 — CT Aiyagari + Blanchard OLG (small grids for CI time)
     @testset "dsge ct solve aiyagari" begin
         r = run_json(["dsge", "ct", "solve",

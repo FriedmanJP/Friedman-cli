@@ -698,9 +698,29 @@ See [dsge guide — CT and OLG](dsge.md#continuous-time-ha-dsge-ct--c041) for op
 
 ---
 
-## Deferred: `dsge ha estimate`
+## 6. Bayesian estimation
 
-**Not shipped.** Upstream MEMs#228 maps observables onto arbitrary reduced states, so Bayesian HA estimation is not meaningful yet. When that issue closes, the estimate leaf lands as a rider (same registry discipline as the rest of `dsge ha`).
+`dsge ha estimate` estimates HA-DSGE parameters by Random-Walk Metropolis-Hastings. This shipped in CLI v0.6.0 once upstream **MEMs#228** was fixed (the Kalman observation matrix `Z` is now built from the reduction `C` rows, so observables map to the right reduced states). Each RWMH draw **re-solves the full HA model** (steady state → linearization → Kalman likelihood), the Auclert-Bardóczy-Rognlie-Straub (2021) "offline" approach — so keep `--n-draws` modest and prefer small `--n-reduced` / `--t-horizon` while prototyping.
+
+Priors live in a `[priors]` TOML; the two numbers are the distribution's constructor args (`normal` → mean, sd):
+
+```toml
+[priors]
+[priors.alpha]
+dist = "normal"
+a = 0.36
+b = 0.05
+```
+
+```bash
+friedman dsge ha estimate krusell-smith \
+  --data aggregates.csv --priors priors.toml \
+  --observables K --method ssj \
+  --n-draws 2000 --burnin 500 --t-horizon 300 --n-reduced 15 \
+  --seed 1 --format json
+```
+
+Output is a posterior summary table (`mean`, `std`, `q05`, `median`, `q95` per parameter); the acceptance rate and effective draw count go to stderr. `--measurement-error auto` adds per-observable measurement error at 10% of each series' variance (needed when observables exceed structural shocks). `--method krusell-smith` is rejected — the Kalman filter needs a linear state space, so use `ssj` or `reiter`.
 
 ---
 

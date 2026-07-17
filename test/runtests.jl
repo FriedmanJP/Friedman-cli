@@ -2725,6 +2725,32 @@ end
     doc = JSON3.read(String(take!(buf)))
     @test doc.status == "error" && doc.error.code == "data/file-not-found"
 
+    # C047: validity_warning! is envelope-visible AND quiet-proof (never suppressed)
+    let prev_q = _QUIET[], prev_env = _ENVELOPE[]
+        try
+            venv = Envelope(command="did test honest")
+            _ENVELOPE[] = venv
+            _QUIET[] = true   # must NOT suppress a validity warning (it is data, not status)
+            redirect_stderr(devnull) do
+                validity_warning!("upstream/example", "cite issue; removal trigger: #999 closed")
+            end
+            @test length(venv.warnings) == 1
+            @test venv.warnings[1]["code"] == "upstream/example"
+            @test occursin("removal trigger", venv.warnings[1]["message"])
+            # rendered envelope exposes it under warnings[]
+            buf2 = IOBuffer(); render(venv, :json, buf2)
+            wdoc = JSON3.read(String(take!(buf2)))
+            @test wdoc.warnings[1].code == "upstream/example"
+            # no active envelope → no crash, returns nothing
+            _ENVELOPE[] = nothing
+            @test (redirect_stderr(devnull) do
+                validity_warning!("upstream/example", "no envelope")
+            end) === nothing
+        finally
+            _QUIET[] = prev_q; _ENVELOPE[] = prev_env
+        end
+    end
+
     @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
 end
 
@@ -3444,11 +3470,11 @@ include(joinpath(@__DIR__, "test_repl.jl"))
 
     ha_node = dsge_node.subcmds["ha"]
     for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
-                 "distribution-irf", "inequality-irf", "simulate-panel")
+                 "distribution-irf", "inequality-irf", "simulate-panel", "estimate")
         @test haskey(ha_node.subcmds, leaf)
         @test ha_node.subcmds[leaf] isa LeafCommand
     end
-    @test !haskey(ha_node.subcmds, "estimate")  # deferred MEMs#228
+    @test haskey(ha_node.subcmds, "estimate")  # un-deferred (C048): MEMs#228 fixed in 0.6.7
 
     ct_node = dsge_node.subcmds["ct"]
     @test haskey(ct_node.subcmds, "solve")

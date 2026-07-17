@@ -5942,10 +5942,10 @@ end
         ha = node.subcmds["ha"]
         @test ha isa NodeCommand
         for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
-                     "distribution-irf", "inequality-irf", "simulate-panel")
+                     "distribution-irf", "inequality-irf", "simulate-panel", "estimate")
             @test haskey(ha.subcmds, leaf)
         end
-        @test !haskey(ha.subcmds, "estimate")  # deferred MEMs#228
+        @test haskey(ha.subcmds, "estimate")  # un-deferred (C048): MEMs#228 fixed in 0.6.7
         @test haskey(node.subcmds["ct"].subcmds, "solve")
         @test haskey(node.subcmds["ct"].subcmds, "transition")
         @test haskey(node.subcmds["olg"].subcmds, "solve")
@@ -6033,6 +6033,51 @@ end
         out = _capture() do
             _dsge_ha_simulate_panel(; model="huggett", n_agents=20, periods=10, seed=1,
                                     format="table", output="")
+        end
+    end
+
+    @testset "_dsge_ha_estimate (C048)" begin
+        mktempdir() do dir
+            priors = joinpath(dir, "ha_priors.toml")
+            write(priors, """
+            [priors]
+            [priors.alpha]
+            dist = "normal"
+            a = 0.36
+            b = 0.05
+            """)
+            csv = _make_csv(dir; T=16, n=1, colnames=["K"])
+
+            out = _capture() do
+                r = _dsge_ha_estimate(; model="krusell-smith", data=csv, priors=priors,
+                    observables="K", method="ssj", n_draws=6, burnin=2,
+                    t_horizon=30, n_reduced=10, seed=1, format="table", output="")
+                @test r isa MacroEconometricModels.BayesianDSGE
+                @test r.method === :rwmh
+            end
+            @test contains(out, "alpha")
+            @test contains(out, "Acceptance rate")
+
+            # csv format still routes through the posterior table
+            out2 = _capture() do
+                _dsge_ha_estimate(; model="krusell-smith", data=csv, priors=priors,
+                    observables="K", method="reiter", n_draws=4, burnin=1,
+                    seed=2, format="csv", output="")
+            end
+            @test contains(out2, "parameter") || contains(out2, "alpha")
+
+            # krusell-smith has no linear state space → rejected
+            @test_throws Exception _dsge_ha_estimate(; model="krusell-smith", data=csv,
+                priors=priors, method="krusell-smith")
+            # bad measurement-error value
+            @test_throws Exception _dsge_ha_estimate(; model="krusell-smith", data=csv,
+                priors=priors, measurement_error="bogus")
+        end
+        # required-option guards (checked before any file IO)
+        @test_throws Exception _dsge_ha_estimate(; model="huggett", data="", priors="x")
+        mktempdir() do dir
+            csv = _make_csv(dir; T=8, n=1, colnames=["K"])
+            @test_throws Exception _dsge_ha_estimate(; model="huggett", data=csv, priors="")
         end
     end
 

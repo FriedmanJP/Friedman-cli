@@ -10,7 +10,7 @@ DSGE modeling from the terminal. Representative-agent leaves (`solve`, `irf`, `f
 | `dsge ct` | Continuous-time Aiyagari / two-asset KMV | [CT section](#continuous-time-ha-dsge-ct--c041) |
 | `dsge olg` | Blanchard perpetual-youth OLG | [OLG section](#blanchard-olg-dsge-olg--c041) |
 
-**Deferred:** `dsge ha estimate` — blocked on [MEMs#228](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/228) (observables mapped to arbitrary reduced states). Ship when that issue closes.
+**`dsge ha estimate`** (v0.6.0) — Bayesian estimation of HA-DSGE parameters via RWMH, shipped once [MEMs#228](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/228) fixed the Kalman observation matrix. See the [HA-DSGE workflow guide](ha-dsge.md#6-bayesian-estimation).
 
 Friedman supports RA models as TOML or Julia (`DSGESpec`) files, and HA models as builtins or `.jl` (`HADSGESpec`). See [Configuration](../configuration.md#dsge-model) for TOML format details. Option tables: [generated `dsge` reference](generated/dsge.md).
 
@@ -424,12 +424,13 @@ Heterogeneous-agent DSGE: **builtins** (`huggett`, `krusell-smith`, `one-asset-h
 
 **Methods:** `ssj` · `reiter` · `krusell-smith`
 
-**Deferred:** `dsge ha estimate` — MEMs#228. Full progressive examples with captured JSON: **[HA-DSGE workflow guide](ha-dsge.md)**.
+`dsge ha estimate` (RWMH Bayesian estimation) shipped in v0.6.0 after MEMs#228. Full progressive examples with captured JSON: **[HA-DSGE workflow guide](ha-dsge.md)**.
 
 ```bash
 friedman dsge ha steady-state huggett
 friedman dsge ha solve huggett --method=reiter --n-reduced=20
 friedman dsge ha irf huggett --method=reiter --horizon=40
+friedman dsge ha estimate krusell-smith --data aggregates.csv --priors priors.toml --observables K
 friedman dsge ha distribution-irf huggett --method=reiter   # Reiter only
 friedman dsge ha simulate-panel huggett --n-agents=1000 --seed=1
 ```
