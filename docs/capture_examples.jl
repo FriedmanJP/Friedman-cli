@@ -115,6 +115,52 @@ function _normalize_for_compare(s::AbstractString)
     end
 end
 
+"""
+Structural equality for capture check: recursive dict/array walk with
+`isapprox` on floats (HA solvers differ across OS/BLAS beyond fixed rounding).
+"""
+function _structurally_equal(a, b; rtol=1e-4, atol=1e-8)::Bool
+    if a isa Bool && b isa Bool
+        return a === b
+    elseif a isa Real && b isa Real && !(a isa Bool) && !(b isa Bool)
+        return isapprox(Float64(a), Float64(b); rtol=rtol, atol=atol)
+    elseif a isa AbstractString && b isa AbstractString
+        return String(a) == String(b)
+    elseif a === nothing && b === nothing
+        return true
+    elseif (a isa AbstractDict || a isa JSON3.Object) && (b isa AbstractDict || b isa JSON3.Object)
+        da = Dict{String,Any}(String(k) => v for (k, v) in pairs(a))
+        db = Dict{String,Any}(String(k) => v for (k, v) in pairs(b))
+        # ignore volatile meta entirely in structural compare
+        delete!(da, "meta"); delete!(db, "meta")
+        Set(keys(da)) == Set(keys(db)) || return false
+        for k in keys(da)
+            _structurally_equal(da[k], db[k]; rtol=rtol, atol=atol) || return false
+        end
+        return true
+    elseif (a isa AbstractVector || a isa JSON3.Array) && (b isa AbstractVector || b isa JSON3.Array)
+        length(a) == length(b) || return false
+        for i in eachindex(a)
+            _structurally_equal(a[i], b[i]; rtol=rtol, atol=atol) || return false
+        end
+        return true
+    else
+        return a == b
+    end
+end
+
+function _captures_match(actual::AbstractString, golden::AbstractString)::Bool
+    a = strip(replace(String(actual), "\r\n" => "\n"))
+    g = strip(replace(String(golden), "\r\n" => "\n"))
+    try
+        ja = JSON3.read(a)
+        jg = JSON3.read(g)
+        return _structurally_equal(ja, jg)
+    catch
+        return _normalize_for_compare(a) == _normalize_for_compare(g)
+    end
+end
+
 # ── Run one friedman command ──────────────────────────────────
 
 function _friedman_cmd(line::AbstractString)::Cmd
@@ -203,16 +249,12 @@ function main()
                 fresh_raw = _run_capture(block.bash)
                 fresh = _pretty_json(fresh_raw)
                 if CHECK
-                    if _normalize_for_compare(fresh) != _normalize_for_compare(block.output)
-                        n_diff_preview = begin
-                            a = _normalize_for_compare(fresh)
-                            b = _normalize_for_compare(block.output)
-                            "len actual=$(length(a)) golden=$(length(b))"
-                        end
-                        push!(failures, "$rel: stale capture for `$(strip(split(block.bash, '\n')[1]))` ($n_diff_preview)")
+                    if !_captures_match(fresh, block.output)
+                        push!(failures, "$rel: stale capture for `$(strip(split(block.bash, '\n')[1]))`")
                     end
                 else
-                    if _normalize_for_compare(fresh) != _normalize_for_compare(block.output) ||
+                    # Refresh when structural content drifts or pretty text differs a lot
+                    if !_captures_match(fresh, block.output) ||
                        strip(replace(block.output, "\r\n" => "\n")) != strip(fresh)
                         text = _replace_block(text, block, fresh)
                         n_refreshed += 1
