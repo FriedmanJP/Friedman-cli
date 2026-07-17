@@ -39,6 +39,9 @@ ParsedArgs(pos, opts, flags) = ParsedArgs(pos, opts, flags, Dict{String,Vector{S
 """True if `t` looks like an option value (not a flag), including negative numbers (F2)."""
 _looks_like_value(t::AbstractString) = !startswith(t, "-") || occursin(r"^-(\.?\d)", t)
 
+# Option names that may be repeated (`--set a=1 --set b=2`)
+const _MULTI_OPTIONS = Set(["set"])
+
 """
     tokenize(tokens) → ParsedArgs
 
@@ -47,9 +50,6 @@ Handles: `--option=value`, `--option value`, `-o value`, `--flag`, `-f`, positio
 `--` stops option parsing (everything after is positional).
 Negative numeric values (`-0.5`, `-3`) bind as option values (F2).
 """
-# Option names that may be repeated (`--set a=1 --set b=2`)
-const _MULTI_OPTIONS = Set(["set"])
-
 function tokenize(tokens::Vector{String})
     positional = String[]
     options = Dict{String,String}()

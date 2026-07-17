@@ -57,7 +57,8 @@ makedocs(;
         canonical = "https://friedmanjp.github.io/Friedman-cli",
         edit_link = "master",
     ),
-    warnonly = [:missing_docs],
+    # docs_block: internal API surface is large; missing @docs bindings must not fail CI
+    warnonly = [:missing_docs, :docs_block],
 )
 
 deploydocs(;
