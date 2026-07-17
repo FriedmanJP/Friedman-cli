@@ -43,13 +43,16 @@ function wrap_legacy(handler::Function)
         save_path = string(get(kwargs, :save_model, ""))
         delete!(kwargs, :save_model)
 
-        # --model PATH → loaded object; empty → drop so handler default applies
+        # --model PATH.fmod → loaded object; empty → drop so handler default applies.
+        # Only `.fmod` paths are handles (C029). Builtin names and .jl/.toml model
+        # files (e.g. `dsge ha huggett`, `dsge solve rbc.toml`) must pass through
+        # as strings (C040).
         if haskey(kwargs, :model)
             mp = kwargs[:model]
             if mp isa AbstractString
                 if isempty(mp)
                     delete!(kwargs, :model)
-                else
+                elseif endswith(lowercase(String(mp)), ".fmod")
                     kwargs[:model] = load_model_handle(String(mp))
                     # allow missing data positional when handle supplies the model
                     get!(kwargs, :data, "")

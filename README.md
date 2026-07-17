@@ -79,7 +79,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` | Time series filters |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
-| `dsge` | `solve` `irf` `fevd` `hd` `simulate` `estimate` `perfect-foresight` `steady-state` + `bayes` (`estimate` `irf` `fevd` `simulate` `summary` `compare` `predictive`) | DSGE models (8 + 7 nested bayes, incl. historical decomposition) |
+| `dsge` | `solve` `irf` `fevd` `hd` `simulate` `estimate` `perfect-foresight` `steady-state` + `bayes` (…) + `ha` (`solve` `steady-state` `irf` `fevd` `simulate` `distribution-irf` `inequality-irf` `simulate-panel`) | Representative-agent + **HA-DSGE** (MEMs 0.6.7); `ha estimate` deferred (MEMs#228) |
 | `spectral` | `acf` `periodogram` `density` `cross` `transfer` | Spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function) |
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
 | `schema` | — | Machine-readable self-description (raw JSON) |
@@ -539,6 +539,12 @@ friedman dsge solve model.toml --method=gensys
 friedman dsge solve model.toml --method=perturbation --order=2
 friedman dsge solve model.toml --method=perturbation --order=3
 friedman dsge solve model.toml --method=projection --degree=5 --grid=chebyshev
+
+# HA-DSGE builtins (MEMs 0.6.7): huggett | krusell-smith | one-asset-hank | two-asset-hank
+friedman dsge ha steady-state huggett
+friedman dsge ha solve huggett --method=reiter --n-reduced=20
+friedman dsge ha irf huggett --method=reiter --horizon=40
+friedman dsge ha inequality-irf huggett --method=reiter
 
 # Solve with OccBin occasionally binding constraints (e.g., ZLB)
 friedman dsge solve model.toml --method=gensys --constraints=zlb.toml --periods=40

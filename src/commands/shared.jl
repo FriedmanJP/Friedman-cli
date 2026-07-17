@@ -984,6 +984,117 @@ function _load_dsge_model(path::String)
     end
 end
 
+# ── HA-DSGE Helpers (C040 / MEMs 0.6.7) ───────────────────
+
+const _HA_BUILTIN_MODELS = (
+    "krusell-smith" => :krusell_smith,
+    "one-asset-hank" => :one_asset_hank,
+    "two-asset-hank" => :two_asset_hank,
+    "huggett" => :huggett,
+)
+
+const _HA_METHOD_MAP = Dict(
+    "ssj" => :ssj,
+    "reiter" => :reiter,
+    "krusell-smith" => :krusell_smith,
+    "krusell_smith" => :krusell_smith,
+)
+
+"""
+    _parse_ha_method(method) → Symbol
+
+Map CLI method string to MEMs symbol (`:ssj`, `:reiter`, `:krusell_smith`).
+"""
+function _parse_ha_method(method::String)
+    key = lowercase(strip(method))
+    haskey(_HA_METHOD_MAP, key) || throw(CliError("usage/invalid-option",
+        "invalid --method '$method'; must be one of: ssj, reiter, krusell-smith"))
+    return _HA_METHOD_MAP[key]
+end
+
+"""
+    _ha_builtin_symbol(name) → Union{Symbol,Nothing}
+
+Normalize CLI builtin model token (`huggett`, `:huggett`, `krusell-smith`) to MEMs Symbol.
+"""
+function _ha_builtin_symbol(name::String)
+    s = lowercase(strip(name))
+    startswith(s, ":") && (s = s[2:end])
+    s = replace(s, "_" => "-")
+    for (cli, sym) in _HA_BUILTIN_MODELS
+        s == cli && return sym
+    end
+    return nothing
+end
+
+"""
+    _load_ha_model(model) → HADSGESpec
+
+Load HA-DSGE model from a builtin name (`huggett`, `krusell-smith`, …) or a `.jl`
+file that evaluates to `HADSGESpec`.
+"""
+function _load_ha_model(model::String)
+    isempty(strip(model)) && throw(CliError("usage/missing-arg",
+        "HA model is required (builtin name or path to .jl HADSGESpec)"))
+
+    bsym = _ha_builtin_symbol(model)
+    if bsym !== nothing
+        _status("Loading HA-DSGE builtin :$bsym via load_ha_example")
+        return MacroEconometricModels.load_ha_example(bsym)
+    end
+
+    _validate_input_path(model)
+    isfile(model) || throw(CliError("data/file-not-found",
+        "HA model file not found: $model (hint: use a builtin name like huggett, " *
+        "or a .jl file evaluating to HADSGESpec)"))
+    ext = lowercase(splitext(model)[2])
+    ext == ".jl" || throw(CliError("usage/invalid-option",
+        "HA model file must be .jl (got '$ext'); builtins: " *
+        join(first.( _HA_BUILTIN_MODELS), ", ")))
+
+    mod = Module()
+    Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
+    result = Base.include(mod, model)
+    result isa MacroEconometricModels.HADSGESpec || throw(CliError("config/invalid",
+        ".jl HA model must evaluate to HADSGESpec, got $(typeof(result))"))
+    _status("Loaded HADSGESpec from Julia file (model=$(result.model))")
+    return result
+end
+
+"""
+    _solve_ha(spec; method=:ssj, kwargs...) → HADSGESolution | KrusellSmithSolution
+
+Compute steady state (unless `ss` supplied) then solve with the HA method.
+"""
+function _solve_ha(spec::MacroEconometricModels.HADSGESpec;
+                   method::Symbol=:ssj,
+                   ss=nothing,
+                   n_reduced::Int=30,
+                   T_horizon::Int=300,
+                   kwargs...)
+    if ss === nothing
+        _status("Computing HA steady state...")
+        # Only pass steady-state kwargs (MEMs filters the rest inside solve,
+        # but we call compute_steady_state separately and must not forward
+        # n_reduced / T_horizon here).
+        ss_keys = (:K_init, :r_bounds, :max_iter, :tol, :verbose, :price_fn, :clearing)
+        ss_kw = Dict{Symbol,Any}()
+        for k in ss_keys
+            haskey(kwargs, k) && (ss_kw[k] = kwargs[k])
+        end
+        ss = MacroEconometricModels.compute_steady_state(spec; ss_kw...)
+        if hasproperty(ss, :converged)
+            _status_styled("  Steady state converged: $(ss.converged)\n";
+                           color = ss.converged ? :green : :yellow)
+        end
+    end
+    _status("Solving HA-DSGE with method=$method...")
+    sol = MacroEconometricModels.solve(spec; method=method, ss=ss,
+                                       n_reduced=n_reduced, T_horizon=T_horizon,
+                                       kwargs...)
+    return sol
+end
+
 """
     _solve_dsge(spec; method="gensys", order=1, degree=5, grid="auto", constraint_solver="") → solution
 

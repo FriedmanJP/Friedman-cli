@@ -383,6 +383,32 @@ end
         rm(csv; force=true)
         rm(fmod; force=true)
     end
+
+    # C040 — HA-DSGE against real MEMs (builtin huggett is smallest)
+    @testset "dsge ha steady-state huggett" begin
+        r = run_json(["dsge", "ha", "steady-state", "huggett"])
+        assert_envelope_ok(r; label="dsge ha steady-state")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        @test length(table_rows(tbl)) >= 1
+    end
+
+    @testset "dsge ha solve reiter huggett" begin
+        r = run_json(["dsge", "ha", "solve", "huggett",
+                      "--method", "reiter", "--n-reduced", "8"])
+        assert_envelope_ok(r; label="dsge ha solve reiter")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+    end
+
+    @testset "dsge ha irf reiter huggett" begin
+        r = run_json(["dsge", "ha", "irf", "huggett",
+                      "--method", "reiter", "--horizon", "5", "--n-reduced", "8"])
+        assert_envelope_ok(r; label="dsge ha irf")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        @test length(table_rows(tbl)) >= 5
+    end
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

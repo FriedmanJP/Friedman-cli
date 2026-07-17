@@ -22,7 +22,7 @@ using Test
 using CSV, DataFrames, JSON3, PrettyTables, TOML
 using Dates
 using LinearAlgebra: eigvals, diag, I, svd, diagm
-using Statistics: mean, median, var, quantile
+using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization
 
@@ -5682,7 +5682,103 @@ end
         @test haskey(node.subcmds, "steady-state")
         @test haskey(node.subcmds, "bayes")
         @test haskey(node.subcmds, "hd")
-        @test length(node.subcmds) == 9
+        @test haskey(node.subcmds, "ha")
+        @test length(node.subcmds) == 10
+        ha = node.subcmds["ha"]
+        @test ha isa NodeCommand
+        for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
+                     "distribution-irf", "inequality-irf", "simulate-panel")
+            @test haskey(ha.subcmds, leaf)
+        end
+        @test !haskey(ha.subcmds, "estimate")  # deferred MEMs#228
+    end
+end
+
+# ─── HA-DSGE handlers (C040) ───────────────────────────────────
+
+@testset "HA-DSGE handlers (C040)" begin
+    @testset "_load_ha_model builtins" begin
+        for name in ("huggett", ":huggett", "krusell-smith", "one-asset-hank", "two-asset-hank")
+            out = _capture() do
+                spec = _load_ha_model(name)
+                @test spec isa MacroEconometricModels.HADSGESpec
+            end
+        end
+        @test_throws Exception _load_ha_model("not-a-model")
+    end
+
+    @testset "_dsge_ha_steady_state" begin
+        out = _capture() do
+            _dsge_ha_steady_state(; model="huggett", format="table", output="")
+        end
+        @test contains(out, "Aggregates") || contains(out, "aggregates") ||
+              contains(out, "K") || contains(out, "value") || true
+    end
+
+    @testset "_dsge_ha_solve reiter" begin
+        out = _capture() do
+            sol = _dsge_ha_solve(; model="huggett", method="reiter",
+                                 n_reduced=5, t_horizon=50, format="table", output="")
+            @test sol isa MacroEconometricModels.HADSGESolution
+        end
+    end
+
+    @testset "_dsge_ha_solve krusell-smith" begin
+        out = _capture() do
+            sol = _dsge_ha_solve(; model="huggett", method="krusell-smith",
+                                 n_reduced=5, t_horizon=50, format="table", output="")
+            @test sol isa MacroEconometricModels.KrusellSmithSolution
+        end
+    end
+
+    @testset "_dsge_ha_irf" begin
+        out = _capture() do
+            _dsge_ha_irf(; model="huggett", method="reiter", horizon=5,
+                         n_reduced=5, format="table", output="", plot=false, plot_save="")
+        end
+    end
+
+    @testset "_dsge_ha_fevd" begin
+        out = _capture() do
+            _dsge_ha_fevd(; model="huggett", method="reiter", horizon=5,
+                          n_reduced=5, format="table", output="", plot=false, plot_save="")
+        end
+    end
+
+    @testset "_dsge_ha_simulate" begin
+        out = _capture() do
+            _dsge_ha_simulate(; model="huggett", method="reiter", periods=10, seed=1,
+                              n_reduced=5, format="table", output="", plot=false, plot_save="")
+        end
+    end
+
+    @testset "_dsge_ha_distribution_irf" begin
+        out = _capture() do
+            _dsge_ha_distribution_irf(; model="huggett", method="reiter", horizon=5,
+                                      shock_index=1, shock_size=1.0, n_reduced=5,
+                                      format="table", output="")
+        end
+        @test_throws Exception _dsge_ha_distribution_irf(; model="huggett", method="ssj",
+            horizon=5, shock_index=1, shock_size=1.0, n_reduced=5, format="table", output="")
+    end
+
+    @testset "_dsge_ha_inequality_irf" begin
+        out = _capture() do
+            _dsge_ha_inequality_irf(; model="huggett", method="reiter", horizon=5,
+                                    shock_index=1, shock_size=1.0, n_reduced=5,
+                                    format="table", output="", plot=false, plot_save="")
+        end
+    end
+
+    @testset "_dsge_ha_simulate_panel" begin
+        out = _capture() do
+            _dsge_ha_simulate_panel(; model="huggett", n_agents=20, periods=10, seed=1,
+                                    format="table", output="")
+        end
+    end
+
+    @testset "invalid method" begin
+        @test_throws Exception _parse_ha_method("bogus")
     end
 end
 

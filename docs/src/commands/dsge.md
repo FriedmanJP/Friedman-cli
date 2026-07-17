@@ -403,3 +403,45 @@ Each parameter must have a `dist` key (distribution name) and shape parameters `
 | Policy Function Iteration | `pfi` | Global solutions, value function problems |
 
 Projection and PFI methods support `--degree` (polynomial degree) and `--grid` (grid type) options.
+
+## HA-DSGE (`dsge ha`) — C040 / MEMs v0.6.7
+
+Heterogeneous-agent DSGE workflow. Models are either **builtins** (via `load_ha_example`)
+or a `.jl` file evaluating to `HADSGESpec`.
+
+**Builtins:** `huggett`, `krusell-smith`, `one-asset-hank`, `two-asset-hank`
+
+**Methods:** `ssj` (sequence-space Jacobian), `reiter` (Reiter linearization), `krusell-smith` (PLM fixed point)
+
+**Deferred:** `dsge ha estimate` is not shipped — blocked on MEMs#228 (observables mapped to arbitrary reduced states). Un-defer when that issue closes.
+
+```bash
+# Steady state
+friedman dsge ha steady-state huggett
+
+# Solve (Reiter linearization)
+friedman dsge ha solve huggett --method=reiter --n-reduced=20
+
+# Aggregate IRF / FEVD / simulate (ssj or reiter)
+friedman dsge ha irf huggett --method=reiter --horizon=40
+friedman dsge ha fevd huggett --method=reiter --horizon=40
+friedman dsge ha simulate huggett --method=reiter --periods=200 --seed=1
+
+# Distribution / inequality IRFs (Reiter only — SSJ has no distribution basis)
+friedman dsge ha distribution-irf huggett --method=reiter --horizon=40
+friedman dsge ha inequality-irf huggett --method=reiter --horizon=40
+
+# Individual panel from steady-state policies
+friedman dsge ha simulate-panel huggett --n-agents=1000 --periods=100 --seed=1
+```
+
+| Subcommand | Method constraint | Notes |
+|------------|-------------------|-------|
+| `solve` | ssj \| reiter \| krusell-smith | KS returns PLM coefficients, not G1 |
+| `steady-state` | — | Stationary equilibrium |
+| `irf` / `fevd` / `simulate` | ssj \| reiter | Aggregate linear system |
+| `distribution-irf` | reiter | Wealth distribution mass deviations |
+| `inequality-irf` | reiter | Gini + p10…p90 paths |
+| `simulate-panel` | — | Summary mean/sd assets over time |
+
+Common options: `--format`/`-f`, `--output`/`-o`, `--horizon`/`-h`, `--n-reduced`, `--seed`.

@@ -315,7 +315,181 @@ function dsge_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:bayes_hd, description="Path to DSGE model file (.toml or .jl)")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_hd),
-        )
+        ),
+        # ── HA-DSGE node (C040 / MEMs 0.6.7) ──
+        # estimate deferred: MEMs#228 (observables mapped to arbitrary reduced states)
+        CommandSpec(
+            path=["dsge", "ha", "solve"],
+            summary="Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin (huggett|krusell-smith|one-asset-hank|two-asset-hank) or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="method", type=String, default="ssj",
+                           description="HA solution method: ssj|reiter|krusell-smith",
+                           choices=["ssj", "reiter", "krusell-smith"]),
+                OptionSpec(name="n-reduced", type=Int, default=30,
+                           description="Reduced distribution states (SSJ/Reiter)"),
+                OptionSpec(name="t-horizon", type=Int, default=300,
+                           description="Sequence-space horizon (SSJ)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[
+                TableSpec(name=:diagnostics, description="Solution diagnostics"),
+                TableSpec(name=:aggregates, description="Steady-state aggregates"),
+                TableSpec(name=:prices, description="Steady-state prices"),
+            ],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_solve),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "steady-state"],
+            summary="Compute HA-DSGE stationary equilibrium",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[
+                TableSpec(name=:aggregates, description="Steady-state aggregates"),
+                TableSpec(name=:prices, description="Steady-state prices"),
+                TableSpec(name=:diagnostics, description="Convergence diagnostics"),
+            ],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_steady_state),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "irf"],
+            summary="Aggregate IRFs from linearized HA-DSGE solution",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="method", type=String, default="reiter",
+                           description="HA solution method: ssj|reiter (krusell-smith has no linear IRF)",
+                           choices=["ssj", "reiter"]),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:irf, description="Aggregate impulse responses")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_irf),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "fevd"],
+            summary="Aggregate FEVD from linearized HA-DSGE solution",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="method", type=String, default="reiter",
+                           description="HA solution method: ssj|reiter",
+                           choices=["ssj", "reiter"]),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:fevd, description="Forecast error variance decomposition")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_fevd),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "simulate"],
+            summary="Simulate aggregate paths from linearized HA-DSGE",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="method", type=String, default="reiter",
+                           description="HA solution method: ssj|reiter",
+                           choices=["ssj", "reiter"]),
+                OptionSpec(name="periods", type=Int, default=200, description="Simulation periods"),
+                OptionSpec(name="seed", type=Int, default=0, description="Random seed (0=no seed)"),
+                OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:simulate, description="Simulated aggregate deviations")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_simulate),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "distribution-irf"],
+            summary="Wealth distribution IRF after an aggregate shock (Reiter only)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="method", type=String, default="reiter",
+                           description="Must be reiter (SSJ has no distribution basis)",
+                           choices=["reiter"]),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="shock-index", type=Int, default=1, description="Aggregate shock index (1-based)"),
+                OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
+                OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:distribution_irf, description="Distribution mass deviations (summary moments)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_distribution_irf),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "inequality-irf"],
+            summary="Gini and wealth-percentile IRFs after an aggregate shock",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="method", type=String, default="reiter",
+                           description="Must be reiter for dynamic inequality IRF",
+                           choices=["reiter"]),
+                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="shock-index", type=Int, default=1, description="Aggregate shock index (1-based)"),
+                OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
+                OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:inequality_irf, description="Gini and percentile paths")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_inequality_irf),
+        ),
+        CommandSpec(
+            path=["dsge", "ha", "simulate-panel"],
+            summary="Simulate individual asset holdings from steady-state policies",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                          description="Builtin name or .jl HADSGESpec")],
+            options=[
+                OptionSpec(name="n-agents", type=Int, default=1000, description="Number of agents"),
+                OptionSpec(name="periods", type=Int, default=100, description="Time periods"),
+                OptionSpec(name="seed", type=Int, default=0, description="Random seed (0=no seed)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table","csv","json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:panel, description="Panel summary (mean assets over time)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_ha_simulate_panel),
+        ),
     ]
 end
 
@@ -1056,4 +1230,298 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
 
     _maybe_plot(hd; plot=plot, plot_save=plot_save)
     return hd
+end
+
+# ── HA-DSGE handlers (C040) ─────────────────────────────────
+
+function _ha_ss_tables(ss; format::String, output::String, title_prefix::String="HA")
+    agg = ss.aggregates
+    prices = ss.prices
+    if agg isa AbstractDict
+        agg_df = DataFrame(
+            name = String[string(k) for k in keys(agg)],
+            value = [Float64(v) for v in values(agg)],
+        )
+    else
+        agg_df = DataFrame(name=String[], value=Float64[])
+    end
+    if prices isa AbstractDict
+        price_df = DataFrame(
+            name = String[string(k) for k in keys(prices)],
+            value = [Float64(v) for v in values(prices)],
+        )
+    else
+        price_df = DataFrame(name=String[], value=Float64[])
+    end
+    diag_df = DataFrame(
+        metric = ["converged", "iterations", "euler_error", "excess_demand"],
+        value = [
+            Float64(ss.converged ? 1.0 : 0.0),
+            Float64(ss.iterations),
+            Float64(ss.euler_error),
+            Float64(ss.excess_demand),
+        ],
+    )
+    output_result(agg_df; format=Symbol(format), output=output,
+                  title="$title_prefix Steady-State Aggregates")
+    output_result(price_df; format=Symbol(format), output=output,
+                  title="$title_prefix Steady-State Prices")
+    output_result(diag_df; format=Symbol(format), output=output,
+                  title="$title_prefix Steady-State Diagnostics")
+    return (agg_df, price_df, diag_df)
+end
+
+function _dsge_ha_steady_state(; model::String,
+                                output::String="", format::String="table")
+    spec = _load_ha_model(model)
+    _status("Computing HA steady state for model=$(spec.model)...")
+    ss = MacroEconometricModels.compute_steady_state(spec)
+    _ha_ss_tables(ss; format=format, output=output)
+    return ss
+end
+
+function _dsge_ha_solve(; model::String, method::String="ssj",
+                         n_reduced::Int=30, t_horizon::Int=300,
+                         output::String="", format::String="table")
+    meth = _parse_ha_method(method)
+    spec = _load_ha_model(model)
+    sol = _solve_ha(spec; method=meth, n_reduced=n_reduced, T_horizon=t_horizon)
+
+    if sol isa MacroEconometricModels.KrusellSmithSolution
+        _status_styled("  Krusell–Smith PLM R²=$(round(sol.r_squared; digits=4)), " *
+                       "converged=$(sol.converged), iterations=$(sol.iterations)\n";
+                       color = sol.converged ? :green : :yellow)
+        plm = sol.plm_coefficients
+        plm_df = DataFrame(
+            coefficient = ["b$i" for i in 1:length(plm)],
+            value = Float64.(vec(plm)),
+        )
+        diag_df = DataFrame(
+            metric = ["method", "r_squared", "converged", "iterations"],
+            value = [String(meth), string(sol.r_squared), string(sol.converged), string(sol.iterations)],
+        )
+        output_result(diag_df; format=Symbol(format), output=output,
+                      title="HA-DSGE Solve Diagnostics (krusell-smith)")
+        output_result(plm_df; format=Symbol(format), output=output,
+                      title="Krusell–Smith PLM Coefficients")
+        _ha_ss_tables(sol.steady_state; format=format, output=output, title_prefix="HA")
+        return sol
+    end
+
+    # HADSGESolution
+    _status("  Method: $(sol.method), reduced states: $(sol.n_reduced)/$(sol.n_full_states)")
+    if hasproperty(sol, :explained_variance)
+        _status("  Explained variance: $(round(Float64(sol.explained_variance); digits=4))")
+    end
+    diag_df = DataFrame(
+        metric = ["method", "n_full_states", "n_reduced", "explained_variance",
+                  "obs_rows", "obs_cols"],
+        value = [
+            string(sol.method),
+            string(sol.n_full_states),
+            string(sol.n_reduced),
+            string(sol.explained_variance),
+            string(size(sol.C_obs, 1)),
+            string(size(sol.C_obs, 2)),
+        ],
+    )
+    output_result(diag_df; format=Symbol(format), output=output,
+                  title="HA-DSGE Solve Diagnostics (method=$(sol.method))")
+    _ha_ss_tables(sol.steady_state; format=format, output=output, title_prefix="HA")
+    return sol
+end
+
+function _dsge_ha_require_linear(sol, meth::Symbol)
+    sol isa MacroEconometricModels.HADSGESolution || throw(CliError("model/unsupported",
+        "method=$meth does not produce a linearized HADSGESolution " *
+        "(got $(typeof(sol))); use --method=ssj or --method=reiter"))
+    return sol
+end
+
+function _dsge_ha_irf(; model::String, method::String="reiter",
+                       horizon::Int=40, n_reduced::Int=30,
+                       output::String="", format::String="table",
+                       plot::Bool=false, plot_save::String="")
+    meth = _parse_ha_method(method)
+    meth === :krusell_smith && throw(CliError("usage/invalid-option",
+        "HA IRF requires ssj or reiter (krusell-smith returns a PLM, not linear IRFs)"))
+    spec = _load_ha_model(model)
+    sol = _dsge_ha_require_linear(
+        _solve_ha(spec; method=meth, n_reduced=n_reduced), meth)
+
+    _status("Computing HA IRF: horizon=$horizon, method=$meth")
+    ir = MacroEconometricModels.irf(sol, horizon)
+    _maybe_plot(ir; plot=plot, plot_save=plot_save)
+
+    vals = ir.values
+    n_h, n_v, n_s = size(vals)
+    for si in 1:n_s
+        shock = si <= length(ir.shocks) ? String(ir.shocks[si]) : "shock_$si"
+        irf_df = DataFrame(horizon = 0:(n_h - 1))
+        for vi in 1:n_v
+            vname = vi <= length(ir.variables) ? String(ir.variables[vi]) : "y$vi"
+            irf_df[!, vname] = vals[:, vi, si]
+        end
+        output_result(irf_df; format=Symbol(format),
+                      output=_per_var_output_path(output, shock),
+                      title="HA-DSGE IRF: shock=$shock (method=$meth, h=$horizon)")
+    end
+    return ir
+end
+
+function _dsge_ha_fevd(; model::String, method::String="reiter",
+                        horizon::Int=40, n_reduced::Int=30,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    meth = _parse_ha_method(method)
+    meth === :krusell_smith && throw(CliError("usage/invalid-option",
+        "HA FEVD requires ssj or reiter"))
+    spec = _load_ha_model(model)
+    sol = _dsge_ha_require_linear(
+        _solve_ha(spec; method=meth, n_reduced=n_reduced), meth)
+
+    _status("Computing HA FEVD: horizon=$horizon, method=$meth")
+    fv = MacroEconometricModels.fevd(sol, horizon)
+    _maybe_plot(fv; plot=plot, plot_save=plot_save)
+
+    props = fv.proportions
+    n_v, n_s, n_h = size(props)
+    varnames = hasproperty(fv, :variables) ? fv.variables : ["y$i" for i in 1:n_v]
+    shocks = hasproperty(fv, :shocks) ? fv.shocks : ["shock_$i" for i in 1:n_s]
+    for vi in 1:n_v
+        vname = vi <= length(varnames) ? String(varnames[vi]) : "y$vi"
+        fevd_df = DataFrame(horizon = 1:n_h)
+        for si in 1:n_s
+            sname = si <= length(shocks) ? String(shocks[si]) : "shock_$si"
+            fevd_df[!, sname] = props[vi, si, :]
+        end
+        output_result(fevd_df; format=Symbol(format),
+                      output=_per_var_output_path(output, vname),
+                      title="HA-DSGE FEVD: $vname (method=$meth, h=$horizon)")
+    end
+    return fv
+end
+
+function _dsge_ha_simulate(; model::String, method::String="reiter",
+                            periods::Int=200, seed::Int=0, n_reduced::Int=30,
+                            output::String="", format::String="table",
+                            plot::Bool=false, plot_save::String="")
+    meth = _parse_ha_method(method)
+    meth === :krusell_smith && throw(CliError("usage/invalid-option",
+        "HA simulate requires ssj or reiter"))
+    spec = _load_ha_model(model)
+    sol = _dsge_ha_require_linear(
+        _solve_ha(spec; method=meth, n_reduced=n_reduced), meth)
+
+    _status("Simulating HA aggregates: T=$periods, method=$meth")
+    if seed > 0
+        path = MacroEconometricModels.simulate(sol, periods; rng=Random.MersenneTwister(seed))
+    else
+        path = MacroEconometricModels.simulate(sol, periods)
+    end
+
+    n_out = size(path, 2)
+    colnames = ["y$i" for i in 1:n_out]
+    try
+        ir0 = MacroEconometricModels.irf(sol, 1)
+        if length(ir0.variables) == n_out
+            colnames = String[string(v) for v in ir0.variables]
+        end
+    catch
+    end
+    sim_df = DataFrame(path, colnames)
+    insertcols!(sim_df, 1, :period => 1:periods)
+    _maybe_plot(sim_df; plot=plot, plot_save=plot_save)
+    output_result(sim_df; format=Symbol(format), output=output,
+                  title="HA-DSGE Simulation (method=$meth, T=$periods)")
+    return path
+end
+
+function _dsge_ha_distribution_irf(; model::String, method::String="reiter",
+                                    horizon::Int=40, shock_index::Int=1,
+                                    shock_size::Float64=1.0, n_reduced::Int=30,
+                                    output::String="", format::String="table")
+    meth = _parse_ha_method(method)
+    meth === :reiter || throw(CliError("usage/invalid-option",
+        "distribution-irf requires --method=reiter (SSJ has no distribution basis)"))
+    spec = _load_ha_model(model)
+    sol = _dsge_ha_require_linear(
+        _solve_ha(spec; method=meth, n_reduced=n_reduced), meth)
+
+    _status("Computing distribution IRF: h=$horizon, shock=$shock_index, size=$shock_size")
+    d = MacroEconometricModels.distribution_irf(sol, horizon;
+            shock_index=shock_index, shock_size=shock_size)
+    # Summarize 3D (n_a × n_e × h) as horizon moments
+    n_a, n_e, n_h = size(d)
+    mean_dev = [sum(abs, d[:, :, h]) for h in 1:n_h]
+    max_dev = [maximum(abs, d[:, :, h]) for h in 1:n_h]
+    df = DataFrame(
+        horizon = 0:(n_h - 1),
+        l1_mass_deviation = mean_dev,
+        max_abs_deviation = max_dev,
+        n_asset_bins = fill(n_a, n_h),
+        n_income = fill(n_e, n_h),
+    )
+    output_result(df; format=Symbol(format), output=output,
+                  title="HA Distribution IRF (shock=$shock_index, h=$horizon)")
+    return d
+end
+
+function _dsge_ha_inequality_irf(; model::String, method::String="reiter",
+                                  horizon::Int=40, shock_index::Int=1,
+                                  shock_size::Float64=1.0, n_reduced::Int=30,
+                                  output::String="", format::String="table",
+                                  plot::Bool=false, plot_save::String="")
+    meth = _parse_ha_method(method)
+    meth === :reiter || throw(CliError("usage/invalid-option",
+        "inequality-irf requires --method=reiter"))
+    spec = _load_ha_model(model)
+    sol = _dsge_ha_require_linear(
+        _solve_ha(spec; method=meth, n_reduced=n_reduced), meth)
+
+    _status("Computing inequality IRF: h=$horizon, shock=$shock_index")
+    d = MacroEconometricModels.inequality_irf(sol, horizon;
+            shock_index=shock_index, shock_size=shock_size)
+    df = DataFrame(
+        horizon = 0:(horizon - 1),
+        gini = d[:gini],
+        p10 = d[:p10],
+        p25 = d[:p25],
+        p50 = d[:p50],
+        p75 = d[:p75],
+        p90 = d[:p90],
+    )
+    _maybe_plot(df; plot=plot, plot_save=plot_save)
+    output_result(df; format=Symbol(format), output=output,
+                  title="HA Inequality IRF (shock=$shock_index, h=$horizon)")
+    return d
+end
+
+function _dsge_ha_simulate_panel(; model::String,
+                                  n_agents::Int=1000, periods::Int=100, seed::Int=0,
+                                  output::String="", format::String="table")
+    spec = _load_ha_model(model)
+    _status("Computing HA steady state for panel simulation...")
+    ss = MacroEconometricModels.compute_steady_state(spec)
+    _status("Simulating panel: N=$n_agents, T=$periods")
+    if seed > 0
+        panel = MacroEconometricModels.simulate_panel(ss;
+            N_agents=n_agents, T_periods=periods, rng=Random.MersenneTwister(seed))
+    else
+        panel = MacroEconometricModels.simulate_panel(ss;
+            N_agents=n_agents, T_periods=periods)
+    end
+    # Summary path: cross-sectional mean assets over time (full N×T is huge)
+    mean_a = [mean(panel[:, t]) for t in 1:size(panel, 2)]
+    # Sample std via sqrt(var); avoids depending on Statistics.std in bare includes
+    sd_a = [sqrt(var(panel[:, t])) for t in 1:size(panel, 2)]
+    df = DataFrame(
+        period = 1:size(panel, 2),
+        mean_assets = mean_a,
+        sd_assets = sd_a,
+        n_agents = fill(size(panel, 1), size(panel, 2)),
+    )
+    output_result(df; format=Symbol(format), output=output,
+                  title="HA Panel Simulation Summary (N=$n_agents, T=$periods)")
+    return panel
 end

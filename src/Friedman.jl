@@ -19,7 +19,7 @@ module Friedman
 using CSV, DataFrames, PrettyTables, JSON3, TOML
 using MacroEconometricModels
 using LinearAlgebra: eigvals, diag, I, svd
-using Statistics: mean, median, var, quantile
+using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization
 

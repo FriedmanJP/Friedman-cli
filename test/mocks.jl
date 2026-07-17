@@ -21,6 +21,7 @@ module MacroEconometricModels
 
 using LinearAlgebra: I, diagm
 using Statistics: mean
+using Random
 
 # ─── Core Types ───────────────────────────────────────────
 
@@ -84,7 +85,11 @@ BayesianImpulseResponse(m::Array{T,3}, q::Array{T,4}, ql::Vector{T}) where T =
 
 struct FEVD{T}
     decomposition::Array{T,3}; proportions::Array{T,3}
+    variables::Vector{String}; shocks::Vector{String}
 end
+# 2-arg backward-compat constructor
+FEVD(d::Array{T,3}, p::Array{T,3}) where T =
+    FEVD(d, p, ["var$i" for i in 1:size(p,1)], ["shock$i" for i in 1:size(p,2)])
 struct BayesianFEVD{T}
     quantiles::Array{T,4}
     point_estimate::Array{T,3}
@@ -4022,8 +4027,124 @@ struct IOData{T}
     meta::Dict{String,Any}
 end
 
-load_ha_example(name::String="aiyagari") = HADSGESpec{Float64}(
-    nothing, nothing, nothing, nothing, nothing, Dict{Symbol,Float64}(), 100, 5, :aiyagari)
+const _HA_EXAMPLE_NAMES = (:krusell_smith, :one_asset_hank, :two_asset_hank, :huggett)
+
+function load_ha_example(name::Symbol)
+    name in _HA_EXAMPLE_NAMES || error(
+        "Unknown HA-DSGE example: :$name. Available: :krusell_smith, :one_asset_hank, :two_asset_hank, :huggett")
+    HADSGESpec{Float64}(nothing, nothing, nothing, nothing, nothing,
+                        Dict{Symbol,Float64}(:alpha => 0.36, :delta => 0.025),
+                        50, 2, name)
+end
+load_ha_example(name::String) = load_ha_example(Symbol(replace(name, "-" => "_")))
+
+struct KrusellSmithSolution{T<:AbstractFloat}
+    steady_state::HASteadyState{T}
+    plm_coefficients::Vector{T}
+    r_squared::T
+    spec::HADSGESpec{T}
+    converged::Bool
+    iterations::Int
+end
+
+function _mock_ha_ss(spec::HADSGESpec{T}) where T
+    HASteadyState{T}(
+        Dict{Symbol,Any}(:savings => ones(T, 10, 2) * T(0.5)),
+        ones(T, 10, 2) ./ 20,
+        ones(T, 10, 2),
+        Dict{Symbol,T}(:r => T(0.01), :w => T(1.0)),
+        Dict{Symbol,T}(:K => T(10.0), :Y => T(1.0), :excess_demand => T(0.0)),
+        nothing, nothing, true, 10, T(1e-6), T(0.0))
+end
+
+function compute_steady_state(spec::HADSGESpec{T};
+        K_init=nothing, r_bounds=nothing, max_iter::Int=100, tol=1e-8,
+        verbose::Bool=false, price_fn=nothing, clearing=nothing) where T
+    _mock_ha_ss(spec)
+end
+
+function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
+               n_reduced::Int=10, T_horizon::Int=300,
+               T_sim::Int=11000, T_burn::Int=1000, max_outer::Int=20) where T
+    ss0 = ss === nothing ? _mock_ha_ss(spec) : ss
+    if method === :krusell_smith
+        return KrusellSmithSolution{T}(ss0, T[0.1, 0.9, 0.05], T(0.99), spec, true, 5)
+    end
+    method in (:ssj, :reiter) || error(
+        "Unknown HA-DSGE method: :$method. Use :ssj, :reiter, or :krusell_smith.")
+    n_red = n_reduced
+    n_sys = max(n_red + 1, 2)
+    endog = [Symbol("x_$i") for i in 1:n_sys]
+    dummy_dsge = DSGESpec{T}(endog, [:epsilon], Symbol[], Dict{Symbol,T}(),
+                             n_sys, 1, 0, string.(endog), zeros(T, n_sys))
+    G1 = Matrix{T}(I, n_sys, n_sys) * T(0.5)
+    impact = ones(T, n_sys, 1) * T(0.1)
+    lin = LinearDSGE{T}(Matrix{T}(I, n_sys, n_sys), G1, zeros(T, n_sys), impact,
+                         zeros(T, n_sys, 0), dummy_dsge)
+    dsol = DSGESolution{T}(G1, impact, zeros(T, n_sys), [1, 1], method,
+                            Complex{T}[T(0.5) + 0im], dummy_dsge, lin)
+    n_full = 20
+    U = ones(T, n_full, min(n_red, n_full)) ./ T(n_full)
+    C_obs = method === :ssj ? ones(T, 1, n_sys) : Matrix{T}(I, n_sys, n_sys)
+    D_obs = method === :ssj ? ones(T, 1, 1) * T(0.1) : zeros(T, n_sys, 1)
+    HADSGESolution{T}(ss0, dsol, method, spec, U, n_full, n_red, T(0.95),
+                      nothing, C_obs, D_obs)
+end
+
+function irf(sol::HADSGESolution{T}, horizon::Int; ci_type::Symbol=:none) where T
+    n_out = size(sol.C_obs, 1)
+    vals = ones(T, horizon, n_out, 1) * T(0.05)
+    vars = ["y$i" for i in 1:n_out]
+    ImpulseResponse(vals, nothing, nothing, horizon, vars, ["epsilon"], ci_type)
+end
+
+function fevd(sol::HADSGESolution{T}, horizon::Int) where T
+    n_out = size(sol.C_obs, 1)
+    props = ones(T, n_out, 1, horizon)
+    FEVD(copy(props), props, ["y$i" for i in 1:n_out], ["epsilon"])
+end
+
+function simulate(sol::HADSGESolution{T}, T_periods::Int;
+                  shock_draws=nothing, rng=Random.default_rng()) where T
+    n_out = size(sol.C_obs, 1)
+    ones(T, T_periods, n_out) * T(0.01)
+end
+
+function distribution_irf(sol::HADSGESolution{T}, horizon::Int;
+                          shock_index::Int=1, shock_size::Real=1.0) where T
+    sol.method === :ssj && error(
+        "distribution IRFs are unavailable for method=:ssj; use method=:reiter.")
+    zeros(T, 10, 2, horizon)
+end
+
+function inequality_irf(sol::HADSGESolution{T}, horizon::Int;
+                        shock_index::Int=1, shock_size::Real=1.0) where T
+    Dict{Symbol,Vector{T}}(
+        :gini => fill(T(0.4), horizon),
+        :p10 => fill(T(0.1), horizon),
+        :p25 => fill(T(0.2), horizon),
+        :p50 => fill(T(0.5), horizon),
+        :p75 => fill(T(0.8), horizon),
+        :p90 => fill(T(1.5), horizon),
+    )
+end
+
+function inequality_irf(ss::HASteadyState{T}; T_periods::Int=50) where T
+    Dict{Symbol,Vector{T}}(
+        :gini => fill(T(0.4), T_periods),
+        :p10 => fill(T(0.1), T_periods),
+        :p25 => fill(T(0.2), T_periods),
+        :p50 => fill(T(0.5), T_periods),
+        :p75 => fill(T(0.8), T_periods),
+        :p90 => fill(T(1.5), T_periods),
+    )
+end
+
+function simulate_panel(ss::HASteadyState{T};
+                        N_agents::Int=1000, T_periods::Int=100,
+                        rng=Random.default_rng()) where T
+    ones(T, N_agents, T_periods) .* T(1.0) .+ randn(rng, T, N_agents, T_periods) .* T(0.1)
+end
 
 function x13_filter(y::AbstractVector; method::Symbol=:x11, frequency::Int=12)
     T = length(y)
@@ -4055,9 +4176,10 @@ export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
 
-export HADSGESpec, HASteadyState, HADSGESolution, CTAiyagari
+export HADSGESpec, HASteadyState, HADSGESolution, KrusellSmithSolution, CTAiyagari
 export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
 export X13FilterResult, IOData
-export load_ha_example, x13_filter, parse_io, blanchard_steady_state, blanchard_solve
+export load_ha_example, compute_steady_state, distribution_irf, inequality_irf, simulate_panel
+export x13_filter, parse_io, blanchard_steady_state, blanchard_solve
 
 end # module

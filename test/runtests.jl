@@ -3383,7 +3383,7 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test dsge_node isa NodeCommand
     @test dsge_node.name == "dsge"
 
-    # All 9 subcommands exist
+    # Top-level dsge children (incl. HA node C040)
     @test haskey(dsge_node.subcmds, "solve")
     @test haskey(dsge_node.subcmds, "irf")
     @test haskey(dsge_node.subcmds, "fevd")
@@ -3393,16 +3393,25 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "perfect-foresight")
     @test haskey(dsge_node.subcmds, "steady-state")
     @test haskey(dsge_node.subcmds, "hd")
-    @test length(dsge_node.subcmds) == 9
+    @test haskey(dsge_node.subcmds, "ha")
+    @test length(dsge_node.subcmds) == 10
 
-    # All non-bayes subcmds are LeafCommands; bayes is NodeCommand
+    # Nested nodes: bayes, ha; remaining are leaves
     for (name, cmd) in dsge_node.subcmds
-        if name == "bayes"
+        if name in ("bayes", "ha")
             @test cmd isa NodeCommand
         else
             @test cmd isa LeafCommand
         end
     end
+
+    ha_node = dsge_node.subcmds["ha"]
+    for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
+                 "distribution-irf", "inequality-irf", "simulate-panel")
+        @test haskey(ha_node.subcmds, leaf)
+        @test ha_node.subcmds[leaf] isa LeafCommand
+    end
+    @test !haskey(ha_node.subcmds, "estimate")  # deferred MEMs#228
 
     # solve has model argument and key options
     solve_cmd = dsge_node.subcmds["solve"]
