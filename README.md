@@ -42,7 +42,7 @@ The installer checks for Julia 1.12 (installs [juliaup](https://github.com/Julia
 
 **Supported platforms:** macOS ARM64 (Apple Silicon), Linux x86_64, Windows x86_64.
 
-> **Note:** The precompiled release does not include JuMP, Ipopt, or PATHSolver due to license incompatibility (Ipopt's EPL-2.0 conflicts with GPL-3.0). For DSGE constrained optimization (OccBin, etc.), install them separately: `julia -e 'using Pkg; Pkg.add(["JuMP", "Ipopt"])'`
+> **Solver dependencies:** The current precompiled release (v0.6.x line) does not bundle JuMP, Ipopt, or PATHSolver. For DSGE constrained optimization (OccBin, etc.) on this line, install them separately: `julia -e 'using Pkg; Pkg.add(["JuMP", "Ipopt"])'`. Starting with the MacroEconometricModels 0.7.0 adoption, JuMP (MPL-2.0) and Ipopt (MIT Julia wrapper over the EPL-2.0 Ipopt library, linked dynamically as a separate work) become required upstream dependencies and are bundled in the release. PATHSolver remains optional and is not bundled — add it with `Pkg.add("PATHSolver")` if a model needs the PATH solver.
 
 ### Install from Source
 

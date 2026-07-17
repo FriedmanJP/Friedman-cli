@@ -8,6 +8,11 @@
 # 2. Builds a sysimage via PackageCompiler.create_sysimage()
 # 3. Creates a self-contained app directory with bundled Julia + sysimage
 # 4. Does NOT modify the source Project.toml
+#
+# Local dev build: bundles everything, including any weak deps (re-added by name
+# below). With MacroEconometricModels >= 0.7.0, JuMP + Ipopt are required upstream
+# deps and are pulled in by the resolve regardless; PATHSolver stays weak/optional.
+# See the "Solver dependencies" note in README.md.
 
 using Pkg
 

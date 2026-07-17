@@ -4,15 +4,20 @@
 # Produces: build/friedman/ with platform-appropriate sysimage and launcher
 #
 # This script:
-# 1. Creates a temporary build environment (weak deps excluded for license compat)
+# 1. Creates a temporary build environment seeded from the source Manifest
 # 2. Builds a sysimage via PackageCompiler.create_sysimage()
 # 3. Creates a self-contained app directory with sysimage + launcher
 # 4. Does NOT modify the source Project.toml
 #
-# Note: JuMP/Ipopt/PATHSolver (EPL-2.0, GPL-incompatible) are excluded because
-# they are never installed into build_env — they are optional extensions of
-# MacroEconometricModels, not deps of this package. Users who need DSGE
-# constrained optimization can install them separately: Pkg.add(["JuMP", "Ipopt"])
+# Bundled-dependency set = the seeded Manifest.
+#   * With MacroEconometricModels >= 0.7.0, JuMP (MPL-2.0) and Ipopt (MIT wrapper
+#     over the EPL-2.0 Ipopt library, linked dynamically as a separate work) are
+#     REQUIRED upstream deps — they resolve into the Manifest and are bundled.
+#     This is intentional; see the "Solver dependencies" note in README.md.
+#   * PATHSolver / XLSX / ZipFile stay weak deps of MEMs (nothing hard-requires
+#     them), so they are absent from the resolved Manifest and are not bundled.
+#   * On the 0.6.x line JuMP/Ipopt are still weak and likewise absent — this
+#     script's behavior is unchanged there.
 
 using Pkg
 
@@ -32,7 +37,9 @@ mkpath(build_project_dir)
 # Copy source files (launcher is regenerated later — do not copy bin/)
 cp(joinpath(project_dir, "src"), joinpath(build_project_dir, "src"))
 
-# Read original Project.toml, drop weakdeps and extensions (EPL-incompatible)
+# Read original Project.toml. Friedman declares no weakdeps/extensions of its own;
+# these deletes are defensive so a future weak dep never forces an extension into
+# the build. What actually gets bundled is fixed by the seeded Manifest (above).
 original_toml = Pkg.TOML.parsefile(joinpath(project_dir, "Project.toml"))
 delete!(original_toml, "weakdeps")
 delete!(original_toml, "extensions")
@@ -49,7 +56,7 @@ if isfile(src_manifest)
     cp(src_manifest, joinpath(build_project_dir, "Manifest.toml"))
 end
 
-# Activate build env and install deps (weak deps excluded)
+# Activate build env and install exactly the Manifest's dependency graph
 Pkg.activate(build_project_dir)
 Pkg.instantiate()
 
