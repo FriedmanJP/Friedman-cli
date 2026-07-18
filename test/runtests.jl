@@ -2801,6 +2801,20 @@ end
     @test _err_message(ErrorException("boom")) == "boom"
 end
 
+@testset "C061: no active validity warnings" begin
+    # C047 shipped the validity_warning! mechanism with ZERO active warnings —
+    # every targeted upstream defect (#122/#130/#163) was fixed within the pin,
+    # and re-verified sound on 0.7.0 (dsge bayes compare, did test honest). This
+    # guards that no command handler re-introduces a validity_warning! call site.
+    cmd_dir = joinpath(dirname(@__DIR__), "src", "commands")
+    offenders = String[]
+    for (root, _, files) in walkdir(cmd_dir), f in files
+        endswith(f, ".jl") || continue
+        occursin("validity_warning!", read(joinpath(root, f), String)) && push!(offenders, f)
+    end
+    @test isempty(offenders)
+end
+
 @testset "IO utilities" begin
 
     @testset "load_data" begin

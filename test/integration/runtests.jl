@@ -358,6 +358,78 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    # ── Panel VAR + DiD family (C054): this suite is the gate that was missing
+    # when the MEMs 0.7.0 bump silently broke xtset / estimate_pvar / pvar_fevd /
+    # pvar_bootstrap_irf / pvar_lag_selection / lp_did. ──────────────────────
+    @testset "panel VAR + DiD family on real MEMs" begin
+        panel = dgp_did_panel(; N=40, T=10, seed=7)
+        P = ["--id-col", "id", "--time-col", "time"]
+        D = ["--outcome", "y", "--treatment", "d"]
+
+        @testset "estimate pvar" begin
+            r = run_json(vcat(["estimate", "pvar", panel], P, ["--lags", "1"]))
+            assert_envelope_ok(r; label="estimate pvar")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing && length(table_rows(tbl)) >= 1
+        end
+        @testset "test pvar lagselect/mmsc/stability/hansen-j" begin
+            for sub in ("lagselect", "mmsc", "stability", "hansen-j")
+                r = run_json(vcat(["test", "pvar", sub, panel], P))
+                assert_envelope_ok(r; label="test pvar $sub")
+            end
+        end
+        @testset "irf pvar" begin
+            r = run_json(vcat(["irf", "pvar", panel], P, ["--lags", "1", "--horizons", "4"]))
+            assert_envelope_ok(r; label="irf pvar")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing && length(table_rows(tbl)) >= 1
+        end
+        @testset "fevd pvar proportions in [0,1]" begin
+            r = run_json(vcat(["fevd", "pvar", panel], P, ["--lags", "1", "--horizons", "4"]))
+            assert_envelope_ok(r; label="fevd pvar")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            for row in table_rows(tbl), v in collect(row)[2:end]
+                v isa Real && (@test -1e-6 <= v <= 1 + 1e-6)
+            end
+        end
+        @testset "did estimate has finite SE column (#164-169)" begin
+            r = run_json(vcat(["did", "estimate", panel], D, P))
+            assert_envelope_ok(r; label="did estimate")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            si = col_index(tbl, "SE")
+            @test si !== nothing
+            ses = [collect(row)[si] for row in table_rows(tbl)]
+            @test all(x -> x isa Real && isfinite(x) && x >= 0, ses)
+        end
+        @testset "did test honest has RR robust + original CIs (C061)" begin
+            r = run_json(vcat(["did", "test", "honest", panel], D, P))
+            assert_envelope_ok(r; label="did test honest")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            cols = table_cols(tbl)
+            # Rambachan–Roth structure: both robust and original CIs present.
+            @test any(c -> occursin("Robust", c), cols)
+            @test any(c -> occursin("Original", c), cols)
+        end
+        @testset "did event-study / lp-did / bacon / pretrend / negweight" begin
+            # event-study also guards the stdout-contract fix (leading noise would
+            # make the raw envelope unparseable → assert_envelope_ok fails).
+            for (name, args) in (
+                ("event-study", vcat(["did", "event-study", panel], D, P)),
+                ("lp-did",      vcat(["did", "lp-did", panel], D, P)),
+                ("test bacon",  vcat(["did", "test", "bacon", panel], D, P)),
+                ("test pretrend", vcat(["did", "test", "pretrend", panel], D, P)),
+                ("test negweight", vcat(["did", "test", "negweight", panel, "--treatment", "d"], P)),
+            )
+                r = run_json(args)
+                assert_envelope_ok(r; label="did $name")
+            end
+        end
+        rm(panel; force=true)
+    end
+
     @testset "spectral density" begin
         csv = dgp_ar1(; T=200, φ=0.5, seed=35)
         r = run_json(["spectral", "density", csv, "--column", "1", "--method", "welch"])

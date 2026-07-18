@@ -50,6 +50,26 @@ function dgp_coint(; T::Int=250, β::Float64=1.0, seed::Int=42)
     return write_csv(DataFrame(x=x, y=y); prefix="coint")
 end
 
+"""Balanced DiD / Panel-VAR panel: `N` units × `T` periods, columns id/time/y/d.
+Half the units are treated from `treat_start` (a 0/1 post indicator `d`), the
+rest never-treated; parallel pre-trends + a `att` treatment effect on `y`."""
+function dgp_did_panel(; N::Int=40, T::Int=10, treat_start::Int=6,
+                        att::Float64=2.0, seed::Int=7)
+    rng = MersenneTwister(seed)
+    id = Int[]; time = Int[]; y = Float64[]; d = Int[]
+    for i in 1:N
+        treated = i <= N ÷ 2
+        ufe = randn(rng)
+        for t in 1:T
+            di = (treated && t >= treat_start) ? 1 : 0
+            push!(id, i); push!(time, t)
+            push!(y, ufe + 0.1 * t + att * di + 0.3 * randn(rng))
+            push!(d, di)
+        end
+    end
+    return write_csv(DataFrame(id=id, time=time, y=y, d=d); prefix="did")
+end
+
 """GARCH(1,1)-like returns (univariate)."""
 function dgp_garch(; T::Int=500, seed::Int=42)
     rng = MersenneTwister(seed)

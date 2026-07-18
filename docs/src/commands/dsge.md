@@ -276,6 +276,13 @@ Bayesian DSGE workflow. `bayes` is a **nested command group** with 8 sub-leaves:
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
+!!! note "`--params` and `--priors`"
+    The `--params` names must match the parameter keys in the `[priors]` TOML.
+    Start values are passed to MacroEconometricModels as a name→value mapping, so
+    the order of `--params` is immaterial and never silently realigned against the
+    (internally sorted) prior keys (MEMs #136). A name in `--params` with no
+    matching prior is rejected.
+
 ### dsge bayes estimate
 
 Bayesian DSGE posterior estimation.

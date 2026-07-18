@@ -114,9 +114,9 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
     _status_styled("  N: "; bold=true)
     _status("$(result.n_obs) obs, $(result.n_groups) groups")
     _status_styled("  Lags: "; bold=true)
-    print("$(result.lags)  ")
+    _status_styled("$(result.lags)  ")
     _status_styled("Leads: "; bold=true)
-    print("$(result.leads)  ")
+    _status_styled("$(result.leads)  ")
     _status_styled("Horizon: "; bold=true)
     _status("$(result.horizon)")
 
