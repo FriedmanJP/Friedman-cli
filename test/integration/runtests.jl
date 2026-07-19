@@ -233,13 +233,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
-    @testset "forecast var" begin
+    @testset "forecast var (C051 tidy long_table)" begin
         csv = dgp_var2(; T=150, seed=17)
         r = run_json(["forecast", "var", csv, "--lags", "2", "--horizons", "4"])
         assert_envelope_ok(r; label="forecast var")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
-        @test length(table_rows(tbl)) == 4 || length(table_rows(tbl)) >= 1
+        if tbl !== nothing
+            # C051: MEMs' uniform tidy long_table schema (one row per horizon×variable),
+            # replacing the old wide per-variable table (horizon | var | var_lower | ...).
+            @test table_cols(tbl) == ["horizon", "variable", "value", "lower", "upper"]
+            @test length(table_rows(tbl)) == 4 * 3   # 4 horizons × 3 variables (dgp_var2)
+        end
         rm(csv; force=true)
     end
 

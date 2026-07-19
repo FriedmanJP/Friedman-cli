@@ -22,6 +22,7 @@ module MacroEconometricModels
 using LinearAlgebra: I, diagm
 using Statistics: mean
 using Random
+using DataFrames: DataFrame   # for long_table (Tables.jl tidy exports, real MEMs #346)
 
 # ─── Distributions re-export (real MEMs re-exports Distributions) ──────────
 # Minimal stand-in so the CLI's prior bridge (_dsge_priors_distributions →
@@ -2152,6 +2153,23 @@ point_forecast(f::Union{VARForecast,BVARForecast}) = f.forecast
 lower_bound(f::Union{VARForecast,BVARForecast}) = f.ci_lower
 upper_bound(f::Union{VARForecast,BVARForecast}) = f.ci_upper
 forecast_horizon(f::Union{VARForecast,BVARForecast}) = f.horizon
+
+# long_table — tidy/long view mirroring real MEMs (#346): array-valued results render
+# as `horizon | variable | value | lower | upper` (lower/upper missing when ci_method==:none).
+function long_table(f::VARForecast)
+    H, nv = size(f.forecast)
+    vn = length(f.varnames) == nv ? f.varnames : ["y$i" for i in 1:nv]
+    has_ci = f.ci_method != :none
+    horizon = Int[]; variable = String[]
+    value = Float64[]; lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for h in 1:H, v in 1:nv
+        push!(horizon, h); push!(variable, vn[v]); push!(value, f.forecast[h, v])
+        push!(lower, has_ci ? f.ci_lower[h, v] : missing)
+        push!(upper, has_ci ? f.ci_upper[h, v] : missing)
+    end
+    return DataFrame(; horizon, variable, value, lower, upper)
+end
+export long_table
 
 # BVAR forecast dispatch — returns BVARForecast
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)

@@ -231,73 +231,32 @@ function _forecast_var(; data::String="", lags=nothing, horizons::Int=12,
                         plot::Bool=false, plot_save::String="",
                         model=nothing)
     if isnothing(model)
-        model, Y, varnames, p = _load_and_estimate_var(data, lags)
+        model, _, _, p = _load_and_estimate_var(data, lags)
     else
-        varnames = model.varnames
         p = model.p
-        Y = model.Y
     end
-    n = size(Y, 2)
+
+    # C051: render the forecast (point + CI) through MEMs' uniform tidy long_table
+    # (horizon | variable | value | lower | upper), replacing the hand-built wide table
+    # and the hand-rolled companion-matrix MSE. MEMs' symbol is :analytic (not :analytical).
+    ci_sym = ci_method == "bootstrap" ? :bootstrap :
+             ci_method == "none"      ? :none : :analytic
 
     _status("Computing VAR($p) forecast: horizons=$horizons, confidence=$confidence, ci=$ci_method")
     _status()
 
-    # Bootstrap CI branch
-    if ci_method == "bootstrap"
-        fc_result = forecast(model, horizons; ci_method=:bootstrap, reps=500, conf_level=confidence)
-        fc_mat = point_forecast(fc_result)
-        ci_lo = lower_bound(fc_result)
-        ci_hi = upper_bound(fc_result)
-        fc_df = DataFrame()
-        fc_df.horizon = 1:horizons
-        for (vi, vname) in enumerate(varnames)
-            fc_df[!, vname] = fc_mat[:, vi]
-            fc_df[!, "$(vname)_lower"] = ci_lo[:, vi]
-            fc_df[!, "$(vname)_upper"] = ci_hi[:, vi]
-        end
-        output_result(fc_df; format=Symbol(format), output=output,
-                      title="VAR($p) Forecast (h=$horizons, bootstrap $(Int(round(confidence*100)))% CI)")
-        _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
-        return
-    end
+    fc_kw = ci_sym == :bootstrap ?
+        (; ci_method=:bootstrap, reps=500, conf_level=confidence) :
+        (; ci_method=ci_sym, conf_level=confidence)
+    fc_result = forecast(model, horizons; fc_kw...)
+    fc_df = long_table(fc_result)
 
-    B = coef(model)
-    forecasts = _var_forecast_point(B, Y, p, horizons)
-
-    # Forecast error variance from MA(inf) representation
-    Sigma = model.Sigma
-    alpha = 1.0 - confidence
-    z = quantile_normal(1.0 - alpha / 2.0)
-
-    comp = companion_matrix(coef(model), n, p)
-    n_comp = size(comp, 1)
-    J = zeros(n, n_comp)
-    J[1:n, 1:n] = I(n)
-
-    mse = zeros(horizons, n)
-    Phi_power = Matrix{Float64}(I(n_comp))
-    cumulative_mse = zeros(n, n)
-    for h in 1:horizons
-        if h > 1
-            Phi_power = Phi_power * comp
-        end
-        Phi_h = J * Phi_power * J'
-        cumulative_mse += Phi_h * Sigma * Phi_h'
-        mse[h, :] = diag(cumulative_mse)
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = forecasts[:, vi]
-        se = sqrt.(max.(mse[:, vi], 0.0))
-        fc_df[!, "$(vname)_lower"] = forecasts[:, vi] .- z .* se
-        fc_df[!, "$(vname)_upper"] = forecasts[:, vi] .+ z .* se
-        fc_df[!, "$(vname)_se"] = se
-    end
-
+    ci_label = ci_sym == :bootstrap ? "bootstrap $(Int(round(confidence*100)))% CI" :
+               ci_sym == :none      ? "point forecast" :
+               "$(Int(round(confidence*100)))% CI"
     output_result(fc_df; format=Symbol(format), output=output,
-                  title="VAR($p) Forecast (h=$horizons, $(Int(round(confidence*100)))% CI)")
+                  title="VAR($p) Forecast (h=$horizons, $ci_label)")
+    _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
 end
 
 # Normal quantile without importing Distributions (Abramowitz & Stegun 26.2.23)
