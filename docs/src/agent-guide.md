@@ -1,6 +1,6 @@
 # Agent Guide
 
-Contract for agents driving Friedman-cli (CLI v0.5.0+; package v0.6.0 targets MEMs v0.6.7).
+Contract for agents driving Friedman-cli (CLI v0.5.0+; package v0.7.0 targets MEMs v0.7.0).
 
 ## One envelope on stdout
 
@@ -18,8 +18,8 @@ Example shape (fields abbreviated):
   "command": "friedman estimate var",
   "status": "ok",
   "meta": {
-    "cli_version": "0.6.0",
-    "mems_version": "0.4.x",
+    "cli_version": "0.7.0",
+    "mems_version": "0.7.0",
     "julia": "1.12.x",
     "seed": null,
     "argv": ["estimate", "var", "data.csv", "--lags", "1", "--format", "json"],

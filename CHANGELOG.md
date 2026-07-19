@@ -4,6 +4,50 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.7.0] — 2026-07-19
+
+CLI v0.7.0 re-platforms onto **MacroEconometricModels 0.7.0** (milestone M5a).
+The upstream bump adds ~191 exports and makes JuMP + Ipopt required dependencies;
+several wrapped outputs and error/logging behaviors change as noted below.
+
+### Added
+
+- **Typed domain errors** (C050, MEMs #245): MacroEconometricModels' `MacroModelError`
+  hierarchy is mapped to CLI exit codes — `ConvergenceError`/`IdentificationError`/
+  `SingularSystemError` → `model/*` (exit 5), `SerializationError` → `data/serialization`
+  (exit 3). A mis-oriented DSGE data matrix now surfaces as `data/orientation`
+  (exit 3) with a transpose hint (C054 #142) instead of an internal error.
+- **Structured logging** (C050, MEMs #348): library `@info`/`@warn`/`@error` are
+  routed to stderr; `--quiet` drops `@info` and keeps `@warn`/`@error`.
+- **Bundled solvers** (C060): JuMP (MPL-2.0) and Ipopt (MIT wrapper over the
+  EPL-2.0 library, dynamically linked) are now required upstream deps and ship in
+  the precompiled release; PATHSolver stays optional and unbundled.
+
+### Changed
+
+- **Dependency pin** `MacroEconometricModels` 0.6.7 → **0.7.0**; `Logging` added
+  as a direct stdlib dependency.
+- **`dsge bayes` `--params`** (C054 #136): start values pass to upstream as a
+  name→value mapping (order-independent, validated against the priors) rather than
+  a positional vector.
+
+### Fixed
+
+- **Panel VAR / DiD family regression** (C054): the 0.7.0 bump broke the entire
+  `estimate pvar` / `test pvar *` / `irf pvar` / `fevd pvar` / `did *` surface via
+  upstream signature and result-shape changes (`xtset`, `estimate_pvar`/`_feols`,
+  `pvar_bootstrap_irf`, `pvar_fevd`, `pvar_mmsc`/`pvar_lag_selection`, `LPDiDResult`).
+  All are reconciled and now covered by the integration suite.
+- **`did event-study`** no longer leaks the Lags/Leads values to stdout (they are
+  status output and belong on stderr).
+
+### Verified (no change)
+
+- `dsge bayes compare` marginal likelihoods come from upstream's sound Geweke-MHM
+  path and `did test honest` bounds from the Rambachan–Roth implementation
+  (C061); the `validity_warning!` mechanism ships with zero active warnings.
+- Johansen rank selection and MacKinnon unit-root p-values (C054 #270/#177).
+
 ## [0.6.0] — 2026-07-17
 
 CLI v0.6.0 adopts **MacroEconometricModels 0.6.7** (from the Julia General
