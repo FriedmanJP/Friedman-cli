@@ -251,14 +251,39 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
-    @testset "forecast arima" begin
+    @testset "forecast arima tidy (C051)" begin
         csv = dgp_ar1(; T=200, φ=0.6, seed=19)
         r = run_json(["forecast", "arima", csv, "--column", "1", "--horizons", "5"])
         assert_envelope_ok(r; label="forecast arima")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
-        @test length(table_rows(tbl)) >= 1
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "value", "lower", "upper"]
+            @test length(table_rows(tbl)) == 5   # univariate: 5 horizons × 1 variable
+        end
         rm(csv; force=true)
+    end
+
+    @testset "forecast vecm/lp/static tidy (C051)" begin
+        # forecast leaves whose handlers return an AbstractForecastResult → long_table
+        cointcsv = dgp_coint(; T=300, seed=45)
+        rv = run_json(["forecast", "vecm", cointcsv, "--lags", "2", "--rank", "1", "--horizons", "6"])
+        assert_envelope_ok(rv; label="forecast vecm")
+        _, tv = first_table(rv.doc)
+        @test tv !== nothing && table_cols(tv) == ["horizon", "variable", "value", "lower", "upper"]
+        rm(cointcsv; force=true)
+
+        mvcsv = dgp_var2(; T=150, seed=47)
+        rl = run_json(["forecast", "lp", mvcsv, "--shock", "1", "--horizons", "6"])
+        assert_envelope_ok(rl; label="forecast lp")
+        _, tl = first_table(rl.doc)
+        @test tl !== nothing && table_cols(tl) == ["horizon", "variable", "value", "lower", "upper"]
+
+        rs = run_json(["forecast", "static", mvcsv, "--nfactors", "1", "--horizons", "6"])
+        assert_envelope_ok(rs; label="forecast static")
+        _, ts = first_table(rs.doc)
+        @test ts !== nothing && table_cols(ts) == ["horizon", "variable", "value", "lower", "upper"]
+        rm(mvcsv; force=true)
     end
 
     @testset "filter hp" begin

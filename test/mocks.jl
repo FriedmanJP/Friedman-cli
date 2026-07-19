@@ -2207,6 +2207,30 @@ function long_table(irf::BayesianImpulseResponse)
     end
     return DataFrame(; horizon, variable, shock, value, lower, upper)
 end
+
+# Shared tidy builder for AbstractForecastResult-style types → horizon|variable|value|
+# lower|upper (mirrors real MEMs long_table(::AbstractForecastResult); univariate vectors
+# reshape to (h,1)). lo/hi === nothing ⇒ missing bands.
+function _mock_fc_lt(pf, lo, hi, varnames::Vector{String})
+    pfm = pf isa AbstractVector ? reshape(pf, :, 1) : pf
+    H, nv = size(pfm)
+    vn = length(varnames) == nv ? varnames : ["y$i" for i in 1:nv]
+    _m(x) = x === nothing ? nothing : (x isa AbstractVector ? reshape(x, :, 1) : x)
+    lom = _m(lo); him = _m(hi)
+    horizon = Int[]; variable = String[]; value = Float64[]
+    lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for h in 1:H, v in 1:nv
+        push!(horizon, h); push!(variable, vn[v]); push!(value, Float64(pfm[h, v]))
+        push!(lower, lom === nothing ? missing : Float64(lom[h, v]))
+        push!(upper, him === nothing ? missing : Float64(him[h, v]))
+    end
+    return DataFrame(; horizon, variable, value, lower, upper)
+end
+long_table(f::LPForecast)         = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+long_table(f::VolatilityForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+long_table(f::ARIMAForecast)      = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+long_table(f::VECMForecast)       = _mock_fc_lt(f.levels, f.ci_lower, f.ci_upper, String[])
+long_table(f::FactorForecast)     = _mock_fc_lt(f.observables, f.observables_lower, f.observables_upper, String[])
 export long_table
 
 # BVAR forecast dispatch — returns BVARForecast

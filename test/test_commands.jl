@@ -2154,8 +2154,9 @@ end  # HD handlers
             end
             @test isfile(outfile)
             result_df = CSV.read(outfile, DataFrame)
-            @test nrow(result_df) == 5
-            @test "forecast" in names(result_df)
+            @test nrow(result_df) == 5   # C051: tidy, 5 horizons × 1 variable
+            @test "value" in names(result_df)
+            @test "variable" in names(result_df)
         end
     end
 

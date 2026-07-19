@@ -355,21 +355,8 @@ function _forecast_lp(; data::String="", shock::Int=1, horizons::Int=12,
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
     shock_name = _shock_name(varnames, shock)
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    n_resp = size(fc.forecast, 2)
-    for vi in 1:n_resp
-        vname = _var_name(varnames, vi)
-        fc_df[!, vname] = fc.forecast[:, vi]
-        if ci_method != "none"
-            fc_df[!, "$(vname)_lower"] = fc.ci_lower[:, vi]
-            fc_df[!, "$(vname)_upper"] = fc.ci_upper[:, vi]
-            fc_df[!, "$(vname)_se"] = fc.se[:, vi]
-        end
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)")
 end
 
@@ -414,15 +401,8 @@ function _forecast_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
     q_sel = ma_order(model)
     label = _model_label(p_sel, d_sel, q_sel)
 
-    fc_df = DataFrame(
-        horizon=1:horizons,
-        forecast=round.(fc.forecast; digits=6),
-        lower=round.(fc.ci_lower; digits=6),
-        upper=round.(fc.ci_upper; digits=6),
-        se=round.(fc.se; digits=6)
-    )
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)")
 end
 
@@ -458,20 +438,8 @@ function _forecast_static(; data::String="", nfactors=nothing, horizons::Int=12,
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = fc.observables[:, vi]
-    end
-
-    if ci_method != "none" && !isnothing(fc.observables_lower)
-        for (vi, vname) in enumerate(varnames)
-            fc_df[!, "$(vname)_lower"] = fc.observables_lower[:, vi]
-            fc_df[!, "$(vname)_upper"] = fc.observables_upper[:, vi]
-        end
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)")
 
     if !isnothing(fc.observables_se)
@@ -639,21 +607,9 @@ function _forecast_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = fc.levels[:, vi]
-    end
-
-    if ci_method != "none" && !isnothing(fc.ci_lower)
-        for (vi, vname) in enumerate(varnames)
-            fc_df[!, "$(vname)_lower"] = fc.ci_lower[:, vi]
-            fc_df[!, "$(vname)_upper"] = fc.ci_upper[:, vi]
-        end
-    end
-
     ci_label = ci_method == "none" ? "" : ", $(Int(round(confidence*100)))% CI"
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="VECM Forecast (rank=$r, h=$horizons$ci_label)")
 end
 
