@@ -12,7 +12,9 @@ jobs:
   build:
     name: Build - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    # 0.7.0 line bundles JuMP+Ipopt into the sysimage (C060), pushing the ubuntu
+    # build past the old 90/60 caps. Headroom for setup+deps+build+archive+upload.
+    timeout-minutes: 150
     strategy:
       fail-fast: true
       matrix:
@@ -47,7 +49,7 @@ jobs:
 
       - name: Build sysimage
         run: julia build_release.jl
-        timeout-minutes: 60
+        timeout-minutes: 120
 
       - name: Smoke-test binary (C034 hard JSON + schema + exit codes)
         shell: bash
