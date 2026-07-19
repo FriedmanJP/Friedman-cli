@@ -53,10 +53,12 @@ jobs:
       - name: Add swap space (Linux OOM headroom)
         if: runner.os == 'Linux'
         run: |
-          sudo fallocate -l 10G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          # GitHub ubuntu runners already have an active /swapfile (fallocate over it
+          # fails "Text file busy"), so add ADDITIONAL swap on the large /mnt temp disk.
+          sudo fallocate -l 12G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
           swapon --show
           free -h
 
