@@ -264,10 +264,12 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
 
     _status_report(() -> report(irf_result))
 
-    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
-    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
-    irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock)
-    shock_name = _shock_name(varnames, shock)
+    # C051: render via MEMs' uniform tidy long_table (horizon|variable|shock|value|lower|
+    # upper), replacing the wide per-shock build_irf_table. Preserve the --shock selector
+    # by filtering the tidy rows to the chosen structural shock.
+    shock_name = irf_result.shocks[shock]
+    irf_df = long_table(irf_result)
+    irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock ($id identification)")
 end

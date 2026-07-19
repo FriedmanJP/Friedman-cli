@@ -2169,6 +2169,30 @@ function long_table(f::VARForecast)
     end
     return DataFrame(; horizon, variable, value, lower, upper)
 end
+
+function long_table(irf::ImpulseResponse)
+    H = size(irf.values, 1); nv = length(irf.variables); ns = length(irf.shocks)
+    has_ci = irf.ci_type != :none && irf.ci_lower !== nothing
+    horizon = Int[]; variable = String[]; shock = String[]
+    value = Float64[]; lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h); push!(variable, irf.variables[v]); push!(shock, irf.shocks[s])
+        push!(value, irf.values[h, v, s])
+        push!(lower, has_ci ? irf.ci_lower[h, v, s] : missing)
+        push!(upper, has_ci ? irf.ci_upper[h, v, s] : missing)
+    end
+    return DataFrame(; horizon, variable, shock, value, lower, upper)
+end
+
+function long_table(f::FEVD)
+    nv, ns, H = size(f.proportions)     # (variable, shock, horizon)
+    horizon = Int[]; variable = String[]; shock = String[]; value = Float64[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h); push!(variable, f.variables[v]); push!(shock, f.shocks[s])
+        push!(value, f.proportions[v, s, h])
+    end
+    return DataFrame(; horizon, variable, shock, value)
+end
 export long_table
 
 # BVAR forecast dispatch — returns BVARForecast

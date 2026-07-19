@@ -275,8 +275,11 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.proportions, varnames, horizons;
-                        id=id, title_prefix="FEVD", format=format, output=output)
+    # C051: render via MEMs' uniform tidy long_table (horizon|variable|shock|value),
+    # replacing the wide per-variable _output_fevd_tables. (Arias/Uhlig branches above
+    # build proportions by hand with no FEVD result type, so they keep the wide helper.)
+    output_result(long_table(fevd_result); format=Symbol(format), output=output,
+                  title="FEVD ($id identification)")
 end
 
 # ── BVAR FEVD ────────────────────────────────────────────

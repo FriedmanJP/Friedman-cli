@@ -191,35 +191,38 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
-    @testset "irf var Cholesky h0 own-shock ≈ 1" begin
+    @testset "irf var Cholesky tidy (C051)" begin
         csv = dgp_var2(; T=200, seed=9)
         r = run_json(["irf", "var", csv, "--lags", "2", "--horizons", "8",
                       "--shock", "1", "--ci", "none", "--id", "cholesky"])
         assert_envelope_ok(r; label="irf var")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
-        rows = table_rows(tbl)
-        cols = table_cols(tbl)
-        @test length(rows) >= 8  # horizon grid present
-        h0 = collect(rows[1])
-        varcols = filter(c -> c != "horizon" && !endswith(c, "_lower") && !endswith(c, "_upper") &&
-                              !endswith(c, "_16pct") && !endswith(c, "_84pct"), cols)
-        @test !isempty(varcols)
-        v1 = findfirst(==(varcols[1]), cols)
-        own = h0[v1]
-        @test own isa Real
-        # Cholesky own-shock impact nonzero (scale may be residual sd, not 1)
-        @test abs(Float64(own)) > 1e-6
+        if tbl !== nothing
+            # C051: tidy long_table, filtered to the selected --shock.
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(unique(row[ci["shock"]] for row in rows)) == 1   # one shock
+            h1 = [Float64(row[ci["value"]]) for row in rows if row[ci["horizon"]] == 1]
+            @test any(x -> abs(x) > 1e-6, h1)   # Cholesky impact responses not all zero
+        end
         rm(csv; force=true)
     end
 
-    @testset "fevd var shape" begin
+    @testset "fevd var tidy (C051)" begin
         csv = dgp_var2(; T=180, seed=13)
         r = run_json(["fevd", "var", csv, "--lags", "2", "--horizons", "10", "--id", "cholesky"])
         assert_envelope_ok(r; label="fevd var")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
-        @test length(table_rows(tbl)) >= 1
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value"]
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            # FEVD proportions are shares in [0, 1]
+            @test all(-1e-8 <= Float64(row[ci["value"]]) <= 1.0 + 1e-8 for row in rows)
+        end
         rm(csv; force=true)
     end
 
