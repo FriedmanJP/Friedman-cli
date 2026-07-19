@@ -22,6 +22,7 @@ module MacroEconometricModels
 using LinearAlgebra: I, diagm
 using Statistics: mean
 using Random
+import DataFrames
 using DataFrames: DataFrame   # for long_table (Tables.jl tidy exports, real MEMs #346)
 
 # ─── Distributions re-export (real MEMs re-exports Distributions) ──────────
@@ -2237,6 +2238,26 @@ function _mock_fc_lt(pf, lo, hi, varnames::Vector{String})
 end
 long_table(f::BVARForecast)       = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, f.varnames)
 long_table(f::LPForecast)         = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+
+# Coefficient-bearing models expose a tidy coef table via Tables.jl in real MEMs
+# (`DataFrame(model)` → equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper,
+# C051 #346). Tables isn't a test dep, so the mock extends DataFrames.DataFrame directly.
+function _mock_coef_df(equation, term, est::Vector{Float64})
+    ne = length(est); se = fill(0.1, ne)
+    DataFrames.DataFrame(equation=equation, term=term, estimate=est,
+        std_error=se, stat=est ./ se, p_value=fill(0.5, ne),
+        ci_lower=est .- 0.2, ci_upper=est .+ 0.2)
+end
+function DataFrames.DataFrame(m::VARModel)
+    ncoef, neq = size(m.B)
+    terms = vcat(["const"], ["$(m.varnames[v]).L$l" for l in 1:m.p for v in 1:length(m.varnames)])
+    length(terms) == ncoef || (terms = ["term$i" for i in 1:ncoef])
+    equation = String[]; term = String[]; est = Float64[]
+    for j in 1:neq, i in 1:ncoef
+        push!(equation, m.varnames[j]); push!(term, terms[i]); push!(est, Float64(m.B[i, j]))
+    end
+    _mock_coef_df(equation, term, est)
+end
 long_table(f::VolatilityForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::ARIMAForecast)      = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::VECMForecast)       = _mock_fc_lt(f.levels, f.ci_lower, f.ci_upper, String[])

@@ -559,8 +559,9 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
     model = estimate_var(Y, p)
     _status_report(() -> report(model))
 
-    coef_df = _build_var_coef_table(coef(model), varnames, p)
-    output_result(coef_df; format=Symbol(format), output=output, title="VAR($p) Coefficients")
+    # C051: MEMs renders coefficient-bearing models as a tidy coef table via Tables.jl
+    # (equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
+    output_result(DataFrame(model); format=Symbol(format), output=output, title="VAR($p) Coefficients")
 
     _status()
     output_model_criteria(model; format=format, title="Information Criteria")

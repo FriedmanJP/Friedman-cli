@@ -124,16 +124,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 # ── Tests ─────────────────────────────────────────────────────
 
 @testset "Integration core vs real MEMs (TS-6)" begin
-    @testset "estimate var" begin
+    @testset "estimate var (C051 tidy coef)" begin
         csv = dgp_var2(; T=180, seed=7)
         r = run_json(["estimate", "var", csv, "--lags", "2"])
         assert_envelope_ok(r; label="estimate var")
-        name, tbl = first_table(r.doc)
-        @test name !== nothing
-        @test length(table_rows(tbl)) >= 1
-        # IC table or coef table present
-        @test haskey(r.doc.data, :var_2_coefficients) || haskey(r.doc.data, :information_criteria) ||
-              haskey(r.doc.data, "var_2_coefficients") || haskey(r.doc.data, "information_criteria")
+        coef = named_table(r.doc, :var_2_coefficients)
+        @test coef !== nothing
+        if coef !== nothing
+            # C051: MEMs' uniform tidy coefficient table via DataFrame(model)
+            @test table_cols(coef) ==
+                  ["equation", "term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"]
+            @test length(table_rows(coef)) >= 1
+        end
         rm(csv; force=true)
     end
 
