@@ -467,10 +467,10 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _status_report(() -> report(irf_result))
 
-    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
-    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
-    irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock)
-    shock_name = _shock_name(varnames, shock)
+    # C051: tidy long_table filtered to the selected --shock (see irf var).
+    shock_name = irf_result.shocks[shock]
+    irf_df = long_table(irf_result)
+    irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
                   title="VECM IRF to $shock_name shock ($id identification)")
 end

@@ -366,6 +366,37 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "irf vecm tidy (C051)" begin
+        csv = dgp_coint(; T=300, seed=35)
+        r = run_json(["irf", "vecm", csv, "--lags", "2", "--rank", "1",
+                      "--shock", "1", "--ci", "none", "--horizons", "8"])
+        assert_envelope_ok(r; label="irf vecm")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(unique(row[ci["shock"]] for row in rows)) == 1   # one shock
+        end
+        rm(csv; force=true)
+    end
+
+    @testset "fevd vecm tidy (C051)" begin
+        csv = dgp_coint(; T=300, seed=37)
+        r = run_json(["fevd", "vecm", csv, "--lags", "2", "--rank", "1", "--horizons", "10"])
+        assert_envelope_ok(r; label="fevd vecm")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value"]
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test all(-1e-8 <= Float64(row[ci["value"]]) <= 1.0 + 1e-8 for row in rows)
+        end
+        rm(csv; force=true)
+    end
+
     # ── Panel VAR + DiD family (C054): this suite is the gate that was missing
     # when the MEMs 0.7.0 bump silently broke xtset / estimate_pvar / pvar_fevd /
     # pvar_bootstrap_irf / pvar_lag_selection / lp_did. ──────────────────────

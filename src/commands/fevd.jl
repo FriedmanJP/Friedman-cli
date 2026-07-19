@@ -372,8 +372,9 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.proportions, varnames, horizons;
-                        id=id, title_prefix="VECM FEVD", format=format, output=output)
+    # C051: tidy long_table (see fevd var).
+    output_result(long_table(fevd_result); format=Symbol(format), output=output,
+                  title="VECM FEVD ($id identification)")
 end
 
 # ── Panel VAR FEVD ─────────────────────────────────────────

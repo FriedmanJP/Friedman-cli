@@ -2481,7 +2481,8 @@ end  # Forecast handlers
                                 id="cholesky", format="csv", output=outfile)
                 end
             end
-            @test any(isfile, [replace(outfile, "." => s) for s in ["_var1.", "_var2.", "_var3."]])
+            # C051: single tidy long_table (horizon|variable|shock|value), one file
+            @test isfile(outfile)
         end
     end
 
