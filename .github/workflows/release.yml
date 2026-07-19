@@ -44,8 +44,21 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Registry MacroEconometricModels@0.6.7 via Manifest / [compat]
+          # Registry MacroEconometricModels pinned =0.7.0 via [compat]
           julia --project -e 'using Pkg; Pkg.instantiate()'
+
+      # PackageCompiler building the JuMP+Ipopt-bundled sysimage (0.7.0 line, C060)
+      # OOM-kills the ~7 GB ubuntu runner. Give it swap headroom so peak memory
+      # spills to disk instead of terminating the runner. Linux-only (fallocate).
+      - name: Add swap space (Linux OOM headroom)
+        if: runner.os == 'Linux'
+        run: |
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          swapon --show
+          free -h
 
       - name: Build sysimage
         run: julia build_release.jl
