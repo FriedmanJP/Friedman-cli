@@ -286,6 +286,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(mvcsv; force=true)
     end
 
+    @testset "forecast bvar/dynamic/gdfm/favar tidy (C051 redesign)" begin
+        # Previously hand-computed; now routed through MEMs forecast(...) → long_table.
+        csv = dgp_var2(; T=150, seed=51)
+        for args in (["forecast", "bvar", csv, "--lags", "1", "--draws", "80", "--horizons", "6"],
+                     ["forecast", "dynamic", csv, "--nfactors", "1", "--horizons", "6"],
+                     ["forecast", "gdfm", csv, "--nfactors", "1", "--dynamic-rank", "1", "--horizons", "6"],
+                     ["forecast", "favar", csv, "--factors", "1", "--key-vars", "1", "--horizons", "6"])
+            r = run_json(args)
+            assert_envelope_ok(r; label=join(args[1:2], " "))
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            tbl !== nothing && @test table_cols(tbl) == ["horizon", "variable", "value", "lower", "upper"]
+        end
+        rm(csv; force=true)
+    end
+
     @testset "filter hp" begin
         csv = dgp_trend_cycle(; T=120, seed=21)
         r = run_json(["filter", "hp", csv, "--columns", "1"])

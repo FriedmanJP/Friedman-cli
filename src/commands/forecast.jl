@@ -291,38 +291,11 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
     _status("  Sampler: $sampler, Draws: $draws")
     _status()
 
-    b_vecs, sigmas = MacroEconometricModels.extract_chain_parameters(post)
-    n_draws = size(b_vecs, 1)
-    all_forecasts = zeros(n_draws, horizons, n)
-
-    for d in 1:n_draws
-        model_d = MacroEconometricModels.parameters_to_model(b_vecs[d, :], sigmas[d, :], p, n, Y)
-        B_d = coef(model_d)
-        all_forecasts[d, :, :] = _var_forecast_point(B_d, Y, p, horizons)
-    end
-
-    fc_mean = dropdims(mean(all_forecasts; dims=1); dims=1)
-    fc_q16 = zeros(horizons, n)
-    fc_q50 = zeros(horizons, n)
-    fc_q84 = zeros(horizons, n)
-    for h in 1:horizons
-        for vi in 1:n
-            sorted = sort(all_forecasts[:, h, vi])
-            fc_q16[h, vi] = sorted[max(1, round(Int, 0.16 * n_draws))]
-            fc_q50[h, vi] = sorted[max(1, round(Int, 0.50 * n_draws))]
-            fc_q84[h, vi] = sorted[max(1, round(Int, 0.84 * n_draws))]
-        end
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = fc_q50[:, vi]
-        fc_df[!, "$(vname)_16pct"] = fc_q16[:, vi]
-        fc_df[!, "$(vname)_84pct"] = fc_q84[:, vi]
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: route the posterior forecast through MEMs (→ BVARForecast with the posterior
+    # mean + credible bands) and render its tidy long_table (horizon|variable|value|lower|
+    # upper), replacing the hand-rolled per-draw simulation and quantile computation.
+    fc = forecast(post, horizons; conf_level=0.68)
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)")
 end
 
@@ -482,28 +455,10 @@ function _forecast_dynamic(; data::String="", nfactors=nothing, horizons::Int=12
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    # Reconstruct observables via loadings
-    # fc may be a FactorForecast object, NamedTuple, or raw matrix
-    factor_fc = if hasproperty(fc, :factors)
-        fc.factors
-    elseif fc isa NamedTuple && haskey(fc, :factors)
-        fc.factors
-    else
-        fc
-    end
-    if factor_fc isa AbstractMatrix
-        obs_fc = factor_fc * fm.loadings'
-    else
-        obs_fc = reshape(collect(factor_fc), horizons, r) * fm.loadings'
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = obs_fc[:, vi]
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: render the FactorForecast's observable forecasts through MEMs' tidy
+    # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled
+    # loadings reconstruction.
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)")
 end
 
@@ -544,35 +499,12 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
         varnames = fm.varnames
     end
 
-    # GDFM forecast via AR(1) extrapolation on common component factors
-    common = fm.common_component  # T x N
-    T_obs, N = size(common)
-
-    F_pca = svd(common)
-    factors = F_pca.U[:, 1:r] .* F_pca.S[1:r]'
-    loadings = F_pca.V[:, 1:r]
-
-    obs_fc = zeros(horizons, N)
-    for fi in 1:r
-        f = factors[:, fi]
-        y_ar = f[2:end]
-        x_ar = [ones(length(y_ar)) f[1:end-1]]
-        beta = x_ar \ y_ar
-        f_last = f[end]
-        for h in 1:horizons
-            f_next = beta[1] + beta[2] * f_last
-            obs_fc[h, :] .+= f_next .* loadings[:, fi]
-            f_last = f_next
-        end
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = round.(obs_fc[:, vi]; digits=6)
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: route through MEMs' GDFM forecast (→ FactorForecast) and render its tidy
+    # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled AR(1)
+    # extrapolation on the common-component factors.
+    fc = forecast(fm, horizons)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)")
 
     _status()
@@ -639,19 +571,7 @@ function _forecast_favar(; data::String="", factors=nothing, lags::Int=2,
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    pt = point_forecast(fc)
-    lo = lower_bound(fc)
-    hi = upper_bound(fc)
-    n_vars = size(pt, 2)
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    vnames = panel_forecast ? favar.panel_varnames : favar.varnames
-    for v in 1:n_vars
-        vname = v <= length(vnames) ? vnames[v] : "var_$v"
-        fc_df[!, vname] = round.(pt[:, v]; digits=6)
-        fc_df[!, "$(vname)_lower"] = round.(lo[:, v]; digits=6)
-        fc_df[!, "$(vname)_upper"] = round.(hi[:, v]; digits=6)
-    end
-    output_result(fc_df; format=Symbol(format), output=output, title="FAVAR Forecast (h=$horizons)")
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="FAVAR Forecast (h=$horizons)")
 end

@@ -992,6 +992,15 @@ function forecast(model::DynamicFactorModel, h::Int; ci=false, ci_method=:none, 
         abs.(factors) .* 0.1, ones(h, n)*0.1, h, conf_level, :analytical)
 end
 
+function forecast(model::GeneralizedDynamicFactorModel, h::Int; kwargs...)
+    n = size(model.common_component, 2)
+    r = 2
+    factors = ones(h, r) * 0.1
+    obs = ones(h, n) * 0.1
+    FactorForecast(factors, obs, factors, factors, obs .- 0.5, obs .+ 0.5,
+        abs.(factors) .* 0.1, ones(h, n)*0.1, h, 0.95, :analytical)
+end
+
 # Unit root / cointegration tests
 adf_test(y; lags=:aic, regression=:constant) = ADFResult(-3.5, 0.01, 2)
 kpss_test(y; regression=:constant) = KPSSResult(0.3, 0.01)
@@ -2226,6 +2235,7 @@ function _mock_fc_lt(pf, lo, hi, varnames::Vector{String})
     end
     return DataFrame(; horizon, variable, value, lower, upper)
 end
+long_table(f::BVARForecast)       = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, f.varnames)
 long_table(f::LPForecast)         = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::VolatilityForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::ARIMAForecast)      = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
