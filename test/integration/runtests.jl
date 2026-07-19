@@ -350,7 +350,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             haskey(v, :rows) || haskey(v, "rows") || continue
             cols = table_cols(v)
             rows = table_rows(v)
-            name_i = findfirst(c -> occursin("var", lowercase(c)) || occursin("param", lowercase(c)), cols)
+            name_i = findfirst(c -> c == "term" || occursin("var", lowercase(c)) || occursin("param", lowercase(c)), cols)
             est_i = findfirst(c -> occursin("coef", lowercase(c)) || occursin("estimate", lowercase(c)), cols)
             name_i === nothing && continue
             est_i === nothing && continue
@@ -368,13 +368,15 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
-    @testset "estimate logit" begin
+    @testset "estimate logit (C051 tidy coef)" begin
         csv = dgp_logit(; T=400, seed=29)
         r = run_json(["estimate", "logit", csv, "--dep", "y"])
         assert_envelope_ok(r; label="estimate logit")
-        _, tbl = first_table(r.doc)
-        @test tbl !== nothing
-        @test length(table_rows(tbl)) >= 1
+        # a table carries the tidy single-equation coef schema
+        tidy = ["term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"]
+        has_coef = any(v -> (v isa JSON3.Object && haskey(v, :rows) && table_cols(v) == tidy),
+                       values(r.doc.data))
+        @test has_coef
         rm(csv; force=true)
     end
 

@@ -1337,21 +1337,11 @@ end
 
 """Build coefficient table DataFrame from a regression model."""
 function _reg_coef_table(model, varnames::Vector{String})
-    b = coef(model)
-    se = stderror(model)
-    t = b ./ se
-    p = [2.0 * (1.0 - _normal_cdf(abs(ti))) for ti in t]
-    ci = confint(model)
-    labels = length(b) == length(varnames) + 1 ? ["_cons"; varnames] : varnames
-    DataFrame(
-        Variable = labels,
-        Coefficient = round.(b; digits=6),
-        Std_Error = round.(se; digits=6),
-        t_stat = round.(t; digits=4),
-        p_value = round.(p; digits=4),
-        CI_Lower = round.(ci[:, 1]; digits=6),
-        CI_Upper = round.(ci[:, 2]; digits=6),
-    )
+    # C051: MEMs renders coefficient-bearing models (RegModel/Logit/Probit/IV, which the
+    # CLI estimates with varnames=xcols) as a tidy coef table via Tables.jl — term|estimate|
+    # std_error|stat|p_value|ci_lower|ci_upper. `varnames` is retained for the call sites
+    # but the names now come from the model itself.
+    DataFrame(model)
 end
 
 # --- Panel Regression Shared Helpers (v0.4.0) ---

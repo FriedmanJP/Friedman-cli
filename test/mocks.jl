@@ -2242,11 +2242,10 @@ long_table(f::LPForecast)         = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upp
 # Coefficient-bearing models expose a tidy coef table via Tables.jl in real MEMs
 # (`DataFrame(model)` → equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper,
 # C051 #346). Tables isn't a test dep, so the mock extends DataFrames.DataFrame directly.
-function _mock_coef_df(equation, term, est::Vector{Float64})
+function _mock_coef_df_base(term, est::Vector{Float64})
     ne = length(est); se = fill(0.1, ne)
-    DataFrames.DataFrame(equation=equation, term=term, estimate=est,
-        std_error=se, stat=est ./ se, p_value=fill(0.5, ne),
-        ci_lower=est .- 0.2, ci_upper=est .+ 0.2)
+    DataFrames.DataFrame(term=term, estimate=est, std_error=se, stat=est ./ se,
+        p_value=fill(0.5, ne), ci_lower=est .- 0.2, ci_upper=est .+ 0.2)
 end
 function DataFrames.DataFrame(m::VARModel)
     ncoef, neq = size(m.B)
@@ -2256,7 +2255,15 @@ function DataFrames.DataFrame(m::VARModel)
     for j in 1:neq, i in 1:ncoef
         push!(equation, m.varnames[j]); push!(term, terms[i]); push!(est, Float64(m.B[i, j]))
     end
-    _mock_coef_df(equation, term, est)
+    df = _mock_coef_df_base(term, est)
+    DataFrames.insertcols!(df, 1, :equation => equation)
+    return df
+end
+# Single-equation coefficient models → 7-col base (term first, no equation).
+function DataFrames.DataFrame(m::Union{RegModel,LogitModel,ProbitModel})
+    b = Float64.(m.beta)
+    terms = length(b) <= 1 ? ["x1"] : vcat(["_cons"], ["x$i" for i in 1:length(b)-1])
+    _mock_coef_df_base(terms, b)
 end
 long_table(f::VolatilityForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::ARIMAForecast)      = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
