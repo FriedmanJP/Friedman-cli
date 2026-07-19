@@ -498,6 +498,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "irf bvar tidy (C051)" begin
+        csv = dgp_var2(; T=120, seed=43)
+        r = run_json(["irf", "bvar", csv, "--lags", "1", "--draws", "80",
+                      "--shock", "1", "--horizons", "6"])
+        assert_envelope_ok(r; label="irf bvar")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(unique(row[ci["shock"]] for row in rows)) == 1   # one shock
+        end
+        rm(csv; force=true)
+    end
+
     @testset "var stability" begin
         csv = dgp_var2(; T=150, seed=41)
         r = run_json(["test", "var", "stability", csv, "--lags", "2"])

@@ -2193,6 +2193,20 @@ function long_table(f::FEVD)
     end
     return DataFrame(; horizon, variable, shock, value)
 end
+
+function long_table(irf::BayesianImpulseResponse)
+    H = size(irf.point_estimate, 1); nv = length(irf.variables); ns = length(irf.shocks)
+    nq = size(irf.quantiles, 4)
+    horizon = Int[]; variable = String[]; shock = String[]
+    value = Float64[]; lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h); push!(variable, irf.variables[v]); push!(shock, irf.shocks[s])
+        push!(value, irf.point_estimate[h, v, s])
+        push!(lower, nq > 0 ? irf.quantiles[h, v, s, 1] : missing)
+        push!(upper, nq > 0 ? irf.quantiles[h, v, s, nq] : missing)
+    end
+    return DataFrame(; horizon, variable, shock, value, lower, upper)
+end
 export long_table
 
 # BVAR forecast dispatch — returns BVARForecast

@@ -363,19 +363,12 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
 
     _status_report(() -> report(birf))
 
-    irf_mean_vals = birf.mean
-    q_levels = birf.quantile_levels
-    q_idx_lo = findfirst(==(0.16), q_levels)
-    q_idx_med = findfirst(==(0.5), q_levels)
-    q_idx_hi = findfirst(==(0.84), q_levels)
-
-    point = !isnothing(q_idx_med) ? birf.quantiles[:, :, :, q_idx_med] : irf_mean_vals
-    ci_lo = !isnothing(q_idx_lo) ? birf.quantiles[:, :, :, q_idx_lo] : nothing
-    ci_hi = !isnothing(q_idx_hi) ? birf.quantiles[:, :, :, q_idx_hi] : nothing
-    irf_df = build_irf_table(point, ci_lo, ci_hi, varnames, shock;
-                             lower_suffix="_16pct", upper_suffix="_84pct")
-
-    shock_name = _shock_name(varnames, shock)
+    # C051: tidy long_table (horizon|variable|shock|value|lower|upper); value = posterior
+    # mean, lower/upper = the outer credible quantiles (16/84pct). Preserve --shock by
+    # filtering the tidy rows to the selected structural shock.
+    shock_name = birf.shocks[shock]
+    irf_df = long_table(birf)
+    irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
                   title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)")
 end
