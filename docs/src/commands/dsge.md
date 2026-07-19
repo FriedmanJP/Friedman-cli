@@ -18,7 +18,7 @@ Friedman supports RA models as TOML or Julia (`DSGESpec`) files, and HA models a
 
 ### TOML (`.toml`)
 
-The model is defined in the `[model]` section with `endogenous`, `exogenous`, `parameters`, and `[[model.equations]]` entries. Set `linear = true` for pre-linearized models (variables are deviations from steady state). An optional `[solver]` section specifies the solution method.
+The model is defined in the `[model]` section with `endogenous`, `exogenous`, `parameters`, and `[[model.equations]]` entries. Set `linear = true` for pre-linearized models (variables are deviations from steady state). An optional `[solver]` section specifies the solution method. Equations are written in MEMs' `@dsge` syntax — index every variable by time (`x[t]`, `x[t-1]`, `x[t+1]`); the CLI feeds them to the `@dsge` macro to build the spec.
 
 ```toml
 [model]
@@ -34,16 +34,16 @@ sigma = 1.0
 phi_n = 1.0
 
 [[model.equations]]
-expr = "c^(-sigma) = beta * c(+1)^(-sigma) * (alpha * exp(eps_a(+1)) * k^(alpha-1) * n(+1)^(1-alpha) + 1 - delta)"
+expr = "c[t]^(-sigma) = beta * c[t+1]^(-sigma) * (alpha * exp(eps_a[t+1]) * k[t]^(alpha-1) * n[t+1]^(1-alpha) + 1 - delta)"
 
 [[model.equations]]
-expr = "phi_n * n^phi_n = c^(-sigma) * (1-alpha) * exp(eps_a) * k(-1)^alpha * n^(-alpha)"
+expr = "phi_n * n[t]^phi_n = c[t]^(-sigma) * (1-alpha) * exp(eps_a[t]) * k[t-1]^alpha * n[t]^(-alpha)"
 
 [[model.equations]]
-expr = "k = (1-delta)*k(-1) + y - c"
+expr = "k[t] = (1-delta)*k[t-1] + y[t] - c[t]"
 
 [[model.equations]]
-expr = "y = exp(eps_a) * k(-1)^alpha * n^(1-alpha)"
+expr = "y[t] = exp(eps_a[t]) * k[t-1]^alpha * n[t]^(1-alpha)"
 
 [solver]
 method = "gensys"
@@ -52,14 +52,21 @@ order = 1
 
 ### Julia Script (`.jl`)
 
-The file must define a `model` variable of type `DSGESpec`:
+The file's **last expression** must evaluate to a `DSGESpec` — typically an `@dsge begin … end` block. The CLI evaluates the file in a sandbox that already imports MEMs, so you may use `@dsge`/`DSGESpec` unqualified (an explicit `using MacroEconometricModels` is harmless but not required):
 
 ```julia
-using MacroEconometricModels
-model = DSGESpec(...)
+@dsge begin
+    parameters: rho = 0.9, sigma = 0.01
+    endogenous: y, c
+    exogenous: eps
+    # linear: true   # optional — pre-linearized (deviations from SS)
+
+    y[t] = rho * y[t-1] + sigma * eps[t]
+    c[t] = y[t]
+end
 ```
 
-The CLI auto-detects the format by file extension.
+The CLI auto-detects the format by file extension. (A `.jl` file that evaluates to an `HADSGESpec` is rejected with a pointer to `dsge ha …`.)
 
 ## dsge solve
 

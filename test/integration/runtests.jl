@@ -554,6 +554,131 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test length(table_rows(tbl)) >= 20
     end
 
+    # C051 loader + C061 bayes-compare — representative-agent DSGE on real MEMs.
+    # Regression guard: the RA DSGE surface (every `dsge` / `dsge bayes` leaf that loads
+    # a model file, via _load_dsge_model) had ZERO T3 coverage and was silently broken on
+    # the 0.7.0 pin — `.toml` had no real DSGESpec constructor (MethodError); `.jl` hit a
+    # world-age MethodError on the @dsge-generated residual fns; and `bayes_factor` (now a
+    # log BF) tripped `dsge bayes compare` with a log-of-negative DomainError. Keep green
+    # so a future MEMs bump can't hide the same class of drift.
+    @testset "representative-agent DSGE (C051/C061)" begin
+        dir = mktempdir()
+        # Linear AR(1)-style RA DSGE: Y is the driven state, C mirrors it (linear = true
+        # so the steady state is trivially zero — no nonlinear solve inside SMC).
+        model_toml = joinpath(dir, "model.toml")
+        write(model_toml, """
+        [model]
+        parameters = { rho = 0.9, sigma = 0.01 }
+        endogenous = ["Y", "C"]
+        exogenous = ["e"]
+        linear = true
+        [[model.equations]]
+        expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
+        [[model.equations]]
+        expr = "C[t] = Y[t]"
+        """)
+        # No `using MacroEconometricModels` here on purpose — the loader injects it (C051).
+        model_jl = joinpath(dir, "model.jl")
+        write(model_jl, """
+        @dsge begin
+            parameters: rho = 0.9, sigma = 0.01
+            endogenous: Y, C
+            exogenous: e
+            linear: true
+
+            Y[t] = rho * Y[t-1] + sigma * e[t]
+            C[t] = Y[t]
+        end
+        """)
+
+        @testset "dsge solve from TOML (TOML→@dsge bridge)" begin
+            r = run_json(["dsge", "solve", model_toml])
+            assert_envelope_ok(r; label="dsge solve toml")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test length(table_rows(tbl)) == 2   # Y, C
+        end
+
+        @testset "dsge solve from .jl (auto-import + world-age)" begin
+            r = run_json(["dsge", "solve", model_jl])
+            assert_envelope_ok(r; label="dsge solve jl")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test length(table_rows(tbl)) == 2
+        end
+
+        @testset "dsge steady-state from TOML (compute_steady_state world-age)" begin
+            r = run_json(["dsge", "steady-state", model_toml])
+            assert_envelope_ok(r; label="dsge steady-state")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+        end
+
+        @testset "dsge irf from .jl (solve then IRF on solution)" begin
+            r = run_json(["dsge", "irf", model_jl, "--horizon", "12"])
+            assert_envelope_ok(r; label="dsge irf")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+        end
+
+        @testset "dsge bayes compare (C061; log-BF semantics)" begin
+            priors = joinpath(dir, "priors.toml")
+            write(priors, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+            priors2 = joinpath(dir, "priors2.toml")   # model 2 estimates rho only
+            write(priors2, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            """)
+            # 1 observable (Y) ⇒ 1 structural shock ⇒ non-singular likelihood.
+            data = joinpath(dir, "data.csv")
+            open(data, "w") do io
+                println(io, "Y")
+                y = 0.0
+                for _ in 1:60
+                    y = 0.9 * y + 0.01 * randn()
+                    println(io, y)
+                end
+            end
+            r = run_json(["dsge", "bayes", "compare", model_jl,
+                          "--data", data, "--observables", "Y",
+                          "--params", "rho,sigma", "--priors", priors,
+                          "--model2", model_jl, "--params2", "rho", "--priors2", priors2,
+                          "--sampler", "smc", "--n-smc", "100", "--n-particles", "50",
+                          "--n-draws", "100", "--burnin", "10"])
+            assert_envelope_ok(r; label="dsge bayes compare")
+            tbl = named_table(r.doc, :bayesian_model_comparison)
+            @test tbl !== nothing
+            if tbl !== nothing
+                @test length(table_rows(tbl)) == 2   # Model 1, Model 2
+                lml_i = col_index(tbl, "log_marginal_likelihood")
+                @test lml_i !== nothing
+                # teeth: both marginal likelihoods finite ⇒ estimation ran end-to-end and
+                # the log-BF handler path did not throw (the previous log-of-negative
+                # DomainError).
+                if lml_i !== nothing
+                    for row in table_rows(tbl)
+                        @test isfinite(Float64(collect(row)[lml_i]))
+                    end
+                end
+            end
+        end
+
+        rm(dir; force=true, recursive=true)
+    end
+
     # C042 — X-13ARIMA-SEATS (pure-Julia MEMs port; always available)
     @testset "filter x13 monthly" begin
         csv = tempname() * ".csv"

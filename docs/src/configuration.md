@@ -186,16 +186,16 @@ sigma = 1.0
 phi_n = 1.0
 
 [[model.equations]]
-expr = "c^(-sigma) = beta * c(+1)^(-sigma) * (alpha * exp(eps_a(+1)) * k^(alpha-1) * n(+1)^(1-alpha) + 1 - delta)"
+expr = "c[t]^(-sigma) = beta * c[t+1]^(-sigma) * (alpha * exp(eps_a[t+1]) * k[t]^(alpha-1) * n[t+1]^(1-alpha) + 1 - delta)"
 
 [[model.equations]]
-expr = "phi_n * n^phi_n = c^(-sigma) * (1-alpha) * exp(eps_a) * k(-1)^alpha * n^(-alpha)"
+expr = "phi_n * n[t]^phi_n = c[t]^(-sigma) * (1-alpha) * exp(eps_a[t]) * k[t-1]^alpha * n[t]^(-alpha)"
 
 [[model.equations]]
-expr = "k = (1-delta)*k(-1) + y - c"
+expr = "k[t] = (1-delta)*k[t-1] + y[t] - c[t]"
 
 [[model.equations]]
-expr = "y = exp(eps_a) * k(-1)^alpha * n^(1-alpha)"
+expr = "y[t] = exp(eps_a[t]) * k[t-1]^alpha * n[t]^(1-alpha)"
 
 [solver]
 method = "gensys"    # gensys|klein|perturbation|projection|pfi
@@ -211,7 +211,10 @@ grid = "auto"        # auto|chebyshev|smolyak
 | `[[model.equations]]` | Model equations (one per block, `expr` field) |
 | `[solver]` | Solution method and settings |
 
-Time notation: `x(+1)` = lead, `x(-1)` = lag, `x` = current.
+Equations use MEMs' `@dsge` syntax — the CLI builds the spec by feeding them to that
+macro. Time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]` = lead; the expectations
+operator `E[t](expr)` is stripped under rational expectations. (Bare `x` and the older
+`x(+1)`/`x(-1)` forms are **not** accepted — always index by `[t]`.)
 
 ## OccBin Constraints
 

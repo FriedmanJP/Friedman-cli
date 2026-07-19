@@ -6758,7 +6758,7 @@ end
         mktempdir() do dir
             model_path, priors_path, csv = _make_bayes_dsge_files(dir)
             # Model 1 has 2 params → log_ml = -498, Model 2 has 1 param → log_ml = -499
-            # So bayes_factor = exp(1) > 1 → "Model 1 favored"
+            # bayes_factor returns log BF = logML₁ − logML₂ = 1 > 0 → "Model 1 favored"
             priors2_path = joinpath(dir, "priors2.toml")
             write(priors2_path, """
             [priors]

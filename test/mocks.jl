@@ -1786,6 +1786,42 @@ function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false, kwargs...)
                       varnames, ss, linear)
 end
 
+# ── Mock @dsge macro (mirrors real MEMs' @dsge; C051/RA-DSGE loader) ────────
+# The CLI loads RA DSGE models by evaluating an `@dsge begin … end` block (from a .jl
+# file, or synthesized from TOML). Real MEMs parses the block into residual functions;
+# the mock only needs the shape, so it counts endogenous/exogenous names and delegates
+# to the keyword `DSGESpec` constructor. `linear: true` inside the block is honoured.
+# Block line ASTs (see the real declaration syntax):
+#   `endogenous: Y, C` → Expr(:tuple, Expr(:call, :(:), :endogenous, :Y), :C)
+#   `exogenous: e`      → Expr(:call, :(:), :exogenous, :e)
+#   `linear: true`      → Expr(:call, :(:), :linear, true)
+function _mock_dsge_extract(block, kw::Symbol)
+    (block isa Expr && block.head === :block) || return Any[]
+    for arg in block.args
+        arg isa Expr || continue
+        if arg.head === :call && length(arg.args) == 3 && arg.args[1] === :(:) && arg.args[2] === kw
+            return Any[arg.args[3]]
+        end
+        if arg.head === :tuple && !isempty(arg.args)
+            f = arg.args[1]
+            if f isa Expr && f.head === :call && length(f.args) == 3 &&
+               f.args[1] === :(:) && f.args[2] === kw
+                return vcat(Any[f.args[3]], arg.args[2:end])
+            end
+        end
+    end
+    return Any[]
+end
+
+macro dsge(block)
+    ne = max(length(_mock_dsge_extract(block, :endogenous)), 1)
+    nx = max(length(_mock_dsge_extract(block, :exogenous)), 1)
+    lin_names = _mock_dsge_extract(block, :linear)
+    is_linear = !isempty(lin_names) && lin_names[1] === true
+    # Splice the constructor object so the expansion needs nothing in the caller's scope.
+    return :($(DSGESpec)(; n_endog=$ne, n_exog=$nx, linear=$is_linear))
+end
+
 struct LinearDSGE{T<:Real}
     Gamma0::Matrix{T}; Gamma1::Matrix{T}; C::Vector{T}; Psi::Matrix{T}; Pi::Matrix{T}
     spec::DSGESpec{T}
@@ -2067,6 +2103,7 @@ export compute_steady_state, linearize, solve, gensys, blanchard_kahn, klein
 export perturbation_solver, collocation_solver, pfi_solver
 export perfect_foresight, occbin_solve, occbin_irf, parse_constraint, variable_bound
 export estimate_dsge, simulate, is_determined, is_stable, nshocks
+export @dsge
 
 # ─── SMM Types & Functions ───────────────────────────────────
 
@@ -3060,7 +3097,8 @@ function posterior_summary(result::BayesianDSGE{T}) where T
 end
 
 function bayes_factor(r1::BayesianDSGE, r2::BayesianDSGE)
-    exp(r1.log_marginal_likelihood - r2.log_marginal_likelihood)
+    # Match real MEMs: return the LOG Bayes factor (logML₁ − logML₂), positive favors M1.
+    r1.log_marginal_likelihood - r2.log_marginal_likelihood
 end
 
 function prior_posterior_table(result::BayesianDSGE{T}) where T

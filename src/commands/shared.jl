@@ -946,12 +946,80 @@ end
 # ── DSGE Helpers ───────────────────────────────────────────
 
 """
+    _dsge_call(f, args...; kwargs...)
+
+Invoke `f` at the latest world age (`Base.invokelatest`). A representative-agent DSGE
+spec loaded from a `.toml`/`.jl` file carries `@dsge`-generated residual functions that
+are compiled at load time — i.e. in a *newer* world age than the running handler's
+frame. Any MEMs call that **evaluates** those residual functions (steady state,
+linearize, solve, DSGE estimation, perfect foresight, OccBin, Bayesian re-solves) must
+go through this, or Julia throws a "method too new to be called from this world context"
+`MethodError`. Calls that only consume an already-solved solution object (irf/fevd/
+simulate/historical_decomposition on a `*Solution`) operate on numeric matrices and do
+NOT need this. See the "RA DSGE loader" durable gotcha in CLAUDE.md.
+"""
+_dsge_call(f, args...; kwargs...) = Base.invokelatest(f, args...; kwargs...)
+
+"""
+    _dsge_sandbox() → Module
+
+Fresh module for evaluating a runtime DSGE spec (a `.jl` file or a synthesized `@dsge`
+block). The in-scope `MacroEconometricModels` object is injected as a const and its
+exports are brought in via a *relative* `using .MacroEconometricModels` — so the bare
+`@dsge`/`DSGESpec` names the macro expands to resolve against the injected object rather
+than the load path. This is what makes the loader work identically under the real
+package and the test mock (which shadows `MacroEconometricModels` in the test session).
+"""
+function _dsge_sandbox()
+    mod = Module()
+    Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
+    Base.eval(mod, :(using .MacroEconometricModels))
+    return mod
+end
+
+"""
+    _dsge_toml_block(dsge_cfg) → String
+
+Synthesize an `@dsge begin … end` source block from the parsed `[model]` TOML fields
+(`get_dsge`): `parameters` (name→value), `endogenous`, `exogenous`, `equations` (already
+in `var[t]` form), and the optional `linear` flag. Real MEMs has no keyword `DSGESpec`
+constructor — specs are built by the `@dsge` macro, which parses the equations into
+callable residual functions — so the TOML path must route through the macro too.
+"""
+function _dsge_toml_block(dsge_cfg::Dict)
+    params = dsge_cfg["parameters"]     # Dict name => value
+    endog  = dsge_cfg["endogenous"]     # Vector{String}
+    exog   = dsge_cfg["exogenous"]      # Vector{String}
+    eqs    = dsge_cfg["equations"]      # Vector{String}
+    is_linear = Bool(get(dsge_cfg, "linear", false))
+
+    lines = String[]
+    if !isempty(params)
+        push!(lines, "    parameters: " * join(["$k = $v" for (k, v) in params], ", "))
+    end
+    push!(lines, "    endogenous: " * join(endog, ", "))
+    isempty(exog) || push!(lines, "    exogenous: " * join(exog, ", "))
+    is_linear && push!(lines, "    linear: true")
+    push!(lines, "")
+    for eq in eqs
+        push!(lines, "    " * eq)
+    end
+    return "@dsge begin\n" * join(lines, "\n") * "\nend"
+end
+
+"""
     _load_dsge_model(path) → DSGESpec
 
 Load a representative-agent DSGE model from a `.toml` or `.jl` file.
 
-- `.toml`: parse `[model]` (incl. optional `linear = true` → `DSGESpec.linear`)
-- `.jl`: last expression must be `DSGESpec`
+- `.toml`: parse `[model]` (incl. optional `linear = true` → `DSGESpec.linear`) and
+  build the spec by synthesizing an `@dsge` block from the equations ([`_dsge_toml_block`]).
+- `.jl`: last expression must be a `DSGESpec` — typically the file is an `@dsge begin … end`
+  block. The sandbox pre-imports MEMs' exports, so the file may use `@dsge`/`DSGESpec`
+  unqualified without its own `using MacroEconometricModels`.
+
+Both paths compile the spec's residual functions at load time; every downstream MEMs
+call that evaluates them must go through [`_dsge_call`] (world-age barrier).
 
 If a `.jl` file evaluates to `HADSGESpec`, throw `usage/wrong-command` (exit 2)
 pointing the user at `dsge ha …` — never crash downstream (C046 / P4-9).
@@ -970,22 +1038,25 @@ function _load_dsge_model(path::String)
         isempty(dsge_cfg["equations"]) && throw(CliError("config/invalid",
             "TOML model must have [[model.equations]]"))
 
-        endog = Symbol.(dsge_cfg["endogenous"])
-        exog = Symbol.(dsge_cfg["exogenous"])
         is_linear = Bool(get(dsge_cfg, "linear", false))
-
-        # Pass linear= so pre-linearized specs (MEMs #115/#116) are not re-parsed as nonlinear.
-        # Real MEMs constructs DSGESpec via @dsge; the mock accepts n_endog/n_exog/linear kwargs.
-        spec = MacroEconometricModels.DSGESpec(; n_endog=length(endog), n_exog=length(exog),
-                                                 linear=is_linear)
+        block = _dsge_toml_block(dsge_cfg)
+        mod = _dsge_sandbox()
+        spec = try
+            include_string(mod, block)
+        catch e
+            throw(CliError("config/invalid",
+                "could not build a DSGE spec from the TOML model — check [[model.equations]]" *
+                " and [model] parameters/endogenous/exogenous: $(sprint(showerror, e))"))
+        end
+        spec isa MacroEconometricModels.DSGESpec || throw(CliError("config/invalid",
+            "TOML model did not build a DSGESpec (got $(typeof(spec)))"))
 
         lin_note = is_linear ? ", linear=true" : ""
-        _status("Loaded DSGE model from TOML: $(length(endog)) endogenous, $(length(exog)) exogenous, $(length(dsge_cfg["equations"])) equations$lin_note")
+        _status("Loaded DSGE model from TOML: $(length(dsge_cfg["endogenous"])) endogenous, $(length(dsge_cfg["exogenous"])) exogenous, $(length(dsge_cfg["equations"])) equations$lin_note")
         return spec
 
     elseif ext == ".jl"
-        mod = Module()
-        Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
+        mod = _dsge_sandbox()
         result = Base.include(mod, path)
         if result isa MacroEconometricModels.HADSGESpec
             throw(CliError("usage/wrong-command",
@@ -1133,10 +1204,12 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
                      constraint_solver::String="")
     _status("Computing steady state...")
     ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    spec = compute_steady_state(spec; ss_kw...)
+    # World-age barrier: a runtime-loaded spec's @dsge residual fns are "too new" for
+    # this frame — every MEMs call that evaluates them must go through _dsge_call.
+    spec = _dsge_call(compute_steady_state, spec; ss_kw...)
 
     _status("Linearizing model...")
-    linearize(spec)
+    _dsge_call(linearize, spec)
 
     _status("Solving with method=$method" *
             (method == "perturbation" ? ", order=$order" : "") *
@@ -1144,7 +1217,7 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
             "...")
 
     solve_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    sol = solve(spec; method=Symbol(method), order=order,
+    sol = _dsge_call(solve, spec; method=Symbol(method), order=order,
                 degree=degree, grid=Symbol(grid), solve_kw...)
 
     # Report diagnostics
@@ -1189,7 +1262,8 @@ function _load_dsge_constraints(path::String; spec=nothing)
 
     if has_nonlinear
         for nl in con_cfg["nonlinear"]
-            c = parse_constraint(nl["expr"], spec)
+            # parse_constraint compiles against the spec's residual fns → world-age barrier
+            c = _dsge_call(parse_constraint, nl["expr"], spec)
             push!(constraints, c)
         end
     end

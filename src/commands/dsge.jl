@@ -665,7 +665,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
             sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid)
             shocks = zeros(Float64, periods, spec.n_exog)
             shocks[1, 1] = 1.0
-            ob_sol = occbin_solve(spec, shocks, cons; T_periods=periods)
+            ob_sol = _dsge_call(occbin_solve, spec, shocks, cons; T_periods=periods)
 
             _maybe_plot(ob_sol; plot=plot, plot_save=plot_save)
 
@@ -740,9 +740,9 @@ function _dsge_steady_state(; model::String, constraints::String="",
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
     if !isempty(constraints)
         cons = _load_dsge_constraints(constraints; spec=spec)
-        spec = compute_steady_state(spec; constraints=cons, solver_kw...)
+        spec = _dsge_call(compute_steady_state, spec; constraints=cons, solver_kw...)
     else
-        spec = compute_steady_state(spec; solver_kw...)
+        spec = _dsge_call(compute_steady_state, spec; solver_kw...)
     end
 
     ss_df = DataFrame(
@@ -794,7 +794,7 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
     if !isempty(constraints)
         _status("\nComputing OccBin IRF...")
         cons = _load_dsge_constraints(constraints)
-        ob_irf = occbin_irf(spec, cons, 1; shock_size=shock_size, horizon=horizon)
+        ob_irf = _dsge_call(occbin_irf, spec, cons, 1; shock_size=shock_size, horizon=horizon)
 
         _maybe_plot(ob_irf; plot=plot, plot_save=plot_save)
 
@@ -901,7 +901,7 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
     _status("  Solver: $solve_method, order=$solve_order")
     _status()
 
-    est = estimate_dsge(spec, Y, param_names;
+    est = _dsge_call(estimate_dsge, spec, Y, param_names;
                         method=Symbol(method), solve_method=Symbol(solve_method),
                         solve_order=solve_order, weighting=Symbol(weighting),
                         irf_horizon=irf_horizon, var_lags=var_lags,
@@ -954,7 +954,7 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     else
         (;)
     end
-    pf = perfect_foresight(spec; shocks=shock_mat, T_periods=periods, solver_kw..., cons_kw...)
+    pf = _dsge_call(perfect_foresight, spec; shocks=shock_mat, T_periods=periods, solver_kw..., cons_kw...)
 
     _maybe_plot(pf; plot=plot, plot_save=plot_save)
 
@@ -1054,7 +1054,9 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     _status()
 
     solver_obj_kw = isempty(constraint_solver) ? (;) : (; solver_obj=Symbol(constraint_solver))
-    result = estimate_dsge_bayes(spec, Y, theta0;
+    # World-age barrier: estimate_dsge_bayes re-solves the spec (evaluating its @dsge
+    # residual fns) on every posterior draw — must run at the latest world age.
+    result = _dsge_call(estimate_dsge_bayes, spec, Y, theta0;
         priors=priors_dict, method=Symbol(sampler),
         observables=obs_syms,
         n_smc=n_smc, n_particles=n_particles,
@@ -1116,7 +1118,8 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
     _status("Computing Bayesian DSGE IRF: horizon=$horizon")
-    irf_result = irf(result, horizon; n_draws=n_draws,
+    # re-solves per draw → world-age barrier (see _dsge_call)
+    irf_result = _dsge_call(irf, result, horizon; n_draws=n_draws,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
@@ -1156,7 +1159,8 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
     _status("Computing Bayesian DSGE FEVD: horizon=$horizon")
-    fevd_result = fevd(result, horizon; n_draws=n_draws,
+    # re-solves per draw → world-age barrier (see _dsge_call)
+    fevd_result = _dsge_call(fevd, result, horizon; n_draws=n_draws,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
@@ -1197,7 +1201,8 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
     _status("Simulating from Bayesian DSGE posterior: T=$periods")
-    sim = simulate(result, periods; n_draws=n_draws,
+    # re-solves per draw → world-age barrier (see _dsge_call)
+    sim = _dsge_call(simulate, result, periods; n_draws=n_draws,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
     _maybe_plot(sim; plot=plot, plot_save=plot_save)
@@ -1285,7 +1290,11 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
         priors=priors2, sampler, n_smc, n_particles, n_draws, burnin,
         ess_target, observables, solver, order, delayed_acceptance, constraint_solver)
 
-    bf = bayes_factor(r1, r2)
+    # MEMs `bayes_factor` returns the LOG Bayes factor: log BF₁₂ = logML₁ − logML₂
+    # (positive favors Model 1). Do NOT take log() of it again. `bf = exp(log_bf)` may
+    # overflow to Inf under strong evidence — that is fine to display.
+    log_bf = bayes_factor(r1, r2)
+    bf = exp(log_bf)
 
     comp_df = DataFrame(
         model = ["Model 1", "Model 2"],
@@ -1299,8 +1308,9 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
 
     _status()
     _status_styled("  Bayes factor (M1 vs M2): $(round(bf; digits=4))\n"; color=:cyan)
-    _status_styled("  Log Bayes factor: $(round(log(bf); digits=4))\n"; color=:cyan)
-    if bf > 1
+    _status_styled("  Log Bayes factor: $(round(log_bf; digits=4))\n"; color=:cyan)
+    # Kass & Raftery (1995): 2·log BF > 6 is strong evidence for Model 1.
+    if log_bf > 0
         _status_styled("  Evidence favors Model 1\n"; color=:green)
     else
         _status_styled("  Evidence favors Model 2\n"; color=:yellow)
@@ -1323,7 +1333,8 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
         solver, order, delayed_acceptance, constraint_solver)
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
-    pp = posterior_predictive(result, n_sim; T_periods=periods)
+    # re-solves per draw → world-age barrier (see _dsge_call)
+    pp = _dsge_call(posterior_predictive, result, n_sim; T_periods=periods)
 
     _maybe_plot(pp; plot=plot, plot_save=plot_save)
 
@@ -1416,7 +1427,8 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
     _status("Historical Decomposition from Bayesian DSGE posterior")
     _status()
 
-    hd = historical_decomposition(bd, Y, obs_syms;
+    # re-solves per draw → world-age barrier (see _dsge_call)
+    hd = _dsge_call(historical_decomposition, bd, Y, obs_syms;
         mode_only=mode_only, n_draws=n_hd_draws, quantiles=q_levels)
 
     for (si, sname) in enumerate(hd.shock_names)
