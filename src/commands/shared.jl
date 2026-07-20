@@ -1385,19 +1385,8 @@ _to_sym(s::String) = Symbol(replace(s, "-" => "_"))
 
 """Build coefficient table from panel regression model."""
 function _preg_coef_table(model, varnames::Vector{String})
-    b = coef(model)
-    se = stderror(model)
-    t = b ./ se
-    p = [2.0 * (1.0 - _normal_cdf(abs(ti))) for ti in t]
-    ci_lo = b .- 1.96 .* se
-    ci_hi = b .+ 1.96 .* se
-    DataFrame(
-        Variable = varnames,
-        Coefficient = round.(b; digits=6),
-        Std_Error = round.(se; digits=6),
-        t_stat = round.(t; digits=4),
-        p_value = round.(p; digits=4),
-        CI_Lower = round.(ci_lo; digits=6),
-        CI_Upper = round.(ci_hi; digits=6),
-    )
+    # C051: MEMs renders panel coefficient models (PanelReg/IV/Logit/Probit) as a tidy
+    # coef table via Tables.jl (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
+    # `varnames` retained for the call sites; names now come from the model.
+    DataFrame(model)
 end

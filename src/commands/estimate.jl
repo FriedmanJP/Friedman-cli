@@ -1633,13 +1633,13 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
 
     _status()
     pairs = Pair{String,Any}[
-        "R2 (within)"  => round(model.within_r2; digits=6),
-        "R2 (between)" => round(model.between_r2; digits=6),
-        "R2 (overall)" => round(model.overall_r2; digits=6),
+        "R2 (within)"  => round(model.r2_within; digits=6),
+        "R2 (between)" => round(model.r2_between; digits=6),
+        "R2 (overall)" => round(model.r2_overall; digits=6),
         "F-statistic"  => round(model.f_stat; digits=4),
         "F p-value"    => round(hasproperty(model, :f_pval) ? model.f_pval :
                                 (hasproperty(model, :f_pvalue) ? model.f_pvalue : NaN); digits=4),
-        "N obs"        => model.nobs,
+        "N obs"        => model.n_obs,
         "N groups"     => model.n_groups,
     ]
     output_kv(pairs; format=format, title="Model Statistics")
@@ -1757,18 +1757,9 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
     )
     output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
 
-    b = model.beta; se = stderror(model)[1:length(b)]
-    z = b ./ se
-    p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    coef_df = DataFrame(
-        Variable = xcols,
-        Coefficient = round.(b; digits=6),
-        Std_Error = round.(se; digits=6),
-        z_stat = round.(z; digits=4),
-        p_value = round.(p; digits=4),
-    )
     _status()
-    output_result(coef_df; format=Symbol(format), output=output, title="Ordered Logit Coefficients")
+    # C051: MEMs tidy coef table (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
+    output_result(DataFrame(model); format=Symbol(format), output=output, title="Ordered Logit Coefficients")
 
     _status()
     pairs = Pair{String,Any}[
@@ -1800,14 +1791,9 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
     cut_df = DataFrame(Cutpoint = ["cut$i" for i in 1:J], Value = round.(model.cutpoints; digits=6))
     output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
 
-    b = model.beta; se = stderror(model)[1:length(b)]
-    z = b ./ se
-    p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    coef_df = DataFrame(
-        Variable = xcols, Coefficient = round.(b; digits=6),
-        Std_Error = round.(se; digits=6), z_stat = round.(z; digits=4), p_value = round.(p; digits=4))
     _status()
-    output_result(coef_df; format=Symbol(format), output=output, title="Ordered Probit Coefficients")
+    # C051: MEMs tidy coef table (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
+    output_result(DataFrame(model); format=Symbol(format), output=output, title="Ordered Probit Coefficients")
 
     _status()
     pairs = Pair{String,Any}[
@@ -1831,28 +1817,18 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
 
     model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
 
-    J = size(model.fitted, 2)
-    for j in 2:J
-        cat_beta = model.beta[:, j-1]
-        k = length(cat_beta)
-        se_all = stderror(model)
-        se_j = se_all[((j-2)*k+1):((j-1)*k)]
-        z = cat_beta ./ se_j
-        p = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        cat_df = DataFrame(
-            Variable = xcols, Coefficient = round.(cat_beta; digits=6),
-            Std_Error = round.(se_j; digits=6), z_stat = round.(z; digits=4),
-            p_value = round.(p; digits=4))
-        output_result(cat_df; format=Symbol(format), output=output,
-            title="Category $(model.categories[j]) vs $(model.categories[1])")
-        _status()
-    end
+    # C051: MEMs tidy coef table keyed by alternative — all categories in one table
+    # (alternative|term|estimate|std_error|stat|p_value|ci_lower|ci_upper), replacing the
+    # per-category loop of wide tables.
+    output_result(DataFrame(model); format=Symbol(format), output=output,
+                  title="Multinomial Logit Coefficients")
+    _status()
 
     pairs = Pair{String,Any}[
         "Pseudo R2" => round(model.pseudo_r2; digits=6),
         "Log-likelihood" => round(model.loglik; digits=4),
         "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
-        "Categories" => J]
+        "Categories" => size(model.fitted, 2)]
     output_kv(pairs; format=format, title="Fit Statistics")
     return model
 end

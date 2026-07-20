@@ -380,6 +380,41 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "estimate ologit/mlogit/preg tidy coef (C051)" begin
+        # Coef schemas share a core; some prepend equation/alternative/block. Assert the
+        # core tidy columns are present (subset) — robust across the per-model variants.
+        core = ["term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"]
+        hascore(doc) = any(v -> (v isa JSON3.Object && haskey(v, :rows) && issubset(core, table_cols(v))),
+                           values(doc.data))
+
+        # ordered/multinomial need ≥3 categories → deterministic 3-category outcome from x
+        catcsv = tempname() * ".csv"
+        catrng = MersenneTwister(61)
+        open(catcsv, "w") do io
+            println(io, "y,x")
+            for _ in 1:300
+                xi = randn(catrng)
+                yi = xi < -0.5 ? 0 : (xi < 0.5 ? 1 : 2)
+                println(io, "$yi,$xi")
+            end
+        end
+        ro = run_json(["estimate", "ologit", catcsv, "--dep", "y"])
+        assert_envelope_ok(ro; label="estimate ologit")
+        @test hascore(ro.doc)                 # ordered coef table is block|term|…
+
+        rml = run_json(["estimate", "mlogit", catcsv, "--dep", "y"])
+        assert_envelope_ok(rml; label="estimate mlogit")
+        @test hascore(rml.doc)                # multinomial is alternative|term|…
+        rm(catcsv; force=true)
+
+        pc = dgp_did_panel(; N=40, T=10, seed=65)
+        rp = run_json(["estimate", "preg", pc, "--id-col", "id", "--time-col", "time",
+                       "--dep", "y", "--indep", "d"])
+        assert_envelope_ok(rp; label="estimate preg")
+        @test hascore(rp.doc)
+        rm(pc; force=true)
+    end
+
     @testset "test johansen on cointegrated pair" begin
         # C054 #270: the Johansen rank off-by-one is fixed upstream. A single
         # cointegrating relation must reject r=0 and fail to reject r=1, i.e.
