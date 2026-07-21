@@ -536,9 +536,12 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
     prior_obj = _build_prior(config, Y, p)
     prior_sym = isnothing(prior_obj) ? :normal : :minnesota
 
+    # Forward --seed as the estimator's own seed (C052/#243): estimate_bvar seeds a
+    # fresh MersenneTwister(seed) and records it in the BVARPosterior ReproManifest,
+    # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj)
+        prior=prior_sym, hyper=prior_obj, seed=_SEED[])
 
     return post, Y, varnames, p, n
 end

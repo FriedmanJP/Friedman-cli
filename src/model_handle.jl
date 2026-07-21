@@ -129,3 +129,118 @@ function _model_dims(model)
     end
     return Dict{String,Any}()
 end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hybrid native/interim save+load (C052) + envelope reproducibility manifest
+# ─────────────────────────────────────────────────────────────────────────────
+# Native MEMs `save_model`/`load_model` (JLD2-backed, versioned, portable across a
+# package upgrade) support only these result types; everything else falls back to
+# the interim `.fmod` Serialization handle above. Dispatch is by suffix + type.
+const _NATIVE_SAVE_TYPES = Set([
+    "VARModel", "BVARPosterior", "RegModel", "LogitModel", "ProbitModel", "LPModel",
+])
+
+_is_native_saveable(model) = string(nameof(typeof(model))) in _NATIVE_SAVE_TYPES
+
+"""
+    save_model_dispatch(path, model) → path
+
+Hybrid save (C052). `.jld2` → native MEMs `save_model` (portable, versioned; only
+the six `_NATIVE_SAVE_TYPES`). `.fmod` → interim Serialization handle (any type).
+No recognized suffix → native when supported, else interim.
+"""
+function save_model_dispatch(path::String, model)
+    isempty(path) && return nothing
+    lc = lowercase(path)
+    if endswith(lc, ".jld2")
+        _is_native_saveable(model) || throw(CliError(
+            "model/unsupported-save",
+            "native .jld2 save does not support $(typeof(model))",
+            hint="use a .fmod path for the portable interim format, or a supported " *
+                 "type ($(join(sort(collect(_NATIVE_SAVE_TYPES)), ", ")))",
+        ))
+        _validate_output_path(path)
+        MacroEconometricModels.save_model(model, path)
+        _status("Model saved to $path (native jld2, $(nameof(typeof(model))))")
+        return path
+    else
+        # `.fmod` or any other suffix → interim format. This keeps save/load
+        # SYMMETRIC: load_model_dispatch routes only `.jld2` to the native loader,
+        # so a non-`.jld2` path must be written in the interim format to reload.
+        # Use a `.jld2` suffix to opt into the native, portable, versioned format.
+        return save_model_handle(path, model)
+    end
+end
+
+"""
+    load_model_dispatch(path) → model
+
+Hybrid load (C052). `.jld2` → native MEMs `load_model` (a bad/incompatible file
+raises `SerializationError` → exit 3 via `_domain_error_class`). Any other handle
+suffix → the interim `.fmod` loader (version mismatch → env/model-version, exit 6).
+"""
+function load_model_dispatch(path::String)
+    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
+                                   hint="check --model path"))
+    if endswith(lowercase(path), ".jld2")
+        try
+            return MacroEconometricModels.load_model(path)
+        catch e
+            # A MacroModelError (e.g. SerializationError: version/type mismatch) is
+            # already typed — let _domain_error_class map it (→ data/serialization,
+            # exit 3). Anything else (EOFError on non-JLD2 / garbage / a `.fmod`
+            # renamed to `.jld2`) is still bad input, not a CLI bug: wrap it so it
+            # never surfaces as internal/error (exit 1) — mirrors load_model_handle.
+            _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
+            throw(CliError("data/serialization", "failed to read native model file: $path",
+                           hint=sprint(showerror, e)))
+        end
+    end
+    return load_model_handle(path)
+end
+
+"""
+    _envelope_manifest() → Dict
+
+Reproducibility manifest for the envelope `meta` (C052 / #345): MEMs
+`capture_manifest` (cheap, always-on) tagged with the CLI's active `--seed`.
+"""
+function _envelope_manifest()
+    m = MacroEconometricModels.capture_manifest(; seed=_SEED[])
+    return Dict{String,Any}(
+        "seed"                => m.seed,
+        "n_threads"           => m.n_threads,
+        "julia_version"       => m.julia_version,
+        "package_version"     => m.package_version,
+        "dependency_versions" => Dict{String,Any}(m.dependency_versions),
+        "os"                  => m.os,
+        "machine"             => m.machine,
+        "timestamp"           => m.timestamp,
+        "git_sha"             => m.git_sha,
+        "git_dirty"           => m.git_dirty,
+        "settings"            => Dict{String,Any}(m.settings),
+    )
+end
+
+"""
+    _native_model_info(path) → NamedTuple
+
+`model info` for a native `.jld2` handle (C052). Reconstructs via MEMs
+`load_model` and reports the type + dimensions; shares the field shape of
+[`model_handle_info`](@ref) so the `model info` renderer is format-agnostic.
+"""
+function _native_model_info(path::String)
+    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
+                                   hint="check the path"))
+    model = load_model_dispatch(path)  # native (.jld2) load, defensively wrapped → data/serialization (exit 3) on bad input
+    return (
+        path = path,
+        magic = "MEMs native (jld2)",
+        cli_version = "n/a",
+        mems_version = _mems_version_string(),
+        model_type = string(nameof(typeof(model))),
+        runtime_cli = _cli_version_string(),
+        runtime_mems = _mems_version_string(),
+        dimensions = _model_dims(model),
+    )
+end

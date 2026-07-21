@@ -662,6 +662,31 @@ leaves are deliberate exceptions and keep a domain-specific wide table instead �
 pvar`, `hd`, and `predict`/`residuals` — either because MEMs has no matching tidy result
 type for them yet or because collapsing to the generic schema would drop information.
 
+### Model handles & reproducibility
+
+Save a fitted model and reuse it later without re-estimation:
+
+```bash
+friedman estimate var data.csv --lags 2 --save-model model.jld2   # native, versioned
+friedman irf var --model model.jld2 --horizons 12                 # load, skip re-estimation
+friedman model info model.jld2                                    # inspect type / dims / versions
+```
+
+Two on-disk formats, chosen by suffix + model type:
+
+- **`.jld2`** — native MacroEconometricModels.jl `save_model`/`load_model` (JLD2-backed,
+  versioned, portable across a package upgrade). Supports `VARModel`, `BVARPosterior`,
+  `RegModel`, `LogitModel`, `ProbitModel`, `LPModel`; a file whose format version is
+  incompatible refuses to load (exit 3) rather than mis-read. Saving an unsupported type to
+  `.jld2` is a clear error (exit 5).
+- **`.fmod`** — the interim `Serialization` handle, an automatic fallback for any other model type.
+
+Every `--format json` envelope carries a **reproducibility manifest** under `meta.manifest`
+(RNG seed, thread count, OS, Julia + package versions, dependency versions, git, timestamp) —
+provenance enough to reproduce and audit a published result. `--seed N` (a leading global) is
+echoed at `meta.seed` and `meta.manifest.seed`, and is forwarded to the BVAR family and VAR/VECM
+IRF estimators so their draws — and the resulting posteriors/IRFs — reproduce bit-for-bit.
+
 ## TOML Configuration
 
 Complex model specs use TOML config files.

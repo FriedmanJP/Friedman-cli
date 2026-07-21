@@ -132,6 +132,11 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
             catch
                 env.meta["mems_version"] = "unknown"
             end
+            try
+                env.meta["manifest"] = _envelope_manifest()
+            catch
+                # provenance is best-effort — never break the envelope over it
+            end
             _ENVELOPE[] = env
         end
         try

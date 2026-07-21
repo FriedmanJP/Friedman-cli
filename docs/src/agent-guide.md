@@ -77,13 +77,24 @@ friedman schema estimate var | jq '.options[].name'  # leaf options
 
 Output is **raw JSON** (not wrapped in an envelope).
 
-## Determinism
+## Determinism & reproducibility
 
 ```bash
 friedman --seed 42 estimate var data.csv --format json
 ```
 
-`meta.seed` echoes the seed. Use the same seed for reproducible stochastic paths.
+`meta.seed` echoes the seed; use the same seed for reproducible stochastic paths. Every JSON
+envelope also carries `meta.manifest` — the MacroEconometricModels.jl reproducibility manifest
+(seed, threads, OS, Julia + package + dependency versions, git, timestamp) — for provenance.
+`--seed` is additionally forwarded as the estimator's own `seed=` for the BVAR family and
+VAR/VECM IRFs, so their `ReproManifest` records it and the draws reproduce bit-for-bit.
+
+## Model handles
+
+`--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
+`.jld2` is the native, versioned format (`VARModel`/`BVARPosterior`/`RegModel`/`LogitModel`/
+`ProbitModel`/`LPModel`); `.fmod` is an interim fallback for other model types. `friedman model
+info PATH` inspects a handle without re-running estimation.
 
 ## Quiet / no-color / json alias
 

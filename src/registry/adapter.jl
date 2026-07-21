@@ -43,17 +43,18 @@ function wrap_legacy(handler::Function)
         save_path = string(get(kwargs, :save_model, ""))
         delete!(kwargs, :save_model)
 
-        # --model PATH.fmod → loaded object; empty → drop so handler default applies.
-        # Only `.fmod` paths are handles (C029). Builtin names and .jl/.toml model
-        # files (e.g. `dsge ha huggett`, `dsge solve rbc.toml`) must pass through
-        # as strings (C040).
+        # --model PATH → loaded object; empty → drop so handler default applies.
+        # `.jld2` (native, C052) and `.fmod` (interim, C029) paths are model handles.
+        # Builtin names and .jl/.toml model files (e.g. `dsge ha huggett`,
+        # `dsge solve rbc.toml`) must pass through as strings (C040).
         if haskey(kwargs, :model)
             mp = kwargs[:model]
             if mp isa AbstractString
                 if isempty(mp)
                     delete!(kwargs, :model)
-                elseif endswith(lowercase(String(mp)), ".fmod")
-                    kwargs[:model] = load_model_handle(String(mp))
+                elseif endswith(lowercase(String(mp)), ".fmod") ||
+                       endswith(lowercase(String(mp)), ".jld2")
+                    kwargs[:model] = load_model_dispatch(String(mp))
                     # allow missing data positional when handle supplies the model
                     get!(kwargs, :data, "")
                 end
@@ -88,7 +89,7 @@ function wrap_legacy(handler::Function)
                     "cannot --save-model: handler returned nothing",
                     hint="only estimate/solve commands produce savable models",
                 ))
-                save_model_handle(save_path, result)
+                save_model_dispatch(save_path, result)
             end
             return result
         finally

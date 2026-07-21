@@ -18,6 +18,10 @@ module Friedman
 
 using CSV, DataFrames, PrettyTables, JSON3, TOML
 using MacroEconometricModels
+# Load-bearing (C052): loading JLD2 activates MacroEconometricModelsJLD2Ext, which
+# backs MEMs `save_model`/`load_model` (native `.jld2` handles). Unlike FFTW — pulled in
+# transitively — a bare JLD2 dep does NOT auto-load at runtime, so import it explicitly.
+import JLD2
 using LinearAlgebra: eigvals, diag, I, svd
 using Statistics: mean, median, var, quantile, std
 using Random

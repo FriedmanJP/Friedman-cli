@@ -252,6 +252,7 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     if stationary_only
         kwargs[:stationary_only] = true
     end
+    isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + ImpulseResponse manifest (C052/#243)
 
     irf_result = irf(model, horizons; kwargs...)
 
@@ -459,6 +460,7 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
     kwargs = _build_identification_kwargs(id, config)
     kwargs[:ci_type] = Symbol(ci)
     kwargs[:reps] = replications
+    isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + manifest (C052/#243)
 
     irf_result = irf(var_model, horizons; kwargs...)
 

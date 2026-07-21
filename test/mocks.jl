@@ -22,6 +22,7 @@ module MacroEconometricModels
 using LinearAlgebra: I, diagm
 using Statistics: mean
 using Random
+import Serialization
 import DataFrames
 using DataFrames: DataFrame   # for long_table (Tables.jl tidy exports, real MEMs #346)
 
@@ -76,6 +77,59 @@ struct SerializationError <: MacroModelError
     msg::String
 end
 Base.showerror(io::IO, e::MacroModelError) = print(io, nameof(typeof(e)), ": ", e.msg)
+
+# ─── Repro manifest + versioned save/load (MEMs 0.7.0 #345/#347; CLI C052) ────
+# JLD2 is not a test dep, so the mock persists a version-tagged container via
+# Serialization, mirroring real save_model/load_model version + type semantics.
+const SERIALIZATION_FORMAT_VERSION = 1
+
+struct ReproManifest
+    seed::Union{Int,Nothing}
+    n_threads::Int
+    julia_version::String
+    package_version::String
+    dependency_versions::Dict{String,String}
+    os::String
+    machine::String
+    timestamp::String
+    git_sha::String
+    git_dirty::Bool
+    settings::Dict{String,Any}
+end
+
+capture_manifest(; seed::Union{Integer,Nothing}=nothing,
+                   settings::AbstractDict=Dict{String,Any}()) =
+    ReproManifest(seed === nothing ? nothing : Int(seed), Threads.nthreads(),
+                  string(VERSION), "0.7.0",
+                  Dict("Distributions" => "0.25", "StatsAPI" => "1.7"),
+                  string(Sys.KERNEL), string(Sys.MACHINE),
+                  "2026-01-01T00:00:00Z", "unknown", false,
+                  Dict{String,Any}(settings))
+
+const _MOCK_NATIVE_SAVE_TYPES = Set([
+    "VARModel", "BVARPosterior", "RegModel", "LogitModel", "ProbitModel", "LPModel",
+])
+
+function save_model(model, path::AbstractString)
+    tname = string(nameof(typeof(model)))
+    tname in _MOCK_NATIVE_SAVE_TYPES || throw(SerializationError(
+        "save_model does not support $(typeof(model))"))
+    open(p -> Serialization.serialize(p,
+        Dict{String,Any}("format_version" => SERIALIZATION_FORMAT_VERSION,
+                         "type" => tname, "payload" => model)), path, "w")
+    return path
+end
+
+function load_model(path::AbstractString)
+    isfile(path) || throw(SerializationError("no such model file: $path"))
+    c = open(Serialization.deserialize, path)
+    (c isa AbstractDict && haskey(c, "format_version")) ||
+        throw(SerializationError("file '$path' is not a model container"))
+    c["format_version"] == SERIALIZATION_FORMAT_VERSION || throw(SerializationError(
+        "unsupported serialization format_version $(c["format_version"]): " *
+        "this build reads $SERIALIZATION_FORMAT_VERSION"))
+    return c["payload"]
+end
 
 # ─── New abstract model supertypes (MEMs 0.7.0 modules; wrapped in C062–C073) ─
 abstract type AbstractMGARCHModel end
@@ -598,7 +652,7 @@ end
 select_lag_order(Y, max_p; criterion=:aic) = min(2, max(1, max_p))
 estimate_var(Y, p; check_stability=true) = _mock_var(Y, p)
 
-estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing) =
+estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
                   10, p, size(Y,2), Y)
 posterior_mean_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
@@ -687,7 +741,7 @@ nvars(m::VARModel) = size(m.Y, 2)
 # IRF
 function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing,
              narrative_check=nothing, ci_type=:none, reps=200, conf_level=0.95,
-             stationary_only=false)
+             stationary_only=false, seed=nothing)
     n = size(model.Y, 2)
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5

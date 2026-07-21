@@ -251,6 +251,8 @@ function _normalize_envelope_json(json_str::AbstractString)
         m["cli_version"] = "GOLDEN"
         m["mems_version"] = "GOLDEN"
         m["julia"] = "GOLDEN"
+        # manifest carries volatile provenance (timestamp/threads/os/git) — pin it
+        haskey(m, "manifest") && (m["manifest"] = "GOLDEN")
         d["meta"] = _sort_keys(m)
     end
     if haskey(d, "command")

@@ -668,6 +668,72 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(fmod; force=true)
     end
 
+    # C052 — native save/load handles + reproducibility manifests + seed forwarding
+    @testset "C052 native .jld2 save/load + hybrid fallback (#347)" begin
+        csv = dgp_var2(; T=100, seed=43)
+        # native round-trip: VARModel → .jld2 → irf --model (no re-estimation)
+        jld = tempname() * ".jld2"
+        r1 = run_json(["estimate", "var", csv, "--lags", "1", "--save-model", jld])
+        assert_envelope_ok(r1; label="estimate save native jld2")
+        @test isfile(jld)
+        r2 = run_json(["irf", "var", "--model", jld, "--horizons", "4", "--ci", "none"])
+        assert_envelope_ok(r2; label="irf --model native jld2")
+        @test first_table(r2.doc)[2] !== nothing
+        # model info reads the native handle
+        r3 = run_json(["model", "info", jld])
+        assert_envelope_ok(r3; label="model info native jld2")
+        # hybrid: an unsupported type on .jld2 errors clearly and writes nothing
+        vjld = tempname() * ".jld2"
+        r4 = run_json(["estimate", "vecm", csv, "--save-model", vjld])
+        @test r4.doc !== nothing && String(r4.doc["status"]) == "error"
+        @test occursin("unsupported", String(r4.doc["error"]["code"]))
+        @test !isfile(vjld)
+        # hybrid: same unsupported type on .fmod falls back to the interim handle
+        vfmod = tempname() * ".fmod"
+        r5 = run_json(["estimate", "vecm", csv, "--save-model", vfmod])
+        assert_envelope_ok(r5; label="vecm .fmod interim fallback")
+        @test isfile(vfmod)
+        # a non-JLD2 file handed to the native path is BAD INPUT, not a CLI bug:
+        # must map to a data/* class (exit 3), never internal/error (exit 1)
+        garbage = tempname() * ".jld2"
+        write(garbage, rand(UInt8, 200))
+        r6 = run_json(["model", "info", garbage])
+        @test r6.doc !== nothing && String(r6.doc["status"]) == "error"
+        @test startswith(String(r6.doc["error"]["code"]), "data/")
+        rm(csv; force=true); rm(jld; force=true); rm(vfmod; force=true); rm(garbage; force=true)
+    end
+
+    @testset "C052 reproducibility manifest in envelope meta (#345)" begin
+        csv = dgp_var2(; T=80, seed=7)
+        r = run_json(["estimate", "var", csv, "--lags", "1"])
+        assert_envelope_ok(r; label="manifest meta")
+        @test haskey(r.doc["meta"], "manifest")
+        m = r.doc["meta"]["manifest"]
+        for k in ("seed", "n_threads", "julia_version", "package_version",
+                  "os", "machine", "timestamp", "dependency_versions")
+            @test haskey(m, k)
+        end
+        @test String(m["package_version"]) != "unknown"
+        rm(csv; force=true)
+    end
+
+    @testset "C052 --seed byte-identical + manifest.seed (#243)" begin
+        csv = dgp_var2(; T=80, seed=9)
+        # two --seed 42 BVAR runs are byte-identical on the data payload
+        r1 = run_json(["--seed", "42", "estimate", "bvar", csv, "--lags", "1", "--draws", "200"])
+        r2 = run_json(["--seed", "42", "estimate", "bvar", csv, "--lags", "1", "--draws", "200"])
+        assert_envelope_ok(r1; label="seeded bvar 1")
+        assert_envelope_ok(r2; label="seeded bvar 2")
+        @test JSON3.write(r1.doc["data"]) == JSON3.write(r2.doc["data"])
+        @test r1.doc["meta"]["manifest"]["seed"] == 42
+        # forwarded seed= makes the consumed BVAR posterior reproducible → irf bvar identical
+        i1 = run_json(["--seed", "42", "irf", "bvar", csv, "--lags", "1", "--horizons", "4"])
+        i2 = run_json(["--seed", "42", "irf", "bvar", csv, "--lags", "1", "--horizons", "4"])
+        assert_envelope_ok(i1; label="seeded irf bvar 1")
+        @test JSON3.write(i1.doc["data"]) == JSON3.write(i2.doc["data"])
+        rm(csv; force=true)
+    end
+
     # C040 — HA-DSGE against real MEMs (builtin huggett is smallest)
     @testset "dsge ha steady-state huggett" begin
         r = run_json(["dsge", "ha", "steady-state", "huggett"])
