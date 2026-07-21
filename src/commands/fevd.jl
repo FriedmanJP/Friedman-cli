@@ -431,20 +431,11 @@ function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
     result = fevd(favar, horizons; id_kwargs...)
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 
-    n_vars = size(result.proportions, 1)
-    n_shocks = size(result.proportions, 2)
-    for v in 1:n_vars
-        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
-        fevd_df = DataFrame()
-        fevd_df.horizon = 1:horizons
-        for s in 1:n_shocks
-            sname = s <= length(favar.varnames) ? favar.varnames[s] : "shock_$s"
-            fevd_df[!, sname] = round.(result.proportions[v, s, :]; digits=4)
-        end
-        output_result(fevd_df; format=Symbol(format),
-                      output=_per_var_output_path(output, vname),
-                      title="FAVAR FEVD — variable: $vname")
-    end
+    # C051: tidy long_table (horizon|variable|shock|value); fevd(favar,...) delegates to
+    # fevd(to_var(favar),...) — the same FEVD type as fevd var.
+    fevd_df = long_table(result)
+    output_result(fevd_df; format=Symbol(format), output=output,
+                  title="FAVAR FEVD ($id identification)")
 end
 
 # ── Structural DFM FEVD ──────────────────────────────
@@ -468,18 +459,8 @@ function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
     result = fevd(sdfm, horizons)
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 
-    n_vars = size(result.proportions, 1)
-    n_shocks = size(result.proportions, 2)
-    for v in 1:n_vars
-        vname = "factor_$v"
-        fevd_df = DataFrame()
-        fevd_df.horizon = 1:horizons
-        for s in 1:n_shocks
-            sname = "shock_$s"
-            fevd_df[!, sname] = round.(result.proportions[v, s, :]; digits=4)
-        end
-        output_result(fevd_df; format=Symbol(format),
-                      output=_per_var_output_path(output, vname),
-                      title="SDFM FEVD — factor: $vname")
-    end
+    # C051: tidy long_table (horizon|variable|shock|value); fevd(sdfm,...) delegates to
+    # fevd(sdfm.factor_var,...) — the same FEVD type as fevd var, in factor space.
+    fevd_df = long_table(result)
+    output_result(fevd_df; format=Symbol(format), output=output, title="SDFM FEVD")
 end

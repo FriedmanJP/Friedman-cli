@@ -1686,7 +1686,9 @@ end  # Test handlers
                              format="table")
                 end
             end
-            @test count("LP IRF to", out) >= 2
+            # C051: tidy long_table consolidates both shocks into a single table/title
+            # (previously split into 2 per-shock output blocks).
+            @test count("LP IRF to", out) == 1
         end
     end
 

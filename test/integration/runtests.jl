@@ -477,6 +477,56 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "irf lp tidy (C051)" begin
+        csv = dgp_var2(; T=200, seed=53)
+        r = run_json(["irf", "lp", csv, "--shock", "1", "--horizons", "8", "--lags", "4"])
+        assert_envelope_ok(r; label="irf lp")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            # C051: slp.irf is a full ImpulseResponse (Plagborg-Møller & Wolf 2021 stack LP
+            # responses into the same 3D array as a VAR IRF) — same schema as irf var.
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(unique(row[ci["shock"]] for row in rows)) == 1   # one shock selected
+        end
+        rm(csv; force=true)
+    end
+
+    @testset "irf/fevd favar tidy (C051)" begin
+        # irf(favar,...)/fevd(favar,...) delegate to the VAR representation, so favar
+        # renders through the same ImpulseResponse/FEVD long_table as irf/fevd var — one
+        # tidy table now covers every shock (no more per-shock output files).
+        csv = dgp_var2(; T=150, seed=55)
+        ri = run_json(["irf", "favar", csv, "--factors", "1", "--key-vars", "1", "--horizons", "6"])
+        assert_envelope_ok(ri; label="irf favar")
+        _, ti = first_table(ri.doc)
+        @test ti !== nothing && table_cols(ti) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+
+        rf = run_json(["fevd", "favar", csv, "--factors", "1", "--key-vars", "1", "--horizons", "6"])
+        assert_envelope_ok(rf; label="fevd favar")
+        _, tf = first_table(rf.doc)
+        @test tf !== nothing && table_cols(tf) == ["horizon", "variable", "shock", "value"]
+        rm(csv; force=true)
+    end
+
+    @testset "irf/fevd sdfm tidy (C051)" begin
+        # irf(sdfm,...) returns a panel-wide ImpulseResponse directly; fevd(sdfm,...)
+        # delegates to the factor VAR — both render through the same long_table as var.
+        csv = dgp_var2(; T=150, seed=57)
+        ri = run_json(["irf", "sdfm", csv, "--factors", "1", "--horizons", "6"])
+        assert_envelope_ok(ri; label="irf sdfm")
+        _, ti = first_table(ri.doc)
+        @test ti !== nothing && table_cols(ti) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+
+        rf = run_json(["fevd", "sdfm", csv, "--factors", "1", "--horizons", "6"])
+        assert_envelope_ok(rf; label="fevd sdfm")
+        _, tf = first_table(rf.doc)
+        @test tf !== nothing && table_cols(tf) == ["horizon", "variable", "shock", "value"]
+        rm(csv; force=true)
+    end
+
     # ── Panel VAR + DiD family (C054): this suite is the gate that was missing
     # when the MEMs 0.7.0 bump silently broke xtset / estimate_pvar / pvar_fevd /
     # pvar_bootstrap_irf / pvar_lag_selection / lp_did. ──────────────────────
