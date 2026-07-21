@@ -2259,27 +2259,10 @@ function DataFrames.DataFrame(m::VARModel)
     DataFrames.insertcols!(df, 1, :equation => equation)
     return df
 end
-# Single-equation coefficient models → 7-col base (term first, no equation).
-function DataFrames.DataFrame(m::Union{RegModel,LogitModel,ProbitModel,
-                                       PanelRegModel,PanelIVModel,PanelLogitModel,PanelProbitModel,
-                                       OrderedLogitModel,OrderedProbitModel})
-    b = Float64.(m.beta)
-    terms = length(b) <= 1 ? ["x1"] : vcat(["_cons"], ["x$i" for i in 1:length(b)-1])
-    _mock_coef_df_base(terms, b)
-end
-# Multinomial logit → tidy coef table keyed by alternative (real MEMs merges `alternative`).
-function DataFrames.DataFrame(m::MultinomialLogitModel)
-    B = m.beta                      # n_terms × (n_alt - 1)
-    nterms, nalt = size(B)
-    terms0 = nterms <= 1 ? ["x1"] : vcat(["_cons"], ["x$i" for i in 1:nterms-1])
-    alt = String[]; term = String[]; est = Float64[]
-    for j in 1:nalt, i in 1:nterms
-        push!(alt, "alt$(j + 1)"); push!(term, terms0[i]); push!(est, Float64(B[i, j]))
-    end
-    df = _mock_coef_df_base(term, est)
-    DataFrames.insertcols!(df, 1, :alternative => alt)
-    return df
-end
+# NB: the Union-typed single-equation/panel/ordered coef table and the multinomial coef
+# table (DataFrame(::Union{RegModel,...}) / DataFrame(::MultinomialLogitModel)) live
+# further down, after RegModel/PanelRegModel/OrderedLogitModel/MultinomialLogitModel etc.
+# are actually defined — see "single-equation coefficient models" below estimate_mlogit.
 long_table(f::VolatilityForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::ARIMAForecast)      = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 long_table(f::VECMForecast)       = _mock_fc_lt(f.levels, f.ci_lower, f.ci_upper, String[])
@@ -4022,6 +4005,30 @@ function estimate_mlogit(y::AbstractVector{T}, X::AbstractMatrix{T};
     cats = collect(1:nc)
     MultinomialLogitModel{T}(y, X, beta, vcov_mat, fitted_mat, ll, ll_null, pseudo,
         T(190.0), T(200.0), vnames, cats, true, 20, cov_type)
+end
+
+# Single-equation coefficient models → 7-col base (term first, no equation). Placed here
+# (not with the other DataFrame(model) methods near VARModel) because RegModel/PanelReg*/
+# OrderedLogit*/MultinomialLogitModel aren't defined until this point in the file.
+function DataFrames.DataFrame(m::Union{RegModel,LogitModel,ProbitModel,
+                                       PanelRegModel,PanelIVModel,PanelLogitModel,PanelProbitModel,
+                                       OrderedLogitModel,OrderedProbitModel})
+    b = Float64.(m.beta)
+    terms = length(b) <= 1 ? ["x1"] : vcat(["_cons"], ["x$i" for i in 1:length(b)-1])
+    _mock_coef_df_base(terms, b)
+end
+# Multinomial logit → tidy coef table keyed by alternative (real MEMs merges `alternative`).
+function DataFrames.DataFrame(m::MultinomialLogitModel)
+    B = m.beta                      # n_terms × (n_alt - 1)
+    nterms, nalt = size(B)
+    terms0 = nterms <= 1 ? ["x1"] : vcat(["_cons"], ["x$i" for i in 1:nterms-1])
+    alt = String[]; term = String[]; est = Float64[]
+    for j in 1:nalt, i in 1:nterms
+        push!(alt, "alt$(j + 1)"); push!(term, terms0[i]); push!(est, Float64(B[i, j]))
+    end
+    df = _mock_coef_df_base(term, est)
+    DataFrames.insertcols!(df, 1, :alternative => alt)
+    return df
 end
 
 function marginal_effects(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}};
