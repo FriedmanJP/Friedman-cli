@@ -62,6 +62,7 @@ include("commands/forecast.jl")
 include("commands/fitted.jl")  # predict + residuals collapsed (C025)
 include("commands/filter.jl")
 include("commands/data.jl")
+include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")
 include("commands/dsge.jl")
 include("commands/did.jl")
@@ -97,6 +98,7 @@ function build_app()
         "residuals" => register_residuals_commands!(),
         "filter"    => register_filter_commands!(),
         "data"      => register_data_commands!(),
+        "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),

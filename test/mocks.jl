@@ -19,7 +19,7 @@
 
 module MacroEconometricModels
 
-using LinearAlgebra: I, diagm
+using LinearAlgebra: I, diagm, Diagonal
 using Statistics: mean
 using Random
 import Serialization
@@ -1645,8 +1645,11 @@ function load_example(name::Symbol)
         group_ids = repeat(1:n_groups, inner=n_years)
         time_ids = repeat(1960:2010, outer=n_groups)
         PanelData(data, vn, group_ids, time_ids, n_groups, n_vars, T_obs, true)
+    elseif name == :wiot
+        _mock_wiot()   # Miller & Blair (2009) IO fixture (defined below)
     else
-        error("unknown dataset: $name (available: fred_md, fred_qd, pwt, mpdta, ddcg)")
+        # Real load_example throws ArgumentError — match it so error-mapping is testable.
+        throw(ArgumentError("Unknown dataset :$name. Available: fred_md, fred_qd, pwt, mpdta, ddcg, wiot"))
     end
 end
 
@@ -4610,14 +4613,317 @@ x13_filter(y::AbstractVector; frequency::Int=12, method::Symbol=:seats,
                trading_day=trading_day, easter=easter, outliers=outliers,
                critical_value=critical_value)
 
-function parse_io(path::String; unit::String="usd", year::Int=2020)
-    n = 3
-    Z = Matrix{Float64}(I, n, n) .* 0.1
-    Y = ones(n, 1)
-    va = ones(n, 1)
-    x = ones(n)
-    IOData(Z, Y, va, x, ["s$i" for i in 1:n], String["r1"], String["fd1"], String["va1"],
-           Dict{String,Any}(), unit, year, "mock", Dict{String,Any}("path"=>path))
+# ── Input-Output analysis mock (C049) ─────────────────────────
+# Faithful re-implementation of the MEMs io module (real formulas) so handler
+# unit tests catch table-shaping bugs. `IOData` is defined above (~L4423).
+
+struct IOExtension{T}
+    F::Matrix{T}
+    F_Y::Matrix{T}
+    S::Matrix{T}
+    stressors::Vector{String}
+    unit::Vector{String}
+end
+
+struct IOMetaData
+    source::String
+    version::String
+    history::Vector{String}
+    files::Vector{Pair{String,String}}
+end
+
+struct LeontiefModel{T}
+    A::Matrix{T}
+    L::Matrix{T}
+    x::Vector{T}
+    io::IOData{T}
+end
+
+struct GhoshModel{T}
+    B::Matrix{T}
+    G::Matrix{T}
+    x::Vector{T}
+    io::IOData{T}
+end
+
+struct IOMultipliers
+    values::Vector{Float64}
+    kind::Symbol
+    type::Symbol
+    sectors::Vector{String}
+end
+
+struct LinkageResult
+    backward::Vector{Float64}
+    forward::Vector{Float64}
+    Ui::Vector{Float64}
+    Uj::Vector{Float64}
+    classification::Vector{Symbol}
+    sectors::Vector{String}
+end
+
+struct SDAResult
+    effects::Dict{Symbol,Vector{Float64}}
+    total::Vector{Float64}
+    residual::Vector{Float64}
+    method::Symbol
+end
+
+struct ExtractionResult
+    total_loss::Float64
+    sector_loss::Vector{Float64}
+    extracted::Vector{Int}
+end
+
+struct FootprintResult
+    total::Matrix{Float64}
+    by_sector::Matrix{Float64}
+    stressors::Vector{String}
+    name::String
+end
+
+struct BaqaeeFarhiResult
+    domar::Vector{Float64}
+    first_order::Vector{Float64}
+    second_order::Matrix{Float64}
+    influence::Vector{Float64}
+    upstreamness::Vector{Float64}
+    downstreamness::Vector{Float64}
+    sectors::Vector{String}
+end
+
+struct IOSourceTable
+    rows::Vector{Tuple{Symbol,NamedTuple}}
+end
+
+_io_invdiag(x::AbstractVector{T}) where {T} =
+    T[xi == zero(T) ? zero(T) : one(T) / xi for xi in x]
+
+technical_coefficients(io::IOData) = io.Z * Diagonal(_io_invdiag(io.x))
+function leontief_inverse(io::IOData{T}) where {T}
+    A = technical_coefficients(io); Matrix{T}(inv(I - A))
+end
+allocation_coefficients(io::IOData) = Diagonal(_io_invdiag(io.x)) * io.Z
+function ghosh_inverse(io::IOData{T}) where {T}
+    B = allocation_coefficients(io); Matrix{T}(inv(I - B))
+end
+function leontief(io::IOData{T}) where {T}
+    A = technical_coefficients(io); LeontiefModel{T}(A, Matrix{T}(inv(I - A)), copy(io.x), io)
+end
+function ghosh(io::IOData{T}) where {T}
+    B = allocation_coefficients(io); GhoshModel{T}(B, Matrix{T}(inv(I - B)), copy(io.x), io)
+end
+
+function _io_household(io::IOData, kind::Symbol)
+    invx = _io_invdiag(io.x)
+    if kind == :output
+        return ones(length(io.x))
+    elseif kind == :income
+        return vec(sum(io.va, dims=1)) .* invx
+    elseif kind == :employment
+        haskey(io.extensions, "employment") ||
+            throw(ArgumentError("no 'employment' extension; add one with add_extension!"))
+        return vec(sum(io.extensions["employment"].F, dims=1)) .* invx
+    else
+        throw(ArgumentError("kind must be :output, :income, or :employment"))
+    end
+end
+
+function _io_closed_leontief(io::IOData)
+    A = technical_coefficients(io); n = size(A, 1); invx = _io_invdiag(io.x)
+    hinc = vec(io.va[1, :]) .* invx
+    y = vec(sum(io.Y, dims=2)); hc = y ./ max(sum(y), eps())
+    Abar = [A hc; reshape(collect(float.(hinc)), 1, n) 0.0]
+    Matrix{Float64}(inv(I - Abar))
+end
+
+function multipliers(io::IOData; kind::Symbol=:output, type::Symbol=:I)
+    L = leontief_inverse(io); h = _io_household(io, kind)
+    if type == :I
+        vals = kind == :output ? vec(sum(L, dims=1)) : vec(L' * h)
+    elseif type == :II
+        n = length(io.x); L2 = _io_closed_leontief(io)
+        vals = kind == :output ? vec(sum(view(L2, 1:n, 1:n), dims=1)) :
+               kind == :income ? collect(view(L2, n + 1, 1:n)) :
+               vec(transpose(view(L2, 1:n, 1:n)) * h)
+    else
+        throw(ArgumentError("type must be :I or :II"))
+    end
+    IOMultipliers(vals, kind, type, copy(io.sectors))
+end
+
+_io_classify(ui, uj) = ui > 1 && uj > 1 ? :key : ui > 1 && uj <= 1 ? :backward :
+                       ui <= 1 && uj > 1 ? :forward : :weak
+
+function linkages(io::IOData; forward::Symbol=:ghosh)
+    L = leontief_inverse(io); n = size(L, 1)
+    backward = vec(sum(L, dims=1))
+    fwd = forward == :ghosh ? vec(sum(ghosh_inverse(io), dims=2)) :
+          forward == :leontief ? vec(sum(L, dims=2)) :
+          throw(ArgumentError("forward must be :ghosh or :leontief"))
+    Ui = backward ./ (sum(backward) / n); Uj = fwd ./ (sum(fwd) / n)
+    LinkageResult(backward, fwd, Ui, Uj,
+                  [_io_classify(Ui[i], Uj[i]) for i in 1:n], copy(io.sectors))
+end
+rasmussen(io::IOData) = linkages(io)
+key_sectors(io::IOData) = linkages(io).classification
+
+function sda(io0::IOData, io1::IOData; method::Symbol=:additive,
+            factors::Symbol=:LY, average::Symbol=:two_polar)
+    L0 = leontief_inverse(io0); L1 = leontief_inverse(io1)
+    y0 = vec(sum(io0.Y, dims=2)); y1 = vec(sum(io1.Y, dims=2))
+    ΔL = L1 - L0; Δy = y1 - y0
+    if method == :additive
+        L_eff = 0.5 .* (ΔL * y0 .+ ΔL * y1); Y_eff = 0.5 .* (L1 * Δy .+ L0 * Δy)
+        total = L1 * y1 .- L0 * y0
+        return SDAResult(Dict(:L => L_eff, :Y => Y_eff), total,
+                         total .- (L_eff .+ Y_eff), :additive)
+    elseif method == :multiplicative
+        x0 = L0 * y0; x1 = L1 * y1; ratio = x1 ./ max.(x0, eps())
+        L_eff = (L1 * y0) ./ max.(x0, eps()); Y_eff = ratio ./ max.(L_eff, eps())
+        return SDAResult(Dict(:L => L_eff, :Y => Y_eff), ratio,
+                         ratio .- (L_eff .* Y_eff), :multiplicative)
+    else
+        throw(ArgumentError("method must be :additive or :multiplicative"))
+    end
+end
+
+_io_sector_idx(io::IOData, s::Integer) = [Int(s)]
+_io_sector_idx(io::IOData, s::AbstractVector{<:Integer}) = collect(Int, s)
+function _io_sector_idx(io::IOData, s::AbstractString)
+    idx = findfirst(==(s), io.sectors)
+    idx === nothing && throw(ArgumentError("sector '$s' not found")); [idx]
+end
+_io_sector_idx(io::IOData, s::AbstractVector{<:AbstractString}) =
+    reduce(vcat, _io_sector_idx.(Ref(io), s))
+
+function hypothetical_extraction(io::IOData, sectors)
+    idx = _io_sector_idx(io, sectors); A = technical_coefficients(io)
+    y = vec(sum(io.Y, dims=2)); x_base = (I - A) \ y
+    Ae = copy(A); Ae[idx, :] .= 0.0; Ae[:, idx] .= 0.0
+    ye = copy(y); ye[idx] .= 0.0; x_red = (I - Ae) \ ye
+    loss = x_base .- x_red
+    ExtractionResult(sum(loss), loss, idx)
+end
+
+function add_extension!(io::IOData{T}, name::AbstractString, F::AbstractMatrix;
+                        stressors, unit, F_Y=nothing) where {T}
+    Fm = Matrix{T}(F); S = Fm * Diagonal(_io_invdiag(io.x))
+    FYm = F_Y === nothing ? zeros(T, size(Fm, 1), size(io.Y, 2)) : Matrix{T}(F_Y)
+    io.extensions[String(name)] =
+        IOExtension{T}(Fm, FYm, S, collect(String.(stressors)), collect(String.(unit)))
+    io
+end
+_io_ext(io, name) = haskey(io.extensions, name) ? io.extensions[name] :
+    throw(ArgumentError("no extension '$name'"))
+intensities(io::IOData, name::AbstractString) = _io_ext(io, name).S
+emission_multipliers(io::IOData, name::AbstractString) =
+    _io_ext(io, name).S * leontief_inverse(io)
+function footprint(io::IOData, name::AbstractString)
+    ext = _io_ext(io, name); L = leontief_inverse(io); M = ext.S * L
+    total = M * io.Y .+ ext.F_Y; y = vec(sum(io.Y, dims=2))
+    FootprintResult(total, M .* reshape(y, 1, :), ext.stressors, String(name))
+end
+
+domar_weights(io::IOData) = io.x ./ sum(io.va)
+function baqaee_farhi(io::IOData; theta=nothing, sigma=nothing)
+    λ = domar_weights(io); L = leontief_inverse(io)
+    y = vec(sum(io.Y, dims=2)); β = y ./ sum(y)
+    n = length(λ)
+    BaqaeeFarhiResult(λ, copy(λ), zeros(n, n), vec(L' * β),
+                      vec(sum(L, dims=2)), vec(sum(L, dims=1)), copy(io.sectors))
+end
+
+const _IO_SOURCES = Dict{Symbol,NamedTuple}(
+    :oecd => (name="OECD ICIO", needs_credentials=false, versions=["v2016","v2018","v2021","v2023"], note="ICIO tables."),
+    :wiod => (name="WIOD 2013", needs_credentials=false, versions=["2013"], note="World IO Database."),
+    :exiobase3 => (name="EXIOBASE 3", needs_credentials=false, versions=["3.8.2"], note="Zenodo-hosted."),
+    :eora26 => (name="EORA26", needs_credentials=true, versions=["26"], note="Requires worldmrio.com account."),
+    :gloria => (name="GLORIA", needs_credentials=false, versions=["053"], note="Fixed URL set."),
+)
+list_io_sources() = IOSourceTable([(k, _IO_SOURCES[k]) for k in sort(collect(keys(_IO_SOURCES)))])
+
+# Per-source downloaders mirror the REAL restricted signatures (sources.jl): only
+# exiobase3 accepts `system`; eora26 accepts neither `system` nor `verify`. This
+# lets T1/T2 catch a handler that over-forwards kwargs (real download_io relays
+# extras verbatim → MethodError), instead of the mock silently swallowing them.
+_io_dl_meta(name, ver, key) = IOMetaData(name, ver, ["mock download of :$key"],
+    Pair{String,String}["https://example.org/$(key)_1.zip" => "$(key)_1.zip",
+                        "https://example.org/$(key)_2.zip" => "$(key)_2.zip"])
+download_oecd(folder; version="v2023", years=nothing, overwrite_existing::Bool=false, verify::Bool=true) =
+    _io_dl_meta("OECD ICIO", version, :oecd)
+download_wiod(folder; years=nothing, overwrite_existing::Bool=false, verify::Bool=true) =
+    _io_dl_meta("WIOD 2013", "2013", :wiod)
+download_exiobase3(folder; years=nothing, system::AbstractString="pxp",
+                   overwrite_existing::Bool=false, verify::Bool=true) =
+    _io_dl_meta("EXIOBASE3", "3.8.2", :exiobase3)
+download_eora26(folder; email, password, years=nothing, overwrite_existing::Bool=false) =
+    _io_dl_meta("EORA26", "26", :eora26)
+download_gloria(folder; years=nothing, overwrite_existing::Bool=false, verify::Bool=true) =
+    _io_dl_meta("GLORIA", "053", :gloria)
+
+function download_io(source::Symbol; storage_folder, years=nothing,
+                     overwrite_existing::Bool=false, version=nothing,
+                     email=nothing, password=nothing, kwargs...)
+    if source == :oecd
+        download_oecd(storage_folder; version=something(version, "v2023"), years=years,
+                      overwrite_existing=overwrite_existing, kwargs...)
+    elseif source == :wiod
+        download_wiod(storage_folder; years=years, overwrite_existing=overwrite_existing, kwargs...)
+    elseif source == :exiobase3
+        download_exiobase3(storage_folder; years=years, overwrite_existing=overwrite_existing, kwargs...)
+    elseif source == :eora26
+        download_eora26(storage_folder; email=something(email, ""), password=something(password, ""),
+                        years=years, overwrite_existing=overwrite_existing, kwargs...)
+    elseif source == :gloria
+        download_gloria(storage_folder; years=years, overwrite_existing=overwrite_existing, kwargs...)
+    else
+        throw(ArgumentError("unknown source :$source; see list_io_sources()"))
+    end
+end
+
+# Miller & Blair (2009) 2-sector fixture — mirrors data/wiot.toml.
+function _mock_wiot()
+    Z = [150.0 500.0; 200.0 100.0]; Y = reshape([350.0, 1700.0], 2, 1)
+    va = [300.0 1000.0; 350.0 400.0]
+    x = vec(sum(Z, dims=2)) .+ vec(sum(Y, dims=2))
+    exts = Dict{String,Any}()
+    io = IOData{Float64}(Z, Y, va, x, ["Agriculture","Manufacturing"], ["total"],
+                         ["final_demand"], ["compensation","other_va"], exts,
+                         "millions", 2009,
+                         "Miller, R.E. & Blair, P.D. (2009) Input-Output Analysis, 2nd ed., Table 2.3",
+                         Dict{String,Any}())
+    add_extension!(io, "employment", reshape([30.0, 40.0], 1, 2);
+                   stressors=["jobs"], unit=["thousand persons"])
+    add_extension!(io, "CO2", reshape([100.0, 300.0], 1, 2);
+                   stressors=["CO2"], unit=["kt"])
+    io
+end
+
+# Mirrors the real parse_io CSV path (parse.jl): reads the file and slices
+# raw[1:n_sectors, ...], so an oversized n_sectors raises BoundsError just like
+# real _parse_csv_io — keeps the handler's error-mapping honest under T1/T2.
+function parse_io(path::AbstractString; source::Symbol=:csv, year=nothing,
+                  n_sectors::Int=2, n_fd::Int=1, sectors=String[], delim::AbstractChar=',')
+    ext = lowercase(splitext(path)[2])
+    ext in (".csv", ".tsv", ".txt") ||
+        throw(ArgumentError("unsupported file type '$ext' for parse_io"))
+    rows = Vector{Float64}[]
+    for l in eachline(path)
+        s = strip(l)
+        isempty(s) && continue
+        push!(rows, [parse(Float64, t) for t in split(s, delim)])
+    end
+    raw = permutedims(reduce(hcat, rows))            # nrow × ncol
+    Z = raw[1:n_sectors, 1:n_sectors]                # BoundsError if n_sectors too large
+    Y = raw[1:n_sectors, n_sectors+1:n_sectors+n_fd]
+    x = vec(sum(Z, dims=2)) .+ vec(sum(Y, dims=2))
+    va = reshape(x .- vec(sum(Z, dims=1)), 1, n_sectors)
+    secs = isempty(sectors) ? ["sector$i" for i in 1:n_sectors] : collect(String.(sectors))
+    IOData{Float64}(Matrix{Float64}(Z), Matrix{Float64}(Y), Matrix{Float64}(va), x,
+                    secs, ["total"], ["fd$j" for j in 1:n_fd], ["va1"],
+                    Dict{String,Any}(), "", year === nothing ? 0 : Int(year),
+                    string(source), Dict{String,Any}())
 end
 
 function BlanchardOLG(; alpha::Real=0.36, beta::Real=0.96, delta::Real=0.08,
@@ -4695,5 +5001,13 @@ export X13FilterResult, IOData
 export load_ha_example, compute_steady_state, distribution_irf, inequality_irf, simulate_panel
 export ct_steady_state, ct_mit_shock, ct_two_asset_solve
 export x13_filter, parse_io, blanchard_steady_state, blanchard_solve, blanchard_transition
+# Input-Output analysis (C049)
+export IOExtension, IOMetaData, LeontiefModel, GhoshModel, IOMultipliers, LinkageResult
+export SDAResult, ExtractionResult, FootprintResult, BaqaeeFarhiResult, IOSourceTable
+export technical_coefficients, leontief_inverse, allocation_coefficients, ghosh_inverse
+export leontief, ghosh, multipliers, linkages, rasmussen, key_sectors
+export sda, hypothetical_extraction, add_extension!, intensities, emission_multipliers, footprint
+export domar_weights, baqaee_farhi, list_io_sources, download_io
+export download_oecd, download_wiod, download_exiobase3, download_eora26, download_gloria
 
 end # module

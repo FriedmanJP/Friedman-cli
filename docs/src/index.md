@@ -25,6 +25,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Predict / Residuals** | In-sample fitted values and model residuals | `predict var`, `residuals var`, ... |
 | **Filters** | HP, Hamilton, Beveridge-Nelson, Baxter-King, Boosted HP | `filter hp`, `filter hamilton`, ... |
 | **Nowcasting** | DFM, BVAR, bridge equations, news decomposition | `nowcast dfm`, `nowcast bvar`, ... |
+| **Input-Output** | Leontief/Ghosh multipliers, linkages, SDA, hypothetical extraction, environmental footprints, Baqaee-Farhi (2019) | `io leontief`, `io multipliers`, `io footprint`, ... |
 | **Data Management** | Example datasets, diagnostics, transformations, validation, balancing | `data list`, `data load`, `data describe`, ... |
 | **DSGE** | RA + Bayesian + **HA** + **CT Aiyagari** + **Blanchard OLG** | `dsge solve`, `dsge ha`, `dsge ct`, `dsge olg`, ... |
 | **DID** | TWFE, Callaway-Sant'Anna, Sun-Abraham, BJS, dCdH, event study LP, LP-DiD | `did estimate`, `did event-study`, `did lp-did` |
@@ -108,6 +109,7 @@ Pages = [
     "commands/predict_residuals.md",
     "commands/filter.md",
     "commands/data.md",
+    "commands/io.md",
     "commands/nowcast.md",
     "commands/dsge.md",
     "commands/did.md",

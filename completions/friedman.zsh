@@ -12,6 +12,7 @@ _friedman() {
     'filter'
     'forecast'
     'hd'
+    'io'
     'irf'
     'model'
     'nowcast'

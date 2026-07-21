@@ -11,7 +11,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 >
 > **v0.7.0 (M5a re-platform on MEMs 0.7.0):** targets MacroEconometricModels **v0.7.0** from the Julia General registry. Pin rule: CI/release/integration use registry resolve against `[compat] MacroEconometricModels = "0.7.0"` (canary/nightly-dev may track MEMs `dev`). At this baseline JuMP + Ipopt become required upstream deps (bundled — see the solver note below).
 
-16 top-level commands (incl. `schema`, `model`, `completions`), ~222 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `schema`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
+17 top-level commands (incl. `schema`, `model`, `completions`), 234 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `io`, `schema`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, input-output analysis (Leontief/Ghosh multipliers, linkages, SDA, environmental footprints, Baqaee-Farhi), time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
 
 ### Agent quick start
 
@@ -74,6 +74,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `residuals` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Model residuals (23 model types) |
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` `x13` | Time series filters (+ X-13ARIMA-SEATS) |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
+| `io` | `sources` `download` `load` `leontief` `ghosh` `multipliers` `linkages` `key-sectors` `sda` `extract` `footprint` `baqaee-farhi` | Input-output analysis (12 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
 | `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.7.0) |
 | `spectral` | `acf` `periodogram` `density` `cross` `transfer` | Spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function) |
@@ -528,6 +529,30 @@ friedman nowcast news --data-new=new.csv --data-old=old.csv --monthly-vars=4 --q
 
 # Forecast from a nowcasting model
 friedman nowcast forecast data.csv --method=dfm --horizons=4
+```
+
+### Input-Output Analysis
+
+```bash
+# Inspect the bundled Miller & Blair example (no data needed)
+friedman io load
+
+# Leontief inverse (total requirements), Ghosh inverse, multipliers
+friedman io leontief --matrix both
+friedman io multipliers --kind output --type I
+
+# Linkages / key sectors, structural decomposition, extraction
+friedman io linkages --forward ghosh
+friedman io sda --data period0.csv --data2 period1.csv --n-sectors 35
+friedman io extract --sectors-extract Manufacturing
+
+# Environmental footprint + Baqaee-Farhi decomposition
+friedman io footprint --account CO2 --detail
+friedman io baqaee-farhi --second-order
+
+# Download MRIO tables (network; --offline refuses with exit 6)
+friedman io sources
+friedman io download --source oecd --storage ./io_data --version v2023
 ```
 
 ### DSGE Models

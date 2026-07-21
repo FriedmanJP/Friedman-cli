@@ -947,6 +947,99 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test length(table_rows(tbl)) >= 100
         rm(csv; force=true)
     end
+
+    # ── Input-Output analysis (C049) — offline via the bundled :wiot fixture ──
+    @testset "io command family (C049)" begin
+        # First table in the envelope whose columns ⊇ `cols`.
+        cols_table(doc, cols) = begin
+            doc === nothing && return nothing
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                all(c -> c in table_cols(v), cols) && return v
+            end
+            return nothing
+        end
+
+        @testset "sources catalog" begin
+            r = run_json(["io", "sources"])
+            assert_envelope_ok(r; label="io sources")
+            t = cols_table(r.doc, ["source", "name", "versions", "credentials"])
+            @test t !== nothing && length(table_rows(t)) == 5
+        end
+
+        @testset "load :wiot dims + balance" begin
+            r = run_json(["io", "load"])
+            assert_envelope_ok(r; label="io load")
+            t = cols_table(r.doc, ["sector", "gross_output", "final_demand", "value_added"])
+            @test t !== nothing
+            rows = [collect(x) for x in table_rows(t)]
+            ci = findfirst(==("sector"), table_cols(t)); gi = findfirst(==("gross_output"), table_cols(t))
+            go = Dict(string(row[ci]) => Float64(row[gi]) for row in rows)
+            @test isapprox(go["Agriculture"], 1000.0; atol=1e-6)
+            @test isapprox(go["Manufacturing"], 2000.0; atol=1e-6)
+        end
+
+        @testset "leontief wide (L[Ag,Ag] ≈ 1.254125)" begin
+            r = run_json(["io", "leontief"])
+            assert_envelope_ok(r; label="io leontief")
+            t = cols_table(r.doc, ["sector", "Agriculture", "Manufacturing"])
+            @test t !== nothing
+            r1 = collect(first(x for x in table_rows(t) if string(collect(x)[1]) == "Agriculture"))
+            ai = findfirst(==("Agriculture"), table_cols(t))
+            @test isapprox(Float64(r1[ai]), 1.254125; atol=1e-4)
+            # both matrices → two tables
+            r2 = run_json(["io", "leontief", "--matrix", "both"])
+            assert_envelope_ok(r2; label="io leontief both")
+            @test length(collect(keys(r2.doc.data))) == 2
+            assert_envelope_ok(run_json(["io", "ghosh"]); label="io ghosh")
+        end
+
+        @testset "multipliers output Type I ≈ [1.518,1.452]" begin
+            r = run_json(["io", "multipliers", "--kind", "output", "--type", "I"])
+            assert_envelope_ok(r; label="io multipliers")
+            t = cols_table(r.doc, ["sector", "multiplier"])
+            vi = findfirst(==("multiplier"), table_cols(t))
+            vals = sort([Float64(collect(x)[vi]) for x in table_rows(t)]; rev=true)
+            @test isapprox(vals, [1.518152, 1.452145]; atol=1e-4)
+            assert_envelope_ok(run_json(["io", "multipliers", "--kind", "income", "--type", "II"]); label="io mult inc II")
+            assert_envelope_ok(run_json(["io", "multipliers", "--kind", "employment"]); label="io mult emp")
+        end
+
+        @testset "linkages / key-sectors / sda / baqaee-farhi" begin
+            r = run_json(["io", "linkages"])
+            assert_envelope_ok(r; label="io linkages")
+            @test cols_table(r.doc, ["sector", "backward", "forward", "Ui", "Uj", "class"]) !== nothing
+            assert_envelope_ok(run_json(["io", "key-sectors"]); label="io key-sectors")
+            rs = run_json(["io", "sda", "--method", "additive"])
+            assert_envelope_ok(rs; label="io sda")
+            ts = cols_table(rs.doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
+            @test ts !== nothing
+            bf = run_json(["io", "baqaee-farhi"])
+            assert_envelope_ok(bf; label="io baqaee-farhi")
+            @test cols_table(bf.doc, ["sector", "domar", "influence", "upstreamness", "downstreamness"]) !== nothing
+        end
+
+        @testset "extract (Agriculture loss ≈ 1000) + footprint (CO2 = 400)" begin
+            r = run_json(["io", "extract", "--sectors-extract", "Agriculture"])
+            assert_envelope_ok(r; label="io extract")
+            t = cols_table(r.doc, ["sector", "output_loss"])
+            si = findfirst(==("sector"), table_cols(t)); li = findfirst(==("output_loss"), table_cols(t))
+            loss = Dict(string(collect(x)[si]) => Float64(collect(x)[li]) for x in table_rows(t))
+            @test isapprox(loss["Agriculture"], 1000.0; atol=1e-3)
+            fp = run_json(["io", "footprint"])
+            assert_envelope_ok(fp; label="io footprint")
+            ft = cols_table(fp.doc, ["stressor", "footprint"])
+            @test ft !== nothing
+            fi = findfirst(==("footprint"), table_cols(ft))
+            @test isapprox(Float64(collect(first(table_rows(ft)))[fi]), 400.0; atol=1e-6)
+        end
+
+        @testset "download --offline → env/network (exit 6)" begin
+            r = run_json(["io", "download", "--source", "oecd", "--storage",
+                          joinpath(tempdir(), "io_dl_none"), "--offline"])
+            @test r.code == 6
+        end
+    end
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

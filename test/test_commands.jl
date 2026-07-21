@@ -82,6 +82,7 @@ include(joinpath(project_root, "src", "commands", "forecast.jl"))
 include(joinpath(project_root, "src", "commands", "fitted.jl"))
 include(joinpath(project_root, "src", "commands", "filter.jl"))
 include(joinpath(project_root, "src", "commands", "data.jl"))
+include(joinpath(project_root, "src", "commands", "io.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
@@ -8086,4 +8087,199 @@ end  # Command Handlers
     # Deliberate rename detection (acceptance demo)
     bad = replace(read(joinpath(_GOLDEN_DIR, "spectral.acf.json"), String), "acf_pacf" => "renamed_table")
     @test !_golden_compare(bad, joinpath(_GOLDEN_DIR, "spectral.acf.json"))
+end
+
+# ═══════════════════════════════════════════════════════════════
+# Input-Output analysis command family (C049)
+# ═══════════════════════════════════════════════════════════════
+
+@testset "io command family (C049)" begin
+    # Run an io leaf in JSON mode; return the raw envelope string.
+    _ioraw(args...) = begin
+        out = _capture() do
+            _dispatch_via_app(vcat(String["io"], collect(String, args), String["--format", "json"]))
+        end
+        i = findfirst('{', out)
+        i === nothing ? "" : out[i:end]
+    end
+    _iodoc(args...) = JSON3.read(_ioraw(args...))
+    # Any table in the envelope whose columns ⊇ `cols`.
+    _hascols(doc, cols) = any(t -> all(c -> c in String.(t.columns), cols), values(doc.data))
+    _table(doc, cols) = first(t for t in values(doc.data) if all(c -> c in String.(t.columns), cols))
+
+    @testset "sources (offline catalog)" begin
+        raw = _ioraw("sources")
+        @test isempty(validate_envelope_json(raw))
+        doc = JSON3.read(raw)
+        @test doc.status == "ok"
+        @test _hascols(doc, ["source", "name", "versions", "credentials", "note"])
+        t = _table(doc, ["source"])
+        @test length(t.rows) == 5
+    end
+
+    @testset "load (dims + per-sector)" begin
+        raw = _ioraw("load")
+        @test isempty(validate_envelope_json(raw))
+        doc = JSON3.read(raw)
+        @test _hascols(doc, ["metric", "value"])              # summary kv
+        @test _hascols(doc, ["sector", "gross_output", "final_demand", "value_added"])
+        t = _table(doc, ["sector", "gross_output"])
+        @test length(t.rows) == 2
+    end
+
+    @testset "leontief / ghosh (wide sector×sector)" begin
+        doc = _iodoc("leontief")                               # default: L only
+        t = _table(doc, ["sector", "Agriculture", "Manufacturing"])
+        @test length(t.rows) == 2
+        # L[1,1] ≈ 1.254125 (Miller & Blair)
+        row1 = first(r for r in t.rows if r[1] == "Agriculture")
+        @test isapprox(Float64(row1[2]), 1.254125; atol=1e-4)
+
+        both = _iodoc("leontief", "--matrix", "both")
+        @test length(collect(keys(both.data))) == 2            # A and L
+
+        g = _iodoc("ghosh")
+        @test _hascols(g, ["sector", "Agriculture", "Manufacturing"])
+    end
+
+    @testset "multipliers (kind × type)" begin
+        d1 = _iodoc("multipliers", "--kind", "output", "--type", "I")
+        t = _table(d1, ["sector", "multiplier"])
+        vals = [Float64(r[2]) for r in t.rows]
+        @test isapprox(vals, [1.518152, 1.452145]; atol=1e-4)
+        @test _hascols(_iodoc("multipliers", "--kind", "income", "--type", "II"), ["sector", "multiplier"])
+        @test _hascols(_iodoc("multipliers", "--kind", "employment"), ["sector", "multiplier"])
+    end
+
+    @testset "linkages / key-sectors" begin
+        lk = _iodoc("linkages")
+        @test _hascols(lk, ["sector", "backward", "forward", "Ui", "Uj", "class"])
+        ks = _iodoc("key-sectors")
+        t = _table(ks, ["sector", "class"])
+        classes = [String(r[2]) for r in t.rows]
+        @test "key" in classes && "weak" in classes
+    end
+
+    @testset "sda (two periods; same → ~0)" begin
+        doc = _iodoc("sda", "--method", "additive")
+        t = _table(doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
+        @test all(isapprox(Float64(r[4]), 0.0; atol=1e-6) for r in t.rows)
+    end
+
+    @testset "extract (name / index / errors)" begin
+        d1 = _iodoc("extract", "--sectors-extract", "Agriculture")
+        t = _table(d1, ["sector", "output_loss"])
+        loss = Dict(String(r[1]) => Float64(r[2]) for r in t.rows)
+        @test isapprox(loss["Agriculture"], 1000.0; atol=1e-3)
+        @test _hascols(_iodoc("extract", "--sectors-extract", "1,2"), ["sector", "output_loss"])
+        # missing required option
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "extract"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        # bad sector name → data class
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", "Nope"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "data/bad-sector" && exit_class(err) == 3
+    end
+
+    @testset "footprint (environmental)" begin
+        raw = _ioraw("footprint")
+        @test isempty(validate_envelope_json(raw))
+        doc = JSON3.read(raw)
+        @test _hascols(doc, ["stressor", "footprint"])
+        @test _hascols(doc, ["sector", "CO2"])
+        det = _iodoc("footprint", "--account", "employment", "--detail")
+        @test length(collect(keys(det.data))) == 4            # footprint + by_sector + S + M
+        # unknown account → data class
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "footprint", "--account", "bogus"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "data/no-extension"
+    end
+
+    @testset "baqaee-farhi" begin
+        doc = _iodoc("baqaee-farhi")
+        @test _hascols(doc, ["sector", "domar", "influence", "upstreamness", "downstreamness"])
+        so = _iodoc("baqaee-farhi", "--second-order")
+        @test length(collect(keys(so.data))) == 2
+    end
+
+    @testset "download (offline refusal + usage + mock happy path)" begin
+        # --offline → env/network (exit 6)
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd", "--storage", "/tmp/x", "--offline"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "env/network" && exit_class(err) == 6
+        # FRIEDMAN_OFFLINE env forces the same refusal
+        err = nothing
+        withenv("FRIEDMAN_OFFLINE" => "1") do
+            try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "wiod", "--storage", "/tmp/x"]); end; catch e; err = e; end
+        end
+        @test err isa CliError && err.code == "env/network"
+        # missing --source / --storage → usage
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--storage", "/tmp/x"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        # junk --years → usage error (not an uncaught ArgumentError → exit 1)
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd", "--storage", "/tmp/x", "--years", "abc"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/bad-years" && exit_class(err) == 2
+        # non-offline mock download → log table (2 files, no network)
+        doc = _iodoc("download", "--source", "oecd", "--storage", "/tmp/x")
+        @test _hascols(doc, ["url", "filename"])
+    end
+
+    @testset "download forwards source-specific kwargs correctly (review [1]/[10])" begin
+        # Every source's non-offline mock happy path must succeed — a regression here
+        # means the handler over-forwards `system`/`verify` to a downloader that rejects
+        # them (the mock reproduces the real restricted per-source signatures).
+        for src in ["oecd", "wiod", "gloria", "exiobase3"]
+            doc = _iodoc("download", "--source", src, "--storage", "/tmp/x")
+            @test _hascols(doc, ["url", "filename"])
+        end
+        # exiobase3 is the only source that accepts --system
+        @test _hascols(_iodoc("download", "--source", "exiobase3", "--storage", "/tmp/x", "--system", "ixi"), ["url", "filename"])
+    end
+
+    @testset "error classes on bad input (review findings)" begin
+        # extract: out-of-range integer index → data/bad-sector (not exit-1 BoundsError)
+        for idx in ["99", "0"]
+            err = nothing
+            try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", idx]); end; catch e; err = e; end
+            @test err isa CliError && err.code == "data/bad-sector" && exit_class(err) == 3
+        end
+        # unknown :example → usage/unknown-example (not exit-1 ArgumentError)
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "load", "--data", ":bogus"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/unknown-example" && exit_class(err) == 2
+        # CSV-backed paths (no satellite accounts; oversized n-sectors)
+        mktempdir() do dir
+            csv = joinpath(dir, "io.csv")
+            open(csv, "w") do io; write(io, "150,500,350\n200,100,1700\n"); end
+            # employment multipliers on an extension-less CSV → data/no-extension
+            err = nothing
+            try; _capture() do; _dispatch_via_app(String["io", "multipliers", "--data", csv, "--n-sectors", "2", "--kind", "employment"]); end; catch e; err = e; end
+            @test err isa CliError && err.code == "data/no-extension"
+            # n-sectors larger than the file → data/parse (not exit-1 BoundsError)
+            err = nothing
+            try; _capture() do; _dispatch_via_app(String["io", "load", "--data", csv, "--n-sectors", "99"]); end; catch e; err = e; end
+            @test err isa CliError && err.code == "data/parse" && exit_class(err) == 3
+            # a CSV IO table with valid dims parses and computes
+            doc = JSON3.read(begin
+                out = _capture() do
+                    _dispatch_via_app(String["io", "leontief", "--data", csv, "--n-sectors", "2", "--format", "json"])
+                end
+                out[findfirst('{', out):end]
+            end)
+            @test _hascols(doc, ["sector"])
+        end
+    end
+
+    @testset "table-mode output is non-empty" begin
+        out = _capture() do
+            _dispatch_via_app(String["io", "linkages"])
+        end
+        @test occursin("Agriculture", out) && occursin("Manufacturing", out)
+    end
 end

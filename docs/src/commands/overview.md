@@ -17,6 +17,7 @@ friedman
 ├── filter     bhp | bk | bn | hamilton | hp | x13
 ├── forecast     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | lp | static | sv | var | vecm
 ├── hd     bvar | favar | lp | var | vecm
+├── io     baqaee-farhi | download | extract | footprint | ghosh | key-sectors | leontief | linkages | load | multipliers | sda | sources
 ├── irf     bvar | favar | lp | pvar | sdfm | var | vecm
 ├── model     info
 ├── nowcast     bridge | bvar | dfm | forecast | news
@@ -25,7 +26,7 @@ friedman
 ├── spectral     acf | cross | density | periodogram | transfer
 └── test     adf | adf-2break | andrews | arch-lm | bai-perron | bartlett-wn | box-pierce | brant | breusch-pagan | cips | dfgls | durbin-watson | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | granger | gregory-hansen | hausman | hausman-iia | heteroskedasticity | identifiability | johansen | kpss | ljung-box | lm | lm-unitroot | lr | modified-wald | moon-perron | normality | np | panic | pesaran-cd | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | var lagselect | var stability | vif | wooldridge-ar | za
 
-Total: 16 top-level commands, 222 leaves (from registry).
+Total: 17 top-level commands, 234 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -41,6 +42,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`filter`](generated/filter.md) — 6 leaves
 - [`forecast`](generated/forecast.md) — 14 leaves
 - [`hd`](generated/hd.md) — 5 leaves
+- [`io`](generated/io.md) — 12 leaves
 - [`irf`](generated/irf.md) — 7 leaves
 - [`model`](generated/model.md) — 1 leaves
 - [`nowcast`](generated/nowcast.md) — 5 leaves

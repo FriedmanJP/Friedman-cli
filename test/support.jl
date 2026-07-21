@@ -75,6 +75,7 @@ function _dispatch_via_app(args::Vector{String})
         "residuals" => register_residuals_commands!(),
         "filter"    => register_filter_commands!(),
         "data"      => register_data_commands!(),
+        "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),

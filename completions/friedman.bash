@@ -3,7 +3,7 @@ _friedman() {
   local cur prev words cword
   _init_completion || return
   if [[ $cword -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "completions data did dsge estimate fevd filter forecast hd irf model nowcast predict residuals spectral test repl" -- "$cur") )
+    COMPREPLY=( $(compgen -W "completions data did dsge estimate fevd filter forecast hd io irf model nowcast predict residuals spectral test repl" -- "$cur") )
     return
   fi
   case "${words[1]}" in
@@ -16,6 +16,7 @@ _friedman() {
     filter) COMPREPLY=( $(compgen -W "bhp bk bn hamilton hp x13" -- "$cur") ) ;;
     forecast) COMPREPLY=( $(compgen -W "arch arima bvar dynamic egarch favar garch gdfm gjr-garch lp static sv var vecm" -- "$cur") ) ;;
     hd) COMPREPLY=( $(compgen -W "bvar favar lp var vecm" -- "$cur") ) ;;
+    io) COMPREPLY=( $(compgen -W "baqaee-farhi download extract footprint ghosh key-sectors leontief linkages load multipliers sda sources" -- "$cur") ) ;;
     irf) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm var vecm" -- "$cur") ) ;;
     model) COMPREPLY=( $(compgen -W "info" -- "$cur") ) ;;
     nowcast) COMPREPLY=( $(compgen -W "bridge bvar dfm forecast news" -- "$cur") ) ;;
