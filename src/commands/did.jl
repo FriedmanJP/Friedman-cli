@@ -48,6 +48,10 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
         base_period=Symbol(base_period))
 
+    # C051: DIDResult is deliberately NOT rendered via DataFrame(model)/long_table — the
+    # event-time ATT summary (plus the optional group-time ATT block below) is a
+    # domain-specific report, not a coefficient table or an array-valued IRF/forecast, so
+    # a principled exception (like the volatility forecast variance|volatility table).
     att_df = DataFrame(
         Event_Time = result.event_times,
         ATT = round.(result.att; digits=6),
