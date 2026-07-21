@@ -2,6 +2,21 @@
 
 Compute forecasts. 14 subcommands covering VAR, BVAR, LP, ARIMA, factor models, volatility models, VECM, and FAVAR.
 
+## Output format (C051)
+
+`var`, `bvar`, `lp`, `arima`, `static`, `dynamic`, `gdfm`, `vecm`, and `favar` (see
+[favar & sdfm](favar.md)) all render through MEMs' tidy `long_table(result)`: one row per
+`(horizon, variable)` cell, columns `horizon | variable | value | lower | upper`
+(`lower`/`upper` are `missing` when the forecast carries no CI, e.g. `--ci-method=none`).
+Univariate forecasts (ARIMA, volatility) reshape to the same schema with a single
+`variable` value. `bvar`/`dynamic`/`gdfm`/`favar` previously hand-computed their forecasts
+directly from posterior draws / factor loadings; they now route through MEMs'
+`forecast(...)` first so the result is a typed `*Forecast` object `long_table` can render.
+**Left wide on purpose:** the volatility leaves (`arch`/`garch`/`egarch`/`gjr_garch`/`sv`)
+share a domain-specific `horizon | variance | volatility` table — collapsing it into the
+generic tidy schema would drop the `volatility` (= √variance) column, so it stays a
+principled exception (see [Volatility Model Forecasts](#volatility-model-forecasts) below).
+
 ## forecast var
 
 H-step ahead VAR point forecasts with analytical or bootstrap confidence intervals.
@@ -23,7 +38,7 @@ friedman forecast var data.csv --ci-method=bootstrap
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-variable forecasts with lower/upper bounds and standard errors.
+**Output:** Tidy table (`horizon|variable|value|lower|upper`) — `lower`/`upper` are `missing` when the forecast has no CI.
 
 !!! note "v0.3.0"
     VAR forecasts now return typed `VARForecast` objects with accessor functions: `point_forecast()`, `lower_bound()`, `upper_bound()`, `forecast_horizon()`.
@@ -46,6 +61,8 @@ friedman forecast bvar data.csv --sampler=gibbs --config=prior.toml
 | `--config` | | String | | TOML config for prior |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+
+**Output:** Tidy table (`horizon|variable|value|lower|upper`); `--conf-level=0.68` band from the BVAR posterior.
 
 !!! note "v0.3.0"
     BVAR forecasts now return typed `BVARForecast` objects with the same accessor interface as `VARForecast`.
@@ -77,6 +94,8 @@ friedman forecast lp data.csv --ci-method=bootstrap --n-boot=500
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+
 ## forecast arima
 
 ARIMA forecast with auto model selection when `--p` is omitted.
@@ -105,6 +124,8 @@ friedman forecast arima data.csv --column=2 --criterion=aic
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate).
+
 ## forecast static
 
 Forecast observables using a static factor model (PCA).
@@ -125,6 +146,8 @@ friedman forecast static data.csv --nfactors=3 --ci-method=bootstrap
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+
 ## forecast dynamic
 
 Forecast observables using a dynamic factor model.
@@ -144,6 +167,8 @@ friedman forecast dynamic data.csv --nfactors=2 --factor-lags=1 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+
 ## forecast gdfm
 
 Forecast observables using a Generalized Dynamic Factor Model.
@@ -162,9 +187,11 @@ friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+
 ## Volatility Model Forecasts
 
-All volatility forecast commands produce a table with `horizon`, `variance`, and `volatility` (= sqrt of variance) columns.
+All volatility forecast commands produce a table with `horizon`, `variance`, and `volatility` (= sqrt of variance) columns. This is a deliberate exception to the [tidy `long_table` schema](#output-format-c051) used elsewhere in `forecast` — collapsing into the generic `horizon|variable|value|lower|upper` shape would drop the `volatility` column, so the shared `_vol_forecast_output` helper keeps its own domain-specific table.
 
 ### forecast arch
 
@@ -272,8 +299,8 @@ friedman forecast vecm data.csv --confidence=0.90 --replications=1000
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-variable forecasts with bootstrap confidence bands.
+**Output:** Tidy table (`horizon|variable|value|lower|upper`); bootstrap confidence bands.
 
 ## See Also
 
-For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).
+For FAVAR forecasting, see [favar & sdfm](favar.md#forecast-favar). For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).

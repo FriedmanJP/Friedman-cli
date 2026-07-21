@@ -24,13 +24,28 @@ CSV file → load_data(path)                 # → DataFrame, validates exists &
                 ↓
     MacroEconometricModels.jl functions     # estimate_var, irf, forecast, etc.
                 ↓
-    Results → DataFrame                     # command builds result DataFrame
+    Results → DataFrame                     # command renders the result to a DataFrame
            → output_result(df; format, output, title)
                 ↓
               :table → PrettyTables (center-aligned)
               :csv   → CSV.write
               :json  → JSON3.write (array of row dicts)
 ```
+
+**Rendering the result to a DataFrame (C051)** goes through one of three paths, in order of
+preference:
+
+1. **`long_table(result)`** — MEMs' tidy renderer for array-valued results (IRF, FEVD,
+   forecasts): one row per `(horizon, variable[, shock])` cell. Used by `irf`/`fevd`
+   var/vecm/bvar/lp/favar/sdfm and `forecast` var/vecm/lp/arima/static/bvar/dynamic/gdfm/favar.
+2. **`DataFrame(model)`** — MEMs' tidy renderer for coefficient-bearing models: one row per
+   term, columns `term|estimate|std_error|stat|p_value|ci_lower|ci_upper` (plus an
+   `equation`/`alternative`/`block` prefix for VAR/multinomial/ordered models). Used by
+   `estimate` var/reg/iv/logit/probit/preg/piv/plogit/pprobit/ologit/oprobit/mlogit.
+3. **Hand-built `DataFrame(...)`** — the pre-C051 fallback, kept only where MEMs has no
+   matching result type (`irf`/`fevd pvar`, `hd`, `predict`/`residuals`, Arias/Uhlig/sign
+   IRF paths) or where the tidy schema would lose information the command needs to convey
+   (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT summary).
 
 ## CLI Framework
 

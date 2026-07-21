@@ -66,7 +66,7 @@ friedman irf favar macro.csv --key-vars=ffr,cpi --id=sign --config=restrictions.
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-shock IRF tables. With `--panel-irf`, responses are mapped back to all original panel variables.
+**Output:** Tidy table (`horizon|variable|shock|value|lower|upper`, [C051](irf.md#output-format-c051)) — `irf(favar,...)` delegates to the VAR representation, so every shock lands in one table. With `--panel-irf`, `variable` covers all original panel variables instead of factors + key variables.
 
 ### fevd favar
 
@@ -89,7 +89,7 @@ friedman fevd favar macro.csv --key-vars=ffr,cpi --horizons=20
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-variable FEVD proportions table (columns = shocks, rows = horizons).
+**Output:** Tidy table (`horizon|variable|shock|value`, [C051](fevd.md#output-format-c051)) — `fevd(favar,...)` delegates to the VAR representation, so every variable/shock pair lands in one table.
 
 ### hd favar
 
@@ -137,7 +137,7 @@ friedman forecast favar macro.csv --key-vars=ffr,cpi --horizons=12 --panel-forec
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-variable forecast table. With `--panel-forecast`, includes forecasts for all original panel variables.
+**Output:** Tidy table (`horizon|variable|value|lower|upper`, [C051](forecast.md#output-format-c051)). With `--panel-forecast`, `variable` covers all original panel variables.
 
 ### predict favar
 
@@ -231,7 +231,7 @@ friedman irf sdfm macro.csv --id=sign --config=restrictions.toml
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-shock IRF tables with panel-wide variable responses.
+**Output:** Tidy table (`horizon|variable|shock|value|lower|upper`, [C051](irf.md#output-format-c051)) — `irf(sdfm,...)` returns a panel-wide `ImpulseResponse` directly, so every shock/variable pair lands in one table.
 
 ### fevd sdfm
 
@@ -252,7 +252,7 @@ friedman fevd sdfm macro.csv --factors=3 --horizons=20
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Per-factor FEVD proportions table.
+**Output:** Tidy table (`horizon|variable|shock|value`, [C051](fevd.md#output-format-c051)) — `fevd(sdfm,...)` delegates to the factor VAR (factor-space shocks, not panel-wide).
 
 ## Key Concepts
 

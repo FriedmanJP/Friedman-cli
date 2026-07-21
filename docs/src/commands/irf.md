@@ -2,6 +2,18 @@
 
 Compute impulse response functions. 7 subcommands: `var`, `bvar`, `lp`, `vecm`, `pvar`, `favar`, `sdfm`.
 
+## Output format (C051)
+
+`irf var`, `bvar`, `vecm`, `lp`, `favar`, and `sdfm` render through MEMs' tidy
+`long_table(result)`: one row per `(horizon, variable, shock)` cell, columns
+`horizon | variable | shock | value | lower | upper` (`lower`/`upper` are `missing` when
+the result carries no uncertainty band, e.g. `--ci=none`). `var`/`bvar`/`vecm` filter the
+tidy rows to the single selected `--shock`; `lp` filters to every shock named by
+`--shock`/`--shocks` (one table covers all of them); `favar`/`sdfm` take no shock filter
+and return every shock in one table. `irf pvar` and the Arias/Uhlig/sign-restriction paths
+build their arrays by hand (no MEMs result type to route through `long_table`) and stay on
+the older wide, per-shock-file layout.
+
 ## irf var
 
 Frequentist IRFs with multiple identification schemes and confidence intervals.
@@ -80,6 +92,8 @@ friedman irf var data.csv --shock=1 --ci=bootstrap --stationary-only
 
 See [Configuration](../configuration.md) for restriction TOML formats.
 
+**Output:** Tidy table (`horizon|variable|shock|value|lower|upper`) filtered to `--shock` (the Arias/Uhlig/`--identified-set` paths stay wide — see [Output format](#output-format-c051) above).
+
 ## irf bvar
 
 Bayesian IRFs with 68% credible intervals (16th/50th/84th percentiles).
@@ -106,7 +120,7 @@ friedman irf bvar data.csv --shock=1 --cumulative
 | `--plot-save` | | String | | Save plot to HTML file |
 | `--cumulative` | | Flag | | Compute cumulative IRFs (for differenced data) |
 
-**Output:** Median IRFs with 16th/84th percentile bands per variable.
+**Output:** Tidy table (`horizon|variable|shock|value|lower|upper`), filtered to `--shock`; `value` = posterior mean, `lower`/`upper` = the 16th/84th percentile credible band.
 
 ## irf lp
 
@@ -145,6 +159,8 @@ friedman irf lp data.csv --id=cholesky --shock=1 --cumulative
 | `--plot-save` | | String | | Save plot to HTML file |
 | `--cumulative` | | Flag | | Compute cumulative IRFs (for differenced data) |
 
+**Output:** Tidy table (`horizon|variable|shock|value|lower|upper`) filtered to every shock named by `--shock`/`--shocks` — one table even with multiple shocks selected.
+
 ## irf vecm
 
 IRFs for Vector Error Correction Models. The VECM is converted to its VAR representation and then IRFs are computed.
@@ -171,7 +187,7 @@ friedman irf vecm data.csv --id=cholesky --ci=bootstrap --replications=500
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** IRFs per variable with confidence bands.
+**Output:** Tidy table (`horizon|variable|shock|value|lower|upper`) filtered to `--shock` (VECM → VAR representation, same schema as `irf var`).
 
 ## irf pvar
 
@@ -199,7 +215,7 @@ friedman irf pvar data.csv --ci=bootstrap --replications=500
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** IRFs per variable with bootstrap confidence bands.
+**Output:** Wide, per-shock-file table (columns = variables, rows = horizons) — `pvar_bootstrap_irf` returns a plain NamedTuple, not a MEMs result type, so this leaf stays outside the `long_table` conversion.
 
 ## See Also
 

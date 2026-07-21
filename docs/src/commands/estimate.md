@@ -2,6 +2,18 @@
 
 Estimate econometric models. 31 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, GMM, SMM, factor models, volatility models, and non-Gaussian SVAR identification.
 
+## Coefficient table format (C051)
+
+Every coefficient-bearing model — `var`, `reg`, `iv`, `logit`, `probit`, `preg`, `piv`,
+`plogit`, `pprobit`, `ologit`, `oprobit`, `mlogit` — renders its coefficients through MEMs'
+`DataFrame(model)`: a tidy table with the core columns `term | estimate | std_error | stat
+| p_value | ci_lower | ci_upper`. `var` prepends `equation` (one row per lag/variable per
+equation); the panel models are the same 7 columns as `reg`/`logit`/`probit`; `ologit`/
+`oprobit` prepend `block` (coefficients vs. cutpoints); `mlogit` prepends `alternative`
+(one block per category, relative to the base). Fit statistics (R², AIC/BIC,
+pseudo-R²/log-likelihood, convergence) print as a separate small table alongside the
+coefficient table, not merged into it.
+
 ## estimate var
 
 Estimate a VAR(p) model via OLS. Lag order is auto-selected via AIC when `--lags` is omitted.
@@ -19,7 +31,7 @@ friedman estimate var data.csv --lags=4 --format=csv --output=var_results.csv
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient matrix, AIC/BIC/HQC/log-likelihood.
+**Output:** Tidy coefficient table (`equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) via `DataFrame(model)`, plus a small AIC/BIC/HQC/log-likelihood fit-stats table.
 
 ## estimate bvar
 
@@ -432,7 +444,7 @@ friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table (beta, SE, t-stat, p-value, CI) + fit statistics (R², Adj R², F-stat, AIC, BIC).
+**Output:** Tidy coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) + fit statistics (R², Adj R², F-stat, AIC, BIC).
 
 ## estimate iv
 
@@ -452,7 +464,7 @@ friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instrumen
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table + IV diagnostics (first-stage F-statistic, Sargan overidentification test).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test).
 
 ## estimate logit
 
@@ -473,7 +485,7 @@ friedman estimate logit data.csv --dep=default --clusters=state --maxiter=200
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table + fit statistics (pseudo R², log-likelihood, AIC, BIC, convergence).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + fit statistics (pseudo R², log-likelihood, AIC, BIC, convergence).
 
 ## estimate probit
 
@@ -494,7 +506,7 @@ friedman estimate probit data.csv --dep=default --clusters=state
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table + fit statistics (pseudo R², log-likelihood, AIC, BIC, convergence).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + fit statistics (pseudo R², log-likelihood, AIC, BIC, convergence).
 
 ## Panel Regression Models
 
@@ -521,7 +533,7 @@ friedman estimate preg panel.csv --id-col=country --time-col=year --dep=gdp --me
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table with SE, t-stat, p-value; within/between/overall R²; F-statistic.
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) with SE, t-stat, p-value; within/between/overall R²; F-statistic.
 
 ### estimate piv
 
@@ -544,7 +556,7 @@ friedman estimate piv panel.csv --dep=gdp --endog=investment,credit --instrument
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table + IV diagnostics (first-stage F-statistic, Sargan test).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan test).
 
 ### estimate plogit
 
@@ -565,7 +577,7 @@ friedman estimate plogit panel.csv --dep=default --method=pooled
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table + fit statistics (pseudo R², log-likelihood, AIC, BIC).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + fit statistics (pseudo R², log-likelihood, AIC, BIC).
 
 ### estimate pprobit
 
@@ -585,7 +597,7 @@ friedman estimate pprobit panel.csv --dep=employed --method=pooled
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table + fit statistics (pseudo R², log-likelihood, AIC, BIC).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + fit statistics (pseudo R², log-likelihood, AIC, BIC).
 
 ## Ordered & Multinomial Choice Models
 
@@ -606,7 +618,7 @@ friedman estimate ologit data.csv --dep=rating --cov-type=hc1
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table, threshold parameters, pseudo R², log-likelihood, AIC, BIC.
+**Output:** Tidy coefficient table (`block|term|...`, [C051](#coefficient-table-format-c051)) — `block` distinguishes coefficients from cutpoints — plus threshold parameters, pseudo R², log-likelihood, AIC, BIC.
 
 ### estimate oprobit
 
@@ -624,7 +636,7 @@ friedman estimate oprobit data.csv --dep=satisfaction
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Coefficient table, threshold parameters, pseudo R², log-likelihood, AIC, BIC.
+**Output:** Tidy coefficient table (`block|term|...`, [C051](#coefficient-table-format-c051)) — `block` distinguishes coefficients from cutpoints — plus threshold parameters, pseudo R², log-likelihood, AIC, BIC.
 
 ### estimate mlogit
 
@@ -644,4 +656,4 @@ friedman estimate mlogit data.csv --dep=mode --base-category=1
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Per-category coefficient tables (relative to base category), pseudo R², log-likelihood, AIC, BIC.
+**Output:** One tidy coefficient table keyed by `alternative` ([C051](#coefficient-table-format-c051)) — every category's coefficients (relative to the base) in a single table — plus pseudo R², log-likelihood, AIC, BIC.

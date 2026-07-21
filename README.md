@@ -649,6 +649,19 @@ friedman estimate var data.csv --format=csv --output=results.csv
 friedman estimate var data.csv --format=json --output=results.json
 ```
 
+### Tidy result tables
+
+Array-valued results (`irf`, `fevd`, `forecast`) render through MacroEconometricModels.jl's
+tidy `long_table(result)`: one row per `(horizon, variable[, shock])` cell, columns
+`horizon | variable | shock | value | lower | upper` (`fevd` drops `lower`/`upper`;
+`forecast` drops `shock`). Coefficient-bearing models (`estimate var`/`reg`/`iv`/`logit`/
+`probit`/panel/ordered/multinomial) render through `DataFrame(model)`: one row per term,
+columns `term | estimate | std_error | stat | p_value | ci_lower | ci_upper`. A handful of
+leaves are deliberate exceptions and keep a domain-specific wide table instead — volatility
+`forecast` (`variance`/`volatility` columns), `did estimate` (an ATT summary), `irf`/`fevd
+pvar`, `hd`, and `predict`/`residuals` — either because MEMs has no matching tidy result
+type for them yet or because collapsing to the generic schema would drop information.
+
 ## TOML Configuration
 
 Complex model specs use TOML config files.
