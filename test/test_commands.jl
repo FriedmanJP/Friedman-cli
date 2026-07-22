@@ -773,37 +773,77 @@ end  # Shared utilities
         end
     end
 
-    @testset "_estimate_smm — default" begin
+    @testset "_estimate_smm — ar1 config" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=3)
-            out = _capture() do
-                _estimate_smm(; data=csv, format="table")
-            end
-        end
-    end
-
-    @testset "_estimate_smm — with config" begin
-        mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=3)
+            csv = _make_csv(dir; T=100, n=1)
             config_path = joinpath(dir, "smm.toml")
             write(config_path, """
             [smm]
-            weighting = "optimal"
-            sim_ratio = 10
-            burn = 200
+            model = "ar1"
+            theta0 = [0.5, 1.0]
+            lags = 2
+            weighting = "two_step"
+            sim_ratio = 5
+            burn = 50
             """)
             out = _capture() do
                 _estimate_smm(; data=csv, config=config_path, format="table")
             end
+            @test occursin("phi", out)
+            @test occursin("sigma", out)
         end
     end
 
-    @testset "_estimate_smm — custom weighting" begin
+    @testset "_estimate_smm — var1 config (multivariate)" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=3)
+            csv = _make_csv(dir; T=100, n=2)
+            config_path = joinpath(dir, "smm.toml")
+            write(config_path, """
+            [smm]
+            model = "var1"
+            theta0 = [0.4, 0.0, 0.0, 0.4, 1.0, 1.0]
+            lags = 2
+            weighting = "identity"
+            """)
             out = _capture() do
-                _estimate_smm(; data=csv, weighting="identity", sim_ratio=3, format="table")
+                _estimate_smm(; data=csv, config=config_path, format="table")
             end
+            @test occursin("A[1,1]", out)
+            @test occursin("sigma_2", out)
+        end
+    end
+
+    @testset "_estimate_smm — no config errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1)
+            @test_throws CliError _estimate_smm(; data=csv, format="table")
+        end
+    end
+
+    @testset "_estimate_smm — missing model errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1)
+            config_path = joinpath(dir, "smm.toml")
+            write(config_path, """
+            [smm]
+            theta0 = [0.5, 1.0]
+            """)
+            @test_throws CliError _estimate_smm(; data=csv, config=config_path, format="table")
+        end
+    end
+
+    @testset "_estimate_smm — underidentified errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=2)
+            config_path = joinpath(dir, "smm.toml")
+            # var1 k=2 needs 6 params but lags=1 → only 5 moments
+            write(config_path, """
+            [smm]
+            model = "var1"
+            theta0 = [0.4, 0.0, 0.0, 0.4, 1.0, 1.0]
+            lags = 1
+            """)
+            @test_throws CliError _estimate_smm(; data=csv, config=config_path, format="table")
         end
     end
 

@@ -1319,47 +1319,180 @@ end
 
 # ── SMM ───────────────────────────────────────────────────
 
+# Map the CLI/config weighting string to the two symbols real MEMs' `estimate_smm`
+# understands. `optimal`/`iterated`/`twostep` are aliases of the two-step optimal
+# weighting matrix (Ω⁻¹); anything else is a usage/config error.
+function _smm_weighting_symbol(w::AbstractString)
+    wl = lowercase(w)
+    wl == "identity" && return :identity
+    wl in ("two_step", "twostep", "optimal", "iterated") && return :two_step
+    throw(CliError("config/enum", "unknown smm weighting `$w` (identity|two_step)"))
+end
+
+# Optional bounds → ParameterTransform (both lower and upper, matching θ length).
+function _smm_bounds(smm, n_params::Int)
+    lower = smm["lower"]; upper = smm["upper"]
+    (lower === nothing && upper === nothing) && return nothing
+    (lower === nothing || upper === nothing) &&
+        throw(CliError("config/shape", "[smm] bounds require BOTH `lower` and `upper`"))
+    (length(lower) == n_params && length(upper) == n_params) ||
+        throw(CliError("config/shape",
+            "[smm] `lower`/`upper` must each have $n_params entries (one per θ), " *
+            "got $(length(lower))/$(length(upper))"))
+    ParameterTransform(lower, upper)
+end
+
+# Build a built-in SMM data-generating simulator. Returns (simulator_fn, param_names);
+# simulator_fn(θ, T_periods, burn; rng) → a (T_periods × k) matrix (burn already discarded),
+# matching real MEMs' `estimate_smm` simulator contract. θ layout depends on the model.
+function _smm_simulator(model::AbstractString, k::Int, theta0, smm)
+    m = lowercase(model)
+    if m == "ar1"
+        k == 1 || throw(CliError("config/shape", "smm model `ar1` needs univariate data (1 column), got $k"))
+        length(theta0) == 2 || throw(CliError("config/shape",
+            "ar1 `theta0` must be [phi, sigma] (2 params), got $(length(theta0))"))
+        sim = (theta, Tp, burn; rng=Random.default_rng()) -> begin
+            phi = theta[1]; sigma = abs(theta[2])
+            n = Tp + burn
+            y = zeros(Float64, n)
+            @inbounds for t in 2:n
+                y[t] = phi * y[t-1] + sigma * randn(rng)
+            end
+            reshape(y[(burn+1):end], :, 1)
+        end
+        return sim, ["phi", "sigma"]
+    elseif m == "arp"
+        k == 1 || throw(CliError("config/shape", "smm model `arp` needs univariate data (1 column), got $k"))
+        p = smm["p"]
+        p === nothing && throw(CliError("config/missing-key", "smm model `arp` requires `p` (AR order) in [smm]"))
+        p >= 1 || throw(CliError("config/shape", "smm model `arp` requires p >= 1, got $p"))
+        length(theta0) == p + 1 || throw(CliError("config/shape",
+            "arp `theta0` must be [phi_1..phi_$p, sigma] ($(p+1) params), got $(length(theta0))"))
+        sim = (theta, Tp, burn; rng=Random.default_rng()) -> begin
+            phis = @view theta[1:p]; sigma = abs(theta[p+1])
+            n = Tp + burn
+            y = zeros(Float64, n)
+            @inbounds for t in (p+1):n
+                s = 0.0
+                for j in 1:p
+                    s += phis[j] * y[t-j]
+                end
+                y[t] = s + sigma * randn(rng)
+            end
+            reshape(y[(burn+1):end], :, 1)
+        end
+        return sim, String[["phi_$j" for j in 1:p]; "sigma"]
+    elseif m == "var1"
+        length(theta0) == k * k + k || throw(CliError("config/shape",
+            "var1 `theta0` must be [vec(A) ($(k*k) entries, column-major); sigma_1..sigma_$k] " *
+            "($(k*k + k) params), got $(length(theta0))"))
+        sim = (theta, Tp, burn; rng=Random.default_rng()) -> begin
+            A = reshape(theta[1:k*k], k, k)
+            sigmas = abs.(theta[k*k+1:k*k+k])
+            n = Tp + burn
+            Ymat = zeros(Float64, n, k)
+            @inbounds for t in 2:n
+                Ymat[t, :] = A * Ymat[t-1, :] .+ sigmas .* randn(rng, k)
+            end
+            Ymat[(burn+1):end, :]
+        end
+        # column-major to match reshape(theta[1:k²], k, k): A[1,1],A[2,1],…,A[k,1],A[1,2],…
+        names = String[]
+        for j in 1:k, i in 1:k
+            push!(names, "A[$i,$j]")
+        end
+        for i in 1:k
+            push!(names, "sigma_$i")
+        end
+        return sim, names
+    elseif m == "iid_normal"
+        length(theta0) == k || throw(CliError("config/shape",
+            "iid_normal `theta0` must be [sigma_1..sigma_$k] ($k params), got $(length(theta0))"))
+        sim = (theta, Tp, burn; rng=Random.default_rng()) -> begin
+            sigmas = abs.(theta)
+            n = Tp + burn
+            Ymat = randn(rng, n, k) .* sigmas'
+            Ymat[(burn+1):end, :]
+        end
+        return sim, ["sigma_$i" for i in 1:k]
+    else
+        throw(CliError("config/enum", "unknown smm model `$model` (ar1|arp|var1|iid_normal)"))
+    end
+end
+
 function _estimate_smm(; data::String, config::String="",
                         weighting::String="two_step", sim_ratio::Int=5,
                         burn::Int=100,
                         output::String="", format::String="table")
     Y, varnames = load_multivariate_data(data)
-    n = size(Y, 2)
+    k = size(Y, 2)
 
-    # Load config overrides if provided
-    if !isempty(config)
-        cfg = load_config(config)
-        smm_cfg = get_smm(cfg)
-        weighting = smm_cfg["weighting"]
-        sim_ratio = smm_cfg["sim_ratio"]
-        burn = smm_cfg["burn"]
-    end
+    # SMM needs a data-generating model to simulate from — that lives in the [smm] config,
+    # so --config is required (unlike the other estimate leaves).
+    isempty(config) && throw(CliError("config/missing",
+        "estimate smm requires --config <toml> with an [smm] section specifying a " *
+        "data-generating `model` (ar1|arp|var1|iid_normal) and `theta0`. SMM matches " *
+        "simulated moments to sample moments, so it needs a model to simulate."))
 
-    _status("Estimating SMM: $n variables, weighting=$weighting, sim_ratio=$sim_ratio")
+    cfg = load_config(config)
+    smm = get_smm(cfg)
+    weighting = smm["weighting"]
+    sim_ratio = smm["sim_ratio"]
+    burn      = smm["burn"]
+    lags      = smm["lags"]
+
+    modelname = smm["model"]
+    modelname === nothing && throw(CliError("config/missing-key",
+        "[smm] must set `model` = one of ar1|arp|var1|iid_normal"))
+    theta0 = smm["theta0"]
+    theta0 === nothing && throw(CliError("config/missing-key",
+        "[smm] must set `theta0` (initial parameter vector; layout depends on `model`)"))
+
+    simulator_fn, param_names = _smm_simulator(modelname, k, theta0, smm)
+    moments_fn       = d -> autocovariance_moments(d; lags=lags)
+    contributions_fn = d -> autocovariance_moment_contributions(d; lags=lags)
+
+    n_params  = length(theta0)
+    n_moments = k * (k + 1) ÷ 2 + k * lags
+    n_moments >= n_params || throw(CliError("config/underidentified",
+        "SMM needs at least as many moments as parameters: $n_moments moments " *
+        "(k(k+1)/2 + k·lags, k=$k, lags=$lags) < $n_params params. Increase `lags`."))
+
+    bounds = _smm_bounds(smm, n_params)
+    wsym   = _smm_weighting_symbol(weighting)
+    # Determinism (C052/#243): the global Random.seed! already makes runs reproducible;
+    # forward --seed as the estimator's own rng so simulation draws are pinned too.
+    rng = _SEED[] === nothing ? Random.default_rng() : Random.MersenneTwister(_SEED[])
+
+    _status("Estimating SMM: model=$modelname, $k variable(s), $n_params params, " *
+            "$n_moments moments; weighting=$weighting, sim_ratio=$sim_ratio, burn=$burn")
     _status()
 
-    # Compute sample moments
-    moments = autocovariance_moments(Y; lags=1)
-    theta0 = zeros(Float64, n)
-
-    moment_fn(theta, data) = autocovariance_moments(data; lags=1) .- moments
-
-    model = estimate_smm(moment_fn, theta0, Y;
-                         weighting=Symbol(weighting), sim_ratio=sim_ratio, burn=burn)
+    model = try
+        estimate_smm(simulator_fn, moments_fn, theta0, Y;
+                     weighting=wsym, sim_ratio=sim_ratio, burn=burn,
+                     contributions_fn=contributions_fn, bounds=bounds, rng=rng)
+    catch e
+        e isa CliError && rethrow()
+        (e isa ArgumentError || e isa AssertionError || e isa BoundsError ||
+         e isa DimensionMismatch) ||
+            rethrow()
+        throw(CliError("model/error", "SMM estimation failed: $(sprint(showerror, e))"))
+    end
 
     se = sqrt.(abs.(diag(model.vcov)))
     t_stats = model.theta ./ se
     p_vals = [2.0 * (1.0 - _normal_cdf(abs(t))) for t in t_stats]
 
     est_df = DataFrame(
-        parameter = ["param_$i" for i in 1:length(model.theta)],
+        parameter = param_names,
         estimate = round.(model.theta; digits=6),
         std_error = round.(se; digits=6),
         t_stat = round.(t_stats; digits=4),
         p_value = round.(p_vals; digits=4),
     )
     output_result(est_df; format=Symbol(format), output=output,
-                  title="SMM Estimation (weighting=$weighting, sim_ratio=$sim_ratio)")
+                  title="SMM Estimation (model=$modelname, weighting=$weighting)")
 
     _status()
     _status_styled("  J-statistic: $(round(model.J_stat; digits=4))\n"; color=:cyan)

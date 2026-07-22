@@ -3457,6 +3457,13 @@ using TOML
         @test result["weighting"] == "optimal"
         @test result["sim_ratio"] == 10
         @test result["burn"] == 200
+        # New M5b keys default to nothing / lags=1 when absent
+        @test result["model"] === nothing
+        @test result["theta0"] === nothing
+        @test result["lags"] == 1
+        @test result["p"] === nothing
+        @test result["lower"] === nothing
+        @test result["upper"] === nothing
     end
 
     @testset "get_smm — defaults" begin
@@ -3465,6 +3472,42 @@ using TOML
         @test result["weighting"] == "two_step"
         @test result["sim_ratio"] == 5
         @test result["burn"] == 100
+        @test result["model"] === nothing
+        @test result["theta0"] === nothing
+        @test result["lags"] == 1
+    end
+
+    @testset "get_smm — model/theta0/lags/bounds" begin
+        cfg = Dict(
+            "smm" => Dict(
+                "model" => "ar1",
+                "theta0" => [0.5, 1.0],
+                "lags" => 2,
+                "lower" => [-0.99, 1.0e-4],
+                "upper" => [0.99, Inf],
+            )
+        )
+        result = get_smm(cfg)
+        @test result["model"] == "ar1"
+        @test result["theta0"] == [0.5, 1.0]
+        @test eltype(result["theta0"]) == Float64
+        @test result["lags"] == 2
+        @test result["lower"] == [-0.99, 1.0e-4]
+        @test result["upper"][2] == Inf
+    end
+
+    @testset "get_smm — arp order p" begin
+        cfg = Dict("smm" => Dict("model" => "arp", "p" => 3,
+                                 "theta0" => [0.3, 0.2, 0.1, 1.0]))
+        result = get_smm(cfg)
+        @test result["model"] == "arp"
+        @test result["p"] == 3
+        @test length(result["theta0"]) == 4
+    end
+
+    @testset "get_smm — bad theta0 type → config/type" begin
+        cfg = Dict("smm" => Dict("theta0" => ["a", "b"]))
+        @test_throws CliError get_smm(cfg)
     end
 end
 

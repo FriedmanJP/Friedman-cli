@@ -24,7 +24,8 @@ const CONFIG_SCHEMA = Dict{String,Vector{String}}(
     "identification" => ["method", "sign_matrix", "narrative", "zero_restrictions",
                          "sign_restrictions", "uhlig"],
     "gmm" => ["moment_conditions", "instruments", "weighting"],
-    "smm" => ["weighting", "sim_ratio", "burn"],
+    "smm" => ["model", "theta0", "lags", "p", "lower", "upper",
+              "weighting", "sim_ratio", "burn"],
     "nongaussian" => ["method", "contrast", "distribution", "n_regimes",
                       "transition_variable", "regime_variable"],
     "model" => ["parameters", "endogenous", "exogenous", "equations"],
@@ -52,6 +53,7 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
                                 "garch_id"],
     "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step"],
     "smm.weighting" => ["identity", "optimal", "two_step", "iterated", "twostep"],
+    "smm.model" => ["ar1", "arp", "var1", "iid_normal"],
     "nongaussian.method" => ["fastica", "jade", "ml", "markov", "garch",
                              "smooth_transition", "external"],
     "nongaussian.contrast" => ["logcosh", "exp", "kurtosis"],
@@ -439,17 +441,53 @@ function get_dsge_constraints(config::Dict)
     return result
 end
 
+_smm_floatvec(x, name) = begin
+    x isa AbstractVector || throw(CliError("config/type", "[smm] `$name` must be an array of numbers"))
+    out = Float64[]
+    for v in x
+        v isa Real || throw(CliError("config/type", "[smm] `$name` must contain only numbers, got $(typeof(v))"))
+        push!(out, Float64(v))
+    end
+    out
+end
+
+_smm_int(x, name) = begin
+    x isa Integer && return Int(x)
+    (x isa Real && isinteger(x)) && return Int(x)
+    throw(CliError("config/type", "[smm] `$name` must be an integer"))
+end
+
 """
     get_smm(config) → Dict
 
-Extract SMM specification from a config dict.
+Extract the SMM specification from a config dict. Lenient parser: absent optional keys
+return `nothing` (the handler validates what SMM actually needs — a data-generating
+`model` and `theta0`). SMM matches simulated moments to sample moments, so it requires
+BOTH a simulator (built from the named built-in `model`) and the moment function.
+
+Keys:
+- `model`     — built-in simulator: `ar1` | `arp` | `var1` | `iid_normal` (required by handler)
+- `theta0`    — initial parameter vector, layout depends on `model` (required by handler)
+- `lags`      — autocovariance-moment lags (default 1)
+- `p`         — AR order (required only for `model = "arp"`)
+- `lower`/`upper` — optional parameter bounds → `ParameterTransform` (both, same length as `theta0`)
+- `weighting` — `identity` | `two_step` (aliases `optimal`/`iterated`/`twostep` → `two_step`)
+- `sim_ratio` — simulation-to-sample ratio (default 5)
+- `burn`      — burn-in periods (default 100)
 """
 function get_smm(config::Dict)
     smm = get(config, "smm", Dict())
+    model = get(smm, "model", nothing)
     Dict{String,Any}(
-        "weighting" => get(smm, "weighting", "two_step"),
-        "sim_ratio" => get(smm, "sim_ratio", 5),
-        "burn"      => get(smm, "burn", 100),
+        "model"     => model === nothing ? nothing : String(model),
+        "theta0"    => haskey(smm, "theta0") ? _smm_floatvec(smm["theta0"], "theta0") : nothing,
+        "lags"      => haskey(smm, "lags") ? _smm_int(smm["lags"], "lags") : 1,
+        "p"         => haskey(smm, "p") ? _smm_int(smm["p"], "p") : nothing,
+        "lower"     => haskey(smm, "lower") ? _smm_floatvec(smm["lower"], "lower") : nothing,
+        "upper"     => haskey(smm, "upper") ? _smm_floatvec(smm["upper"], "upper") : nothing,
+        "weighting" => String(get(smm, "weighting", "two_step")),
+        "sim_ratio" => _smm_int(get(smm, "sim_ratio", 5), "sim_ratio"),
+        "burn"      => _smm_int(get(smm, "burn", 100), "burn"),
     )
 end
 

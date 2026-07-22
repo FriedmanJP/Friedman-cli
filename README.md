@@ -155,8 +155,8 @@ friedman estimate arima data.csv --criterion=bic   # auto-select
 # GMM
 friedman estimate gmm data.csv --config=gmm_spec.toml --weighting=twostep
 
-# Simulated Method of Moments (SMM)
-friedman estimate smm data.csv --config=smm_spec.toml --weighting=two_step --sim-ratio=5
+# Simulated Method of Moments (SMM) — --config required (names a built-in simulator + theta0)
+friedman estimate smm gdp.csv --config=smm_ar1.toml
 
 # Static factor model (PCA) — auto-selects factors via Bai-Ng IC
 friedman estimate static data.csv
@@ -846,13 +846,19 @@ expr = "K[t] + C[t] <= Y[t]"
 label = "resource constraint"
 ```
 
-**SMM specification:**
+**SMM specification** (`--config` required — SMM matches simulated to sample moments, so it
+needs a data-generating `model` and `theta0`; built-ins: `ar1`, `arp`, `var1`, `iid_normal`):
 
 ```toml
 [smm]
-weighting = "two_step"
+model     = "ar1"          # ar1 | arp | var1 | iid_normal
+theta0    = [0.4, 0.5]     # layout depends on model (ar1: [phi, sigma])
+lags      = 2              # autocovariance-moment lags
+weighting = "two_step"     # identity | two_step
 sim_ratio = 5
-burn = 100
+burn      = 100
+lower     = [-0.99, 1.0e-4]  # optional bounds (both together, length = theta0)
+upper     = [0.99, 10.0]
 ```
 
 ## License

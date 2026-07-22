@@ -237,20 +237,58 @@ Each `[[constraints.bounds]]` block specifies a variable with optional `lower` a
 
 ## SMM Specification
 
-Used by `estimate smm --config=...`.
+Used by `estimate smm --config=...` (required — SMM matches simulated moments to sample
+moments, so it needs a data-generating `model` and an initial parameter vector `theta0`).
 
 ```toml
 [smm]
-weighting = "two_step"    # identity|optimal|two_step|iterated
-sim_ratio = 5             # simulation-to-sample ratio
-burn = 100                # burn-in periods for simulation
+model     = "ar1"          # ar1 | arp | var1 | iid_normal
+theta0    = [0.4, 0.5]     # initial parameters (layout depends on model)
+lags      = 2              # autocovariance-moment lags (default 1)
+weighting = "two_step"     # identity | two_step (optimal/iterated/twostep → two_step)
+sim_ratio = 5              # simulation-to-sample ratio
+burn      = 100            # burn-in periods for the simulator
+lower     = [-0.99, 1.0e-4]  # optional parameter bounds (both required together)
+upper     = [0.99, 10.0]     # → ParameterTransform; same length as theta0
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `weighting` | `two_step` | Weighting matrix method |
+| `model` | — (required) | Built-in simulator: `ar1`, `arp`, `var1`, `iid_normal` |
+| `theta0` | — (required) | Initial parameter vector; layout depends on `model` |
+| `lags` | `1` | Autocovariance-moment lags (moments = `k(k+1)/2 + k·lags`) |
+| `p` | — | AR order — required only for `model = "arp"` |
+| `weighting` | `two_step` | `identity` or `two_step` (aliases `optimal`/`iterated`/`twostep`) |
 | `sim_ratio` | `5` | How many simulated observations per data observation |
 | `burn` | `100` | Discard this many initial simulation periods |
+| `lower` / `upper` | — | Optional bounds (both together, length = `theta0`) |
+
+### Built-in simulator models
+
+Each simulator draws Gaussian innovations and is matched via autocovariance moments. The
+number of variables `k` is taken from the data; `theta0` must have the length shown:
+
+| `model` | Data | `theta0` layout | Params |
+|---------|------|-----------------|--------|
+| `ar1` | univariate (`k=1`) | `[phi, sigma]` | 2 |
+| `arp` | univariate (`k=1`) | `[phi_1, …, phi_p, sigma]` (needs `p`) | `p+1` |
+| `var1` | multivariate | `[vec(A) (k², column-major); sigma_1, …, sigma_k]` | `k²+k` |
+| `iid_normal` | multivariate | `[sigma_1, …, sigma_k]` | `k` |
+
+The moment count must be at least the parameter count (`k(k+1)/2 + k·lags ≥ #params`); raise
+`lags` if a model is under-identified (e.g. `var1` with `k=2` needs `lags ≥ 2`). `--seed`
+forwards to the simulator's RNG so a two-step fit is byte-reproducible.
+
+Example (AR(1)):
+
+```toml
+[smm]
+model  = "ar1"
+theta0 = [0.4, 0.5]
+lags   = 2
+lower  = [-0.99, 1.0e-4]
+upper  = [0.99, 10.0]
+```
 
 ## Output Formats
 

@@ -2184,10 +2184,17 @@ struct ParameterTransform{T<:Real}
     lower::Vector{T}; upper::Vector{T}
 end
 
-function estimate_smm(moment_fn, theta0, data; weighting=:two_step, sim_ratio=5, burn=100, kwargs...)
+# Real MEMs 0.7.0 signature: estimate_smm(simulator_fn, moments_fn, theta0, data; ...).
+# (Was 3-arg here, which hid the real command being broken — the exact panel/DiD-class
+# blind spot. Keep this in lock-step with real so the T1/T2 mock can't mask arity drift.)
+function estimate_smm(simulator_fn, moments_fn, theta0, data;
+                      weighting=:two_step, sim_ratio=5, burn=100,
+                      contributions_fn=nothing, bounds=nothing,
+                      rng=nothing, kwargs...)
     np = length(theta0)
-    nm = np + 2
-    theta = ones(Float64, np) * 0.5
+    m_data = moments_fn(data)
+    nm = max(length(m_data), np)
+    theta = Float64.(collect(theta0))
     vcov_mat = Matrix{Float64}(I(np)) * 0.01
     n_obs = size(data, 1)
     SMMModel{Float64}(theta, vcov_mat, nm, np, n_obs, 2.0, 0.7, true, sim_ratio)
@@ -2197,12 +2204,19 @@ function autocovariance_moments(data; lags=1)
     zeros(Float64, size(data, 2) * (lags + 1))
 end
 
-to_unconstrained(x, t::ParameterTransform) = x
-to_constrained(x, t::ParameterTransform) = x
-transform_jacobian(x, t::ParameterTransform) = Matrix{Float64}(I(length(x)))
+# Per-observation moment contributions (n × q); column-mean equals the moment vector.
+function autocovariance_moment_contributions(data; lags=1)
+    zeros(Float64, size(data, 1), size(data, 2) * (lags + 1))
+end
+
+# Real order is to_unconstrained(pt::ParameterTransform, theta); mock is order-agnostic.
+to_unconstrained(t::ParameterTransform, x) = x
+to_constrained(t::ParameterTransform, x) = x
+transform_jacobian(t::ParameterTransform, x) = Matrix{Float64}(I(length(x)))
 
 export SMMModel, ParameterTransform
-export estimate_smm, autocovariance_moments, to_unconstrained, to_constrained, transform_jacobian
+export estimate_smm, autocovariance_moments, autocovariance_moment_contributions
+export to_unconstrained, to_constrained, transform_jacobian
 
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 

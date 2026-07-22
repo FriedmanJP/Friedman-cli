@@ -169,6 +169,43 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "estimate smm — AR(1) recovery (first-ever T3, #345)" begin
+        # SMM was broken on real MEMs 0.7.0 (3-arg call vs required 4-arg
+        # estimate_smm(simulator_fn, moments_fn, theta0, data)) with zero T3
+        # coverage — the same panel/DiD-class blind spot. This is the anchor.
+        csv = dgp_ar1(; T=400, φ=0.7, σ=1.0, seed=71)
+        cfg = tempname() * "_smm.toml"
+        write(cfg, """
+        [smm]
+        model = "ar1"
+        theta0 = [0.4, 0.5]
+        lags = 2
+        weighting = "two_step"
+        sim_ratio = 5
+        burn = 100
+        lower = [-0.99, 1.0e-4]
+        upper = [0.99, 10.0]
+        """)
+        r = run_json(["--seed", "20240722", "estimate", "smm", csv, "--config", cfg])
+        assert_envelope_ok(r; label="estimate smm")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            cols = table_cols(tbl)
+            @test "parameter" in cols
+            @test "estimate" in cols
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(rows) == 2          # phi, sigma
+            pidx = findfirst(==("parameter"), cols)
+            eidx = findfirst(==("estimate"), cols)
+            @test all(isfinite(Float64(row[eidx])) for row in rows)
+            phi_row = rows[findfirst(row -> string(row[pidx]) == "phi", rows)]
+            # AR persistence recovered near the true 0.7 (bounds keep it in (-0.99,0.99))
+            @test 0.3 < Float64(phi_row[eidx]) < 0.99
+        end
+        rm(csv; force=true); rm(cfg; force=true)
+    end
+
     @testset "test adf rejects unit root on stationary series" begin
         # Strongly mean-reverting → p-value should be small
         csv = dgp_ar1(; T=400, φ=0.2, seed=3)

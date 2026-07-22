@@ -171,26 +171,35 @@ See [Configuration](../configuration.md) for GMM TOML format.
 
 ## estimate smm
 
-Estimate via Simulated Method of Moments. Can use TOML config for specification overrides.
+Estimate via Simulated Method of Moments (SMM): parameters are chosen so that moments of
+data **simulated** from a parametric model match the moments of the observed data.
+
+Because SMM needs a data-generating model to simulate from, `--config` is **required** — the
+`[smm]` section names one of the built-in simulators (`ar1`, `arp`, `var1`, `iid_normal`) and
+its initial parameter vector `theta0`. Moments are the autocovariance moments
+(`autocovariance_moments`); two-step estimation uses the optimal HAC weighting matrix, and
+`--seed` pins the simulation draws for a reproducible fit.
 
 ```bash
-friedman estimate smm data.csv --weighting=two_step --sim-ratio=5
-friedman estimate smm data.csv --config=smm_spec.toml
-friedman estimate smm data.csv --weighting=optimal --burn=200
+friedman estimate smm gdp.csv --config=smm_ar1.toml
+friedman --seed 42 estimate smm y.csv --config=smm_var1.toml
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--config` | | String | | TOML config file for SMM specification |
-| `--weighting` | | String | `two_step` | `identity`, `optimal`, `two_step`, `iterated` |
-| `--sim-ratio` | | Int | 5 | Simulation-to-sample ratio |
-| `--burn` | | Int | 100 | Burn-in periods |
+| `--config` | | String | | **Required.** TOML with `[smm]` (`model`, `theta0`, …) |
+| `--weighting` | | String | `two_step` | `identity` or `two_step` (config `weighting` overrides) |
+| `--sim-ratio` | | Int | 5 | Simulation-to-sample ratio (config `sim_ratio` overrides) |
+| `--burn` | | Int | 100 | Burn-in periods (config `burn` overrides) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Parameter estimates with standard errors, t-statistics, and p-values. Includes J-statistic and convergence status.
+**Output:** Parameter estimates with standard errors, t-statistics, and p-values (rows named
+by the model's parameters, e.g. `phi`/`sigma`). Status stream reports the J-statistic,
+J p-value, and convergence.
 
-See [Configuration](../configuration.md#smm-specification) for TOML format.
+See [Configuration](../configuration.md#smm-specification) for the `[smm]` TOML schema and the
+per-model `theta0` layouts.
 
 ## estimate static
 
