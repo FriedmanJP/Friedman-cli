@@ -25,8 +25,16 @@ Load CSV, convert to numeric matrix and extract variable names.
 """
 function load_multivariate_data(data::String)
     df = load_data(data)
-    Y = df_to_matrix(df)
     varnames = variable_names(df)
+    # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
+    # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
+    # univariate `load_univariate_series` guard so every multivariate estimator surfaces
+    # a `data/missing-values` (exit 3) instead of an internal error.
+    for c in varnames
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    Y = df_to_matrix(df)
     return Y, varnames
 end
 

@@ -367,6 +367,53 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_garch_midas),
         ),
+        # C064b: multivariate GARCH (CCC / DCC-cDCC / scalar-diagonal BEKK).
+        # Multivariate — no --column; input is the full numeric matrix (T×n).
+        CommandSpec(
+            path=["estimate", "ccc"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p for the univariate margins"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q for the univariate margins"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_ccc, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ccc),
+        ),
+        CommandSpec(
+            path=["estimate", "dcc"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p for the univariate margins"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q for the univariate margins"),
+                OptionSpec(name="correction", type=String, default="none", description="DCC targeting correction: none | aielli (cDCC)", choices=["none","aielli"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_dcc, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_dcc),
+        ),
+        CommandSpec(
+            path=["estimate", "bekk"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="kind", type=String, default="scalar", description="BEKK(1,1) parameterization: scalar | diagonal", choices=["scalar","diagonal"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_bekk, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_bekk),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -2525,5 +2572,101 @@ function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
         "K" => model.K, "m_freq" => model.m_freq, "n_blocks" => model.n_blocks,
         "rv" => String(model.rv), "span" => String(model.span),
     ]); format=format, title="GARCH-MIDAS Diagnostics")
+    return model
+end
+
+# ── C064b: multivariate GARCH (MGARCH) ───────────────────────
+# ccc / dcc (cDCC) / bekk (MEMs 0.7.0 src/mgarch). `MGARCHModel` is not registered in
+# MEMs `_COEF_TABLE_TYPES`; the second-stage dynamics table is hand-built via the shared
+# `_garch_variant_coef_table`, and the conditional-correlation matrix renders WIDE
+# (sector×sector) — the documented C051 exception, same as the io family.
+
+"""Wide sector×sector correlation DataFrame with a leading `series` label column.
+`makeunique=true` guards the case where an input column is literally named `series`
+(the label would otherwise collide → uncaught `ArgumentError` → exit-1) and any duplicate
+input headers; the colliding label is renamed (`series_1`) rather than crashing."""
+_mgarch_corr_df(R::AbstractMatrix, names::Vector{String}) =
+    insertcols!(DataFrame(round.(R; digits=6), names; makeunique=true), 1,
+                :series => names; makeunique=true)
+
+"""Shared renderer for an MGARCH fit: headline conditional-correlation matrix (wide),
+second-stage dynamics coefficients (skipped for CCC, which has none), and a diagnostics
+kv block. Follows the repo convention of routing `--output` to the headline table only
+(same as the C064a / mlogit handlers) so a `-o file` export is not overwritten by the
+subsequent blocks."""
+function _mgarch_output(model, varnames::Vector{String}, label::String;
+                        format::String="table", output::String="")
+    R = correlations(model)[:, :, end]   # constant matrix for CCC/BEKK; last DCC slice
+    n = size(R, 1)
+    names = length(varnames) >= n ? varnames[1:n] : String["series_$i" for i in 1:n]
+    output_result(_mgarch_corr_df(R, names); format=Symbol(format), output=output,
+                  title="$label Conditional Correlation")
+    if !isempty(coef(model))
+        output_result(_garch_variant_coef_table(model, model.param_names);
+                      format=Symbol(format), title="$label Dynamics Parameters")
+    end
+    pairs = Pair{String,Any}[
+        "loglik"       => round(Float64(loglikelihood(model)); digits=4),
+        "aic"          => round(Float64(model.aic); digits=4),
+        "bic"          => round(Float64(model.bic); digits=4),
+        "series"       => model.n,
+        "observations" => size(model.Y, 1),
+        "converged"    => model.converged,
+        "kind"         => string(model.kind),
+    ]
+    if model.kind === :dcc
+        push!(pairs, "correction" => string(model.correction))
+        push!(pairs, "persistence" => round(Float64(sum(coef(model))); digits=6))
+    elseif model.kind === :bekk
+        push!(pairs, "bekk_kind" => string(model.bekk_kind))
+    end
+    output_kv(pairs; format=format, title="$label Diagnostics")
+    return nothing
+end
+
+function _estimate_ccc(; data::String, p::Int=1, q::Int=1,
+                        output::String="", format::String="table")
+    Y, varnames = load_multivariate_data(data)
+    _status("Estimating CCC-GARCH: series=$(size(Y,2)), observations=$(size(Y,1)), margins=GARCH($p,$q)")
+    _status()
+    model = try
+        estimate_ccc(Y; p=p, q=q)
+    catch e
+        throw(_garch_variant_error(e, "CCC-GARCH"))
+    end
+    _mgarch_output(model, varnames, "CCC-GARCH"; format=format, output=output)
+    return model
+end
+
+function _estimate_dcc(; data::String, p::Int=1, q::Int=1, correction::String="none",
+                        output::String="", format::String="table")
+    correction in ("none", "aielli") || throw(CliError("usage/invalid",
+        "estimate dcc: --correction must be none|aielli, got $correction"))
+    Y, varnames = load_multivariate_data(data)
+    _status("Estimating DCC-GARCH: series=$(size(Y,2)), observations=$(size(Y,1)), margins=GARCH($p,$q), correction=$correction")
+    _status()
+    model = try
+        estimate_dcc(Y; p=p, q=q, correction=Symbol(correction))
+    catch e
+        throw(_garch_variant_error(e, "DCC-GARCH"))
+    end
+    label = correction == "aielli" ? "cDCC-GARCH" : "DCC-GARCH"
+    _mgarch_output(model, varnames, label; format=format, output=output)
+    return model
+end
+
+function _estimate_bekk(; data::String, kind::String="scalar",
+                         output::String="", format::String="table")
+    kind in ("scalar", "diagonal") || throw(CliError("usage/invalid",
+        "estimate bekk: --kind must be scalar|diagonal, got $kind"))
+    Y, varnames = load_multivariate_data(data)
+    _status("Estimating BEKK-$kind GARCH: series=$(size(Y,2)), observations=$(size(Y,1))")
+    _status()
+    model = try
+        estimate_bekk(Y; kind=Symbol(kind))
+    catch e
+        throw(_garch_variant_error(e, "BEKK-GARCH"))
+    end
+    _mgarch_output(model, varnames, "BEKK-$kind"; format=format, output=output)
     return model
 end

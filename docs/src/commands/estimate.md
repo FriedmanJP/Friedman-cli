@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 31 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, GMM, SMM, factor models, volatility models, and non-Gaussian SVAR identification.
+Estimate econometric models. 43 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -499,6 +499,63 @@ friedman estimate garch-midas data.csv --m-freq=22 --rv=macro --config=gm.toml
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Coefficient table (parameters `mu, alpha, beta, m, theta, w`) plus diagnostics (`log_likelihood, aic, bic, persistence` = α+β, `converged, iterations, variance_ratio, K, m_freq, n_blocks, rv, span`).
+
+## Multivariate GARCH
+
+`estimate ccc`, `estimate dcc`, and `estimate bekk` fit **multivariate** volatility models over the full numeric matrix (T×n, columns are series — there is no `--column`; use at least 2 numeric columns). Each headline output is the **conditional correlation matrix** rendered wide (series×series — the same documented exception as the input-output family), followed by a second-stage dynamics-coefficient table (omitted for CCC, which has none) and a diagnostics block (`loglik, aic, bic, series, observations, converged, kind`). A single-column input, a series with a missing cell, or a non-finite value surfaces a typed `data/*` error rather than an internal failure.
+
+## estimate ccc
+
+Estimate a **Constant Conditional Correlation** (Bollerslev 1990) MGARCH: a univariate GARCH(p,q) margin per series with a single constant correlation matrix. No second-stage optimization (the correlation is the closed-form standardized-residual correlation).
+
+```bash
+friedman estimate ccc returns.csv --p=1 --q=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--p` | | Int | 1 | GARCH order p for the univariate margins |
+| `--q` | | Int | 1 | ARCH order q for the univariate margins |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Conditional correlation matrix (wide) + diagnostics (no dynamics table — CCC has no second-stage parameters).
+
+## estimate dcc
+
+Estimate a **Dynamic Conditional Correlation** (Engle 2002) MGARCH with time-varying correlations, or the **cDCC** correction of Aielli (2013) via `--correction=aielli`. Reports the `[a, b]` correlation dynamics with QML sandwich standard errors and the last-period conditional correlation matrix.
+
+```bash
+friedman estimate dcc returns.csv --p=1 --q=1
+friedman estimate dcc returns.csv --correction=aielli   # cDCC
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--p` | | Int | 1 | GARCH order p for the univariate margins |
+| `--q` | | Int | 1 | ARCH order q for the univariate margins |
+| `--correction` | | String | `none` | DCC targeting correction: `none` or `aielli` (cDCC) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Last-period conditional correlation matrix (wide) + dynamics coefficients (`a`, `b`) + diagnostics (adds `correction`, `persistence` = a+b).
+
+## estimate bekk
+
+Estimate a **BEKK(1,1)** (Engle & Kroner 1995) MGARCH, modelling the conditional covariance directly with variance targeting. `--kind=scalar` (default) estimates two news/persistence scalars `a, b`; `--kind=diagonal` estimates per-series `aᵢ, bᵢ`.
+
+```bash
+friedman estimate bekk returns.csv --kind=scalar
+friedman estimate bekk returns.csv --kind=diagonal
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--kind` | | String | `scalar` | BEKK(1,1) parameterization: `scalar` or `diagonal` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Unconditional correlation matrix (wide) + dynamics coefficients (`a`, `b` for scalar; `aᵢ`, `bᵢ` for diagonal) + diagnostics (adds `bekk_kind`).
 
 ## estimate fastica
 

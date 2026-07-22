@@ -689,6 +689,122 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "MGARCH ccc/dcc/bekk + volatility diagnostics on real MEMs (C064b)" begin
+        # scanners: wide correlation (series col), dynamics (parameter|estimate), diag (metric|value)
+        _corr_of(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                "series" in table_cols(v) && return v
+            end
+            return nothing
+        end
+        _diag_of(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            return nothing
+        end
+        _coef_of(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                cols = table_cols(v)
+                ("parameter" in cols && "estimate" in cols) && return v
+            end
+            return nothing
+        end
+
+        @testset "estimate ccc — n×n correlation, no second-stage params" begin
+            csv = dgp_mgarch(; T=300, n=3, seed=201)
+            r = run_json(["estimate", "ccc", csv, "--p", "1", "--q", "1"])
+            assert_envelope_ok(r; label="estimate ccc")
+            corr = _corr_of(r.doc); @test corr !== nothing
+            @test "series" in table_cols(corr) && "r1" in table_cols(corr)
+            @test length(table_rows(corr)) == 3          # 3 series → 3 rows (wide sector×sector)
+            @test string(metric_value(_diag_of(r.doc), "kind")) == "ccc"
+            @test _coef_of(r.doc) === nothing            # CCC has no dynamics coef table
+            rm(csv; force=true)
+        end
+
+        @testset "estimate dcc — a,b ∈ (0,1), persistence < 1" begin
+            csv = dgp_mgarch(; T=350, n=2, seed=202)
+            r = run_json(["estimate", "dcc", csv])
+            assert_envelope_ok(r; label="estimate dcc")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            names = String[string(collect(row)[col_index(tbl, "parameter")]) for row in table_rows(tbl)]
+            @test "a" in names && "b" in names
+            pers = metric_value(_diag_of(r.doc), "persistence")
+            @test pers !== nothing && 0.0 <= Float64(pers) <= 1.0001
+            @test string(metric_value(_diag_of(r.doc), "correction")) == "none"
+            rm(csv; force=true)
+        end
+
+        @testset "estimate dcc --correction aielli (cDCC)" begin
+            csv = dgp_mgarch(; T=300, n=2, seed=203)
+            r = run_json(["estimate", "dcc", csv, "--correction", "aielli"])
+            assert_envelope_ok(r; label="estimate dcc aielli")
+            @test string(metric_value(_diag_of(r.doc), "correction")) == "aielli"
+            rm(csv; force=true)
+        end
+
+        @testset "estimate bekk scalar / diagonal" begin
+            csv = dgp_mgarch(; T=300, n=2, seed=204)
+            rs = run_json(["estimate", "bekk", csv, "--kind", "scalar"])
+            assert_envelope_ok(rs; label="estimate bekk scalar")
+            @test string(metric_value(_diag_of(rs.doc), "bekk_kind")) == "scalar"
+            ts = _coef_of(rs.doc); @test ts !== nothing
+            snames = String[string(collect(row)[col_index(ts, "parameter")]) for row in table_rows(ts)]
+            @test "a" in snames && "b" in snames
+
+            rd = run_json(["estimate", "bekk", csv, "--kind", "diagonal"])
+            assert_envelope_ok(rd; label="estimate bekk diagonal")
+            @test string(metric_value(_diag_of(rd.doc), "bekk_kind")) == "diagonal"
+            td = _coef_of(rd.doc); @test td !== nothing
+            dnames = String[string(collect(row)[col_index(td, "parameter")]) for row in table_rows(td)]
+            @test "a1" in dnames && "b1" in dnames
+            rm(csv; force=true)
+        end
+
+        @testset "estimate ccc on 1-column data → data error (not exit 1)" begin
+            csv = dgp_garch(; T=200, seed=205)   # single column 'r'
+            r = run_json(["estimate", "ccc", csv])
+            @test r.code == 3                     # ArgumentError('≥2 series') → data/invalid
+            rm(csv; force=true)
+        end
+
+        @testset "test sign-bias — Engle-Ng joint p-value ∈ [0,1]" begin
+            csv = dgp_garch(; T=400, seed=206)
+            r = run_json(["test", "sign-bias", csv, "--column", "1", "--model", "garch"])
+            assert_envelope_ok(r; label="test sign-bias")
+            jp = metric_value(_diag_of(r.doc), "joint_pvalue")
+            @test jp !== nothing && 0.0 <= Float64(jp) <= 1.0
+            @test metric_value(_diag_of(r.doc), "joint_statistic") !== nothing
+            rm(csv; force=true)
+        end
+
+        @testset "test nyblom — individual L stats + joint L_C vs cv" begin
+            csv = dgp_garch(; T=400, seed=207)
+            r = run_json(["test", "nyblom", csv, "--column", "1", "--model", "garch"])
+            assert_envelope_ok(r; label="test nyblom")
+            ind = nothing
+            for (_, v) in pairs(r.doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                "L_stat" in table_cols(v) && (ind = v)
+            end
+            @test ind !== nothing && length(table_rows(ind)) >= 3   # μ, ω, α1, β1
+            @test metric_value(_diag_of(r.doc), "joint_LC") !== nothing
+            @test metric_value(_diag_of(r.doc), "cv_joint_5pct") !== nothing
+            rm(csv; force=true)
+        end
+
+        @testset "test sign-bias bad --model → usage error (not exit 1)" begin
+            csv = dgp_garch(; T=200, seed=208)
+            r = run_json(["test", "sign-bias", csv, "--model", "bogus"])
+            @test r.code == 2
+            rm(csv; force=true)
+        end
+    end
+
     @testset "estimate reg OLS slope ≈ 2" begin
         csv = dgp_reg(; T=300, seed=27)
         r = run_json(["estimate", "reg", csv, "--dep", "y"])

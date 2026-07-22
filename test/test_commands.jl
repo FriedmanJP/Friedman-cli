@@ -425,13 +425,14 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 40 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 41 keys (C044; +6 GARCH variants C064a, +arfima C068)
-        @test length(node.subcmds) == 41
+        # 43 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 44 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b)
+        @test length(node.subcmds) == 44
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit",
-                     "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas"]
+                     "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas",
+                     "ccc", "dcc", "bekk"]
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")  # hidden alias
@@ -1221,6 +1222,95 @@ end  # Shared utilities
         end
     end
 
+    @testset "estimate MGARCH ccc/dcc/bekk (C064b)" begin
+        # JSON envelope via the app: assert a wide conditional-correlation matrix (series
+        # column + one column per series) and a diagnostics (metric|value) block for each.
+        _mg_doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _corr_tbl(doc) = first(t for t in _tables(doc) if "series" in String.(t.columns))
+        _diag_tbl(doc) = first(t for t in _tables(doc) if "metric" in String.(t.columns) && "value" in String.(t.columns))
+        _coef_tbl(doc) = first(t for t in _tables(doc) if "parameter" in String.(t.columns) && "estimate" in String.(t.columns))
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=150, n=3, colnames=["ra", "rb", "rc"])
+
+            @testset "ccc — correlation matrix (no dynamics) + diag" begin
+                doc = _mg_doc(["ccc", csv, "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                corr = _corr_tbl(doc)
+                # wide sector×sector: series col + one col per series
+                @test Set(["series", "ra", "rb", "rc"]) ⊆ Set(String.(corr.columns))
+                @test length(collect(corr.rows)) == 3
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "kind" in metrics && "loglik" in metrics && "series" in metrics
+                # CCC has no second-stage params → no dynamics coef table
+                @test isempty([t for t in _tables(doc) if "parameter" in String.(t.columns)])
+            end
+
+            @testset "dcc — a,b dynamics + persistence + correction" begin
+                doc = _mg_doc(["dcc", csv, "--correction", "none"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["a", "b"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "persistence" in metrics && "correction" in metrics
+            end
+
+            @testset "dcc — cDCC via --correction aielli" begin
+                doc = _mg_doc(["dcc", csv, "--correction", "aielli"])
+                @test doc.status == "ok"
+            end
+
+            @testset "bekk scalar (a,b) + bekk_kind" begin
+                doc = _mg_doc(["bekk", csv, "--kind", "scalar"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["a", "b"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "bekk_kind" in metrics
+            end
+
+            @testset "bekk diagonal (a_i/b_i)" begin
+                doc = _mg_doc(["bekk", csv, "--kind", "diagonal"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test "a1" in params && "b1" in params
+            end
+
+            @testset "bad input never uncaught exit-1" begin
+                # 1-column CSV → MGARCH needs ≥2 series → ArgumentError → data/invalid
+                onecol = _make_csv(dir; T=100, n=1, colnames=["x"])
+                e = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","ccc",onecol]); end; catch ex; e=ex; end
+                @test e isa CliError && e.code == "data/invalid" && exit_class(e) == 3
+                # direct-handler typed classes
+                @test_throws CliError _estimate_dcc(; data=csv, correction="bogus")   # usage/invalid up-front
+                @test_throws CliError _estimate_bekk(; data=csv, kind="bogus")        # usage/invalid up-front
+                du = nothing
+                try; _estimate_dcc(; data=csv, correction="bogus"); catch ex; du=ex; end
+                @test du isa CliError && du.code == "usage/invalid" && exit_class(du) == 2
+                # missing cell in a multivariate CSV → typed data error via the hardened
+                # load_multivariate_data (was an uncaught ArgumentError → exit 1)
+                mcsv = joinpath(dir, "mg_miss.csv")
+                write(mcsv, "a,b\n0.1,0.2\n0.3,\n0.5,0.6\n0.7,0.8\n")
+                me = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","bekk",mcsv]); end; catch ex; me=ex; end
+                @test me isa CliError && me.code == "data/missing-values" && exit_class(me) == 3
+                # an input column literally named `series` collides with the wide-matrix
+                # label column → must NOT crash the (unwrapped) renderer to exit-1
+                # (regression: adversarial review C064b; fixed via makeunique in _mgarch_corr_df)
+                scsv = _make_csv(dir; T=120, n=2, colnames=["series", "r2"])
+                sdoc = _mg_doc(["ccc", scsv])
+                @test sdoc.status == "ok"
+            end
+        end
+    end
+
     @testset "_estimate_fastica — default" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -1506,11 +1596,11 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 43 primary + 2 snake aliases (arch_lm, ljung_box) = 45 keys (C044; +gph, +local-whittle C068)
-        @test length(node.subcmds) == 45
+        # 45 primary + 2 snake aliases (arch_lm, ljung_box) = 47 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b)
+        @test length(node.subcmds) == 47
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
-                     "arch-lm", "ljung-box", "var", "granger", "pvar", "lr", "lm",
+                     "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "granger", "pvar", "lr", "lm",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
                      "adf-2break", "gregory-hansen", "vif",
@@ -1671,6 +1761,55 @@ end  # Estimate handlers
             csv = _make_csv(dir; T=5, n=1, colnames=["x"])
             @test_throws CliError _capture() do
                 _test_local_whittle(; data=csv, column=1, format="table")
+            end
+        end
+    end
+
+    @testset "_test_sign_bias / _test_nyblom (C064b)" begin
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2, colnames=["ret", "other"])
+
+            @testset "sign-bias — Engle-Ng kv keys (garch)" begin
+                doc = _doc(["sign-bias", csv, "--column", "1", "--model", "garch"])
+                @test doc.status == "ok"
+                metrics = Set(String(collect(r)[1]) for r in _tbl(doc, "metric").rows)
+                @test Set(["sign_bias", "joint_statistic", "joint_pvalue", "dof"]) ⊆ metrics
+            end
+
+            @testset "sign-bias — egarch/gjr-garch models dispatch" begin
+                @test _doc(["sign-bias", csv, "--model", "egarch"]).status == "ok"
+                @test _doc(["sign-bias", csv, "--model", "gjr-garch"]).status == "ok"
+            end
+
+            @testset "nyblom — individual table + joint kv" begin
+                doc = _doc(["nyblom", csv, "--column", "1", "--model", "garch"])
+                @test doc.status == "ok"
+                ind = _tbl(doc, "parameter")
+                @test Set(["parameter", "L_stat", "cv_5pct", "reject_5pct"]) ⊆ Set(String.(ind.columns))
+                metrics = Set(String(collect(r)[1]) for r in _tbl(doc, "metric").rows)
+                @test Set(["joint_LC", "cv_joint_5pct", "n_params", "reject_joint_5pct"]) ⊆ metrics
+            end
+
+            @testset "bad --model → usage/invalid (helper is enum-guarded, but test the dispatcher)" begin
+                @test_throws CliError _fit_vol_for_diag(randn(50), "bogus", 1, 1)
+                fe = nothing
+                try; _fit_vol_for_diag(randn(50), "bogus", 1, 1); catch ex; fe=ex; end
+                @test fe isa CliError && fe.code == "usage/invalid" && exit_class(fe) == 2
+            end
+
+            @testset "column out of range → data/column-range (not exit 1)" begin
+                e = nothing
+                try; _capture() do; _dispatch_via_app(String["test","sign-bias",csv,"--column","9"]); end; catch ex; e=ex; end
+                @test e isa CliError && e.code == "data/column-range"
             end
         end
     end
@@ -2796,7 +2935,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 41  # 40 primary + gjr_garch alias (C064a +6, C068 +arfima)
+        @test length(node.subcmds) == 44  # 43 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -2827,7 +2966,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 45  # 43 primary + 2 snake aliases (+gph, +local-whittle C068)
+        @test length(node.subcmds) == 47  # 45 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -4213,7 +4352,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 41  # 40 primary + gjr_garch alias (C064a +6, C068 +arfima)
+        @test length(node.subcmds) == 44  # 43 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -4244,7 +4383,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 45  # 43 primary + 2 aliases (+gph, +local-whittle C068)
+        @test length(node.subcmds) == 47  # 45 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b)
     end
 
     @testset "_parse_varlist" begin

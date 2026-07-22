@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, and multicollinearity (VIF). 41 subcommands plus nested `var` (2) and `pvar` (4) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), and multicollinearity (VIF). 43 subcommands plus nested `var` (2) and `pvar` (4) nodes.
 
 ## Unit Root Tests
 
@@ -275,6 +275,45 @@ friedman test ljung_box data.csv --column=1 --lags=10
 |--------|-------|------|---------|-------------|
 | `--column` | `-c` | Int | 1 | Column index (1-based) |
 | `--lags` | `-p` | Int | 10 | Number of lags |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+## Volatility Model Diagnostics
+
+`test sign-bias` and `test nyblom` first fit a univariate volatility model to the chosen return column, then test its standardized residuals / parameters. `--model` selects the volatility model to fit and is restricted to `garch`, `egarch`, `gjr-garch` — the three that share the `(p,q)` estimator signature and are supported by both diagnostics.
+
+### test sign-bias
+
+Engle-Ng (1993) sign-bias and size-bias test for asymmetry left in a fitted volatility model. H0: no remaining asymmetry (a rejection suggests a leverage/asymmetric model such as EGARCH or GJR-GARCH). Reports the sign bias, negative/positive size bias `t`-statistics and the joint χ²(3) test.
+
+```bash
+friedman test sign-bias data.csv --column=1 --model=garch
+friedman test sign-bias data.csv --model=egarch --p=1 --q=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Return series column (1-based) |
+| `--model` | | String | `garch` | Volatility model to fit: `garch`, `egarch`, `gjr-garch` |
+| `--p` | | Int | 1 | GARCH order p |
+| `--q` | | Int | 1 | ARCH order q |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+### test nyblom
+
+Nyblom (1989) / Hansen (1992) parameter-stability test against the alternative that parameters follow a martingale. H0: stable parameters. Reports per-parameter individual `Lᵢ` statistics and the joint `L_C` against the Hansen (1992) 5% critical values (a critical-value test — no p-value). Supported for `garch`, `egarch`, `gjr-garch` fits.
+
+```bash
+friedman test nyblom data.csv --column=1 --model=garch
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Return series column (1-based) |
+| `--model` | | String | `garch` | Volatility model to fit: `garch`, `egarch`, `gjr-garch` |
+| `--p` | | Int | 1 | GARCH order p |
+| `--q` | | Int | 1 | ARCH order q |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 

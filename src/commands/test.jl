@@ -226,6 +226,41 @@ function test_specs()::Vector{CommandSpec}
             aliases=["ljung_box"],
             handler=wrap_legacy(_test_ljung_box),
         ),
+        # C064b: volatility-model residual diagnostics (Engle-Ng sign bias; Nyblom stability).
+        CommandSpec(
+            path=["test", "sign-bias"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Return series column (1-based)"),
+                OptionSpec(name="model", type=String, default="garch", description="Volatility model to fit: garch | egarch | gjr-garch", choices=["garch","egarch","gjr-garch"]),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:sign_bias, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_sign_bias),
+        ),
+        CommandSpec(
+            path=["test", "nyblom"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Return series column (1-based)"),
+                OptionSpec(name="model", type=String, default="garch", description="Volatility model to fit: garch | egarch | gjr-garch", choices=["garch","egarch","gjr-garch"]),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:nyblom, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_nyblom),
+        ),
         CommandSpec(
             path=["test", "var", "lagselect"],
             summary="Path to CSV data file",
@@ -1216,6 +1251,91 @@ function _test_ljung_box(; data::String, column::Int=1, lags::Int=10,
     interpret_test_result(result.pvalue,
         "Reject H0 (no serial correlation in squared residuals) at 5%",
         "Cannot reject H0 at 5% -- no significant ARCH effects")
+end
+
+# ── C064b: volatility-model residual diagnostics ─────────
+# Engle-Ng (1993) sign/size bias and Nyblom (1989)/Hansen (1992) parameter stability.
+# Both first fit a univariate volatility model to the series, then test its residuals.
+# v1 scope: `--model` is restricted to garch|egarch|gjr-garch — the three that share the
+# `(y,p,q)` estimator signature AND are supported by BOTH diagnostics (IGARCH/CGARCH/
+# APARCH nyblom support exists upstream but those estimators take different signatures).
+
+"""Fit the univariate volatility model requested by a diagnostic leaf's `--model`.
+Restricted to the three (y,p,q)-signature estimators (see scope note above)."""
+function _fit_vol_for_diag(y, model::String, p::Int, q::Int)
+    model == "garch"     && return estimate_garch(y, p, q)
+    model == "egarch"    && return estimate_egarch(y, p, q)
+    model == "gjr-garch" && return estimate_gjr_garch(y, p, q)
+    throw(CliError("usage/invalid", "unknown --model '$model' (garch|egarch|gjr-garch)"))
+end
+
+function _test_sign_bias(; data::String, column::Int=1, model::String="garch",
+                          p::Int=1, q::Int=1, format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    _status("Sign-Bias Test (Engle-Ng): variable=$vname, observations=$(length(y)), model=$model")
+    _status()
+    fitted = try
+        _fit_vol_for_diag(y, model, p, q)
+    catch e
+        throw(_garch_variant_error(e, "$model fit"))
+    end
+    result = try
+        sign_bias_test(fitted)
+    catch e
+        throw(_garch_variant_error(e, "sign-bias test"))
+    end
+    pairs = Pair{String,Any}[
+        "sign_bias" => round(result.sign_bias; digits=4),
+        "sign_bias_t" => round(result.sign_bias_t; digits=4),
+        "sign_bias_p" => round(result.sign_bias_p; digits=4),
+        "neg_size_t" => round(result.neg_size_t; digits=4),
+        "neg_size_p" => round(result.neg_size_p; digits=4),
+        "pos_size_t" => round(result.pos_size_t; digits=4),
+        "pos_size_p" => round(result.pos_size_p; digits=4),
+        "joint_statistic" => round(result.joint_statistic; digits=4),
+        "joint_pvalue" => round(result.joint_pvalue; digits=4),
+        "dof" => result.dof,
+    ]
+    output_kv(pairs; format=format, output=output, title="Sign-Bias Test: $vname ($model)")
+    interpret_test_result(result.joint_pvalue,
+        "Reject H0 (no remaining asymmetry) at 5% -- leverage/asymmetry present; consider EGARCH/GJR",
+        "Cannot reject H0 (no remaining asymmetry) at 5%")
+end
+
+function _test_nyblom(; data::String, column::Int=1, model::String="garch",
+                       p::Int=1, q::Int=1, format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    _status("Nyblom Parameter-Stability Test: variable=$vname, observations=$(length(y)), model=$model")
+    _status()
+    fitted = try
+        _fit_vol_for_diag(y, model, p, q)
+    catch e
+        throw(_garch_variant_error(e, "$model fit"))
+    end
+    result = try
+        nyblom_test(fitted)
+    catch e
+        throw(_garch_variant_error(e, "nyblom test"))
+    end
+    # Headline: per-parameter individual Lᵢ vs the Hansen (1992) 5% critical value (≈0.470).
+    df = DataFrame(parameter=result.param_names,
+                   L_stat=round.(Float64.(result.individual); digits=4),
+                   cv_5pct=fill(round(Float64(result.cv_individual); digits=3), length(result.individual)),
+                   reject_5pct=Float64.(result.individual) .> Float64(result.cv_individual))
+    output_result(df; format=Symbol(format), output=output,
+                  title="Nyblom Individual Stability: $vname ($model)")
+    reject_joint = Float64(result.joint) > Float64(result.cv_joint)
+    output_kv(Pair{String,Any}[
+        "joint_LC" => round(Float64(result.joint); digits=4),
+        "cv_joint_5pct" => round(Float64(result.cv_joint); digits=4),
+        "n_params" => result.k,
+        "reject_joint_5pct" => reject_joint,
+    ]; format=format, title="Nyblom Joint Stability: $vname ($model)")
+    # nyblom_test is a critical-value test (no p-value); synthesize a decision-consistent
+    # pseudo p-value so the standard interpretation line prints (stdout stays data-only).
+    interpret_test_result(reject_joint ? 0.01 : 0.5,
+        "Reject H0 (stable parameters) at 5% -- evidence of parameter instability",
+        "Cannot reject H0 (stable parameters) at 5%")
 end
 
 # ── VAR Lag Selection ────────────────────────────────────

@@ -619,6 +619,28 @@ end
 VolatilityForecast(f::Vector{T}, h::Int) where T =
     VolatilityForecast(f, f, f, abs.(f) .* T(0.1), h, T(0.95), :garch)
 
+# ─── Multivariate GARCH Types (C064b; MEMs 0.7.0 src/mgarch) ──
+# Fields mirror the real MGARCHModel exactly (TS-3 field-subset conformance).
+struct MGARCHModel{T<:Real} <: AbstractMGARCHModel
+    Y::Matrix{T}
+    mu::Vector{T}
+    margins::Vector{GARCHModel{T}}
+    H::Array{T,3}
+    R::Union{Matrix{T},Array{T,3}}
+    Rbar::Matrix{T}
+    params::Vector{T}
+    param_names::Vector{String}
+    param_vcov::Matrix{T}
+    loglik::T
+    aic::T
+    bic::T
+    kind::Symbol
+    correction::Symbol
+    bekk_kind::Symbol
+    converged::Bool
+    n::Int
+end
+
 # ─── VECM Types ──────────────────────────────────────────
 
 struct VECMModel{T<:Real}
@@ -1203,6 +1225,100 @@ end
 arch_lm_test(y, lags) = (statistic=15.0, pvalue=0.01)
 ljung_box_squared(y, lags) = (statistic=20.0, pvalue=0.005)
 
+# ─── Multivariate GARCH functions (C064b) ────────────────
+# Mirror the real _mgarch_validate, estimators, accessors, StatsAPI, and diagnostics so
+# T1/T2 catch shape bugs in the wide correlation rendering + typed error mapping.
+function _mock_mgarch_validate(Y)
+    Ymat = Matrix{Float64}(Y)
+    Tn, n = size(Ymat)
+    n >= 2 || throw(ArgumentError("multivariate GARCH requires at least 2 series (got n=$n)"))
+    Tn >= 2 || throw(ArgumentError("need at least 2 observations (got T=$Tn)"))
+    all(isfinite, Ymat) || throw(ArgumentError("Y contains non-finite values"))
+    return Ymat, Tn, n
+end
+
+# Build a plausible n×n correlation matrix (unit diagonal, 0.3 off-diagonal) and a
+# unit-variance covariance path Hₜ = R.
+function _mock_mgarch_RH(n::Int, Tn::Int)
+    R = fill(0.3, n, n)
+    for i in 1:n; R[i, i] = 1.0; end
+    H = Array{Float64,3}(undef, n, n, Tn)
+    for t in 1:Tn; H[:, :, t] .= R; end
+    return R, H
+end
+
+function estimate_ccc(Y; p::Int=1, q::Int=1)
+    Ymat, Tn, n = _mock_mgarch_validate(Y)
+    R, H = _mock_mgarch_RH(n, Tn)
+    margins = GARCHModel{Float64}[GARCHModel(ones(p + q + 2) * 0.1) for _ in 1:n]
+    MGARCHModel{Float64}(Ymat, zeros(n), margins, H, R, R, Float64[], String[],
+        fill(NaN, 0, 0), -300.0, 620.0, 640.0, :ccc, :none, :none, true, n)
+end
+
+function estimate_dcc(Y; p::Int=1, q::Int=1, correction::Symbol=:none)
+    correction in (:none, :aielli) ||
+        throw(ArgumentError("correction must be :none or :aielli, got :$correction"))
+    Ymat, Tn, n = _mock_mgarch_validate(Y)
+    R, H = _mock_mgarch_RH(n, Tn)
+    margins = GARCHModel{Float64}[GARCHModel(ones(p + q + 2) * 0.1) for _ in 1:n]
+    ab = [0.03, 0.95]
+    MGARCHModel{Float64}(Ymat, zeros(n), margins, H, R, R, ab, ["a", "b"],
+        Matrix{Float64}(0.0001I, 2, 2), -300.0, 620.0, 640.0, :dcc, correction, :none, true, n)
+end
+
+function estimate_bekk(Y; kind::Symbol=:scalar)
+    kind in (:scalar, :diagonal) ||
+        throw(ArgumentError("kind must be :scalar or :diagonal, got :$kind"))
+    Ymat, Tn, n = _mock_mgarch_validate(Y)
+    R, H = _mock_mgarch_RH(n, Tn)
+    params, pnames = kind === :scalar ?
+        ([0.05, 0.9], ["a", "b"]) :
+        (vcat(fill(0.05, n), fill(0.9, n)), vcat(["a$i" for i in 1:n], ["b$i" for i in 1:n]))
+    k = length(params)
+    MGARCHModel{Float64}(Ymat, zeros(n), GARCHModel{Float64}[], H, R, R, params, pnames,
+        Matrix{Float64}(0.0001I, k, k), -300.0, 620.0, 640.0, :bekk, :none, kind, true, n)
+end
+
+covariances(m::MGARCHModel) = m.H
+function correlations(m::MGARCHModel)
+    m.R isa Array{Float64,3} && return m.R
+    Rc = m.R
+    Tn = size(m.H, 3)
+    out = Array{Float64,3}(undef, m.n, m.n, Tn)
+    for t in 1:Tn; out[:, :, t] .= Rc; end
+    return out
+end
+function variances(m::MGARCHModel)
+    Tn = size(m.H, 3)
+    out = Matrix{Float64}(undef, Tn, m.n)
+    for t in 1:Tn, i in 1:m.n; out[t, i] = m.H[i, i, t]; end
+    return out
+end
+
+coef(m::MGARCHModel) = m.params
+loglikelihood(m::MGARCHModel) = m.loglik
+nobs(m::MGARCHModel) = size(m.Y, 1)
+function stderror(m::MGARCHModel)
+    isempty(m.params) && return Float64[]
+    V = m.param_vcov
+    (size(V, 1) == length(m.params) && all(isfinite, V)) || return fill(NaN, length(m.params))
+    return Float64[sqrt(max(V[i, i], 0.0)) for i in 1:length(m.params)]
+end
+
+# ─── Volatility residual diagnostics (C064b) ─────────────
+function sign_bias_test(z::AbstractVector)
+    length(z) < 10 && throw(ArgumentError("Need at least 10 observations for sign-bias test"))
+    return (sign_bias=0.05, sign_bias_t=1.2, sign_bias_p=0.23,
+            neg_size_t=-0.8, neg_size_p=0.42, pos_size_t=0.5, pos_size_p=0.62,
+            joint_statistic=4.5, joint_pvalue=0.21, dof=3)
+end
+sign_bias_test(m::Union{GARCHModel,EGARCHModel,GJRGARCHModel}) =
+    sign_bias_test(m.standardized_residuals)
+
+nyblom_test(m::Union{GARCHModel,EGARCHModel,GJRGARCHModel}) =
+    (individual=fill(0.3, 4), joint=0.8, k=4, cv_individual=0.470, cv_joint=1.24,
+     param_names=["μ", "ω", "α1", "β1"])
+
 # Non-Gaussian identification
 function _mock_ica(model::VARModel, method_sym::Symbol)
     n = size(model.Y, 2); T_u = size(model.U, 1)
@@ -1624,6 +1740,8 @@ export ar_order, ma_order, diff_order, aic, bic
 export estimate_arch, estimate_garch, estimate_egarch, estimate_gjr_garch, estimate_sv
 export persistence, halflife, unconditional_variance
 export arch_lm_test, ljung_box_squared
+export MGARCHModel, estimate_ccc, estimate_dcc, estimate_bekk
+export covariances, correlations, variances, sign_bias_test, nyblom_test
 export identify_fastica, identify_jade, identify_sobi, identify_dcov, identify_hsic
 export identify_nongaussian_ml, identify_mixture_normal, identify_pml, identify_skew_normal
 export identify_markov_switching, identify_garch, identify_smooth_transition, identify_external_volatility

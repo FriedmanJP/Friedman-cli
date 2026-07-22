@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 47
+**Leaves:** 49
 
 ### `friedman test adf`
 
@@ -731,6 +731,27 @@ Path to CSV data file
 
 ---
 
+### `friedman test nyblom`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
+| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch | egarch | gjr-garch |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `nyblom` (Path to CSV data file)
+
+---
+
 ### `friedman test panic`
 
 Path to CSV data file (rows=T, cols=N)
@@ -871,6 +892,27 @@ Path to CSV panel data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pvar_stability` (Path to CSV panel data file)
+
+---
+
+### `friedman test sign-bias`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
+| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch | egarch | gjr-garch |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `sign_bias` (Path to CSV data file)
 
 ---
 

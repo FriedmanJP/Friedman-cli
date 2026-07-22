@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 40
+**Leaves:** 43
 
 ### `friedman estimate 3sls`
 
@@ -131,6 +131,25 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate bekk`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `scalar` | `scalar`, `diagonal` | BEKK(1,1) parameterization: scalar | diagonal |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_bekk` (Path to CSV data file)
+
+---
+
 ### `friedman estimate bvar`
 
 Path to CSV data file
@@ -161,6 +180,26 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate ccc`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--p` | — | `Int64` | `1` | — | GARCH order p for the univariate margins |
+| `--q` | — | `Int64` | `1` | — | ARCH order q for the univariate margins |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_ccc` (Path to CSV data file)
+
+---
+
 ### `friedman estimate cgarch`
 
 Path to CSV data file
@@ -177,6 +216,27 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_cgarch` (Path to CSV data file)
+
+---
+
+### `friedman estimate dcc`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--p` | — | `Int64` | `1` | — | GARCH order p for the univariate margins |
+| `--q` | — | `Int64` | `1` | — | ARCH order q for the univariate margins |
+| `--correction` | — | `String` | `none` | `none`, `aielli` | DCC targeting correction: none | aielli (cDCC) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_dcc` (Path to CSV data file)
 
 ---
 

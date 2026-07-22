@@ -3744,8 +3744,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 40 primary leaves + 1 snake alias (gjr_garch) = 41 keys (C044; +6 GARCH variants C064a, +arfima C068)
-    @test length(est_node.subcmds) == 41
+    # 43 primary leaves + 1 snake alias (gjr_garch) = 44 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b)
+    @test length(est_node.subcmds) == 44
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -3940,8 +3940,8 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 43 primary + 2 snake aliases (C044; +gph, +local-whittle C068)
-    @test length(test_node.subcmds) == 45
+    # 45 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b)
+    @test length(test_node.subcmds) == 47
     @test haskey(test_node.subcmds, "gph")
     @test haskey(test_node.subcmds, "local-whittle")
 

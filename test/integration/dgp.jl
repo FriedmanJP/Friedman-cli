@@ -105,6 +105,26 @@ function dgp_garch(; T::Int=500, seed::Int=42)
     return write_csv(DataFrame(r=r); prefix="garch")
 end
 
+"""Correlated multivariate GARCH(1,1)-like returns (`n` series × `T` obs). Each series
+follows its own GARCH recursion; innovations share a common standard-normal factor so the
+conditional correlation is non-trivial (drives CCC/DCC/BEKK)."""
+function dgp_mgarch(; T::Int=300, n::Int=2, seed::Int=42)
+    rng = MersenneTwister(seed)
+    ω, α, β = 0.05, 0.08, 0.9
+    R = zeros(T, n)
+    σ2 = ones(T, n)
+    for t in 2:T
+        z_common = randn(rng)
+        for j in 1:n
+            σ2[t, j] = ω + α * R[t-1, j]^2 + β * σ2[t-1, j]
+            z = 0.5 * z_common + sqrt(0.75) * randn(rng)
+            R[t, j] = sqrt(σ2[t, j]) * z
+        end
+    end
+    df = DataFrame([Symbol("r$j") => R[:, j] for j in 1:n])
+    return write_csv(df; prefix="mgarch")
+end
+
 """Binary logit DGP: P(y=1|x) = Λ(β'x)."""
 function dgp_logit(; T::Int=400, seed::Int=42)
     rng = MersenneTwister(seed)
