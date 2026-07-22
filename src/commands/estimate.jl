@@ -240,6 +240,114 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         # Volatility 20-plex (estimate side): generated from VOL_MODELS
         _vol_specs(:estimate)...,
+        # C064a: univariate GARCH variants (grouped with the volatility family).
+        # Estimate-only leaves — result types are NOT in MEMs _COEF_TABLE_TYPES, so
+        # the coefficient table is hand-built (the documented C051 exception).
+        CommandSpec(
+            path=["estimate", "igarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_igarch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_igarch),
+        ),
+        CommandSpec(
+            path=["estimate", "cgarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_cgarch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_cgarch),
+        ),
+        CommandSpec(
+            path=["estimate", "aparch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="fix-delta", type=Float64, default=nothing, description="Pin power δ (>0); default estimates it"),
+                OptionSpec(name="fix-gamma", type=Float64, default=nothing, description="Pin leverage γ ∈ (-1,1); default estimates it"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_aparch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_aparch),
+        ),
+        CommandSpec(
+            path=["estimate", "figarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH β(L) order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH φ(L) order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional-integration order d ∈ (0,1)"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="ARCH(∞) truncation lag"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_figarch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_figarch),
+        ),
+        CommandSpec(
+            path=["estimate", "fiegarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH β(L) order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH φ(L) order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional-integration order d ∈ (0,1)"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="MA(∞) truncation lag"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_fiegarch, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_fiegarch),
+        ),
+        CommandSpec(
+            path=["estimate", "garch-midas"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="High-frequency return series column (1-based)"),
+                OptionSpec(name="m-freq", type=Int, default=0, description="High-frequency observations per low-frequency block (required)"),
+                OptionSpec(name="k", type=Int, default=12, description="Number of MIDAS lags (K ≥ 2)"),
+                OptionSpec(name="rv", type=String, default="realized", description="Long-run driver: realized (from returns) | macro (exogenous)", choices=["realized","macro"]),
+                OptionSpec(name="span", type=String, default="fixed", description="τ span: fixed (per block) | rolling (rolling RV)", choices=["fixed","rolling"]),
+                OptionSpec(name="config", type=String, default="", description="TOML with [garch_midas] x_lf = [...] (required for --rv macro)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_garch_midas, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_garch_midas),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -2137,5 +2245,197 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
         "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
         "Categories" => size(model.fitted, 2)]
     output_kv(pairs; format=format, title="Fit Statistics")
+    return model
+end
+
+# ── C064a: univariate GARCH variants ─────────────────────────
+# igarch / cgarch / aparch / figarch / fiegarch / garch-midas (MEMs 0.7.0 src/garch).
+# None of these result types is registered in MEMs `_COEF_TABLE_TYPES`, so — per the
+# C051 convention — their coefficient table is HAND-BUILT here (the same documented
+# exception used by the SUR/3SLS systems leaves), not via `DataFrame(model)`.
+
+"""Hand-built coefficient table for a GARCH-variant volatility model:
+`parameter | estimate | std_error | z_stat | p_value`. Falls back to estimate-only
+when the QMLE covariance is unavailable (non-finite SEs)."""
+function _garch_variant_coef_table(model, param_names::Vector{String})
+    c = Float64.(coef(model))
+    names = param_names[1:length(c)]
+    try
+        se = Float64.(stderror(model))
+        (length(se) == length(c) && all(isfinite, se)) || error("unavailable SEs")
+        z = [se[i] == 0 ? 0.0 : c[i] / se[i] for i in eachindex(c)]
+        pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        return DataFrame(parameter=names, estimate=round.(c; digits=6),
+                         std_error=round.(se; digits=6),
+                         z_stat=round.(z; digits=4), p_value=round.(pv; digits=4))
+    catch
+        return DataFrame(parameter=names, estimate=round.(c; digits=6))
+    end
+end
+
+"""Diagnostics kv for a GARCH-variant fit: log-lik, AIC/BIC, persistence,
+convergence, iterations, plus any model-specific `extra` rows."""
+function _garch_variant_diag(model; extra::Vector{<:Pair}=Pair{String,Any}[])
+    pairs = Pair{String,Any}[
+        "log_likelihood" => round(Float64(loglikelihood(model)); digits=4),
+        "aic"            => round(Float64(model.aic); digits=4),
+        "bic"            => round(Float64(model.bic); digits=4),
+        "persistence"    => round(Float64(persistence(model)); digits=6),
+        "converged"      => model.converged,
+        "iterations"     => model.iterations,
+    ]
+    append!(pairs, extra)
+    return pairs
+end
+
+"""Map an untyped MEMs volatility-estimation failure to a typed CliError — never an
+uncaught exit-1 (io-family lesson). Bad-input `ArgumentError`/`DomainError` →
+`data/invalid` (3); shape mismatch → `data/shape` (3); anything else → `model/error` (5)."""
+function _garch_variant_error(e, label::String)
+    e isa CliError && return e
+    if e isa ArgumentError || e isa DomainError
+        return CliError("data/invalid", "$label: $(sprint(showerror, e))";
+            hint="check series length, orders (p/q), and parameter bounds")
+    elseif e isa DimensionMismatch
+        return CliError("data/shape", "$label: $(sprint(showerror, e))")
+    end
+    return CliError("model/error", "$label estimation failed: $(sprint(showerror, e))";
+        hint="the QMLE optimizer did not converge — try a longer or cleaner return series")
+end
+
+function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
+                           output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    _status("Estimating IGARCH($p,$q): variable=$vname, observations=$(length(y))")
+    _status()
+    model = try
+        estimate_igarch(y, p, q)
+    catch e
+        throw(_garch_variant_error(e, "IGARCH"))
+    end
+    names = String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]]
+    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+                  output=output, title="IGARCH($p,$q) Coefficients ($vname)")
+    output_kv(_garch_variant_diag(model); format=format, title="IGARCH($p,$q) Diagnostics")
+    return model
+end
+
+function _estimate_cgarch(; data::String, column::Int=1,
+                           output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    _status("Estimating Component-GARCH(1,1): variable=$vname, observations=$(length(y))")
+    _status()
+    model = try
+        estimate_cgarch(y)
+    catch e
+        throw(_garch_variant_error(e, "CGARCH"))
+    end
+    names = String["mu", "omega", "rho", "phi", "alpha", "beta"]
+    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+                  output=output, title="Component-GARCH(1,1) Coefficients ($vname)")
+    output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
+        "transitory_persistence" => round(Float64(model.alpha + model.beta); digits=6),
+        "unconditional_variance" => round(Float64(unconditional_variance(model)); digits=6),
+    ]); format=format, title="Component-GARCH Diagnostics")
+    return model
+end
+
+function _estimate_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1,
+                           fix_delta=nothing, fix_gamma=nothing,
+                           output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    fd = fix_delta === nothing ? nothing : Float64(fix_delta)
+    fg = fix_gamma === nothing ? nothing : Float64(fix_gamma)
+    _status("Estimating APARCH($p,$q): variable=$vname, observations=$(length(y))" *
+            (fd === nothing ? "" : ", fix_delta=$fd") * (fg === nothing ? "" : ", fix_gamma=$fg"))
+    _status()
+    model = try
+        estimate_aparch(y, p, q; fix_delta=fd, fix_gamma=fg)
+    catch e
+        throw(_garch_variant_error(e, "APARCH"))
+    end
+    names = String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]; "delta"]
+    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+                  output=output, title="APARCH($p,$q) Coefficients ($vname)")
+    output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
+        "delta" => round(Float64(model.delta); digits=6),
+        "n_params" => model.n_params,
+    ]); format=format, title="APARCH Diagnostics")
+    return model
+end
+
+function _estimate_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
+                            d0::Float64=0.4, truncation::Int=1000, dist::String="normal",
+                            output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    _status("Estimating FIGARCH($p,d,$q): variable=$vname, observations=$(length(y)), d0=$d0, truncation=$truncation")
+    _status()
+    model = try
+        estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist))
+    catch e
+        throw(_garch_variant_error(e, "FIGARCH"))
+    end
+    names = String["mu"; "omega"; ["phi$i" for i in 1:q]; ["beta$i" for i in 1:p]; "d"]
+    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+                  output=output, title="FIGARCH($p,d,$q) Coefficients ($vname)")
+    output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
+        "d" => round(Float64(model.d); digits=6),
+        "truncation" => model.truncation,
+        "n_neg_lambda" => model.n_neg_lambda,
+    ]); format=format, title="FIGARCH Diagnostics")
+    return model
+end
+
+function _estimate_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
+                             d0::Float64=0.4, truncation::Int=1000, dist::String="normal",
+                             output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    _status("Estimating FIEGARCH($p,d,$q): variable=$vname, observations=$(length(y)), d0=$d0, truncation=$truncation")
+    _status()
+    model = try
+        estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist))
+    catch e
+        throw(_garch_variant_error(e, "FIEGARCH"))
+    end
+    names = String["mu"; "omega"; "theta"; "gamma"; ["phi$i" for i in 1:q]; ["beta$i" for i in 1:p]; "d"]
+    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+                  output=output, title="FIEGARCH($p,d,$q) Coefficients ($vname)")
+    output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
+        "d" => round(Float64(model.d); digits=6),
+        "truncation" => model.truncation,
+    ]); format=format, title="FIEGARCH Diagnostics")
+    return model
+end
+
+function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+                                rv::String="realized", span::String="fixed", config::String="",
+                                output::String="", format::String="table")
+    m_freq >= 1 || throw(CliError("usage/missing-option",
+        "estimate garch-midas requires --m-freq ≥ 1 (high-frequency observations per low-frequency block)"))
+    rv_sym = Symbol(rv); span_sym = Symbol(span)
+    rv_sym in (:realized, :macro) || throw(CliError("usage/bad-value", "--rv must be realized|macro, got $rv"))
+    span_sym in (:fixed, :rolling) || throw(CliError("usage/bad-value", "--span must be fixed|rolling, got $span"))
+    y, vname = load_univariate_series(data, column)
+    x_lf = Float64[]
+    if rv_sym === :macro
+        isempty(config) && throw(CliError("config/missing",
+            "--rv macro requires --config <toml> with a [garch_midas] x_lf = [...] low-frequency driver"))
+        x_lf = get_garch_midas(load_config(config))
+    end
+    _status("Estimating GARCH-MIDAS: variable=$vname, observations=$(length(y)), K=$k, m_freq=$m_freq, rv=$rv, span=$span")
+    _status()
+    model = try
+        estimate_garch_midas(y, x_lf; K=k, m_freq=m_freq, rv=rv_sym, span=span_sym)
+    catch e
+        throw(_garch_variant_error(e, "GARCH-MIDAS"))
+    end
+    names = String["mu", "alpha", "beta", "m", "theta", "w"]
+    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+                  output=output, title="GARCH-MIDAS Coefficients ($vname)")
+    output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
+        "variance_ratio" => round(Float64(model.variance_ratio); digits=6),
+        "K" => model.K, "m_freq" => model.m_freq, "n_blocks" => model.n_blocks,
+        "rv" => String(model.rv), "span" => String(model.span),
+    ]); format=format, title="GARCH-MIDAS Diagnostics")
     return model
 end

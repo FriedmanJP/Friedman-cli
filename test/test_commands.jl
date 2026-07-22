@@ -425,12 +425,13 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 33 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 34 keys (C044)
-        @test length(node.subcmds) == 34
+        # 39 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 40 keys (C044; +6 GARCH variants C064a)
+        @test length(node.subcmds) == 40
         for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
-                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
+                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit",
+                     "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas"]
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")  # hidden alias
@@ -1064,6 +1065,118 @@ end  # Shared utilities
                 _capture() do
                     _estimate_sv(; data=csv, column=1, draws=100, format="table")
                 end
+            end
+        end
+    end
+
+    @testset "estimate GARCH variants (C064a)" begin
+        # JSON envelope via the app: assert a hand-built coef table (parameter|estimate)
+        # + a metric|value diagnostics table for each of the 6 volatility variants.
+        _gv_doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _coef_tbl(doc) = first(t for t in _tables(doc) if "parameter" in String.(t.columns) && "estimate" in String.(t.columns))
+        _diag_tbl(doc) = first(t for t in _tables(doc) if "metric" in String.(t.columns) && "value" in String.(t.columns))
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=1, colnames=["ret"])
+
+            @testset "igarch coef + diag" begin
+                doc = _gv_doc(["igarch", csv, "--column", "1", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                coef = _coef_tbl(doc)
+                params = Set(String(collect(r)[1]) for r in coef.rows)
+                @test Set(["mu", "omega", "alpha1", "beta1"]) ⊆ params
+                diag = _diag_tbl(doc)
+                metrics = Set(String(collect(r)[1]) for r in diag.rows)
+                @test "persistence" in metrics && "log_likelihood" in metrics
+            end
+
+            @testset "cgarch coef (rho/phi/alpha/beta) + diag" begin
+                doc = _gv_doc(["cgarch", csv, "--column", "1"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["mu", "omega", "rho", "phi", "alpha", "beta"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "unconditional_variance" in metrics
+            end
+
+            @testset "aparch (gamma + delta) + diag" begin
+                doc = _gv_doc(["aparch", csv, "--column", "1", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["gamma1", "delta"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "n_params" in metrics
+            end
+
+            @testset "aparch --fix-delta --fix-gamma" begin
+                doc = _gv_doc(["aparch", csv, "--column", "1", "--fix-delta", "2.0", "--fix-gamma", "0.0"])
+                @test doc.status == "ok"
+            end
+
+            @testset "figarch (fractional d) + diag" begin
+                doc = _gv_doc(["figarch", csv, "--column", "1", "--d0", "0.4", "--truncation", "50"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test "d" in params && "phi1" in params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "n_neg_lambda" in metrics && "truncation" in metrics
+            end
+
+            @testset "fiegarch (theta/gamma + d)" begin
+                doc = _gv_doc(["fiegarch", csv, "--column", "1", "--truncation", "50"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["theta", "gamma", "d"]) ⊆ params
+            end
+
+            @testset "garch-midas realized + diag" begin
+                doc = _gv_doc(["garch-midas", csv, "--column", "1", "--m-freq", "20", "--k", "6"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["mu", "alpha", "beta", "m", "theta", "w"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "variance_ratio" in metrics && "n_blocks" in metrics
+            end
+
+            @testset "garch-midas macro via --config" begin
+                cfg = joinpath(dir, "gm.toml")
+                write(cfg, "[garch_midas]\nx_lf = [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.0]\n")
+                doc = _gv_doc(["garch-midas", csv, "--column", "1", "--m-freq", "20", "--k", "3",
+                               "--rv", "macro", "--config", cfg])
+                @test doc.status == "ok"
+            end
+
+            @testset "error mapping (never uncaught exit-1)" begin
+                @test_throws CliError _estimate_garch_midas(; data=csv, column=1, m_freq=0)        # missing --m-freq
+                @test_throws CliError _estimate_garch_midas(; data=csv, column=1, m_freq=20, rv="macro")  # macro needs config
+                # typed remap of untyped MEMs failures
+                @test _garch_variant_error(ArgumentError("bad"), "IGARCH").code == "data/invalid"
+                @test _garch_variant_error(DomainError(1.0, "d"), "FIGARCH").code == "data/invalid"
+                @test _garch_variant_error(DimensionMismatch("x"), "APARCH").code == "data/shape"
+                @test _garch_variant_error(ErrorException("boom"), "CGARCH").code == "model/error"
+                @test _garch_variant_error(CliError("config/missing", "x"), "X").code == "config/missing"
+                # review fix (shared helper): --column 0/negative/out-of-range → typed data
+                # error (was an uncaught BoundsError → exit 1 across ALL univariate leaves)
+                err(col) = begin
+                    e = nothing
+                    try; _capture() do; _dispatch_via_app(String["estimate","igarch",csv,"--column",string(col)]); end; catch ex; e=ex; end
+                    e
+                end
+                @test err(0) isa CliError && err(0).code == "data/column-range"
+                @test err(-1).code == "data/column-range"
+                @test err(99).code == "data/column-range"
+                # missing cell → typed data error (was an uncaught MethodError → exit 1)
+                mcsv = joinpath(dir, "miss.csv")
+                write(mcsv, "x,ret\n0.1,0.2\n0.3,\n0.5,0.6\n0.7,0.8\n")
+                me = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","igarch",mcsv,"--column","2"]); end; catch ex; me=ex; end
+                @test me isa CliError && me.code == "data/missing-values"
             end
         end
     end
@@ -2575,7 +2688,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 34  # 33 primary + gjr_garch alias
+        @test length(node.subcmds) == 40  # 39 primary + gjr_garch alias (C064a +6 GARCH variants)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3992,7 +4105,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 34  # 33 primary + gjr_garch alias
+        @test length(node.subcmds) == 40  # 39 primary + gjr_garch alias (C064a +6 GARCH variants)
     end
 
     @testset "register_irf_commands! includes pvar" begin

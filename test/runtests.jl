@@ -3183,6 +3183,19 @@ using TOML
         @test_throws CliError get_system(Dict("equations" => [Dict("dep" => "y1", "indep" => [])])) # empty indep
     end
 
+    @testset "get_garch_midas (GARCH-MIDAS driver, C064a)" begin
+        xlf = get_garch_midas(Dict("garch_midas" => Dict("x_lf" => [0.9, 1.1, 1.3, 1.0])))
+        @test xlf == [0.9, 1.1, 1.3, 1.0]
+        @test eltype(xlf) == Float64
+        @test get_garch_midas(Dict("garch_midas" => Dict("x_lf" => Any[1, 2, 3]))) == [1.0, 2.0, 3.0]  # int coercion
+        # errors: missing section, missing key, non-array, empty, non-numeric
+        @test_throws CliError get_garch_midas(Dict())
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("foo" => 1)))
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => 3.0)))
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => Float64[])))
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => ["a", "b"])))
+    end
+
     @testset "_parse_matrix" begin
         # Valid 2x3 → correct Matrix{Float64}
         mat = _parse_matrix([[1, 2, 3], [4, 5, 6]])
@@ -3731,14 +3744,15 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 33 primary leaves + 1 snake alias (gjr_garch) = 34 keys (C044)
-    @test length(est_node.subcmds) == 34
+    # 39 primary leaves + 1 snake alias (gjr_garch) = 40 keys (C044; +6 GARCH variants C064a)
+    @test length(est_node.subcmds) == 40
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
     for key in ["var", "bvar", "lp", "arima", "gmm", "static", "dynamic", "gdfm",
                  "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml",
-                 "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit"]
+                 "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit",
+                 "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas"]
         @test haskey(est_node.subcmds, key)
         @test est_node.subcmds[key] isa LeafCommand
     end

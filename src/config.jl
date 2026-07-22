@@ -544,6 +544,34 @@ function get_system(config::Dict)
 end
 
 """
+    get_garch_midas(config) → Vector{Float64}
+
+Extract the low-frequency driver series `x_lf` for a GARCH-MIDAS fit (C064a) from a
+config dict. Required only for `--rv macro` (an exogenous macro / realized-variance
+series, one value per calendar block); `--rv realized` derives the long-run
+component from the returns themselves and needs no config. Expects a `[garch_midas]`
+section with `x_lf = [...]`. Raises typed `config/*` CliErrors.
+"""
+function get_garch_midas(config::Dict)
+    sec = get(config, "garch_midas", nothing)
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "garch-midas --rv macro requires a [garch_midas] section with x_lf = [...]"))
+    haskey(sec, "x_lf") || throw(CliError("config/missing-key",
+        "[garch_midas] must define x_lf = [...] (low-frequency driver, one value per block)"))
+    raw = sec["x_lf"]
+    raw isa AbstractVector || throw(CliError("config/type",
+        "[garch_midas] x_lf must be an array of numbers"))
+    isempty(raw) && throw(CliError("config/shape",
+        "[garch_midas] x_lf must list at least one value"))
+    xlf = try
+        Float64[Float64(v) for v in raw]
+    catch
+        throw(CliError("config/type", "[garch_midas] x_lf must contain only numbers"))
+    end
+    return xlf
+end
+
+"""
     get_dsge_priors(config) → Dict{String,Any}
 
 Parse Bayesian DSGE prior specification from [priors] TOML section.

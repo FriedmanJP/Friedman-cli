@@ -38,8 +38,13 @@ Load CSV and extract a single numeric column by index.
 function load_univariate_series(data::String, column::Int)
     df = load_data(data)
     varnames = variable_names(df)
-    column > length(varnames) && throw(CliError("data/column-range", "column $column out of range (data has $(length(varnames)) numeric columns)"))
-    y = Vector{Float64}(df[!, varnames[column]])
+    (column < 1 || column > length(varnames)) && throw(CliError("data/column-range",
+        "column $column out of range (data has $(length(varnames)) numeric column(s))";
+        hint="--column is 1-based; pick 1..$(length(varnames))"))
+    col = df[!, varnames[column]]
+    any(ismissing, col) && throw(CliError("data/missing-values",
+        "column '$(varnames[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    y = Vector{Float64}(col)
     return y, varnames[column]
 end
 

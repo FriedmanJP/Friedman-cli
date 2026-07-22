@@ -344,6 +344,127 @@ friedman estimate sv data.csv --column=1 --draws=5000
 
 **Output:** Coefficients (mu, phi, sigma_eta), persistence (phi).
 
+## estimate igarch
+
+Estimate an Integrated GARCH(p,q) model — GARCH with the persistence constraint `Σα + Σβ = 1` imposed exactly (a shock to variance never dies out; the RiskMetrics EWMA is the `ω=0` special case).
+
+```bash
+friedman estimate igarch data.csv --column=1 --p=1 --q=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | GARCH order p |
+| `--q` | | Int | 1 | ARCH order q |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (`parameter | estimate | std_error | z_stat | p_value`; parameters `mu, omega, alpha…, beta…`) plus a `metric | value` diagnostics table (`log_likelihood, aic, bic, persistence` = 1, `converged, iterations`).
+
+## estimate cgarch
+
+Estimate a Component-GARCH(1,1) model (Engle & Lee 1999) decomposing the conditional variance into a slowly mean-reverting permanent component and a fast transitory component. Orders are fixed at (1,1).
+
+```bash
+friedman estimate cgarch data.csv --column=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (parameters `mu, omega, rho, phi, alpha, beta`) plus diagnostics (`log_likelihood, aic, bic, persistence` = ρ, `converged, iterations, transitory_persistence` = α+β, `unconditional_variance` = ω).
+
+## estimate aparch
+
+Estimate an Asymmetric Power ARCH(p,q) model (Ding, Granger & Engle 1993) with a free power `δ` of the conditional standard deviation and a Box-Cox-style leverage term. Pin `δ` and/or `γ` with `--fix-delta` / `--fix-gamma`.
+
+```bash
+friedman estimate aparch data.csv --column=1 --p=1 --q=1
+friedman estimate aparch data.csv --fix-delta=2 --fix-gamma=0   # ≡ GARCH
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | GARCH order p |
+| `--q` | | Int | 1 | ARCH order q |
+| `--fix-delta` | | Float64 | (auto) | Pin power δ (>0); default estimates it |
+| `--fix-gamma` | | Float64 | (auto) | Pin leverage γ ∈ (-1,1); default estimates it |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (parameters `mu, omega, alpha…, gamma…, beta…, delta`) plus diagnostics (`log_likelihood, aic, bic, persistence, converged, iterations, delta, n_params`).
+
+## estimate figarch
+
+Estimate a Fractionally-Integrated GARCH(p,d,q) model (Baillie, Bollerslev & Mikkelsen 1996) — long-memory volatility with hyperbolic decay via the fractional-difference order `d ∈ (0,1)`. Gaussian QMLE (`--dist normal`).
+
+```bash
+friedman estimate figarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=1000
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | GARCH β(L) order p |
+| `--q` | | Int | 1 | ARCH φ(L) order q |
+| `--d0` | | Float64 | 0.4 | Initial fractional-integration order d ∈ (0,1) |
+| `--truncation` | | Int | 1000 | ARCH(∞) truncation lag |
+| `--dist` | | String | `normal` | Innovation distribution (Gaussian QMLE) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (parameters `mu, omega, phi…, beta…, d`) plus diagnostics (`log_likelihood, aic, bic, persistence` = d, `converged, iterations, d, truncation, n_neg_lambda`).
+
+## estimate fiegarch
+
+Estimate a Fractionally-Integrated EGARCH(p,d,q) model (Bollerslev & Mikkelsen 1996) — the log-variance long-memory analogue of FIGARCH with an EGARCH news function (sign term `θ`, magnitude term `γ`). Gaussian QMLE.
+
+```bash
+friedman estimate fiegarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=1000
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | GARCH β(L) order p |
+| `--q` | | Int | 1 | ARCH φ(L) order q |
+| `--d0` | | Float64 | 0.4 | Initial fractional-integration order d ∈ (0,1) |
+| `--truncation` | | Int | 1000 | MA(∞) truncation lag |
+| `--dist` | | String | `normal` | Innovation distribution (Gaussian QMLE) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (parameters `mu, omega, theta, gamma, phi…, beta…, d`) plus diagnostics (`log_likelihood, aic, bic, persistence` = d, `converged, iterations, d, truncation`).
+
+## estimate garch-midas
+
+Estimate a GARCH-MIDAS model (Engle, Ghysels & Sohn 2013): a mixed-frequency model splitting the conditional variance `σ² = τ·g` into a short-run unit-mean GARCH(1,1) component `g` and a long-run MIDAS-filtered component `τ`. `--m-freq` (high-frequency observations per low-frequency block) is **required**. With `--rv realized` the long-run driver is realized variance computed from the returns (no extra input); with `--rv macro` supply an exogenous low-frequency driver via `--config` (a `[garch_midas]` TOML section — see [Configuration](../configuration.md)).
+
+```bash
+# realized-variance driver (self-contained)
+friedman estimate garch-midas data.csv --column=1 --m-freq=22 --k=12
+# exogenous macro driver
+friedman estimate garch-midas data.csv --m-freq=22 --rv=macro --config=gm.toml
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | High-frequency return series column (1-based) |
+| `--m-freq` | | Int | 0 | High-frequency observations per low-frequency block (**required**, ≥1) |
+| `--k` | | Int | 12 | Number of MIDAS lags (K ≥ 2) |
+| `--rv` | | String | `realized` | Long-run driver: `realized` (from returns) or `macro` (exogenous) |
+| `--span` | | String | `fixed` | τ span: `fixed` (per block) or `rolling` (rolling RV) |
+| `--config` | | String | | TOML with `[garch_midas] x_lf = [...]` (required for `--rv macro`) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (parameters `mu, alpha, beta, m, theta, w`) plus diagnostics (`log_likelihood, aic, bic, persistence` = α+β, `converged, iterations, variance_ratio, K, m_freq, n_blocks, rv, span`).
+
 ## estimate fastica
 
 ICA-based non-Gaussian SVAR identification. Supports 5 ICA methods.

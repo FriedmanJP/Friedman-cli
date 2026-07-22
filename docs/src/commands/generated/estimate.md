@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 33
+**Leaves:** 39
 
 ### `friedman estimate 3sls`
 
@@ -29,6 +29,29 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_3sls` (Path to CSV data file)
+
+---
+
+### `friedman estimate aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Pin power δ (>0); default estimates it |
+| `--fix-gamma` | — | `Float64` | — | — | Pin leverage γ ∈ (-1,1); default estimates it |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_aparch` (Path to CSV data file)
 
 ---
 
@@ -111,6 +134,25 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_bvar` (Path to CSV data file)
+
+---
+
+### `friedman estimate cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_cgarch` (Path to CSV data file)
 
 ---
 
@@ -215,6 +257,54 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH β(L) order p |
+| `--q` | — | `Int64` | `1` | — | ARCH φ(L) order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional-integration order d ∈ (0,1) |
+| `--truncation` | — | `Int64` | `1000` | — | MA(∞) truncation lag |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_fiegarch` (Path to CSV data file)
+
+---
+
+### `friedman estimate figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH β(L) order p |
+| `--q` | — | `Int64` | `1` | — | ARCH φ(L) order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional-integration order d ∈ (0,1) |
+| `--truncation` | — | `Int64` | `1000` | — | ARCH(∞) truncation lag |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_figarch` (Path to CSV data file)
+
+---
+
 ### `friedman estimate garch`
 
 Path to CSV data file
@@ -238,6 +328,36 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_garch` (Path to CSV data file)
+
+---
+
+### `friedman estimate garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | High-frequency return series column (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags (K ≥ 2) |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver: realized (from returns) | macro (exogenous) |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | τ span: fixed (per block) | rolling (rolling RV) |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf = [...] (required for --rv macro) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `estimate_garch_midas` (Path to CSV data file)
 
 ---
 
@@ -310,6 +430,27 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_gmm` (Path to CSV data file)
+
+---
+
+### `friedman estimate igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_igarch` (Path to CSV data file)
 
 ---
 

@@ -538,6 +538,107 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "estimate GARCH variants on real MEMs 0.7.0 (C064a)" begin
+        # hand-built coef table (parameter|estimate) + diagnostics (metric|value)
+        _coef_of(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                cols = table_cols(v)
+                ("parameter" in cols && "estimate" in cols) && return v
+            end
+            return nothing
+        end
+        _diag_of(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            return nothing
+        end
+        _finite_estimates(tbl) = begin
+            ei = col_index(tbl, "estimate")
+            all(isfinite(Float64(collect(row)[ei])) for row in table_rows(tbl))
+        end
+
+        @testset "igarch — Σα+Σβ=1 ⇒ persistence≈1" begin
+            csv = dgp_garch(; T=400, seed=101)
+            r = run_json(["estimate", "igarch", csv, "--column", "1", "--p", "1", "--q", "1"])
+            assert_envelope_ok(r; label="igarch")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            @test _finite_estimates(tbl)
+            pers = metric_value(_diag_of(r.doc), "persistence")
+            @test pers !== nothing && isapprox(Float64(pers), 1.0; atol=1e-6)
+            rm(csv; force=true)
+        end
+
+        @testset "cgarch — component decomposition, ρ∈(0,1]" begin
+            csv = dgp_garch(; T=500, seed=102)
+            r = run_json(["estimate", "cgarch", csv, "--column", "1"])
+            assert_envelope_ok(r; label="cgarch")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            @test _finite_estimates(tbl)
+            pers = metric_value(_diag_of(r.doc), "persistence")
+            @test pers !== nothing && 0.0 < Float64(pers) <= 1.0001
+            @test metric_value(_diag_of(r.doc), "unconditional_variance") !== nothing
+            rm(csv; force=true)
+        end
+
+        @testset "aparch — power δ>0, finite persistence" begin
+            csv = dgp_garch(; T=400, seed=103)
+            r = run_json(["estimate", "aparch", csv, "--column", "1", "--p", "1", "--q", "1"])
+            assert_envelope_ok(r; label="aparch")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            @test _finite_estimates(tbl)
+            dlt = metric_value(_diag_of(r.doc), "delta")
+            @test dlt !== nothing && Float64(dlt) > 0.0
+            pers = metric_value(_diag_of(r.doc), "persistence")
+            @test pers !== nothing && isfinite(Float64(pers))
+            rm(csv; force=true)
+        end
+
+        @testset "figarch — long memory d∈(0,1)" begin
+            csv = dgp_garch(; T=400, seed=104)
+            r = run_json(["estimate", "figarch", csv, "--column", "1", "--truncation", "100"])
+            assert_envelope_ok(r; label="figarch")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            @test _finite_estimates(tbl)
+            d = metric_value(_diag_of(r.doc), "d")               # d ∈ [0,1] (logistic transform; boundary reachable)
+            @test d !== nothing && 0.0 <= Float64(d) <= 1.0
+            rm(csv; force=true)
+        end
+
+        @testset "fiegarch — long memory d∈[0,1]" begin
+            csv = dgp_garch(; T=400, seed=105)
+            r = run_json(["estimate", "fiegarch", csv, "--column", "1", "--truncation", "100"])
+            assert_envelope_ok(r; label="fiegarch")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            @test _finite_estimates(tbl)
+            d = metric_value(_diag_of(r.doc), "d")               # d ∈ [0,1] (logistic transform; boundary reachable)
+            @test d !== nothing && 0.0 <= Float64(d) <= 1.0
+            rm(csv; force=true)
+        end
+
+        @testset "garch-midas — realized, short-run persistence α+β∈(0,1)" begin
+            csv = dgp_garch(; T=600, seed=106)
+            r = run_json(["estimate", "garch-midas", csv, "--column", "1", "--m-freq", "20", "--k", "6"])
+            assert_envelope_ok(r; label="garch-midas")
+            tbl = _coef_of(r.doc); @test tbl !== nothing
+            @test _finite_estimates(tbl)
+            pers = metric_value(_diag_of(r.doc), "persistence")
+            @test pers !== nothing && 0.0 < Float64(pers) < 1.0
+            vr = metric_value(_diag_of(r.doc), "variance_ratio")
+            @test vr !== nothing && 0.0 <= Float64(vr) <= 1.0
+            rm(csv; force=true)
+        end
+
+        @testset "garch-midas missing --m-freq → usage error (not exit 1)" begin
+            csv = dgp_garch(; T=200, seed=107)
+            r = run_json(["estimate", "garch-midas", csv, "--column", "1"])
+            @test r.code == 2
+            rm(csv; force=true)
+        end
+    end
+
     @testset "estimate reg OLS slope ≈ 2" begin
         csv = dgp_reg(; T=300, seed=27)
         r = run_json(["estimate", "reg", csv, "--dep", "y"])

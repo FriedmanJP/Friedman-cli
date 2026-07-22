@@ -2505,6 +2505,102 @@ export ForecastEvaluation, DMTestResult, ClarkWestResult, MincerZarnowitzResult,
 export forecast_evaluate, diebold_mariano, clark_west, mincer_zarnowitz,
        forecast_encompassing, combine_forecasts
 
+# ─── C064a: univariate GARCH variants (igarch/cgarch/aparch/figarch/fiegarch/garch-midas) ───
+# Minimal stand-ins for the MEMs 0.7.0 volatility variants (src/garch): enough fields
+# for the estimate handlers' hand-built coef table + diagnostics kv. Field names/coef
+# order mirror real; estimate_* compute plausible finite values from the series.
+struct IGARCHModel{T<:Real}
+    p::Int; q::Int; mu::T; omega::T; alpha::Vector{T}; beta::Vector{T}
+    loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
+end
+struct CGARCHModel{T<:Real}
+    mu::T; omega::T; rho::T; phi::T; alpha::T; beta::T
+    loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
+end
+struct APARCHModel{T<:Real}
+    p::Int; q::Int; mu::T; omega::T; alpha::Vector{T}; gamma::Vector{T}; beta::Vector{T}; delta::T
+    n_params::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
+end
+struct FIGARCHModel{T<:Real}
+    p::Int; q::Int; mu::T; omega::T; phi::Vector{T}; beta::Vector{T}; d::T
+    truncation::Int; n_neg_lambda::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
+end
+struct FIEGARCHModel{T<:Real}
+    p::Int; q::Int; mu::T; omega::T; theta::T; gamma::T; phi::Vector{T}; beta::Vector{T}; d::T
+    truncation::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
+end
+struct GarchMidasModel{T<:Real}
+    mu::T; alpha::T; beta::T; m_const::T; theta::T; w::T
+    variance_ratio::T; K::Int; m_freq::Int; n_blocks::Int; rv::Symbol; span::Symbol
+    loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
+end
+
+function estimate_igarch(y, p::Int=1, q::Int=1; method::Symbol=:mle)
+    v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
+    a = fill(0.1 / q, q); b = fill(0.9 / p, p)     # Σα+Σβ = 1 by construction
+    IGARCHModel{Float64}(p, q, mean(y), 0.02 * v, a, b, -150.0, 306.0, 320.0, true, 45)
+end
+function estimate_cgarch(y; method::Symbol=:mle)
+    v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
+    CGARCHModel{Float64}(mean(y), v, 0.99, 0.05, 0.05, 0.85, -148.0, 308.0, 324.0, true, 60)
+end
+function estimate_aparch(y, p::Int=1, q::Int=1; fix_delta=nothing, fix_gamma=nothing, method::Symbol=:mle)
+    v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
+    a = fill(0.05, q); g = fill(0.1, q); b = fill(0.85 / p, p); delta = 1.5
+    nfree = (3 + 2q + p) - (fix_delta === nothing ? 0 : 1) - (fix_gamma === nothing ? 0 : q)
+    APARCHModel{Float64}(p, q, mean(y), (v^(delta / 2)) * 0.05, a, g, b, delta,
+                         nfree, -147.0, 310.0, 330.0, true, 70)
+end
+function estimate_figarch(r; p::Int=1, q::Int=1, d0::Real=0.4, truncation::Int=1000, dist::Symbol=:normal)
+    v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
+    K = min(truncation, length(r) - 1)
+    FIGARCHModel{Float64}(p, q, mean(r), 0.02 * v, fill(0.3 / q, q), fill(0.5 / p, p),
+                          Float64(d0), K, 0, -149.0, 306.0, 322.0, true, 55)
+end
+function estimate_fiegarch(r; p::Int=1, q::Int=1, d0::Real=0.4, truncation::Int=1000, dist::Symbol=:normal)
+    v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
+    K = min(truncation, length(r) - 1)
+    FIEGARCHModel{Float64}(p, q, mean(r), log(max(v, 1e-8)), -0.05, 0.1,
+                           fill(0.3 / q, q), fill(0.5 / p, p), Float64(d0), K,
+                           -146.0, 308.0, 328.0, true, 65)
+end
+function estimate_garch_midas(r, x_lf=Float64[]; K::Int=12, m_freq::Int, rv::Symbol=:realized, span::Symbol=:fixed)
+    v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
+    nblk = fld(length(r), max(m_freq, 1))
+    GarchMidasModel{Float64}(mean(r), 0.05, 0.85, log(max(v, 1e-8)), 0.1, 3.0,
+                             0.4, K, m_freq, nblk, rv, span, -145.0, 302.0, 320.0, true, 80)
+end
+
+coef(m::IGARCHModel) = vcat(m.mu, m.omega, m.alpha, m.beta)
+coef(m::CGARCHModel) = [m.mu, m.omega, m.rho, m.phi, m.alpha, m.beta]
+coef(m::APARCHModel) = vcat(m.mu, m.omega, m.alpha, m.gamma, m.beta, m.delta)
+coef(m::FIGARCHModel) = vcat(m.mu, m.omega, m.phi, m.beta, m.d)
+coef(m::FIEGARCHModel) = vcat(m.mu, m.omega, m.theta, m.gamma, m.phi, m.beta, m.d)
+coef(m::GarchMidasModel) = [m.mu, m.alpha, m.beta, m.m_const, m.theta, m.w]
+
+stderror(m::IGARCHModel) = fill(0.02, length(coef(m)))
+stderror(m::CGARCHModel) = fill(0.02, length(coef(m)))
+stderror(m::APARCHModel) = fill(0.02, length(coef(m)))
+stderror(m::FIGARCHModel) = fill(0.02, length(coef(m)))
+stderror(m::FIEGARCHModel) = fill(0.02, length(coef(m)))
+stderror(m::GarchMidasModel) = fill(0.02, length(coef(m)))
+
+loglikelihood(m::Union{IGARCHModel,CGARCHModel,APARCHModel,FIGARCHModel,FIEGARCHModel,GarchMidasModel}) = m.loglik
+persistence(m::IGARCHModel) = 1.0
+persistence(m::CGARCHModel) = m.rho
+persistence(m::APARCHModel) = sum(m.beta) + sum(m.alpha)
+persistence(m::FIGARCHModel) = m.d
+persistence(m::FIEGARCHModel) = m.d
+persistence(m::GarchMidasModel) = m.alpha + m.beta
+unconditional_variance(m::CGARCHModel) = m.omega
+component_variances(m::CGARCHModel) =
+    (permanent=fill(m.omega, 3), transitory=fill(0.0, 3), total=fill(m.omega, 3))
+
+export IGARCHModel, CGARCHModel, APARCHModel, FIGARCHModel, FIEGARCHModel, GarchMidasModel
+export estimate_igarch, estimate_cgarch, estimate_aparch, estimate_figarch,
+       estimate_fiegarch, estimate_garch_midas
+export component_variances
+
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 
 struct BVARForecast{T<:AbstractFloat}

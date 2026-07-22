@@ -334,6 +334,25 @@ instr = ["gov", "lag_income"]
 | `instr` | each `[[equations]]` | Per-equation instruments (3SLS `--instruments perequation`) |
 | `common` | `[instruments]` | Shared instrument set (3SLS `--instruments common`, the default) |
 
+## GARCH-MIDAS Driver
+
+Used by `estimate garch-midas --config=...`, and **only required for `--rv macro`** (an
+exogenous low-frequency driver). With the default `--rv realized`, the long-run component
+is derived from the returns themselves and no config is needed. The `[garch_midas]` section
+supplies `x_lf`, the low-frequency driver series — one value per calendar block (its length
+must be at least the number of complete blocks, `⌊n / m_freq⌋`). All other parameters
+(`--m-freq`, `--k`, `--rv`, `--span`) are passed as flags.
+
+```toml
+[garch_midas]
+# low-frequency macro / realized-variance driver, one value per block
+x_lf = [1.02, 0.98, 1.15, 1.07, 0.91, 1.20, 1.05]
+```
+
+| Key | Where | Description |
+|-----|-------|-------------|
+| `x_lf` | `[garch_midas]` | Low-frequency driver series (required for `--rv macro`; array of numbers, one per block) |
+
 ## Output Formats
 
 All commands support three output formats:
