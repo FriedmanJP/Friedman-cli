@@ -164,7 +164,6 @@ Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: sma
 | `--alternative` | — | `String` | `greater` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `clark_west_test` (CW statistic / one-sided p-value)
 
@@ -185,7 +184,6 @@ Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 fo
 | `--method` | — | `String` | `equal` | `equal`, `bates-granger`, `granger-ramanathan` | Combination method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -212,7 +210,6 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 | `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -238,7 +235,6 @@ Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `forecast_encompassing_test` (b1, b2, t-stat on b2)
 
@@ -259,7 +255,6 @@ Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil deco
 | `--seasonal-period` | — | `Int64` | `1` | — | Seasonal lag for MASE naive-forecast scaling |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `forecast_accuracy_metrics` (Point accuracy metrics, one row per forecast)
 
@@ -281,7 +276,6 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `mincer_zarnowitz_test` (a, b, HAC SEs, joint Wald/F)
 
