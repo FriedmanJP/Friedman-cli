@@ -1337,14 +1337,27 @@ function _load_reg_data(data::String, dep::String; weights_col::String="", clust
     numcols = variable_names(df)
 
     dep_col = isempty(dep) ? numcols[1] : dep
-    !isempty(dep) && !(dep_col in numcols) && error("dependent variable '$dep_col' not found in numeric columns: $numcols")
+    # C067a: typed errors, not bare `error()` — a bad `--dep` or a degenerate column set
+    # is user input (exit 3), not a CLI bug (exit 1). Benefits the whole cross-section reg
+    # family (reg/iv/logit/probit/ologit/oprobit/mlogit/predict/residuals) that shares this.
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "dependent variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
 
     exclude = Set([dep_col])
     !isempty(weights_col) && push!(exclude, weights_col)
     !isempty(clusters_col) && push!(exclude, clusters_col)
     xcols = filter(c -> !(c in exclude), numcols)
-    isempty(xcols) && error("no regressor columns remaining after excluding dep='$dep_col'")
+    isempty(xcols) && throw(CliError("data/invalid",
+        "no regressor columns remaining after excluding dep='$dep_col'"))
 
+    # Guard missing cells BEFORE the Vector/Matrix{Float64} conversion (which throws an
+    # untyped ArgumentError → exit-1). `_numeric_column_names` admits Union{Missing,…}
+    # columns, so a single blank cell in dep or any regressor reaches here. Mirror the
+    # univariate/multivariate loaders' typed guard for the whole reg family.
+    for c in vcat([dep_col], xcols)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
     y = Vector{Float64}(df[!, dep_col])
     X = Matrix{Float64}(df[!, xcols])
     return y, X, xcols

@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 43 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 48 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM) and Tobit censored regression, panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -667,6 +667,101 @@ friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Tidy coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) + fit statistics (R², Adj R², F-stat, AIC, BIC).
+
+## Penalized, robust & censored regression
+
+`estimate lasso | ridge | elastic-net | robust | tobit` extend the cross-section regression family beyond OLS. Like `estimate reg`, they take the dependent variable via `--dep` (default: first numeric column) and use all remaining numeric columns as regressors. A bad `--dep` surfaces a typed `data/column-range` error. Coefficient tables are hand-built (these result types are not Tables.jl-registered upstream — the C051 exception).
+
+## estimate lasso
+
+L1-penalized (Lasso) regression. `--lambda=auto` selects the penalty along a cross-validated path (rule set by `--select`); pass a number to fix it. The intercept is reported as `(Intercept)`; the `nonzero` column flags the active (selected) coefficients.
+
+```bash
+friedman estimate lasso data.csv --dep=y
+friedman estimate lasso data.csv --dep=y --lambda=0.1
+friedman estimate lasso data.csv --dep=y --select=bic
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--lambda` | | String | `auto` | `auto` (CV path) or a non-negative number |
+| `--select` | | String | `cv` | Lambda selection rule: `cv`, `aic`, `bic`, `ebic` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (`term|estimate|nonzero`, intercept first) + diagnostics (`alpha`, selected `lambda`, `n_active`, `r2`, `aic`, `bic`, `ebic`, `select`).
+
+## estimate ridge
+
+L2-penalized (Ridge) regression. Same options and output as `estimate lasso` (Ridge fixes the L1/L2 mix `alpha=0`).
+
+```bash
+friedman estimate ridge data.csv --dep=y --lambda=auto
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--lambda` | | String | `auto` | `auto` (CV path) or a non-negative number |
+| `--select` | | String | `cv` | Lambda selection rule: `cv`, `aic`, `bic`, `ebic` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+## estimate elastic-net
+
+Elastic-Net regression — an L1/L2 mix controlled by `--alpha` (`1`=Lasso, `0`=Ridge).
+
+```bash
+friedman estimate elastic-net data.csv --dep=y --alpha=0.5
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--alpha` | | Float | 0.5 | L1/L2 mixing in [0,1] (1=Lasso, 0=Ridge) |
+| `--lambda` | | String | `auto` | `auto` (CV path) or a non-negative number |
+| `--select` | | String | `cv` | Lambda selection rule: `cv`, `aic`, `bic`, `ebic` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+## estimate robust
+
+Robust regression by iteratively reweighted least squares (M) or high-breakdown MM estimation, with a Huber or Tukey-bisquare weight function. Reports coefficients with QML/sandwich standard errors.
+
+```bash
+friedman estimate robust data.csv --dep=y --psi=huber --method=m
+friedman estimate robust data.csv --dep=y --psi=bisquare --method=mm
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--psi` | | String | `huber` | Weight function: `huber`, `bisquare` |
+| `--method` | | String | `m` | Estimator: `m`, `mm` (MM = high-breakdown) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`psi`, `method`, `scale`, `robust_r2`, `converged`, `iterations`).
+
+## estimate tobit
+
+Tobit (censored) regression by maximum likelihood, for a dependent variable censored at `--lower` and/or `--upper` (defaults: left-censored at 0, no upper bound).
+
+```bash
+friedman estimate tobit data.csv --dep=y --lower=0
+friedman estimate tobit data.csv --dep=y --lower=0 --upper=100
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--lower` | | Float | 0.0 | Lower censoring bound |
+| `--upper` | | Float | Inf | Upper censoring bound (default: none) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`sigma`, `loglik`, `aic`, `bic`, `lower`, `upper`, `n_censored_left`, `n_censored_right`, `converged`).
 
 ## estimate iv
 

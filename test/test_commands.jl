@@ -425,8 +425,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 43 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 44 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b)
-        @test length(node.subcmds) == 44
+        # 48 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 49 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a)
+        @test length(node.subcmds) == 49
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1307,6 +1307,114 @@ end  # Shared utilities
                 scsv = _make_csv(dir; T=120, n=2, colnames=["series", "r2"])
                 sdoc = _mg_doc(["ccc", scsv])
                 @test sdoc.status == "ok"
+            end
+        end
+    end
+
+    @testset "estimate penalized/robust/tobit (C067a)" begin
+        # JSON envelope via the app: penalized fits render `term|estimate|nonzero`
+        # (intercept from beta0, NO std errors); robust/tobit render the shared
+        # `parameter|estimate|std_error|z_stat|p_value` hand-built coef table; every
+        # leaf adds a metric|value diagnostics block.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=4, colnames=["y", "x1", "x2", "x3"])
+
+            @testset "lasso — term/estimate/nonzero + intercept + diag" begin
+                doc = _doc(["lasso", csv, "--dep", "y", "--select", "bic"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "term", "estimate", "nonzero")
+                terms = Set(String(collect(r)[1]) for r in coef.rows)
+                @test "(Intercept)" in terms
+                @test Set(["x1", "x2", "x3"]) ⊆ terms
+                m = _metrics(doc)
+                @test Set(["lambda", "alpha", "n_active", "select", "r2"]) ⊆ m
+            end
+
+            @testset "ridge — fixed-lambda path + diag" begin
+                doc = _doc(["ridge", csv, "--dep", "y", "--lambda", "0.5"])
+                @test doc.status == "ok"
+                @test "(Intercept)" in Set(String(collect(r)[1]) for r in _tbl_with(doc, "term", "estimate", "nonzero").rows)
+                @test "lambda" in _metrics(doc)
+            end
+
+            @testset "elastic-net — --alpha mixing + diag" begin
+                doc = _doc(["elastic-net", csv, "--dep", "y", "--alpha", "0.3"])
+                @test doc.status == "ok"
+                @test "alpha" in _metrics(doc)
+            end
+
+            @testset "robust — parameter/estimate/std_error + diag" begin
+                doc = _doc(["robust", csv, "--dep", "y", "--psi", "huber", "--method", "m"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "parameter", "estimate", "std_error")
+                @test length(collect(coef.rows)) == 3      # x1,x2,x3 (no intercept)
+                m = _metrics(doc)
+                @test Set(["psi", "method", "scale", "robust_r2", "converged"]) ⊆ m
+            end
+
+            @testset "tobit — censoring counts + diag" begin
+                doc = _doc(["tobit", csv, "--dep", "y", "--lower", "0.0"])
+                @test doc.status == "ok"
+                @test length(collect(_tbl_with(doc, "parameter", "estimate", "std_error").rows)) == 3
+                m = _metrics(doc)
+                @test Set(["sigma", "n_censored_left", "n_censored_right", "loglik"]) ⊆ m
+            end
+
+            @testset "bad input never uncaught exit-1 (typed classes)" begin
+                # hardened _load_reg_data: bad --dep → data/column-range (benefits the WHOLE
+                # cross-section reg family — assert for both a new leaf and existing `reg`)
+                @test _err(["lasso", csv, "--dep", "nope"]) isa CliError
+                @test _err(["lasso", csv, "--dep", "nope"]).code == "data/column-range"
+                @test _err(["reg", csv, "--dep", "nope"]).code == "data/column-range"
+                # up-front option-range validation → usage/invalid (exit 2), not raw MEMs
+                ea = _err(["elastic-net", csv, "--dep", "y", "--alpha", "2"])
+                @test ea isa CliError && ea.code == "usage/invalid" && exit_class(ea) == 2
+                et = _err(["tobit", csv, "--dep", "y", "--lower", "5", "--upper", "1"])
+                @test et isa CliError && et.code == "usage/invalid"
+                el = _err(["lasso", csv, "--dep", "y", "--lambda", "notanumber"])
+                @test el isa CliError && el.code == "usage/invalid"
+                # a negative penalty is also rejected up-front
+                @test _err(["ridge", csv, "--dep", "y", "--lambda", "-0.1"]).code == "usage/invalid"
+                # missing cell in a regressor → data/missing-values, NOT an uncaught exit-1
+                # (regression: adversarial review C067a — the hardening left the
+                # Matrix{Float64} conversion unguarded; benefits the whole reg family)
+                misscsv = joinpath(dir, "miss.csv")
+                write(misscsv, "y,x1,x2\n1.0,2.0,3.0\n2.0,,4.0\n3.0,5.0,6.0\n4.0,7.0,8.0\n")
+                em = _err(["lasso", misscsv, "--dep", "y"])
+                @test em isa CliError && em.code == "data/missing-values" && exit_class(em) == 3
+                @test _err(["reg", misscsv, "--dep", "y"]).code == "data/missing-values"
+            end
+
+            @testset "tobit default upper=Inf renders on the legacy JSON path (no Inf crash)" begin
+                # regression (adversarial review C067a): --upper Inf reached JSON3.write on the
+                # FRIEDMAN_LEGACY_OUTPUT path (which does not apply _json_safe) → "Inf not
+                # allowed in JSON spec" → exit-1. Now rendered as the string "Inf".
+                old = get(ENV, "FRIEDMAN_LEGACY_OUTPUT", nothing)
+                ENV["FRIEDMAN_LEGACY_OUTPUT"] = "1"
+                try
+                    e = nothing
+                    try; _capture() do; _dispatch_via_app(String["estimate","tobit",csv,"--dep","y","--lower","0.0","--format","json"]); end
+                    catch ex; e = ex; end
+                    @test e === nothing
+                finally
+                    old === nothing ? delete!(ENV, "FRIEDMAN_LEGACY_OUTPUT") : (ENV["FRIEDMAN_LEGACY_OUTPUT"] = old)
+                end
             end
         end
     end
@@ -3032,7 +3140,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 44  # 43 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH)
+        @test length(node.subcmds) == 49  # 48 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -4449,7 +4557,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 44  # 43 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH)
+        @test length(node.subcmds) == 49  # 48 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5)
     end
 
     @testset "register_irf_commands! includes pvar" begin

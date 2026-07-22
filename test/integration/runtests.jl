@@ -327,6 +327,93 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(surcfg; force=true)
     end
 
+    @testset "estimate lasso/ridge/elastic-net/robust/tobit — penalized & LDV (C067a, M5c)" begin
+        # Real cross-section DGP: sparse true β=[-1.0, 0.8, -0.6, 0, 0], plus a
+        # left-censored yc for Tobit. Teeth: sparse recovery, large-λ shrinkage, robust≈OLS
+        # on clean data, Tobit β recovery + censoring counts.
+        csv, csvc, β = dgp_penalized(; T=300, p=5, seed=42)
+
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        _coef_est(doc, term; termcol="term") = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                cols = table_cols(v)
+                ti = findfirst(==(termcol), cols); ei = findfirst(==("estimate"), cols)
+                (ti === nothing || ei === nothing) && continue
+                for row in table_rows(v)
+                    r = collect(row)
+                    string(r[ti]) == term && return Float64(r[ei])
+                end
+            end
+            nothing
+        end
+
+        @testset "lasso — sparse recovery (x1≈-1, x2≈0.8) + intercept row" begin
+            r = run_json(["estimate", "lasso", csv, "--dep", "y", "--select", "bic"])
+            assert_envelope_ok(r; label="estimate lasso")
+            # penalized coef table: term|estimate|nonzero, with an intercept row
+            @test _coef_est(r.doc, "(Intercept)") !== nothing
+            b1 = _coef_est(r.doc, "x1"); b2 = _coef_est(r.doc, "x2")
+            @test b1 !== nothing && -1.4 < b1 < -0.6      # true -1.0
+            @test b2 !== nothing && 0.5 < b2 < 1.1        # true  0.8
+            na = metric_value(_diag(r.doc), "n_active")
+            @test na !== nothing && Int(na) >= 3          # recovers the 3 real regressors
+        end
+
+        @testset "lasso — large --lambda drives the active set to 0 (shrinkage teeth)" begin
+            r = run_json(["estimate", "lasso", csv, "--dep", "y", "--lambda", "100"])
+            assert_envelope_ok(r; label="estimate lasso big-lambda")
+            na = metric_value(_diag(r.doc), "n_active")
+            @test na !== nothing && Int(na) <= 1          # essentially everything shrunk out
+        end
+
+        @testset "ridge / elastic-net run + fitted β sign" begin
+            for (leaf, extra) in (("ridge", String[]), ("elastic-net", ["--alpha", "0.5"]))
+                r = run_json(vcat(["estimate", leaf, csv, "--dep", "y"], extra))
+                assert_envelope_ok(r; label="estimate $leaf")
+                b1 = _coef_est(r.doc, "x1")
+                @test b1 !== nothing && b1 < 0.0          # true coefficient is negative
+            end
+        end
+
+        @testset "robust ≈ OLS on clean data (x1≈-1, x2≈0.8)" begin
+            r = run_json(["estimate", "robust", csv, "--dep", "y", "--psi", "huber", "--method", "m"])
+            assert_envelope_ok(r; label="estimate robust")
+            b1 = _coef_est(r.doc, "x1"; termcol="parameter")
+            b2 = _coef_est(r.doc, "x2"; termcol="parameter")
+            @test b1 !== nothing && -1.15 < b1 < -0.85
+            @test b2 !== nothing && 0.65 < b2 < 0.95
+            @test string(metric_value(_diag(r.doc), "converged")) == "true"
+        end
+
+        @testset "tobit — recovers β on left-censored yc + censoring counts" begin
+            r = run_json(["estimate", "tobit", csvc, "--dep", "yc", "--lower", "0.0"])
+            assert_envelope_ok(r; label="estimate tobit")
+            b1 = _coef_est(r.doc, "x1"; termcol="parameter")
+            @test b1 !== nothing && -1.3 < b1 < -0.7       # true -1.0 (≈50% censored)
+            nL = metric_value(_diag(r.doc), "n_censored_left")
+            @test nL !== nothing && Int(nL) > 0
+        end
+
+        @testset "bad --dep → data/column-range (exit 3, hardened loader)" begin
+            r = run_json(["estimate", "lasso", csv, "--dep", "does_not_exist"])
+            @test r.code == 3
+        end
+
+        @testset "elastic-net --alpha 2 → usage error (exit 2, not raw MEMs)" begin
+            r = run_json(["estimate", "elastic-net", csv, "--dep", "y", "--alpha", "2"])
+            @test r.code == 2
+        end
+
+        rm(csv; force=true); rm(csvc; force=true)
+    end
+
     @testset "forecast evaluate — evaluation & combination (C072, M5c)" begin
         # y = AR(1); f1 a decent forecast (small noise), f2 a noisier competitor.
         Random.seed!(9090)

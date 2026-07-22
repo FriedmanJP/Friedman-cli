@@ -414,6 +414,90 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_bekk),
         ),
+        # C067a: penalized (lasso/ridge/elastic-net) & limited-dependent (robust/tobit)
+        # cross-section regression. All share the `_load_reg_data` (y, X) loader — X = all
+        # numeric columns except --dep, no constant prepended (same as `estimate reg`).
+        CommandSpec(
+            path=["estimate", "lasso"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="lambda", type=String, default="auto", description="L1 penalty: auto (CV path) or a non-negative number"),
+                OptionSpec(name="select", type=String, default="cv", description="Lambda selection rule: cv|aic|bic|ebic", choices=["cv","aic","bic","ebic"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_lasso, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_lasso),
+        ),
+        CommandSpec(
+            path=["estimate", "ridge"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="lambda", type=String, default="auto", description="L2 penalty: auto (CV path) or a non-negative number"),
+                OptionSpec(name="select", type=String, default="cv", description="Lambda selection rule: cv|aic|bic|ebic", choices=["cv","aic","bic","ebic"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_ridge, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ridge),
+        ),
+        CommandSpec(
+            path=["estimate", "elastic-net"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="alpha", type=Float64, default=0.5, description="L1/L2 mixing in [0,1] (1=lasso, 0=ridge)"),
+                OptionSpec(name="lambda", type=String, default="auto", description="Penalty: auto (CV path) or a non-negative number"),
+                OptionSpec(name="select", type=String, default="cv", description="Lambda selection rule: cv|aic|bic|ebic", choices=["cv","aic","bic","ebic"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_elastic_net, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_elastic_net),
+        ),
+        CommandSpec(
+            path=["estimate", "robust"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="psi", type=String, default="huber", description="ψ (weight) function: huber|bisquare", choices=["huber","bisquare"]),
+                OptionSpec(name="method", type=String, default="m", description="Estimator: m|mm (MM = high-breakdown)", choices=["m","mm"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_robust, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_robust),
+        ),
+        CommandSpec(
+            path=["estimate", "tobit"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="lower", type=Float64, default=0.0, description="Lower censoring bound"),
+                OptionSpec(name="upper", type=Float64, default=Inf, description="Upper censoring bound (default: none)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_tobit, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_tobit),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -2668,5 +2752,165 @@ function _estimate_bekk(; data::String, kind::String="scalar",
         throw(_garch_variant_error(e, "BEKK-GARCH"))
     end
     _mgarch_output(model, varnames, "BEKK-$kind"; format=format, output=output)
+    return model
+end
+
+# ── C067a: penalized & limited-dependent cross-section regression ─────────────
+# lasso / ridge / elastic-net (→ PenalizedRegModel), robust (→ RobustRegModel),
+# tobit (→ TobitModel), MEMs 0.7.0 src/reg/{penalized,robust,tobit}. All take (y, X)
+# via the shared `_load_reg_data` loader (X = numeric columns except --dep; no constant
+# prepended, mirroring `estimate reg`). None of the three result types is registered in
+# MEMs `_COEF_TABLE_TYPES`, so their coefficient tables are HAND-BUILT (the documented
+# C051 exception, same as the systems/volatility waves).
+
+"""Hand-built coefficient table for a penalized (Lasso/Ridge/Elastic-Net) fit:
+`term | estimate | nonzero`, with the intercept (`beta0`) prepended. Penalized fits
+carry no standard errors (`stderror(::PenalizedRegModel)` is undefined upstream), so this
+is estimate-only — the C051-documented hand-built exception."""
+function _penalized_coef_table(model, xcols::Vector{String})
+    names = String["(Intercept)"; xcols[1:length(model.beta)]]
+    est = Float64[model.beta0; model.beta]
+    DataFrame(term=names, estimate=round.(est; digits=6), nonzero=(est .!= 0.0))
+end
+
+"""Diagnostics kv for a penalized fit: mixing `alpha`, selected `lambda`, active-set
+size, fit `r2`, information criteria, and the selection rule."""
+function _penalized_diag(model)
+    Pair{String,Any}[
+        "alpha"    => round(Float64(model.alpha); digits=4),
+        "lambda"   => round(Float64(model.lambda); digits=6),
+        "n_active" => count(!=(0.0), model.beta),
+        "r2"       => round(Float64(model.r2); digits=6),
+        "aic"      => round(Float64(model.aic); digits=4),
+        "bic"      => round(Float64(model.bic); digits=4),
+        "ebic"     => round(Float64(model.ebic); digits=4),
+        "select"   => string(model.select),
+    ]
+end
+
+"""Parse a penalized-regression `--lambda`: `auto`/`cv` → `:cv` (auto-select a path);
+otherwise a non-negative number. Junk or a negative value → a typed usage error (never a
+raw MEMs `ArgumentError`)."""
+function _parse_penalty_lambda(s::AbstractString)
+    (s == "auto" || s == "cv") && return :cv
+    v = tryparse(Float64, s)
+    v === nothing && throw(CliError("usage/invalid",
+        "--lambda must be `auto` or a non-negative number, got '$s'"))
+    v < 0 && throw(CliError("usage/invalid",
+        "--lambda must be non-negative, got $v"))
+    return v
+end
+
+function _estimate_lasso(; data::String, dep::String="", lambda::String="auto",
+                          select::String="cv", output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    lam = _parse_penalty_lambda(lambda)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("LASSO (L1) regression: $dep_name ~ $(join(xcols, " + ")), n=$(length(y)), lambda=$lambda")
+    _status()
+    model = try
+        estimate_lasso(y, X; lambda=lam, select=Symbol(select), varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "LASSO"))
+    end
+    output_result(_penalized_coef_table(model, xcols); format=Symbol(format), output=output,
+                  title="LASSO Coefficients")
+    output_kv(_penalized_diag(model); format=format, title="LASSO Diagnostics")
+    return model
+end
+
+function _estimate_ridge(; data::String, dep::String="", lambda::String="auto",
+                          select::String="cv", output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    lam = _parse_penalty_lambda(lambda)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Ridge (L2) regression: $dep_name ~ $(join(xcols, " + ")), n=$(length(y)), lambda=$lambda")
+    _status()
+    model = try
+        estimate_ridge(y, X; lambda=lam, select=Symbol(select), varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "Ridge"))
+    end
+    output_result(_penalized_coef_table(model, xcols); format=Symbol(format), output=output,
+                  title="Ridge Coefficients")
+    output_kv(_penalized_diag(model); format=format, title="Ridge Diagnostics")
+    return model
+end
+
+function _estimate_elastic_net(; data::String, dep::String="", alpha::Float64=0.5,
+                                lambda::String="auto", select::String="cv",
+                                output::String="", format::String="table")
+    (0.0 <= alpha <= 1.0) || throw(CliError("usage/invalid",
+        "estimate elastic-net: --alpha must be in [0,1], got $alpha"))
+    y, X, xcols = _load_reg_data(data, dep)
+    lam = _parse_penalty_lambda(lambda)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Elastic-Net regression (alpha=$alpha): $dep_name ~ $(join(xcols, " + ")), n=$(length(y)), lambda=$lambda")
+    _status()
+    model = try
+        estimate_elastic_net(y, X; alpha=alpha, lambda=lam, select=Symbol(select), varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "Elastic-Net"))
+    end
+    output_result(_penalized_coef_table(model, xcols); format=Symbol(format), output=output,
+                  title="Elastic-Net Coefficients")
+    output_kv(_penalized_diag(model); format=format, title="Elastic-Net Diagnostics")
+    return model
+end
+
+function _estimate_robust(; data::String, dep::String="", psi::String="huber",
+                           method::String="m", output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Robust regression ($psi $method-estimator): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
+    _status()
+    model = try
+        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method))
+    catch e
+        throw(_garch_variant_error(e, "Robust regression"))
+    end
+    output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
+                  title="Robust Regression Coefficients")
+    output_kv(Pair{String,Any}[
+        "psi"        => string(model.psi),
+        "method"     => string(model.method),
+        "scale"      => round(Float64(model.scale); digits=6),
+        "robust_r2"  => round(Float64(model.robust_r2); digits=6),
+        "tuning"     => round(Float64(model.tuning); digits=6),
+        "converged"  => model.converged,
+        "iterations" => model.iterations,
+    ]; format=format, title="Robust Regression Diagnostics")
+    return model
+end
+
+function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
+                          upper::Float64=Inf, output::String="", format::String="table")
+    lower < upper || throw(CliError("usage/invalid",
+        "estimate tobit: --lower ($lower) must be < --upper ($upper)"))
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Tobit regression (lower=$lower, upper=$upper): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
+    _status()
+    model = try
+        estimate_tobit(y, X; lower=lower, upper=upper)
+    catch e
+        throw(_garch_variant_error(e, "Tobit regression"))
+    end
+    output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
+                  title="Tobit Coefficients")
+    output_kv(Pair{String,Any}[
+        "sigma"            => round(Float64(model.sigma); digits=6),
+        "loglik"           => round(Float64(model.loglik); digits=4),
+        "aic"              => round(Float64(model.aic); digits=4),
+        "bic"              => round(Float64(model.bic); digits=4),
+        # Render ±Inf bounds as strings: a raw Inf/-Inf Float crashes the legacy
+        # (FRIEDMAN_LEGACY_OUTPUT) JSON writer, which — unlike the envelope path — does not
+        # apply `_json_safe` ("Inf not allowed in JSON spec"). Matches the envelope output.
+        "lower"            => isfinite(model.lower) ? Float64(model.lower) : string(model.lower),
+        "upper"            => isfinite(model.upper) ? Float64(model.upper) : string(model.upper),
+        "n_censored_left"  => model.n_censored_left,
+        "n_censored_right" => model.n_censored_right,
+        "converged"        => model.converged,
+    ]; format=format, title="Tobit Diagnostics")
     return model
 end

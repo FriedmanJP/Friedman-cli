@@ -144,6 +144,32 @@ function dgp_reg(; T::Int=200, seed::Int=42)
     return write_csv(DataFrame(y=y, x=x); prefix="reg")
 end
 
+"""Cross-section DGP for penalized/robust/tobit (C067a): p regressors with a sparse
+true β (only the first three coefficients nonzero → a lasso/elastic-net should shrink the
+rest). Returns `(csv_clean, csv_censored, β)`:
+* `csv_clean` — columns `y, x1..xp` (clean linear `y`), for lasso/ridge/elastic-net/robust;
+* `csv_censored` — columns `yc, x1..xp`, where `yc = max(y - shift, 0)` (default shift 0
+  ⇒ ≈50% left-censored, which Tobit recovers well), for Tobit.
+Each CSV holds ONLY its target + the regressors (never both targets) so the shared
+`_load_reg_data` loader picks exactly `x1..xp` as X. True β is `[-1.0, 0.8, -0.6, 0, 0, ...]`."""
+function dgp_penalized(; T::Int=300, p::Int=5, seed::Int=42, censor_shift::Float64=0.0)
+    rng = MersenneTwister(seed)
+    X = randn(rng, T, p)
+    β = zeros(p)
+    for j in 1:min(3, p)
+        β[j] = (-1.0)^j * (1.0 - 0.2 * (j - 1))   # -1.0, 0.8, -0.6, then 0, 0, ...
+    end
+    y = X * β .+ 0.3 .* randn(rng, T)
+    yc = max.(y .- censor_shift, 0.0)              # left-censored at 0
+    df_clean = DataFrame(y=y)
+    df_cens  = DataFrame(yc=yc)
+    for j in 1:p
+        df_clean[!, "x$j"] = X[:, j]
+        df_cens[!, "x$j"]  = X[:, j]
+    end
+    return write_csv(df_clean; prefix="penalized"), write_csv(df_cens; prefix="tobit"), β
+end
+
 """Stationary series for unit-root tests (should reject unit root)."""
 function dgp_stationary(; T::Int=200, seed::Int=42)
     return dgp_ar1(; T=T, φ=0.5, seed=seed)

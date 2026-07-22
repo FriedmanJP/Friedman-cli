@@ -3766,8 +3766,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 43 primary leaves + 1 snake alias (gjr_garch) = 44 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b)
-    @test length(est_node.subcmds) == 44
+    # 48 primary leaves + 1 snake alias (gjr_garch) = 49 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a)
+    @test length(est_node.subcmds) == 49
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")

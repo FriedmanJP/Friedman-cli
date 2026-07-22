@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 43
+**Leaves:** 48
 
 ### `friedman estimate 3sls`
 
@@ -292,6 +292,28 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate elastic-net`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--alpha` | — | `Float64` | `0.5` | — | L1/L2 mixing in [0,1] (1=lasso, 0=ridge) |
+| `--lambda` | — | `String` | `auto` | — | Penalty: auto (CV path) or a non-negative number |
+| `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv|aic|bic|ebic |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_elastic_net` (Path to CSV data file)
+
+---
+
 ### `friedman estimate fastica`
 
 Path to CSV data file
@@ -557,6 +579,27 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_iv` (Path to CSV data file)
+
+---
+
+### `friedman estimate lasso`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lambda` | — | `String` | `auto` | — | L1 penalty: auto (CV path) or a non-negative number |
+| `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv|aic|bic|ebic |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_lasso` (Path to CSV data file)
 
 ---
 
@@ -877,6 +920,48 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate ridge`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lambda` | — | `String` | `auto` | — | L2 penalty: auto (CV path) or a non-negative number |
+| `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv|aic|bic|ebic |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_ridge` (Path to CSV data file)
+
+---
+
+### `friedman estimate robust`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--psi` | — | `String` | `huber` | `huber`, `bisquare` | ψ (weight) function: huber|bisquare |
+| `--method` | — | `String` | `m` | `m`, `mm` | Estimator: m|mm (MM = high-breakdown) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_robust` (Path to CSV data file)
+
+---
+
 ### `friedman estimate sdfm`
 
 Path to CSV data file
@@ -1012,6 +1097,27 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_sv` (Path to CSV data file)
+
+---
+
+### `friedman estimate tobit`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lower` | — | `Float64` | `0.0` | — | Lower censoring bound |
+| `--upper` | — | `Float64` | `Inf` | — | Upper censoring bound (default: none) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_tobit` (Path to CSV data file)
 
 ---
 

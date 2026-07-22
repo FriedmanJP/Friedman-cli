@@ -2868,6 +2868,156 @@ export estimate_igarch, estimate_cgarch, estimate_aparch, estimate_figarch,
        estimate_fiegarch, estimate_garch_midas
 export component_variances
 
+# ─── C067a: penalized & limited-dependent cross-section regression ──────────
+# PenalizedRegModel (lasso/ridge/elastic-net), RobustRegModel, TobitModel — faithful
+# to real MEMs 0.7.0 src/reg/{penalized,robust,tobit}. Genuine OLS/ridge fits so T1/T2
+# catch shape bugs. `coef(::PenalizedRegModel)=beta` but stderror is DELIBERATELY not
+# defined (mirrors the real MethodError → the CLI uses `_penalized_coef_table`).
+
+struct PenalizedRegModel{T<:Real}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    beta0::T
+    alpha::T
+    lambda::T
+    active_set::Vector{Int}
+    df_star::T
+    r2::T
+    aic::T
+    bic::T
+    ebic::T
+    lambda_min::T
+    lambda_1se::T
+    select::Symbol
+    varnames::Vector{String}
+end
+
+struct RobustRegModel{T<:Real}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    scale::T
+    weights::Vector{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    psi::Symbol
+    method::Symbol
+    tuning::T
+    robust_r2::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+end
+
+struct TobitModel{T<:Real}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    sigma::T
+    vcov_mat::Matrix{T}
+    sigma_se::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    lower::T
+    upper::T
+    n_censored_left::Int
+    n_censored_right::Int
+    dist::Symbol
+    varnames::Vector{String}
+    method::Symbol
+    converged::Bool
+end
+
+# Faithful validation + genuine fit so shape/argument bugs surface in T1/T2.
+function estimate_elastic_net(y::AbstractVector, X::AbstractMatrix;
+                              alpha::Real=1.0, lambda=:cv, select::Symbol=:cv,
+                              cv::Symbol=:kfold, nfolds::Int=10, standardize::Bool=true,
+                              varnames=nothing, seed::Int=1234, kwargs...)
+    n, p = size(X)
+    length(y) == n || throw(ArgumentError("y has length $(length(y)); X has $n rows"))
+    n > 1 || throw(ArgumentError("need n > 1"))
+    (0 <= alpha <= 1) || throw(ArgumentError("alpha must be in [0,1]; got $alpha"))
+    select in (:cv, :aic, :bic, :ebic) ||
+        throw(ArgumentError("select must be :cv, :aic, :bic, or :ebic; got :$select"))
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    λ = lambda isa Real ? Float64(lambda) : 0.1
+    beta = (Xm'Xm + λ * Matrix{Float64}(I(p))) \ (Xm'yv)
+    beta0 = mean(yv) - sum(vec(mean(Xm; dims=1)) .* beta)
+    fitted = beta0 .+ Xm * beta
+    resid = yv .- fitted
+    ssr = sum(abs2, resid); tss = max(sum(abs2, yv .- mean(yv)), eps())
+    r2 = 1.0 - ssr / tss
+    vn = varnames === nothing ? ["x$j" for j in 1:p] : Vector{String}(varnames)
+    PenalizedRegModel{Float64}(yv, Xm, beta, beta0, Float64(alpha), λ,
+                               findall(!=(0.0), beta), Float64(count(!=(0.0), beta)),
+                               r2, -120.0, -100.0, -95.0, λ, 2λ, select, vn)
+end
+# Explicit kwargs (not a `; kwargs...` absorber) — keeps the mock-surface budget flat.
+estimate_lasso(y, X; lambda=:cv, select::Symbol=:cv, varnames=nothing) =
+    estimate_elastic_net(y, X; alpha=1.0, lambda=lambda, select=select, varnames=varnames)
+estimate_ridge(y, X; lambda=:cv, select::Symbol=:cv, varnames=nothing) =
+    estimate_elastic_net(y, X; alpha=0.0, lambda=lambda, select=select, varnames=varnames)
+
+function estimate_robust(y::AbstractVector, X::AbstractMatrix;
+                         psi::Symbol=:huber, method::Symbol=:m, maxiter::Int=50,
+                         tol::Real=1e-6, varnames=nothing, kwargs...)
+    n = length(y); p = size(X, 2)
+    size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
+    n > p || throw(ArgumentError("Need n > p (n=$n, p=$p)"))
+    method in (:m, :mm) || throw(ArgumentError("method must be :m or :mm; got :$method"))
+    psi in (:huber, :bisquare) ||
+        throw(ArgumentError("psi must be :huber or :bisquare; got :$psi"))
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    beta = Xm \ yv
+    fitted = Xm * beta; resid = yv .- fitted
+    s2 = sum(abs2, resid) / max(n - p, 1)
+    vcov_mat = s2 .* ((Xm'Xm) \ Matrix{Float64}(I(p)))
+    tss = max(sum(abs2, yv .- mean(yv)), eps())
+    vn = varnames === nothing ? ["x$j" for j in 1:p] : Vector{String}(varnames)
+    RobustRegModel{Float64}(yv, Xm, beta, vcov_mat, sqrt(max(s2, 0.0)),
+                            ones(Float64, n), resid, fitted, psi, method,
+                            psi === :huber ? 1.345 : 4.685,
+                            1.0 - sum(abs2, resid) / tss, vn, true, 8)
+end
+
+function estimate_tobit(y::AbstractVector, X::AbstractMatrix;
+                        lower::Real=0.0, upper::Real=Inf, dist::Symbol=:normal,
+                        varnames=nothing, kwargs...)
+    n = length(y); k = size(X, 2)
+    size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
+    n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
+    lower < upper || throw(ArgumentError("lower ($lower) must be < upper ($upper)"))
+    dist in (:normal, :logistic, :extreme_value) ||
+        throw(ArgumentError("dist must be :normal, :logistic, or :extreme_value; got :$dist"))
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    beta = Xm \ yv
+    fitted = Xm * beta; resid = yv .- fitted
+    s2 = sum(abs2, resid) / max(n - k, 1); sigma = sqrt(max(s2, eps()))
+    vcov_mat = s2 .* ((Xm'Xm) \ Matrix{Float64}(I(k)))
+    nL = isfinite(lower) ? count(<=(Float64(lower)), yv) : 0
+    nR = isfinite(upper) ? count(>=(Float64(upper)), yv) : 0
+    vn = varnames === nothing ? ["x$j" for j in 1:k] : Vector{String}(varnames)
+    TobitModel{Float64}(yv, Xm, beta, sigma, vcov_mat, sigma / sqrt(2n), resid, fitted,
+                        -110.0, 230.0, 245.0, Float64(lower), Float64(upper),
+                        nL, nR, dist, vn, :normal, true)
+end
+
+# coef/stderror: PenalizedRegModel exposes only coef (stderror undefined → MethodError,
+# mirroring real MEMs). Robust/Tobit expose both (sqrt of the vcov diagonal).
+coef(m::PenalizedRegModel) = m.beta
+coef(m::RobustRegModel) = m.beta
+coef(m::TobitModel) = m.beta
+stderror(m::RobustRegModel) = [sqrt(max(m.vcov_mat[i, i], 0.0)) for i in 1:length(m.beta)]
+stderror(m::TobitModel) = [sqrt(max(m.vcov_mat[i, i], 0.0)) for i in 1:length(m.beta)]
+
+export PenalizedRegModel, RobustRegModel, TobitModel
+export estimate_lasso, estimate_ridge, estimate_elastic_net, estimate_robust, estimate_tobit
+
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 
 struct BVARForecast{T<:AbstractFloat}
