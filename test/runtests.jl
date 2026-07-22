@@ -3744,12 +3744,13 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 39 primary leaves + 1 snake alias (gjr_garch) = 40 keys (C044; +6 GARCH variants C064a)
-    @test length(est_node.subcmds) == 40
+    # 40 primary leaves + 1 snake alias (gjr_garch) = 41 keys (C044; +6 GARCH variants C064a, +arfima C068)
+    @test length(est_node.subcmds) == 41
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
-    for key in ["var", "bvar", "lp", "arima", "gmm", "static", "dynamic", "gdfm",
+    @test haskey(est_node.subcmds, "arfima")
+    for key in ["var", "bvar", "lp", "arima", "arfima", "gmm", "static", "dynamic", "gdfm",
                  "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml",
                  "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit",
                  "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas"]
@@ -3939,8 +3940,10 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 41 primary + 2 snake aliases (C044)
-    @test length(test_node.subcmds) == 43
+    # 43 primary + 2 snake aliases (C044; +gph, +local-whittle C068)
+    @test length(test_node.subcmds) == 45
+    @test haskey(test_node.subcmds, "gph")
+    @test haskey(test_node.subcmds, "local-whittle")
 
     # Andrews structural break test
     @test haskey(test_node.subcmds, "andrews")

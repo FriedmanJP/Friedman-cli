@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 45
+**Leaves:** 47
 
 ### `friedman test adf`
 
@@ -358,6 +358,26 @@ Path to CSV data file
 
 ---
 
+### `friedman test gph`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test |
+| `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--trim` | — | `Int64` | `0` | — | Trim the first N frequencies |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `gph` (Path to CSV data file)
+
+---
+
 ### `friedman test granger`
 
 Path to CSV data file
@@ -591,6 +611,25 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `lm_unitroot` (Path to CSV data file)
+
+---
+
+### `friedman test local-whittle`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test |
+| `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `local-whittle` (Path to CSV data file)
 
 ---
 

@@ -86,6 +86,51 @@ friedman test np data.csv --column=1 --trend=constant
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
+## Long-Memory (Fractional Integration)
+
+Semiparametric estimators of the fractional integration order `d`. Both test
+H₀: d = 0 (no long memory) with a two-sided normal z. `d > 0` indicates long-memory /
+fractional integration; the estimator is complementary to `estimate arfima`.
+
+### test gph
+
+Geweke & Porter-Hudak (1983) log-periodogram regression estimator of `d`.
+
+```bash
+friedman test gph data.csv --column=1
+friedman test gph data.csv --bandwidth=32 --trim=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--bandwidth` | `-m` | Int | ⌊√T⌋ | Number of Fourier frequencies |
+| `--trim` | | Int | 0 | Trim the first N frequencies |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `d` estimate, standard error, z-statistic, p-value (H₀: d = 0),
+bandwidth, trim, observations.
+
+### test local-whittle
+
+Robinson (1995) local Whittle semiparametric estimator of `d`.
+
+```bash
+friedman test local-whittle data.csv --column=1
+friedman test local-whittle data.csv --bandwidth=32
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--bandwidth` | `-m` | Int | ⌊√T⌋ | Number of Fourier frequencies |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `d` estimate, standard error, z-statistic, p-value (H₀: d = 0),
+bandwidth, observations, minimized objective R(d̂).
+
 ## Cointegration
 
 ### test johansen

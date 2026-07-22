@@ -169,6 +169,56 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "estimate arfima / test gph / test local-whittle — long memory (C068)" begin
+        # ARFIMA(0,d,0) with d≈0.3: a genuine long-memory series. Assert envelope-valid
+        # and a finite d in a sane range (roughly (−0.5, 1)) with p-values in [0,1].
+        csv = dgp_fracdiff(; T=400, d=0.3, seed=123)
+
+        # scan every kv table for a "metric == name" numeric value
+        scan_metric(doc, name) = begin
+            v = nothing
+            for (_, tbl) in pairs(doc.data)
+                if (tbl isa JSON3.Object || tbl isa AbstractDict) && (haskey(tbl, :rows) || haskey(tbl, "rows"))
+                    mv = metric_value(tbl, name)
+                    mv !== nothing && (v = mv)
+                end
+            end
+            v
+        end
+
+        # estimate arfima(0,d,0)
+        ra = run_json(["estimate", "arfima", csv, "--column", "1", "--p", "0", "--q", "0"])
+        assert_envelope_ok(ra; label="estimate arfima")
+        da = scan_metric(ra.doc, "d (frac. integ.)")
+        @test da !== nothing
+        if da !== nothing
+            @test isfinite(Float64(da))
+            @test -0.5 < Float64(da) < 1.0
+        end
+
+        # test gph
+        rg = run_json(["test", "gph", csv, "--column", "1"])
+        assert_envelope_ok(rg; label="test gph")
+        dg = scan_metric(rg.doc, "d (long-memory)")
+        pg = scan_metric(rg.doc, "p-value")
+        @test dg !== nothing && isfinite(Float64(dg)) && -0.5 < Float64(dg) < 1.0
+        @test pg !== nothing && 0.0 <= Float64(pg) <= 1.0
+
+        # test local-whittle
+        rw = run_json(["test", "local-whittle", csv, "--column", "1"])
+        assert_envelope_ok(rw; label="test local-whittle")
+        dw = scan_metric(rw.doc, "d (long-memory)")
+        pw = scan_metric(rw.doc, "p-value")
+        @test dw !== nothing && isfinite(Float64(dw)) && -0.5 < Float64(dw) < 1.0
+        @test pw !== nothing && 0.0 <= Float64(pw) <= 1.0
+
+        # bandwidth override still valid
+        rgm = run_json(["test", "gph", csv, "--column", "1", "--bandwidth", "40"])
+        assert_envelope_ok(rgm; label="test gph --bandwidth")
+
+        rm(csv; force=true)
+    end
+
     @testset "estimate smm — AR(1) recovery (first-ever T3, #345)" begin
         # SMM was broken on real MEMs 0.7.0 (3-arg call vs required 4-arg
         # estimate_smm(simulator_fn, moments_fn, theta0, data)) with zero T3

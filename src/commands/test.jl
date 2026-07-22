@@ -101,6 +101,37 @@ function test_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_test_np),
         ),
         CommandSpec(
+            path=["test", "gph"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="bandwidth", short="m", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
+                OptionSpec(name="trim", type=Int, default=0, description="Trim the first N frequencies"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:gph, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_gph),
+        ),
+        CommandSpec(
+            path=["test", "local-whittle"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="bandwidth", short="m", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=Symbol("local-whittle"), description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_local_whittle),
+        ),
+        CommandSpec(
             path=["test", "johansen"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -842,6 +873,72 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
     ]
 
     output_kv(pairs; format=format, output=output, title="Ng-Perron Test: $vname")
+end
+
+# ── Long-Memory (fractional integration) ─────────────────
+
+function _test_gph(; data::String, column::Int=1, bandwidth=nothing, trim::Int=0,
+                    format::String="table", output::String="")
+    trim >= 0 || throw(CliError("usage/invalid",
+        "GPH test: --trim must be >= 0, got $trim"))
+    y, vname = load_univariate_series(data, column)
+    m_arg = isnothing(bandwidth) ? :default : bandwidth
+
+    _status("GPH Log-Periodogram Test: variable=$vname, observations=$(length(y))")
+    _status()
+
+    result = try
+        gph_test(y; m=m_arg, trim=trim)
+    catch e
+        throw(_long_memory_error(e, "GPH test"))
+    end
+
+    pairs = Pair{String,Any}[
+        "d (long-memory)" => round(result.d; digits=4),
+        "Std. error" => round(result.se; digits=4),
+        "z-statistic" => round(result.tstat; digits=4),
+        "p-value" => round(result.pval; digits=4),
+        "Frequencies (m)" => result.m,
+        "Trimmed" => result.trim,
+        "Observations" => result.n,
+    ]
+
+    output_kv(pairs; format=format, output=output, title="GPH Test: $vname")
+
+    interpret_test_result(result.pval,
+        "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
+        "Cannot reject H0 (d = 0) at 5% -- no evidence of long memory")
+end
+
+function _test_local_whittle(; data::String, column::Int=1, bandwidth=nothing,
+                              format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    m_arg = isnothing(bandwidth) ? :default : bandwidth
+
+    _status("Local Whittle Test: variable=$vname, observations=$(length(y))")
+    _status()
+
+    result = try
+        local_whittle(y; m=m_arg)
+    catch e
+        throw(_long_memory_error(e, "local Whittle test"))
+    end
+
+    pairs = Pair{String,Any}[
+        "d (long-memory)" => round(result.d; digits=4),
+        "Std. error" => round(result.se; digits=4),
+        "z-statistic" => round(result.tstat; digits=4),
+        "p-value" => round(result.pval; digits=4),
+        "Frequencies (m)" => result.m,
+        "Observations" => result.n,
+        "Objective R(d)" => round(result.objective; digits=4),
+    ]
+
+    output_kv(pairs; format=format, output=output, title="Local Whittle Test: $vname")
+
+    interpret_test_result(result.pval,
+        "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
+        "Cannot reject H0 (d = 0) at 5% -- no evidence of long memory")
 end
 
 # ── Cointegration ────────────────────────────────────────

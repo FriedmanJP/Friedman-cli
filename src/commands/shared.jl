@@ -167,6 +167,21 @@ function interpret_test_result(pvalue::Real, reject_msg::String, accept_msg::Str
     end
 end
 
+"""
+Map an untyped MEMs `ArgumentError`/`DomainError` from the long-memory family
+(ARFIMA / GPH / local Whittle) to a typed `CliError`, so bad input surfaces as a
+`data`-class exit (3) rather than an uncaught internal exit-1 (standing lesson).
+Typed MEMs domain errors are already handled centrally by `_domain_error_class`.
+"""
+function _long_memory_error(e, what::String)
+    e isa CliError && return e
+    if e isa ArgumentError || e isa DomainError
+        return CliError("data/invalid", "$what: $(sprint(showerror, e))";
+            hint="need a longer numeric series (>= 8 obs) and valid p/q/bandwidth")
+    end
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
 """Convert trend string to Symbol for test regression kwarg."""
 function to_regression_symbol(trend::String)
     trend == "none" && return :none

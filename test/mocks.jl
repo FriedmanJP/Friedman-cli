@@ -445,6 +445,27 @@ end
 ARIMAForecast(f::Vector{T}, cl, cu, se, h::Int) where T =
     ARIMAForecast(f, cl, cu, se, h, T(0.95))
 
+# ARFIMA (fractional integration / long memory) — fields mirror real MEMs
+struct ARFIMAModel{T}
+    y::Vector{T}
+    p::Int
+    d::T
+    q::Int
+    c::T
+    phi::Vector{T}
+    theta::Vector{T}
+    sigma2::T
+    d_se::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
+end
+
 # ─── VAR Forecast Type ──────────────────────────────────
 
 struct VARForecast{T<:AbstractFloat}
@@ -504,6 +525,13 @@ struct ZAResult{T}
 end
 struct NgPerronResult{T}
     MZa::T; MZt::T; MSB::T; MPT::T
+end
+# Long-memory d estimators (fields mirror real MEMs)
+struct GPHResult{T}
+    d::T; se::T; tstat::T; pval::T; m::Int; n::Int; trim::Int
+end
+struct LocalWhittleResult{T}
+    d::T; se::T; tstat::T; pval::T; m::Int; n::Int; objective::T
 end
 struct JohansenResult{T}
     trace_stats::Vector{T}; trace_pvalues::Vector{T}
@@ -1102,6 +1130,26 @@ end
 function auto_arima(y; max_p=5, max_q=5, max_d=2, criterion=:bic, method=:mle)
     estimate_arima(y, 1, 1, 1; method=method)
 end
+function estimate_arfima(y, p, q; method=:css, d0=nothing, trunc=200, max_iter=500)
+    v, res, fit = _ar_like_y(y)
+    d = isnothing(d0) ? 0.3 : Float64(d0)
+    phi = p > 0 ? ones(p) * 0.2 : Float64[]
+    theta = q > 0 ? ones(q) * 0.1 : Float64[]
+    ARFIMAModel(v, p, d, q, 0.0, phi, theta, 0.5, 0.05, res, fit,
+                -50.0, -100.0, -95.0, method, true, 10)
+end
+function gph_test(y; m=:default, trim=0)
+    n = length(vec(y))
+    n < 8 && throw(ArgumentError("Series too short for GPH (n=$n)."))
+    mm = m === :default ? floor(Int, sqrt(n)) : Int(m)
+    GPHResult(0.3, 0.08, 3.75, 0.0002, mm, n, trim)
+end
+function local_whittle(y; m=:default)
+    n = length(vec(y))
+    n < 8 && throw(ArgumentError("Series too short for local Whittle (n=$n)."))
+    mm = m === :default ? floor(Int, sqrt(n)) : Int(m)
+    LocalWhittleResult(0.3, 0.06, 5.0, 1.0e-6, mm, n, -0.5)
+end
 
 ar_order(m::ARModel) = m.p;       ar_order(m::MAModel) = 0
 ar_order(m::ARMAModel) = m.p;     ar_order(m::ARIMAModel) = m.p
@@ -1111,6 +1159,15 @@ diff_order(m::ARModel) = 0;       diff_order(m::MAModel) = 0
 diff_order(m::ARMAModel) = 0;     diff_order(m::ARIMAModel) = m.d
 aic(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.aic
 bic(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.bic
+# ARFIMA accessors (coef ordering [c, d, phi.., theta..], matching real MEMs)
+ar_order(m::ARFIMAModel) = m.p
+ma_order(m::ARFIMAModel) = m.q
+diff_order(m::ARFIMAModel) = m.d
+aic(m::ARFIMAModel) = m.aic
+bic(m::ARFIMAModel) = m.bic
+loglikelihood(m::ARFIMAModel) = m.loglik
+coef(m::ARFIMAModel) = vcat(m.c, m.d, m.phi, m.theta)
+stderror(m::ARFIMAModel) = fill(0.05, 2 + length(m.phi) + length(m.theta))
 function forecast(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}, h::Int; conf_level=0.95)
     fc = ones(h) * 0.1
     ARIMAForecast(fc, fc .- 0.5, fc .+ 0.5, ones(h) * 0.1, h)
@@ -1531,11 +1588,12 @@ export ZeroRestriction, SignRestriction, SVARRestrictions, AriasSVARResult, Uhli
 export LPModel, LPIVModel, SmoothLPModel, StateLPModel, PropensityLPModel
 export LPImpulseResponse, StructuralLP, LPFEVD, LPForecast
 export FactorModel, DynamicFactorModel, GeneralizedDynamicFactorModel, FactorForecast
-export ARModel, MAModel, ARMAModel, ARIMAModel, ARIMAForecast
+export ARModel, MAModel, ARMAModel, ARIMAModel, ARIMAForecast, ARFIMAModel
 export ICASVARResult, NonGaussianMLResult
 export MarkovSwitchingSVARResult, GARCHSVARResult, SmoothTransitionSVARResult, ExternalVolatilitySVARResult
 export NormalityTestResult, NormalityTestSuite
 export ADFResult, KPSSResult, PPResult, ZAResult, NgPerronResult, JohansenResult
+export GPHResult, LocalWhittleResult
 export GMMModel
 export ARCHModel, GARCHModel, EGARCHModel, GJRGARCHModel, SVModel, VolatilityForecast
 export VECMModel, VECMForecast, VECMGrangerResult
@@ -1559,8 +1617,9 @@ export structural_lp, lp_fevd, forecast
 export estimate_factors, ic_criteria, scree_plot_data
 export estimate_dynamic_factors, ic_criteria_gdfm, estimate_gdfm, common_variance_share
 export adf_test, kpss_test, pp_test, za_test, ngperron_test, johansen_test
+export gph_test, local_whittle
 export estimate_lp_gmm, gmm_summary, j_test
-export estimate_ar, estimate_ma, estimate_arma, estimate_arima, auto_arima
+export estimate_ar, estimate_ma, estimate_arma, estimate_arima, auto_arima, estimate_arfima
 export ar_order, ma_order, diff_order, aic, bic
 export estimate_arch, estimate_garch, estimate_egarch, estimate_gjr_garch, estimate_sv
 export persistence, halflife, unconditional_variance

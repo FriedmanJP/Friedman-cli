@@ -425,9 +425,9 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 39 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 40 keys (C044; +6 GARCH variants C064a)
-        @test length(node.subcmds) == 40
-        for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
+        # 40 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 41 keys (C044; +6 GARCH variants C064a, +arfima C068)
+        @test length(node.subcmds) == 41
+        for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit",
@@ -732,6 +732,46 @@ end  # Shared utilities
                 _capture() do
                     _estimate_arima(; data=csv, column=1, p=2, d=0, q=0,
                                      method="ols", format="json")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_arfima — pure fractional (0,d,0)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3)
+            model = nothing
+            out = cd(dir) do
+                _capture() do
+                    model = _estimate_arfima(; data=csv, column=1, p=0, q=0,
+                                              method="css", format="table")
+                end
+            end
+            @test occursin("ARFIMA", out)
+            @test model.d isa Real
+            @test -0.5 < model.d < 1.0
+        end
+    end
+
+    @testset "_estimate_arfima — with AR/MA orders + mle" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_arfima(; data=csv, column=2, p=1, q=1,
+                                      method="mle", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_arfima — d0 start + json format" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_arfima(; data=csv, column=1, p=0, q=0,
+                                      method="css", d0=0.2, format="json")
                 end
             end
         end
@@ -1466,9 +1506,9 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 41 primary + 2 snake aliases (arch_lm, ljung_box) = 43 keys (C044)
-        @test length(node.subcmds) == 43
-        for cmd in ["adf", "kpss", "pp", "za", "np", "johansen",
+        # 43 primary + 2 snake aliases (arch_lm, ljung_box) = 45 keys (C044; +gph, +local-whittle C068)
+        @test length(node.subcmds) == 45
+        for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "var", "granger", "pvar", "lr", "lm",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
@@ -1563,6 +1603,74 @@ end  # Estimate handlers
             csv = _make_csv(dir; T=100, n=3)
             out = _capture() do
                 _test_np(; data=csv, column=1, trend="constant", format="table")
+            end
+        end
+    end
+
+    @testset "_test_gph" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_gph(; data=csv, column=1, format="table")
+            end
+            @test occursin("GPH", out)
+            @test occursin("long-memory", out)
+        end
+    end
+
+    @testset "_test_gph — bandwidth + trim + json" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_gph(; data=csv, column=1, bandwidth=20, trim=1, format="json")
+            end
+        end
+    end
+
+    @testset "_test_gph — short series errors as CliError" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=5, n=1, colnames=["x"])
+            @test_throws CliError _capture() do
+                _test_gph(; data=csv, column=1, format="table")
+            end
+        end
+    end
+
+    @testset "_test_gph — negative --trim → usage error (review fix)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1, colnames=["x"])
+            # was a BoundsError misclassified as model/error (exit 5); now usage/invalid (exit 2)
+            err = nothing
+            try; _capture() do; _test_gph(; data=csv, column=1, trim=-1, format="table"); end; catch e; err = e; end
+            @test err isa CliError && err.code == "usage/invalid" && exit_class(err) == 2
+        end
+    end
+
+    @testset "_test_local_whittle" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_local_whittle(; data=csv, column=1, format="table")
+            end
+            @test occursin("Whittle", out)
+            @test occursin("long-memory", out)
+        end
+    end
+
+    @testset "_test_local_whittle — bandwidth" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_local_whittle(; data=csv, column=1, bandwidth=15, format="table")
+            end
+        end
+    end
+
+    @testset "_test_local_whittle — short series errors as CliError" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=5, n=1, colnames=["x"])
+            @test_throws CliError _capture() do
+                _test_local_whittle(; data=csv, column=1, format="table")
             end
         end
     end
@@ -2688,7 +2796,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 40  # 39 primary + gjr_garch alias (C064a +6 GARCH variants)
+        @test length(node.subcmds) == 41  # 40 primary + gjr_garch alias (C064a +6, C068 +arfima)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -2719,7 +2827,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 43  # 41 primary + 2 snake aliases
+        @test length(node.subcmds) == 45  # 43 primary + 2 snake aliases (+gph, +local-whittle C068)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -4105,7 +4213,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 40  # 39 primary + gjr_garch alias (C064a +6 GARCH variants)
+        @test length(node.subcmds) == 41  # 40 primary + gjr_garch alias (C064a +6, C068 +arfima)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -4136,7 +4244,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 43  # 41 primary + 2 aliases
+        @test length(node.subcmds) == 45  # 43 primary + 2 aliases (+gph, +local-whittle C068)
     end
 
     @testset "_parse_varlist" begin

@@ -23,6 +23,28 @@ function dgp_ar1(; T::Int=200, φ::Float64=0.7, σ::Float64=1.0, seed::Int=42)
     return write_csv(DataFrame(y=y); prefix="ar1")
 end
 
+"""ARFIMA(0,d,0) long-memory series via the truncated (1-L)^{-d} MA(∞) filter.
+ψ_0 = 1, ψ_k = ψ_{k-1}·(k-1+d)/k; y_t = Σ_{k=0}^{t-1} ψ_k ε_{t-k}. d≈0.3 → persistent
+but stationary long memory."""
+function dgp_fracdiff(; T::Int=400, d::Float64=0.3, σ::Float64=1.0, seed::Int=42)
+    rng = MersenneTwister(seed)
+    ε = σ .* randn(rng, T)
+    ψ = zeros(T)
+    ψ[1] = 1.0
+    for k in 2:T
+        ψ[k] = ψ[k-1] * ((k - 2) + d) / (k - 1)
+    end
+    y = zeros(T)
+    for t in 1:T
+        s = 0.0
+        @inbounds for k in 1:t
+            s += ψ[k] * ε[t - k + 1]
+        end
+        y[t] = s
+    end
+    return write_csv(DataFrame(y=y); prefix="fracdiff")
+end
+
 """Stable VAR(2) with 3 variables."""
 function dgp_var2(; T::Int=200, seed::Int=42)
     rng = MersenneTwister(seed)

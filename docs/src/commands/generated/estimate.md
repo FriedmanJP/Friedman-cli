@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 39
+**Leaves:** 40
 
 ### `friedman estimate 3sls`
 
@@ -77,6 +77,30 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_arch` (Path to CSV data file)
+
+---
+
+### `friedman estimate arfima`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `0` | — | AR order |
+| `--q` | — | `Int64` | `0` | — | MA order |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css|mle (fractional-integration estimator) |
+| `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_arfima` (Path to CSV data file)
 
 ---
 

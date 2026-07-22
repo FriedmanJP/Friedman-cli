@@ -172,6 +172,25 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_arima),
         ),
         CommandSpec(
+            path=["estimate", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_arfima, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_arfima),
+        ),
+        CommandSpec(
             path=["estimate", "gmm"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1072,6 +1091,75 @@ function _arima_coef_table(model; format::String="table", output::String="", tit
     for i in (n_named+1):length(c)
         push!(param_names, "const$i")
     end
+
+    coef_df = try
+        se = stderror(model)
+        z = c ./ se
+        pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        DataFrame(parameter=param_names, estimate=round.(c; digits=6),
+                  std_error=round.(se; digits=6),
+                  z_stat=round.(z; digits=3), p_value=round.(pv; digits=4))
+    catch
+        DataFrame(parameter=param_names, estimate=round.(c; digits=6))
+    end
+
+    output_result(coef_df; format=Symbol(format), output=output, title=title)
+end
+
+# ── ARFIMA (fractional integration / long memory) ──────────
+
+function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
+                           method::String="css", d0=nothing, max_iter::Int=500,
+                           format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    method_sym = Symbol(method)
+
+    _status("Estimating ARFIMA($p,d,$q): variable=$vname, observations=$(length(y)), method=$method")
+    _status()
+
+    model = try
+        d0v = isnothing(d0) ? nothing : Float64(d0)
+        estimate_arfima(y, p, q; method=method_sym, d0=d0v, max_iter=max_iter)
+    catch e
+        throw(_long_memory_error(e, "ARFIMA estimation"))
+    end
+
+    label = "ARFIMA($(model.p),$(round(model.d; digits=4)),$(model.q))"
+
+    # Coefficient table: hand-built. ARFIMAModel is not a MEMs coef-table type
+    # (`DataFrame(model)`), so the tidy coefficient path does not apply — this is a
+    # documented C051 exception (like ARIMA/volatility). Ordering is [c, d, phi.., theta..].
+    _arfima_coef_table(model; format=format, output=output,
+                       title="$label Coefficients ($vname)")
+
+    _status()
+    output_kv(Pair{String,Any}[
+        "d (frac. integ.)" => round(model.d; digits=6),
+        "d std. error"     => round(model.d_se; digits=6),
+        "Log-likelihood"   => round(model.loglik; digits=4),
+        "AIC"              => round(model.aic; digits=4),
+        "BIC"              => round(model.bic; digits=4),
+        "Converged"        => model.converged,
+    ]; format=format, title="ARFIMA Diagnostics ($vname)")
+    return model
+end
+
+function _arfima_coef_table(model; format::String="table", output::String="", title::String="Coefficients")
+    c = coef(model)                                 # [c, d, phi.., theta..]
+    p_order = ar_order(model)
+    q_order = ma_order(model)
+    param_names = String["const", "d"]
+    for i in 1:p_order
+        push!(param_names, "ar$i")
+    end
+    for i in 1:q_order
+        push!(param_names, "ma$i")
+    end
+    # Guard against any length mismatch (keep the table well-formed).
+    for i in (length(param_names)+1):length(c)
+        push!(param_names, "param$i")
+    end
+    param_names = param_names[1:length(c)]
 
     coef_df = try
         se = stderror(model)

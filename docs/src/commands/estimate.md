@@ -150,6 +150,41 @@ friedman estimate arima data.csv --column=2 --p=2 --d=0 --q=1
 
 **Output:** AR/MA coefficients, AIC/BIC/log-likelihood.
 
+## estimate arfima
+
+Estimate ARFIMA(p,d,q) fractionally-integrated (long-memory) models. The fractional
+integration order `d ∈ (−0.5, 0.5)` is estimated (starting from a GPH pre-estimate
+unless `--d0` is given); `p` and `q` are the short-memory AR and MA orders.
+
+```bash
+# Pure fractional noise ARFIMA(0,d,0)
+friedman estimate arfima data.csv --p=0 --q=0
+
+# ARFIMA(1,d,1) via exact Gaussian ML
+friedman estimate arfima data.csv --p=1 --q=1 --method=mle
+
+# Custom starting value for d
+friedman estimate arfima data.csv --column=2 --d0=0.2
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 0 | AR order |
+| `--q` | | Int | 0 | MA order |
+| `--method` | `-m` | String | `css` | `css` (conditional sum of squares), `mle` (exact Gaussian ML) |
+| `--d0` | | Float64 | GPH pre-estimate | Starting value for d |
+| `--max-iter` | | Int | 500 | Maximum optimizer iterations |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a hand-built coefficient table (`const`, `d`, `ar*`, `ma*` with standard
+errors, z-stats, p-values) plus a diagnostics block (d estimate and its standard
+error, log-likelihood, AIC/BIC, convergence). `ARFIMAModel` is not one of MEMs'
+coefficient-table types, so — like `estimate arima` and the volatility models — the
+coefficient table is emitted directly rather than via the tidy `DataFrame(model)`
+path (a documented C051 exception).
+
 ## estimate gmm
 
 Estimate a GMM model. Requires a TOML config specifying moment conditions and instruments.
