@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), and multicollinearity (VIF). 43 subcommands plus nested `var` (2) and `pvar` (4) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 43 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -149,6 +149,31 @@ friedman test johansen data.csv --lags=2 --trend=constant
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Trace statistics table, max eigenvalue statistics table, estimated cointegration rank.
+
+### VECM Cointegration Restriction Tests
+
+`test vecm beta | alpha | weak-exog | known-beta | joint` are Johansen likelihood-ratio tests of linear restrictions on the cointegrating structure of a VECM. Each first fits a VECM to the data (same options as `estimate vecm`: `--lags`, `--rank`, `--deterministic`, `--method`, `--significance`) — the fitted cointegrating rank must be **≥ 1** (else `data/no-cointegration`) — then tests the restriction. H0 is that the restriction holds, so a **low p-value rejects** the imposed restriction. Output is a kv block (`LR statistic`, `df`, `p-value`, `rank`, `converged`, restriction description) plus a decision line.
+
+The restriction matrices are supplied via `--config` in a `[vecm_restriction]` TOML section, given **row-major** (an array of equal-length numeric rows). See [Configuration](../configuration.md).
+
+| Leaf | Restriction | Config matrix | df |
+|------|-------------|---------------|----|
+| `test vecm beta` | β = Hφ (β lies in span(H)) | `H` (p×s, s ≥ r) | r(p−s) |
+| `test vecm alpha` | α = Aψ (α lies in span(A)) | `A` (p×a, a ≥ r) | r(p−a) |
+| `test vecm known-beta` | β = b (fully specified) | `b` (p×r, exactly r cols) | r(p−r) |
+| `test vecm joint` | β = Hφ **and** α = Aψ | both `H` and `A` | r(p−s)+r(p−a) |
+| `test vecm weak-exog` | weak exogeneity of `--vars` | — (uses `--vars`, not config) | r·\|vars\| |
+
+```bash
+# β restriction (H in the config)
+friedman test vecm beta data.csv --config restr.toml --rank=1
+
+# weak exogeneity of the policy rate (by name or index), no config needed
+friedman test vecm weak-exog data.csv --vars rate --rank=1
+friedman test vecm joint data.csv --config restr.toml
+```
+
+Common options (all 5 leaves): `--lags`/`-p` (Int, 2), `--rank`/`-r` (String, `auto`), `--deterministic` (`none`|`constant`|`trend`), `--method` (`johansen`|`engle_granger`), `--significance` (Float64, 0.05), `--format`/`-f`, `--output`/`-o`. The four matrix-based leaves take `--config`; `weak-exog` takes `--vars` (comma-separated indices or names) instead.
 
 ## VAR Diagnostics
 

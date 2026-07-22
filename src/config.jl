@@ -544,6 +544,37 @@ function get_system(config::Dict)
 end
 
 """
+    get_vecm_restriction(config, key) → Matrix{Float64}
+
+Extract a `p × k` restriction matrix (row-major arrays-of-arrays) named `key`
+(`"H"`, `"A"`, or `"b"`) from a `[vecm_restriction]` TOML section, for VECM
+cointegration restriction tests (C071). Raises typed `config/*` CliErrors on a
+missing section/key, a malformed (ragged / non-numeric / empty) matrix, so bad
+config surfaces as an exit-4 config error rather than an internal exit-1.
+"""
+function get_vecm_restriction(config::Dict, key::String)
+    sec = get(config, "vecm_restriction", nothing)
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "VECM restriction test requires a [vecm_restriction] section with $key = [[...],[...]]"))
+    haskey(sec, key) || throw(CliError("config/missing-key",
+        "[vecm_restriction] must define $key = [[...],[...]] (row-major $key matrix)"))
+    rows = sec[key]
+    (rows isa AbstractVector && !isempty(rows) && all(r -> r isa AbstractVector, rows)) ||
+        throw(CliError("config/type",
+            "[vecm_restriction] $key must be a non-empty array of equal-length numeric rows"))
+    ncol = length(first(rows))
+    (ncol >= 1 && all(r -> length(r) == ncol, rows)) ||
+        throw(CliError("config/shape",
+            "[vecm_restriction] $key rows must all have the same length ≥ 1"))
+    M = try
+        [Float64(rows[i][j]) for i in 1:length(rows), j in 1:ncol]
+    catch
+        throw(CliError("config/type", "[vecm_restriction] $key must contain only numbers"))
+    end
+    return M
+end
+
+"""
     get_garch_midas(config) → Vector{Float64}
 
 Extract the low-frequency driver series `x_lf` for a GARCH-MIDAS fit (C064a) from a

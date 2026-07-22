@@ -670,6 +670,22 @@ VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
     VECMModel(Y, p, rank, alpha, beta, Pi, Gamma, mu, U, Sigma,
               aic, bic, hqic, loglik, deterministic, method, nothing, varnames)
 
+# VECM restriction test result (C071) — fields mirror real MEMs VECMRestrictionTest.
+struct VECMRestrictionTest{T<:Real}
+    kind::Symbol
+    lr_stat::T
+    df::Int
+    pvalue::T
+    rank::Int
+    description::String
+    beta_restricted::Matrix{T}
+    beta_unrestricted::Matrix{T}
+    eigenvalues_restricted::Vector{T}
+    eigenvalues_unrestricted::Vector{T}
+    converged::Bool
+    restricted_model::VECMModel{T}
+end
+
 struct VECMForecast{T<:Real}
     levels::Matrix{T}; differences::Matrix{T}
     ci_lower::Union{Matrix{T},Nothing}; ci_upper::Union{Matrix{T},Nothing}
@@ -787,6 +803,7 @@ function companion_matrix(B::AbstractMatrix, n::Int, p::Int)
 end
 companion_matrix_factors(m::DynamicFactorModel) = length(m.A) > 0 ? m.A[1] : zeros(m.r, m.r)
 nvars(m::VARModel) = size(m.Y, 2)
+nvars(m::VECMModel) = size(m.Y, 2)
 
 # IRF
 function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing,
@@ -1421,6 +1438,77 @@ function granger_causality_vecm(vecm::VECMModel, cause::Int, effect::Int)
         cause, effect)
 end
 
+# ── VECM restriction tests (C071) ─────────────────────────
+# Validate the same way real MEMs does (r≥1, matrix rows==nvars, s/a≥r, var range)
+# so T1/T2 catch the bad-input→typed-error mapping; df formulas are faithful, other
+# constants are placeholders (like arch_lm_test).
+function _vecm_restriction_result(kind::Symbol, m::VECMModel, df::Int, desc::String;
+                                  converged::Bool=true)
+    r = m.rank
+    VECMRestrictionTest(kind, 3.2, df, 0.36, r, desc,
+        m.beta, m.beta, fill(0.3, r), fill(0.3, r), converged, m)
+end
+
+function test_beta_restriction(m::VECMModel, H::AbstractMatrix)
+    n = nvars(m); r = m.rank
+    r >= 1 || throw(ArgumentError("β restriction test requires cointegrating rank ≥ 1 (got r=$r)"))
+    size(H, 1) == n || throw(DimensionMismatch("H must have $n rows (nvars), got $(size(H,1))"))
+    s = size(H, 2)
+    s >= r || throw(ArgumentError("H must have at least r=$r columns, got s=$s"))
+    _vecm_restriction_result(:beta, m, r * (n - s), "β = Hφ (restricted to span(H), s=$s)")
+end
+
+function test_alpha_restriction(m::VECMModel, A::AbstractMatrix)
+    n = nvars(m); r = m.rank
+    r >= 1 || throw(ArgumentError("α restriction test requires cointegrating rank ≥ 1 (got r=$r)"))
+    size(A, 1) == n || throw(DimensionMismatch("A must have $n rows (nvars), got $(size(A,1))"))
+    a = size(A, 2)
+    a >= r || throw(ArgumentError("A must have at least r=$r columns, got a=$a"))
+    _vecm_restriction_result(:alpha, m, r * (n - a), "α = Aψ (restricted to span(A), a=$a)")
+end
+
+function test_weak_exogeneity(m::VECMModel, vars)
+    n = nvars(m); r = m.rank
+    r >= 1 || throw(ArgumentError("weak-exogeneity test requires cointegrating rank ≥ 1 (got r=$r)"))
+    vv = vars isa Union{AbstractVector,Tuple} ? collect(vars) : [vars]
+    ex_idx = Int[]
+    for v in vv
+        if v isa Integer
+            push!(ex_idx, Int(v))
+        else
+            name = String(v)
+            j = findfirst(==(name), m.varnames)
+            j === nothing && throw(ArgumentError("Variable '$name' not found. Available: $(m.varnames)"))
+            push!(ex_idx, j)
+        end
+    end
+    all(1 .<= ex_idx .<= n) || throw(ArgumentError("variable index out of range 1:$n"))
+    isempty(setdiff(1:n, ex_idx)) && throw(ArgumentError("cannot make all variables weakly exogenous"))
+    labels = join([m.varnames[i] for i in ex_idx], ", ")
+    _vecm_restriction_result(:weak_exogeneity, m, r * length(ex_idx),
+        "Weak exogeneity of {$labels} (α rows = 0, df = r·m)")
+end
+
+function test_known_beta(m::VECMModel, b::AbstractMatrix)
+    n = nvars(m); r = m.rank
+    r >= 1 || throw(ArgumentError("known-β test requires cointegrating rank ≥ 1 (got r=$r)"))
+    size(b, 1) == n || throw(DimensionMismatch("b must have $n rows (nvars), got $(size(b,1))"))
+    size(b, 2) == r || throw(DimensionMismatch("b must have exactly r=$r columns, got $(size(b,2))"))
+    _vecm_restriction_result(:known_beta, m, r * (n - r), "β = b (fully known cointegrating space)")
+end
+
+function test_joint_restriction(m::VECMModel, H::AbstractMatrix, A::AbstractMatrix;
+                                maxiter::Int=1000, tol::Real=1e-8)
+    n = nvars(m); r = m.rank
+    r >= 1 || throw(ArgumentError("joint restriction test requires cointegrating rank ≥ 1 (got r=$r)"))
+    size(H, 1) == n || throw(DimensionMismatch("H must have $n rows, got $(size(H,1))"))
+    size(A, 1) == n || throw(DimensionMismatch("A must have $n rows, got $(size(A,1))"))
+    s = size(H, 2); a = size(A, 2)
+    (s >= r && a >= r) || throw(ArgumentError("need s ≥ r and a ≥ r (got s=$s, a=$a, r=$r)"))
+    _vecm_restriction_result(:joint, m, r * (n - s) + r * (n - a),
+        "Joint β=Hφ (s=$s), α=Aψ (a=$a) via switching")
+end
+
 # ─── Panel VAR Types ────────────────────────────────────────
 
 struct PanelData{T<:Real}
@@ -1712,7 +1800,9 @@ export ADFResult, KPSSResult, PPResult, ZAResult, NgPerronResult, JohansenResult
 export GPHResult, LocalWhittleResult
 export GMMModel
 export ARCHModel, GARCHModel, EGARCHModel, GJRGARCHModel, SVModel, VolatilityForecast
-export VECMModel, VECMForecast, VECMGrangerResult
+export VECMModel, VECMForecast, VECMGrangerResult, VECMRestrictionTest
+export test_beta_restriction, test_alpha_restriction, test_weak_exogeneity
+export test_known_beta, test_joint_restriction
 export PanelData, PVARModel, PVARStability, PVARTestResult
 export GrangerCausalityResult, LRTestResult, LMTestResult
 export HPFilterResult, HamiltonFilterResult, BeveridgeNelsonResult, BaxterKingResult, BoostedHPResult

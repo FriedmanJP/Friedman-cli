@@ -3196,6 +3196,28 @@ using TOML
         @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => ["a", "b"])))
     end
 
+    @testset "get_vecm_restriction (VECM restriction tests, C071)" begin
+        # Valid 2×1 H (row-major arrays-of-arrays) → Matrix{Float64}
+        H = get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [[1.0], [-1.0]])), "H")
+        @test size(H) == (2, 1)
+        @test H == reshape([1.0, -1.0], 2, 1)
+        @test eltype(H) == Float64
+        # Int coercion + 2×2 A
+        A = get_vecm_restriction(Dict("vecm_restriction" => Dict("A" => Any[[1, 0], [0, 1]])), "A")
+        @test size(A) == (2, 2)
+        @test A == [1.0 0.0; 0.0 1.0]
+        # Distinct keys resolve independently
+        cfg = Dict("vecm_restriction" => Dict("H" => [[1.0], [1.0]], "b" => [[2.0], [3.0]]))
+        @test get_vecm_restriction(cfg, "b") == reshape([2.0, 3.0], 2, 1)
+        # errors: missing section, missing key, non-array, empty, ragged rows, non-numeric
+        @test_throws CliError get_vecm_restriction(Dict(), "H")                                          # config/missing
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("A" => [[1.0]])), "H") # config/missing-key
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => 3.0)), "H")     # config/type (non-array)
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [])), "H")      # config/type (empty)
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [[1.0], [1.0, 2.0]])), "H") # config/shape (ragged)
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [["a"], ["b"]])), "H")      # config/type (non-numeric)
+    end
+
     @testset "_parse_matrix" begin
         # Valid 2x3 → correct Matrix{Float64}
         mat = _parse_matrix([[1, 2, 3], [4, 5, 6]])
@@ -3940,10 +3962,14 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 45 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b)
-    @test length(test_node.subcmds) == 47
+    # 46 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
+    @test length(test_node.subcmds) == 48
     @test haskey(test_node.subcmds, "gph")
     @test haskey(test_node.subcmds, "local-whittle")
+    # C071: nested VECM restriction-test node
+    @test haskey(test_node.subcmds, "vecm")
+    @test test_node.subcmds["vecm"] isa NodeCommand
+    @test length(test_node.subcmds["vecm"].subcmds) == 5
 
     # Andrews structural break test
     @test haskey(test_node.subcmds, "andrews")

@@ -1596,11 +1596,11 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 45 primary + 2 snake aliases (arch_lm, ljung_box) = 47 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b)
-        @test length(node.subcmds) == 47
+        # 46 primary + 2 snake aliases (arch_lm, ljung_box) = 48 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
+        @test length(node.subcmds) == 48
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
-                     "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "granger", "pvar", "lr", "lm",
+                     "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
                      "adf-2break", "gregory-hansen", "vif",
@@ -1625,6 +1625,15 @@ end  # Estimate handlers
         @test haskey(pvar_node.subcmds, "mmsc")
         @test haskey(pvar_node.subcmds, "lagselect")
         @test haskey(pvar_node.subcmds, "stability")
+        # VECM: nested NodeCommand with 5 restriction-test leaves (C071)
+        vecm_node = node.subcmds["vecm"]
+        @test vecm_node isa NodeCommand
+        @test length(vecm_node.subcmds) == 5
+        @test haskey(vecm_node.subcmds, "beta")
+        @test haskey(vecm_node.subcmds, "alpha")
+        @test haskey(vecm_node.subcmds, "weak-exog")
+        @test haskey(vecm_node.subcmds, "known-beta")
+        @test haskey(vecm_node.subcmds, "joint")
         # LR and LM are LeafCommands with 2 positional args
         @test node.subcmds["lr"] isa LeafCommand
         @test node.subcmds["lm"] isa LeafCommand
@@ -1810,6 +1819,94 @@ end  # Estimate handlers
                 e = nothing
                 try; _capture() do; _dispatch_via_app(String["test","sign-bias",csv,"--column","9"]); end; catch ex; e=ex; end
                 @test e isa CliError && e.code == "data/column-range"
+            end
+        end
+    end
+
+    @testset "test vecm restriction tests (C071)" begin
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        # kv metric names live in the single-table's `metric` column.
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2, colnames=["gdp", "rate"])
+            # Combined restriction config: H (β), A (α), b (known β) — all p=2, r=1.
+            cfg = joinpath(dir, "restr.toml")
+            write(cfg, """
+            [vecm_restriction]
+            H = [[1.0], [-1.0]]
+            A = [[1.0], [0.0]]
+            b = [[1.0], [-1.0]]
+            """)
+
+            @testset "beta / alpha / known-beta / joint kv keys" begin
+                for (leaf, extra) in [("beta", String[]), ("alpha", String[]),
+                                      ("known-beta", String[]), ("joint", String[])]
+                    doc = _doc(vcat(["vecm", leaf, csv, "--config", cfg, "--rank", "1"], extra))
+                    @test doc.status == "ok"
+                    @test Set(["LR statistic", "df", "p-value", "rank (r)", "converged", "restriction"]) ⊆ _metrics(doc)
+                end
+            end
+
+            @testset "weak-exog by index and by name" begin
+                d1 = _doc(["vecm", "weak-exog", csv, "--vars", "1", "--rank", "1"])
+                @test d1.status == "ok"
+                @test Set(["LR statistic", "df", "p-value", "rank (r)"]) ⊆ _metrics(d1)
+                d2 = _doc(["vecm", "weak-exog", csv, "--vars", "rate", "--rank", "1"])
+                @test d2.status == "ok"
+                # duplicate indices dedupe (regression: adversarial review C071) — real MEMs
+                # selects via setdiff, so `--vars 1,1` == `--vars 1` and must NOT be falsely rejected
+                d3 = _doc(["vecm", "weak-exog", csv, "--vars", "1,1", "--rank", "1"])
+                @test d3.status == "ok"
+            end
+
+            @testset "bad input → typed CliError (never internal exit 1)" begin
+                # missing --config → usage/missing-config (exit 2)
+                for leaf in ["beta", "alpha", "known-beta", "joint"]
+                    e = _errcode(["vecm", leaf, csv, "--rank", "1"])
+                    @test e isa CliError && e.code == "usage/missing-config" && exit_class(e) == 2
+                end
+                # wrong-rows H (3 rows ≠ p=2) → config/shape (exit 4)
+                badcfg = joinpath(dir, "bad.toml")
+                write(badcfg, "[vecm_restriction]\nH = [[1.0], [-1.0], [0.5]]\n")
+                e = _errcode(["vecm", "beta", csv, "--config", badcfg, "--rank", "1"])
+                @test e isa CliError && e.code == "config/shape" && exit_class(e) == 4
+                # weak-exog: empty / out-of-range / unknown name → usage/invalid (exit 2)
+                @test _errcode(["vecm", "weak-exog", csv, "--rank", "1"]) isa CliError            # no --vars
+                for badvars in ["9", "nope"]
+                    e = _errcode(["vecm", "weak-exog", csv, "--vars", badvars, "--rank", "1"])
+                    @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                end
+                # all-vars weakly exogenous rejected before the MEMs call
+                e = _errcode(["vecm", "weak-exog", csv, "--vars", "1,2", "--rank", "1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # rank-aware guard (regression C071): on a 3-series rank-2 fit, making 2 vars
+                # weakly exogenous leaves 1 < r=2 error-correcting rows → usage/invalid at the CLI
+                # boundary, NOT a config/shape (this command takes no config matrix)
+                csv3 = _make_csv(dir; T=150, n=3, colnames=["a", "b", "c"])
+                e = _errcode(["vecm", "weak-exog", csv3, "--vars", "1,2", "--rank", "2"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # fitted rank 0 → data/no-cointegration (exit 3)
+                e = _errcode(["vecm", "beta", csv, "--config", cfg, "--rank", "0"])
+                @test e isa CliError && e.code == "data/no-cointegration" && exit_class(e) == 3
+                # malformed config (missing key A for joint) → config/missing-key (exit 4)
+                honly = joinpath(dir, "honly.toml")
+                write(honly, "[vecm_restriction]\nH = [[1.0], [-1.0]]\n")
+                e = _errcode(["vecm", "joint", csv, "--config", honly, "--rank", "1"])
+                @test e isa CliError && e.code == "config/missing-key" && exit_class(e) == 4
             end
         end
     end
@@ -2966,7 +3063,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 47  # 45 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b)
+        @test length(node.subcmds) == 48  # 46 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -4383,7 +4480,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 47  # 45 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b)
+        @test length(node.subcmds) == 48  # 46 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
     end
 
     @testset "_parse_varlist" begin

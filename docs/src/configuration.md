@@ -353,6 +353,38 @@ x_lf = [1.02, 0.98, 1.15, 1.07, 0.91, 1.20, 1.05]
 |-----|-------|-------------|
 | `x_lf` | `[garch_midas]` | Low-frequency driver series (required for `--rv macro`; array of numbers, one per block) |
 
+## VECM Restriction Matrices
+
+Used by the `test vecm beta | alpha | known-beta | joint` cointegration restriction
+tests. Each supplies a restriction matrix on the estimated VECM's cointegrating
+structure via a `[vecm_restriction]` section, given **row-major** as an array of
+equal-length numeric rows. Let `p` be the number of series and `r` the (fitted or
+`--rank`-forced) cointegrating rank.
+
+- `H` — `β = Hφ` restriction (`test vecm beta`, `test vecm joint`). `H` is `p × s`
+  with `s ≥ r`. The non-binding case `H = Iₚ` (`s = p`) yields `LR ≈ 0`, `df = 0`.
+- `A` — `α = Aψ` restriction (`test vecm alpha`, `test vecm joint`). `A` is `p × a`
+  with `a ≥ r`.
+- `b` — fully specified cointegrating space `β = b` (`test vecm known-beta`). `b` is
+  `p × r` (exactly `r` columns). Setting `b` to the estimated β yields `LR ≈ 0`.
+
+`test vecm joint` reads **both** `H` and `A`. `test vecm weak-exog` needs no config —
+it takes `--vars` (comma-separated indices or names) instead.
+
+```toml
+[vecm_restriction]
+# p = 2 series, r = 1 cointegrating vector
+H = [[1.0], [-1.0]]   # β = Hφ  (p×s, s ≥ r)
+A = [[1.0], [0.0]]    # α = Aψ  (p×a, a ≥ r)
+b = [[1.0], [-1.0]]   # β = b   (p×r, exactly r columns)
+```
+
+| Key | Where | Description |
+|-----|-------|-------------|
+| `H` | `[vecm_restriction]` | `β = Hφ` matrix (`p × s`, `s ≥ r`; `beta`/`joint`) |
+| `A` | `[vecm_restriction]` | `α = Aψ` matrix (`p × a`, `a ≥ r`; `alpha`/`joint`) |
+| `b` | `[vecm_restriction]` | Known cointegrating space (`p × r`, exactly `r` cols; `known-beta`) |
+
 ## Output Formats
 
 All commands support three output formats:

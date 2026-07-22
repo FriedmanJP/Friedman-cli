@@ -261,6 +261,104 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_nyblom),
         ),
+        # C071: VECM cointegration restriction tests (Johansen LR on β / α).
+        # Each fits a VECM then tests a linear restriction on the cointegrating
+        # structure; restriction matrices come from a [vecm_restriction] config.
+        CommandSpec(
+            path=["test", "vecm", "beta"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_beta, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_beta),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "alpha"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_alpha, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_alpha),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "weak-exog"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="vars", type=String, default="", description="Comma-separated variable indices or names to test for weak exogeneity"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_weak_exog, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_weak_exog),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "known-beta"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_known_beta, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_known_beta),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "joint"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] both H and A matrices"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_joint, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_joint),
+        ),
         CommandSpec(
             path=["test", "var", "lagselect"],
             summary="Path to CSV data file",
@@ -1336,6 +1434,175 @@ function _test_nyblom(; data::String, column::Int=1, model::String="garch",
     interpret_test_result(reject_joint ? 0.01 : 0.5,
         "Reject H0 (stable parameters) at 5% -- evidence of parameter instability",
         "Cannot reject H0 (stable parameters) at 5%")
+end
+
+# ── C071: VECM cointegration restriction tests ───────────
+# Johansen LR tests of linear restrictions on the cointegrating structure
+# (β = Hφ, α = Aψ, weak exogeneity, β = b known, and joint β&α). Each fits a VECM
+# then runs the restriction test; both the fit and the test throw bare untyped
+# MEMs exceptions on bad input (r<1 → ArgumentError, matrix dims → DimensionMismatch/
+# ArgumentError), so both are wrapped to typed CliErrors (standing lesson: never let
+# an untyped exception on user input reach the top level as an internal exit-1).
+
+"""Fit the VECM every restriction leaf needs; map fit failures to typed errors and
+require a cointegrating rank ≥ 1 (all restriction tests demand r ≥ 1 upstream)."""
+function _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, _, varnames, _ = try
+        _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
+    catch e
+        e isa CliError && rethrow()
+        (e isa ArgumentError || e isa DomainError) && throw(CliError("data/invalid",
+            "VECM estimation: $(sprint(showerror, e))"; hint="check --lags/--rank/--deterministic"))
+        e isa DimensionMismatch && throw(CliError("data/shape", "VECM estimation: $(sprint(showerror, e))"))
+        throw(CliError("model/error", "VECM estimation failed: $(sprint(showerror, e))"))
+    end
+    vecm.rank >= 1 || throw(CliError("data/no-cointegration",
+        "restriction tests need cointegrating rank ≥ 1 (fitted rank = $(vecm.rank)); set --rank ≥ 1 or check the series"))
+    return vecm, varnames
+end
+
+"""Map a restriction-test failure. Matrix-dimension errors come from the user's
+`--config` restriction matrix → `config/shape`; other bad input → `data/invalid`."""
+function _vecm_restriction_error(e, what::String)
+    e isa CliError && return e
+    e isa DimensionMismatch && return CliError("config/shape",
+        "$what: $(sprint(showerror, e))"; hint="check the restriction matrix dimensions in [vecm_restriction]")
+    e isa ArgumentError && return CliError("config/shape", "$what: $(sprint(showerror, e))";
+        hint="the restriction must have at least r columns and p rows (p = number of series, r = rank)")
+    e isa DomainError && return CliError("data/invalid", "$what: $(sprint(showerror, e))")
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
+"""Render a `VECMRestrictionTest`: a kv block (LR statistic / df / p-value / rank /
+converged / restriction) plus a decision line. H0 = the restriction holds, so a low
+p-value rejects the imposed restriction."""
+function _vecm_restriction_output(res, label, vname; format, output)
+    pairs = Pair{String,Any}[
+        "LR statistic" => round(Float64(res.lr_stat); digits=4),
+        "df"           => res.df,
+        "p-value"      => round(Float64(res.pvalue); digits=4),
+        "rank (r)"     => res.rank,
+        "converged"    => res.converged,
+        "restriction"  => res.description,
+    ]
+    output_kv(pairs; format=format, output=output, title="$label: $vname")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (restriction holds) at 5% -- the imposed cointegration restriction is rejected",
+        "Cannot reject H0 at 5% -- the restriction is consistent with the data")
+end
+
+function _test_vecm_beta(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm beta requires --config <toml> with [vecm_restriction] H = [[...],...]"))
+    cfg = load_config(config)
+    H = get_vecm_restriction(cfg, "H")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM β-restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_beta_restriction(vecm, H)
+    catch e
+        throw(_vecm_restriction_error(e, "β restriction"))
+    end
+    _vecm_restriction_output(res, "VECM β-restriction (β = Hφ)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_alpha(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm alpha requires --config <toml> with [vecm_restriction] A = [[...],...]"))
+    cfg = load_config(config)
+    A = get_vecm_restriction(cfg, "A")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM α-restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_alpha_restriction(vecm, A)
+    catch e
+        throw(_vecm_restriction_error(e, "α restriction"))
+    end
+    _vecm_restriction_output(res, "VECM α-restriction (α = Aψ)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_known_beta(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm known-beta requires --config <toml> with [vecm_restriction] b = [[...],...]"))
+    cfg = load_config(config)
+    b = get_vecm_restriction(cfg, "b")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM known-β test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_known_beta(vecm, b)
+    catch e
+        throw(_vecm_restriction_error(e, "known-β restriction"))
+    end
+    _vecm_restriction_output(res, "VECM known-β (β = b)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_joint(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm joint requires --config <toml> with [vecm_restriction] both H and A matrices"))
+    cfg = load_config(config)
+    H = get_vecm_restriction(cfg, "H")
+    A = get_vecm_restriction(cfg, "A")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM joint β&α restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_joint_restriction(vecm, H, A)
+    catch e
+        throw(_vecm_restriction_error(e, "joint restriction"))
+    end
+    _vecm_restriction_output(res, "VECM joint (β=Hφ, α=Aψ)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_weak_exog(; data::String, vars::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(strip(vars)) && throw(CliError("usage/invalid",
+        "test vecm weak-exog requires --vars (e.g. --vars 1,2 or --vars gdp,rate)"))
+    # Fit first: need varnames for name resolution + n for the range check.
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    n = length(varnames)
+    idxs = Int[]
+    for tok in split(vars, ",")
+        t = strip(tok)
+        isempty(t) && continue
+        i = tryparse(Int, t)
+        if i === nothing
+            j = findfirst(==(t), varnames)
+            j === nothing && throw(CliError("usage/invalid",
+                "unknown variable '$t' (have: $(join(varnames, ", ")))"))
+            push!(idxs, j)
+        else
+            (1 <= i <= n) || throw(CliError("usage/invalid", "variable index $i out of range 1:$n"))
+            push!(idxs, i)
+        end
+    end
+    isempty(idxs) && throw(CliError("usage/invalid", "no variables parsed from --vars"))
+    # Guard on DISTINCT variables and the cointegrating rank: making `k` variables weakly
+    # exogenous leaves `n-k` error-correcting rows, and MEMs needs `n-k ≥ r` (else it throws
+    # a bare ArgumentError that would mismap to config/shape — this command takes no config
+    # matrix). Dedupe to match MEMs' setdiff-based selection (so `--vars 1,1` == `--vars 1`).
+    idxs = unique(idxs)
+    (n - length(idxs)) >= vecm.rank || throw(CliError("usage/invalid",
+        "weak-exogeneity of $(length(idxs)) variable(s) leaves $(n - length(idxs)) error-correcting equation(s), but cointegrating rank r=$(vecm.rank) needs ≥ r; select fewer variables"))
+    _status("VECM weak-exogeneity test: series=$n, rank=$(vecm.rank), vars=$(join([varnames[i] for i in idxs], ","))"); _status()
+    res = try
+        test_weak_exogeneity(vecm, idxs)
+    catch e
+        throw(_vecm_restriction_error(e, "weak-exogeneity"))
+    end
+    _vecm_restriction_output(res, "VECM weak-exogeneity", join([varnames[i] for i in idxs], ","); format=format, output=output)
+    return res
 end
 
 # ── VAR Lag Selection ────────────────────────────────────

@@ -24,9 +24,9 @@ friedman
 ├── predict     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
 ├── residuals     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
 ├── spectral     acf | cross | density | periodogram | transfer
-└── test     adf | adf-2break | andrews | arch-lm | bai-perron | bartlett-wn | box-pierce | brant | breusch-pagan | cips | dfgls | durbin-watson | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | gph | granger | gregory-hansen | hausman | hausman-iia | heteroskedasticity | identifiability | johansen | kpss | ljung-box | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | normality | np | nyblom | panic | pesaran-cd | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | sign-bias | var lagselect | var stability | vif | wooldridge-ar | za
+└── test     adf | adf-2break | andrews | arch-lm | bai-perron | bartlett-wn | box-pierce | brant | breusch-pagan | cips | dfgls | durbin-watson | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | gph | granger | gregory-hansen | hausman | hausman-iia | heteroskedasticity | identifiability | johansen | kpss | ljung-box | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | normality | np | nyblom | panic | pesaran-cd | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | sign-bias | var lagselect | var stability | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | wooldridge-ar | za
 
-Total: 17 top-level commands, 256 leaves (from registry).
+Total: 17 top-level commands, 261 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -49,7 +49,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`predict`](generated/predict.md) — 23 leaves
 - [`residuals`](generated/residuals.md) — 23 leaves
 - [`spectral`](generated/spectral.md) — 5 leaves
-- [`test`](generated/test.md) — 49 leaves
+- [`test`](generated/test.md) — 54 leaves
 
 <!-- END GENERATED -->
 

@@ -537,6 +537,60 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(mvcsv; force=true)
     end
 
+    @testset "test vecm restriction tests — real Johansen LR (C071)" begin
+        # Two I(1) series sharing a stochastic trend → cointegrating rank 1.
+        cointcsv = dgp_coint(; T=300, β=1.0, seed=71)
+        kv(doc, name) = (t = last(first_table(doc)); t === nothing ? nothing : metric_value(t, name))
+
+        # Write a restriction config (p=2, r=1). Non-binding H = I₂ (s=p) ⇒ LR ≈ 0, df = 0.
+        idcfg = tempname() * ".toml"
+        write(idcfg, "[vecm_restriction]\nH = [[1.0, 0.0], [0.0, 1.0]]\n")
+        rid = run_json(["test", "vecm", "beta", cointcsv, "--config", idcfg, "--rank", "1"])
+        assert_envelope_ok(rid; label="test vecm beta (identity H)")
+        @test kv(rid.doc, "df") == 0
+        lr0 = kv(rid.doc, "LR statistic")
+        @test lr0 !== nothing && abs(Float64(lr0)) < 1e-4       # non-binding restriction
+
+        # Binding β restriction β = Hφ with H = (1, -1)′ (s=1 ⇒ df = r(p−s) = 1).
+        bcfg = tempname() * ".toml"
+        write(bcfg, "[vecm_restriction]\nH = [[1.0], [-1.0]]\nA = [[1.0], [0.0]]\nb = [[1.0], [-1.0]]\n")
+        rb = run_json(["test", "vecm", "beta", cointcsv, "--config", bcfg, "--rank", "1"])
+        assert_envelope_ok(rb; label="test vecm beta")
+        @test kv(rb.doc, "df") == 1
+        pvb = kv(rb.doc, "p-value")
+        @test pvb !== nothing && 0.0 <= Float64(pvb) <= 1.0
+
+        # α restriction (df = r(p−a) = 1).
+        ra = run_json(["test", "vecm", "alpha", cointcsv, "--config", bcfg, "--rank", "1"])
+        assert_envelope_ok(ra; label="test vecm alpha")
+        @test kv(ra.doc, "df") == 1
+
+        # Weak exogeneity of variable 1 (df = r·|vars| = 1).
+        rw = run_json(["test", "vecm", "weak-exog", cointcsv, "--vars", "1", "--rank", "1"])
+        assert_envelope_ok(rw; label="test vecm weak-exog")
+        @test kv(rw.doc, "df") == 1
+
+        # Known β (b is p×r; df = r(p−r) = 1).
+        rk = run_json(["test", "vecm", "known-beta", cointcsv, "--config", bcfg, "--rank", "1"])
+        assert_envelope_ok(rk; label="test vecm known-beta")
+        @test kv(rk.doc, "df") == 1
+
+        # Joint β&α via the switching algorithm (df = r(p−s)+r(p−a) = 2).
+        rj = run_json(["test", "vecm", "joint", cointcsv, "--config", bcfg, "--rank", "1"])
+        assert_envelope_ok(rj; label="test vecm joint")
+        @test kv(rj.doc, "df") == 2
+
+        # Bad input stays typed (not internal exit 1): missing --config, fitted rank 0.
+        rmc = run_json(["test", "vecm", "beta", cointcsv, "--rank", "1"])
+        @test rmc.code == 2                                     # usage/missing-config
+        r0 = run_json(["test", "vecm", "beta", cointcsv, "--config", bcfg, "--rank", "0"])
+        @test r0.code == 3                                      # data/no-cointegration
+
+        rm(cointcsv; force=true)
+        rm(idcfg; force=true)
+        rm(bcfg; force=true)
+    end
+
     @testset "forecast bvar/dynamic/gdfm/favar tidy (C051 redesign)" begin
         # Previously hand-computed; now routed through MEMs forecast(...) → long_table.
         csv = dgp_var2(; T=150, seed=51)
