@@ -290,6 +290,50 @@ lower  = [-0.99, 1.0e-4]
 upper  = [0.99, 10.0]
 ```
 
+## Systems Specification (SUR / 3SLS)
+
+Used by `estimate sur --config=...` and `estimate 3sls --config=...`. Each `[[equations]]`
+block defines one equation of the system by naming a dependent column (`dep`) and its
+regressor columns (`indep`) — all column names come from the data CSV. A per-equation
+constant is added unless `--no-intercept` is passed.
+
+```toml
+[[equations]]
+name  = "consumption"        # optional label (default eq1, eq2, ...)
+dep   = "cons"
+indep = ["income", "wealth"]
+
+[[equations]]
+name  = "investment"
+dep   = "inv"
+indep = ["income", "interest"]
+```
+
+For **3SLS**, instruments are either a shared set:
+
+```toml
+[instruments]
+common = ["gov", "taxes", "lag_income"]
+```
+
+or per-equation (run with `--instruments perequation`), giving each `[[equations]]` block its
+own `instr` list:
+
+```toml
+[[equations]]
+dep   = "cons"
+indep = ["income", "wealth"]
+instr = ["gov", "lag_income"]
+```
+
+| Key | Where | Description |
+|-----|-------|-------------|
+| `dep` | each `[[equations]]` | Dependent-variable column (required) |
+| `indep` | each `[[equations]]` | Regressor columns (required, ≥1) |
+| `name` | each `[[equations]]` | Optional equation label |
+| `instr` | each `[[equations]]` | Per-equation instruments (3SLS `--instruments perequation`) |
+| `common` | `[instruments]` | Shared instrument set (3SLS `--instruments common`, the default) |
+
 ## Output Formats
 
 All commands support three output formats:

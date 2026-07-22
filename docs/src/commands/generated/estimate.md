@@ -3,7 +3,34 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 31
+**Leaves:** 33
+
+### `friedman estimate 3sls`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config: [[equations]] + instruments (required) |
+| `--instruments` | — | `String` | `common` | `common`, `perequation` | common|perequation instrument sets |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-intercept` | — | Do not add a per-equation constant |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `estimate_3sls` (Path to CSV data file)
+
+---
 
 ### `friedman estimate arch`
 
@@ -708,6 +735,33 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_static` (Path to CSV data file)
+
+---
+
+### `friedman estimate sur`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config: [[equations]] blocks (dep + indep) (required) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--iterate` | — | Iterate FGLS to the Gaussian MLE |
+| `--no-intercept` | — | Do not add a per-equation constant |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `estimate_sur` (Path to CSV data file)
 
 ---
 

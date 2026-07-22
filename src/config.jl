@@ -491,6 +491,58 @@ function get_smm(config::Dict)
     )
 end
 
+# Column-name list from a TOML value (a [[equations]] `indep`/`instr` or [instruments] `common`).
+_system_strvec(x, ctx) = begin
+    x isa AbstractVector || throw(CliError("config/type", "$ctx must be an array of column names"))
+    out = String[]
+    for v in x
+        (v isa AbstractString) || throw(CliError("config/type", "$ctx must contain only column-name strings, got $(typeof(v))"))
+        s = strip(String(v))
+        isempty(s) && throw(CliError("config/shape", "$ctx contains an empty column name"))
+        push!(out, s)
+    end
+    isempty(out) && throw(CliError("config/shape", "$ctx must list at least one column"))
+    out
+end
+
+"""
+    get_system(config) → Dict
+
+Extract a multi-equation **systems** specification (SUR / 3SLS) from a config dict.
+Each `[[equations]]` block names a dependent column (`dep`) and regressor columns
+(`indep`); a block may add its own instruments (`instr`) and/or a shared
+`[instruments].common` set may be given (3SLS).
+
+Returns `Dict("equations" => [Dict("name","dep","indep","instr"), ...],
+"common_instruments" => Vector{String} | nothing)`. Column *names* only — the
+handler resolves them against the data CSV. Raises typed `config/*` CliErrors.
+"""
+function get_system(config::Dict)
+    eqs_raw = get(config, "equations", nothing)
+    (eqs_raw isa AbstractVector && !isempty(eqs_raw)) || throw(CliError("config/missing",
+        "systems estimation requires at least one [[equations]] block with `dep` and `indep`"))
+    equations = Vector{Dict{String,Any}}()
+    for (j, e) in enumerate(eqs_raw)
+        e isa AbstractDict || throw(CliError("config/type", "[[equations]] entry $j must be a table"))
+        haskey(e, "dep") || throw(CliError("config/missing-key", "[[equations]] entry $j missing `dep`"))
+        haskey(e, "indep") || throw(CliError("config/missing-key", "[[equations]] entry $j missing `indep`"))
+        dep = strip(String(e["dep"]))
+        isempty(dep) && throw(CliError("config/shape", "[[equations]] entry $j has an empty `dep`"))
+        push!(equations, Dict{String,Any}(
+            "name"  => haskey(e, "name") ? String(e["name"]) : "eq$(j)",
+            "dep"   => dep,
+            "indep" => _system_strvec(e["indep"], "[[equations]] entry $j `indep`"),
+            "instr" => haskey(e, "instr") ? _system_strvec(e["instr"], "[[equations]] entry $j `instr`") : nothing,
+        ))
+    end
+    common = nothing
+    instr_tbl = get(config, "instruments", nothing)
+    if instr_tbl isa AbstractDict && haskey(instr_tbl, "common")
+        common = _system_strvec(instr_tbl["common"], "[instruments] `common`")
+    end
+    Dict{String,Any}("equations" => equations, "common_instruments" => common)
+end
+
 """
     get_dsge_priors(config) → Dict{String,Any}
 

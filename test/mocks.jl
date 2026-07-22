@@ -2218,6 +2218,90 @@ export SMMModel, ParameterTransform
 export estimate_smm, autocovariance_moments, autocovariance_moment_contributions
 export to_unconstrained, to_constrained, transform_jacobian
 
+# ─── Systems: SUR & 3SLS (C063) ──────────────────────────────
+# Fields match the real MEMs SURModel/ThreeSLSModel (system/types.jl). estimate_*
+# compute genuine per-equation OLS so T1/T2 exercises the handler's table-shaping.
+struct SURModel{T<:AbstractFloat}
+    eqnames::Vector{String}
+    varnames::Vector{Vector{String}}
+    betas::Vector{Vector{T}}
+    ses::Vector{Vector{T}}
+    vcov_mat::Matrix{T}
+    Sigma::Matrix{T}
+    residuals::Vector{Vector{T}}
+    fitted::Vector{Vector{T}}
+    nobs::Int
+    det_sigma::T
+    mcelroy_r2::T
+    loglik::T
+    iterations::Int
+    iterated::Bool
+    restricted::Bool
+end
+
+struct ThreeSLSModel{T<:AbstractFloat}
+    eqnames::Vector{String}
+    varnames::Vector{Vector{String}}
+    betas::Vector{Vector{T}}
+    ses::Vector{Vector{T}}
+    vcov_mat::Matrix{T}
+    Sigma::Matrix{T}
+    residuals::Vector{Vector{T}}
+    fitted::Vector{Vector{T}}
+    nobs::Int
+    det_sigma::T
+    mcelroy_r2::T
+    n_instruments::Vector{Int}
+end
+
+# Per-equation OLS point estimates + textbook SEs (a stand-in for FGLS/3SLS; enough
+# for T1/T2 to check the handler renders a well-formed per-(equation,term) table).
+function _mock_system_fit(eqs::AbstractVector)
+    M = length(eqs)
+    betas = Vector{Vector{Float64}}(undef, M); ses = Vector{Vector{Float64}}(undef, M)
+    vns = Vector{Vector{String}}(undef, M)
+    resids = Vector{Vector{Float64}}(undef, M); fitted = Vector{Vector{Float64}}(undef, M)
+    Tn = 0
+    for (j, e) in enumerate(eqs)
+        y = Float64.(collect(e[1])); X = Matrix{Float64}(e[2])
+        Tn = length(y); k = size(X, 2)
+        vns[j] = length(e) >= 3 ? String.(collect(e[3])) : ["eq$(j)_x$i" for i in 1:k]
+        b = X \ y; r = y .- X * b
+        s2 = sum(abs2, r) / max(Tn - k, 1)
+        XtXinv = inv(X' * X)
+        betas[j] = b
+        ses[j] = [sqrt(abs(XtXinv[i, i]) * s2) for i in 1:k]
+        resids[j] = r; fitted[j] = X * b
+    end
+    (betas, ses, vns, resids, fitted, Tn)
+end
+
+function estimate_sur(eqs::AbstractVector; iterate::Bool=false, tol::Real=1e-8,
+                      maxiter::Int=100, restrict=nothing, eqnames=nothing)
+    betas, ses, vns, resids, fitted, Tn = _mock_system_fit(eqs)
+    M = length(eqs)
+    enames = eqnames === nothing ? ["eq$(j)" for j in 1:M] : String.(collect(eqnames))
+    K = sum(length(b) for b in betas)
+    SURModel{Float64}(enames, vns, betas, ses, Matrix{Float64}(I(K)) .* 0.01,
+                      Matrix{Float64}(I(M)), resids, fitted, Tn, 1.0, 0.8, -100.0,
+                      iterate ? 3 : 1, iterate, restrict !== nothing)
+end
+
+function estimate_3sls(eqs::AbstractVector, Z; instruments::Symbol=:common, eqnames=nothing)
+    instruments in (:common, :perequation) ||
+        throw(ArgumentError("instruments must be :common or :perequation; got :$instruments"))
+    betas, ses, vns, resids, fitted, Tn = _mock_system_fit(eqs)
+    M = length(eqs)
+    enames = eqnames === nothing ? ["eq$(j)" for j in 1:M] : String.(collect(eqnames))
+    K = sum(length(b) for b in betas)
+    ninstr = Z isa AbstractVector ? [size(Matrix{Float64}(z), 2) for z in Z] :
+                                    fill(size(Matrix{Float64}(Z), 2), M)
+    ThreeSLSModel{Float64}(enames, vns, betas, ses, Matrix{Float64}(I(K)) .* 0.01,
+                           Matrix{Float64}(I(M)), resids, fitted, Tn, 1.0, 0.8, ninstr)
+end
+
+export SURModel, ThreeSLSModel, estimate_sur, estimate_3sls
+
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 
 struct BVARForecast{T<:AbstractFloat}

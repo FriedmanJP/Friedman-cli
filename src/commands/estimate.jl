@@ -408,6 +408,40 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_iv),
         ),
         CommandSpec(
+            path=["estimate", "sur"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config: [[equations]] blocks (dep + indep) (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[
+                FlagSpec(name="iterate", description="Iterate FGLS to the Gaussian MLE"),
+                FlagSpec(name="no-intercept", description="Do not add a per-equation constant"),
+            ],
+            tables=[TableSpec(name=:estimate_sur, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_sur),
+        ),
+        CommandSpec(
+            path=["estimate", "3sls"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config: [[equations]] + instruments (required)"),
+                OptionSpec(name="instruments", type=String, default="common", choices=["common","perequation"], description="common|perequation instrument sets"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[
+                FlagSpec(name="no-intercept", description="Do not add a per-equation constant"),
+            ],
+            tables=[TableSpec(name=:estimate_3sls, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_3sls),
+        ),
+        CommandSpec(
             path=["estimate", "logit"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1668,6 +1702,146 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
         push!(pairs, "Sargan p-value"   => round(model.sargan_pval; digits=4))
     end
     output_kv(pairs; format=format, title="IV Diagnostics")
+    return model
+end
+
+# ── Systems: SUR & 3SLS (C063, M5c) ─────────────────────────
+# SURModel/ThreeSLSModel are not Tables.jl-registered upstream, so the coefficient
+# table is hand-built (documented C051 exception, like the io family): one tidy row
+# per (equation, term). Both are asymptotic (FGLS / 3SLS) → normal-approx p-values/CIs.
+
+# Build a (y, X, names) equation tuple from column names; optionally prepend a constant.
+function _system_eq_matrix(df, numcols::Vector{String}, eq::AbstractDict, intercept::Bool)
+    eq["dep"] in numcols || throw(CliError("config/bad-column",
+        "equation '$(eq["name"])': dependent column '$(eq["dep"])' not found in numeric columns: $(join(numcols, ", "))"))
+    for c in eq["indep"]
+        c in numcols || throw(CliError("config/bad-column",
+            "equation '$(eq["name"])': regressor column '$c' not found in numeric columns: $(join(numcols, ", "))"))
+    end
+    y = Vector{Float64}(df[!, eq["dep"]])
+    Xcols = [Vector{Float64}(df[!, c]) for c in eq["indep"]]
+    X = intercept ? hcat(ones(Float64, length(y)), Xcols...) : reduce(hcat, Xcols)
+    names = intercept ? String["const"; eq["indep"]...] : String[eq["indep"]...]
+    return (y, X, names)   # (y, X, names) tuple for estimate_sur/estimate_3sls
+end
+
+# Per-equation instrument matrix (3SLS instruments=perequation); optional constant.
+function _system_instr_matrix(df, numcols::Vector{String}, eq::AbstractDict, intercept::Bool)
+    eq["instr"] === nothing && throw(CliError("config/missing-key",
+        "instruments=perequation requires each [[equations]] block to set `instr`; equation '$(eq["name"])' has none"))
+    for c in eq["instr"]
+        c in numcols || throw(CliError("config/bad-column",
+            "equation '$(eq["name"])': instrument '$c' not found in numeric columns"))
+    end
+    Zcols = [Vector{Float64}(df[!, c]) for c in eq["instr"]]
+    intercept ? hcat(ones(Float64, size(df, 1)), Zcols...) : hcat(Zcols...)
+end
+
+# Tidy coefficient table for a SUR/ThreeSLS model: equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper.
+function _system_coef_table(model)
+    eqc = String[]; term = String[]; est = Float64[]; sec = Float64[]
+    stat = Float64[]; pval = Float64[]; lo = Float64[]; hi = Float64[]
+    z95 = 1.959964
+    for j in eachindex(model.eqnames)
+        b = model.betas[j]; s = model.ses[j]; vn = model.varnames[j]
+        for i in eachindex(b)
+            zi = s[i] == 0 ? 0.0 : b[i] / s[i]
+            push!(eqc, model.eqnames[j]); push!(term, vn[i])
+            push!(est, round(b[i]; digits=6)); push!(sec, round(s[i]; digits=6))
+            push!(stat, round(zi; digits=4)); push!(pval, round(2.0 * (1.0 - _normal_cdf(abs(zi))); digits=4))
+            push!(lo, round(b[i] - z95 * s[i]; digits=6)); push!(hi, round(b[i] + z95 * s[i]; digits=6))
+        end
+    end
+    DataFrame(equation=eqc, term=term, estimate=est, std_error=sec,
+              stat=stat, p_value=pval, ci_lower=lo, ci_upper=hi)
+end
+
+# Map an estimation failure to a typed CliError (never an uncaught exit-1 — io-family lesson).
+function _system_estimation_error(e, what::String)
+    e isa CliError && return e
+    e isa ArgumentError && return CliError("config/system", sprint(showerror, e);
+        hint="check equation specs: all equations need equal T, valid columns, and enough observations")
+    return CliError("model/error", "$what estimation failed: $(sprint(showerror, e))";
+        hint="near-singular system — drop collinear regressors or add observations")
+end
+
+function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
+                        no_intercept::Bool=false, output::String="", format::String="table")
+    isempty(config) && throw(CliError("config/missing",
+        "estimate sur requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    spec = get_system(load_config(config))
+    intercept = !no_intercept
+    eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    eqnames = String[eq["name"] for eq in spec["equations"]]
+
+    _status("SUR: $(length(eqs)) equations, $(intercept ? "with" : "no") intercept, iterate=$iterate")
+    _status()
+    model = try
+        estimate_sur(eqs; iterate=iterate, eqnames=eqnames)
+    catch e
+        throw(_system_estimation_error(e, "SUR"))
+    end
+
+    output_result(_system_coef_table(model); format=Symbol(format), output=output,
+                  title="SUR Coefficients")
+    kind = model.iterated ? "Iterated SUR" : "SUR"
+    output_kv(Pair{String,Any}[
+        "estimator"  => model.restricted ? "$kind (restricted)" : kind,
+        "equations"  => length(model.eqnames),
+        "obs_per_eq" => model.nobs,
+        "det_sigma"  => round(model.det_sigma; digits=6),
+        "mcelroy_r2" => round(model.mcelroy_r2; digits=6),
+        "loglik"     => round(model.loglik; digits=4),
+        "iterations" => model.iterations,
+    ]; format=format, title="SUR System Statistics")
+    return model
+end
+
+function _estimate_3sls(; data::String, config::String="", instruments::String="common",
+                         no_intercept::Bool=false, output::String="", format::String="table")
+    isempty(config) && throw(CliError("config/missing",
+        "estimate 3sls requires --config <toml> with [[equations]] and instruments"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    spec = get_system(load_config(config))
+    intercept = !no_intercept
+    eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    eqnames = String[eq["name"] for eq in spec["equations"]]
+    imode = Symbol(instruments)
+
+    Z = if imode == :common
+        spec["common_instruments"] === nothing && throw(CliError("config/missing",
+            "instruments=common requires an [instruments] section with a `common` list"))
+        for c in spec["common_instruments"]
+            c in numcols || throw(CliError("config/bad-column",
+                "instrument '$c' not found in numeric columns: $(join(numcols, ", "))"))
+        end
+        Zcols = [Vector{Float64}(df[!, c]) for c in spec["common_instruments"]]
+        intercept ? hcat(ones(Float64, size(df, 1)), Zcols...) : hcat(Zcols...)
+    else
+        [_system_instr_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    end
+
+    _status("3SLS: $(length(eqs)) equations, instruments=$instruments, $(intercept ? "with" : "no") intercept")
+    _status()
+    model = try
+        estimate_3sls(eqs, Z; instruments=imode, eqnames=eqnames)
+    catch e
+        throw(_system_estimation_error(e, "3SLS"))
+    end
+
+    output_result(_system_coef_table(model); format=Symbol(format), output=output,
+                  title="3SLS Coefficients")
+    output_kv(Pair{String,Any}[
+        "estimator"          => "3SLS",
+        "equations"          => length(model.eqnames),
+        "obs_per_eq"         => model.nobs,
+        "det_sigma"          => round(model.det_sigma; digits=6),
+        "mcelroy_r2"         => round(model.mcelroy_r2; digits=6),
+        "instruments_per_eq" => join(model.n_instruments, ", "),
+    ]; format=format, title="3SLS System Statistics")
     return model
 end
 

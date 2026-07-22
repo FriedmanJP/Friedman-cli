@@ -425,8 +425,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 31 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 32 keys (C044)
-        @test length(node.subcmds) == 32
+        # 33 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 34 keys (C044)
+        @test length(node.subcmds) == 34
         for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -844,6 +844,104 @@ end  # Shared utilities
             lags = 1
             """)
             @test_throws CliError _estimate_smm(; data=csv, config=config_path, format="table")
+        end
+    end
+
+    @testset "_estimate_sur / _estimate_3sls (C063 systems)" begin
+        _sys_csv(dir) = begin
+            path = joinpath(dir, "sys.csv")
+            open(path, "w") do io
+                println(io, "y1,y2,x1,x2,x3")
+                for _ in 1:120
+                    x1 = randn(); x2 = randn(); x3 = randn()
+                    y1 = 1.0 + 0.5x1 + 0.3x2 + 0.2randn()
+                    y2 = -0.5 + 0.8x2 + 0.2x3 + 0.2randn()
+                    println(io, join((y1, y2, x1, x2, x3), ","))
+                end
+            end
+            path
+        end
+        _sur_cfg(dir) = begin
+            p = joinpath(dir, "sur.toml")
+            write(p, """
+            [[equations]]
+            name = "consumption"
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            name = "investment"
+            dep = "y2"
+            indep = ["x2", "x3"]
+            """)
+            p
+        end
+        _sysdoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _coefcols(doc) = first(t for t in values(doc.data)
+                               if "term" in String.(t.columns) && "estimate" in String.(t.columns))
+
+        @testset "sur tidy coef + system stats" begin
+            mktempdir() do dir
+                doc = _sysdoc(["sur", _sys_csv(dir), "--config", _sur_cfg(dir)])
+                @test doc.status == "ok"
+                coef = _coefcols(doc)
+                @test Set(["equation", "term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"]) ⊆ Set(String.(coef.columns))
+                eqs = Set(String(collect(r)[1]) for r in coef.rows)
+                @test "consumption" in eqs && "investment" in eqs
+                @test length(coef.rows) == 6                 # 2 eq × (const + 2 regressors)
+                @test any(t -> "metric" in String.(t.columns), values(doc.data))
+            end
+        end
+
+        @testset "sur --iterate --no-intercept" begin
+            mktempdir() do dir
+                doc = _sysdoc(["sur", _sys_csv(dir), "--config", _sur_cfg(dir), "--iterate", "--no-intercept"])
+                coef = _coefcols(doc)
+                terms = Set(String(collect(r)[2]) for r in coef.rows)
+                @test !("const" in terms)
+                @test length(coef.rows) == 4                 # 2 eq × 2 regressors, no const
+            end
+        end
+
+        @testset "3sls common instruments" begin
+            mktempdir() do dir
+                csv = _sys_csv(dir); cfg = joinpath(dir, "3sls.toml")
+                write(cfg, """
+                [[equations]]
+                dep = "y1"
+                indep = ["x1", "x2"]
+                [[equations]]
+                dep = "y2"
+                indep = ["x2", "x3"]
+                [instruments]
+                common = ["x1", "x2", "x3"]
+                """)
+                doc = _sysdoc(["3sls", csv, "--config", cfg])
+                @test doc.status == "ok"
+                coef = _coefcols(doc)
+                @test length(coef.rows) == 6
+                @test any(t -> "metric" in String.(t.columns), values(doc.data))
+            end
+        end
+
+        @testset "config errors (typed, not exit-1)" begin
+            mktempdir() do dir
+                csv = _sys_csv(dir); cfg = _sur_cfg(dir)
+                _errcode(args) = begin
+                    err = nothing
+                    try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch e; err = e; end
+                    err
+                end
+                @test _errcode(["sur", csv]) isa CliError && _errcode(["sur", csv]).code == "config/missing"
+                @test _errcode(["3sls", csv, "--config", cfg]).code == "config/missing"   # no instruments
+                badcfg = joinpath(dir, "bad.toml")
+                write(badcfg, "[[equations]]\ndep = \"y1\"\nindep = [\"nope\"]\n")
+                @test _errcode(["sur", csv, "--config", badcfg]).code == "config/bad-column"
+            end
         end
     end
 
@@ -2343,7 +2441,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 32  # 31 primary + gjr_garch alias
+        @test length(node.subcmds) == 34  # 33 primary + gjr_garch alias
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3760,7 +3858,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 32  # 31 primary + gjr_garch alias
+        @test length(node.subcmds) == 34  # 33 primary + gjr_garch alias
     end
 
     @testset "register_irf_commands! includes pvar" begin

@@ -206,6 +206,77 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(cfg; force=true)
     end
 
+    @testset "estimate sur / 3sls — systems (C063, M5c)" begin
+        Random.seed!(4242)
+        Tn = 300
+        x1 = randn(Tn); x2 = randn(Tn); x3 = randn(Tn)
+        U = ([1.0 0.0; 0.6 0.8] * randn(2, Tn))'    # cross-equation error correlation
+        y1 = 1.0 .+ 0.5 .* x1 .+ 0.3 .* x2 .+ U[:, 1]
+        y2 = -0.5 .+ 0.8 .* x2 .+ 0.2 .* x3 .+ U[:, 2]
+        csv = tempname() * ".csv"
+        open(csv, "w") do io
+            println(io, "y1,y2,x1,x2,x3")
+            for t in 1:Tn
+                println(io, join((y1[t], y2[t], x1[t], x2[t], x3[t]), ","))
+            end
+        end
+        surcfg = tempname() * "_sur.toml"
+        write(surcfg, """
+        [[equations]]
+        name = "consumption"
+        dep = "y1"
+        indep = ["x1", "x2"]
+        [[equations]]
+        name = "investment"
+        dep = "y2"
+        indep = ["x2", "x3"]
+        """)
+        _syscoef(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                ("equation" in table_cols(v) && "term" in table_cols(v)) && return v
+            end
+            nothing
+        end
+
+        @testset "sur tidy coef + slope recovery" begin
+            r = run_json(["estimate", "sur", csv, "--config", surcfg])
+            assert_envelope_ok(r; label="estimate sur")
+            coef = _syscoef(r.doc)
+            @test coef !== nothing
+            if coef !== nothing
+                @test issubset(["equation", "term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"],
+                               table_cols(coef))
+                rows = [collect(row) for row in table_rows(coef)]
+                @test length(rows) == 6                       # 2 eq × (const + 2)
+                ei = col_index(coef, "estimate"); ti = col_index(coef, "term"); qi = col_index(coef, "equation")
+                @test all(isfinite(Float64(row[ei])) for row in rows)
+                x1row = rows[findfirst(row -> string(row[qi]) == "consumption" && string(row[ti]) == "x1", rows)]
+                @test 0.3 < Float64(x1row[ei]) < 0.7          # true 0.5
+            end
+        end
+
+        @testset "3sls (instruments span regressors → collapses to SUR)" begin
+            tslscfg = tempname() * "_3sls.toml"
+            write(tslscfg, """
+            [[equations]]
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            dep = "y2"
+            indep = ["x2", "x3"]
+            [instruments]
+            common = ["x1", "x2", "x3"]
+            """)
+            r = run_json(["estimate", "3sls", csv, "--config", tslscfg])
+            assert_envelope_ok(r; label="estimate 3sls")
+            coef = _syscoef(r.doc)
+            @test coef !== nothing && length(table_rows(coef)) == 6
+            rm(tslscfg; force=true)
+        end
+        rm(csv; force=true); rm(surcfg; force=true)
+    end
+
     @testset "test adf rejects unit root on stationary series" begin
         # Strongly mean-reverting → p-value should be small
         csv = dgp_ar1(; T=400, φ=0.2, seed=3)

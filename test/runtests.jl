@@ -3154,6 +3154,35 @@ using TOML
         @test gmm_empty["weighting"] == "twostep"
     end
 
+    @testset "get_system (SUR/3SLS, C063)" begin
+        cfg = Dict("equations" => [
+                Dict("name" => "consumption", "dep" => "y1", "indep" => ["x1", "x2"]),
+                Dict("dep" => "y2", "indep" => ["x2", "x3"]),
+            ],
+            "instruments" => Dict("common" => ["x1", "x2", "x3"]))
+        sys = get_system(cfg)
+        @test length(sys["equations"]) == 2
+        @test sys["equations"][1]["name"] == "consumption"
+        @test sys["equations"][2]["name"] == "eq2"          # default name
+        @test sys["equations"][1]["dep"] == "y1"
+        @test sys["equations"][1]["indep"] == ["x1", "x2"]
+        @test sys["equations"][1]["instr"] === nothing
+        @test sys["common_instruments"] == ["x1", "x2", "x3"]
+
+        # per-equation instruments
+        sys2 = get_system(Dict("equations" => [
+            Dict("dep" => "y1", "indep" => ["x1"], "instr" => ["z1", "z2"])]))
+        @test sys2["equations"][1]["instr"] == ["z1", "z2"]
+        @test sys2["common_instruments"] === nothing
+
+        # errors: no equations, missing dep/indep, bad types
+        @test_throws CliError get_system(Dict())
+        @test_throws CliError get_system(Dict("equations" => []))
+        @test_throws CliError get_system(Dict("equations" => [Dict("indep" => ["x1"])]))          # no dep
+        @test_throws CliError get_system(Dict("equations" => [Dict("dep" => "y1")]))              # no indep
+        @test_throws CliError get_system(Dict("equations" => [Dict("dep" => "y1", "indep" => [])])) # empty indep
+    end
+
     @testset "_parse_matrix" begin
         # Valid 2x3 → correct Matrix{Float64}
         mat = _parse_matrix([[1, 2, 3], [4, 5, 6]])
@@ -3702,8 +3731,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 31 primary leaves + 1 snake alias (gjr_garch) = 32 keys (C044)
-    @test length(est_node.subcmds) == 32
+    # 33 primary leaves + 1 snake alias (gjr_garch) = 34 keys (C044)
+    @test length(est_node.subcmds) == 34
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")

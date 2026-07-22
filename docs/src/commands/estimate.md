@@ -475,6 +475,70 @@ friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instrumen
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test).
 
+## estimate sur
+
+Seemingly-unrelated regressions (Zellner 1962), fitted by feasible GLS across a multi-equation system. The equation system is specified in a config TOML; each `[[equations]]` block names a dependent column and its regressors (column names from the data CSV). Efficiency gains over equation-by-equation OLS come from cross-equation error correlation.
+
+```bash
+friedman estimate sur data.csv --config=system.toml
+friedman estimate sur data.csv --config=system.toml --iterate        # iterate FGLS to the MLE
+friedman estimate sur data.csv --config=system.toml --no-intercept
+```
+
+```toml
+[[equations]]
+name  = "consumption"       # optional; default eq1, eq2, ...
+dep   = "cons"
+indep = ["income", "wealth"]
+
+[[equations]]
+name  = "investment"
+dep   = "inv"
+indep = ["income", "interest"]
+```
+
+| Option / Flag | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--config` | String | (required) | TOML with `[[equations]]` blocks (`dep` + `indep`) |
+| `--iterate` | flag | | Iterate FGLS to the Gaussian MLE |
+| `--no-intercept` | flag | | Omit the per-equation constant (added by default) |
+| `--format` | String | `table` | `table`, `csv`, `json` |
+| `--output` | String | | Export file path |
+
+**Output:** a tidy `equation \| term \| estimate \| std_error \| stat \| p_value \| ci_lower \| ci_upper` coefficient table (asymptotic normal inference) + a system-statistics table (equations, obs/eq, det(Σ), McElroy R², log-likelihood, FGLS iterations). SUR/3SLS result types are not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception, like the `io` family).
+
+## estimate 3sls
+
+Three-stage least squares (Zellner & Theil 1962) for a simultaneous system: each equation's regressors are projected onto the instrument space, then a system GLS estimator combines instrumentation with the SUR efficiency gain. Instruments are a common set (`[instruments].common`) or per-equation (`instr` in each `[[equations]]` block, with `--instruments perequation`).
+
+```bash
+friedman estimate 3sls data.csv --config=system.toml                       # common instruments
+friedman estimate 3sls data.csv --config=system.toml --instruments=perequation
+```
+
+```toml
+[[equations]]
+dep   = "cons"
+indep = ["income", "wealth"]
+
+[[equations]]
+dep   = "inv"
+indep = ["income", "interest"]
+
+[instruments]
+common = ["gov", "taxes", "lag_income"]
+```
+
+| Option / Flag | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--config` | String | (required) | TOML with `[[equations]]` + instruments |
+| `--instruments` | String | `common` | `common` (shared set) or `perequation` (each block's `instr`) |
+| `--no-intercept` | flag | | Omit the per-equation constant |
+| `--format` | String | `table` | `table`, `csv`, `json` |
+| `--output` | String | | Export file path |
+
+When the instruments span every regressor, 3SLS collapses to SUR; when every equation is exactly identified it collapses to equation-by-equation 2SLS. **Output:** the same tidy coefficient table as `sur` + a system-statistics table (with instruments-per-equation).
+
 ## estimate logit
 
 Logit (logistic regression) for binary choice models.
