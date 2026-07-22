@@ -3890,9 +3890,9 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 14 primary + gjr_garch alias (C044)
+    # Forecast: 14 primary + gjr_garch alias + evaluate sub-node (C044/C072)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 15
+    @test length(fc_node.subcmds) == 16
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 

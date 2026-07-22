@@ -14,7 +14,7 @@ _friedman() {
     estimate) COMPREPLY=( $(compgen -W "3sls arch arima bvar dynamic egarch fastica favar garch gdfm gjr-garch gmm iv logit lp ml mlogit ologit oprobit piv plogit pprobit preg probit pvar reg sdfm smm static sur sv var vecm" -- "$cur") ) ;;
     fevd) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm var vecm" -- "$cur") ) ;;
     filter) COMPREPLY=( $(compgen -W "bhp bk bn hamilton hp x13" -- "$cur") ) ;;
-    forecast) COMPREPLY=( $(compgen -W "arch arima bvar dynamic egarch favar garch gdfm gjr-garch lp static sv var vecm" -- "$cur") ) ;;
+    forecast) COMPREPLY=( $(compgen -W "arch arima bvar dynamic egarch evaluate favar garch gdfm gjr-garch lp static sv var vecm" -- "$cur") ) ;;
     hd) COMPREPLY=( $(compgen -W "bvar favar lp var vecm" -- "$cur") ) ;;
     io) COMPREPLY=( $(compgen -W "baqaee-farhi download extract footprint ghosh key-sectors leontief linkages load multipliers sda sources" -- "$cur") ) ;;
     irf) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm var vecm" -- "$cur") ) ;;

@@ -277,6 +277,97 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(surcfg; force=true)
     end
 
+    @testset "forecast evaluate — evaluation & combination (C072, M5c)" begin
+        # y = AR(1); f1 a decent forecast (small noise), f2 a noisier competitor.
+        Random.seed!(9090)
+        Tn = 250
+        y = Vector{Float64}(undef, Tn); y[1] = randn()
+        for t in 2:Tn
+            y[t] = 0.6 * y[t-1] + randn()
+        end
+        y .+= 10.0                                   # shift away from zero (well-defined MAPE)
+        f1 = y .+ 0.30 .* randn(Tn)                  # good forecast
+        f2 = y .+ 1.20 .* randn(Tn)                  # noisier forecast
+        csv = tempname() * "_fceval.csv"
+        open(csv, "w") do io
+            println(io, "y,f1,f2")
+            for t in 1:Tn
+                println(io, join((y[t], f1[t], f2[t]), ","))
+            end
+        end
+
+        _kvval(doc, name) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) || continue
+                mv = metric_value(v, name)
+                mv === nothing || return mv
+            end
+            nothing
+        end
+        _tblcol(doc, col) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                col in table_cols(v) && return v
+            end
+            nothing
+        end
+
+        @testset "metrics — RMSE(f1) < RMSE(f2)" begin
+            r = run_json(["forecast", "evaluate", "metrics", csv, "--actual", "y", "--forecasts", "f1,f2"])
+            assert_envelope_ok(r; label="forecast evaluate metrics")
+            acc = _tblcol(r.doc, "RMSE")
+            @test acc !== nothing
+            if acc !== nothing
+                @test issubset(["model","ME","MAE","RMSE","MAPE","sMAPE","MASE","U1","U2"], table_cols(acc))
+                rows = [collect(row) for row in table_rows(acc)]
+                @test length(rows) == 2
+                ri = col_index(acc, "RMSE")
+                rmses = [Float64(row[ri]) for row in rows]
+                @test all(isfinite, rmses)
+                @test rmses[1] < rmses[2]              # teeth: f1 more accurate than f2
+            end
+            dec = _tblcol(r.doc, "bias")
+            @test dec !== nothing
+            if dec !== nothing
+                drow = collect(first(table_rows(dec)))
+                props = [Float64(drow[col_index(dec, c)]) for c in ("bias","variance","covariance")]
+                @test all(p -> -1e-6 <= p <= 1.0 + 1e-6, props)
+                @test isapprox(sum(props), 1.0; atol=1e-3)   # Theil proportions sum to 1
+            end
+        end
+
+        @testset "dm / clark-west / mincer-zarnowitz / encompassing p-values in [0,1]" begin
+            for (leaf, fc) in (("dm", "f1,f2"), ("clark-west", "f1,f2"),
+                               ("mincer-zarnowitz", "f1"), ("encompassing", "f1,f2"))
+                r = run_json(["forecast", "evaluate", leaf, csv, "--actual", "y", "--forecasts", fc])
+                assert_envelope_ok(r; label="forecast evaluate $leaf")
+                stat = _kvval(r.doc, "statistic")
+                leaf in ("dm", "clark-west") && (@test stat isa Real && isfinite(Float64(stat)))
+                pname = leaf == "mincer-zarnowitz" ? "p_value_wald" : "p_value"
+                pv = _kvval(r.doc, pname)
+                @test pv isa Real && 0.0 <= Float64(pv) <= 1.0
+            end
+        end
+
+        @testset "combine — equal weights + bates-granger favors f1" begin
+            r = run_json(["forecast", "evaluate", "combine", csv, "--actual", "y",
+                          "--forecasts", "f1,f2", "--method", "bates-granger"])
+            assert_envelope_ok(r; label="forecast evaluate combine")
+            w = _tblcol(r.doc, "weight")
+            @test w !== nothing
+            if w !== nothing
+                rows = [collect(row) for row in table_rows(w)]
+                @test length(rows) == 2
+                wi = col_index(w, "weight")
+                weights = [Float64(row[wi]) for row in rows]
+                @test isapprox(sum(weights), 1.0; atol=1e-4)
+                @test weights[1] > weights[2]          # inverse-MSE weight favors the better f1
+            end
+        end
+        rm(csv; force=true)
+    end
+
     @testset "test adf rejects unit root on stationary series" begin
         # Strongly mean-reverting → p-value should be small
         csv = dgp_ar1(; T=400, φ=0.2, seed=3)

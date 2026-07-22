@@ -212,12 +212,111 @@ function forecast_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:forecast_favar, description="Path to CSV data file")],
             category="forecast",
             handler=wrap_legacy(_forecast_favar),
+        ),
+        # ── forecast evaluate: forecast evaluation & combination (C072, M5c) ──
+        # Nested depth-3 sub-node. Uniform input: a CSV + --actual <col> +
+        # --forecasts <c1,c2,...>; the handler forms errors / f_adj / the matrix.
+        CommandSpec(
+            path=["forecast", "evaluate", "metrics"],
+            summary="Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil decomposition",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=1)"),
+                OptionSpec(name="seasonal-period", type=Int, default=1, description="Seasonal lag for MASE naive-forecast scaling"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_accuracy_metrics, description="Point accuracy metrics, one row per forecast")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_metrics),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "dm"],
+            summary="Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
+                OptionSpec(name="loss", type=String, default="se", choices=["se","ad"], description="Loss: se (squared) | ad (absolute)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
+                OptionSpec(name="alternative", type=String, default="two-sided", choices=["two-sided","less","greater"], description="Alternative hypothesis"),
+            ], OUTPUT_OPTIONS),
+            flags=[FlagSpec(name="no-hln", description="Disable the Harvey-Leybourne-Newbold small-sample correction (use N(0,1))")],
+            tables=[TableSpec(name=:diebold_mariano_test, description="DM statistic / p-value")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_dm),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "clark-west"],
+            summary="Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: small then big)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Two forecast columns: small (restricted), big (unrestricted)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
+                OptionSpec(name="alternative", type=String, default="greater", choices=["two-sided","less","greater"], description="Alternative hypothesis"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:clark_west_test, description="CW statistic / one-sided p-value")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_clark_west),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "mincer-zarnowitz"],
+            summary="Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="One forecast column name (required)"),
+                OptionSpec(name="lags", type=Int, default=0, description="Newey-West HAC truncation lag (0 = White)"),
+                OptionSpec(name="kernel", type=String, default="bartlett", choices=["bartlett","parzen","quadratic_spectral","tukey_hanning"], description="HAC kernel"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:mincer_zarnowitz_test, description="a, b, HAC SEs, joint Wald/F")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_mincer_zarnowitz),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "encompassing"],
+            summary="Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
+                OptionSpec(name="lags", type=Int, default=0, description="Newey-West HAC truncation lag (0 = White)"),
+                OptionSpec(name="kernel", type=String, default="bartlett", choices=["bartlett","parzen","quadratic_spectral","tukey_hanning"], description="HAC kernel"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_encompassing_test, description="b1, b2, t-stat on b2")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_encompassing),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "combine"],
+            summary="Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 forecasts)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=2)"),
+                OptionSpec(name="method", type=String, default="equal", choices=["equal","bates-granger","granger-ramanathan"], description="Combination method"),
+            ], OUTPUT_OPTIONS),
+            flags=[FlagSpec(name="emit-series", description="Also emit the combined forecast series (index|combined)")],
+            tables=[TableSpec(name=:forecast_combination_weights, description="model | weight | mse")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_combine),
         )
     ]
 end
 
 function register_forecast_commands!()
-    specs = with_config_ergonomics(with_model_option(forecast_specs()))
+    all_specs = forecast_specs()
+    # The `forecast evaluate` leaves are model-agnostic (plain CSV columns) and take
+    # no model handle — don't inject --model onto them, or a stray `--model foo`
+    # would MethodError the handler (exit 1) instead of a clean unknown-option usage error.
+    is_eval(s) = length(s.path) >= 2 && s.path[2] == "evaluate"
+    specs = with_config_ergonomics(vcat(
+        with_model_option(filter(!is_eval, all_specs)),
+        filter(is_eval, all_specs)))
     register!(specs)
     return build_node("forecast", specs; description="Forecasting")
 end
@@ -574,4 +673,231 @@ function _forecast_favar(; data::String="", factors=nothing, lags::Int=2,
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="FAVAR Forecast (h=$horizons)")
+end
+
+# ── forecast evaluate: forecast evaluation & combination (C072, M5c) ──
+# Wraps the MEMs `fceval/` module (model-agnostic, plain vectors). The result
+# types (ForecastEvaluation/DMTestResult/…) are NOT Tables.jl-registered upstream,
+# so tables are hand-built (a documented C051 exception, like the io and SUR/3SLS
+# families). Uniform input for every leaf: a CSV + --actual <col> +
+# --forecasts <c1,c2,...>; the handler forms the errors / f_adj / forecast matrix.
+#
+# Convention notes (mirrored in docs): DM consumes forecast ERRORS e=actual-fc;
+# Clark-West needs f_adj = f_small - f_big (the forecast difference; the library
+# squares it internally).
+
+"""Resolve the actual + forecast columns by name; return (y, fnames, fcols)."""
+function _fceval_load(data::String, actual::String, forecasts::String; leaf::String)
+    isempty(actual) && throw(CliError("usage/missing-actual",
+        "forecast evaluate $leaf requires --actual <column> (the realized-values column)"))
+    isempty(strip(forecasts)) && throw(CliError("usage/missing-forecasts",
+        "forecast evaluate $leaf requires --forecasts <col1,col2,...>"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    actual in numcols || throw(CliError("data/bad-column",
+        "actual column '$actual' not found in numeric columns: $(join(numcols, ", "))"))
+    fnames = String[String(strip(s)) for s in split(forecasts, ",") if !isempty(strip(s))]
+    isempty(fnames) && throw(CliError("usage/missing-forecasts",
+        "forecast evaluate $leaf requires at least one --forecasts column"))
+    for c in fnames
+        c in numcols || throw(CliError("data/bad-column",
+            "forecast column '$c' not found in numeric columns: $(join(numcols, ", "))"))
+    end
+    # `variable_names` admits Union{Number,Missing} columns, so guard for missing
+    # values → typed data error (a blank cell would otherwise MethodError → exit 1).
+    _col(c) = any(ismissing, df[!, c]) ?
+        throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`) before forecast evaluation")) :
+        Vector{Float64}(df[!, c])
+    y = _col(actual)
+    fcols = Vector{Float64}[_col(c) for c in fnames]
+    return (y, fnames, fcols)
+end
+
+# Enforce the per-leaf forecast-count arity → usage error (never a downstream crash).
+function _fceval_arity(fnames::Vector{String}, leaf::String, want::String, ok::Bool)
+    ok || throw(CliError("usage/arity",
+        "forecast evaluate $leaf needs $want --forecasts column(s); got $(length(fnames))"))
+    return nothing
+end
+
+# Map an fceval failure to a typed CliError (never an uncaught exit-1 — io-family lesson).
+function _fceval_error(e, what::String)
+    e isa CliError && return e
+    (e isa ArgumentError || e isa DimensionMismatch) && return CliError("data/fceval",
+        sprint(showerror, e);
+        hint="check --actual/--forecasts refer to equal-length numeric columns with >=2 observations")
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
+function _forecast_eval_metrics(; data::String, actual::String="", forecasts::String="",
+                                 seasonal_period::Int=1, output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="metrics")
+    _status("Forecast evaluation: $(length(fnames)) forecast(s), n=$(length(y)), seasonal_period=$seasonal_period")
+    _status()
+    Fmat = reduce(hcat, fcols)
+    ev = try
+        forecast_evaluate(y, Fmat; seasonal_period=seasonal_period, model_names=fnames)
+    catch e
+        throw(_fceval_error(e, "forecast evaluation"))
+    end
+    # C051 exception: hand-built WIDE accuracy table model | ME | MAE | ... | U2.
+    acc = DataFrame(model = ev.models)
+    for (k, mname) in enumerate(ev.metrics)
+        acc[!, mname] = round.(ev.values[:, k]; digits=6)
+    end
+    output_result(acc; format=Symbol(format), output=output, title="Forecast Accuracy Metrics")
+    # Theil MSE decomposition (proportions sum to 1): model | bias | variance | covariance.
+    dec = DataFrame(model = ev.models,
+                    bias = round.(ev.decomp[:, 1]; digits=6),
+                    variance = round.(ev.decomp[:, 2]; digits=6),
+                    covariance = round.(ev.decomp[:, 3]; digits=6))
+    output_result(dec; format=Symbol(format), output=output, title="Theil MSE Decomposition")
+    return ev
+end
+
+function _forecast_eval_dm(; data::String, actual::String="", forecasts::String="",
+                            loss::String="se", horizon::Int=1, alternative::String="two-sided",
+                            no_hln::Bool=false, output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="dm")
+    _fceval_arity(fnames, "dm", "exactly 2", length(fnames) == 2)
+    e1 = y .- fcols[1]; e2 = y .- fcols[2]
+    alt = Symbol(replace(alternative, "-" => "_"))
+    _status("Diebold-Mariano: $(fnames[1]) vs $(fnames[2]), loss=$loss, h=$horizon, HLN=$(!no_hln), alt=$alternative")
+    _status()
+    r = try
+        diebold_mariano(e1, e2; h=horizon, loss=Symbol(loss), hln=!no_hln, alternative=alt)
+    catch e
+        throw(_fceval_error(e, "Diebold-Mariano test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"           => "Diebold-Mariano",
+        "model_1"        => fnames[1],
+        "model_2"        => fnames[2],
+        "loss"           => string(r.loss),
+        "statistic"      => round(r.statistic; digits=4),
+        "p_value"        => round(r.pvalue; digits=4),
+        "mean_loss_diff" => round(r.dbar; digits=6),
+        "lrvar"          => round(r.lrvar; digits=6),
+        "horizon"        => r.h,
+        "hln"            => r.hln,
+        "alternative"    => string(r.alternative),
+        "n"              => r.T_obs,
+    ]; format=format, output=output, title="Diebold-Mariano Test")
+    return r
+end
+
+function _forecast_eval_clark_west(; data::String, actual::String="", forecasts::String="",
+                                    horizon::Int=1, alternative::String="greater",
+                                    output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="clark-west")
+    _fceval_arity(fnames, "clark-west", "exactly 2 (small then big)", length(fnames) == 2)
+    f_small = fcols[1]; f_big = fcols[2]
+    e_small = y .- f_small; e_big = y .- f_big; f_adj = f_small .- f_big
+    alt = Symbol(replace(alternative, "-" => "_"))
+    _status("Clark-West (nested): small=$(fnames[1]) big=$(fnames[2]), h=$horizon, alt=$alternative")
+    _status()
+    r = try
+        clark_west(e_small, e_big, f_adj; h=horizon, alternative=alt)
+    catch e
+        throw(_fceval_error(e, "Clark-West test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"          => "Clark-West",
+        "model_small"   => fnames[1],
+        "model_big"     => fnames[2],
+        "statistic"     => round(r.statistic; digits=4),
+        "p_value"       => round(r.pvalue; digits=4),
+        "mean_adj_diff" => round(r.fbar; digits=6),
+        "lrvar"         => round(r.lrvar; digits=6),
+        "horizon"       => r.h,
+        "alternative"   => string(r.alternative),
+        "n"             => r.T_obs,
+    ]; format=format, output=output, title="Clark-West Test")
+    return r
+end
+
+function _forecast_eval_mincer_zarnowitz(; data::String, actual::String="", forecasts::String="",
+                                          lags::Int=0, kernel::String="bartlett",
+                                          output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="mincer-zarnowitz")
+    _fceval_arity(fnames, "mincer-zarnowitz", "exactly 1", length(fnames) == 1)
+    _status("Mincer-Zarnowitz efficiency: forecast=$(fnames[1]), lags=$lags, kernel=$kernel")
+    _status()
+    r = try
+        mincer_zarnowitz(y, fcols[1]; lags=lags, kernel=Symbol(kernel))
+    catch e
+        throw(_fceval_error(e, "Mincer-Zarnowitz test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"         => "Mincer-Zarnowitz",
+        "forecast"     => fnames[1],
+        "a"            => round(r.a; digits=6),
+        "b"            => round(r.b; digits=6),
+        "se_a"         => round(r.se[1]; digits=6),
+        "se_b"         => round(r.se[2]; digits=6),
+        "wald_chi2"    => round(r.wald; digits=4),
+        "p_value_wald" => round(r.pvalue_wald; digits=4),
+        "fstat"        => round(r.fstat; digits=4),
+        "p_value_f"    => round(r.pvalue_f; digits=4),
+        "hac_lags"     => r.lags,
+        "kernel"       => string(r.kernel),
+        "n"            => r.T_obs,
+    ]; format=format, output=output, title="Mincer-Zarnowitz Efficiency Test")
+    return r
+end
+
+function _forecast_eval_encompassing(; data::String, actual::String="", forecasts::String="",
+                                      lags::Int=0, kernel::String="bartlett",
+                                      output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="encompassing")
+    _fceval_arity(fnames, "encompassing", "exactly 2", length(fnames) == 2)
+    _status("Forecast encompassing: fc1=$(fnames[1]) fc2=$(fnames[2]), lags=$lags, kernel=$kernel")
+    _status()
+    r = try
+        forecast_encompassing(y, fcols[1], fcols[2]; lags=lags, kernel=Symbol(kernel))
+    catch e
+        throw(_fceval_error(e, "forecast encompassing test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"     => "Forecast-Encompassing",
+        "model_1"  => fnames[1],
+        "model_2"  => fnames[2],
+        "b1"       => round(r.b1; digits=6),
+        "b2"       => round(r.b2; digits=6),
+        "se_b2"    => round(r.se_b2; digits=6),
+        "t_stat"   => round(r.tstat; digits=4),
+        "p_value"  => round(r.pvalue; digits=4),
+        "hac_lags" => r.lags,
+        "kernel"   => string(r.kernel),
+        "n"        => r.T_obs,
+    ]; format=format, output=output, title="Forecast Encompassing Test")
+    return r
+end
+
+function _forecast_eval_combine(; data::String, actual::String="", forecasts::String="",
+                                 method::String="equal", emit_series::Bool=false,
+                                 output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="combine")
+    _fceval_arity(fnames, "combine", "at least 2", length(fnames) >= 2)
+    F = reduce(hcat, fcols)
+    meth = Symbol(replace(method, "-" => "_"))
+    _status("Forecast combination: $(length(fnames)) forecasts, method=$method")
+    _status()
+    r = try
+        combine_forecasts(F, y; method=meth, model_names=fnames)
+    catch e
+        throw(_fceval_error(e, "forecast combination"))
+    end
+    # C051 exception: hand-built weights table model | weight | mse (weights sum to 1).
+    wtab = DataFrame(model = r.models,
+                     weight = round.(r.weights; digits=6),
+                     mse = round.(r.mse; digits=6))
+    output_result(wtab; format=Symbol(format), output=output, title="Forecast Combination Weights")
+    if emit_series
+        stab = DataFrame(index = collect(1:length(r.combined)),
+                         combined = round.(r.combined; digits=6))
+        output_result(stab; format=Symbol(format), output=output, title="Combined Forecast Series")
+    end
+    return r
 end

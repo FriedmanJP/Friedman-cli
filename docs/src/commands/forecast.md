@@ -1,6 +1,6 @@
 # forecast
 
-Compute forecasts. 14 subcommands covering VAR, BVAR, LP, ARIMA, factor models, volatility models, VECM, and FAVAR.
+Compute forecasts. 14 model subcommands covering VAR, BVAR, LP, ARIMA, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
 
 ## Output format (C051)
 
@@ -300,6 +300,137 @@ friedman forecast vecm data.csv --confidence=0.90 --replications=1000
 | `--plot-save` | | String | | Save plot to HTML file |
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`); bootstrap confidence bands.
+
+## forecast evaluate
+
+Post-hoc evaluation and combination of **already-computed** forecasts (C072). These
+leaves are model-agnostic: they take a CSV plus an actual-values column and one or
+more forecast columns, and wrap the MEMs `fceval` toolkit (Diebold–Mariano,
+Clark–West, Mincer–Zarnowitz, forecast encompassing, accuracy metrics, combination).
+
+**Uniform input convention** — every leaf takes:
+
+- `data` — a CSV of realized values and competing forecasts (positional).
+- `--actual <col>` — the realized-values column name (required).
+- `--forecasts <col1,col2,...>` — one or more forecast column names (required).
+
+The handler forms whatever the underlying statistic needs from those columns:
+forecast **errors** `e = actual − forecast` (Diebold–Mariano), the forecast
+**difference** `f_adj = f_small − f_big` (Clark–West squares it internally), or the
+`T×M` forecast matrix (accuracy metrics, combination). Forecast-count arity is
+validated per leaf (e.g. `dm` requires exactly 2) → usage error; unknown columns →
+`data/bad-column`.
+
+These result types are not Tables.jl-registered upstream, so their tables are
+hand-built (a documented C051 exception, like the `io` and `estimate sur/3sls`
+families): the test leaves emit a `metric | value` key–value table, `metrics` emits
+a wide accuracy table plus the Theil decomposition, and `combine` emits a
+`model | weight | mse` table.
+
+| Leaf | Forecasts | Purpose |
+|------|-----------|---------|
+| `metrics` | ≥1 | Point-accuracy metrics (ME, MAE, RMSE, MAPE, sMAPE, MASE, Theil U1/U2) + Theil MSE bias/variance/covariance decomposition |
+| `dm` | exactly 2 | Diebold–Mariano (1995) equal-predictive-accuracy test |
+| `clark-west` | exactly 2 (small, big) | Clark–West (2007) adjusted-MSPE test for nested models |
+| `mincer-zarnowitz` | exactly 1 | Mincer–Zarnowitz (1969) forecast-efficiency regression |
+| `encompassing` | exactly 2 | Harvey–Leybourne–Newbold (1998) forecast-encompassing test |
+| `combine` | ≥2 | Forecast combination (equal / Bates–Granger / Granger–Ramanathan weights) |
+
+```bash
+# Accuracy metrics + Theil decomposition for two competing forecasts
+friedman forecast evaluate metrics data.csv --actual y --forecasts f1,f2
+
+# Diebold–Mariano test (squared-error loss, 1-step); errors formed as y - f
+friedman forecast evaluate dm data.csv --actual y --forecasts f1,f2 --loss se --horizon 1
+
+# Clark–West test for a nested pair (f1 restricted, f2 unrestricted)
+friedman forecast evaluate clark-west data.csv --actual y --forecasts f1,f2
+
+# Mincer–Zarnowitz efficiency regression with HAC(4) covariance
+friedman forecast evaluate mincer-zarnowitz data.csv --actual y --forecasts f1 --lags 4
+
+# Combine three forecasts with inverse-MSE (Bates–Granger) weights
+friedman forecast evaluate combine data.csv --actual y --forecasts f1,f2,f3 --method bates-granger
+```
+
+### forecast evaluate metrics
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--actual` | String | (required) | Realized-values column name |
+| `--forecasts` | String | (required) | Forecast column names, comma-separated (≥1) |
+| `--seasonal-period` | Int | 1 | Seasonal lag for the MASE naive-forecast scaling |
+| `--format` | String | `table` | `table`, `csv`, `json` |
+| `--output` | String | | Export file path |
+
+**Output:** a wide accuracy table `model | ME | MAE | RMSE | MAPE | sMAPE | MASE | U1 | U2` (one row per forecast) and a `model | bias | variance | covariance` Theil MSE decomposition (proportions sum to 1).
+
+### forecast evaluate dm
+
+Diebold–Mariano test of equal predictive accuracy. Errors are formed internally as `e = actual − forecast`. A positive statistic means forecast 1 has the larger average loss (is worse). Invalid for nested models — use `clark-west` there.
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--actual` | | String | (required) | Realized-values column name |
+| `--forecasts` | | String | (required) | Exactly two forecast columns |
+| `--loss` | | String | `se` | Loss function: `se` (squared) or `ad` (absolute) |
+| `--horizon` | `-h` | Int | 1 | Forecast horizon (sets the truncation lag `h−1`) |
+| `--alternative` | | String | `two-sided` | `two-sided`, `less`, `greater` |
+| `--no-hln` | | Flag | | Disable the Harvey–Leybourne–Newbold small-sample correction (reference `N(0,1)` instead of `t_{T−1}`) |
+
+**Output:** a `metric | value` table (statistic, p-value, mean loss differential, long-run variance, horizon, HLN flag, alternative, n).
+
+### forecast evaluate clark-west
+
+Clark–West adjusted-MSPE test for nested models. Give the two forecasts as **small (restricted) then big (unrestricted)**. Internally uses `e_small = y − f_small`, `e_big = y − f_big`, and `f_adj = f_small − f_big` (the library squares `f_adj`).
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--actual` | | String | (required) | Realized-values column name |
+| `--forecasts` | | String | (required) | Exactly two columns: small, then big |
+| `--horizon` | `-h` | Int | 1 | Forecast horizon (sets the truncation lag `h−1`) |
+| `--alternative` | | String | `greater` | `two-sided`, `less`, `greater` |
+
+**Output:** a `metric | value` table (one-sided CW statistic, p-value, mean adjusted differential, long-run variance, horizon, alternative, n).
+
+### forecast evaluate mincer-zarnowitz
+
+Mincer–Zarnowitz forecast-efficiency regression `actual = a + b·fc + u`, jointly testing `(a, b) = (0, 1)` with a Newey–West HAC covariance.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--actual` | String | (required) | Realized-values column name |
+| `--forecasts` | String | (required) | Exactly one forecast column |
+| `--lags` | Int | 0 | Newey–West HAC truncation lag (0 = White) |
+| `--kernel` | String | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` |
+
+**Output:** a `metric | value` table (`a`, `b`, HAC `se_a`/`se_b`, Wald χ²(2) and its p-value, the equivalent `F(2, T−2)` and its p-value, HAC lags, kernel, n).
+
+### forecast evaluate encompassing
+
+Regression-based forecast-encompassing test `actual = a + b₁·fc1 + b₂·fc2 + u`, testing `b₂ = 0`. Non-rejection means forecast 1 encompasses forecast 2.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--actual` | String | (required) | Realized-values column name |
+| `--forecasts` | String | (required) | Exactly two forecast columns |
+| `--lags` | Int | 0 | Newey–West HAC truncation lag (0 = White) |
+| `--kernel` | String | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` |
+
+**Output:** a `metric | value` table (`b1`, `b2`, `se(b2)`, t-statistic on `b₂`, two-sided p-value, HAC lags, kernel, n).
+
+### forecast evaluate combine
+
+Combine ≥2 forecasts into one series.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--actual` | String | (required) | Realized-values column name |
+| `--forecasts` | String | (required) | Forecast column names, comma-separated (≥2) |
+| `--method` | String | `equal` | `equal`, `bates-granger` (inverse-MSE), `granger-ramanathan` (constrained least squares) |
+| `--emit-series` | Flag | | Also emit the combined forecast series (`index | combined`) |
+
+**Output:** a `model | weight | mse` table (weights sum to 1; Granger–Ramanathan weights may be negative). With `--emit-series`, an additional `index | combined` table carries the combined series.
 
 ## See Also
 

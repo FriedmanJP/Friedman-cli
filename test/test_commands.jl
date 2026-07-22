@@ -2141,13 +2141,147 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 14 primary + 1 alias (gjr_garch) = 15 keys (C044)
-        @test length(node.subcmds) == 15
+        # 14 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 16 keys (C044/C072)
+        @test length(node.subcmds) == 16
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")
+        # C072: nested forecast evaluate sub-node with 6 leaves
+        @test haskey(node.subcmds, "evaluate")
+        @test node.subcmds["evaluate"] isa NodeCommand
+        for leaf in ["metrics", "dm", "clark-west", "mincer-zarnowitz", "encompassing", "combine"]
+            @test haskey(node.subcmds["evaluate"].subcmds, leaf)
+        end
+    end
+
+    @testset "forecast evaluate (C072 fceval)" begin
+        _fceval_csv(dir) = begin
+            path = joinpath(dir, "fceval.csv")
+            open(path, "w") do io
+                println(io, "y,f1,f2,f3")
+                for _ in 1:80
+                    y = 5.0 + randn()
+                    f1 = y + 0.2 * randn()       # good forecast
+                    f2 = y + 0.9 * randn()       # noisier forecast
+                    f3 = y + 0.5 * randn()
+                    println(io, join((y, f1, f2, f3), ","))
+                end
+            end
+            path
+        end
+        _evaldoc(args::Vector{String}) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["forecast", "evaluate"], args, String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tblwith(doc, col) = first(t for t in values(doc.data) if col in String.(t.columns))
+        _metric(doc, name) = begin
+            kv = first(t for t in values(doc.data) if "metric" in String.(t.columns))
+            for r in kv.rows
+                rr = collect(r)
+                String(rr[1]) == name && return rr[2]
+            end
+            nothing
+        end
+        _errcode(args::Vector{String}) = begin
+            err = nothing
+            try
+                _capture() do; _dispatch_via_app(vcat(String["forecast", "evaluate"], args)); end
+            catch e
+                err = e
+            end
+            err
+        end
+
+        @testset "metrics — wide accuracy + Theil decomposition" begin
+            mktempdir() do dir
+                doc = _evaldoc(["metrics", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
+                @test doc.status == "ok"
+                acc = _tblwith(doc, "RMSE")
+                @test Set(["model","ME","MAE","RMSE","MAPE","sMAPE","MASE","U1","U2"]) ⊆ Set(String.(acc.columns))
+                @test length(acc.rows) == 2
+                dec = _tblwith(doc, "bias")
+                @test Set(["model","bias","variance","covariance"]) ⊆ Set(String.(dec.columns))
+                @test length(dec.rows) == 2
+            end
+        end
+
+        @testset "dm — kv + arity" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                doc = _evaldoc(["dm", csv, "--actual", "y", "--forecasts", "f1,f2", "--loss", "ad", "--horizon", "2"])
+                @test doc.status == "ok"
+                @test String(_metric(doc, "test")) == "Diebold-Mariano"
+                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+                e = _errcode(["dm", csv, "--actual", "y", "--forecasts", "f1"])
+                @test e isa CliError && e.code == "usage/arity"
+            end
+        end
+
+        @testset "clark-west — kv" begin
+            mktempdir() do dir
+                doc = _evaldoc(["clark-west", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
+                @test String(_metric(doc, "test")) == "Clark-West"
+                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+            end
+        end
+
+        @testset "mincer-zarnowitz — kv + arity" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                doc = _evaldoc(["mincer-zarnowitz", csv, "--actual", "y", "--forecasts", "f1", "--lags", "2"])
+                @test String(_metric(doc, "test")) == "Mincer-Zarnowitz"
+                @test 0.0 <= Float64(_metric(doc, "p_value_wald")) <= 1.0
+                e = _errcode(["mincer-zarnowitz", csv, "--actual", "y", "--forecasts", "f1,f2"])
+                @test e isa CliError && e.code == "usage/arity"
+            end
+        end
+
+        @testset "encompassing — kv" begin
+            mktempdir() do dir
+                doc = _evaldoc(["encompassing", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
+                @test String(_metric(doc, "test")) == "Forecast-Encompassing"
+                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+            end
+        end
+
+        @testset "combine — weights sum to 1 + emit-series + arity" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                doc = _evaldoc(["combine", csv, "--actual", "y", "--forecasts", "f1,f2,f3", "--method", "bates-granger"])
+                w = _tblwith(doc, "weight")
+                @test Set(["model","weight","mse"]) ⊆ Set(String.(w.columns))
+                @test length(w.rows) == 3
+                wi = findfirst(==("weight"), String.(w.columns))
+                wsum = sum(Float64(collect(r)[wi]) for r in w.rows)
+                @test isapprox(wsum, 1.0; atol=1e-4)   # weights rounded to 6 digits before display
+                doc2 = _evaldoc(["combine", csv, "--actual", "y", "--forecasts", "f1,f2", "--emit-series"])
+                @test any(t -> "combined" in String.(t.columns), values(doc2.data))
+                e = _errcode(["combine", csv, "--actual", "y", "--forecasts", "f1"])
+                @test e isa CliError && e.code == "usage/arity"
+            end
+        end
+
+        @testset "typed errors (bad column, missing options)" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                @test _errcode(["metrics", csv, "--actual", "nope", "--forecasts", "f1"]).code == "data/bad-column"
+                @test _errcode(["dm", csv, "--actual", "y", "--forecasts", "f1,zzz"]).code == "data/bad-column"
+                @test _errcode(["metrics", csv, "--forecasts", "f1"]).code == "usage/missing-actual"
+                @test _errcode(["metrics", csv, "--actual", "y"]).code == "usage/missing-forecasts"
+                # review fix: missing values → typed data error (was an uncaught exit-1 MethodError)
+                mcsv = joinpath(dir, "miss.csv")
+                write(mcsv, "y,f1\n1.0,1.1\n,2.0\n3.0,2.9\n4.0,3.8\n")
+                @test _errcode(["metrics", mcsv, "--actual", "y", "--forecasts", "f1"]).code == "data/missing-values"
+                # review fix: --model is not injected on the model-agnostic evaluate leaves →
+                # parser rejects it (unknown option), NOT an uncaught handler MethodError
+                me = _errcode(["metrics", csv, "--actual", "y", "--forecasts", "f1", "--model", "foo"])
+                @test me !== nothing && occursin("unknown option", sprint(showerror, me))
+            end
+        end
     end
 
     @testset "_forecast_var" begin
@@ -2466,7 +2600,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 15  # 14 primary + gjr_garch alias
+        @test length(node.subcmds) == 16  # 14 primary + gjr_garch alias + evaluate node
         @test haskey(node.subcmds, "vecm")
     end
 

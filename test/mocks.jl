@@ -2302,6 +2302,209 @@ end
 
 export SURModel, ThreeSLSModel, estimate_sur, estimate_3sls
 
+# ─── Forecast evaluation & combination: fceval (C072) ────────
+# Fields match the real MEMs fceval/types.jl. The estimate functions compute
+# genuine simple metrics (RMSE=√mean(e²), OLS a/b, real combination weights) so
+# T1/T2 exercises the handler's table-shaping; canned finite p-values suffice.
+struct ForecastEvaluation{T<:AbstractFloat}
+    models::Vector{String}
+    metrics::Vector{String}
+    values::Matrix{T}
+    decomp::Matrix{T}
+    n::Int
+end
+
+struct DMTestResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    dbar::T
+    lrvar::T
+    h::Int
+    loss::Symbol
+    hln::Bool
+    alternative::Symbol
+    T_obs::Int
+end
+
+struct ClarkWestResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    fbar::T
+    lrvar::T
+    h::Int
+    alternative::Symbol
+    T_obs::Int
+end
+
+struct MincerZarnowitzResult{T<:AbstractFloat}
+    a::T
+    b::T
+    se::Vector{T}
+    wald::T
+    pvalue_wald::T
+    fstat::T
+    pvalue_f::T
+    lags::Int
+    kernel::Symbol
+    T_obs::Int
+end
+
+struct ForecastEncompassingResult{T<:AbstractFloat}
+    b1::T
+    b2::T
+    se_b2::T
+    tstat::T
+    pvalue::T
+    lags::Int
+    kernel::Symbol
+    T_obs::Int
+end
+
+struct ForecastCombination{T<:AbstractFloat}
+    weights::Vector{T}
+    combined::Vector{T}
+    method::Symbol
+    mse::Vector{T}
+    models::Vector{String}
+end
+
+const _MOCK_FCEVAL_METRICS = ["ME", "MAE", "RMSE", "MAPE", "sMAPE", "MASE", "U1", "U2"]
+
+# Logistic approx to the standard-normal survival function P(Z > z) — for finite,
+# monotone, in-(0,1) mock p-values (var/std/dot are not imported into this module).
+_mock_pnorm_sf(z) = clamp(1.0 / (1.0 + exp(1.702 * z)), 0.0, 1.0)
+_mock_var0(x) = mean(abs2, x .- mean(x))
+
+function _mock_point_metrics(a::Vector{Float64}, f::Vector{Float64})
+    tol = 1e-8
+    e = a .- f
+    me = mean(e); mae = mean(abs, e); mse = mean(abs2, e); rmse = sqrt(mse)
+    mape_terms = Float64[abs(e[t] / a[t]) for t in eachindex(a) if abs(a[t]) > tol]
+    mape = isempty(mape_terms) ? 0.0 : 100 * mean(mape_terms)
+    smape_terms = Float64[2 * abs(e[t]) / (abs(a[t]) + abs(f[t])) for t in eachindex(a) if abs(a[t]) + abs(f[t]) > tol]
+    smape = isempty(smape_terms) ? 0.0 : 100 * mean(smape_terms)
+    da = diff(a)
+    mase = mae / max(mean(abs, da), tol)
+    u1 = rmse / max(sqrt(mean(abs2, a)) + sqrt(mean(abs2, f)), tol)
+    u2 = rmse / max(sqrt(mean(abs2, da)), tol)
+    vals = Float64[me, mae, rmse, mape, smape, mase, u1, u2]
+    mf = mean(f); ma = mean(a)
+    sf = sqrt(_mock_var0(f)); sa = sqrt(_mock_var0(a))
+    bias = (mf - ma)^2 / max(mse, tol)
+    varp = (sf - sa)^2 / max(mse, tol)
+    covp = max(1.0 - bias - varp, 0.0)
+    return vals, Float64[bias, varp, covp]
+end
+
+function forecast_evaluate(actual::AbstractVector, fc::AbstractVector;
+                           seasonal_period::Int=1, insample=nothing, model_names=nothing)
+    a = Float64.(collect(actual)); f = Float64.(collect(fc))
+    v, d = _mock_point_metrics(a, f)
+    names = model_names === nothing ? ["Model 1"] : String.(collect(model_names))
+    ForecastEvaluation{Float64}(names, copy(_MOCK_FCEVAL_METRICS),
+                                reshape(v, 1, :), reshape(d, 1, :), length(a))
+end
+
+function forecast_evaluate(actual::AbstractVector, fc::AbstractMatrix;
+                           seasonal_period::Int=1, insample=nothing, model_names=nothing)
+    a = Float64.(collect(actual)); M = size(fc, 2)
+    K = length(_MOCK_FCEVAL_METRICS)
+    vals = Matrix{Float64}(undef, M, K); decomp = Matrix{Float64}(undef, M, 3)
+    for j in 1:M
+        v, d = _mock_point_metrics(a, Float64.(collect(fc[:, j])))
+        vals[j, :] = v; decomp[j, :] = d
+    end
+    names = model_names === nothing ? ["Model $j" for j in 1:M] : String.(collect(model_names))
+    length(names) == M || throw(ArgumentError("model_names must have $M entries"))
+    ForecastEvaluation{Float64}(names, copy(_MOCK_FCEVAL_METRICS), vals, decomp, length(a))
+end
+
+function diebold_mariano(e1::AbstractVector, e2::AbstractVector; h::Int=1, loss=:se,
+                         hln::Bool=true, kernel::Symbol=:rectangular, alternative::Symbol=:two_sided)
+    length(e1) == length(e2) || throw(DimensionMismatch("e1 and e2 must have equal length"))
+    g = loss === :ad ? abs : (x -> x^2)
+    d = Float64[g(Float64(e1[t])) - g(Float64(e2[t])) for t in eachindex(e1)]
+    n = length(d); dbar = mean(d); V = max(_mock_var0(d), 1e-12)
+    stat = dbar / sqrt(V / n)
+    pval = alternative === :two_sided ? 2 * _mock_pnorm_sf(abs(stat)) :
+           alternative === :greater   ? _mock_pnorm_sf(stat) :
+                                         1.0 - _mock_pnorm_sf(stat)
+    DMTestResult{Float64}(stat, clamp(pval, 0.0, 1.0), dbar, V, h,
+                          loss isa Symbol ? loss : :custom, hln, alternative, n)
+end
+
+function clark_west(e_small::AbstractVector, e_big::AbstractVector, f_adj::AbstractVector;
+                    h::Int=1, alternative::Symbol=:greater)
+    n = length(e_small)
+    (length(e_big) == n && length(f_adj) == n) ||
+        throw(DimensionMismatch("e_small, e_big, f_adj must have equal length"))
+    fhat = Float64[Float64(e_small[t])^2 - (Float64(e_big[t])^2 - Float64(f_adj[t])^2) for t in 1:n]
+    fbar = mean(fhat); V = max(_mock_var0(fhat), 1e-12)
+    stat = fbar / sqrt(V / n)
+    pval = alternative === :two_sided ? 2 * _mock_pnorm_sf(abs(stat)) :
+           alternative === :greater   ? _mock_pnorm_sf(stat) :
+                                         1.0 - _mock_pnorm_sf(stat)
+    ClarkWestResult{Float64}(stat, clamp(pval, 0.0, 1.0), fbar, V, h, alternative, n)
+end
+
+function mincer_zarnowitz(actual::AbstractVector, fc::AbstractVector; lags::Int=0, kernel::Symbol=:bartlett)
+    y = Float64.(collect(actual)); n = length(y)
+    X = hcat(ones(n), Float64.(collect(fc)))
+    beta = (X' * X) \ (X' * y)
+    u = y .- X * beta
+    s2 = sum(abs2, u) / max(n - 2, 1)
+    XtXinv = inv(X' * X)
+    se = Float64[sqrt(abs(XtXinv[i, i]) * s2) for i in 1:2]
+    a, b = beta[1], beta[2]
+    dvec = Float64[a - 0.0, b - 1.0]
+    wald = abs(dvec' * inv(XtXinv .* s2) * dvec)
+    fstat = wald / 2
+    pw = _mock_pnorm_sf(sqrt(max(wald, 0.0)))
+    MincerZarnowitzResult{Float64}(a, b, se, wald, pw, fstat, pw, lags, kernel, n)
+end
+
+function forecast_encompassing(actual::AbstractVector, fc1::AbstractVector, fc2::AbstractVector;
+                               lags::Int=0, kernel::Symbol=:bartlett)
+    y = Float64.(collect(actual)); n = length(y)
+    X = hcat(ones(n), Float64.(collect(fc1)), Float64.(collect(fc2)))
+    beta = (X' * X) \ (X' * y)
+    u = y .- X * beta
+    s2 = sum(abs2, u) / max(n - 3, 1)
+    XtXinv = inv(X' * X)
+    se_b2 = sqrt(abs(XtXinv[3, 3]) * s2)
+    b1, b2 = beta[2], beta[3]
+    tstat = b2 / max(se_b2, 1e-12)
+    pval = 2 * _mock_pnorm_sf(abs(tstat))
+    ForecastEncompassingResult{Float64}(b1, b2, se_b2, tstat, clamp(pval, 0.0, 1.0), lags, kernel, n)
+end
+
+function combine_forecasts(F::AbstractMatrix, actual::AbstractVector; method::Symbol=:equal, model_names=nothing)
+    method in (:equal, :bates_granger, :granger_ramanathan) ||
+        throw(ArgumentError("method must be :equal, :bates_granger, or :granger_ramanathan; got :$method"))
+    a = Float64.(collect(actual)); Fm = Matrix{Float64}(F); n, M = size(Fm)
+    n == length(a) || throw(DimensionMismatch("F rows must match length(actual)"))
+    mse = Float64[mean(abs2, a .- Fm[:, j]) for j in 1:M]
+    w = if method === :equal
+        fill(1.0 / M, M)
+    elseif method === :bates_granger
+        any(mse .<= 0) && throw(ArgumentError(":bates_granger requires strictly positive MSEs"))
+        inv_mse = 1.0 ./ mse; inv_mse ./ sum(inv_mse)
+    else
+        Sigma = Fm' * Fm; c = Fm' * a; Sinv = inv(Sigma)
+        Sc = Sinv * c; S1 = Sinv * ones(M)
+        Sc .+ S1 .* ((1.0 - sum(Sc)) / sum(S1))
+    end
+    combined = Fm * w
+    names = model_names === nothing ? ["Model $j" for j in 1:M] : String.(collect(model_names))
+    length(names) == M || throw(ArgumentError("model_names must have $M entries"))
+    ForecastCombination{Float64}(w, combined, method, mse, names)
+end
+
+export ForecastEvaluation, DMTestResult, ClarkWestResult, MincerZarnowitzResult,
+       ForecastEncompassingResult, ForecastCombination
+export forecast_evaluate, diebold_mariano, clark_west, mincer_zarnowitz,
+       forecast_encompassing, combine_forecasts
+
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 
 struct BVARForecast{T<:AbstractFloat}
