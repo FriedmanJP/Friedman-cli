@@ -489,6 +489,142 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "estimate ardl/nardl + test ardl-bounds/nardl-symmetry + multipliers nardl (C062b, M5c)" begin
+        # Real ARDL/NARDL family. Teeth (all LOOSE — noisy single-equation estimators):
+        # ARDL recovers the long-run θ=(β₀+β₁)/(1−φ); the bounds test returns a valid decision
+        # symbol; NARDL symmetry REJECTS on an asymmetric DGP (discriminating vs a symmetric
+        # control); the dynamic multipliers converge toward θ⁺/θ⁻ with finite bootstrap bands.
+        _tbl_kw(doc, kw) = begin   # first data table whose envelope key contains `kw`
+            for (k, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                occursin(kw, lowercase(string(k))) && return v
+            end
+            nothing
+        end
+        _tbl_col(doc, col) = begin  # first data table that HAS column `col` (robust to key-order)
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                col in table_cols(v) && return v
+            end
+            nothing
+        end
+        _rowval(tbl, keycol, key, valcol) = begin
+            tbl === nothing && return nothing
+            cols = table_cols(tbl)
+            ki = findfirst(==(keycol), cols); vi = findfirst(==(valcol), cols)
+            (ki === nothing || vi === nothing) && return nothing
+            for row in table_rows(tbl)
+                r = collect(row)
+                string(r[ki]) == key && return Float64(r[vi])
+            end
+            nothing
+        end
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+
+        @testset "ardl — long-run θ recovery (loose) + ECM diagnostics" begin
+            csv, θ = dgp_ardl(; T=300, φ=0.5, β0=1.0, β1=0.5, seed=44)
+            r = run_json(["estimate", "ardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
+            assert_envelope_ok(r; label="estimate ardl")
+            lrt = _tbl_kw(r.doc, "long")                 # long-run table (key contains "long")
+            θ̂ = _rowval(lrt, "term", "x", "estimate")
+            @test θ̂ !== nothing && abs(θ̂ - θ) < 0.4     # loose long-run recovery
+            d = _diag(r.doc)
+            @test metric_value(d, "alpha") !== nothing
+            @test isfinite(Float64(metric_value(d, "longrun_denom")))
+            @test Int(metric_value(d, "case")) == 3
+            # auto selection path also runs
+            @test run_json(["estimate", "ardl", csv, "--dep", "y", "--p", "auto"]).code == 0
+            rm(csv; force=true)
+        end
+
+        @testset "test ardl-bounds — valid decision symbol, no p-value" begin
+            csv, _ = dgp_ardl(; T=300, seed=46)
+            r = run_json(["test", "ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1"])
+            assert_envelope_ok(r; label="test ardl-bounds")
+            bt = _tbl_col(r.doc, "decision")   # bounds DATA table (key "bounds" is shared with the summary)
+            @test bt !== nothing && "decision" in table_cols(bt)
+            @test !("p_value" in table_cols(bt))          # bounds test has NO p-value
+            fdec = string(metric_value(_diag(r.doc), "f_decision"))
+            @test fdec in ("cointegrated", "not_cointegrated", "inconclusive")
+            # case II → undefined t-bounds render "undefined", never a NaN crash
+            @test run_json(["test", "ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1", "--case", "2"]).code == 0
+            rm(csv; force=true)
+        end
+
+        @testset "nardl — runs + asymmetric long-run terms" begin
+            csv, tp, tn = dgp_nardl(; T=300, θpos=1.0, θneg=-0.3, seed=47)
+            r = run_json(["estimate", "nardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
+            assert_envelope_ok(r; label="estimate nardl")
+            lrt = _tbl_kw(r.doc, "long")
+            @test lrt !== nothing
+            terms = String[string(collect(row)[findfirst(==("term"), table_cols(lrt))]) for row in table_rows(lrt)]
+            @test any(t -> occursin("_POS", t), terms) && any(t -> occursin("_NEG", t), terms)
+            d = _diag(r.doc)
+            @test string(metric_value(d, "f_decision")) in ("cointegrated", "not_cointegrated", "inconclusive")
+            @test Int(metric_value(d, "k")) == 2 * Int(metric_value(d, "k_orig"))
+            rm(csv; force=true)
+        end
+
+        @testset "test nardl-symmetry — rejects asymmetric, milder on symmetric (loose direction)" begin
+            ca, _, _ = dgp_nardl(; T=320, θpos=1.0, θneg=-0.4, seed=48)
+            cs, _, _ = dgp_nardl(; T=320, seed=49, sym=true)
+            ra = run_json(["test", "nardl-symmetry", ca, "--dep", "y", "--p", "1", "--q", "1"])
+            rs = run_json(["test", "nardl-symmetry", cs, "--dep", "y", "--p", "1", "--q", "1"])
+            assert_envelope_ok(ra; label="nardl-symmetry asym")
+            assert_envelope_ok(rs; label="nardl-symmetry sym")
+            st_a = _tbl_col(ra.doc, "lr_p_chi2"); st_s = _tbl_col(rs.doc, "lr_p_chi2")  # data table (key "symmetry" shared w/ summary)
+            pa = _rowval(st_a, "regressor", "x", "lr_p_chi2")
+            ps = _rowval(st_s, "regressor", "x", "lr_p_chi2")
+            @test pa !== nothing && ps !== nothing
+            @test 0.0 <= pa <= 1.0 && 0.0 <= ps <= 1.0
+            @test pa < 0.10          # asymmetric DGP → reject long-run symmetry (loose)
+            @test pa < ps            # discriminating direction: asym more significant than sym
+            rm(ca; force=true); rm(cs; force=true)
+        end
+
+        @testset "multipliers nardl — converge to θ⁺/θ⁻ (loose) + finite bands" begin
+            csv, tp, tn = dgp_nardl(; T=320, θpos=1.0, θneg=-0.4, seed=50)
+            r = run_json(["multipliers", "nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                          "--horizon", "24", "--nreps", "120"])
+            assert_envelope_ok(r; label="multipliers nardl")
+            mt = _tbl_col(r.doc, "m_pos")   # multiplier DATA table (key "multiplier" shared w/ summary)
+            @test mt !== nothing
+            cols = table_cols(mt)
+            @test Set(["horizon", "regressor", "m_pos", "m_neg", "m_diff"]) ⊆ Set(cols)
+            @test "m_pos_lo" in cols                       # band columns present (nreps>0)
+            hi = findfirst(==("horizon"), cols); mp = findfirst(==("m_pos"), cols)
+            mn = findfirst(==("m_neg"), cols); lo = findfirst(==("m_pos_lo"), cols)
+            rows = [collect(row) for row in table_rows(mt)]
+            @test all(isfinite(Float64(r[mp])) && isfinite(Float64(r[lo])) for r in rows)
+            hmax = maximum(Int(r[hi]) for r in rows)
+            mpos_end = Float64(first(r[mp] for r in rows if Int(r[hi]) == hmax))
+            @test abs(mpos_end - tp) < 0.5                 # converges toward θ⁺ (loose)
+            # --no-bootstrap drops band columns
+            rnb = run_json(["multipliers", "nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                            "--horizon", "12", "--no-bootstrap"])
+            @test rnb.code == 0
+            @test !("m_pos_lo" in table_cols(_tbl_col(rnb.doc, "m_pos")))
+            rm(csv; force=true)
+        end
+
+        @testset "bad input stays typed (never internal exit 1)" begin
+            csv, _ = dgp_ardl(; T=200, seed=51)
+            @test run_json(["estimate", "ardl", csv, "--dep", "nope"]).code == 3        # data/column-range
+            @test run_json(["estimate", "ardl", csv, "--dep", "y", "--case", "9"]).code == 2   # usage
+            @test run_json(["estimate", "nardl", csv, "--dep", "y", "--asymmetric", "0"]).code == 2
+            @test run_json(["test", "ardl-bounds", csv, "--dep", "y", "--level", "0.03"]).code == 2
+            @test run_json(["test", "ardl-bounds", csv, "--dep", "y", "--cv-source", "narayan"]).code == 2
+            @test run_json(["multipliers", "nardl", csv, "--dep", "y", "--horizon", "-1"]).code == 2
+            rm(csv; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

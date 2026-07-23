@@ -26,6 +26,7 @@ makedocs(;
             "Generated: nowcast" => "commands/generated/nowcast.md",
             "Generated: dsge" => "commands/generated/dsge.md",
             "Generated: did" => "commands/generated/did.md",
+            "Generated: multipliers" => "commands/generated/multipliers.md",
             "Generated: spectral" => "commands/generated/spectral.md",
             # Workflow guides (hand-written)
             "estimate (guide)" => "commands/estimate.md",
@@ -42,6 +43,7 @@ makedocs(;
             "dsge (guide)" => "commands/dsge.md",
             "HA-DSGE workflow" => "commands/ha-dsge.md",
             "did (guide)" => "commands/did.md",
+            "multipliers (guide)" => "commands/multipliers.md",
             "favar & sdfm (guide)" => "commands/favar.md",
             "structural breaks (guide)" => "commands/structural-breaks.md",
             "panel unit root (guide)" => "commands/panel-unit-root.md",

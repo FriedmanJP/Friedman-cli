@@ -98,4 +98,8 @@ Friedman._load_reg_data
 Friedman._load_clusters
 Friedman._load_weights
 Friedman._reg_coef_table
+Friedman._parse_lag_spec
+Friedman._parse_asym_spec
+Friedman._fit_ardl
+Friedman._fit_nardl
 ```

@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 50 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 52 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -613,6 +613,54 @@ Westerlund error-correction panel cointegration test (Gt/Ga/Pt/Pa statistics). S
 ```bash
 friedman test westerlund panel.csv --dep=y --indep=x --trend=constant
 ```
+
+## ARDL / NARDL Tests
+
+### test ardl-bounds
+
+**Pesaran-Shin-Smith (2001) bounds test** for the existence of a level (long-run) relationship. Fits a single-equation ARDL (same loader/options as [`estimate ardl`](estimate.md#estimate-ardl)) then computes the joint bounds `F`-statistic (all error-correction level terms zero) and the Dickey-Fuller-type `t`-statistic on the lagged `y` level.
+
+**No p-value.** The null distributions are non-standard functionals of Brownian motion, so the statistics are compared **only** to the tabulated I(0)/I(1) critical-value bounds: above the I(1) upper bound ⇒ `cointegrated`; below the I(0) lower bound ⇒ `not_cointegrated`; in between ⇒ `inconclusive`. The command renders the decision **symbols** plus the bracketing bounds — it never produces a p-value or calls `interpret_test_result`. The `t`-bounds are undefined for cases II and IV (restricted deterministic) and render as `"undefined"` (`t_decision = undefined`).
+
+```bash
+friedman test ardl-bounds data.csv --dep=y --p=1 --q=1 --case=3 --level=0.05
+friedman test ardl-bounds data.csv --dep=y --p=auto --q=auto --case=2
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st numeric) | Dependent column |
+| `--p` / `--q` | | String | `auto` | ARDL AR / DL orders (`auto`, an integer, or a per-regressor list for `--q`) |
+| `--max-p` / `--max-q` | | Int | `4` | Grid bounds for `auto` selection |
+| `--ic` | | String | `aic` | `aic`, `bic` |
+| `--trend` | | String | `none` | Informational trend label |
+| `--case` | | Int | `3` | PSS deterministic case 1..5 |
+| `--level` | | Float64 | `0.05` | Decision level: one of `0.10`, `0.05`, `0.025`, `0.01` |
+| `--cv-source` | | String | `pss` | Critical-value source (only `pss`; `narayan` finite-sample bounds are not bundled) |
+| `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
+
+**Output:** a bounds table (`bound|statistic|i0_lower|i1_upper|decision` — one row each for `F` and `t`; **no `p_value` column**) + a summary (`f_stat`, `t_stat`, `k`, `case`, `cv_source`, `level`, `f_decision`, `t_decision`, `nobs`) and a decision line keyed off the F-bound. `ARDLBoundsTest` is not a CLI-registered test type, so the rendering is hand-built. A bad `--level`/`--case` or `--cv-source narayan` is a usage error (exit 2).
+
+### test nardl-symmetry
+
+Long- and short-run **symmetry Wald tests** for a nonlinear ARDL, one row per asymmetric regressor. Fits a NARDL (same loader/options as [`estimate nardl`](estimate.md#estimate-nardl)) then tests `H₀: θ⁺ = θ⁻` (long-run, a delta-method Wald whose Jacobian carries the `1 − Σφ̂` denominator) and `H₀: Σ_ℓ π⁺_ℓ = Σ_ℓ π⁻_ℓ` (short-run, a linear Wald on the ECM differenced-term coefficients). Each single-restriction statistic is reported as both a `χ²(1)` and an `F(1, n−K)` with the matching p-value — rejecting is evidence of asymmetric adjustment.
+
+```bash
+friedman test nardl-symmetry data.csv --dep=y --asymmetric=all --p=1 --q=1
+friedman test nardl-symmetry data.csv --dep=y --asymmetric=1,3
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st numeric) | Dependent column |
+| `--asymmetric` | | String | `all` | `all` or comma-separated 1-based regressor indices to split |
+| `--p` / `--q` | | String | `auto` | ARDL AR / DL orders |
+| `--max-p` / `--max-q` | | Int | `4` | Grid bounds |
+| `--ic` | | String | `aic` | `aic`, `bic` |
+| `--case` | | Int | `3` | PSS deterministic case 1..5 |
+| `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
+
+**Output:** a tidy multi-row table `regressor|theta_pos|theta_neg|lr_stat|lr_p_chi2|lr_p_f|sr_stat|sr_p_chi2|sr_p_f` + a summary (`df`, `dof_resid`, `n_asym`) and an interpretation of the long-run test on the first regressor. Unlike the bounds test, this test HAS p-values (χ² & F).
 
 ## Advanced Unit Root Tests
 

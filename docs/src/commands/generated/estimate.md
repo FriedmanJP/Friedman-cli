@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 57
+**Leaves:** 59
 
 ### `friedman estimate 3sls`
 
@@ -77,6 +77,32 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_arch` (Path to CSV data file)
+
+---
+
+### `friedman estimate ardl`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer (all regressors), or a comma-separated per-regressor list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none|const|trend |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_ardl` (Path to CSV data file)
 
 ---
 
@@ -813,6 +839,32 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_mlogit` (Path to CSV data file)
+
+---
+
+### `friedman estimate nardl`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--asymmetric` | — | `String` | `all` | — | 'all' or comma-separated 1-based regressor indices to split into +/- partial sums |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer (all split regressors), or a comma-separated list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_nardl` (Path to CSV data file)
 
 ---
 

@@ -79,6 +79,7 @@ function _dispatch_via_app(args::Vector{String})
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),
+        "multipliers" => register_multipliers_commands!(),
         "spectral"  => register_spectral_commands!(),
     )
     root = NodeCommand("friedman", root_cmds, "test tree")

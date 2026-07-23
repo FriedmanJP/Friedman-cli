@@ -15,6 +15,7 @@ _friedman() {
     'io'
     'irf'
     'model'
+    'multipliers'
     'nowcast'
     'predict'
     'residuals'

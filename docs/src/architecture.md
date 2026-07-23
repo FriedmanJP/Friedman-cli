@@ -46,9 +46,11 @@ preference:
    matching result type (`irf`/`fevd pvar`, `hd`, `predict`/`residuals`, Arias/Uhlig/sign
    IRF paths, the whole `io` family, the SUR/3SLS systems and MGARCH (CCC/DCC/BEKK) leaves,
    the penalized/robust/Tobit/truncated/Heckman regression leaves, the state-space/TVP and
-   nonparametric (KDE/kernel-reg/LOWESS) leaves, and the single-equation/panel cointegrating
-   regression leaves (`CointRegModel`/`PanelCointRegModel`) — none of these result types are
-   Tables.jl-registered upstream) or where the tidy schema would lose information the command
+   nonparametric (KDE/kernel-reg/LOWESS) leaves, the single-equation/panel cointegrating
+   regression leaves (`CointRegModel`/`PanelCointRegModel`), and the ARDL/NARDL family
+   (`ARDLModel`/`NARDLModel`/`ARDLLongRun`/`ARDLBoundsTest`/`NARDLSymmetryTest`/`NARDLMultipliers`
+   — `estimate ardl`/`nardl`, `test ardl-bounds`/`nardl-symmetry`, `multipliers nardl`) — none of
+   these result types are Tables.jl-registered upstream) or where the tidy schema would lose information the command
    needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
    summary). The `io` matrices (Leontief/Ghosh inverses, coefficients) and MGARCH conditional
    correlations render **wide** (sector×sector / series×series); vector results render one row
@@ -120,7 +122,13 @@ src/
     nowcast.jl            # 5 nowcast subcommands
     dsge.jl               # DSGE subcommands + bayes node (13 sub-leaves) + HA/CT/OLG nodes
     did.jl                # 7 DID subcommands (3 estimation + 4 test)
+    multipliers.jl        # multipliers nardl — new top-level (C062b, action-first)
 ```
+
+The ARDL/NARDL family (`estimate ardl`/`nardl` in `estimate.jl`, `test ardl-bounds`/`nardl-symmetry`
+in `test.jl`, and `multipliers nardl` in the new top-level `multipliers.jl`) all fit via the shared
+`_load_reg_data` (`y` + `X`) loader and the `_fit_ardl`/`_fit_nardl` wrappers in `estimate.jl`, so
+the four leaves share one estimation path and one set of hand-built renderers.
 
 ## Handler Conventions
 
@@ -154,4 +162,4 @@ src/
 
 ## Totals
 
-14 top-level commands, ~204 subcommands across 21 source files.
+18 top-level commands, 292 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).

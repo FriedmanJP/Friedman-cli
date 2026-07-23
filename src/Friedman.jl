@@ -66,6 +66,7 @@ include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")
 include("commands/dsge.jl")
 include("commands/did.jl")
+include("commands/multipliers.jl")  # multipliers nardl — new top-level (C062b)
 include("commands/spectral.jl")
 include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
@@ -102,6 +103,7 @@ function build_app()
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),
+        "multipliers" => register_multipliers_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
         "model"     => register_model_commands!(),

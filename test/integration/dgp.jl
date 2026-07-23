@@ -72,6 +72,49 @@ function dgp_coint(; T::Int=250, β::Float64=1.0, seed::Int=42)
     return write_csv(DataFrame(x=x, y=y); prefix="coint")
 end
 
+"""ARDL / error-correction DGP with a stable long-run relationship (C062b):
+`x_t` is a stationary AR(0.5); `y_t = c + φ y_{t-1} + β₀ x_t + β₁ x_{t-1} + e_t` (φ=0.5).
+The long-run multiplier is `θ = (β₀+β₁)/(1−φ)` — used to check ARDL long-run recovery
+(loose) and that the PSS bounds test returns a valid decision symbol."""
+function dgp_ardl(; T::Int=300, φ::Float64=0.5, β0::Float64=1.0, β1::Float64=0.5,
+                   c::Float64=0.2, seed::Int=42)
+    rng = MersenneTwister(seed)
+    x = zeros(T)
+    for t in 2:T
+        x[t] = 0.5 * x[t-1] + randn(rng)
+    end
+    y = zeros(T)
+    for t in 2:T
+        y[t] = c + φ * y[t-1] + β0 * x[t] + β1 * x[t-1] + 0.5 * randn(rng)
+    end
+    θ = (β0 + β1) / (1 - φ)
+    return write_csv(DataFrame(y=y, x=x); prefix="ardl"), θ
+end
+
+"""NARDL / asymmetric-adjustment DGP (C062b): `x_t` is a random walk whose positive and
+negative increments load on `y` with DIFFERENT long-run coefficients, so the long-run
+symmetry test should reject and the +/- dynamic multipliers should diverge. Set `sym=true`
+for a symmetric control DGP (equal loadings → fail to reject symmetry)."""
+function dgp_nardl(; T::Int=300, φ::Float64=0.5, θpos::Float64=1.0, θneg::Float64=-0.3,
+                    seed::Int=42, sym::Bool=false)
+    rng = MersenneTwister(seed)
+    tp = θpos; tn = sym ? θpos : θneg
+    dx = randn(rng, T)
+    x = cumsum(dx)
+    xpos = zeros(T); xneg = zeros(T)
+    for t in 2:T
+        xpos[t] = xpos[t-1] + max(dx[t], 0.0)
+        xneg[t] = xneg[t-1] + min(dx[t], 0.0)
+    end
+    # error-correction toward θ⁺·x⁺ + θ⁻·x⁻
+    y = zeros(T)
+    for t in 2:T
+        lr = tp * xpos[t] + tn * xneg[t]
+        y[t] = y[t-1] + (1 - φ) * (lr - y[t-1]) + 0.4 * randn(rng)
+    end
+    return write_csv(DataFrame(y=y, x=x); prefix=sym ? "nardl_sym" : "nardl_asym"), tp, tn
+end
+
 """Balanced DiD / Panel-VAR panel: `N` units × `T` periods, columns id/time/y/d.
 Half the units are treated from `treat_start` (a 0/1 post indicator `d`), the
 rest never-treated; parallel pre-trends + a `att` treatment effect on `y`."""

@@ -86,6 +86,7 @@ include(joinpath(project_root, "src", "commands", "io.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
+include(joinpath(project_root, "src", "commands", "multipliers.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
@@ -425,8 +426,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 57 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 58 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a)
-        @test length(node.subcmds) == 58
+        # 59 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 60 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b)
+        @test length(node.subcmds) == 60
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1513,6 +1514,134 @@ end  # Shared utilities
         end
     end
 
+    @testset "estimate ardl/nardl + test ardl-bounds/nardl-symmetry + multipliers nardl (C062b)" begin
+        # Single-equation ARDL/NARDL family. estimate ardl/nardl render a hand-built levels
+        # coef table + a folded long-run table + a diagnostics kv (ARDL: ECM α; NARDL: enlarged-k
+        # bounds decision). test ardl-bounds renders decision SYMBOLS + I(0)/I(1) bounds and has
+        # NO p_value column. test nardl-symmetry is a tidy multi-row Wald table. multipliers nardl
+        # (new top-level) melts the m⁺/m⁻ curves into one long table with optional band columns.
+        _run(root, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String[root], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(root, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String[root], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3, colnames=["y", "x1", "x2"])   # dep=y, 2 regressors
+            csv1 = _make_csv(dir; T=120, n=2, colnames=["y", "x1"])         # 1 regressor (for q-length)
+
+            @testset "estimate ardl — coef + long-run tables + ECM diagnostics" begin
+                doc = _run("estimate", ["ardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")
+                @test _has_tbl(doc, "term", "estimate", "std_error")   # long-run block
+                m = _metrics(doc)
+                @test Set(["p", "q", "case", "trend", "ic", "nobs", "K", "alpha", "alpha_se", "longrun_denom"]) ⊆ m
+                # auto selection path also runs
+                @test _run("estimate", ["ardl", csv, "--dep", "y", "--p", "auto"]).status == "ok"
+                # per-regressor q vector length must equal k → usage/invalid (1 regressor here)
+                e = _err("estimate", ["ardl", csv1, "--dep", "y", "--q", "2,1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # bad case → usage/invalid
+                @test (_err("estimate", ["ardl", csv, "--dep", "y", "--case", "9"])).code == "usage/invalid"
+            end
+
+            @testset "estimate nardl — split coef (_POS/_NEG) + θ⁺/θ⁻ + bounds decision in kv" begin
+                doc = _run("estimate", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "term", "estimate", "std_error", "stat", "p_value")
+                terms = join(String(collect(r)[1]) for r in coef.rows)
+                @test occursin("_POS", terms) && occursin("_NEG", terms)
+                m = _metrics(doc)
+                @test Set(["k_orig", "k", "asym", "f_decision", "t_decision", "bounds_level"]) ⊆ m
+                # subset of regressors asymmetric
+                @test _run("estimate", ["nardl", csv, "--dep", "y", "--asymmetric", "1"]).status == "ok"
+                # empty/invalid asymmetric index → usage/invalid
+                @test (_err("estimate", ["nardl", csv, "--dep", "y", "--asymmetric", "0"])).code == "usage/invalid"
+                # --q length must match the ENLARGED split design (1 regressor, all asymmetric →
+                # 2 POS/NEG cols) → usage/invalid up front, NOT MEMs data/invalid (review C062b)
+                en = _err("estimate", ["nardl", csv1, "--dep", "y", "--q", "1,2,3"])
+                @test en isa CliError && en.code == "usage/invalid"
+            end
+
+            @testset "test ardl-bounds — decision symbols + bounds, NO p-value" begin
+                doc = _run("test", ["ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                bt = _tbl_with(doc, "bound", "statistic", "i0_lower", "i1_upper", "decision")
+                @test !("p_value" in String.(bt.columns))              # bounds test has NO p-value
+                @test Set(["F", "t"]) ⊆ Set(String(collect(r)[1]) for r in bt.rows)
+                m = _metrics(doc)
+                @test Set(["f_stat", "t_stat", "k", "case", "cv_source", "level", "f_decision", "t_decision"]) ⊆ m
+                # case II has undefined t-bounds → rendered "undefined" (never a NaN crash)
+                d2 = _run("test", ["ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1", "--case", "2"])
+                @test d2.status == "ok"
+                # bad level / cv-source → usage/invalid (never interpret_test_result)
+                @test (_err("test", ["ardl-bounds", csv, "--dep", "y", "--level", "0.03"])).code == "usage/invalid"
+                ecv = _err("test", ["ardl-bounds", csv, "--dep", "y", "--cv-source", "narayan"])
+                @test ecv isa ParseError || (ecv isa CliError && exit_class(ecv) == 2)
+            end
+
+            @testset "test nardl-symmetry — tidy multi-row Wald table" begin
+                doc = _run("test", ["nardl-symmetry", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                st = _tbl_with(doc, "regressor", "theta_pos", "theta_neg", "lr_stat", "lr_p_chi2", "lr_p_f", "sr_stat")
+                @test !isempty(collect(st.rows))
+                @test Set(["df", "dof_resid", "n_asym"]) ⊆ _metrics(doc)
+            end
+
+            @testset "multipliers nardl — long table + bands present/absent" begin
+                # bands present with default nreps
+                doc = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "6"])
+                @test doc.status == "ok"
+                mt = _tbl_with(doc, "horizon", "regressor", "m_pos", "m_neg", "m_diff")
+                @test "m_pos_lo" in String.(mt.columns)                # band columns present
+                @test Set(["horizon", "n_asym", "nreps", "level", "bootstrap"]) ⊆ _metrics(doc)
+                # --no-bootstrap drops the band columns
+                dnb = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                                           "--horizon", "6", "--no-bootstrap"])
+                mnb = _tbl_with(dnb, "horizon", "regressor", "m_pos", "m_neg", "m_diff")
+                @test !("m_pos_lo" in String.(mnb.columns))
+                # --nreps 0 also drops bands
+                dn0 = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                                           "--horizon", "6", "--nreps", "0"])
+                @test !("m_pos_lo" in String.(_tbl_with(dn0, "horizon", "regressor", "m_pos").columns))
+                # negative horizon → usage/invalid
+                @test (_err("multipliers", ["nardl", csv, "--dep", "y", "--horizon", "-1"])).code == "usage/invalid"
+            end
+
+            @testset "shared bad input stays typed (never uncaught exit-1)" begin
+                # bad --dep → data/column-range (hardened _load_reg_data), whole family
+                @test (_err("estimate", ["ardl", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("estimate", ["nardl", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("test", ["ardl-bounds", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("multipliers", ["nardl", csv, "--dep", "nope"])).code == "data/column-range"
+                # missing cell → data/missing-values
+                misscsv = joinpath(dir, "missardl.csv")
+                write(misscsv, "y,x1\n1.0,2.0\n2.0,\n3.0,5.0\n4.0,7.0\n5.0,8.0\n6.0,9.0\n7.0,10.0\n8.0,11.0\n")
+                @test (_err("estimate", ["ardl", misscsv, "--dep", "y"])).code == "data/missing-values"
+            end
+
+            @testset "multipliers command structure (new top-level)" begin
+                node = register_multipliers_commands!()
+                @test node isa NodeCommand
+                @test length(node.subcmds) == 1
+                @test haskey(node.subcmds, "nardl")
+                @test node.subcmds["nardl"] isa LeafCommand
+            end
+        end
+    end
+
     @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
         _edoc(args) = begin
             out = _capture() do
@@ -2102,8 +2231,8 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 53 primary + 2 snake aliases (arch_lm, ljung_box) = 55 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b)
-        @test length(node.subcmds) == 55
+        # 55 primary + 2 snake aliases (arch_lm, ljung_box) = 57 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
+        @test length(node.subcmds) == 57
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
@@ -3636,7 +3765,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 58  # 57 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2)
+        @test length(node.subcmds) == 60  # 59 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3667,7 +3796,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 55  # 53 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b)
+        @test length(node.subcmds) == 57  # 55 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5053,7 +5182,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 58  # 57 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2)
+        @test length(node.subcmds) == 60  # 59 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -5084,7 +5213,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 55  # 53 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b)
+        @test length(node.subcmds) == 57  # 55 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
     end
 
     @testset "_parse_varlist" begin

@@ -807,6 +807,60 @@ function _parse_varlist(str::String)
 end
 
 """
+    _parse_lag_spec(s, flag; min=0) -> :auto | Int | Vector{Int}
+
+Parse an ARDL/NARDL `--p`/`--q` lag spec: `"auto"` → `:auto`; a bare integer `≥ min` →
+`Int`; a comma-separated list `"2,1,3"` → `Vector{Int}` (each `≥ min`). A bad token → typed
+`usage/invalid` (never a raw parse throw). `min` is the smallest admissible value (`1` for an
+AR order `--p`, `0` for a DL order `--q`). The per-regressor length check (`== k`) is done by
+the caller, which knows the regressor count. (C062b)
+"""
+function _parse_lag_spec(s::AbstractString, flag::String; min::Int=0)
+    s == "auto" && return :auto
+    if occursin(',', s)
+        toks = [strip(t) for t in split(s, ",") if !isempty(strip(t))]
+        isempty(toks) && throw(CliError("usage/invalid", "$flag: empty list"))
+        out = Int[]
+        for t in toks
+            v = tryparse(Int, t)
+            (v === nothing || v < min) && throw(CliError("usage/invalid",
+                "$flag: '$t' must be an integer ≥ $min"))
+            push!(out, v)
+        end
+        return out
+    end
+    v = tryparse(Int, s)
+    (v === nothing || v < min) && throw(CliError("usage/invalid",
+        "$flag must be 'auto', an integer ≥ $min, or a comma-separated list of such; got '$s'"))
+    return v
+end
+
+"""
+    _parse_asym_spec(s) -> :all | Vector{Int}
+
+Parse a NARDL `--asymmetric` spec: `"all"` → `:all` (split every regressor); else a
+comma-separated list of 1-based regressor indices → `Vector{Int}` (non-empty, each `≥ 1`).
+An empty result → typed `usage/invalid` (a fully-symmetric model → use `estimate ardl`). The
+upper bound (`≤ k₀`) is checked by the caller, which knows the regressor count. (C062b)
+"""
+function _parse_asym_spec(s::AbstractString)
+    s == "all" && return :all
+    idxs = Int[]
+    for t in split(s, ",")
+        ts = strip(t)
+        isempty(ts) && continue
+        v = tryparse(Int, ts)
+        (v === nothing || v < 1) && throw(CliError("usage/invalid",
+            "--asymmetric: '$ts' must be a positive 1-based regressor index (or 'all')"))
+        push!(idxs, v)
+    end
+    isempty(idxs) && throw(CliError("usage/invalid",
+        "--asymmetric resolved to no indices; pass 'all' or 1-based indices like '1,3' " *
+        "(a fully-symmetric model → use `estimate ardl`)"))
+    return idxs
+end
+
+"""
     load_panel_data(data, id_col, time_col; varnames=nothing) -> PanelData
 
 Load CSV data and set panel structure using xtset().

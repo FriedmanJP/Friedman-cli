@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 57 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 59 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -962,6 +962,63 @@ friedman estimate xtcointreg panel.csv --id-col=country --time-col=year --dep=lc
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** tidy panel coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`; group-mean reports Pedroni's between-dimension `t`-statistic and a back-solved display SE that can be `Inf` for a degenerate coefficient — rendered non-finite-safe) + diagnostics (`method`, `pooling`, `trend`, `kernel`, `N` units, total `nobs`, `T_i` span, `balanced`, `k`, `d`). `PanelCointRegModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate ardl
+
+**Autoregressive distributed-lag** model `ARDL(p, q₁…q_k)`, estimated by OLS on the lagged **levels** of `y` and the regressors. Loads `y` + `X` via the shared regression loader (`--dep` = dependent; all other numeric columns are regressors; **no intercept is prepended** — ARDL adds its own deterministics per the Pesaran-Shin-Smith `--case`). The single leaf folds three views into one call: the levels-form coefficient table, the **long-run** (level) multipliers `θ̂_j = (Σ_ℓ β̂_{jℓ})/(1 − Σ_i φ̂_i)` with delta-method standard errors, and the **error-correction** speed of adjustment `α = Σφ̂ − 1` (in the diagnostics).
+
+```bash
+# ARDL(1,1): y on x with one AR lag and one distributed lag, unrestricted intercept (case III)
+friedman estimate ardl data.csv --dep=y --p=1 --q=1 --case=3
+
+# IC-selected lag orders (AIC grid over p∈1:max-p, q∈0:max-q)
+friedman estimate ardl data.csv --dep=y --p=auto --q=auto --max-p=4 --max-q=4 --ic=aic
+
+# Per-regressor distributed-lag orders (one entry per regressor)
+friedman estimate ardl data.csv --dep=y --p=2 --q=2,1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st numeric) | Dependent column |
+| `--p` | | String | `auto` | AR order: `auto` or an integer ≥ 1 |
+| `--q` | | String | `auto` | DL order: `auto`, an integer, or a comma-separated per-regressor list |
+| `--max-p` | | Int | `4` | Max AR order for `auto` IC selection |
+| `--max-q` | | Int | `4` | Max DL order for `auto` IC selection |
+| `--ic` | | String | `aic` | Selection criterion: `aic`, `bic` |
+| `--case` | | Int | `3` | PSS deterministic case 1..5 (I none; II restricted intercept; III unrestricted intercept; IV +restricted trend; V +trend) |
+| `--trend` | | String | `none` | Informational trend label: `none`, `const`, `trend` (deterministics are governed by `--case`) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** levels coefficient table (`term|estimate|std_error|stat|p_value`) + a long-run coefficient table + diagnostics (`p`, `q`, `case`, `trend`, `ic`, `selected`, `nobs`, `K`, `sigma2`, `loglik`, `aic`, `bic`, `alpha`, `alpha_se`, `alpha_t`, `longrun_denom` = `1 − Σφ̂`). `ARDLModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). See [`test ardl-bounds`](test.md#test-ardl-bounds) for the Pesaran-Shin-Smith bounds test. **Trend-vocabulary note:** ARDL uses `none|const|trend` (distinct from cointreg's `none|const|linear` and PMG's `:constant`).
+
+## estimate nardl
+
+**Nonlinear (asymmetric) ARDL** of Shin, Yu & Greenwood-Nimmo (2014). Each regressor selected by `--asymmetric` is decomposed into positive/negative partial sums `x⁺, x⁻` (cumulated from `Δx`), and the pair replaces the original column in the ARDL design. The enlarged design is estimated by the same ARDL machinery, so an asymmetric regressor contributes **two** columns to the number-of-regressors `k` that indexes the bounds table. The single leaf folds the split-regressor coefficient table, the asymmetric long-run coefficients (θ⁺/θ⁻), and the cached enlarged-`k` **bounds decision** (F/t decision symbols — no p-value) into one call.
+
+```bash
+# Split every regressor into +/- partial sums
+friedman estimate nardl data.csv --dep=y --asymmetric=all --p=1 --q=1
+
+# Split only the 1st and 3rd regressors (others enter symmetrically)
+friedman estimate nardl data.csv --dep=y --asymmetric=1,3
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st numeric) | Dependent column |
+| `--asymmetric` | | String | `all` | `all` or comma-separated 1-based regressor indices to split |
+| `--p` | | String | `auto` | AR order: `auto` or an integer ≥ 1 |
+| `--q` | | String | `auto` | DL order: `auto`, an integer, or a comma-separated list (over the **split** regressors) |
+| `--max-p` | | Int | `4` | Max AR order for `auto` IC selection |
+| `--max-q` | | Int | `4` | Max DL order for `auto` IC selection |
+| `--ic` | | String | `aic` | Selection criterion: `aic`, `bic` |
+| `--case` | | Int | `3` | PSS deterministic case 1..5 |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** split-regressor coefficient table (labels carry `_POS`/`_NEG` suffixes) + asymmetric long-run table (θ⁺/θ⁻) + diagnostics including the enlarged-`k` bounds decision (`k_orig`, `k`, `asym`, `f_stat`, `t_stat`, `f_decision`, `t_decision`, `bounds_level`). NARDL has no `--trend` option (informational-only upstream). See [`test nardl-symmetry`](test.md#test-nardl-symmetry) for the long-/short-run symmetry Wald tests and [`multipliers nardl`](multipliers.md) for the cumulative dynamic multipliers.
 
 ## estimate iv
 

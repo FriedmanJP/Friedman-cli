@@ -384,6 +384,54 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_weak_instrument),
         ),
+        # C062b: ARDL bounds test (Pesaran-Shin-Smith 2001) + NARDL symmetry Wald tests.
+        # Both fit a single-equation (N)ARDL via the shared `_load_reg_data` loader + the
+        # `_fit_ardl`/`_fit_nardl` helpers (estimate.jl), then run the test. The bounds test has
+        # NO p-value (non-standard I(0)/I(1) bounds) → decision symbols, never interpret_test_result.
+        CommandSpec(
+            path=["test", "ardl-bounds"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
+                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
+                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer, or a comma-separated per-regressor list"),
+                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
+                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
+                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="trend", type=String, default="none", description="Informational trend label: none|const|trend", choices=["none","const","trend"]),
+                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Decision level: one of 0.10|0.05|0.025|0.01"),
+                OptionSpec(name="cv-source", type=String, default="pss", description="Critical-value source (only pss)", choices=["pss"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:ardl_bounds, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_ardl_bounds),
+        ),
+        CommandSpec(
+            path=["test", "nardl-symmetry"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
+                OptionSpec(name="asymmetric", type=String, default="all", description="'all' or comma-separated 1-based regressor indices to split into +/-"),
+                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
+                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer, or a comma-separated list"),
+                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
+                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
+                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:nardl_symmetry, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_nardl_symmetry),
+        ),
         # C071: VECM cointegration restriction tests (Johansen LR on β / α).
         # Each fits a VECM then tests a linear restriction on the cointegrating
         # structure; restriction matrices come from a [vecm_restriction] config.
@@ -1993,6 +2041,114 @@ function _test_westerlund(; data::String, id_col::String="", time_col::String=""
         throw(_teststat_error(e, "Westerlund test"))
     end
     _panel_coint_output(res, "Westerlund cointegration", depc, indeps; format=format, output=output)
+    return res
+end
+
+# ── C062b: ARDL bounds test + NARDL symmetry Wald tests ──────────────
+# Both fit a single-equation (N)ARDL via the shared `_load_reg_data` + `_fit_ardl`/`_fit_nardl`
+# helpers (estimate.jl) then run the test. `ARDLBoundsTest`/`NARDLSymmetryTest` are NOT
+# CLI-registered test types → hand-built rendering. The bounds test has NO p-value: it is
+# compared ONLY to the tabulated I(0)/I(1) bounds, so we render decision symbols + the
+# bracketing bounds and NEVER feed `interpret_test_result` (that would require a p-value).
+
+"""Map a bounds/symmetry MEMs failure to a typed CliError (never exit-1). Enums/case/level are
+pre-guarded up front → usage/invalid, so this only sees genuine data/model faults."""
+_ardl_test_error(e, what::String) = _teststat_error(e, what)
+
+const _ARDL_BOUNDS_LEVELS = [0.10, 0.05, 0.025, 0.01]
+
+function _test_ardl_bounds(; data::String, dep::String="", p::String="auto", q::String="auto",
+        max_p::Int=4, max_q::Int=4, ic::String="aic", trend::String="none", case::Int=3,
+        level::Float64=0.05, cv_source::String="pss", format::String="table", output::String="")
+    # Up-front usage guards (before any fit) so bad knobs → exit 2, never a wrapped data error.
+    (1 <= case <= 5) || throw(CliError("usage/invalid", "test ardl-bounds: --case must be in 1:5, got $case"))
+    any(x -> isapprox(x, level), _ARDL_BOUNDS_LEVELS) || throw(CliError("usage/invalid",
+        "test ardl-bounds: --level must be one of 0.10|0.05|0.025|0.01, got $level"))
+    cv_source == "pss" || throw(CliError("usage/invalid",
+        "test ardl-bounds: --cv-source must be pss (narayan finite-sample bounds are not bundled), got '$cv_source'"))
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("ARDL bounds test (PSS 2001, case $case, level $level): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
+    m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
+                  ic=ic, case=case, trend=trend, label="test ardl-bounds")
+    res = try
+        bounds_test(m; case=case, level=level, cv_source=:pss)
+    catch e
+        throw(_ardl_test_error(e, "ARDL bounds test"))
+    end
+    li = findfirst(x -> isapprox(x, res.level), res.levels)
+    li === nothing && (li = 2)   # fall back to the 5% row (levels are the fixed PSS grid)
+    # Bounds table at the decision level: t-bounds are NaN for cases II/IV → "undefined".
+    _fb(x) = isnan(x) ? "undefined" : round(Float64(x); digits=4)
+    df = DataFrame(bound=String["F", "t"],
+                   statistic=round.(Float64[res.fstat, res.tstat]; digits=4),
+                   i0_lower=[_fb(res.f_lower[li]), _fb(res.t_lower[li])],
+                   i1_upper=[_fb(res.f_upper[li]), _fb(res.t_upper[li])],
+                   decision=String[String(res.f_decision), String(res.t_decision)])
+    output_result(df; format=Symbol(format), output=output,
+                  title="ARDL Bounds Test (I(0)/I(1) bounds; NO p-value)")
+    output_kv(Pair{String,Any}[
+        "f_stat"     => round(Float64(res.fstat); digits=4),
+        "t_stat"     => round(Float64(res.tstat); digits=4),
+        "k"          => res.k,
+        "case"       => res.case,
+        "cv_source"  => String(res.cv_source),
+        "level"      => res.level,
+        "f_decision" => String(res.f_decision),
+        "t_decision" => String(res.t_decision),
+        "nobs"       => res.n,
+    ]; format=format, title="ARDL Bounds Test Summary")
+    # Decision text keyed off the SYMBOLS (not a p-value): F-bound is the primary conclusion.
+    _status()
+    fmsg = res.f_decision === :cointegrated ?
+               "F-bound: evidence of a level (cointegrating) relationship (F above the I(1) bound)" :
+           res.f_decision === :not_cointegrated ?
+               "F-bound: no level relationship (F below the I(0) bound)" :
+               "F-bound: inconclusive — F falls inside the I(0)/I(1) band"
+    _status_styled("-> $fmsg\n"; color=(res.f_decision === :inconclusive ? :yellow : :green))
+    return res
+end
+
+"""Render a `NARDLSymmetryTest` as a tidy multi-row table (one row per asymmetric regressor):
+`regressor|theta_pos|theta_neg|lr_stat|lr_p_chi2|lr_p_f|sr_stat|sr_p_chi2|sr_p_f`."""
+function _nardl_symmetry_table(res)
+    return DataFrame(
+        regressor = String.(res.reg_names),
+        theta_pos = round.(Float64.(res.theta_pos); digits=6),
+        theta_neg = round.(Float64.(res.theta_neg); digits=6),
+        lr_stat   = round.(Float64.(res.lr_stat); digits=4),
+        lr_p_chi2 = round.(Float64.(res.lr_p_chi2); digits=4),
+        lr_p_f    = round.(Float64.(res.lr_p_f); digits=4),
+        sr_stat   = round.(Float64.(res.sr_stat); digits=4),
+        sr_p_chi2 = round.(Float64.(res.sr_p_chi2); digits=4),
+        sr_p_f    = round.(Float64.(res.sr_p_f); digits=4),
+    )
+end
+
+function _test_nardl_symmetry(; data::String, dep::String="", asymmetric::String="all",
+        p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4, ic::String="aic",
+        case::Int=3, format::String="table", output::String="")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("NARDL symmetry Wald tests: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, case=$case), n=$(length(y))"); _status()
+    m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
+                   max_p=max_p, max_q=max_q, ic=ic, case=case, label="test nardl-symmetry")
+    res = try
+        symmetry_test(m)
+    catch e
+        throw(_ardl_test_error(e, "NARDL symmetry test"))
+    end
+    output_result(_nardl_symmetry_table(res); format=Symbol(format), output=output,
+                  title="NARDL Symmetry Tests (H0: θ⁺=θ⁻ long-run / Σπ⁺=Σπ⁻ short-run)")
+    output_kv(Pair{String,Any}[
+        "df"        => res.df,
+        "dof_resid" => res.dof_resid,
+        "n_asym"    => length(res.reg_names),
+    ]; format=format, title="NARDL Symmetry Test Summary")
+    # χ²(1) p-values ARE available — interpret the long-run test on the first regressor.
+    isempty(res.reg_names) || interpret_test_result(Float64(res.lr_p_chi2[1]),
+        "Reject H0 (long-run symmetry) at 5% for $(res.reg_names[1]) -- asymmetric adjustment",
+        "Cannot reject H0 (long-run symmetry) at 5% for $(res.reg_names[1])")
     return res
 end
 

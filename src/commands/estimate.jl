@@ -687,6 +687,56 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_xtcointreg),
         ),
+        # ── C062b: single-equation ARDL / NARDL (autoregressive distributed lag) ──
+        # `estimate ardl` (linear ARDL, folds long-run + ECM speed of adjustment) +
+        # `estimate nardl` (nonlinear/asymmetric ARDL, folds θ⁺/θ⁻ long-run + the cached
+        # enlarged-k bounds decision). Both load y+X via `_load_reg_data` (no intercept
+        # prepended — ARDL adds its own deterministics per PSS `--case`). ARDLModel/NARDLModel
+        # are StatsAPI models but NOT in MEMs `_COEF_TABLE_TYPES` → hand-built tidy tables
+        # (C051 exception). NOTE the trend vocab is ARDL-specific: none|const|trend (NOT the
+        # cointreg none|const|linear, NOT PMG's :constant). `--p`/`--q` accept auto|int|list.
+        CommandSpec(
+            path=["estimate", "ardl"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
+                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
+                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer (all regressors), or a comma-separated per-regressor list"),
+                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
+                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
+                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="trend", type=String, default="none", description="Informational trend label: none|const|trend", choices=["none","const","trend"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_ardl, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ardl),
+        ),
+        CommandSpec(
+            path=["estimate", "nardl"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
+                OptionSpec(name="asymmetric", type=String, default="all", description="'all' or comma-separated 1-based regressor indices to split into +/- partial sums"),
+                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
+                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer (all split regressors), or a comma-separated list"),
+                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
+                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
+                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_nardl, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_nardl),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -3566,4 +3616,172 @@ function _estimate_xtcointreg(; data::String, id_col::String="", time_col::Strin
         "d"        => model.d,
     ]; format=format, title="Panel Cointegrating Regression Diagnostics")
     return model
+end
+
+# ── C062b: single-equation ARDL / NARDL ──────────────────────────────
+# `estimate ardl` / `estimate nardl`, plus `test ardl-bounds` / `test nardl-symmetry`
+# (test.jl) and `multipliers nardl` (multipliers.jl) all fit via these shared helpers.
+# ARDLModel/NARDLModel are StatsAPI RegressionModels but NOT in MEMs `_COEF_TABLE_TYPES`,
+# so the tidy coef/long-run tables are hand-built (documented C051 exception, like
+# io/mgarch/sur/cointreg). p-values use the normal approximation (`_normal_cdf`) — the CLI
+# convention everywhere (the ARDL OLS t-ratios are asymptotically standard-normal, and the
+# mock has no TDist); the ARDL/NARDL trend vocabulary is none|const|trend (ARDL-specific).
+
+"""Hand-built levels-form coefficient table for a fitted `ARDLModel` (pass `m` for
+`estimate ardl` or `m.ardl` for NARDL): `term|estimate|std_error|stat|p_value`."""
+function _ardl_coef_table(a)
+    est = Float64.(coef(a))
+    se = Float64.(stderror(a))
+    names = String.(a.coefnames)[1:length(est)]
+    z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
+    pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    return DataFrame(term=names, estimate=round.(est; digits=6),
+                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
+                     p_value=round.(pv; digits=4))
+end
+
+"""Hand-built long-run (level) multiplier table from an `ARDLLongRun`:
+`term|estimate|std_error|stat|p_value` (delta-method SEs; normal-approx stat/p — MEMs uses
+`dist=:z` for the long-run block). Serves `estimate ardl` (symmetric) and `estimate nardl`
+(θ⁺/θ⁻ on the enlarged regressor set)."""
+function _ardl_longrun_table(lr)
+    est = Float64.(lr.theta)
+    se = Float64.(lr.se)
+    names = String.(lr.varnames)[1:length(est)]
+    z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
+    pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    return DataFrame(term=names, estimate=round.(est; digits=6),
+                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
+                     p_value=round.(pv; digits=4))
+end
+
+"""Fit an `ARDLModel` from a loaded `(y, X, xcols)` + a resolved dep name, with all
+argument validation done up front (`--case`/`--max-p`/`--max-q` + `--p`/`--q` parse and the
+per-regressor `--q` length check). Every MEMs call is wrapped → typed `CliError` via
+`_garch_variant_error` (bad case/q → `data/invalid`, shape → `data/shape`). Shared by
+`estimate ardl` and `test ardl-bounds`."""
+function _fit_ardl(y, X, xcols, dep_name; p::String, q::String, max_p::Int, max_q::Int,
+                   ic::String, case::Int, trend::String, label::String)
+    (1 <= case <= 5) || throw(CliError("usage/invalid", "$label: --case must be in 1:5, got $case"))
+    max_p >= 1 || throw(CliError("usage/invalid", "$label: --max-p must be ≥ 1, got $max_p"))
+    max_q >= 0 || throw(CliError("usage/invalid", "$label: --max-q must be ≥ 0, got $max_q"))
+    pp = _parse_lag_spec(p, "--p"; min=1)
+    qq = _parse_lag_spec(q, "--q"; min=0)
+    k = length(xcols)
+    (qq isa Vector{Int} && length(qq) != k) && throw(CliError("usage/invalid",
+        "$label: --q has $(length(qq)) entries but there are $k regressor(s); pass one per regressor, a single int, or auto"))
+    return try
+        estimate_ardl(y, X; p=pp, q=qq, max_p=max_p, max_q=max_q, ic=Symbol(ic),
+                      case=case, trend=Symbol(trend), xnames=xcols, yname=dep_name)
+    catch e
+        throw(_garch_variant_error(e, label))
+    end
+end
+
+"""Fit a `NARDLModel` from a loaded `(y, X, xcols)` + a resolved dep name. Validates
+`--case`/orders, parses `--p`/`--q`, and resolves/bounds-checks `--asymmetric` (each index ∈
+`1:k₀`). Wrapped → typed `CliError`. Shared by `estimate nardl`, `test nardl-symmetry`, and
+`multipliers nardl`."""
+function _fit_nardl(y, X, xcols, dep_name; asymmetric::String, p::String, q::String,
+                    max_p::Int, max_q::Int, ic::String, case::Int, label::String)
+    (1 <= case <= 5) || throw(CliError("usage/invalid", "$label: --case must be in 1:5, got $case"))
+    max_p >= 1 || throw(CliError("usage/invalid", "$label: --max-p must be ≥ 1, got $max_p"))
+    max_q >= 0 || throw(CliError("usage/invalid", "$label: --max-q must be ≥ 0, got $max_q"))
+    k0 = length(xcols)
+    asym = _parse_asym_spec(asymmetric)
+    (asym isa Vector{Int} && !all(j -> 1 <= j <= k0, asym)) && throw(CliError("usage/invalid",
+        "$label: --asymmetric indices must be in 1:$k0, got $asym"))
+    pp = _parse_lag_spec(p, "--p"; min=1)
+    qq = _parse_lag_spec(q, "--q"; min=0)
+    # Up-front `--q` length check on the ENLARGED split design (each asymmetric regressor →
+    # POS/NEG), mirroring `_fit_ardl`'s guard → a wrong-length list is usage/invalid (exit 2)
+    # with a clean CLI message, not MEMs' data/invalid referencing the internal split count
+    # (adversarial review C062b).
+    kk = asym === :all ? 2 * k0 : k0 + length(asym)
+    (qq isa Vector{Int} && length(qq) != kk) && throw(CliError("usage/invalid",
+        "$label: --q has $(length(qq)) entries but the NARDL split design has $kk regressor(s) (each asymmetric regressor is split into POS/NEG); pass one per split regressor, a single int, or auto"))
+    return try
+        estimate_nardl(y, X; asymmetric=asym, p=pp, q=qq, max_p=max_p, max_q=max_q,
+                       ic=Symbol(ic), case=case, xnames=xcols, yname=dep_name)
+    catch e
+        throw(_garch_variant_error(e, label))
+    end
+end
+
+"""Round a scalar for kv output, string-rendering non-finite values (the legacy-JSON writer
+rejects Inf/NaN — the C067a gotcha; `alpha_t` can be Inf when `alpha_se==0`)."""
+_ardl_kv(x; digits::Int=6) = isfinite(x) ? round(Float64(x); digits=digits) : string(x)
+
+function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::String="auto",
+                         max_p::Int=4, max_q::Int=4, ic::String="aic", case::Int=3,
+                         trend::String="none", output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("ARDL: $dep_name ~ $(join(xcols, " + ")) (p=$p, q=$q, case=$case, ic=$ic), n=$(length(y))"); _status()
+    m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
+                  ic=ic, case=case, trend=trend, label="ARDL")
+    output_result(_ardl_coef_table(m); format=Symbol(format), output=output,
+                  title="ARDL Coefficients (levels form) ($dep_name)")
+    lr = long_run(m)
+    output_result(_ardl_longrun_table(lr); format=Symbol(format),
+                  output=_per_var_output_path(output, "longrun"),
+                  title="ARDL Long-Run Coefficients ($dep_name)")
+    ecm = MacroEconometricModels.ecm_form(m)   # ecm_form is not exported → qualify
+    output_kv(Pair{String,Any}[
+        "p"             => m.p,
+        "q"             => join(m.q, ","),
+        "case"          => m.case,
+        "trend"         => String(m.trend),
+        "ic"            => String(m.ic),
+        "selected"      => m.selected,
+        "nobs"          => m.n,
+        "K"             => m.K,
+        "sigma2"        => _ardl_kv(m.sigma2),
+        "loglik"        => _ardl_kv(m.loglik; digits=4),
+        "aic"           => _ardl_kv(m.aic; digits=4),
+        "bic"           => _ardl_kv(m.bic; digits=4),
+        "alpha"         => _ardl_kv(ecm.alpha),           # ECM speed of adjustment (Σφ − 1)
+        "alpha_se"      => _ardl_kv(ecm.alpha_se),
+        "alpha_t"       => _ardl_kv(ecm.alpha_t; digits=4),
+        "longrun_denom" => _ardl_kv(lr.denom),            # 1 − Σφ̂ = −alpha
+    ]; format=format, title="ARDL Diagnostics")
+    return m
+end
+
+function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all",
+                          p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4,
+                          ic::String="aic", case::Int=3, output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("NARDL: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, p=$p, q=$q, case=$case), n=$(length(y))"); _status()
+    m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
+                   max_p=max_p, max_q=max_q, ic=ic, case=case, label="NARDL")
+    a = m.ardl
+    output_result(_ardl_coef_table(a); format=Symbol(format), output=output,
+                  title="NARDL Coefficients (levels form, split regressors) ($dep_name)")
+    lr = long_run(m)   # ARDLLongRun on the enlarged (θ⁺/θ⁻) regressor set
+    output_result(_ardl_longrun_table(lr); format=Symbol(format),
+                  output=_per_var_output_path(output, "longrun"),
+                  title="NARDL Asymmetric Long-Run Coefficients (θ⁺ / θ⁻) ($dep_name)")
+    # Cached enlarged-k bounds decision (NO p-value — non-standard PSS test).
+    b = m.bounds
+    li = findfirst(x -> isapprox(x, b.level), b.levels)
+    output_kv(Pair{String,Any}[
+        "k_orig"       => m.k_orig,
+        "k"            => m.k,                 # enlarged: each asymmetric regressor counts twice
+        "asym"         => join(m.asym, ","),
+        "p"            => a.p,
+        "q"            => join(a.q, ","),
+        "case"         => a.case,
+        "ic"           => String(a.ic),
+        "nobs"         => a.n,
+        "f_stat"       => _ardl_kv(b.fstat; digits=4),
+        "t_stat"       => _ardl_kv(b.tstat; digits=4),
+        "bounds_level" => b.level,
+        "f_lower"      => li === nothing ? "n/a" : _ardl_kv(b.f_lower[li]; digits=4),
+        "f_upper"      => li === nothing ? "n/a" : _ardl_kv(b.f_upper[li]; digits=4),
+        "f_decision"   => String(b.f_decision),
+        "t_decision"   => String(b.t_decision),
+    ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))")
+    return m
 end

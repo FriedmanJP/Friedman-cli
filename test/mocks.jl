@@ -6442,4 +6442,373 @@ export sda, hypothetical_extraction, add_extension!, intensities, emission_multi
 export domar_weights, baqaee_farhi, list_io_sources, download_io
 export download_oecd, download_wiod, download_exiobase3, download_eora26, download_gloria
 
+# ─── C062b: single-equation ARDL / NARDL (EV-08/09) ─────────────────────────
+# Mirror the real MEMs 0.7.0 ARDL field NAMES (a faithful subset is fine — check_mock_surface
+# is mock ⊆ real). Estimators are GENUINE ARDL OLS-on-lagged-levels fits that validate like the
+# real ones (case∈1:5, ic∈{aic,bic}, q-length==k, empty-asym ArgumentError, y/X shape) so T1/T2
+# exercise the error mapping AND the hand-built coef/long-run/bounds/multiplier renderers.
+# Struct order matters (flat include): ARDLLongRun before ARDLModel (its `longrun` field);
+# ARDLModel + ARDLBoundsTest before NARDLModel (which embeds both).
+
+struct ARDLLongRun{T<:AbstractFloat}
+    theta::Vector{T}
+    se::Vector{T}
+    denom::T
+    varnames::Vector{String}
+end
+
+struct ARDLModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    coef::Vector{T}
+    vcov::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    p::Int
+    q::Vector{Int}
+    case::Int
+    trend::Symbol
+    ssr::T
+    sigma2::T
+    loglik::T
+    aic::T
+    bic::T
+    n::Int
+    K::Int
+    ar_idx::Vector{Int}
+    x_idx::Vector{Vector{Int}}
+    coefnames::Vector{String}
+    xnames::Vector{String}
+    yname::String
+    selected::Bool
+    ic::Symbol
+    longrun::ARDLLongRun{T}
+end
+
+struct ARDLBoundsTest{T<:AbstractFloat}
+    fstat::T
+    tstat::T
+    k::Int
+    case::Int
+    cv_source::Symbol
+    levels::Vector{T}
+    f_lower::Vector{T}
+    f_upper::Vector{T}
+    t_lower::Vector{T}
+    t_upper::Vector{T}
+    level::T
+    f_decision::Symbol
+    t_decision::Symbol
+    n::Int
+end
+
+struct NARDLModel{T<:AbstractFloat}
+    ardl::ARDLModel{T}
+    bounds::ARDLBoundsTest{T}
+    y::Vector{T}
+    X::Matrix{T}
+    Xsplit::Matrix{T}
+    asym::Vector{Int}
+    meta::Vector{Tuple{Int,Symbol}}
+    k_orig::Int
+    k::Int
+    xnames::Vector{String}
+    enames::Vector{String}
+    yname::String
+end
+
+struct NARDLSymmetryTest{T<:AbstractFloat}
+    reg_index::Vector{Int}
+    reg_names::Vector{String}
+    lr_stat::Vector{T}
+    lr_p_chi2::Vector{T}
+    lr_p_f::Vector{T}
+    sr_stat::Vector{T}
+    sr_p_chi2::Vector{T}
+    sr_p_f::Vector{T}
+    theta_pos::Vector{T}
+    theta_neg::Vector{T}
+    df::Int
+    dof_resid::Int
+end
+
+struct NARDLMultipliers{T<:AbstractFloat}
+    horizons::Vector{Int}
+    reg_index::Vector{Int}
+    reg_names::Vector{String}
+    m_pos::Matrix{T}
+    m_neg::Matrix{T}
+    m_diff::Matrix{T}
+    m_pos_lo::Matrix{T}
+    m_pos_hi::Matrix{T}
+    m_neg_lo::Matrix{T}
+    m_neg_hi::Matrix{T}
+    m_diff_lo::Matrix{T}
+    m_diff_hi::Matrix{T}
+    theta_pos::Vector{T}
+    theta_neg::Vector{T}
+    nreps::Int
+    level::T
+end
+
+coef(m::ARDLModel) = m.coef
+vcov(m::ARDLModel) = m.vcov
+stderror(m::ARDLModel) = [sqrt(max(m.vcov[i, i], 0.0)) for i in 1:length(m.coef)]
+nobs(m::ARDLModel) = m.n
+coef(m::NARDLModel) = m.ardl.coef
+stderror(m::NARDLModel) = stderror(m.ardl)
+
+# χ²(1) survival function proxy p = P(χ²₁ > s) = 2·(1−Φ(√s)); finite, monotone, in (0,1) —
+# enough for a mock p-value (tests assert finiteness/shape, not magnitude).
+_mock_chisq1_sf(s::Real) = 2.0 * _mock_norm_sf(sqrt(max(Float64(s), 0.0)))
+
+# Genuine levels-ARDL design [det; y_{t-1..p}; x_j lags], mirroring real `_ardl_design`.
+function _mock_ardl_design(y::Vector{T}, X0::Matrix{T}, p::Int, q::Vector{Int}, case::Int,
+                           xnames::Vector{String}, yname::String) where {T}
+    N = size(X0, 1); k = size(X0, 2)
+    L = max(p, maximum(q)); rows = (L + 1):N; n = length(rows)
+    cols = Vector{Vector{T}}(); names = String[]
+    trend = case == 1 ? :none : (case in (2, 3) ? :const : :trend)
+    if trend == :const || trend == :trend
+        push!(cols, ones(T, n)); push!(names, "(Intercept)")
+    end
+    if trend == :trend
+        push!(cols, T.(collect(rows))); push!(names, "trend")
+    end
+    ar_idx = Int[]
+    for i in 1:p
+        push!(cols, T[y[t-i] for t in rows]); push!(names, "L$i.$yname"); push!(ar_idx, length(cols))
+    end
+    x_idx = Vector{Vector{Int}}(undef, k)
+    for j in 1:k
+        idxj = Int[]
+        for l in 0:q[j]
+            push!(cols, T[X0[t-l, j] for t in rows])
+            push!(names, l == 0 ? xnames[j] : "L$l.$(xnames[j])")
+            push!(idxj, length(cols))
+        end
+        x_idx[j] = idxj
+    end
+    (reduce(hcat, cols), T[y[t] for t in rows], ar_idx, x_idx, names, trend)
+end
+
+function estimate_ardl(y::AbstractVector, X::AbstractVecOrMat;
+                       p::Union{Symbol,Integer}=:auto,
+                       q::Union{Symbol,Integer,AbstractVector}=:auto,
+                       max_p::Int=4, max_q::Int=4, ic::Symbol=:aic, case::Int=3,
+                       trend::Symbol=:none, xnames=nothing, yname::AbstractString="y")
+    T = Float64
+    yv = collect(T, y)
+    X0 = X isa AbstractVector ? reshape(collect(T, X), :, 1) : Matrix{T}(X)
+    N, k = size(X0)
+    length(yv) == N || throw(DimensionMismatch("y has length $(length(yv)); X has $N rows"))
+    (1 <= case <= 5) || throw(ArgumentError("case must be in 1:5; got $case"))
+    ic in (:aic, :bic) || throw(ArgumentError("ic must be :aic or :bic; got :$ic"))
+    vnames = xnames === nothing ? ["x$j" for j in 1:k] : collect(String, xnames)
+    length(vnames) == k || throw(ArgumentError("xnames must have length $k"))
+    yn = String(yname)
+    selected = (p === :auto) || (q === :auto)
+    pp = p === :auto ? 1 : Int(p)          # mock: no grid search — fix :auto at 1
+    pp >= 1 || throw(ArgumentError("p must be ≥ 1; got $pp"))
+    qq = q === :auto ? fill(1, k) : (q isa Integer ? fill(Int(q), k) : collect(Int, q))
+    length(qq) == k || throw(ArgumentError("q must have length $k; got $(length(qq))"))
+    all(>=(0), qq) || throw(ArgumentError("every q must be ≥ 0"))
+    L = max(pp, maximum(qq))
+    N > L || throw(ArgumentError("effective sample empty: need N > $L"))
+    Xd, yeff, ar_idx, x_idx, names, tr = _mock_ardl_design(yv, X0, pp, qq, case, vnames, yn)
+    n, K = size(Xd)
+    n > K || throw(ArgumentError("effective sample ($n) ≤ #coefficients ($K); reduce lags"))
+    XtX = Xd'Xd
+    beta = XtX \ (Xd'yeff)
+    fitted = Xd * beta
+    resid = yeff .- fitted
+    ssr = sum(abs2, resid)
+    sigma2 = ssr / max(n - K, 1)
+    vcovm = sigma2 .* (XtX \ Matrix{T}(I(K)))
+    ll = -T(n) / 2 * (log(2π) + log(max(ssr / n, eps())) + 1)
+    aic = -2ll + 2 * (K + 1); bic = -2ll + log(T(n)) * (K + 1)
+    denom = one(T) - sum(beta[ar_idx])
+    theta = zeros(T, k); se = zeros(T, k)
+    for j in 1:k
+        num = sum(beta[x_idx[j]])
+        theta[j] = num / denom
+        g = zeros(T, K)
+        for c in x_idx[j]; g[c] = one(T) / denom; end
+        for c in ar_idx;   g[c] = num / denom^2; end
+        se[j] = sqrt(max(sum(g .* (vcovm * g)), zero(T)))
+    end
+    lr = ARDLLongRun{T}(theta, se, denom, copy(vnames))
+    ARDLModel{T}(yeff, Xd, beta, vcovm, resid, fitted, pp, qq, case, tr, ssr, sigma2,
+                 ll, aic, bic, n, K, ar_idx, x_idx, names, vnames, yn, selected, ic, lr)
+end
+
+long_run(m::ARDLModel) = m.longrun
+
+function ecm_form(m::ARDLModel{T}) where {T}
+    r = zeros(T, m.K)
+    for c in m.ar_idx; r[c] = one(T); end
+    alpha = sum(r .* m.coef) - one(T)
+    alpha_se = sqrt(max(sum(r .* (m.vcov * r)), zero(T)))
+    (alpha=alpha, alpha_se=alpha_se, alpha_t=alpha / alpha_se, longrun=m.longrun)
+end
+
+const _MOCK_PSS_LEVELS = [0.10, 0.05, 0.025, 0.01]
+
+function bounds_test(m::ARDLModel{T}; case::Int=m.case, level::Real=0.05,
+                     cv_source::Symbol=:pss) where {T}
+    cv_source == :narayan &&
+        throw(ArgumentError("cv_source=:narayan finite-sample bounds are not bundled; use :pss"))
+    cv_source == :pss || throw(ArgumentError("cv_source must be :pss; got :$cv_source"))
+    (1 <= case <= 5) || throw(ArgumentError("case must be in 1:5; got $case"))
+    li = findfirst(x -> isapprox(x, level), _MOCK_PSS_LEVELS)
+    li === nothing && throw(ArgumentError("level must be one of $_MOCK_PSS_LEVELS; got $level"))
+    k = length(m.q)
+    b = m.coef; V = m.vcov
+    lvl_cols = vcat(m.ar_idx, reduce(vcat, m.x_idx))
+    zs = T[V[c, c] > 0 ? b[c] / sqrt(V[c, c]) : zero(T) for c in lvl_cols]
+    fstat = sum(abs2, zs) / length(zs)
+    ecm = ecm_form(m)
+    tstat = ecm.alpha_t
+    f_lower = T[4.04, 4.94, 5.77, 6.84]        # PSS case III k=1 canonical (mock: fixed table)
+    f_upper = T[4.78, 5.73, 6.68, 7.84]
+    if case in (2, 4)
+        t_lower = fill(T(NaN), 4); t_upper = fill(T(NaN), 4)
+    else
+        t_lower = T[-2.57, -2.86, -3.13, -3.43]
+        t_upper = T[-2.91, -3.22, -3.50, -3.82]
+    end
+    f_dec = fstat > f_upper[li] ? :cointegrated : fstat < f_lower[li] ? :not_cointegrated : :inconclusive
+    t_dec = isnan(t_lower[li]) ? :undefined :
+            (tstat < t_upper[li] ? :cointegrated : tstat > t_lower[li] ? :not_cointegrated : :inconclusive)
+    ARDLBoundsTest{T}(T(fstat), T(tstat), k, case, cv_source, T.(_MOCK_PSS_LEVELS),
+                     f_lower, f_upper, t_lower, t_upper, T(level), f_dec, t_dec, m.n)
+end
+
+function _mock_partial_sums(x::Vector{T}) where {T}
+    N = length(x); xp = zeros(T, N); xn = zeros(T, N)
+    for t in 2:N
+        dx = x[t] - x[t-1]
+        xp[t] = xp[t-1] + max(dx, zero(T))
+        xn[t] = xn[t-1] + min(dx, zero(T))
+    end
+    (xp, xn)
+end
+
+function estimate_nardl(y::AbstractVector, X::AbstractVecOrMat;
+                        asymmetric::Union{Symbol,AbstractVector{<:Integer}}=:all,
+                        p::Union{Symbol,Integer}=:auto,
+                        q::Union{Symbol,Integer,AbstractVector}=:auto,
+                        max_p::Int=4, max_q::Int=4, ic::Symbol=:aic, case::Int=3,
+                        xnames=nothing, yname::AbstractString="y")
+    T = Float64
+    yv = collect(T, y)
+    X0 = X isa AbstractVector ? reshape(collect(T, X), :, 1) : Matrix{T}(X)
+    N, k0 = size(X0)
+    length(yv) == N || throw(DimensionMismatch("y has length $(length(yv)); X has $N rows"))
+    vnames = xnames === nothing ? ["x$j" for j in 1:k0] : collect(String, xnames)
+    length(vnames) == k0 || throw(ArgumentError("xnames must have length $k0"))
+    if asymmetric === :all
+        asym = collect(1:k0)
+    else
+        asym = sort(unique(collect(Int, asymmetric)))
+        all(j -> 1 <= j <= k0, asym) || throw(ArgumentError("asymmetric indices must be in 1:$k0; got $asym"))
+    end
+    isempty(asym) &&
+        throw(ArgumentError("NARDL needs at least one asymmetric regressor; use estimate_ardl"))
+    cols = Vector{Vector{T}}(); meta = Tuple{Int,Symbol}[]; enames = String[]
+    for j in 1:k0
+        if j in asym
+            xp, xn = _mock_partial_sums(X0[:, j])
+            push!(cols, xp); push!(meta, (j, :pos)); push!(enames, vnames[j] * "_POS")
+            push!(cols, xn); push!(meta, (j, :neg)); push!(enames, vnames[j] * "_NEG")
+        else
+            push!(cols, X0[:, j]); push!(meta, (j, :sym)); push!(enames, vnames[j])
+        end
+    end
+    Xsplit = reduce(hcat, cols)
+    kk = size(Xsplit, 2)
+    ardl = estimate_ardl(yv, Xsplit; p=p, q=q, max_p=max_p, max_q=max_q, ic=ic, case=case,
+                         xnames=enames, yname=String(yname))
+    bt = bounds_test(ardl; case=case)
+    NARDLModel{T}(ardl, bt, yv, X0, Xsplit, asym, meta, k0, kk, vnames, enames, String(yname))
+end
+
+long_run(m::NARDLModel) = m.ardl.longrun
+bounds_test(m::NARDLModel) = m.bounds
+
+function _mock_enlarged_index(m::NARDLModel, orig::Int, kind::Symbol)
+    for (e, (o, kd)) in enumerate(m.meta)
+        (o == orig && kd == kind) && return e
+    end
+    0
+end
+
+function symmetry_test(m::NARDLModel{T}) where {T}
+    a = m.ardl; asym = m.asym; na = length(asym)
+    denom = one(T) - sum(a.coef[a.ar_idx])
+    lr_stat = zeros(T, na); lr_pc = zeros(T, na); lr_pf = zeros(T, na)
+    sr_stat = zeros(T, na); sr_pc = zeros(T, na); sr_pf = zeros(T, na)
+    tp = zeros(T, na); tn = zeros(T, na); names = String[]
+    dof_r = max(a.n - a.K, 1)
+    for (i, orig) in enumerate(asym)
+        push!(names, m.xnames[orig])
+        ep = _mock_enlarged_index(m, orig, :pos); en = _mock_enlarged_index(m, orig, :neg)
+        Sp = sum(a.coef[a.x_idx[ep]]); Sn = sum(a.coef[a.x_idx[en]])
+        thp = Sp / denom; thn = Sn / denom
+        tp[i] = thp; tn[i] = thn
+        diff = thp - thn
+        var = 0.05 + abs(diff) * 0.01
+        s = diff^2 / var
+        lr_stat[i] = s; lr_pc[i] = _mock_chisq1_sf(s); lr_pf[i] = _mock_chisq1_sf(s)
+        ss = 0.5 * s
+        sr_stat[i] = ss; sr_pc[i] = _mock_chisq1_sf(ss); sr_pf[i] = _mock_chisq1_sf(ss)
+    end
+    NARDLSymmetryTest{T}(copy(asym), names, lr_stat, lr_pc, lr_pf, sr_stat, sr_pc, sr_pf,
+                        tp, tn, 1, dof_r)
+end
+
+function _mock_iterate_multiplier(phi::Vector{T}, beta::Vector{T}, H::Int) where {T}
+    p = length(phi); q = length(beta) - 1; g = zeros(T, H + 1)
+    for h in 0:H
+        val = zero(T)
+        for i in 1:p; (h - i) >= 0 && (val += phi[i] * g[h-i+1]); end
+        for l in 0:q; h >= l && (val += beta[l+1]); end
+        g[h+1] = val
+    end
+    g
+end
+
+function dynamic_multipliers(m::NARDLModel{T}, H::Int; bootstrap::Bool=true, nreps::Int=500,
+                             level::Real=0.95, rng::AbstractRNG=Random.default_rng()) where {T}
+    H >= 0 || throw(ArgumentError("H must be ≥ 0; got $H"))
+    a = m.ardl; na = length(m.asym); Hp1 = H + 1
+    m_pos = zeros(T, na, Hp1); m_neg = zeros(T, na, Hp1); m_dif = zeros(T, na, Hp1)
+    tp = zeros(T, na); tn = zeros(T, na)
+    lr = a.longrun
+    phi = T[a.coef[c] for c in a.ar_idx]
+    for (i, orig) in enumerate(m.asym)
+        ep = _mock_enlarged_index(m, orig, :pos); en = _mock_enlarged_index(m, orig, :neg)
+        bp = T[a.coef[c] for c in a.x_idx[ep]]; bn = T[a.coef[c] for c in a.x_idx[en]]
+        gp = _mock_iterate_multiplier(phi, bp, H); gn = _mock_iterate_multiplier(phi, bn, H)
+        m_pos[i, :] .= gp; m_neg[i, :] .= gn; m_dif[i, :] .= gp .- gn
+        tp[i] = lr.theta[ep]; tn[i] = lr.theta[en]
+    end
+    if bootstrap && nreps > 0
+        w = T(0.1)                       # mock deterministic bands (rng accepted, unused)
+        pl = m_pos .- w; ph = m_pos .+ w
+        nl = m_neg .- w; nh = m_neg .+ w
+        dl = m_dif .- w; dh = m_dif .+ w
+    else
+        z = Matrix{T}(undef, 0, 0)
+        pl = ph = nl = nh = dl = dh = z
+        nreps = 0
+    end
+    names = [m.xnames[o] for o in m.asym]
+    NARDLMultipliers{T}(collect(0:H), copy(m.asym), names, m_pos, m_neg, m_dif,
+                       pl, ph, nl, nh, dl, dh, tp, tn, nreps, T(level))
+end
+
+export ARDLLongRun, ARDLModel, ARDLBoundsTest, NARDLModel, NARDLSymmetryTest, NARDLMultipliers
+export estimate_ardl, estimate_nardl, long_run, bounds_test, symmetry_test, dynamic_multipliers
+
 end # module

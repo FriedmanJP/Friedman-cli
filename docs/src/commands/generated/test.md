@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 61
+**Leaves:** 63
 
 ### `friedman test adf`
 
@@ -88,6 +88,33 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `arch_lm` (Path to CSV data file)
+
+---
+
+### `friedman test ardl-bounds`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated per-regressor list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none|const|trend |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--level` | — | `Float64` | `0.05` | — | Decision level: one of 0.10|0.05|0.025|0.01 |
+| `--cv-source` | — | `String` | `pss` | `pss` | Critical-value source (only pss) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `ardl_bounds` (Path to CSV data file)
 
 ---
 
@@ -750,6 +777,31 @@ Path to CSV data file (rows=T, cols=N)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `moon_perron` (Path to CSV data file (rows=T, cols=N))
+
+---
+
+### `friedman test nardl-symmetry`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--asymmetric` | — | `String` | `all` | — | 'all' or comma-separated 1-based regressor indices to split into +/- |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `nardl_symmetry` (Path to CSV data file)
 
 ---
 
