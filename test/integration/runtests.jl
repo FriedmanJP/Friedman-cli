@@ -1860,6 +1860,124 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test r.code == 6
         end
     end
+
+    @testset "estimate statespace/tvp/kde/kernel-reg/lowess (C066, M5c)" begin
+        # First table in the envelope whose columns ⊇ `cols`.
+        cols_table(doc, cols) = begin
+            doc === nothing && return nothing
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                all(c -> c in table_cols(v), cols) && return v
+            end
+            return nothing
+        end
+        metrics_table(doc) = cols_table(doc, ["metric", "value"])
+
+        @testset "statespace local-level — finite loglik + positive variances" begin
+            csv = dgp_ar1(; T=200, φ=0.6, seed=31)
+            r = run_json(["estimate", "statespace", csv, "--model", "local-level"])
+            assert_envelope_ok(r; label="statespace local-level")
+            pt = cols_table(r.doc, ["parameter", "estimate"])
+            @test pt !== nothing && length(table_rows(pt)) == 2
+            ei = findfirst(==("estimate"), table_cols(pt))
+            @test all(Float64(collect(row)[ei]) >= 0.0 for row in table_rows(pt))   # variances ≥ 0
+            ll = metric_value(metrics_table(r.doc), "loglik")
+            @test ll !== nothing && isfinite(Float64(ll))
+            rm(csv; force=true)
+        end
+
+        @testset "statespace local-linear-trend — 3 hyper-params" begin
+            csv = dgp_trend_cycle(; T=200, seed=32)
+            r = run_json(["estimate", "statespace", csv, "--model", "local-linear-trend"])
+            assert_envelope_ok(r; label="statespace llt")
+            pt = cols_table(r.doc, ["parameter", "estimate"])
+            @test pt !== nothing && length(table_rows(pt)) == 3
+            rm(csv; force=true)
+        end
+
+        @testset "tvp — smoothed path has T·k rows (T=150, k=2)" begin
+            csv = dgp_reg(; T=150, seed=33)    # columns y, x → k = intercept + x = 2
+            r = run_json(["estimate", "tvp", csv, "--dep", "y"])
+            assert_envelope_ok(r; label="tvp")
+            path = cols_table(r.doc, ["period", "coefficient", "estimate"])
+            @test path !== nothing && length(table_rows(path)) == 150 * 2
+            @test Float64(metric_value(metrics_table(r.doc), "n_coef")) == 2.0
+            rm(csv; force=true)
+        end
+
+        @testset "kde — density ≥ 0, grid length == npoints, ∫≈1" begin
+            csv = dgp_iid(; T=400, seed=34)
+            r = run_json(["estimate", "kde", csv, "--npoints", "256"])
+            assert_envelope_ok(r; label="kde")
+            g = cols_table(r.doc, ["x", "density"])
+            @test g !== nothing && length(table_rows(g)) == 256
+            xi = findfirst(==("x"), table_cols(g)); di = findfirst(==("density"), table_cols(g))
+            xs = [Float64(collect(row)[xi]) for row in table_rows(g)]
+            ds = [Float64(collect(row)[di]) for row in table_rows(g)]
+            @test all(d -> d >= -1e-9, ds)                       # a proper density
+            # trapezoidal integral over the grid ≈ 1 (loose — grid is finite-support).
+            area = sum((xs[i+1] - xs[i]) * (ds[i+1] + ds[i]) / 2 for i in 1:length(xs)-1)
+            @test isapprox(area, 1.0; atol=0.05)
+            @test Float64(metric_value(metrics_table(r.doc), "bandwidth")) > 0.0
+            rm(csv; force=true)
+        end
+
+        @testset "kde — sj bandwidth + non-gaussian kernel also run" begin
+            csv = dgp_iid(; T=300, seed=35)
+            r = run_json(["estimate", "kde", csv, "--bw", "sj", "--kernel", "epanechnikov",
+                          "--npoints", "128"])
+            assert_envelope_ok(r; label="kde sj epanechnikov")
+            @test string(metric_value(metrics_table(r.doc), "bw_method")) == "sj"
+            rm(csv; force=true)
+        end
+
+        @testset "kernel-reg — fitted length == nobs, tracks a linear mean" begin
+            csv = dgp_reg(; T=200, seed=36)    # y = 1 + 2x + noise
+            r = run_json(["estimate", "kernel-reg", csv, "--dep", "y", "--indep", "x"])
+            assert_envelope_ok(r; label="kernel-reg ll")
+            fit = cols_table(r.doc, ["x", "fitted", "se"])
+            @test fit !== nothing && length(table_rows(fit)) == 200
+            xi = findfirst(==("x"), table_cols(fit)); fi = findfirst(==("fitted"), table_cols(fit))
+            xs = [Float64(collect(row)[xi]) for row in table_rows(fit)]
+            fs = [Float64(collect(row)[fi]) for row in table_rows(fit)]
+            @test all(isfinite, fs)
+            @test cor(xs, fs) > 0.8                              # positive slope ≈ +2
+            rm(csv; force=true)
+        end
+
+        @testset "kernel-reg — nw method + rot bandwidth run" begin
+            csv = dgp_reg(; T=150, seed=37)
+            r = run_json(["estimate", "kernel-reg", csv, "--dep", "y", "--indep", "x",
+                          "--method", "nw", "--bw", "rot"])
+            assert_envelope_ok(r; label="kernel-reg nw rot")
+            @test string(metric_value(metrics_table(r.doc), "method")) == "nw"
+            @test Float64(metric_value(metrics_table(r.doc), "degree")) == 0.0
+            rm(csv; force=true)
+        end
+
+        @testset "lowess — fitted length == nobs, tracks a linear mean" begin
+            csv = dgp_reg(; T=200, seed=38)
+            r = run_json(["estimate", "lowess", csv, "--dep", "y", "--indep", "x"])
+            assert_envelope_ok(r; label="lowess")
+            fit = cols_table(r.doc, ["x", "fitted"])
+            @test fit !== nothing && length(table_rows(fit)) == 200
+            xi = findfirst(==("x"), table_cols(fit)); fi = findfirst(==("fitted"), table_cols(fit))
+            xs = [Float64(collect(row)[xi]) for row in table_rows(fit)]
+            fs = [Float64(collect(row)[fi]) for row in table_rows(fit)]
+            @test all(isfinite, fs)
+            @test cor(xs, fs) > 0.8
+            rm(csv; force=true)
+        end
+
+        @testset "C066 bad input → typed classes (never uncaught exit-1)" begin
+            csv = dgp_reg(; T=100, seed=39)
+            @test run_json(["estimate", "kde", csv, "--bw", "notanumber"]).code == 2
+            @test run_json(["estimate", "kernel-reg", csv, "--dep", "y"]).code == 2  # missing --indep
+            @test run_json(["estimate", "kernel-reg", csv, "--dep", "y", "--indep", "nope"]).code == 3
+            @test run_json(["estimate", "lowess", csv, "--dep", "y", "--indep", "y"]).code == 3  # indep==dep
+            rm(csv; force=true)
+        end
+    end
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

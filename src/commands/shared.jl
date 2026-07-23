@@ -1346,6 +1346,9 @@ If dep is empty, uses first numeric column as y.
 function _load_reg_data(data::String, dep::String; weights_col::String="", clusters_col::String="")
     df = load_data(data)
     numcols = variable_names(df)
+    # Guard an all-non-numeric CSV before defaulting `--dep` to numcols[1] (else BoundsError →
+    # untyped exit-1). Mirrors the same fix in `_load_xy_data`/`_load_iv_data` (adversarial review).
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
 
     dep_col = isempty(dep) ? numcols[1] : dep
     # C067a: typed errors, not bare `error()` — a bad `--dep` or a degenerate column set
@@ -1407,6 +1410,7 @@ function _load_iv_data(data::String, dep::String, endogenous::String, instrument
 
     df = load_data(data)
     numcols = variable_names(df)
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
 
     dep_col = isempty(dep) ? numcols[1] : dep
     !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
@@ -1468,6 +1472,62 @@ function _load_iv_data(data::String, dep::String, endogenous::String, instrument
     size(Z, 2) < length(y) || throw(CliError("data/invalid",
         "too many instruments: the instrument set Z has $(size(Z, 2)) columns but only $(length(y)) observations (need m < n for an identified first stage)"))
     return (; y, X, Z, xcols, zcols, endog_idx, endog_names, inst_names, dep_col)
+end
+
+"""
+    _load_xy_data(data, dep, indep) → (y, x, ynm, xnm)
+
+Shared response/single-predictor loader for the nonparametric-regression leaves
+(`estimate kernel-reg`, `estimate lowess`, C066). `--dep` (default: first numeric column)
+is the response `y`; `--indep` (required) is a SINGLE predictor `x`. The 6th shared-loader
+hardening: every failure is a TYPED `CliError`, never a bare `error()` (untyped exit-1).
+Missing `--indep` → `usage/missing`; an unknown dep/indep column, or dep==indep →
+`data/column-range`; a missing cell in either column → `data/missing-values`, guarded
+BEFORE the `Vector{Float64}` conversion that would otherwise throw an untyped
+`ArgumentError`. Returns `(Vector{Float64} y, Vector{Float64} x, dep_name, indep_name)`.
+"""
+function _load_xy_data(data::String, dep::String, indep::String)
+    isempty(indep) && throw(CliError("usage/missing",
+        "--indep is required (the single predictor column name)"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    isempty(numcols) && throw(CliError("data/invalid",
+        "no numeric columns found in the data"))
+    dep_col = isempty(dep) ? numcols[1] : dep
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "response variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    indep in numcols || throw(CliError("data/column-range",
+        "predictor '$indep' not found in numeric columns: $(join(numcols, ", "))"))
+    indep == dep_col && throw(CliError("data/column-range",
+        "predictor '$indep' cannot equal the response '$dep_col'"))
+    for c in (dep_col, indep)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    y = Vector{Float64}(df[!, dep_col])
+    x = Vector{Float64}(df[!, indep])
+    return y, x, dep_col, indep
+end
+
+"""
+    _parse_bandwidth(s, syms) → Union{Symbol,Real}
+
+Parse a `--bw` argument for the nonparametric leaves (C066): a string matching one of the
+allowed rule names in `syms` (e.g. `(:silverman, :sj)` or `(:cv, :rot)`) → that `Symbol`;
+otherwise a positive number. Junk, a non-number, or a non-positive value → a typed
+`usage/invalid` error (never a raw MEMs `ArgumentError`). Mirrors `_parse_penalty_lambda`.
+"""
+function _parse_bandwidth(s::AbstractString, syms::Tuple)
+    for sym in syms
+        s == string(sym) && return sym
+    end
+    v = tryparse(Float64, s)
+    # Reject non-finite too: `Inf`/`NaN` slip past a bare `v <= 0` (both compare false), then
+    # either produce a degenerate fit with a non-finite bandwidth or hit MEMs' `h > 0` with the
+    # WRONG error class (a bad CLI arg must be usage/invalid, not data/invalid).
+    (v === nothing || !isfinite(v) || v <= 0) && throw(CliError("usage/invalid",
+        "--bw must be one of $(join(syms, '|')) or a positive number, got '$s'"))
+    return v
 end
 
 """Load cluster assignments from a CSV column, or return nothing."""

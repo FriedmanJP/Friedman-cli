@@ -20,7 +20,7 @@
 module MacroEconometricModels
 
 using LinearAlgebra: I, diagm, Diagonal
-using Statistics: mean
+using Statistics: mean, var, std, quantile
 using Random
 import Serialization
 import DataFrames
@@ -3126,6 +3126,171 @@ stderror(m::HeckmanModel) = [sqrt(max(m.vcov_beta[i, i], 0.0)) for i in 1:length
 export PenalizedRegModel, RobustRegModel, TobitModel, TruncRegModel, HeckmanModel
 export estimate_lasso, estimate_ridge, estimate_elastic_net, estimate_robust, estimate_tobit
 export estimate_truncreg, estimate_heckman
+
+# ─── C066: state-space + nonparametric estimation ───────────────────────────
+# StateSpaceModel / KernelDensity / KernelRegression / LowessFit mirror the real MEMs 0.7.0
+# field NAMES (a subset is fine — check_mock_surface is mock ⊆ real, and these are non-core).
+# Estimators are genuine-ish fits that VALIDATE like the real ones (n bounds, kernel/method/bw
+# enums, length matches) so T1/T2 exercise the error mapping and table shapes.
+
+# Subset of real StateSpaceModel fields (real order: ..., loglik, theta, param_names, ...,
+# converged, method, n_obs, n_state, T_obs). We keep only what the CLI renders.
+struct StateSpaceModel{T<:AbstractFloat}
+    theta::Vector{T}
+    param_names::Vector{String}
+    smoothed_state::Matrix{T}
+    loglik::T
+    converged::Bool
+    method::Symbol
+    n_state::Int
+    n_obs::Int
+    T_obs::Int
+end
+
+struct KernelDensity{T<:AbstractFloat}
+    x::Vector{T}
+    density::Vector{T}
+    bandwidth::T
+    kernel::Symbol
+    bw_method::Symbol
+    data::Vector{T}
+    nobs::Int
+end
+
+struct KernelRegression{T<:AbstractFloat}
+    x::Vector{T}
+    fitted::Vector{T}
+    se::Vector{T}
+    xdata::Vector{T}
+    ydata::Vector{T}
+    bandwidth::T
+    method::Symbol
+    degree::Int
+    kernel::Symbol
+    bw_method::Symbol
+    sigma2::T
+    nobs::Int
+end
+
+struct LowessFit{T<:AbstractFloat}
+    x::Vector{T}
+    fitted::Vector{T}
+    ydata::Vector{T}
+    span::T
+    iter::Int
+    nobs::Int
+end
+
+# Silverman rule-of-thumb bandwidth (matches the real `_bw_silverman` shape; used by the
+# mock KDE/kernel-reg to produce a sensible positive h).
+function _mock_bw_silverman(v::AbstractVector{<:Real})
+    n = length(v)
+    hi = std(v)
+    lo = min(hi, (quantile(v, 0.75) - quantile(v, 0.25)) / 1.349)
+    lo = lo > 0 ? lo : (hi > 0 ? hi : 1.0)
+    return 0.9 * lo * n^(-1 / 5)
+end
+
+function local_level(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
+    yv = Vector{Float64}(collect(Float64, vec(y)))
+    n = length(yv)
+    n >= 2 || throw(ArgumentError("local_level requires at least 2 observations"))
+    v0 = max(var(yv), 1.0)
+    smoothed = reshape(yv, :, 1)                     # level ≈ observations (n_state=1)
+    ll = -0.5 * n * (log(2π) + log(v0) + 1)
+    StateSpaceModel{Float64}([v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], smoothed, ll, true, :mle, 1, 1, n)
+end
+
+function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
+    yv = Vector{Float64}(collect(Float64, vec(y)))
+    n = length(yv)
+    n >= 2 || throw(ArgumentError("local_linear_trend requires at least 2 observations"))
+    v0 = max(var(yv), 1.0)
+    slope = vcat(diff(yv), yv[end] - yv[end-1])
+    smoothed = hcat(yv, slope)                       # state = [μ, β] (n_state=2)
+    ll = -0.5 * n * (log(2π) + log(v0) + 1)
+    StateSpaceModel{Float64}([v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
+                             smoothed, ll, true, :mle, 2, 1, n)
+end
+
+function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
+                          init_mode::Symbol=:kappa, kappa::Real=1e6,
+                          iterations::Int=1000, g_tol::Real=1e-8)
+    yv = Vector{Float64}(collect(Float64, vec(y)))
+    n = length(yv)
+    size(X, 1) == n || throw(ArgumentError("X must have the same number of rows as y ($n)"))
+    n >= 2 || throw(ArgumentError("estimate_tvp_reg requires at least 2 observations"))
+    Xm = Matrix{Float64}(X)
+    Xf = intercept ? hcat(ones(Float64, n), Xm) : Xm
+    k = size(Xf, 2)
+    beta = Xf \ yv                                   # OLS as the constant "average" path
+    smoothed = repeat(permutedims(beta), n)          # T×k (mock: constant path)
+    v0 = max(var(yv), 1.0)
+    theta = vcat(v0, fill(v0 / (100 * k), k))
+    names = vcat("σ²_ε", ["σ²_η[$j]" for j in 1:k])
+    ll = -0.5 * n * (log(2π) + log(v0) + 1)
+    StateSpaceModel{Float64}(theta, names, smoothed, ll, true, :mle, k, 1, n)
+end
+
+function kernel_density(y::AbstractVector; kernel::Symbol=:gaussian,
+                        bw::Union{Symbol,Real}=:silverman, npoints::Int=512, cut::Real=3.0)
+    data = Vector{Float64}(collect(Float64, y))
+    n = length(data)
+    n >= 2 || throw(ArgumentError("kernel_density requires at least 2 observations"))
+    npoints >= 2 || throw(ArgumentError("npoints must be ≥ 2"))
+    kernel in (:gaussian, :epanechnikov, :triangular, :uniform) ||
+        throw(ArgumentError("unknown kernel :$kernel"))
+    bw_method = :user; h = 0.0
+    if bw isa Symbol
+        bw in (:silverman, :sj) || throw(ArgumentError("unknown bandwidth rule :$bw"))
+        bw_method = bw; h = _mock_bw_silverman(data)
+    else
+        h = Float64(bw); h > 0 || throw(ArgumentError("numeric bandwidth must be positive"))
+    end
+    lo = minimum(data) - cut * h; hi = maximum(data) + cut * h
+    grid = collect(range(lo, hi; length=npoints))
+    dens = [sum(exp.(-((g .- data) ./ h) .^ 2 ./ 2) ./ sqrt(2π)) / (n * h) for g in grid]
+    KernelDensity{Float64}(grid, dens, h, kernel, bw_method, data, n)
+end
+
+function kernel_reg(y::AbstractVector, x::AbstractVector; method::Symbol=:ll,
+                    degree::Int=1, bw::Union{Symbol,Real}=:cv, kernel::Symbol=:gaussian)
+    length(x) == length(y) || throw(DimensionMismatch("x and y must have equal length"))
+    n = length(x)
+    n >= 3 || throw(ArgumentError("kernel_reg requires at least 3 observations"))
+    method in (:nw, :ll, :lp) || throw(ArgumentError("unknown method :$method"))
+    kernel in (:gaussian, :epanechnikov, :triangular, :uniform) ||
+        throw(ArgumentError("unknown kernel :$kernel"))
+    deg = method === :nw ? 0 : (method === :ll ? 1 : degree)
+    xs = Vector{Float64}(collect(Float64, x)); ys = Vector{Float64}(collect(Float64, y))
+    perm = sortperm(xs); xs = xs[perm]; ys = ys[perm]
+    bw_method = :user; h = 0.0
+    if bw isa Symbol
+        bw in (:cv, :rot) || throw(ArgumentError("unknown bandwidth rule :$bw"))
+        bw_method = bw; h = _mock_bw_silverman(xs)
+    else
+        h = Float64(bw); h > 0 || throw(ArgumentError("numeric bandwidth must be positive"))
+    end
+    fitted = copy(ys)                                # mock fit interpolates the data
+    se = fill(std(ys) / sqrt(n), n)
+    KernelRegression{Float64}(xs, fitted, se, xs, ys, h, method, deg, kernel, bw_method,
+                              var(ys), n)
+end
+
+function lowess(y::AbstractVector, x::AbstractVector; f::Real=2//3, iter::Int=3,
+                delta::Union{Real,Nothing}=nothing)
+    length(x) == length(y) || throw(DimensionMismatch("x and y must have equal length"))
+    n = length(x)
+    n >= 2 || throw(ArgumentError("lowess requires at least 2 observations"))
+    iter >= 0 || throw(ArgumentError("iter must be ≥ 0"))
+    xs = Vector{Float64}(collect(Float64, x)); ys = Vector{Float64}(collect(Float64, y))
+    perm = sortperm(xs); xs = xs[perm]; ys = ys[perm]
+    LowessFit{Float64}(xs, ys, ys, Float64(f), iter, n)
+end
+
+export StateSpaceModel, KernelDensity, KernelRegression, LowessFit
+export local_level, local_linear_trend, estimate_tvp_reg
+export kernel_density, kernel_reg, lowess
 
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 

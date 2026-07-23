@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 50
+**Leaves:** 55
 
 ### `friedman estimate 3sls`
 
@@ -605,6 +605,53 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate kde`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column |
+| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian | epanechnikov | triangular | uniform |
+| `--bw` | — | `String` | `silverman` | — | Bandwidth: silverman | sj | a positive number |
+| `--npoints` | — | `Int64` | `512` | — | Number of grid points |
+| `--cut` | — | `Float64` | `3.0` | — | Grid extends cut·h beyond the data range each side |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_kde` (Path to CSV data file)
+
+---
+
+### `friedman estimate kernel-reg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Response variable column name (default: first numeric column) |
+| `--indep` | — | `String` | `""` | — | Single predictor column name (required) |
+| `--method` | — | `String` | `ll` | `nw`, `ll`, `lp` | nw (Nadaraya-Watson) | ll (local linear) | lp (local polynomial) |
+| `--degree` | — | `Int64` | `1` | — | Local-polynomial degree (method=lp) |
+| `--bw` | — | `String` | `cv` | — | Bandwidth: cv | rot | a positive number |
+| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian | epanechnikov | triangular | uniform |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_kernel_reg` (Path to CSV data file)
+
+---
+
 ### `friedman estimate lasso`
 
 Path to CSV data file
@@ -646,6 +693,28 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_logit` (Path to CSV data file)
+
+---
+
+### `friedman estimate lowess`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Response variable column name (default: first numeric column) |
+| `--indep` | — | `String` | `""` | — | Single predictor column name (required) |
+| `--frac` | — | `Float64` | `0.6667` | — | Smoother span f ∈ (0,1] (fraction of points per window) |
+| `--iter` | — | `Int64` | `3` | — | Number of bisquare robustifying passes |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_lowess` (Path to CSV data file)
 
 ---
 
@@ -1046,6 +1115,28 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate statespace`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column to model |
+| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level | local-linear-trend |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_statespace` (Path to CSV data file)
+
+---
+
 ### `friedman estimate static`
 
 Path to CSV data file
@@ -1162,6 +1253,31 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_truncreg` (Path to CSV data file)
+
+---
+
+### `friedman estimate tvp`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-intercept` | — | Do NOT prepend a time-varying intercept coefficient |
+
+**Output tables:** `estimate_tvp` (Path to CSV data file)
 
 ---
 

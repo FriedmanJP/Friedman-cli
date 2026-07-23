@@ -541,6 +541,98 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_heckman),
         ),
+        # ── C066: state-space + nonparametric estimation (M5c) ──────────────
+        # StateSpaceModel / KernelDensity / KernelRegression / LowessFit are NOT registered
+        # in MEMs `_COEF_TABLE_TYPES`, so every table is hand-built (documented C051 exception,
+        # like io/mgarch/sur). All MEMs calls are wrapped → typed CliError via
+        # `_garch_variant_error` (never an uncaught exit-1 on bad input).
+        CommandSpec(
+            path=["estimate", "statespace"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column to model"),
+                OptionSpec(name="model", type=String, default="local-level", description="local-level | local-linear-trend", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse", choices=["kappa","diffuse"]),
+                OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-variance diffuse-init constant (init-mode=kappa)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_statespace, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_statespace),
+        ),
+        CommandSpec(
+            path=["estimate", "tvp"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse", choices=["kappa","diffuse"]),
+                OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-variance diffuse-init constant (init-mode=kappa)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-intercept", description="Do NOT prepend a time-varying intercept coefficient")],
+            tables=[TableSpec(name=:estimate_tvp, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_tvp),
+        ),
+        CommandSpec(
+            path=["estimate", "kde"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column"),
+                OptionSpec(name="kernel", type=String, default="gaussian", description="gaussian | epanechnikov | triangular | uniform", choices=["gaussian","epanechnikov","triangular","uniform"]),
+                OptionSpec(name="bw", type=String, default="silverman", description="Bandwidth: silverman | sj | a positive number"),
+                OptionSpec(name="npoints", type=Int, default=512, description="Number of grid points"),
+                OptionSpec(name="cut", type=Float64, default=3.0, description="Grid extends cut·h beyond the data range each side"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_kde, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_kde),
+        ),
+        CommandSpec(
+            path=["estimate", "kernel-reg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Response variable column name (default: first numeric column)"),
+                OptionSpec(name="indep", type=String, default="", description="Single predictor column name (required)"),
+                OptionSpec(name="method", type=String, default="ll", description="nw (Nadaraya-Watson) | ll (local linear) | lp (local polynomial)", choices=["nw","ll","lp"]),
+                OptionSpec(name="degree", type=Int, default=1, description="Local-polynomial degree (method=lp)"),
+                OptionSpec(name="bw", type=String, default="cv", description="Bandwidth: cv | rot | a positive number"),
+                OptionSpec(name="kernel", type=String, default="gaussian", description="gaussian | epanechnikov | triangular | uniform", choices=["gaussian","epanechnikov","triangular","uniform"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_kernel_reg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_kernel_reg),
+        ),
+        CommandSpec(
+            path=["estimate", "lowess"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Response variable column name (default: first numeric column)"),
+                OptionSpec(name="indep", type=String, default="", description="Single predictor column name (required)"),
+                OptionSpec(name="frac", type=Float64, default=0.6667, description="Smoother span f ∈ (0,1] (fraction of points per window)"),
+                OptionSpec(name="iter", type=Int, default=3, description="Number of bisquare robustifying passes"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_lowess, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_lowess),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -3085,4 +3177,194 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
         "converged"   => model.converged,
     ]; format=format, title="Heckman Diagnostics")
     return model
+end
+
+# ── C066: state-space + nonparametric estimation (M5c) ─────────
+# None of StateSpaceModel/KernelDensity/KernelRegression/LowessFit is registered in MEMs
+# `_COEF_TABLE_TYPES`, so all tables are HAND-BUILT (the documented C051 exception, like
+# io/mgarch/sur). MEMs calls are wrapped → typed CliError via `_garch_variant_error`.
+
+"""Hand-built parameter table for a fitted `StateSpaceModel`: `parameter | estimate`,
+pairing `param_names` with the estimated (natural-scale) hyper-parameters `theta`. No SEs —
+theta standard errors are not exposed upstream."""
+function _statespace_param_table(model)
+    names = String.(model.param_names)
+    th = Float64.(model.theta)
+    m = min(length(names), length(th))
+    DataFrame(parameter=names[1:m], estimate=round.(th[1:m]; digits=6))
+end
+
+"""Tidy LONG coefficient-path table for a TVP regression: one row per (period, coefficient)
+from the `smoothed_state` (T×k) — `period | coefficient | estimate` — the time-varying βₜ."""
+function _tvp_path_table(model, coefnames::Vector{String})
+    S = model.smoothed_state
+    Tn, k = size(S)
+    kk = min(k, length(coefnames))
+    period = Int[]; coefficient = String[]; estimate = Float64[]
+    for t in 1:Tn, j in 1:kk
+        push!(period, t); push!(coefficient, coefnames[j])
+        push!(estimate, round(Float64(S[t, j]); digits=6))
+    end
+    DataFrame(period=period, coefficient=coefficient, estimate=estimate)
+end
+
+# estimate statespace — structural univariate state-space (local level / local linear trend)
+function _estimate_statespace(; data::String, column::Int=1, model::String="local-level",
+                               init_mode::String="kappa", kappa::Float64=1e6,
+                               output::String="", format::String="table")
+    model in ("local-level", "local-linear-trend") || throw(CliError("usage/invalid",
+        "estimate statespace: --model must be local-level or local-linear-trend, got '$model'"))
+    init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
+        "estimate statespace: --init-mode must be kappa or diffuse, got '$init_mode'"))
+    y, vname = load_univariate_series(data, column)
+    _status("State-space $model: variable=$vname, observations=$(length(y)), init_mode=$init_mode")
+    _status()
+    im = Symbol(init_mode)
+    ssm = try
+        model == "local-level" ? local_level(y; init_mode=im, kappa=kappa) :
+                                 local_linear_trend(y; init_mode=im, kappa=kappa)
+    catch e
+        throw(_garch_variant_error(e, "State-space estimation"))
+    end
+    output_result(_statespace_param_table(ssm); format=Symbol(format), output=output,
+                  title="State-Space Hyper-Parameters ($model, $vname)")
+    output_kv(Pair{String,Any}[
+        "model"     => model,
+        # loglik/theta can be non-finite if the optimizer stalls — string-render (legacy-JSON
+        # writer rejects non-finite floats; see the C067a Inf gotcha).
+        "loglik"    => isfinite(ssm.loglik) ? round(Float64(ssm.loglik); digits=4) : string(ssm.loglik),
+        "converged" => ssm.converged,
+        "n_state"   => ssm.n_state,
+        "n_obs"     => ssm.T_obs,   # T_obs = number of time observations (the user-facing "n_obs")
+        "method"    => string(ssm.method),
+    ]; format=format, title="State-Space Diagnostics")
+    return ssm
+end
+
+# estimate tvp — time-varying-parameter regression (random-walk coefficients)
+function _estimate_tvp(; data::String, dep::String="", init_mode::String="kappa",
+                        kappa::Float64=1e6, no_intercept::Bool=false,
+                        output::String="", format::String="table")
+    init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
+        "estimate tvp: --init-mode must be kappa or diffuse, got '$init_mode'"))
+    y, X, xcols = _load_reg_data(data, dep)   # X = numeric cols except --dep; estimate_tvp_reg adds its own intercept
+    intercept = !no_intercept
+    coefnames = intercept ? vcat(["intercept"], xcols) : xcols
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Time-varying-parameter regression: $dep_name ~ $(join(xcols, " + "))" *
+            (intercept ? " (+ intercept)" : "") * ", n=$(length(y)), init_mode=$init_mode")
+    _status()
+    ssm = try
+        estimate_tvp_reg(y, X; intercept=intercept, init_mode=Symbol(init_mode), kappa=kappa)
+    catch e
+        throw(_garch_variant_error(e, "TVP regression"))
+    end
+    output_result(_statespace_param_table(ssm); format=Symbol(format), output=output,
+                  title="TVP Hyper-Parameters")
+    output_result(_tvp_path_table(ssm, coefnames); format=Symbol(format),
+                  output=_per_var_output_path(output, "path"), title="TVP Coefficient Paths")
+    output_kv(Pair{String,Any}[
+        "loglik"    => isfinite(ssm.loglik) ? round(Float64(ssm.loglik); digits=4) : string(ssm.loglik),
+        "converged" => ssm.converged,
+        "n_coef"    => ssm.n_state,
+        "intercept" => intercept,
+        "method"    => string(ssm.method),
+    ]; format=format, title="TVP Diagnostics")
+    return ssm
+end
+
+# estimate kde — univariate kernel density estimate
+_kde_table(kd) = DataFrame(x=round.(Float64.(kd.x); digits=6),
+                           density=round.(Float64.(kd.density); digits=6))
+
+function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
+                        bw::String="silverman", npoints::Int=512, cut::Float64=3.0,
+                        output::String="", format::String="table")
+    kernel in ("gaussian", "epanechnikov", "triangular", "uniform") || throw(CliError("usage/invalid",
+        "estimate kde: --kernel must be gaussian|epanechnikov|triangular|uniform, got '$kernel'"))
+    npoints >= 2 || throw(CliError("usage/invalid",
+        "estimate kde: --npoints must be ≥ 2, got $npoints"))
+    y, vname = load_univariate_series(data, column)
+    bwv = _parse_bandwidth(bw, (:silverman, :sj))
+    _status("Kernel density: variable=$vname, observations=$(length(y)), kernel=$kernel, bw=$bw")
+    _status()
+    kd = try
+        kernel_density(y; kernel=Symbol(kernel), bw=bwv, npoints=npoints, cut=cut)
+    catch e
+        throw(_garch_variant_error(e, "Kernel density"))
+    end
+    output_result(_kde_table(kd); format=Symbol(format), output=output,
+                  title="Kernel Density Estimate ($vname)")
+    output_kv(Pair{String,Any}[
+        "kernel"    => string(kd.kernel),
+        "bw_method" => string(kd.bw_method),
+        "bandwidth" => round(Float64(kd.bandwidth); digits=6),
+        "nobs"      => kd.nobs,
+    ]; format=format, title="Kernel Density Diagnostics")
+    return kd
+end
+
+# estimate kernel-reg — Nadaraya-Watson / local-linear / local-polynomial regression
+_kernel_reg_table(kr) = DataFrame(x=round.(Float64.(kr.x); digits=6),
+                                  fitted=round.(Float64.(kr.fitted); digits=6),
+                                  se=round.(Float64.(kr.se); digits=6))
+
+function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
+                               method::String="ll", degree::Int=1, bw::String="cv",
+                               kernel::String="gaussian", output::String="", format::String="table")
+    method in ("nw", "ll", "lp") || throw(CliError("usage/invalid",
+        "estimate kernel-reg: --method must be nw|ll|lp, got '$method'"))
+    kernel in ("gaussian", "epanechnikov", "triangular", "uniform") || throw(CliError("usage/invalid",
+        "estimate kernel-reg: --kernel must be gaussian|epanechnikov|triangular|uniform, got '$kernel'"))
+    degree >= 0 || throw(CliError("usage/invalid",
+        "estimate kernel-reg: --degree must be ≥ 0, got $degree"))
+    y, x, ynm, xnm = _load_xy_data(data, dep, indep)
+    bwv = _parse_bandwidth(bw, (:cv, :rot))
+    _status("Kernel regression ($method): $ynm ~ $xnm, n=$(length(y)), bw=$bw, kernel=$kernel")
+    _status()
+    kr = try
+        kernel_reg(y, x; method=Symbol(method), degree=degree, bw=bwv, kernel=Symbol(kernel))
+    catch e
+        throw(_garch_variant_error(e, "Kernel regression"))
+    end
+    output_result(_kernel_reg_table(kr); format=Symbol(format), output=output,
+                  title="Kernel Regression Fit ($ynm ~ $xnm)")
+    output_kv(Pair{String,Any}[
+        "method"    => string(kr.method),
+        "degree"    => kr.degree,
+        "kernel"    => string(kr.kernel),
+        "bw_method" => string(kr.bw_method),
+        "bandwidth" => round(Float64(kr.bandwidth); digits=6),
+        "nobs"      => kr.nobs,
+    ]; format=format, title="Kernel Regression Diagnostics")
+    return kr
+end
+
+# estimate lowess — Cleveland (1979) locally-weighted scatterplot smoother
+_lowess_table(lf) = DataFrame(x=round.(Float64.(lf.x); digits=6),
+                              fitted=round.(Float64.(lf.fitted); digits=6))
+
+function _estimate_lowess(; data::String, dep::String="", indep::String="",
+                           frac::Float64=0.6667, iter::Int=3,
+                           output::String="", format::String="table")
+    (0.0 < frac <= 1.0) || throw(CliError("usage/invalid",
+        "estimate lowess: --frac must be in (0,1], got $frac"))
+    iter >= 0 || throw(CliError("usage/invalid",
+        "estimate lowess: --iter must be ≥ 0, got $iter"))
+    y, x, ynm, xnm = _load_xy_data(data, dep, indep)
+    _status("LOWESS: $ynm ~ $xnm, n=$(length(y)), f=$frac, iter=$iter")
+    _status()
+    lf = try
+        lowess(y, x; f=frac, iter=iter)
+    catch e
+        throw(_garch_variant_error(e, "LOWESS"))
+    end
+    output_result(_lowess_table(lf); format=Symbol(format), output=output,
+                  title="LOWESS Fit ($ynm ~ $xnm)")
+    output_kv(Pair{String,Any}[
+        "frac" => round(Float64(lf.span); digits=6),
+        "iter" => lf.iter,
+        "nobs" => lf.nobs,
+    ]; format=format, title="LOWESS Diagnostics")
+    return lf
 end

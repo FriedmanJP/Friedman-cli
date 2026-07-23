@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 50 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 55 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -804,6 +804,109 @@ friedman estimate heckman data.csv --dep=lwage --select=inlf \
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** one tidy two-equation coefficient table (`equation|term|estimate|std_error|z_stat|p_value`, where `equation` is `outcome`/`selection`) + diagnostics (`method`, `rho` (+se), `sigma` (+se), `lambda` (+se), `loglik`, `aic`, `bic`, `n_selected`, `n_total`, `converged`). `HeckmanModel` is not Tables.jl-registered upstream, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate statespace
+
+Structural (linear-Gaussian) state-space models fitted by prediction-error-decomposition maximum likelihood on a single numeric `--column`. `--model local-level` fits the random-walk-plus-noise model (`yₜ = μₜ + εₜ`, `μₜ₊₁ = μₜ + ηₜ`); `--model local-linear-trend` adds a stochastic slope (state `[μₜ, βₜ]`). `--init-mode` selects the Kalman initialization (`kappa` large-variance diffuse by default, or exact `diffuse`).
+
+```bash
+friedman estimate statespace nile.csv --model=local-level
+friedman estimate statespace gdp.csv --column=2 --model=local-linear-trend --init-mode=diffuse
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | 1-based numeric column to model |
+| `--model` | | String | `local-level` | `local-level` or `local-linear-trend` |
+| `--init-mode` | | String | `kappa` | Kalman initialization: `kappa` or `diffuse` |
+| `--kappa` | | Float | 1e6 | Large-variance diffuse-init constant (`init-mode=kappa`) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** hyper-parameter table (`parameter|estimate` — the estimated natural-scale variances σ̂², e.g. `σ²_ε`, `σ²_η`) + diagnostics (`model`, `loglik`, `converged`, `n_state`, `n_obs`, `method`). `StateSpaceModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate tvp
+
+Time-varying-parameter regression with random-walk coefficients (`yₜ = Xₜ βₜ + εₜ`, `βₜ₊₁ = βₜ + ηₜ`), fitted via the Kalman filter/RTS smoother by MLE of the variance hyper-parameters. The whole point is the recovered coefficient *path* `βₜ`. A time-varying intercept is prepended automatically unless `--no-intercept` is set, so the data should NOT include a `const` column.
+
+```bash
+friedman estimate tvp phillips.csv --dep=inflation
+friedman estimate tvp data.csv --dep=y --no-intercept
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--init-mode` | | String | `kappa` | Kalman initialization: `kappa` or `diffuse` |
+| `--kappa` | | Float | 1e6 | Large-variance diffuse-init constant (`init-mode=kappa`) |
+| `--no-intercept` | | Flag | off | Do NOT prepend a time-varying intercept coefficient |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** hyper-parameter table (`parameter|estimate`) + a tidy long coefficient-path table (`period|coefficient|estimate` — one row per time × coefficient) + diagnostics (`loglik`, `converged`, `n_coef`, `intercept`, `method`). Hand-built tables (documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate kde
+
+Univariate kernel density estimate on an equally-spaced grid, for a single numeric `--column`. Bandwidth `--bw` is a rule (`silverman` = R `bw.nrd0`, `sj` = Sheather-Jones plug-in) or a positive number; `--kernel` selects a unit-variance kernel.
+
+```bash
+friedman estimate kde returns.csv --kernel=gaussian --bw=silverman
+friedman estimate kde x.csv --column=1 --bw=0.5 --npoints=1024 --kernel=epanechnikov
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | 1-based numeric column |
+| `--kernel` | | String | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` |
+| `--bw` | | String | `silverman` | `silverman`, `sj`, or a positive number |
+| `--npoints` | | Int | 512 | Number of grid points |
+| `--cut` | | Float | 3.0 | Grid extends `cut·h` beyond the data range each side |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** density grid table (`x|density`) + diagnostics (`kernel`, `bw_method`, `bandwidth`, `nobs`). `KernelDensity` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate kernel-reg
+
+Nonparametric regression of a response `--dep` on a SINGLE predictor `--indep`: Nadaraya-Watson (`--method nw`), local-linear (`--method ll`, default; boundary-bias corrected), or local-polynomial (`--method lp --degree d`). Bandwidth `--bw` is a rule (`cv` leave-one-out cross-validation, `rot` Silverman rule-of-thumb) or a positive number.
+
+```bash
+friedman estimate kernel-reg data.csv --dep=y --indep=x --method=ll --bw=cv
+friedman estimate kernel-reg data.csv --dep=y --indep=x --method=lp --degree=2 --bw=0.4
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Response variable column name |
+| `--indep` | | String | (required) | Single predictor column name |
+| `--method` | | String | `ll` | `nw`, `ll`, or `lp` |
+| `--degree` | | Int | 1 | Local-polynomial degree (`method=lp`) |
+| `--bw` | | String | `cv` | `cv`, `rot`, or a positive number |
+| `--kernel` | | String | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** fitted-curve table (`x|fitted|se`, evaluated at the sorted design points) + diagnostics (`method`, `degree`, `kernel`, `bw_method`, `bandwidth`, `nobs`). `KernelRegression` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate lowess
+
+Cleveland (1979) LOWESS/LOESS scatterplot smoother of a response `--dep` on a SINGLE predictor `--indep`: tricube-weighted local-linear fits over the `⌊f·n⌋` nearest neighbours, with `--iter` bisquare robustifying passes. `--frac` is the span `f ∈ (0,1]`.
+
+```bash
+friedman estimate lowess data.csv --dep=y --indep=x
+friedman estimate lowess data.csv --dep=y --indep=x --frac=0.3 --iter=5
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Response variable column name |
+| `--indep` | | String | (required) | Single predictor column name |
+| `--frac` | | Float | 0.6667 | Smoother span `f ∈ (0,1]` (fraction of points per window) |
+| `--iter` | | Int | 3 | Number of bisquare robustifying passes |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** smoothed-curve table (`x|fitted`, sorted by `x`) + diagnostics (`frac`, `iter`, `nobs`). `LowessFit` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
 ## estimate iv
 

@@ -425,8 +425,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 50 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 51 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b)
-        @test length(node.subcmds) == 51
+        # 55 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 56 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066)
+        @test length(node.subcmds) == 56
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1587,6 +1587,139 @@ end  # Shared utilities
                 eh = _eerr(["heckman", hbad, "--dep", "y", "--select", "d",
                             "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
                 @test eh isa CliError && eh.code == "data/missing-values"
+            end
+        end
+    end
+
+    @testset "estimate statespace/tvp/kde/kernel-reg/lowess (C066)" begin
+        _edoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _eerr(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            # Univariate series for statespace/kde (single numeric column).
+            uni = joinpath(dir, "uni.csv")
+            open(uni, "w") do io
+                println(io, "y")
+                for t in 1:60
+                    println(io, 10.0 + 0.1*t + sin(t/5.0))
+                end
+            end
+            # y + single predictor x for kernel-reg/lowess/tvp (linear y = 1 + 2x).
+            xy = joinpath(dir, "xy.csv")
+            open(xy, "w") do io
+                println(io, "y,x")
+                for t in 1:50
+                    x = (t % 11) - 5.0
+                    println(io, "$(1.0 + 2.0*x + 0.05*(t % 3)),$x")
+                end
+            end
+
+            @testset "statespace local-level — param table + diag" begin
+                doc = _edoc(["statespace", uni, "--model", "local-level"])
+                @test doc.status == "ok"
+                pt = _tbl_with(doc, "parameter", "estimate")
+                @test length(collect(pt.rows)) == 2               # σ²_ε, σ²_η
+                m = _metrics(doc)
+                @test Set(["model", "loglik", "converged", "n_state"]) ⊆ m
+            end
+
+            @testset "statespace local-linear-trend — 3 hyper-params" begin
+                doc = _edoc(["statespace", uni, "--model", "local-linear-trend"])
+                @test doc.status == "ok"
+                @test length(collect(_tbl_with(doc, "parameter", "estimate").rows)) == 3
+            end
+
+            @testset "tvp — coefficient path is tidy (period|coefficient|estimate)" begin
+                doc = _edoc(["tvp", xy, "--dep", "y"])
+                @test doc.status == "ok"
+                path = _tbl_with(doc, "period", "coefficient", "estimate")
+                # 50 periods × 2 coefs (intercept + x) = 100 rows
+                @test length(collect(path.rows)) == 100
+                @test Set(["loglik", "n_coef", "intercept", "method"]) ⊆ _metrics(doc)
+            end
+
+            @testset "kde — x|density grid + bandwidth diag" begin
+                doc = _edoc(["kde", uni, "--npoints", "128"])
+                @test doc.status == "ok"
+                grid = _tbl_with(doc, "x", "density")
+                @test length(collect(grid.rows)) == 128
+                @test Set(["kernel", "bw_method", "bandwidth", "nobs"]) ⊆ _metrics(doc)
+            end
+
+            @testset "kernel-reg — x|fitted|se + diag" begin
+                doc = _edoc(["kernel-reg", xy, "--dep", "y", "--indep", "x"])
+                @test doc.status == "ok"
+                fit = _tbl_with(doc, "x", "fitted", "se")
+                @test length(collect(fit.rows)) == 50
+                @test Set(["method", "degree", "kernel", "bandwidth", "nobs"]) ⊆ _metrics(doc)
+            end
+
+            @testset "lowess — x|fitted + diag" begin
+                doc = _edoc(["lowess", xy, "--dep", "y", "--indep", "x"])
+                @test doc.status == "ok"
+                fit = _tbl_with(doc, "x", "fitted")
+                @test length(collect(fit.rows)) == 50
+                @test Set(["frac", "iter", "nobs"]) ⊆ _metrics(doc)
+            end
+
+            @testset "C066 bad input → typed classes, never uncaught exit-1" begin
+                # kde: junk --bw → usage/invalid
+                @test _eerr(["kde", uni, "--bw", "notanumber"]).code == "usage/invalid"
+                # kernel-reg / lowess: missing --indep → usage/missing
+                @test _eerr(["kernel-reg", xy, "--dep", "y"]).code == "usage/missing"
+                @test _eerr(["lowess", xy, "--dep", "y"]).code == "usage/missing"
+                # unknown --indep column → data/column-range
+                @test _eerr(["kernel-reg", xy, "--dep", "y", "--indep", "nope"]).code == "data/column-range"
+                # predictor == response → data/column-range
+                @test _eerr(["lowess", xy, "--dep", "y", "--indep", "y"]).code == "data/column-range"
+                # lowess: --frac out of (0,1] → usage/invalid
+                @test _eerr(["lowess", xy, "--dep", "y", "--indep", "x", "--frac", "1.5"]).code == "usage/invalid"
+                # missing cell in the predictor → data/missing-values (guard before Float64 conv)
+                xmiss = joinpath(dir, "xmiss.csv")
+                open(xmiss, "w") do io
+                    println(io, "y,x")
+                    println(io, "1.0,0.5"); println(io, "2.0,"); println(io, "3.0,1.5")
+                end
+                @test _eerr(["kernel-reg", xmiss, "--dep", "y", "--indep", "x"]).code == "data/missing-values"
+            end
+
+            @testset "C066 adversarial-review regressions" begin
+                # (fix) _parse_bandwidth must reject non-finite --bw → usage/invalid (exit 2),
+                # not slip Inf through (degenerate fit) or let NaN become MEMs data/invalid (exit 3).
+                @test _eerr(["kde", uni, "--bw", "Inf"]).code == "usage/invalid"
+                @test _eerr(["kde", uni, "--bw", "NaN"]).code == "usage/invalid"
+                @test _eerr(["kernel-reg", xy, "--dep", "y", "--indep", "x", "--bw", "Inf"]).code == "usage/invalid"
+                # (fix) --degree guarded up-front as a CLI arg → usage/invalid, not MEMs data/invalid.
+                ed = _eerr(["kernel-reg", xy, "--dep", "y", "--indep", "x", "--method", "lp", "--degree", "-1"])
+                @test ed isa CliError && ed.code == "usage/invalid" && exit_class(ed) == 2
+                # (fix) all-non-numeric CSV with default --dep → data/invalid, NOT an untyped
+                # BoundsError exit-1 (numcols[1] on an empty vector) — for the whole loader family.
+                strcsv = joinpath(dir, "strings.csv")
+                open(strcsv, "w") do io
+                    println(io, "a,b"); println(io, "foo,bar"); println(io, "baz,qux")
+                end
+                @test _eerr(["kernel-reg", strcsv, "--indep", "b"]).code == "data/invalid"
+                @test _eerr(["lowess", strcsv, "--indep", "b"]).code == "data/invalid"
+                @test _eerr(["reg", strcsv]).code == "data/invalid"           # mirrored _load_reg_data hole
+                # (infra class-fix) the legacy-JSON writer sanitizes non-finite floats (Inf/NaN →
+                # "Inf"/"NaN" strings) instead of crashing JSON3.write ("… not allowed in JSON spec").
+                out = _capture() do
+                    _write_json_raw(Dict("a" => Inf, "b" => NaN, "c" => 1.5), "")
+                end
+                @test occursin("Inf", out) && occursin("NaN", out)           # rendered, no crash
             end
         end
     end
@@ -3410,7 +3543,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 51  # 50 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2)
+        @test length(node.subcmds) == 56  # 55 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -4827,7 +4960,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 51  # 50 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2)
+        @test length(node.subcmds) == 56  # 55 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5)
     end
 
     @testset "register_irf_commands! includes pvar" begin

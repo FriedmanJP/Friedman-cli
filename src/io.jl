@@ -285,7 +285,12 @@ function _write_json(df::DataFrame, output::String)
 end
 
 function _write_json_raw(data, output::String)
-    json_str = JSON3.write(data)
+    # Sanitize non-finite floats (Inf/NaN → "Inf"/"NaN" strings) BEFORE JSON3.write, which
+    # rejects them ("… not allowed in JSON spec") and would crash the legacy-output path
+    # (FRIEDMAN_LEGACY_OUTPUT=1 -f json) — unlike the envelope path, which already applies
+    # `_json_safe`. This is the class-fix flagged since C067a: any handler emitting an Inf/NaN
+    # in a kv/table is now rendered gracefully on BOTH json paths, not just the envelope.
+    json_str = JSON3.write(_json_safe(data))
     if isempty(output)
         println(json_str)  # data path — stays on stdout
     else
