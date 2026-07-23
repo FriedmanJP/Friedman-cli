@@ -662,6 +662,30 @@ friedman test nardl-symmetry data.csv --dep=y --asymmetric=1,3
 
 **Output:** a tidy multi-row table `regressor|theta_pos|theta_neg|lr_stat|lr_p_chi2|lr_p_f|sr_stat|sr_p_chi2|sr_p_f` + a summary (`df`, `dof_resid`, `n_asym`) and an interpretation of the long-run test on the first regressor. Unlike the bounds test, this test HAS p-values (χ² & F).
 
+### test pmg-hausman
+
+**PMG Hausman selection test** for dynamic heterogeneous panels (Pesaran, Shin & Smith 1999). Fits the same long-format panel **twice** — the estimator efficient under `H₀` (`--efficient=pmg` or `dfe`) and the always-consistent Mean Group — via the same loader/options as [`estimate pmg`](estimate.md#estimate-pmg), then runs the generalized Hausman quadratic form on the common long-run coefficients `θ`. `H₀` is **long-run homogeneity**: failing to reject supports the pooled (PMG) long-run vector; a low p-value favours the unrestricted Mean Group estimator.
+
+```bash
+friedman test pmg-hausman panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2
+friedman test pmg-hausman panel.csv --dep=y --indep=x1,x2 --efficient=dfe
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--id-col` | | String | (1st column) | Panel group id column |
+| `--time-col` | | String | (2nd column) | Panel time column |
+| `--dep` | | String | (1st variable) | Dependent panel variable |
+| `--indep` | | String | (all others) | Long-run regressors, comma-separated |
+| `--efficient` | | String | `pmg` | Estimator efficient under `H₀`: `pmg`, `dfe` (consistent is always MG) |
+| `--trend` | | String | `constant` | Per-unit EC deterministics: `none`, `constant`, `trend` |
+| `--p` / `--q` | | Int | `1` / `1` | ARDL AR / DL orders |
+| `--maxiter` | | Int | `100` | PMG outer-loop max iterations |
+| `--tol` | | Float64 | `1e-8` | PMG outer-loop convergence tolerance |
+| `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
+
+**Output:** a standard test summary (`test_name`, `statistic`, `pvalue`, `df`, `description`) with an interpretation line. Unlike [`test ardl-bounds`](#test-ardl-bounds), this test HAS a p-value.
+
 ## Advanced Unit Root Tests
 
 ### test fourier-adf

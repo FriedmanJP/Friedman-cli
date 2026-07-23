@@ -426,8 +426,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 59 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 60 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b)
-        @test length(node.subcmds) == 60
+        # 60 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 61 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c)
+        @test length(node.subcmds) == 61
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1642,6 +1642,83 @@ end  # Shared utilities
         end
     end
 
+    @testset "estimate pmg + test pmg-hausman (C062c)" begin
+        # Dynamic heterogeneous-panel ARDL. estimate pmg renders a hand-built long-run θ table
+        # + a short-run/EC (φ) table + diagnostics kv (PMGModel is not Tables.jl-registered).
+        # test pmg-hausman fits the panel twice (efficient vs MG) → a standard test kv WITH a
+        # p-value + interpretation. Bad input → typed classes, never uncaught exit-1.
+        _run(root, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String[root], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(root, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String[root], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            panel = _make_panel_csv(dir; G=8, T_per=25, n=2, colnames=["y", "x1"])
+
+            @testset "estimate pmg — long-run + short-run/EC tables + diagnostics" begin
+                for meth in ("pmg", "mg", "dfe")
+                    doc = _run("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1",
+                                            "--method", meth, "--p", "1", "--q", "1"])
+                    @test doc.status == "ok"
+                    @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")   # long-run θ
+                    @test _has_tbl(doc, "term", "estimate", "std_error")                       # short-run/EC
+                    ec = _tbl_with(doc, "term", "estimate", "std_error")
+                    @test "EC speed (phi)" in Set(String(collect(r)[1]) for r in ec.rows)
+                    m = _metrics(doc)
+                    @test Set(["method", "N", "p", "q", "T_i", "phi", "phi_se", "loglik", "converged", "iters", "n_nonconv"]) ⊆ m
+                end
+            end
+
+            @testset "test pmg-hausman — standard test kv + interpretation" begin
+                for eff in ("pmg", "dfe")
+                    doc = _run("test", ["pmg-hausman", panel, "--dep", "y", "--indep", "x1",
+                                        "--efficient", eff, "--p", "1", "--q", "1"])
+                    @test doc.status == "ok"
+                    m = _metrics(doc)
+                    @test Set(["test_name", "statistic", "pvalue", "df", "description"]) ⊆ m
+                end
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                # bad enum → ParseError (or usage/invalid) — both exit 2
+                em = _err("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1", "--method", "foo"])
+                @test em isa ParseError || (em isa CliError && exit_class(em) == 2)
+                # pmg-hausman rejects --efficient mg (choices=pmg|dfe) at parse
+                eh = _err("test", ["pmg-hausman", panel, "--dep", "y", "--indep", "x1", "--efficient", "mg"])
+                @test eh isa ParseError || (eh isa CliError && exit_class(eh) == 2)
+                # p<1 → usage/invalid (in-handler guard)
+                @test (_err("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1", "--p", "0"])).code == "usage/invalid"
+                # bad --dep → usage/invalid (not a panel variable)
+                @test (_err("estimate", ["pmg", panel, "--dep", "nope", "--indep", "x1"])).code == "usage/invalid"
+                # single-unit panel → data/invalid (PMG needs N≥2; wrapped, not exit-1)
+                onecsv = joinpath(dir, "onepmg.csv")
+                write(onecsv, "group,time,y,x1\n1,1,1.0,2.0\n1,2,1.4,2.3\n1,3,1.9,2.9\n1,4,2.1,3.2\n1,5,2.6,3.8\n1,6,3.0,4.1\n1,7,3.4,4.7\n1,8,3.9,5.2\n")
+                @test (_err("estimate", ["pmg", onecsv, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+                @test (_err("test", ["pmg-hausman", onecsv, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+                # missing cell in dep/indep → data/missing-values (hardened _load_panel_reg)
+                miss = joinpath(dir, "misspmg.csv")
+                write(miss, "group,time,y,x1\n1,1,1.0,2.0\n1,2,,2.3\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                @test (_err("estimate", ["pmg", miss, "--dep", "y", "--indep", "x1"])).code == "data/missing-values"
+                # duplicate (id,time) → data/invalid (hardened load_panel_data)
+                dup = joinpath(dir, "duppmg.csv")
+                write(dup, "group,time,y,x1\n1,1,1.0,2.0\n1,1,1.5,2.5\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                @test (_err("estimate", ["pmg", dup, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+            end
+        end
+    end
+
     @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
         _edoc(args) = begin
             out = _capture() do
@@ -2231,8 +2308,8 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 55 primary + 2 snake aliases (arch_lm, ljung_box) = 57 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
-        @test length(node.subcmds) == 57
+        # 56 primary + 2 snake aliases (arch_lm, ljung_box) = 58 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
+        @test length(node.subcmds) == 58
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
@@ -3765,7 +3842,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 60  # 59 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2)
+        @test length(node.subcmds) == 61  # 60 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3796,7 +3873,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 57  # 55 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
+        @test length(node.subcmds) == 58  # 56 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5182,7 +5259,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 60  # 59 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2)
+        @test length(node.subcmds) == 61  # 60 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -5213,7 +5290,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 57  # 55 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
+        @test length(node.subcmds) == 58  # 56 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
     end
 
     @testset "_parse_varlist" begin

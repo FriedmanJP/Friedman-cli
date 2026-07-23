@@ -432,6 +432,33 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_nardl_symmetry),
         ),
+        # C062c: PMG Hausman selection test. Fits a long-format panel twice (efficient PMG/DFE
+        # vs consistent MG) via the shared `_load_panel_reg` loader, then runs the PMG-typed
+        # hausman_test on the common long-run θ. Standard PanelTestResult (HAS a p-value) →
+        # interpret_test_result. H0 = long-run homogeneity; low p favours MG.
+        CommandSpec(
+            path=["test", "pmg-hausman"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent panel variable (default: first variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Long-run regressors, comma-separated (default: all other variables)"),
+                OptionSpec(name="efficient", type=String, default="pmg", description="Estimator efficient under H0: pmg|dfe (consistent is always MG)", choices=["pmg","dfe"]),
+                OptionSpec(name="trend", type=String, default="constant", description="Per-unit EC deterministics: none|constant|trend", choices=["none","constant","trend"]),
+                OptionSpec(name="p", type=Int, default=1, description="Autoregressive order (≥ 1)"),
+                OptionSpec(name="q", type=Int, default=1, description="Distributed-lag order for all regressors (≥ 0)"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="PMG outer-loop max iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="PMG outer-loop convergence tolerance"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pmg_hausman, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_pmg_hausman),
+        ),
         # C071: VECM cointegration restriction tests (Johansen LR on β / α).
         # Each fits a VECM then tests a linear restriction on the cointegrating
         # structure; restriction matrices come from a [vecm_restriction] config.
@@ -2149,6 +2176,52 @@ function _test_nardl_symmetry(; data::String, dep::String="", asymmetric::String
     isempty(res.reg_names) || interpret_test_result(Float64(res.lr_p_chi2[1]),
         "Reject H0 (long-run symmetry) at 5% for $(res.reg_names[1]) -- asymmetric adjustment",
         "Cannot reject H0 (long-run symmetry) at 5% for $(res.reg_names[1])")
+    return res
+end
+
+# ── C062c: PMG Hausman selection test (PMG/DFE-vs-MG) ─────────────────────────
+# `test pmg-hausman` fits the SAME panel TWICE — the estimator efficient under H0 (PMG or DFE)
+# and the always-consistent Mean Group — then runs the PMG-typed `hausman_test(::PMGModel,
+# ::PMGModel)` on the common long-run θ (the (PMGModel,PMGModel) dispatch, distinct from the
+# generic FE-vs-RE hausman). H0 = long-run homogeneity: failing to reject supports the pooled
+# (PMG) long-run vector. Result is a standard `PanelTestResult` (HAS a p-value) → the usual
+# test kv + `interpret_test_result`, exactly the pedroni/kao/westerlund pattern. Every MEMs
+# call is wrapped → typed CliError (single-unit panel etc. → data/invalid, never exit-1).
+function _test_pmg_hausman(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", trend::String="constant", p::Int=1, q::Int=1,
+        maxiter::Int=100, tol::Float64=1e-8, efficient::String="pmg",
+        format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "--p must be ≥ 1, got $p"))
+    q >= 0 || throw(CliError("usage/invalid", "--q must be ≥ 0, got $q"))
+    pd, depsym, indepsyms, depc, indeps = _load_panel_reg(data, id_col, time_col, dep, indep)
+    _status("PMG Hausman Test ($(uppercase(efficient)) vs MG): $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    eff = try
+        estimate_pmg(pd, depsym, indepsyms...; method=Symbol(efficient), p=p, q=q,
+                     trend=Symbol(trend), maxiter=maxiter, tol=tol)
+    catch e
+        throw(_teststat_error(e, "PMG Hausman ($efficient) fit"))
+    end
+    cons = try
+        estimate_pmg(pd, depsym, indepsyms...; method=:mg, p=p, q=q,
+                     trend=Symbol(trend), maxiter=maxiter, tol=tol)
+    catch e
+        throw(_teststat_error(e, "PMG Hausman (MG) fit"))
+    end
+    res = try
+        hausman_test(eff, cons)
+    catch e
+        throw(_teststat_error(e, "PMG Hausman test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test_name"   => res.test_name,
+        "statistic"   => round(Float64(res.statistic); digits=4),
+        "pvalue"      => round(Float64(res.pvalue); digits=4),
+        "df"          => res.df,
+        "description" => res.description,
+    ]; format=format, output=output, title="PMG Hausman Specification Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (long-run homogeneity) -- PMG inconsistent, prefer MG",
+        "Cannot reject H0 -- PMG long-run homogeneity supported")
     return res
 end
 

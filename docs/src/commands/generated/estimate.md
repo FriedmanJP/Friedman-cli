@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 59
+**Leaves:** 60
 
 ### `friedman estimate 3sls`
 
@@ -957,6 +957,34 @@ Path to CSV panel data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_plogit` (Path to CSV panel data file)
+
+---
+
+### `friedman estimate pmg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
+| `--method` | — | `String` | `pmg` | `pmg`, `mg`, `dfe` | pmg (pooled mean group) | mg (mean group) | dfe (dynamic fixed effects) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none|constant|trend |
+| `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
+| `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
+| `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
+| `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_pmg` (Path to CSV data file)
 
 ---
 

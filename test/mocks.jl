@@ -6811,4 +6811,159 @@ end
 export ARDLLongRun, ARDLModel, ARDLBoundsTest, NARDLModel, NARDLSymmetryTest, NARDLMultipliers
 export estimate_ardl, estimate_nardl, long_run, bounds_test, symmetry_test, dynamic_multipliers
 
+# ─── C062c: dynamic heterogeneous-panel ARDL (PMG / MG / DFE) ────────────────
+# PMGModel mirrors the real MEMs 0.7.0 field NAMES/ORDER (a subset is fine — check_mock_surface
+# is mock ⊆ real). `estimate_pmg` is a genuine-ish per-unit error-correction fit that VALIDATES
+# like the real one (N≥2, ≥1 regressor, method/trend enums, p≥1/q≥0, per-unit sample length →
+# ArgumentError) so T1/T2 exercise the error mapping AND the hand-built long-run/short-run
+# renderers. `hausman_test(::PMGModel, ::PMGModel)` is the PMG-typed dispatch — DISTINCT from the
+# generic FE-vs-RE `hausman_test(::PanelRegModel, ::PanelRegModel)` above (no name clash). NOTE
+# the trend vocabulary is PMG-specific: none|constant|trend (`:constant` spelled out).
+struct PMGModel{T<:AbstractFloat}
+    method::Symbol
+    yname::String
+    xnames::Vector{String}
+    srnames::Vector{String}
+    theta::Vector{T}
+    theta_se::Vector{T}
+    theta_vcov::Matrix{T}
+    theta_i::Matrix{T}
+    phi_i::Vector{T}
+    phi::T
+    phi_se::T
+    sr::Vector{T}
+    sr_se::Vector{T}
+    sr_i::Matrix{T}
+    sigma2_i::Vector{T}
+    loglik::T
+    N::Int
+    T_i::Vector{Int}
+    p::Int
+    q::Int
+    n_nonconv::Int
+    converged::Bool
+    iters::Int
+end
+
+coef(m::PMGModel) = m.theta
+vcov(m::PMGModel) = m.theta_vcov
+stderror(m::PMGModel) = m.theta_se
+nobs(m::PMGModel) = sum(m.T_i)
+
+# One unit's EC design [ylag Xlag W], W = [det  Δy-lags  Δx-lags], mirroring real
+# `_pmg_unit_design`. Returns (dy, Z, m_sr, srnames).
+function _mock_pmg_unit(y::Vector{T}, X::Matrix{T}, p::Int, q::Int, trend::Symbol,
+                        yname::String, xnames::Vector{String}) where {T}
+    Ti = length(y); k = size(X, 2); L = max(p, q); rows = (L + 1):Ti; n = length(rows)
+    dy = T[y[t] - y[t-1] for t in rows]
+    ylag = T[y[t-1] for t in rows]
+    Xlag = Matrix{T}(undef, n, k)
+    for j in 1:k, (r, t) in enumerate(rows)
+        Xlag[r, j] = X[t-1, j]
+    end
+    cols = Vector{Vector{T}}(); srnames = String[]
+    if trend === :constant || trend === :trend
+        push!(cols, ones(T, n)); push!(srnames, "(Intercept)")
+    end
+    if trend === :trend
+        push!(cols, T.(collect(rows))); push!(srnames, "trend")
+    end
+    for j in 1:(p-1)
+        push!(cols, T[y[t-j] - y[t-j-1] for t in rows]); push!(srnames, "L$j.D.$yname")
+    end
+    for jx in 1:k, l in 0:(q-1)
+        push!(cols, T[X[t-l, jx] - X[t-l-1, jx] for t in rows])
+        push!(srnames, l == 0 ? "D.$(xnames[jx])" : "L$l.D.$(xnames[jx])")
+    end
+    W = isempty(cols) ? Matrix{T}(undef, n, 0) : reduce(hcat, cols)
+    (dy, hcat(ylag, Xlag, W), size(W, 2), srnames)
+end
+
+function estimate_pmg(pd::PanelData, y::Symbol, xs::Symbol...;
+                      p::Int=1, q::Int=1, method::Symbol=:pmg, trend::Symbol=:constant,
+                      maxiter::Int=100, tol::Real=1e-8)
+    isempty(xs) && throw(ArgumentError("at least one long-run regressor is required"))
+    method in (:pmg, :mg, :dfe) ||
+        throw(ArgumentError("method must be :pmg, :mg, or :dfe; got :$method"))
+    trend in (:none, :constant, :trend) ||
+        throw(ArgumentError("trend must be :none, :constant, or :trend; got :$trend"))
+    p >= 1 || throw(ArgumentError("p must be ≥ 1; got $p"))
+    q >= 0 || throw(ArgumentError("q must be ≥ 0; got $q"))
+    T = Float64
+    _vc(v) = (j = findfirst(==(string(v)), pd.varnames);
+              j === nothing ? throw(ArgumentError("Variable :$v not found. Available: $(pd.varnames)")) : j)
+    yc = _vc(y); xcs = Int[_vc(x) for x in xs]
+    k = length(xcs); yname = string(y); xnames = String[string(x) for x in xs]
+    ug = sort(unique(pd.group_id)); N = length(ug)
+    N >= 2 || throw(ArgumentError("need at least 2 units; got $N"))
+    L = max(p, q)
+    theta_i = Matrix{T}(undef, N, k); phi_i = zeros(T, N)
+    Ti = zeros(Int, N); sigma2_i = zeros(T, N)
+    sr_list = Vector{Vector{T}}(); srnames = String[]; m_sr = 0
+    for (i, g) in enumerate(ug)
+        rows = findall(==(g), pd.group_id)
+        rr = rows[sortperm(pd.time_id[rows])]
+        yg = T.(pd.data[rr, yc]); Xg = T.(pd.data[rr, xcs])
+        length(yg) > L + k + (trend === :none ? 0 : 1) + (p - 1) + k * q ||
+            throw(ArgumentError("unit $i: sample too short for ARDL($p,$q)"))
+        dy, Z, msr, srn = _mock_pmg_unit(yg, Xg, p, q, trend, yname, xnames)
+        i == 1 && (srnames = srn; m_sr = msr)
+        b = Z \ dy
+        resid = dy .- Z * b
+        phi = b[1]; beta = b[2:(k+1)]
+        phi_i[i] = phi
+        denom = abs(phi) < 1e-8 ? (phi < 0 ? -T(1e-8) : T(1e-8)) : phi
+        theta_i[i, :] .= -beta ./ denom
+        push!(sr_list, b[(k+2):end])
+        Ti[i] = length(dy)
+        sigma2_i[i] = sum(abs2, resid) / max(length(dy), 1)
+    end
+    theta = vec(sum(theta_i; dims=1)) ./ T(N)
+    # Swamy between-unit covariance: (N(N-1))⁻¹ Σ (θ_i−θ̄)(θ_i−θ̄)'.
+    V = zeros(T, k, k)
+    for i in 1:N
+        d = theta_i[i, :] .- theta
+        V .+= d * d'
+    end
+    V ./= T(N * (N - 1))
+    # Pooled (PMG) / DFE are nominally more efficient than MG → smaller vcov, so the Hausman
+    # difference dV = V_mg − V_eff is PSD (mock convention; keeps the quadratic form well-posed).
+    theta_vcov = method === :mg ? V : T(0.5) .* V
+    theta_se = T[sqrt(max(theta_vcov[j, j], zero(T))) for j in 1:k]
+    phi = sum(phi_i) / T(N)
+    phi_se = std(phi_i; corrected=true) / sqrt(T(N))
+    sr_mat = reduce(vcat, [reshape(s, 1, m_sr) for s in sr_list])
+    sr = vec(sum(sr_mat; dims=1)) ./ T(N)
+    sr_se = T[std(@view(sr_mat[:, j]); corrected=true) / sqrt(T(N)) for j in 1:m_sr]
+    loglik = -sum(T(Ti[i]) / 2 * (log(2π) + log(max(sigma2_i[i], eps())) + 1) for i in 1:N)
+    n_nonconv = count(>=(zero(T)), phi_i)
+    theta_i_store = method === :mg ? theta_i : Matrix{T}(undef, 0, k)
+    iters = method === :pmg ? 3 : 0
+    PMGModel{T}(method, yname, xnames, srnames, theta, theta_se, theta_vcov, theta_i_store,
+                phi_i, phi, phi_se, sr, sr_se, sr_mat, sigma2_i, loglik, N, Ti, p, q,
+                n_nonconv, true, iters)
+end
+
+# PMG-typed generalized Hausman (efficient vs consistent=:mg). A diagonalised quadratic form
+# on the common long-run θ (mock: avoids importing pinv/Chisq) — finite, monotone survival in
+# (0,1]; enough for T1/T2 shape/error assertions.
+function hausman_test(efficient::PMGModel{T}, consistent::PMGModel{T}) where {T}
+    consistent.method === :mg ||
+        throw(ArgumentError("second argument must be the Mean Group model (:mg); got :$(consistent.method)"))
+    length(efficient.theta) == length(consistent.theta) ||
+        throw(ArgumentError("the two models must share the same long-run dimension"))
+    db = efficient.theta .- consistent.theta
+    dv = T[max(consistent.theta_vcov[i, i] - efficient.theta_vcov[i, i], T(1e-12)) for i in eachindex(db)]
+    chi2 = sum((db .^ 2) ./ dv)
+    df = length(db)
+    pval = exp(-max(chi2, zero(T)) / 2)
+    name = "Hausman test ($(uppercase(string(efficient.method))) vs MG)"
+    h0 = efficient.method === :pmg ? "long-run homogeneity" : "$(uppercase(string(efficient.method))) consistent"
+    desc = pval < T(0.05) ? "Reject H0 ($h0): use MG" :
+           "Fail to reject H0 ($h0): $(uppercase(string(efficient.method))) preferred"
+    PanelTestResult{T}(name, T(chi2), T(pval), df, desc)
+end
+
+export PMGModel, estimate_pmg
+
 end # module

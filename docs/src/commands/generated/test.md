@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 63
+**Leaves:** 64
 
 ### `friedman test adf`
 
@@ -924,6 +924,33 @@ Path to CSV panel data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
 **Output tables:** `pesaran_cd` (Path to CSV panel data file)
+
+---
+
+### `friedman test pmg-hausman`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
+| `--efficient` | — | `String` | `pmg` | `pmg`, `dfe` | Estimator efficient under H0: pmg|dfe (consistent is always MG) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none|constant|trend |
+| `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
+| `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
+| `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
+| `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `pmg_hausman` (Path to CSV data file)
 
 ---
 

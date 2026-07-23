@@ -625,6 +625,71 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "estimate pmg + test pmg-hausman — panel ARDL (C062c, M5c)" begin
+        # Heterogeneous-panel ARDL-EC with a COMMON long-run θ=1, heterogeneous φ_i/short-run.
+        # Teeth (all LOOSE — noisy panel ML): PMG recovers the pooled θ; the fit converges; MG
+        # and DFE also run; the Hausman test returns a decision + a p-value in [0,1] (on a
+        # homogeneous-θ DGP it should FAIL to reject long-run homogeneity — loose direction).
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        _rowval(doc, term, valcol) = begin  # scan all tables for term row, return valcol
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                cols = table_cols(v)
+                ti = findfirst(==("term"), cols); vi = findfirst(==(valcol), cols)
+                (ti === nothing || vi === nothing) && continue
+                for row in table_rows(v)
+                    r = collect(row)
+                    string(r[ti]) == term && return Float64(r[vi])
+                end
+            end
+            nothing
+        end
+
+        @testset "pmg — long-run θ recovery (loose) + converged, MG/DFE run" begin
+            cp = dgp_pmg(; N=10, T=60, θ=1.0, seed=71)
+            r = run_json(["estimate", "pmg", cp, "--dep", "y", "--indep", "x", "--method", "pmg"])
+            assert_envelope_ok(r; label="estimate pmg")
+            θ̂ = _rowval(r.doc, "x", "estimate")
+            @test θ̂ !== nothing && abs(θ̂ - 1.0) < 0.35        # loose pooled long-run recovery
+            d = _diag(r.doc)
+            @test Int(metric_value(d, "N")) == 10
+            @test string(metric_value(d, "converged")) in ("true", "1")
+            @test isfinite(Float64(metric_value(d, "phi")))
+            # MG / DFE also run
+            @test run_json(["estimate", "pmg", cp, "--dep", "y", "--indep", "x", "--method", "mg"]).code == 0
+            @test run_json(["estimate", "pmg", cp, "--dep", "y", "--indep", "x", "--method", "dfe"]).code == 0
+            rm(cp; force=true)
+        end
+
+        @testset "pmg-hausman — decision + p-value in [0,1], efficient pmg/dfe" begin
+            cp = dgp_pmg(; N=10, T=60, θ=1.0, seed=73)
+            for eff in ("pmg", "dfe")
+                r = run_json(["test", "pmg-hausman", cp, "--dep", "y", "--indep", "x", "--efficient", eff])
+                assert_envelope_ok(r; label="test pmg-hausman $eff")
+                d = _diag(r.doc)
+                pv = Float64(metric_value(d, "pvalue"))
+                @test 0.0 <= pv <= 1.0
+                @test metric_value(d, "statistic") !== nothing
+            end
+            rm(cp; force=true)
+        end
+
+        @testset "bad input stays typed (not internal exit 1)" begin
+            cp = dgp_pmg(; N=6, T=40, seed=75)
+            @test run_json(["estimate", "pmg", cp, "--dep", "y", "--indep", "x", "--method", "bogus"]).code == 2
+            @test run_json(["estimate", "pmg", cp, "--dep", "nope", "--indep", "x"]).code == 2
+            @test run_json(["estimate", "pmg", cp, "--dep", "y", "--indep", "x", "--p", "0"]).code == 2
+            @test run_json(["test", "pmg-hausman", cp, "--dep", "y", "--indep", "x", "--efficient", "mg"]).code == 2
+            rm(cp; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

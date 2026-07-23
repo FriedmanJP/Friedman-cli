@@ -316,3 +316,28 @@ function dgp_coint_panel(; N::Int=10, T::Int=50, β::Float64=1.0, seed::Int=42)
     end
     return write_csv(DataFrame(id=id, time=time, y=y, x=x); prefix="cpanel")
 end
+
+# Heterogeneous-panel ARDL error-correction system with a COMMON long-run θ:
+#   Δy_it = φ_i (y_{i,t-1} − θ x_{i,t-1}) + β_i Δx_it + ε_it,
+# φ_i ∈ [−0.6,−0.3] (heterogeneous EC speed), β_i heterogeneous short-run, x_it a random walk.
+# Used by the PMG T3: the pooled long-run θ should be recovered (loose) across units.
+function dgp_pmg(; N::Int=10, T::Int=60, θ::Float64=1.0, seed::Int=42)
+    rng = MersenneTwister(seed)
+    id = Int[]; time = Int[]; y = Float64[]; x = Float64[]
+    for i in 1:N
+        φi = -(0.3 + 0.3 * rand(rng))       # heterogeneous, error-correcting (negative)
+        βi = 0.4 + 0.6 * rand(rng)          # heterogeneous short-run impact
+        xi = zeros(T); yi = zeros(T)
+        xi[1] = randn(rng); yi[1] = θ * xi[1] + 0.3 * randn(rng)
+        for t in 2:T
+            dx = 0.3 * randn(rng)
+            xi[t] = xi[t-1] + dx
+            ec = yi[t-1] - θ * xi[t-1]
+            yi[t] = yi[t-1] + φi * ec + βi * dx + 0.15 * randn(rng)
+        end
+        for t in 1:T
+            push!(id, i); push!(time, t); push!(y, yi[t]); push!(x, xi[t])
+        end
+    end
+    return write_csv(DataFrame(id=id, time=time, y=y, x=x); prefix="pmgpanel")
+end

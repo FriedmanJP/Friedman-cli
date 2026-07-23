@@ -47,9 +47,10 @@ preference:
    IRF paths, the whole `io` family, the SUR/3SLS systems and MGARCH (CCC/DCC/BEKK) leaves,
    the penalized/robust/Tobit/truncated/Heckman regression leaves, the state-space/TVP and
    nonparametric (KDE/kernel-reg/LOWESS) leaves, the single-equation/panel cointegrating
-   regression leaves (`CointRegModel`/`PanelCointRegModel`), and the ARDL/NARDL family
+   regression leaves (`CointRegModel`/`PanelCointRegModel`), the ARDL/NARDL family
    (`ARDLModel`/`NARDLModel`/`ARDLLongRun`/`ARDLBoundsTest`/`NARDLSymmetryTest`/`NARDLMultipliers`
-   — `estimate ardl`/`nardl`, `test ardl-bounds`/`nardl-symmetry`, `multipliers nardl`) — none of
+   — `estimate ardl`/`nardl`, `test ardl-bounds`/`nardl-symmetry`, `multipliers nardl`), and the
+   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate pmg`, `test pmg-hausman`) — none of
    these result types are Tables.jl-registered upstream) or where the tidy schema would lose information the command
    needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
    summary). The `io` matrices (Leontief/Ghosh inverses, coefficients) and MGARCH conditional
@@ -128,7 +129,11 @@ src/
 The ARDL/NARDL family (`estimate ardl`/`nardl` in `estimate.jl`, `test ardl-bounds`/`nardl-symmetry`
 in `test.jl`, and `multipliers nardl` in the new top-level `multipliers.jl`) all fit via the shared
 `_load_reg_data` (`y` + `X`) loader and the `_fit_ardl`/`_fit_nardl` wrappers in `estimate.jl`, so
-the four leaves share one estimation path and one set of hand-built renderers.
+the four leaves share one estimation path and one set of hand-built renderers. The dynamic
+heterogeneous-panel ARDL family (`estimate pmg` in `estimate.jl`, `test pmg-hausman` in `test.jl`)
+similarly shares the hardened `_load_panel_reg` panel loader (`shared.jl`): both resolve `--dep`/`--indep`
+to `Symbol`s over a `PanelData` and splat the regressors into `estimate_pmg(pd, dep, xs...)`; the test
+leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `hausman_test`.
 
 ## Handler Conventions
 

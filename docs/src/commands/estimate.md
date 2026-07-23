@@ -1020,6 +1020,42 @@ friedman estimate nardl data.csv --dep=y --asymmetric=1,3
 
 **Output:** split-regressor coefficient table (labels carry `_POS`/`_NEG` suffixes) + asymmetric long-run table (θ⁺/θ⁻) + diagnostics including the enlarged-`k` bounds decision (`k_orig`, `k`, `asym`, `f_stat`, `t_stat`, `f_decision`, `t_decision`, `bounds_level`). NARDL has no `--trend` option (informational-only upstream). See [`test nardl-symmetry`](test.md#test-nardl-symmetry) for the long-/short-run symmetry Wald tests and [`multipliers nardl`](multipliers.md) for the cumulative dynamic multipliers.
 
+## estimate pmg
+
+**Dynamic heterogeneous-panel ARDL** in error-correction form (Pesaran, Shin & Smith 1999), estimated on a long-format panel (`--id-col`/`--time-col` default to the first/second columns; regressors via `--indep`). `--method` selects the estimator:
+
+- `pmg` — **Pooled Mean Group**: a common long-run vector `θ` across units, with heterogeneous short-run dynamics and per-unit error-correction speeds `φ_i`. Fit by concentrated ML (block coordinate ascent).
+- `mg` — **Mean Group** (Pesaran & Smith 1995): an unrestricted per-unit ARDL, averaged across units.
+- `dfe` — **Dynamic Fixed Effects**: a pooled within-transformed EC regression with unit intercepts and cluster-robust SEs.
+
+Each unit's ARDL(`p`, `q`) is written as `Δy_it = φ_i (y_{i,t-1} − θ' x_{i,t-1}) + Σ ξ_ij Δy_{i,t-j} + Σ ψ_ij' Δx_{i,t-j} + deterministics_i + ε_it`.
+
+```bash
+# Pooled Mean Group: common long-run theta + heterogeneous short-run
+friedman estimate pmg panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2 --method=pmg
+
+# Mean Group and Dynamic Fixed Effects alternatives
+friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=mg
+friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=dfe --p=2 --q=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--id-col` | | String | (1st column) | Panel group id column |
+| `--time-col` | | String | (2nd column) | Panel time column |
+| `--dep` | | String | (1st variable) | Dependent panel variable |
+| `--indep` | | String | (all others) | Long-run regressors, comma-separated |
+| `--method` | | String | `pmg` | `pmg`, `mg`, `dfe` |
+| `--trend` | | String | `constant` | Per-unit EC deterministics: `none`, `constant`, `trend` |
+| `--p` | | Int | `1` | Autoregressive order (≥ 1) |
+| `--q` | | Int | `1` | Distributed-lag order for all regressors (≥ 0) |
+| `--maxiter` | | Int | `100` | PMG outer-loop max iterations |
+| `--tol` | | Float64 | `1e-8` | PMG outer-loop convergence tolerance |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a long-run coefficient table `θ` (`term|estimate|std_error|stat|p_value`) + a short-run/error-correction table (`term|estimate|std_error`, with the adjustment speed `φ` as the first row) + diagnostics (`method`, `N`, `p`, `q`, `T_i`, `phi`, `phi_se`, `loglik`, `converged`, `iters`, `n_nonconv`). `PMGModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Display SEs (`φ`, `θ`) can be `Inf` for degenerate units — rendered non-finite-safe. See [`test pmg-hausman`](test.md#test-pmg-hausman) for the PMG-vs-MG selection test. **Trend-vocabulary note:** PMG spells `--trend=constant` out — distinct from ARDL's `none|const|trend` and cointreg's `none|const|linear`; do not carry a `const` value here.
+
 ## estimate iv
 
 Instrumental variables (2SLS) regression. `--endogenous` names the endogenous regressor(s) and `--instruments` names the **excluded** instrument(s) — extra columns that identify the endogenous regressors but do not enter the structural equation. Every *other* numeric column (besides `--dep` and the endogenous ones) is treated as an exogenous regressor and instrument; include a `const` column of ones for an intercept. So the regressor matrix `X` = all columns except `{dep, excluded instruments}`, and the instrument matrix `Z` = all columns except `{dep, endogenous}`.

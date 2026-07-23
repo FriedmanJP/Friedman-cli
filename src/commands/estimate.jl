@@ -737,6 +737,35 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_nardl),
         ),
+        # ── C062c: dynamic heterogeneous-panel ARDL (PMG / MG / DFE) ──────────
+        # `estimate pmg` fits Pooled Mean Group (common long-run θ), Mean Group, or Dynamic
+        # Fixed Effects on a long-format panel via the shared `_load_panel_reg` loader; folds a
+        # long-run θ table + a short-run/EC (φ) table + diagnostics. PMGModel is a StatsAPI model
+        # but NOT in MEMs `_COEF_TABLE_TYPES` → hand-built tables (C051 exception). NOTE the trend
+        # vocab is PMG-specific: none|constant|trend (`:constant` spelled out — NOT ARDL's :const).
+        CommandSpec(
+            path=["estimate", "pmg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent panel variable (default: first variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Long-run regressors, comma-separated (default: all other variables)"),
+                OptionSpec(name="method", type=String, default="pmg", description="pmg (pooled mean group) | mg (mean group) | dfe (dynamic fixed effects)", choices=["pmg","mg","dfe"]),
+                OptionSpec(name="trend", type=String, default="constant", description="Per-unit EC deterministics: none|constant|trend", choices=["none","constant","trend"]),
+                OptionSpec(name="p", type=Int, default=1, description="Autoregressive order (≥ 1)"),
+                OptionSpec(name="q", type=Int, default=1, description="Distributed-lag order for all regressors (≥ 0)"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="PMG outer-loop max iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="PMG outer-loop convergence tolerance"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_pmg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_pmg),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -3783,5 +3812,87 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
         "f_decision"   => String(b.f_decision),
         "t_decision"   => String(b.t_decision),
     ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))")
+    return m
+end
+
+# ── C062c: dynamic heterogeneous-panel ARDL (PMG / MG / DFE) ──────────────────
+# `estimate pmg` (Pooled Mean Group + Mean Group + Dynamic Fixed Effects; Pesaran-Shin-Smith
+# 1999) and `test pmg-hausman` (test.jl) fit via the shared hardened `_load_panel_reg` panel
+# loader (typed dup-(id,time) / missing-cell / bad-column guards). `PMGModel` is a StatsAPI
+# model but NOT in MEMs `_COEF_TABLE_TYPES` → hand-built long-run + short-run/EC tables
+# (documented C051 exception, like io/mgarch/sur/cointreg/ardl). Long-run p-values use the
+# normal approximation (`_normal_cdf`, the CLI convention — the pooled θ is asymptotically
+# normal). NOTE the trend vocabulary is PMG-specific: none|constant|trend — `:constant` is
+# SPELLED OUT (NOT ARDL's :const, NOT cointreg's :linear); do not copy another leaf's trend
+# OptionSpec here. Display SEs (φ, θ) can be Inf → the kv path string-renders non-finite
+# scalars (`_ardl_kv`) and the table path is non-finite-safe (C067a/C073).
+
+"""Hand-built long-run coefficient table for a fitted `PMGModel`:
+`term|estimate|std_error|stat|p_value` from the common (`:pmg`/`:dfe`) or averaged (`:mg`)
+long-run block `theta`/`theta_se`; `term = m.xnames`. Normal-approx stat/p."""
+function _pmg_longrun_table(m)
+    est = Float64.(m.theta)
+    se = Float64.(m.theta_se)
+    names = String.(m.xnames)[1:length(est)]
+    z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
+    pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    return DataFrame(term=names, estimate=round.(est; digits=6),
+                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
+                     p_value=round.(pv; digits=4))
+end
+
+"""Hand-built short-run / error-correction table for a fitted `PMGModel`:
+`term|estimate|std_error`. The error-correction speed φ (mean for `:pmg`/`:mg`, common for
+`:dfe`) is the first row, followed by the averaged/common short-run block (`m.sr`/`m.sr_se`,
+`term = m.srnames`). For a DFE fit the unit intercept is absorbed → `srnames` may be empty, in
+which case only the φ row is emitted."""
+function _pmg_shortrun_table(m)
+    terms = String["EC speed (phi)"]
+    est = Float64[m.phi]
+    se = Float64[m.phi_se]
+    srnames = String.(m.srnames)
+    for j in eachindex(srnames)
+        push!(terms, srnames[j]); push!(est, Float64(m.sr[j])); push!(se, Float64(m.sr_se[j]))
+    end
+    return DataFrame(term=terms, estimate=round.(est; digits=6), std_error=round.(se; digits=6))
+end
+
+function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
+                        dep::String="", indep::String="", method::String="pmg",
+                        trend::String="constant", p::Int=1, q::Int=1,
+                        maxiter::Int=100, tol::Float64=1e-8,
+                        output::String="", format::String="table")
+    p >= 1 || throw(CliError("usage/invalid", "--p must be ≥ 1, got $p"))
+    q >= 0 || throw(CliError("usage/invalid", "--q must be ≥ 0, got $q"))
+    maxiter >= 1 || throw(CliError("usage/invalid", "--maxiter must be ≥ 1, got $maxiter"))
+    tol > 0 || throw(CliError("usage/invalid", "--tol must be > 0, got $tol"))
+    pd, depsym, indepsyms, depc, indeps = _load_panel_reg(data, id_col, time_col, dep, indep)
+    _status("Panel ARDL ($(uppercase(method)), EC form): $depc ~ $(join(indeps, " + ")) (p=$p, q=$q, trend=$trend), units=$(pd.n_groups)"); _status()
+    m = try
+        estimate_pmg(pd, depsym, indepsyms...; p=p, q=q, method=Symbol(method),
+                     trend=Symbol(trend), maxiter=maxiter, tol=tol)
+    catch e
+        throw(_garch_variant_error(e, "PMG"))
+    end
+    output_result(_pmg_longrun_table(m); format=Symbol(format), output=output,
+                  title="Panel ARDL Long-Run Coefficients (theta) ($depc)")
+    output_result(_pmg_shortrun_table(m); format=Symbol(format),
+                  output=_per_var_output_path(output, "shortrun"),
+                  title="Panel ARDL Short-Run + EC Coefficients ($depc)")
+    tspan = length(unique(m.T_i)) == 1 ? string(first(m.T_i)) :
+            "$(minimum(m.T_i))-$(maximum(m.T_i))"
+    output_kv(Pair{String,Any}[
+        "method"    => String(m.method),
+        "N"         => m.N,
+        "p"         => m.p,
+        "q"         => m.q,
+        "T_i"       => tspan,
+        "phi"       => _ardl_kv(m.phi),
+        "phi_se"    => _ardl_kv(m.phi_se),
+        "loglik"    => _ardl_kv(m.loglik; digits=4),
+        "converged" => m.converged,
+        "iters"     => m.iters,
+        "n_nonconv" => m.n_nonconv,
+    ]; format=format, title="Panel ARDL Diagnostics")
     return m
 end

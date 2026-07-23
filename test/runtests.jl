@@ -3772,8 +3772,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 59 primary leaves + 1 snake alias (gjr_garch) = 60 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b)
-    @test length(est_node.subcmds) == 60
+    # 60 primary leaves + 1 snake alias (gjr_garch) = 61 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c)
+    @test length(est_node.subcmds) == 61
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -3968,8 +3968,8 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 55 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b)
-    @test length(test_node.subcmds) == 57
+    # 56 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
+    @test length(test_node.subcmds) == 58
     @test haskey(test_node.subcmds, "gph")
     @test haskey(test_node.subcmds, "local-whittle")
     # C071: nested VECM restriction-test node

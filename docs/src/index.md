@@ -19,6 +19,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **GMM** | Identity, optimal, two-step, iterated weighting | `estimate gmm` |
 | **Cross-Sectional** | OLS, WLS, IV (2SLS), Logit, Probit | `estimate reg`, `estimate iv`, `estimate logit`, `estimate probit` |
 | **ARDL / NARDL** | Single-equation ARDL, nonlinear/asymmetric NARDL, PSS bounds test, symmetry Wald tests, cumulative dynamic multipliers | `estimate ardl`, `estimate nardl`, `test ardl-bounds`, `test nardl-symmetry`, `multipliers nardl` |
+| **Panel ARDL (PMG)** | Dynamic heterogeneous-panel ARDL: Pooled Mean Group / Mean Group / Dynamic Fixed Effects, PMG Hausman selection test | `estimate pmg`, `test pmg-hausman` |
 | **IRF** | Cholesky, sign, narrative, long-run, Arias, Uhlig, non-Gaussian methods | `irf var`, `irf bvar`, `irf lp`, `irf vecm`, `irf pvar` |
 | **FEVD** | Frequentist, Bayesian, LP (bias-corrected), VECM, Panel VAR | `fevd var`, `fevd bvar`, `fevd lp`, `fevd vecm`, `fevd pvar` |
 | **Historical Decomposition** | Frequentist, Bayesian, LP-based, VECM | `hd var`, `hd bvar`, `hd lp`, `hd vecm` |
@@ -49,7 +50,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Spectral Analysis** | ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function | `spectral acf`, `spectral density`, ... |
 | **Data Utilities** | Drop rows with missing values, keep rows by condition | `data dropna`, `data keeprows` |
 
-**18 top-level commands, 292 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `multipliers`, ...) rather than by model type.
+**18 top-level commands, 294 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `multipliers`, ...) rather than by model type.
 
 ## Quick Start
 
