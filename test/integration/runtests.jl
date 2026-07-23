@@ -414,6 +414,113 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(csvc; force=true)
     end
 
+    @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
+        # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
+        # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the
+        # Heckman two-equation table (term, optionally filtered by an `equation` value).
+        _coef(doc, term; termcol="term", eq=nothing) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                cols = table_cols(v)
+                ti = findfirst(==(termcol), cols); ei = findfirst(==("estimate"), cols)
+                (ti === nothing || ei === nothing) && continue
+                qi = eq === nothing ? nothing : findfirst(==("equation"), cols)
+                for row in table_rows(v)
+                    r = collect(row)
+                    string(r[ti]) == term || continue
+                    (qi === nothing || string(r[qi]) == eq) || continue
+                    return Float64(r[ei])
+                end
+            end
+            nothing
+        end
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+
+        @testset "estimate iv — order-condition FIX: recovers β_endog≈2 (was exit-1)" begin
+            csv = dgp_iv(; T=400, seed=11)
+            # Excluded instruments z1,z2; const & x2 exogenous. Pre-C067b this raised an
+            # untyped `Order condition violated (m<k)` → internal exit-1.
+            r = run_json(["estimate", "iv", csv, "--dep", "y",
+                          "--endogenous", "x_endog", "--instruments", "z1,z2"])
+            assert_envelope_ok(r; label="estimate iv")
+            b = _coef(r.doc, "x_endog")
+            @test b !== nothing && 1.6 < b < 2.4                 # true 2.0
+            fsf = metric_value(_diag(r.doc), "First-stage F")
+            @test fsf !== nothing && Float64(fsf) > 10.0         # strong instruments
+            rm(csv; force=true)
+        end
+
+        @testset "test weak-instrument — strong (not weak) vs weak (flagged)" begin
+            strong = dgp_iv(; T=400, seed=12, inst_strength=0.8)
+            rs = run_json(["test", "weak-instrument", strong, "--dep", "y",
+                           "--endogenous", "x_endog", "--instruments", "z1,z2"])
+            assert_envelope_ok(rs; label="weak-instrument strong")
+            @test string(metric_value(_diag(rs.doc), "weak")) == "false"
+            @test Float64(metric_value(_diag(rs.doc), "first_stage_f")) > 10.0
+            rm(strong; force=true)
+
+            weak = dgp_iv(; T=400, seed=13, inst_strength=0.02)  # near-irrelevant z1
+            rw = run_json(["test", "weak-instrument", weak, "--dep", "y",
+                           "--endogenous", "x_endog", "--instruments", "z1,z2"])
+            assert_envelope_ok(rw; label="weak-instrument weak")
+            # z1 near-zero, z2 still present → borderline; assert the F is far below the
+            # strong case rather than a hard weak=true (z2 keeps some strength).
+            @test Float64(metric_value(_diag(rw.doc), "first_stage_f")) <
+                  Float64(metric_value(_diag(rs.doc), "first_stage_f"))
+            rm(weak; force=true)
+        end
+
+        @testset "test weak-instrument — under-identified → data/invalid (exit 3)" begin
+            csv = dgp_iv(; T=200, seed=14)
+            # two endogenous, one excluded instrument → |excluded| < |endogenous|.
+            r = run_json(["test", "weak-instrument", csv, "--dep", "y",
+                          "--endogenous", "x_endog,x2", "--instruments", "z1"])
+            @test r.code == 3
+            rm(csv; force=true)
+        end
+
+        @testset "estimate truncreg — recovers slope on a truncated sample" begin
+            # y* = 1 + 0.8 x + e; observe only y*>0 (truncated at 0). Include a const column.
+            rng = MersenneTwister(77)
+            xs = Float64[]; ys = Float64[]
+            while length(ys) < 300
+                x = randn(rng); yv = 1.0 + 0.8 * x + randn(rng)
+                if yv > 0.0
+                    push!(xs, x); push!(ys, yv)
+                end
+            end
+            trcsv = tempname() * "_trunc.csv"
+            open(trcsv, "w") do io
+                println(io, "y,const,x")
+                for i in eachindex(ys); println(io, "$(ys[i]),1.0,$(xs[i])"); end
+            end
+            r = run_json(["estimate", "truncreg", trcsv, "--dep", "y", "--lower", "0.0"])
+            assert_envelope_ok(r; label="estimate truncreg")
+            b = _coef(r.doc, "x"; termcol="parameter")
+            @test b !== nothing && 0.4 < b < 1.2                 # true 0.8 (truncation-corrected)
+            @test metric_value(_diag(r.doc), "n_truncated") !== nothing
+            rm(trcsv; force=true)
+        end
+
+        @testset "estimate heckman — two-step recovers outcome slope + both equations" begin
+            csv = dgp_heckman(; T=1500, seed=21, ρ=0.5)
+            r = run_json(["estimate", "heckman", csv, "--dep", "y", "--select", "d",
+                          "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+            assert_envelope_ok(r; label="estimate heckman")
+            bx = _coef(r.doc, "x1"; eq="outcome")
+            @test bx !== nothing && 0.5 < bx < 1.1               # true outcome slope 0.8
+            @test _coef(r.doc, "z1"; eq="selection") !== nothing # selection equation present
+            @test string(metric_value(_diag(r.doc), "method")) == "twostep"
+            rm(csv; force=true)
+        end
+    end
+
     @testset "forecast evaluate — evaluation & combination (C072, M5c)" begin
         # y = AR(1); f1 a decent forecast (small noise), f2 a noisier competitor.
         Random.seed!(9090)

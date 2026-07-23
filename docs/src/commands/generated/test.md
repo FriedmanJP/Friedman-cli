@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 60
+**Leaves:** 61
 
 ### `friedman test adf`
 
@@ -1209,6 +1209,28 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `vif` (Path to CSV data file)
+
+---
+
+### `friedman test weak-instrument`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
+| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
+| `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
+| `--threshold` | — | `Float64` | `10.0` | — | First-stage F rule-of-thumb (used if no Stock-Yogo CV) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `weak_instrument` (Path to CSV data file)
 
 ---
 

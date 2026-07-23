@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS), panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 49 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 50 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -169,6 +169,31 @@ friedman test bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Per-dimension table (`embed_dim|statistic|p_value`); the decision uses the smallest p-value across dimensions.
+
+## Instrumental-Variable Diagnostics
+
+### test weak-instrument
+
+Stock-Yogo weak-instrument diagnostics for a cross-section 2SLS regression. Uses the same data layout as [`estimate iv`](estimate.md#estimate-iv): `--endogenous` names the endogenous regressor(s), `--instruments` names the **excluded** instrument(s), and every other numeric column (besides `--dep`) is an exogenous regressor/instrument (include a `const` column for an intercept). Fits `estimate_iv` and reports the excluded-instrument first-stage F, the Cragg-Donald F (the multi-endogenous statistic), the Kleibergen-Paap robust rk-Wald F, and the Stock-Yogo 10%-maximal-bias critical value.
+
+The verdict compares the Cragg-Donald F (or the first-stage partial F when a single endogenous regressor) against the Stock-Yogo 10% critical value — or, when no critical value is tabulated, the Staiger-Stock rule-of-thumb `--threshold` (default 10). Instruments are flagged **weak** when the statistic falls below that bound.
+
+```bash
+friedman test weak-instrument data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
+friedman test weak-instrument data.csv --dep=y --endogenous=x_endog --instruments=z1,z2 --threshold=10
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--endogenous` | | String | (required) | Comma-separated endogenous regressor column names |
+| `--instruments` | | String | (required) | Comma-separated **excluded** instrument column names |
+| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3` |
+| `--threshold` | | Float | 10.0 | First-stage F rule-of-thumb (used only if no Stock-Yogo critical value) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a diagnostics kv block (`n_endogenous`, `n_excluded_instruments`, `first_stage_f`, `cragg_donald_f`, `kleibergen_paap_f`, `stock_yogo_10pct_cv` or `threshold`, `weak`) plus a decision line (H0: instruments are weak — a large F rejects it).
 
 ## Cointegration
 

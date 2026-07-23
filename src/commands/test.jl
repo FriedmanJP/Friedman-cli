@@ -363,6 +363,27 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_westerlund),
         ),
+        # C067b: weak-instrument diagnostics for cross-section 2SLS. Fits `estimate_iv`
+        # (shared `_load_iv_data` loader) and reports the stored first-stage/Cragg-Donald/
+        # Kleibergen-Paap F against the Stock-Yogo 10%-maximal-bias critical value.
+        CommandSpec(
+            path=["test", "weak-instrument"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
+                OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="threshold", type=Float64, default=10.0, description="First-stage F rule-of-thumb (used if no Stock-Yogo CV)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:weak_instrument, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_weak_instrument),
+        ),
         # C071: VECM cointegration restriction tests (Johansen LR on β / α).
         # Each fits a VECM then tests a linear restriction on the cointegrating
         # structure; restriction matrices come from a [vecm_restriction] config.
@@ -1536,6 +1557,76 @@ function _test_nyblom(; data::String, column::Int=1, model::String="garch",
     interpret_test_result(reject_joint ? 0.01 : 0.5,
         "Reject H0 (stable parameters) at 5% -- evidence of parameter instability",
         "Cannot reject H0 (stable parameters) at 5%")
+end
+
+# ── C067b: weak-instrument diagnostics for cross-section 2SLS ──────
+# Fits `estimate_iv` (shared typed `_load_iv_data` loader) and surfaces the stored
+# excluded-instrument first-stage F, Cragg-Donald F, Kleibergen-Paap (robust) rk-Wald F,
+# and the Stock-Yogo 10%-maximal-bias critical value. Verdict: instruments are WEAK when the
+# comparison statistic (Cragg-Donald when available — the multi-endogenous statistic; else
+# the first-stage partial F) falls below the Stock-Yogo 10% CV, or below `--threshold`
+# (Staiger-Stock rule of thumb, default 10) when no critical value is tabulated.
+function _test_weak_instrument(; data::String, dep::String="", endogenous::String="",
+                                instruments::String="", cov_type::String="hc1",
+                                threshold::Float64=10.0, format::String="table", output::String="")
+    cov_type in ("ols", "hc0", "hc1", "hc2", "hc3") || throw(CliError("usage/invalid",
+        "test weak-instrument: --cov-type must be one of ols|hc0|hc1|hc2|hc3, got '$cov_type'"))
+    d = _load_iv_data(data, dep, endogenous, instruments)
+    y, X, Z, xcols, endog_idx = d.y, d.X, d.Z, d.xcols, d.endog_idx
+    n_excl = length(d.inst_names)   # number of excluded instruments q
+
+    _status("Weak-Instrument Test (Stock-Yogo): $(d.dep_col) ~ $(join(xcols, " + "))")
+    _status("  Endogenous: $(join(d.endog_names, ", ")); excluded instruments: $(join(d.inst_names, ", "))")
+    _status("  Observations: $(length(y)), excluded instruments: $n_excl, cov type: $cov_type")
+    _status()
+
+    model = try
+        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "IV (2SLS) estimation"))
+    end
+
+    fs_f = model.first_stage_f
+    cd_f = model.cragg_donald_f
+    kp_f = model.kleibergen_paap_f
+    sy   = model.stock_yogo_10pct
+    # Comparison statistic: Cragg-Donald (proper with >1 endogenous) if present, else first-stage F.
+    stat = (cd_f !== nothing && isfinite(cd_f)) ? Float64(cd_f) :
+           (fs_f !== nothing ? Float64(fs_f) : NaN)
+    cv   = (sy !== nothing) ? Float64(sy) : threshold
+    # A NON-FINITE statistic (e.g. a degenerate first stage: more instruments than usable
+    # observations → df≤0 → MEMs returns NaN, stored raw) must NOT read as "strong". Treat a
+    # non-finite F as weak/unusable, not as a passing verdict (adversarial-review fix — the
+    # `_load_iv_data` m<n guard normally prevents this, but keep the handler robust).
+    degenerate = !isfinite(stat)
+    weak = degenerate || stat < cv
+
+    pairs = Pair{String,Any}["n_endogenous" => length(endog_idx),
+                             "n_excluded_instruments" => n_excl]
+    # Non-finite diagnostics render as strings (legacy JSON writer rejects NaN/Inf floats).
+    _fnum(x) = isfinite(x) ? round(Float64(x); digits=4) : string(Float64(x))
+    fs_f !== nothing && push!(pairs, "first_stage_f" => _fnum(fs_f))
+    (cd_f !== nothing) && push!(pairs, "cragg_donald_f" => _fnum(cd_f))
+    (kp_f !== nothing) && push!(pairs, "kleibergen_paap_f" => _fnum(kp_f))
+    if sy !== nothing
+        push!(pairs, "stock_yogo_10pct_cv" => round(Float64(sy); digits=4))
+    else
+        push!(pairs, "threshold" => round(threshold; digits=4))
+    end
+    push!(pairs, "weak" => weak)
+    output_kv(pairs; format=format, output=output,
+              title="Weak-Instrument Diagnostics: $(d.dep_col)")
+
+    if degenerate
+        interpret_test_result(0.5, "",
+            "Weak-instrument F is non-finite (degenerate first stage — likely too many instruments relative to usable observations); instruments are effectively unusable/weak")
+    else
+        cvsrc = (sy !== nothing) ? "Stock-Yogo 10% CV" : "rule-of-thumb threshold"
+        # H0 = "instruments are weak"; a large F rejects it (instruments are strong).
+        interpret_test_result(weak ? 0.5 : 0.01,
+            "Reject H0 (weak instruments): F=$(round(stat; digits=3)) exceeds the $cvsrc ($(round(cv; digits=3))) -- instruments look strong",
+            "Cannot reject H0 (weak instruments): F=$(round(stat; digits=3)) ≤ the $cvsrc ($(round(cv; digits=3))) -- instruments may be weak (biased 2SLS)")
+    end
 end
 
 # ── C071: VECM cointegration restriction tests ───────────

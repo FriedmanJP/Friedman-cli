@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 48 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM) and Tobit censored regression, panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 50 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -763,11 +763,54 @@ friedman estimate tobit data.csv --dep=y --lower=0 --upper=100
 
 **Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`sigma`, `loglik`, `aic`, `bic`, `lower`, `upper`, `n_censored_left`, `n_censored_right`, `converged`).
 
-## estimate iv
+## estimate truncreg
 
-Instrumental variables (2SLS) regression. Endogenous regressors and instruments are comma-separated column names from the same data file.
+Truncated-normal regression by maximum likelihood (Hausman & Wise 1977). Unlike Tobit, the sample is *truncated* — only observations with `--lower < y < --upper` are in the data (no censored mass). Every `y` must lie strictly inside the bounds or a `data/invalid` error is returned.
 
 ```bash
+friedman estimate truncreg data.csv --dep=y --lower=0
+friedman estimate truncreg data.csv --dep=y --lower=0 --upper=100
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--lower` | | Float | 0.0 | Lower truncation bound |
+| `--upper` | | Float | Inf | Upper truncation bound (default: none) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`sigma`, `sigma_se`, `loglik`, `aic`, `bic`, `lower`, `upper`, `n_truncated`, `converged`).
+
+## estimate heckman
+
+Heckman sample-selection model — two equations: an outcome equation `--dep ~ --outcome-vars` observed only when the binary `--select` indicator is 1, and a selection equation `--select ~ --select-vars` (probit). Estimated by the Heckit two-step (`--method twostep`, default) or full-information MLE (`--method mle`). Include a `const` column in each variable list for an intercept (no auto-intercept, matching `estimate reg`). For identification beyond nonlinearity, `--select-vars` should include an *exclusion restriction* — a variable driving selection but not in `--outcome-vars`.
+
+```bash
+friedman estimate heckman data.csv --dep=lwage --select=inlf \
+    --outcome-vars=const,educ,exper --select-vars=const,educ,exper,kids
+friedman estimate heckman data.csv --dep=lwage --select=inlf \
+    --outcome-vars=const,educ --select-vars=const,educ,kids --method=mle
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Outcome variable column name |
+| `--select` | | String | (required) | Binary 0/1 selection-indicator column |
+| `--outcome-vars` | | String | (required) | Outcome-equation regressor columns (comma-separated) |
+| `--select-vars` | | String | (required) | Selection-equation regressor columns (comma-separated) |
+| `--method` | | String | `twostep` | `twostep` (Heckit) or `mle` (FIML) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** one tidy two-equation coefficient table (`equation|term|estimate|std_error|z_stat|p_value`, where `equation` is `outcome`/`selection`) + diagnostics (`method`, `rho` (+se), `sigma` (+se), `lambda` (+se), `loglik`, `aic`, `bic`, `n_selected`, `n_total`, `converged`). `HeckmanModel` is not Tables.jl-registered upstream, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate iv
+
+Instrumental variables (2SLS) regression. `--endogenous` names the endogenous regressor(s) and `--instruments` names the **excluded** instrument(s) — extra columns that identify the endogenous regressors but do not enter the structural equation. Every *other* numeric column (besides `--dep` and the endogenous ones) is treated as an exogenous regressor and instrument; include a `const` column of ones for an intercept. So the regressor matrix `X` = all columns except `{dep, excluded instruments}`, and the instrument matrix `Z` = all columns except `{dep, endogenous}`.
+
+```bash
+# wage ~ const + exper + educ, with educ endogenous, instrumented by father_educ, mother_educ
 friedman estimate iv data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
 friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instruments=z1,z2,z3 --cov-type=hc1
 ```
@@ -776,12 +819,12 @@ friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instrumen
 |--------|-------|------|---------|-------------|
 | `--dep` | | String | (1st col) | Dependent variable column name |
 | `--endogenous` | | String | (required) | Comma-separated endogenous regressor column names |
-| `--instruments` | | String | (required) | Comma-separated instrument column names |
+| `--instruments` | | String | (required) | Comma-separated **excluded** instrument column names (need at least as many as endogenous regressors) |
 | `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test).
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test). See also [`test weak-instrument`](test.md) for the full Stock-Yogo weak-instrument battery.
 
 ## estimate sur
 

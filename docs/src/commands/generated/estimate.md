@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 48
+**Leaves:** 50
 
 ### `friedman estimate 3sls`
 
@@ -539,6 +539,29 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate heckman`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Outcome variable column name (default: first numeric column) |
+| `--select` | — | `String` | `""` | — | Binary selection-indicator column (0/1), required |
+| `--outcome-vars` | — | `String` | `""` | — | Outcome-equation regressor columns, comma-separated (required) |
+| `--select-vars` | — | `String` | `""` | — | Selection-equation regressor columns, comma-separated (required) |
+| `--method` | — | `String` | `twostep` | `twostep`, `mle` | twostep (Heckit) | mle (FIML) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_heckman` (Path to CSV data file)
+
+---
+
 ### `friedman estimate igarch`
 
 Path to CSV data file
@@ -571,8 +594,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--endogenous` | — | `String` | `""` | — | Endogenous column names, comma-separated (required) |
-| `--instruments` | — | `String` | `""` | — | Instrument column names, comma-separated (required) |
+| `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
+| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
 | `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
@@ -1118,6 +1141,27 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_tobit` (Path to CSV data file)
+
+---
+
+### `friedman estimate truncreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lower` | — | `Float64` | `0.0` | — | Lower truncation bound |
+| `--upper` | — | `Float64` | `Inf` | — | Upper truncation bound (default: none) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_truncreg` (Path to CSV data file)
 
 ---
 

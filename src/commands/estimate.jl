@@ -498,6 +498,49 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_tobit),
         ),
+        # C067b: truncated-normal regression (Hausman-Wise). Mirrors `estimate tobit` but
+        # the sample is truncated (no censored mass): every y must lie strictly inside
+        # (lower, upper) or MEMs throws → mapped to data/invalid.
+        CommandSpec(
+            path=["estimate", "truncreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="lower", type=Float64, default=0.0, description="Lower truncation bound"),
+                OptionSpec(name="upper", type=Float64, default=Inf, description="Upper truncation bound (default: none)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_truncreg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_truncreg),
+        ),
+        # C067b: Heckman sample-selection model (two-step or FIML). Two equations —
+        # outcome `--dep ~ --outcome-vars` observed only when the binary `--select`
+        # indicator is 1, selection `--select ~ --select-vars` (probit). Include a `const`
+        # column in each var list if you want an intercept (same no-auto-intercept
+        # convention as `estimate reg`). Exclusion restriction: --select-vars should hold a
+        # variable not in --outcome-vars (else MEMs warns and identification is nonlinear).
+        CommandSpec(
+            path=["estimate", "heckman"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Outcome variable column name (default: first numeric column)"),
+                OptionSpec(name="select", type=String, default="", description="Binary selection-indicator column (0/1), required"),
+                OptionSpec(name="outcome-vars", type=String, default="", description="Outcome-equation regressor columns, comma-separated (required)"),
+                OptionSpec(name="select-vars", type=String, default="", description="Selection-equation regressor columns, comma-separated (required)"),
+                OptionSpec(name="method", type=String, default="twostep", description="twostep (Heckit) | mle (FIML)", choices=["twostep","mle"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_heckman, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_heckman),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -654,8 +697,8 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
-                OptionSpec(name="endogenous", type=String, default="", description="Endogenous column names, comma-separated (required)"),
-                OptionSpec(name="instruments", type=String, default="", description="Instrument column names, comma-separated (required)"),
+                OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
+                OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
                 OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1975,43 +2018,23 @@ end
 function _estimate_iv(; data::String, dep::String="", endogenous::String="",
                        instruments::String="", cov_type::String="hc1",
                        output::String="", format::String="table")
-    isempty(endogenous) && error("--endogenous is required for IV estimation")
-    isempty(instruments) && error("--instruments is required for IV estimation")
+    # C067b: typed shared loader (`_load_iv_data`) replaces the old bare `error()` sites
+    # (untyped exit-1) — a missing/unknown column is user input, not a CLI bug. Shared with
+    # `test weak-instrument` so the two never drift.
+    d = _load_iv_data(data, dep, endogenous, instruments)
+    y, X, Z, xcols, endog_idx = d.y, d.X, d.Z, d.xcols, d.endog_idx
 
-    df = load_data(data)
-    numcols = variable_names(df)
-
-    dep_col = isempty(dep) ? numcols[1] : dep
-    !isempty(dep) && !(dep_col in numcols) && error("dependent variable '$dep_col' not found in numeric columns: $numcols")
-
-    endog_names = [strip(s) for s in split(endogenous, ",")]
-    inst_names = [strip(s) for s in split(instruments, ",")]
-
-    for nm in endog_names
-        nm in numcols || error("endogenous variable '$nm' not found in numeric columns: $numcols")
-    end
-    for nm in inst_names
-        nm in numcols || error("instrument '$nm' not found in numeric columns: $numcols")
-    end
-
-    exclude = Set([dep_col])
-    xcols = filter(c -> !(c in exclude), numcols)
-    isempty(xcols) && error("no regressor columns remaining after excluding dep='$dep_col'")
-
-    endog_idx = [findfirst(==(nm), xcols) for nm in endog_names]
-    any(isnothing, endog_idx) && error("endogenous variable(s) not found among regressors")
-
-    y = Vector{Float64}(df[!, dep_col])
-    X = Matrix{Float64}(df[!, xcols])
-    Z = Matrix{Float64}(df[!, inst_names])
-
-    _status("IV (2SLS) Regression: $dep_col ~ $(join(xcols, " + "))")
-    _status("  Endogenous: $(join(endog_names, ", "))")
-    _status("  Instruments: $(join(inst_names, ", "))")
+    _status("IV (2SLS) Regression: $(d.dep_col) ~ $(join(xcols, " + "))")
+    _status("  Endogenous: $(join(d.endog_names, ", "))")
+    _status("  Excluded instruments: $(join(d.inst_names, ", "))  (instrument set Z: $(join(d.zcols, ", ")))")
     _status("  Observations: $(length(y)), Cov type: $cov_type")
     _status()
 
-    model = estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
+    model = try
+        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "IV (2SLS) estimation"))
+    end
 
     coef_df = _reg_coef_table(model, xcols)
     output_result(coef_df; format=Symbol(format), output=output, title="IV (2SLS) Regression Coefficients")
@@ -2912,5 +2935,154 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
         "n_censored_right" => model.n_censored_right,
         "converged"        => model.converged,
     ]; format=format, title="Tobit Diagnostics")
+    return model
+end
+
+# ── C067b: truncated-normal regression (Hausman-Wise) ──────────
+# TruncRegModel shares TobitModel's `coef`/`stderror` (StatsAPI) so the coefficient table
+# reuses `_garch_variant_coef_table`. It is NOT in MEMs `_COEF_TABLE_TYPES` (same documented
+# C051 hand-built exception as Tobit/robust). Bad input (any y outside (lower,upper), or a
+# missing cell) is mapped to a typed data error via `_garch_variant_error`/`_load_reg_data`.
+function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
+                             upper::Float64=Inf, output::String="", format::String="table")
+    lower < upper || throw(CliError("usage/invalid",
+        "estimate truncreg: --lower ($lower) must be < --upper ($upper)"))
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Truncated regression (lower=$lower, upper=$upper): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
+    _status()
+    model = try
+        estimate_truncreg(y, X; lower=lower, upper=upper)
+    catch e
+        throw(_garch_variant_error(e, "Truncated regression"))
+    end
+    output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
+                  title="Truncated Regression Coefficients")
+    output_kv(Pair{String,Any}[
+        "sigma"        => round(Float64(model.sigma); digits=6),
+        "sigma_se"     => round(Float64(model.sigma_se); digits=6),
+        "loglik"       => round(Float64(model.loglik); digits=4),
+        "aic"          => round(Float64(model.aic); digits=4),
+        "bic"          => round(Float64(model.bic); digits=4),
+        # ±Inf bounds → strings (legacy JSON writer rejects non-finite floats; see Tobit).
+        "lower"        => isfinite(model.lower) ? Float64(model.lower) : string(model.lower),
+        "upper"        => isfinite(model.upper) ? Float64(model.upper) : string(model.upper),
+        "n_truncated"  => model.n_truncated,
+        "converged"    => model.converged,
+    ]; format=format, title="Truncated Regression Diagnostics")
+    return model
+end
+
+# ── C067b: Heckman sample-selection model (two-step / FIML) ─────
+# HeckmanModel is a TWO-equation result (outcome β + selection γ) → the coefficient table is
+# hand-built as one tidy `equation|term|estimate|std_error|z_stat|p_value` frame (C051 tidy
+# convention: the `equation` column carries outcome/selection, like VAR/panel prepend one).
+# SEs come from the stored vcov blocks; z/p are normal-approx (both estimators are asymptotic).
+function _heckman_coef_table(model)
+    eqc = String[]; term = String[]; est = Float64[]; sec = Float64[]
+    _append! = (eqname, names, beta, vcov) -> begin
+        se = sqrt.(max.(diag(vcov), 0.0))
+        for i in eachindex(beta)
+            push!(eqc, eqname); push!(term, names[i])
+            push!(est, Float64(beta[i])); push!(sec, Float64(se[i]))
+        end
+    end
+    _append!("outcome",   model.outcome_names, model.beta,  model.vcov_beta)
+    _append!("selection", model.select_names,  model.gamma, model.vcov_gamma)
+    z  = [sec[i] == 0.0 ? 0.0 : est[i] / sec[i] for i in eachindex(est)]
+    pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    DataFrame(equation=eqc, term=term, estimate=round.(est; digits=6),
+              std_error=round.(sec; digits=6), z_stat=round.(z; digits=4),
+              p_value=round.(pv; digits=4))
+end
+
+function _estimate_heckman(; data::String, dep::String="", select::String="",
+                            outcome_vars::String="", select_vars::String="",
+                            method::String="twostep", output::String="", format::String="table")
+    method in ("twostep", "mle") || throw(CliError("usage/invalid",
+        "estimate heckman: --method must be twostep or mle, got '$method'"))
+    isempty(select) && throw(CliError("usage/missing",
+        "--select is required (the binary 0/1 selection-indicator column)"))
+    isempty(outcome_vars) && throw(CliError("usage/missing",
+        "--outcome-vars is required (comma-separated outcome-equation regressor columns)"))
+    isempty(select_vars) && throw(CliError("usage/missing",
+        "--select-vars is required (comma-separated selection-equation regressor columns)"))
+
+    df = load_data(data)
+    numcols = variable_names(df)
+    dep_col = isempty(dep) ? numcols[1] : dep
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "outcome variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    select in numcols || throw(CliError("data/column-range",
+        "selection indicator '$select' not found in numeric columns: $(join(numcols, ", "))"))
+
+    ovars = String[strip(s) for s in split(outcome_vars, ",") if !isempty(strip(s))]
+    svars = String[strip(s) for s in split(select_vars, ",") if !isempty(strip(s))]
+    isempty(ovars) && throw(CliError("usage/missing", "--outcome-vars resolved to no columns"))
+    isempty(svars) && throw(CliError("usage/missing", "--select-vars resolved to no columns"))
+    for nm in ovars
+        nm in numcols || throw(CliError("data/column-range",
+            "outcome regressor '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+    end
+    for nm in svars
+        nm in numcols || throw(CliError("data/column-range",
+            "selection regressor '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+    end
+    # Guard missing cells in the selection indicator and BOTH regressor sets (needed for every
+    # row) BEFORE the Matrix{Float64} conversion (untyped ArgumentError → exit-1). The OUTCOME
+    # column is handled separately below: it is unobserved by design for non-selected rows.
+    for c in unique(vcat([select], ovars, svars))
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them first"))
+    end
+
+    d = Vector{Float64}(df[!, select])
+    # Binary-indicator guard up front → typed usage error (MEMs also checks, but this gives a
+    # clearer message than the wrapped ArgumentError).
+    all(v -> v == 0.0 || v == 1.0, d) || throw(CliError("data/invalid",
+        "selection indicator '$select' must be binary 0/1"))
+    sel = findall(==(1.0), d)
+
+    # The outcome is observed ONLY for selected (d==1) rows — MEMs uses `y[sel]` and only
+    # requires those to be finite (heckman.jl). So a blank/missing outcome for NON-selected
+    # rows is the canonical incidental-truncation layout, not an error: require the outcome
+    # present for selected rows, and fill unselected cells with a finite placeholder (0.0,
+    # ignored downstream). This makes real selection CSVs usable without pre-imputing.
+    yraw = df[!, dep_col]
+    any(ismissing, yraw[sel]) && throw(CliError("data/missing-values",
+        "outcome '$dep_col' has missing values among SELECTED ($select==1) rows; the outcome must be observed wherever the unit is selected"))
+    y = Float64[ismissing(v) ? 0.0 : Float64(v) for v in yraw]
+    X = Matrix{Float64}(df[!, ovars])
+    Z = Matrix{Float64}(df[!, svars])
+
+    n_sel = length(sel)
+    _status("Heckman selection ($method): $dep_col ~ $(join(ovars, " + ")) | select $select ~ $(join(svars, " + "))")
+    _status("  Observations: $(length(y)) ($n_sel selected), exclusion vars in selection: $(join(setdiff(svars, ovars), ", "))")
+    _status()
+
+    model = try
+        estimate_heckman(y, X, d, Z; method=Symbol(method),
+                         outcome_names=ovars, select_names=svars)
+    catch e
+        throw(_garch_variant_error(e, "Heckman selection model"))
+    end
+
+    output_result(_heckman_coef_table(model); format=Symbol(format), output=output,
+                  title="Heckman Coefficients (outcome + selection)")
+    output_kv(Pair{String,Any}[
+        "method"      => string(model.method),
+        "rho"         => round(Float64(model.rho); digits=6),
+        "rho_se"      => isfinite(model.rho_se) ? round(Float64(model.rho_se); digits=6) : string(model.rho_se),
+        "sigma"       => round(Float64(model.sigma); digits=6),
+        "sigma_se"    => isfinite(model.sigma_se) ? round(Float64(model.sigma_se); digits=6) : string(model.sigma_se),
+        "lambda"      => round(Float64(model.lambda); digits=6),
+        "lambda_se"   => isfinite(model.lambda_se) ? round(Float64(model.lambda_se); digits=6) : string(model.lambda_se),
+        "loglik"      => round(Float64(model.loglik); digits=4),
+        "aic"         => round(Float64(model.aic); digits=4),
+        "bic"         => round(Float64(model.bic); digits=4),
+        "n_selected"  => model.n_selected,
+        "n_total"     => model.n_total,
+        "converged"   => model.converged,
+    ]; format=format, title="Heckman Diagnostics")
     return model
 end

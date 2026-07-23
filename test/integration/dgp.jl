@@ -170,6 +170,41 @@ function dgp_penalized(; T::Int=300, p::Int=5, seed::Int=42, censor_shift::Float
     return write_csv(df_clean; prefix="penalized"), write_csv(df_cens; prefix="tobit"), β
 end
 
+"""Cross-section IV DGP (C067b): one endogenous regressor instrumented by two strong
+excluded instruments, plus a `const` and one exogenous control. Columns `y, const, x2,
+x_endog, z1, z2`. Structural: y = 1 + 2·x_endog + 0.8·x2 + u; first stage x_endog =
+0.7·z1 + 0.5·z2 + 0.6·u + noise (so x_endog is endogenous but z1,z2 are STRONG → the
+weak-instrument test should NOT flag it). True β on x_endog is 2.0."""
+function dgp_iv(; T::Int=300, seed::Int=42, inst_strength::Float64=0.7)
+    rng = MersenneTwister(seed)
+    z1 = randn(rng, T); z2 = randn(rng, T); x2 = randn(rng, T)
+    u = randn(rng, T)
+    x_endog = inst_strength .* z1 .+ 0.5 .* z2 .+ 0.6 .* u .+ 0.3 .* randn(rng, T)
+    y = 1.0 .+ 2.0 .* x_endog .+ 0.8 .* x2 .+ u
+    # `const` is a Julia keyword → build with string-keyed columns (a data column named
+    # "const" is fine at the CSV/CLI layer; only the Julia constructor keyword is reserved).
+    df = DataFrame("y" => y, "const" => fill(1.0, T), "x2" => x2,
+                   "x_endog" => x_endog, "z1" => z1, "z2" => z2)
+    return write_csv(df; prefix="iv")
+end
+
+"""Cross-section Heckman sample-selection DGP (C067b). Latent outcome y* = 1 + 0.8·x1 + ε,
+selection d = 1{ 0.3 + 0.5·x1 + 1.0·z1 + ν > 0 } with corr(ε, ν)=ρ; y observed only when
+d=1. `z1` is the exclusion restriction (drives selection, not the outcome). Columns
+`y, d, const, x1, z1` — y for the non-selected rows is set to 0 (unobserved; the estimator
+uses only d==1 rows). True outcome slope on x1 is 0.8."""
+function dgp_heckman(; T::Int=800, seed::Int=42, ρ::Float64=0.5)
+    rng = MersenneTwister(seed)
+    x1 = randn(rng, T); z1 = randn(rng, T)
+    e1 = randn(rng, T)
+    ν = ρ .* e1 .+ sqrt(1 - ρ^2) .* randn(rng, T)   # corr(e1, ν) = ρ
+    ystar = 1.0 .+ 0.8 .* x1 .+ e1
+    d = Float64.(0.3 .+ 0.5 .* x1 .+ 1.0 .* z1 .+ ν .> 0.0)
+    y = [d[t] == 1.0 ? ystar[t] : 0.0 for t in 1:T]
+    df = DataFrame("y" => y, "d" => d, "const" => fill(1.0, T), "x1" => x1, "z1" => z1)
+    return write_csv(df; prefix="heckman")
+end
+
 """Stationary series for unit-root tests (should reject unit root)."""
 function dgp_stationary(; T::Int=200, seed::Int=42)
     return dgp_ar1(; T=T, φ=0.5, seed=seed)

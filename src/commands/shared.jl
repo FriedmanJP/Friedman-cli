@@ -1374,6 +1374,102 @@ function _load_reg_data(data::String, dep::String; weights_col::String="", clust
     return y, X, xcols
 end
 
+"""
+    _load_iv_data(data, dep, endogenous, instruments)
+        → (; y, X, Z, xcols, zcols, endog_idx, endog_names, inst_names, dep_col)
+
+Shared IV/2SLS data loader for `estimate iv` and `test weak-instrument`, using the standard
+(Stata `ivregress`) column partition. `--instruments` lists the **excluded** instruments
+only; every other numeric column (besides `--dep` and `--endogenous`) is an exogenous
+regressor (include a `const` column of ones for an intercept, matching `estimate reg`). So:
+
+* `X` (regressors) = all numeric \\ ({dep} ∪ excluded-instruments) — exogenous + endogenous;
+* `Z` (instruments) = all numeric \\ ({dep} ∪ endogenous) — exogenous + excluded instruments.
+
+This keeps the excluded instruments OUT of the structural regressor matrix. The previous
+`X = all-except-dep` layout let them leak into `X`, so MEMs raised an untyped
+`Order condition violated (m < k)` on any real multi-instrument IV → uncaught exit-1 (C067b
+fix; there was no T3 coverage for `estimate iv`).
+
+All failure modes are TYPED CliErrors, never a bare `error()`: missing `--endogenous`/
+`--instruments` → `usage/missing` (2); an unknown column, dep listed as endog/instr, a
+column named as both endogenous and instrument, or an endogenous not among the regressors →
+`data/column-range` (3); fewer excluded instruments than endogenous regressors (order
+condition) or a degenerate regressor set → `data/invalid` (3); a missing cell in any
+consumed column → `data/missing-values` (3), guarded BEFORE the `Matrix{Float64}`
+conversion that would otherwise throw an untyped `ArgumentError`.
+"""
+function _load_iv_data(data::String, dep::String, endogenous::String, instruments::String)
+    isempty(endogenous) && throw(CliError("usage/missing",
+        "--endogenous is required (comma-separated endogenous regressor column names)"))
+    isempty(instruments) && throw(CliError("usage/missing",
+        "--instruments is required (comma-separated EXCLUDED instrument column names)"))
+
+    df = load_data(data)
+    numcols = variable_names(df)
+
+    dep_col = isempty(dep) ? numcols[1] : dep
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "dependent variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+
+    endog_names = String[strip(s) for s in split(endogenous, ",") if !isempty(strip(s))]
+    inst_names  = String[strip(s) for s in split(instruments, ",") if !isempty(strip(s))]
+    isempty(endog_names) && throw(CliError("usage/missing",
+        "--endogenous is required (comma-separated endogenous regressor column names)"))
+    isempty(inst_names) && throw(CliError("usage/missing",
+        "--instruments is required (comma-separated EXCLUDED instrument column names)"))
+    for nm in endog_names
+        nm in numcols || throw(CliError("data/column-range",
+            "endogenous variable '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+        nm == dep_col && throw(CliError("data/column-range",
+            "endogenous variable '$nm' cannot be the dependent variable"))
+    end
+    for nm in inst_names
+        nm in numcols || throw(CliError("data/column-range",
+            "instrument '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+        nm == dep_col && throw(CliError("data/column-range",
+            "instrument '$nm' cannot be the dependent variable"))
+    end
+    overlap = intersect(endog_names, inst_names)
+    isempty(overlap) || throw(CliError("data/column-range",
+        "column(s) $(join(overlap, ", ")) listed as both --endogenous and --instruments (an endogenous regressor cannot be its own excluded instrument)"))
+    # Order condition (m ≥ k reduces to |excluded| ≥ |endogenous| here): a clearer message
+    # than the wrapped MEMs `Order condition violated`.
+    length(inst_names) >= length(endog_names) || throw(CliError("data/invalid",
+        "under-identified: need at least as many excluded instruments ($(length(inst_names))) as endogenous regressors ($(length(endog_names)))"))
+
+    # X = exogenous + endogenous (exclude dep and the excluded instruments).
+    xcols = filter(c -> c != dep_col && !(c in inst_names), numcols)
+    isempty(xcols) && throw(CliError("data/invalid",
+        "no regressor columns remaining after excluding dep='$dep_col' and the instruments"))
+    # Z = exogenous + excluded instruments (exclude dep and the endogenous regressors).
+    zcols = filter(c -> c != dep_col && !(c in endog_names), numcols)
+
+    endog_idx = Int[]
+    for nm in endog_names
+        i = findfirst(==(nm), xcols)
+        i === nothing && throw(CliError("data/column-range",
+            "endogenous variable '$nm' is not among the regressors"))
+        push!(endog_idx, i)
+    end
+
+    for c in unique(vcat([dep_col], xcols, zcols))
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+
+    y = Vector{Float64}(df[!, dep_col])
+    X = Matrix{Float64}(df[!, xcols])
+    Z = Matrix{Float64}(df[!, zcols])
+    # Guard the degenerate more-instruments-than-observations regime up front: with m ≥ n the
+    # first-stage F has non-positive df → MEMs returns a NaN diagnostic (and `robust_inv`
+    # silently pinv's the rank-deficient Z'Z rather than throwing), yielding meaningless
+    # estimates. A clear typed error beats a NaN verdict downstream (adversarial-review fix).
+    size(Z, 2) < length(y) || throw(CliError("data/invalid",
+        "too many instruments: the instrument set Z has $(size(Z, 2)) columns but only $(length(y)) observations (need m < n for an identified first stage)"))
+    return (; y, X, Z, xcols, zcols, endog_idx, endog_names, inst_names, dep_col)
+end
+
 """Load cluster assignments from a CSV column, or return nothing."""
 function _load_clusters(data::String, clusters_col::String)
     isempty(clusters_col) && return nothing

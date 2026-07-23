@@ -2933,6 +2933,54 @@ struct TobitModel{T<:Real}
     converged::Bool
 end
 
+# C067b: truncated-normal regression (mirror of the real TruncRegModel fields).
+struct TruncRegModel{T<:Real}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    sigma::T
+    vcov_mat::Matrix{T}
+    sigma_se::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    lower::T
+    upper::T
+    n_truncated::Int
+    dist::Symbol
+    varnames::Vector{String}
+    method::Symbol
+    converged::Bool
+end
+
+# C067b: Heckman sample-selection model (mirror of the real HeckmanModel fields).
+struct HeckmanModel{T<:Real}
+    beta::Vector{T}
+    vcov_beta::Matrix{T}
+    outcome_names::Vector{String}
+    gamma::Vector{T}
+    vcov_gamma::Matrix{T}
+    select_names::Vector{String}
+    rho::T
+    sigma::T
+    lambda::T
+    rho_se::T
+    sigma_se::T
+    lambda_se::T
+    mills::Vector{T}
+    method::Symbol
+    loglik::T
+    aic::T
+    bic::T
+    n_selected::Int
+    n_total::Int
+    y::Vector{T}
+    X::Matrix{T}
+    converged::Bool
+end
+
 # Faithful validation + genuine fit so shape/argument bugs surface in T1/T2.
 function estimate_elastic_net(y::AbstractVector, X::AbstractMatrix;
                               alpha::Real=1.0, lambda=:cv, select::Symbol=:cv,
@@ -3007,16 +3055,77 @@ function estimate_tobit(y::AbstractVector, X::AbstractMatrix;
                         nL, nR, dist, vn, :normal, true)
 end
 
+# C067b: truncated regression — validates like real (every y strictly inside (lower,upper)).
+function estimate_truncreg(y::AbstractVector, X::AbstractMatrix;
+                           lower::Real=0.0, upper::Real=Inf, varnames=nothing,
+                           maxiter::Int=1000, tol::Real=1e-10)
+    n = length(y); k = size(X, 2)
+    size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
+    n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
+    L = Float64(lower); U = Float64(upper)
+    L < U || throw(ArgumentError("lower ($L) must be < upper ($U)"))
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    all(yi -> L < yi < U, yv) ||
+        throw(ArgumentError("truncated regression requires every y strictly inside (lower, upper)"))
+    beta = Xm \ yv
+    fitted = Xm * beta; resid = yv .- fitted
+    s2 = sum(abs2, resid) / max(n - k, 1); sigma = sqrt(max(s2, eps()))
+    vcov_mat = s2 .* ((Xm'Xm) \ Matrix{Float64}(I(k)))
+    vn = varnames === nothing ? ["x$j" for j in 1:k] : Vector{String}(varnames)
+    TruncRegModel{Float64}(yv, Xm, beta, sigma, vcov_mat, sigma / sqrt(2n), resid, fitted,
+                           -108.0, 226.0, 241.0, L, U, n, :normal, vn, :truncreg, true)
+end
+
+# C067b: Heckman selection — probit-ish selection γ + OLS-on-selected outcome β; validates
+# sizes / binary d / enough selected obs like the real two-step estimator.
+function estimate_heckman(y::AbstractVector, X::AbstractMatrix, d::AbstractVector,
+                          Z::AbstractMatrix; method::Symbol=:twostep,
+                          outcome_names=nothing, select_names=nothing,
+                          maxiter::Int=1000, tol::Real=1e-10)
+    method in (:twostep, :mle) ||
+        throw(ArgumentError("method must be :twostep or :mle; got :$method"))
+    n = length(y)
+    size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
+    size(Z, 1) == n || throw(ArgumentError("Z must have $n rows (got $(size(Z, 1)))"))
+    length(d) == n || throw(ArgumentError("d must have length $n (got $(length(d)))"))
+    k = size(X, 2); p = size(Z, 2)
+    dv = Vector{Float64}(float.(d))
+    all(v -> v == 0.0 || v == 1.0, dv) ||
+        throw(ArgumentError("selection indicator d must be binary (0/1)"))
+    sel = findall(==(1.0), dv); n1 = length(sel)
+    n1 > k + 1 || throw(ArgumentError("need more selected obs than outcome params (n_sel=$n1, k=$k)"))
+    Xm = Matrix{Float64}(X); Zm = Matrix{Float64}(Z); yv = Vector{Float64}(y)
+    all(isfinite, yv[sel]) || throw(ArgumentError("y has non-finite values among selected observations"))
+    γ = Zm \ dv
+    Vγ = ((Zm'Zm) \ Matrix{Float64}(I(p)))
+    Xs = Xm[sel, :]; ys = yv[sel]
+    β = Xs \ ys
+    resid = ys .- Xs * β
+    s2 = sum(abs2, resid) / max(n1 - k, 1); σ = sqrt(max(s2, eps()))
+    Vβ = s2 .* ((Xs'Xs) \ Matrix{Float64}(I(k)))
+    on = outcome_names === nothing ? ["x$j" for j in 1:k] : Vector{String}(outcome_names)
+    sn = select_names === nothing ? ["z$j" for j in 1:p] : Vector{String}(select_names)
+    ρ = 0.3; λ = ρ * σ
+    HeckmanModel{Float64}(β, Vβ, on, γ, Vγ, sn, ρ, σ, λ, 0.1, σ / sqrt(2n1), 0.15,
+                          zeros(Float64, n1), method, -150.0, 310.0, 330.0, n1, n, ys, Xs, true)
+end
+
 # coef/stderror: PenalizedRegModel exposes only coef (stderror undefined → MethodError,
-# mirroring real MEMs). Robust/Tobit expose both (sqrt of the vcov diagonal).
+# mirroring real MEMs). Robust/Tobit/TruncReg expose both (sqrt of the vcov diagonal);
+# Heckman's coef/stderror are the OUTCOME equation (mirrors real StatsAPI dispatch).
 coef(m::PenalizedRegModel) = m.beta
 coef(m::RobustRegModel) = m.beta
 coef(m::TobitModel) = m.beta
+coef(m::TruncRegModel) = m.beta
+coef(m::HeckmanModel) = m.beta
 stderror(m::RobustRegModel) = [sqrt(max(m.vcov_mat[i, i], 0.0)) for i in 1:length(m.beta)]
 stderror(m::TobitModel) = [sqrt(max(m.vcov_mat[i, i], 0.0)) for i in 1:length(m.beta)]
+stderror(m::TruncRegModel) = [sqrt(max(m.vcov_mat[i, i], 0.0)) for i in 1:length(m.beta)]
+stderror(m::HeckmanModel) = [sqrt(max(m.vcov_beta[i, i], 0.0)) for i in 1:length(m.beta)]
 
-export PenalizedRegModel, RobustRegModel, TobitModel
+export PenalizedRegModel, RobustRegModel, TobitModel, TruncRegModel, HeckmanModel
 export estimate_lasso, estimate_ridge, estimate_elastic_net, estimate_robust, estimate_tobit
+export estimate_truncreg, estimate_heckman
 
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 

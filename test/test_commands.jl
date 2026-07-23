@@ -425,14 +425,15 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 48 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 49 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a)
-        @test length(node.subcmds) == 49
+        # 50 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 51 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b)
+        @test length(node.subcmds) == 51
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit",
                      "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas",
-                     "ccc", "dcc", "bekk"]
+                     "ccc", "dcc", "bekk", "lasso", "ridge", "elastic-net", "robust",
+                     "tobit", "truncreg", "heckman"]
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")  # hidden alias
@@ -1419,6 +1420,177 @@ end  # Shared utilities
         end
     end
 
+    @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
+        _edoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tdoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _eerr(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        _terr(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            # Truncated-normal data: every y strictly positive (mock/real both require
+            # y ∈ (lower, upper)); regressors x1,x2.
+            trcsv = joinpath(dir, "trunc.csv")
+            open(trcsv, "w") do io
+                println(io, "y,x1,x2")
+                for t in 1:80
+                    x1 = (t % 7) - 3.0; x2 = (t % 5) - 2.0
+                    y = 5.0 + 0.2*x1 - 0.1*x2 + 0.05*(t % 3)   # always > 0
+                    println(io, "$y,$x1,$x2")
+                end
+            end
+            # Heckman: outcome y, binary selection d, const=1, outcome regressor x1,
+            # selection regressor z1 (the exclusion instrument, not in outcome eqn).
+            hcsv = joinpath(dir, "heck.csv")
+            open(hcsv, "w") do io
+                println(io, "y,d,const,x1,z1")
+                for t in 1:120
+                    x1 = (t % 9) - 4.0; z1 = (t % 6) - 2.5
+                    d = (t % 3 == 0) ? 1.0 : 0.0
+                    y = 2.0 + 0.5*x1
+                    println(io, "$y,$d,1.0,$x1,$z1")
+                end
+            end
+            # IV / weak-instrument: y, const, x_endog, z1, z2 (excluded instruments).
+            ivcsv = joinpath(dir, "iv.csv")
+            open(ivcsv, "w") do io
+                println(io, "y,const,x_endog,z1,z2")
+                for t in 1:100
+                    z1 = (t % 8) - 3.5; z2 = (t % 5) - 2.0
+                    xe = 0.5*z1 + 0.3*z2 + 0.1*(t % 4)
+                    y = 1.0 + 2.0*xe
+                    println(io, "$y,1.0,$xe,$z1,$z2")
+                end
+            end
+
+            @testset "truncreg — parameter/estimate/std_error + diag (Inf-safe)" begin
+                doc = _edoc(["truncreg", trcsv, "--dep", "y", "--lower", "0.0"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "parameter", "estimate", "std_error")
+                @test length(collect(coef.rows)) == 2      # x1,x2
+                m = _metrics(doc)
+                @test Set(["sigma", "n_truncated", "loglik", "converged"]) ⊆ m
+            end
+
+            @testset "heckman — two-equation tidy coef (equation col) + diag" begin
+                doc = _edoc(["heckman", hcsv, "--dep", "y", "--select", "d",
+                             "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "equation", "term", "estimate")
+                eqs = Set(String(collect(r)[findfirst(==("equation"), String.(coef.columns))]) for r in coef.rows)
+                @test Set(["outcome", "selection"]) ⊆ eqs
+                m = _metrics(doc)
+                @test Set(["method", "rho", "sigma", "lambda", "n_selected", "n_total"]) ⊆ m
+            end
+
+            @testset "heckman — mle method also runs" begin
+                doc = _edoc(["heckman", hcsv, "--dep", "y", "--select", "d",
+                             "--outcome-vars", "const,x1", "--select-vars", "const,z1", "--method", "mle"])
+                @test doc.status == "ok"
+            end
+
+            @testset "weak-instrument — F diagnostics + verdict metric" begin
+                doc = _tdoc(["weak-instrument", ivcsv, "--dep", "y",
+                             "--endogenous", "x_endog", "--instruments", "z1,z2"])
+                @test doc.status == "ok"
+                m = _metrics(doc)
+                @test Set(["first_stage_f", "n_endogenous", "n_excluded_instruments", "weak"]) ⊆ m
+            end
+
+            @testset "C067b bad input → typed classes, never uncaught exit-1" begin
+                # heckman: missing required opts → usage/missing (exit 2)
+                @test _eerr(["heckman", hcsv, "--dep", "y", "--outcome-vars", "const,x1",
+                             "--select-vars", "const,z1"]) isa CliError                       # no --select
+                em = _eerr(["heckman", hcsv, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,x1", "--select-vars", "const,z1", "--method", "bogus"])
+                # --method is enum-rejected at parse (ParseError) or by the handler (usage/invalid); both exit 2
+                @test em isa ParseError || (em isa CliError && exit_class(em) == 2)
+                # heckman: unknown column → data/column-range (exit 3)
+                ec = _eerr(["heckman", hcsv, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,nope", "--select-vars", "const,z1"])
+                @test ec isa CliError && ec.code == "data/column-range"
+                # truncreg: y outside bounds → typed data error, not raw MEMs exit-1
+                eb = _eerr(["truncreg", trcsv, "--dep", "y", "--lower", "100.0", "--upper", "200.0"])
+                @test eb isa CliError && exit_class(eb) == 3
+                @test _eerr(["truncreg", trcsv, "--dep", "y", "--lower", "5", "--upper", "1"]).code == "usage/invalid"
+                # weak-instrument: missing --endogenous/--instruments → usage/missing (exit 2)
+                @test _terr(["weak-instrument", ivcsv, "--dep", "y", "--instruments", "z1,z2"]) isa CliError
+                ew = _terr(["weak-instrument", ivcsv, "--dep", "y", "--endogenous", "x_endog", "--instruments", "z1,z2"])
+                @test ew === nothing || ew isa CliError   # runs (or a typed error), never uncaught
+                @test _terr(["weak-instrument", ivcsv, "--dep", "y", "--endogenous", "nope",
+                             "--instruments", "z1,z2"]).code == "data/column-range"
+            end
+
+            @testset "C067b adversarial-review regressions" begin
+                # (1) weak-instrument / iv: more instruments than observations → data/invalid
+                # (loader m<n guard), NOT a NaN "weak=false / instruments look strong" verdict.
+                deg = joinpath(dir, "degenerate_iv.csv")
+                open(deg, "w") do io
+                    println(io, "y,x_endog," * join(["z$k" for k in 1:8], ","))
+                    for t in 1:6   # n=6 rows, but 8 excluded instruments → m=9 ≥ n
+                        vals = [string(0.5*t + 0.1*k) for k in 0:8]
+                        println(io, "$(1.0*t)," * join(vals, ","))
+                    end
+                end
+                edg = _terr(["weak-instrument", deg, "--dep", "y", "--endogenous", "x_endog",
+                             "--instruments", join(["z$k" for k in 1:8], ",")])
+                @test edg isa CliError && edg.code == "data/invalid" && exit_class(edg) == 3
+
+                # (2) heckman: a BLANK outcome for NON-selected (d==0) rows is the canonical
+                # incidental-truncation layout → estimates fine (not data/missing-values).
+                hmiss = joinpath(dir, "heck_blank.csv")
+                open(hmiss, "w") do io
+                    println(io, "y,d,const,x1,z1")
+                    for t in 1:120
+                        x1 = (t % 9) - 4.0; z1 = (t % 6) - 2.5
+                        d = (t % 3 == 0) ? 1.0 : 0.0
+                        ystr = d == 1.0 ? string(2.0 + 0.5*x1) : ""   # blank when unobserved
+                        println(io, "$ystr,$d,1.0,$x1,$z1")
+                    end
+                end
+                dh = _edoc(["heckman", hmiss, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+                @test dh.status == "ok"
+                # but a blank outcome for a SELECTED (d==1) row IS an error.
+                hbad = joinpath(dir, "heck_badsel.csv")
+                open(hbad, "w") do io
+                    println(io, "y,d,const,x1,z1")
+                    for t in 1:120
+                        x1 = (t % 9) - 4.0; z1 = (t % 6) - 2.5
+                        d = (t % 3 == 0) ? 1.0 : 0.0
+                        # row 3 is selected (t=3, d=1) but leave its outcome blank
+                        ystr = (t == 3) ? "" : (d == 1.0 ? string(2.0 + 0.5*x1) : "")
+                        println(io, "$ystr,$d,1.0,$x1,$z1")
+                    end
+                end
+                eh = _eerr(["heckman", hbad, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+                @test eh isa CliError && eh.code == "data/missing-values"
+            end
+        end
+    end
+
     @testset "_estimate_fastica — default" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -1704,12 +1876,12 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 52 primary + 2 snake aliases (arch_lm, ljung_box) = 54 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
-        @test length(node.subcmds) == 54
+        # 53 primary + 2 snake aliases (arch_lm, ljung_box) = 55 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b)
+        @test length(node.subcmds) == 55
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
-                     "variance-ratio", "bds", "hadri", "pedroni", "kao", "westerlund",
+                     "variance-ratio", "bds", "hadri", "pedroni", "kao", "westerlund", "weak-instrument",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
                      "adf-2break", "gregory-hansen", "vif",
@@ -3238,7 +3410,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 49  # 48 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5)
+        @test length(node.subcmds) == 51  # 50 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3269,7 +3441,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 54  # 52 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
+        @test length(node.subcmds) == 55  # 53 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -4655,7 +4827,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 49  # 48 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5)
+        @test length(node.subcmds) == 51  # 50 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -4686,7 +4858,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 54  # 52 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
+        @test length(node.subcmds) == 55  # 53 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b)
     end
 
     @testset "_parse_varlist" begin
