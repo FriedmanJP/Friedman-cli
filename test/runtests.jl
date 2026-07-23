@@ -3658,10 +3658,10 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test "method" in opt_names
     @test "weighting" in opt_names
 
-    # bayes is a NodeCommand with 8 sub-leaves
+    # bayes is a NodeCommand with 13 sub-leaves (8 core + 5 diagnostics, C073)
     bayes_node = dsge_node.subcmds["bayes"]
     @test bayes_node isa NodeCommand
-    @test length(bayes_node.subcmds) == 8
+    @test length(bayes_node.subcmds) == 13
     @test haskey(bayes_node.subcmds, "estimate")
     @test haskey(bayes_node.subcmds, "irf")
     @test haskey(bayes_node.subcmds, "fevd")
@@ -3670,6 +3670,12 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(bayes_node.subcmds, "compare")
     @test haskey(bayes_node.subcmds, "predictive")
     @test haskey(bayes_node.subcmds, "hd")
+    # C073 Bayesian diagnostics
+    @test haskey(bayes_node.subcmds, "mcmc-diag")
+    @test haskey(bayes_node.subcmds, "identification")
+    @test haskey(bayes_node.subcmds, "learning-rate")
+    @test haskey(bayes_node.subcmds, "overlap")
+    @test haskey(bayes_node.subcmds, "marginal-lik")
 
     # All bayes sub-leaves are LeafCommands
     for (name, cmd) in bayes_node.subcmds

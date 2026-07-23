@@ -3786,6 +3786,109 @@ end
 
 export BayesianDSGE, estimate_dsge_bayes
 
+# ─── Bayesian DSGE diagnostics (C073) ────────────────────────
+# Struct field names/order mirror the real MEMs types (mock ⊆ real; check_mock_surface).
+# Structs are defined BEFORE the functions that construct them (flat top-to-bottom module).
+
+struct MCMCDiagnostics{T<:AbstractFloat}
+    param_names::Vector{Symbol}
+    rhat::Vector{T}
+    ess_bulk::Vector{T}
+    ess_tail::Vector{T}
+    geweke_z::Vector{T}
+    geweke_p::Vector{T}
+    mean::Vector{T}
+    sd::Vector{T}
+    n_draws::Int
+    method::Symbol
+end
+
+struct IdentificationDiagnostics{T<:AbstractFloat}
+    param_names::Vector{Symbol}
+    theta::Vector{T}
+    rank::Int
+    n_params::Int
+    n_moments::Int
+    n_lags::Int
+    singular_values::Vector{T}
+    tol::T
+    null_space::Matrix{T}
+    identified::Bool
+end
+
+struct LearningRateCheck{T<:AbstractFloat}
+    param_names::Vector{Symbol}
+    sample_sizes::Vector{Int}
+    post_vars::Matrix{T}
+    learning_rate::Vector{T}
+    flagged::Vector{Bool}
+    threshold::T
+end
+
+struct PriorPosteriorOverlap{T<:AbstractFloat}
+    param_names::Vector{Symbol}
+    overlap::Vector{T}
+    flagged::Vector{Bool}
+    threshold::T
+end
+
+function mcmc_diagnostics(result::BayesianDSGE{T}) where {T}
+    draws = result.theta_draws
+    np = size(draws, 2)
+    nd = size(draws, 1)
+    mu = T[mean(draws[:, i]) for i in 1:np]
+    sd = T[nd > 1 ? sqrt(var(draws[:, i])) : zero(T) for i in 1:np]
+    return MCMCDiagnostics{T}(
+        Symbol.(result.param_names),
+        fill(T(1.0), np),      # rhat ≈ 1 (converged)
+        fill(T(nd), np),       # ess_bulk
+        fill(T(nd), np),       # ess_tail
+        zeros(T, np),          # geweke_z ≈ 0
+        ones(T, np),           # geweke_p ≈ 1
+        mu, sd, nd, result.method,
+    )
+end
+
+function identification_diagnostics(spec::DSGESpec{T}, param_names::Vector{Symbol};
+        theta=nothing, observables::Vector{Symbol}=Symbol[], n_lags::Int=2,
+        tol_rel=1e-8, solver::Symbol=:gensys, solver_kwargs=NamedTuple()) where {T}
+    d = length(param_names)
+    theta_v = theta === nothing ? ones(T, d) : T.(theta)
+    return IdentificationDiagnostics{T}(
+        copy(param_names), theta_v, d, d, 2 * d, n_lags,
+        collect(T, range(T(1.0), T(0.1); length=max(d, 1))),
+        T(1e-8), zeros(T, d, 0), true,
+    )
+end
+
+function learning_rate_check(result::BayesianDSGE{T}; fractions=[0.5, 1.0],
+        n_smc::Int=300, threshold=0.2, rng=nothing) where {T}
+    d = length(result.param_names)
+    sizes = Int[round(Int, f * 100) for f in fractions]
+    return LearningRateCheck{T}(
+        Symbol.(result.param_names), sizes,
+        fill(T(0.01), d, length(fractions)),  # post_vars
+        fill(T(1.0), d),                      # learning_rate α ≈ 1 (identified)
+        fill(false, d), T(threshold),
+    )
+end
+
+function prior_posterior_overlap(result::BayesianDSGE{T}; n_grid::Int=0,
+        threshold=0.8) where {T}
+    d = length(result.param_names)
+    ovl = fill(T(0.5), d)
+    return PriorPosteriorOverlap{T}(Symbol.(result.param_names), ovl,
+                                    ovl .>= T(threshold), T(threshold))
+end
+
+bridge_sampling_ml(result::BayesianDSGE{T}; proposal::Symbol=:normal, df=5,
+        n_proposal::Int=0, max_iter::Int=1000, tol=1e-10, rng=nothing) where {T} =
+    result.log_marginal_likelihood + T(0.1)
+
+export MCMCDiagnostics, IdentificationDiagnostics, LearningRateCheck, PriorPosteriorOverlap
+export mcmc_diagnostics, identification_diagnostics, learning_rate_check
+export prior_posterior_overlap, bridge_sampling_ml
+
 # ─── Structural Break Test Types & Functions ─────────────────
 
 struct AndrewsResult{T<:AbstractFloat}

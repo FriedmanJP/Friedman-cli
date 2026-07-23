@@ -1747,6 +1747,110 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        # C073 — Bayesian DSGE diagnostics. Reuse the RA `.jl` spec; own priors+data.
+        # Tiny SMC chains are noisy — assert shapes/keys/finiteness, not tight numbers.
+        @testset "dsge bayes diagnostics (C073)" begin
+            priors = joinpath(dir, "diag_priors.toml")
+            write(priors, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+            data = joinpath(dir, "diag_data.csv")
+            open(data, "w") do io
+                println(io, "Y")
+                y = 0.0
+                for _ in 1:60
+                    y = 0.9 * y + 0.01 * randn()
+                    println(io, y)
+                end
+            end
+            smc = ["--sampler", "smc", "--n-smc", "100", "--n-particles", "50",
+                   "--n-draws", "100", "--burnin", "10"]
+            base = vcat(["--data", data, "--observables", "Y",
+                         "--params", "rho,sigma", "--priors", priors], smc)
+
+            @testset "mcmc-diag (R-hat/ESS/Geweke)" begin
+                r = run_json(vcat(["dsge", "bayes", "mcmc-diag", model_jl], base))
+                assert_envelope_ok(r; label="dsge bayes mcmc-diag")
+                tbl = named_table(r.doc, :mcmc_convergence_diagnostics)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    ri = col_index(tbl, "rhat")
+                    @test ri !== nothing
+                    @test length(table_rows(tbl)) == 2   # rho, sigma
+                    if ri !== nothing
+                        for row in table_rows(tbl)
+                            @test isfinite(Float64(collect(row)[ri]))
+                        end
+                    end
+                end
+            end
+
+            @testset "identification (Iskrev rank test; no MCMC)" begin
+                r = run_json(["dsge", "bayes", "identification", model_jl,
+                              "--params", "rho,sigma", "--observables", "Y"])
+                assert_envelope_ok(r; label="dsge bayes identification")
+                kv = named_table(r.doc, :identification_diagnostics)
+                @test kv !== nothing
+                if kv !== nothing
+                    @test metric_value(kv, "rank") !== nothing
+                    @test metric_value(kv, "identified") !== nothing
+                end
+            end
+
+            @testset "identification bad --params → usage/invalid, not exit-1 (review fix)" begin
+                # A --params typo makes MEMs' identification_diagnostics throw an untyped
+                # KeyError (spec.param_values[:typo]); the handler must map it to usage/invalid
+                # (exit 2), NOT let it fall through run_cli to the exit-1 "likely a bug" tail.
+                r = run_json(["dsge", "bayes", "identification", model_jl,
+                              "--params", "rho,typo", "--observables", "Y"])
+                @test r.code == 2
+            end
+
+            @testset "learning-rate (Koop-Pesaran-Smith)" begin
+                r = run_json(vcat(["dsge", "bayes", "learning-rate", model_jl], base,
+                                  ["--refit-n-smc", "30"]))
+                assert_envelope_ok(r; label="dsge bayes learning-rate")
+                tbl = named_table(r.doc, :learning_rate_check)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    @test col_index(tbl, "learning_rate") !== nothing
+                    @test length(table_rows(tbl)) == 2
+                end
+            end
+
+            @testset "overlap (prior/posterior)" begin
+                r = run_json(vcat(["dsge", "bayes", "overlap", model_jl], base))
+                assert_envelope_ok(r; label="dsge bayes overlap")
+                tbl = named_table(r.doc, :prior_posterior_overlap)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    @test col_index(tbl, "overlap") !== nothing
+                    @test length(table_rows(tbl)) == 2
+                end
+            end
+
+            @testset "marginal-lik (bridge sampling; may be NaN)" begin
+                r = run_json(vcat(["dsge", "bayes", "marginal-lik", model_jl], base))
+                assert_envelope_ok(r; label="dsge bayes marginal-lik")
+                kv = named_table(r.doc, :marginal_likelihood_bridge_sampling)
+                @test kv !== nothing
+                if kv !== nothing
+                    # bridge_sampling_ml can return NaN on a tiny chain → assert the leaf
+                    # ran end-to-end (both keys present), not a finite value.
+                    @test metric_value(kv, "log_marginal_likelihood_bridge") !== nothing
+                    @test metric_value(kv, "log_marginal_likelihood_smc") !== nothing
+                end
+            end
+        end
+
         rm(dir; force=true, recursive=true)
     end
 

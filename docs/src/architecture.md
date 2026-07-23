@@ -114,7 +114,7 @@ src/
     filter.jl             # 5 filter subcommands
     data.jl               # 9 data subcommands
     nowcast.jl            # 5 nowcast subcommands
-    dsge.jl               # 7 DSGE subcommands + bayes node (7 sub-leaves)
+    dsge.jl               # DSGE subcommands + bayes node (13 sub-leaves) + HA/CT/OLG nodes
     did.jl                # 7 DID subcommands (3 estimation + 4 test)
 ```
 

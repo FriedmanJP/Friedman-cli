@@ -8055,6 +8055,98 @@ end
         end
     end
 
+    # ── C073 Bayesian DSGE diagnostics ──
+    @testset "C073 Bayesian DSGE diagnostics" begin
+        _catch(f) = try; f(); nothing; catch e; e; end
+
+        @testset "_dsge_bayes_mcmc_diag" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_mcmc_diag(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, output="", format="table")
+                end
+                @test contains(out, "MCMC") || contains(out, "rhat")
+            end
+        end
+
+        @testset "_dsge_bayes_identification + missing params → usage/missing" begin
+            mktempdir() do dir
+                model_path, _, _ = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_identification(; model=model_path, params="rho,sigma",
+                        observables="", solver="gensys", order=1, n_lags=2,
+                        output="", format="table")
+                end
+                @test contains(out, "rank") || contains(out, "Identification")
+                @test contains(out, "Singular") || contains(out, "singular_value")
+                e = _catch(() -> _dsge_bayes_identification(; model=model_path, params=""))
+                @test e isa CliError && e.code == "usage/missing"
+            end
+        end
+
+        @testset "_dsge_bayes_learning_rate + junk fractions → usage/invalid" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_learning_rate(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, fractions="0.5,1.0",
+                        threshold=0.2, refit_n_smc=30, output="", format="table")
+                end
+                @test contains(out, "Learning") || contains(out, "learning_rate")
+                ej = _catch(() -> _dsge_bayes_learning_rate(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path, fractions="abc"))
+                @test ej isa CliError && ej.code == "usage/invalid"
+                e1 = _catch(() -> _dsge_bayes_learning_rate(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path, fractions="0.5"))
+                @test e1 isa CliError && e1.code == "usage/invalid"
+            end
+        end
+
+        @testset "_dsge_bayes_overlap" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_overlap(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, threshold=0.8, n_grid=0,
+                        output="", format="table")
+                end
+                @test contains(out, "Overlap") || contains(out, "overlap")
+            end
+        end
+
+        @testset "_dsge_bayes_marginal_lik + bad proposal → usage/invalid" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_marginal_lik(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, proposal="normal", df=5.0,
+                        output="", format="table")
+                end
+                @test contains(out, "Marginal") || contains(out, "log_marginal_likelihood_bridge")
+                ep = _catch(() -> _dsge_bayes_marginal_lik(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path, proposal="banana"))
+                @test ep isa CliError && ep.code == "usage/invalid"
+            end
+        end
+    end
+
 end
 
 # ═══════════════════════════════════════════════════════════════

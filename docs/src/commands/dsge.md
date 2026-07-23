@@ -1,6 +1,6 @@
 # dsge
 
-DSGE modeling from the terminal. Representative-agent leaves (`solve`, `irf`, `fevd`, `hd`, `simulate`, `estimate`, `perfect-foresight`, `steady-state`), a `bayes` node (8 sub-leaves), plus heterogeneous-agent / OLG nodes:
+DSGE modeling from the terminal. Representative-agent leaves (`solve`, `irf`, `fevd`, `hd`, `simulate`, `estimate`, `perfect-foresight`, `steady-state`), a `bayes` node (13 sub-leaves), plus heterogeneous-agent / OLG nodes:
 
 | Node | Role | Guide |
 |------|------|--------|
@@ -265,7 +265,7 @@ friedman dsge steady-state rbc.toml --constraints=occbin.toml
 
 ## dsge bayes
 
-Bayesian DSGE workflow. `bayes` is a **nested command group** with 8 sub-leaves: `estimate`, `irf`, `fevd`, `hd`, `simulate`, `summary`, `compare`, `predictive`. All share common options for model specification, data, parameters, and priors.
+Bayesian DSGE workflow. `bayes` is a **nested command group** with 13 sub-leaves: `estimate`, `irf`, `fevd`, `hd`, `simulate`, `summary`, `compare`, `predictive`, plus five diagnostics (C073) — `mcmc-diag`, `identification`, `learning-rate`, `overlap`, `marginal-lik`. All share common options for model specification, data, parameters, and priors (`identification` is the exception — it runs no MCMC and takes only `--params`/`--observables`/`--solver`/`--order`/`--n-lags`).
 
 ### Common Options (all dsge bayes sub-commands)
 
@@ -398,6 +398,80 @@ friedman dsge bayes predictive rbc.toml --data=macro.csv --params=alpha,beta --p
 | `--periods` | Int | 100 | Simulation periods |
 
 **Output:** Predictive summary (mean, std) vs observed data moments.
+
+### dsge bayes mcmc-diag
+
+Per-parameter MCMC convergence diagnostics on the retained posterior draws: rank-normalized split-R̂, bulk/tail effective sample size (Vehtari et al. 2021), and the Geweke (1992) z-statistic. Values of R̂ ≲ 1.01 and ESS ≥ 400 indicate convergence.
+
+```bash
+friedman dsge bayes mcmc-diag rbc.toml --data=macro.csv --params=alpha,beta --priors=priors.toml
+```
+
+**Output:** Table `parameter | rhat | ess_bulk | ess_tail | geweke_z | geweke_p` + a summary (`n_draws`, `method`). SMC/importance draws are weighted particle systems (not chains) — autocorrelation-based quantities are approximate and a note is emitted on stderr.
+
+### dsge bayes identification
+
+Iskrev (2010) local-identification rank test at the steady state. Builds the Jacobian of the observables' steady-state means and autocovariances (lags `1..n-lags`) with respect to the estimated parameters and inspects its column rank via SVD — the parameters are locally identified iff the Jacobian has full column rank. **No MCMC and no data/priors** are needed.
+
+```bash
+friedman dsge bayes identification rbc.toml --params=alpha,beta --observables=Y,C --n-lags=2
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--params` | | String | (required) | Comma-separated estimated parameter names |
+| `--observables` | | String | (all endogenous) | Observed variable names |
+| `--solver` | | String | `gensys` | `gensys`, `klein`, `perturbation` |
+| `--order` | | Int | 1 | Perturbation order |
+| `--n-lags` | | Int | 2 | Autocovariance lags in the Iskrev moment vector |
+
+**Output:** Summary kv (`rank`, `n_params`, `n_moments`, `n_lags`, `identified`, `tol`) + a `index | singular_value` table.
+
+### dsge bayes learning-rate
+
+Koop-Pesaran-Smith (2013) posterior-variance learning-rate check. Re-estimates on nested subsamples `⌊f·T⌋` and regresses `log(posterior variance)` on `log T`; for an identified parameter the slope `α ≈ 1` (the posterior variance shrinks at the `1/T` rate), while a weakly identified parameter barely updates (`α ≈ 0`, flagged).
+
+```bash
+friedman dsge bayes learning-rate rbc.toml --data=macro.csv --params=alpha,beta --priors=priors.toml --fractions=0.5,1.0 --refit-n-smc=100
+```
+
+| Additional Option | Type | Default | Description |
+|-------------------|------|---------|-------------|
+| `--fractions` | String | `0.5,1.0` | Nested subsample fractions in (0,1] (≥ 2 values) |
+| `--threshold` | Float64 | 0.2 | Flag threshold on the learning rate α |
+| `--refit-n-smc` | Int | 100 | SMC particles per subsample refit |
+
+**Output:** Table `parameter | learning_rate | flagged` + a summary (`threshold`, `sample_sizes`). This is a Monte Carlo screening device — expect noise in `α`.
+
+### dsge bayes overlap
+
+Prior/posterior overlap coefficient `∫ min(π(θᵢ), p(θᵢ|Y)) dθᵢ ∈ [0,1]` per parameter. An overlap near 1 means the data barely moved the prior — the practical symptom of weak identification (flagged at `≥ --threshold`).
+
+```bash
+friedman dsge bayes overlap rbc.toml --data=macro.csv --params=alpha,beta --priors=priors.toml --threshold=0.8
+```
+
+| Additional Option | Type | Default | Description |
+|-------------------|------|---------|-------------|
+| `--threshold` | Float64 | 0.8 | Flag threshold on the overlap |
+| `--n-grid` | Int | 0 | Histogram bins (0 = auto ≈ √N) |
+
+**Output:** Table `parameter | overlap | flagged` + a summary (`threshold`).
+
+### dsge bayes marginal-lik
+
+Marginal likelihood via bridge sampling (Meng-Wong 1996; Gronau et al. 2017) from the stored posterior draws — markedly more stable than the modified harmonic mean. The additive constant matches the SMC tempering-path estimate, so the two are directly comparable.
+
+```bash
+friedman dsge bayes marginal-lik rbc.toml --data=macro.csv --params=alpha,beta --priors=priors.toml --proposal=normal
+```
+
+| Additional Option | Type | Default | Description |
+|-------------------|------|---------|-------------|
+| `--proposal` | String | `normal` | Bridge proposal family: `normal` or `t` |
+| `--df` | Float64 | 5.0 | Degrees of freedom for the `t` proposal |
+
+**Output:** Summary kv `log_marginal_likelihood_bridge`, `log_marginal_likelihood_smc` (for comparison), `proposal`, `df`. Bridge sampling returns `NaN` (rendered as such, never a silently wrong number) when the chain is too short or the proposal too diffuse.
 
 ### Priors TOML Format
 
