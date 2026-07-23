@@ -766,6 +766,38 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_pmg),
         ),
+        # ── C062d: MIDAS mixed-frequency regression ──────────────────────────
+        # `estimate midas` fits a (restricted) MIDAS / ADL-MIDAS / U-MIDAS regression of a
+        # low-frequency target (--data, --column) on --k high-frequency lags of a single indicator
+        # (--hf-data, --hf-column) aggregated through a parsimonious weight function. The only new
+        # plumbing is the mixed-frequency `_load_midas_data` loader (5th shared-loader hardening:
+        # BOTH inputs go through the hardened `load_univariate_series`, and the aligned
+        # len(HF)>=m×len(LF) rule is a typed `data/shape`, leading ragged edge dropped). `MidasModel` is a StatsAPI model but NOT
+        # in MEMs `_COEF_TABLE_TYPES` → hand-built weight-curve + coef tables (C051 exception).
+        # `forecast midas` is DEFERRED (needs a fresh-HF-block UX + non-native .fmod round-trip; v1.1).
+        CommandSpec(
+            path=["estimate", "midas"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to the low-frequency target CSV")],
+            options=[
+                OptionSpec(name="column", type=Int, default=1, description="Low-frequency target column in --data (1-based)"),
+                OptionSpec(name="hf-data", type=String, default="", description="High-frequency indicator CSV (REQUIRED)"),
+                OptionSpec(name="hf-column", type=Int, default=1, description="High-frequency indicator column in --hf-data (1-based)"),
+                OptionSpec(name="m", type=Int, default=0, description="Frequency ratio HF/LF, e.g. 3 = monthly→quarterly (REQUIRED, ≥ 1)"),
+                OptionSpec(name="k", type=Int, default=0, description="Number of high-frequency lags (REQUIRED, ≥ 1)"),
+                OptionSpec(name="weights", type=String, default="expalmon", description="Weight scheme: expalmon|beta2|beta3|almon|umidas", choices=["expalmon","beta2","beta3","almon","umidas"]),
+                OptionSpec(name="p-ar", type=Int, default=0, description="Autoregressive lags of the target (ADL-MIDAS, ≥ 0)"),
+                OptionSpec(name="poly-degree", type=Int, default=2, description="Polynomial degree for --weights almon"),
+                OptionSpec(name="horizon", type=Int, default=1, description="Direct forecast horizon h stored in the model (1 = nowcast)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="LBFGS iteration cap per NLS start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_midas, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_midas),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -3895,4 +3927,117 @@ function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
         "n_nonconv" => m.n_nonconv,
     ]; format=format, title="Panel ARDL Diagnostics")
     return m
+end
+
+# ── C062d: MIDAS mixed-frequency regression ──────────────────────────
+# `estimate midas` fits a (restricted) MIDAS / ADL-MIDAS / U-MIDAS regression of a low-frequency
+# target on `--k` high-frequency lags of a single indicator, aggregated through a weight function.
+# The mixed-frequency inputs are loaded via the hardened `_load_midas_data` (both series through
+# `load_univariate_series`; len(HF)>=m×len(LF), leading ragged edge dropped → typed data/shape). `MidasModel` is a
+# StatsAPI RegressionModel but NOT in MEMs `_COEF_TABLE_TYPES` → the weight-curve + coefficient
+# tables are hand-built (documented C051 exception, like io/mgarch/sur/cointreg/ardl). p-values use
+# the normal approximation (`_normal_cdf`) — the CLI convention (the NLS t-ratios are asymptotically
+# standard-normal). `forecast midas` is DEFERRED (fresh-HF-block UX + non-native save/load; v1.1).
+
+"""Map an untyped MEMs MIDAS-estimation failure to a typed CliError — never an uncaught exit-1
+(the standing shared-loader lesson). Bad-input `ArgumentError`/`DomainError` (bad m/K, no complete
+HF blocks, no AR periods, K<2 for a Beta weight, wrong θ length) → `data/invalid` (3); shape
+mismatch → `data/shape` (3); the NLS 'failed to converge from any start' → `model/convergence` (5);
+anything else → `model/error` (5)."""
+function _midas_error(e, label::String)
+    e isa CliError && return e
+    if e isa ArgumentError || e isa DomainError
+        return CliError("data/invalid", "$label: $(sprint(showerror, e))";
+            hint="check --m, --k, --p-ar and the series lengths (HF ≈ m×LF)")
+    elseif e isa DimensionMismatch
+        return CliError("data/shape", "$label: $(sprint(showerror, e))")
+    elseif occursin("converge", lowercase(sprint(showerror, e)))
+        return CliError("model/convergence", "$label failed to converge from any start";
+            hint="try --weights umidas, a smaller --k, or a larger --max-iter")
+    end
+    return CliError("model/error", "$label estimation failed: $(sprint(showerror, e))")
+end
+
+"""Headline MIDAS weight-curve table `lag|weight` from `midas_weights(m)` (== `m.w`, length K,
+most-recent-first). For `:umidas` these are the unrestricted lag coefficients (raw, not normalized)."""
+function _midas_weight_table(model)
+    w = Float64.(midas_weights(model))
+    return DataFrame(lag=collect(1:length(w)), weight=round.(w; digits=6))
+end
+
+"""Hand-built MIDAS coefficient table (`term|estimate|std_error|stat|p_value`) over the full
+parameter vector `[β; θ]` (`coef(m)`), with `term = m.varnames`. Falls back to estimate-only when
+the Gauss-Newton SEs are unavailable/non-finite (mirrors `_garch_variant_coef_table`). For
+`:umidas` the θ block is empty and the K lag coefficients enter as the linear block; θ labels are
+padded if `varnames` is shorter than `coef` (defensive)."""
+function _midas_coef_table(model)
+    est = Float64.(coef(model))
+    nm = String.(model.varnames)
+    names = length(nm) == length(est) ? nm :
+            String[i <= length(nm) ? nm[i] : "theta$(i - length(model.beta))" for i in eachindex(est)]
+    try
+        se = Float64.(stderror(model))
+        (length(se) == length(est) && all(isfinite, se)) || error("unavailable SEs")
+        z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
+        pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        return DataFrame(term=names, estimate=round.(est; digits=6),
+                         std_error=round.(se; digits=6), stat=round.(z; digits=4),
+                         p_value=round.(pv; digits=4))
+    catch
+        return DataFrame(term=names, estimate=round.(est; digits=6))
+    end
+end
+
+function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
+                          m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
+                          poly_degree::Int=2, horizon::Int=1, max_iter::Int=500,
+                          output::String="", format::String="table")
+    # Up-front guards → usage/invalid (before any load or estimator call).
+    isempty(hf_data) && throw(CliError("usage/missing-option",
+        "estimate midas requires --hf-data <csv> (the high-frequency indicator series)"))
+    m >= 1 || throw(CliError("usage/invalid", "--m (HF/LF frequency ratio) must be ≥ 1, got $m"))
+    k >= 1 || throw(CliError("usage/invalid", "--k (number of high-frequency lags) must be ≥ 1, got $k"))
+    p_ar >= 0 || throw(CliError("usage/invalid", "--p-ar must be ≥ 0, got $p_ar"))
+    max_iter >= 1 || throw(CliError("usage/invalid", "--max-iter must be ≥ 1, got $max_iter"))
+    # --poly-degree feeds the `:almon` polynomial (real `_n_theta(:almon, d)=d+1`); a negative degree
+    # is never meaningful and, unguarded, reaches `_midas_theta_starts` OUTSIDE the estimator try/catch
+    # → a bare `BoundsError` on real MEMs (`base[1]=…` on `zeros(0)`) mapped to model/error, while the
+    # mock throws `ArgumentError` → data/invalid: a latent mock/real exit-class divergence. Reject up
+    # front → usage/invalid (poly_degree=0 = constant/equal weights is valid on both).
+    poly_degree >= 0 || throw(CliError("usage/invalid", "--poly-degree must be ≥ 0, got $poly_degree"))
+    # Beta weights need a ≥2-point grid; pre-guard for a friendly message (real `_beta_grid` throws).
+    (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
+        "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
+    y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
+    _status("Estimating MIDAS: target=$ynm (n=$(length(y_lf))), indicator=$xnm (HF n=$(length(x_hf))), m=$m, K=$k, weights=$weights, p_ar=$p_ar")
+    _status()
+    model = try
+        estimate_midas(y_lf, x_hf; m=m, K=k, weights=Symbol(weights), p_ar=p_ar,
+                       poly_degree=poly_degree, h=horizon, max_iter=max_iter)
+    catch e
+        throw(_midas_error(e, "MIDAS"))
+    end
+    output_result(_midas_weight_table(model); format=Symbol(format), output=output,
+                  title="MIDAS Weight Curve ($xnm, most-recent-first)")
+    output_result(_midas_coef_table(model); format=Symbol(format),
+                  output=_per_var_output_path(output, "coef"),
+                  title="MIDAS Coefficients ($ynm)")
+    output_kv(Pair{String,Any}[
+        "weights_kind" => String(model.weights_kind),
+        "m"            => model.m,
+        "K"            => model.K,
+        "p_ar"         => model.p_ar,
+        "poly_degree"  => model.poly_degree,
+        "h"            => model.h,
+        "nobs"         => nobs(model),
+        "r2"           => _ardl_kv(model.r2),
+        "adj_r2"       => _ardl_kv(model.adj_r2),
+        "ssr"          => _ardl_kv(model.ssr; digits=4),
+        "sigma2"       => _ardl_kv(model.sigma2),
+        "aic"          => _ardl_kv(model.aic; digits=4),
+        "bic"          => _ardl_kv(model.bic; digits=4),
+        "loglik"       => _ardl_kv(model.loglik; digits=4),
+        "converged"    => model.converged,
+    ]; format=format, title="MIDAS Diagnostics")
+    return model
 end

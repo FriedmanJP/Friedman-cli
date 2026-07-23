@@ -426,8 +426,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 60 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 61 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c)
-        @test length(node.subcmds) == 61
+        # 61 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 62 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d)
+        @test length(node.subcmds) == 62
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1715,6 +1715,109 @@ end  # Shared utilities
                 dup = joinpath(dir, "duppmg.csv")
                 write(dup, "group,time,y,x1\n1,1,1.0,2.0\n1,1,1.5,2.5\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
                 @test (_err("estimate", ["pmg", dup, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+            end
+        end
+    end
+
+    @testset "estimate midas (C062d)" begin
+        # Mixed-frequency MIDAS: a low-frequency target (--data, --column) on --k high-frequency
+        # lags of a single indicator (--hf-data, --hf-column). Renders a hand-built weight-curve
+        # table (lag|weight) + coef table (term|estimate|std_error|stat|p_value) + diagnostics kv
+        # (MidasModel is not Tables.jl-registered). `_load_midas_data` is the 5th hardened shared
+        # loader: both inputs via load_univariate_series (typed missing/range), aligned
+        # len(HF)==m×len(LF) → data/shape. Bad input → typed classes, never uncaught exit-1.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "midas"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "midas"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        # Aligned mixed-frequency pair: LF target (Tlf rows) + HF indicator (m*Tlf rows).
+        _mixed(dir; Tlf=40, m=3, tag="a") = begin
+            lf = joinpath(dir, "lf_$tag.csv"); hf = joinpath(dir, "hf_$tag.csv")
+            CSV.write(lf, DataFrame(gdp=[1.0 + 0.5*sin(t/3.0) + 0.1*t for t in 1:Tlf]))
+            CSV.write(hf, DataFrame(ip=[0.2*cos(h/4.0) + 0.05*h for h in 1:(m*Tlf)]))
+            (lf, hf)
+        end
+
+        mktempdir() do dir
+            lf, hf = _mixed(dir; Tlf=40, m=3, tag="main")
+
+            @testset "weight-curve + coef tables + diagnostics, all 5 schemes" begin
+                for wk in ("expalmon", "beta2", "beta3", "almon", "umidas")
+                    doc = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", wk])
+                    @test doc.status == "ok"
+                    @test _has_tbl(doc, "lag", "weight")                                     # weight curve
+                    wt = _tbl_with(doc, "lag", "weight")
+                    @test length(collect(wt.rows)) == 6                                      # K lags
+                    @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")  # coef table
+                    mt = _metrics(doc)
+                    @test Set(["weights_kind", "m", "K", "p_ar", "poly_degree", "h", "nobs",
+                               "r2", "adj_r2", "ssr", "sigma2", "aic", "bic", "loglik", "converged"]) ⊆ mt
+                end
+            end
+
+            @testset "ADL-MIDAS (--p-ar) runs" begin
+                doc = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "expalmon", "--p-ar", "1"])
+                @test doc.status == "ok"
+                @test _has_tbl(doc, "term", "estimate")
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                # missing --hf-data → usage/missing-option (exit 2)
+                em = _err([lf, "--m", "3", "--k", "6"])
+                @test em isa CliError && em.code == "usage/missing-option" && exit_class(em) == 2
+                # --m 0 / --k 0 → usage/invalid (no upstream default)
+                @test (_err([lf, "--hf-data", hf, "--m", "0", "--k", "6"])).code == "usage/invalid"
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "0"])).code == "usage/invalid"
+                # Beta weight needs K≥2 → data/invalid (pre-guard, friendly message)
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "1", "--weights", "beta2"])).code == "data/invalid"
+                # bad --weights enum → ParseError (choices) — exit 2
+                ew = _err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "bogus"])
+                @test ew isa ParseError || (ew isa CliError && exit_class(ew) == 2)
+                # negative --poly-degree → usage/invalid (up-front guard; every numeric option is
+                # guarded — without it real MEMs throws a bare BoundsError → model/error while the
+                # mock throws ArgumentError → data/invalid, a latent mock/real exit-class divergence)
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "almon", "--poly-degree", "-1"])).code == "usage/invalid"
+                # HF SHORTER than m×LF → data/shape (end-anchoring would drop target periods).
+                # A LONGER HF (nhf > m×LF) is VALID (leading ragged edge dropped) — covered below.
+                hfbad = joinpath(dir, "hf_bad.csv")
+                CSV.write(hfbad, DataFrame(ip=[Float64(h) for h in 1:100]))   # 100 < 3*40 = 120
+                eb = _err([lf, "--hf-data", hfbad, "--m", "3", "--k", "6"])
+                @test eb isa CliError && eb.code == "data/shape" && exit_class(eb) == 3
+                # missing cell in HF → data/missing-values (hardened load_univariate_series).
+                # NOTE: a single-column CSV with a blank line is an EMPTY ROW that CSV.jl skips
+                # (→ a shorter series → data/shape, NOT a real `missing`), so the missing cell must
+                # sit in a multi-column row to survive as `missing`. Two columns; the target HF
+                # column (1) carries one empty cell while the row itself is non-empty (aux keeps it).
+                hfmiss = joinpath(dir, "hf_miss.csv")
+                write(hfmiss, "ip,aux\n" * join(["$(h == 60 ? "" : string(0.1 * h)),0.5" for h in 1:120], "\n") * "\n")
+                @test (_err([lf, "--hf-data", hfmiss, "--m", "3", "--k", "6"])).code == "data/missing-values"
+                # out-of-range --column on the LF file → data/column-range
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--column", "9"])).code == "data/column-range"
+            end
+
+            @testset "ragged HF (nhf > m×LF) accepted — leading edge dropped" begin
+                # The estimator anchors the last HF obs to the last LF period (its headline
+                # nowcasting feature), so a LONGER high-frequency indicator is valid — the CLI
+                # loader relaxes to `nhf >= m×LF` (not exact) to match. LF=40 rows, m=3 needs 120;
+                # supply 150 HF obs (30 leading dropped).
+                hflong = joinpath(dir, "hf_long.csv")
+                CSV.write(hflong, DataFrame(ip=[0.2 * cos(h / 4.0) + 0.05 * h for h in 1:150]))  # 150 > 3*40 = 120
+                doc = _doc([lf, "--hf-data", hflong, "--m", "3", "--k", "6"])
+                @test doc.status == "ok"
+                @test _has_tbl(doc, "lag", "weight")
+                @test _has_tbl(doc, "term", "estimate")
             end
         end
     end
@@ -3842,7 +3945,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 61  # 60 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1)
+        @test length(node.subcmds) == 62  # 61 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -5259,7 +5362,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 61  # 60 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1)
+        @test length(node.subcmds) == 62  # 61 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas)
     end
 
     @testset "register_irf_commands! includes pvar" begin

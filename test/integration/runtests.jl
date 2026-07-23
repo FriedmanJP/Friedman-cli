@@ -690,6 +690,89 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "estimate midas — mixed-frequency MIDAS (C062d, M5c)" begin
+        # Real MIDAS: an HF indicator drives a LF target through a known exp-Almon weight curve.
+        # Teeth (all LOOSE — restricted MIDAS NLS is noisy): the HF loading β₁ is finite & positive;
+        # the restricted weight curve has K entries summing ≈1; R² is non-trivial; umidas (OLS) and
+        # ADL (--p-ar) also run. Bad mixed-frequency input stays typed (never an internal exit 1).
+        _tbl_col(doc, col) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                col in table_cols(v) && return v
+            end
+            nothing
+        end
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        _coef(doc, matchfn) = begin   # first term row whose term satisfies matchfn → estimate
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                cols = table_cols(v)
+                ti = findfirst(==("term"), cols); ei = findfirst(==("estimate"), cols)
+                (ti === nothing || ei === nothing) && continue
+                for row in table_rows(v)
+                    r = collect(row)
+                    matchfn(string(r[ti])) && return Float64(r[ei])
+                end
+            end
+            nothing
+        end
+
+        @testset "expalmon — HF loading finite/positive, weight curve sums≈1, R² non-trivial" begin
+            lf, hf, b = dgp_midas(; Tlf=120, m=3, K=6, b=2.0, seed=91)
+            r = run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "expalmon"])
+            assert_envelope_ok(r; label="estimate midas expalmon")
+            wt = _tbl_col(r.doc, "weight")
+            @test wt !== nothing
+            wcol = findfirst(==("weight"), table_cols(wt))
+            ws = [Float64(collect(row)[wcol]) for row in table_rows(wt)]
+            @test length(ws) == 6
+            @test abs(sum(ws) - 1.0) < 1e-3                      # restricted weights are normalized
+            bx = _coef(r.doc, t -> occursin("HF loading", t))
+            @test bx !== nothing && isfinite(bx) && bx > 0.0     # positive HF loading (loose)
+            d = _diag(r.doc)
+            @test Float64(metric_value(d, "r2")) > 0.3
+            @test string(metric_value(d, "weights_kind")) == "expalmon"
+            @test Int(metric_value(d, "K")) == 6
+            rm(lf; force=true); rm(hf; force=true)
+        end
+
+        @testset "umidas (OLS) + ADL-MIDAS (--p-ar) run" begin
+            lf, hf, _ = dgp_midas(; Tlf=120, m=3, K=6, seed=93)
+            @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "umidas"]).code == 0
+            @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "6", "--p-ar", "1"]).code == 0
+            rm(lf; force=true); rm(hf; force=true)
+        end
+
+        @testset "ragged HF (nhf > m×LF) accepted — leading edge dropped (real _align_hf)" begin
+            # The real estimator anchors the last HF obs to the last LF period and drops leading
+            # ragged history (its headline nowcasting feature); the CLI loader relaxes to
+            # `nhf >= m×LF` to match. Prepend 20 extra leading HF obs → nhf = 3*120 + 20 = 380 > 360.
+            lf, hf, _ = dgp_midas(; Tlf=120, m=3, K=6, seed=97)
+            orig = CSV.read(hf, DataFrame)
+            padded = vcat(DataFrame(ip = collect(range(-1.0, 0.0; length=20))), orig)
+            hfrag = write_csv(padded; prefix="midas_hf_ragged")
+            r = run_json(["estimate", "midas", lf, "--hf-data", hfrag, "--m", "3", "--k", "6", "--weights", "expalmon"])
+            @test r.code == 0
+            rm(lf; force=true); rm(hf; force=true); rm(hfrag; force=true)
+        end
+
+        @testset "bad input stays typed (not internal exit 1)" begin
+            lf, hf, _ = dgp_midas(; Tlf=80, m=3, K=6, seed=95)
+            @test run_json(["estimate", "midas", lf, "--m", "3", "--k", "6"]).code == 2                            # missing --hf-data
+            @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "0", "--k", "6"]).code == 2
+            @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "0"]).code == 2
+            @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "1", "--weights", "beta2"]).code == 3  # K<2
+            @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "4", "--k", "6"]).code == 3            # HF shorter than m×LF (240 < 4*80=320) → data/shape
+            rm(lf; force=true); rm(hf; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

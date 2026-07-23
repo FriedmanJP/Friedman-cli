@@ -1056,6 +1056,47 @@ friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=dfe --p=2 --q=1
 
 **Output:** a long-run coefficient table `θ` (`term|estimate|std_error|stat|p_value`) + a short-run/error-correction table (`term|estimate|std_error`, with the adjustment speed `φ` as the first row) + diagnostics (`method`, `N`, `p`, `q`, `T_i`, `phi`, `phi_se`, `loglik`, `converged`, `iters`, `n_nonconv`). `PMGModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Display SEs (`φ`, `θ`) can be `Inf` for degenerate units — rendered non-finite-safe. See [`test pmg-hausman`](test.md#test-pmg-hausman) for the PMG-vs-MG selection test. **Trend-vocabulary note:** PMG spells `--trend=constant` out — distinct from ARDL's `none|const|trend` and cointreg's `none|const|linear`; do not carry a `const` value here.
 
+## estimate midas
+
+**MIDAS (MIxed-DAta Sampling) regression** (Ghysels, Sinko & Valkanov 2007) of a **low-frequency** target on `--k` **high-frequency** lags of a single indicator, aggregated through a parsimonious weight function `w(θ)`. The equation is `y_t = β₀ + β₁·Σₖ wₖ(θ) x_{t,k} + Σⱼ ρⱼ y_{t−j} + u_t`, where `x_{t,k}` is the `k`-th high-frequency lag (most-recent-first) inside low-frequency period `t`, and the `--p-ar` term makes it an ADL-MIDAS.
+
+This is the only estimator with a **two-CSV mixed-frequency contract**: the low-frequency target comes from `--data` (column `--column`), and the high-frequency indicator from a separate `--hf-data` CSV (column `--hf-column`). The HF series must supply **at least** `--m` observations per low-frequency period, i.e. `length(HF) ≥ m × length(LF)`. The estimator anchors the *last* HF observation to the *last* target period and works backwards, so any **leading** ragged edge (extra early HF history) is dropped automatically — the natural nowcasting layout (a long high-frequency indicator against a shorter low-frequency target) is fully supported, and the number of dropped leading HF observations is reported on stderr. Only a HF series *shorter* than `m × LF` is rejected as a typed `data/shape` error. Both inputs load through the hardened univariate loader, so a missing/non-numeric cell or out-of-range column surfaces a typed `data/missing-values`/`data/column-range`.
+
+`--weights` selects the aggregation scheme:
+
+- `expalmon` (default) — two-parameter **exponential Almon** curve (Ghysels et al.), estimated by profiled NLS.
+- `beta2` / `beta3` — **Beta** density weights (2- or 3-parameter); require `--k ≥ 2`.
+- `almon` — polynomial Almon of degree `--poly-degree`.
+- `umidas` — **unrestricted** U-MIDAS (Foroni, Marcellino & Schumacher 2015): the `K` lags enter with free coefficients (plain OLS, no weight function).
+
+```bash
+# Nowcast a quarterly target from a monthly indicator (m = 3, 6 monthly lags)
+friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights expalmon
+
+# ADL-MIDAS with one autoregressive lag of the target and Beta weights
+friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights beta2 --p-ar 1
+
+# Unrestricted U-MIDAS (OLS on the K stacked lags)
+friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umidas
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | | Int | `1` | Low-frequency target column in `--data` (1-based) |
+| `--hf-data` | | String | | **Required.** High-frequency indicator CSV |
+| `--hf-column` | | Int | `1` | High-frequency indicator column in `--hf-data` (1-based) |
+| `--m` | | Int | | **Required, ≥ 1.** Frequency ratio HF/LF (e.g. 3 = monthly→quarterly) |
+| `--k` | | Int | | **Required, ≥ 1.** Number of high-frequency lags |
+| `--weights` | | String | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` |
+| `--p-ar` | | Int | `0` | Autoregressive lags of the target (ADL-MIDAS, ≥ 0) |
+| `--poly-degree` | | Int | `2` | Polynomial degree for `--weights almon` |
+| `--horizon` | | Int | `1` | Direct forecast horizon `h` stored in the model (1 = nowcast) |
+| `--max-iter` | | Int | `500` | LBFGS iteration cap per NLS start |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a headline **weight-curve table** (`lag|weight`, length `K`, most-recent-first; for `umidas` these are the raw lag coefficients) + a coefficient table (`term|estimate|std_error|stat|p_value` over `[β; θ]`, normal-approximation p-values) + diagnostics (`weights_kind`, `m`, `K`, `p_ar`, `poly_degree`, `h`, `nobs`, `r2`, `adj_r2`, `ssr`, `sigma2`, `aic`, `bic`, `loglik`, `converged`). `MidasModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). The restricted NLS is noisy on short samples; a "failed to converge from any start" is surfaced as `model/convergence`. `forecast midas` is deferred to a later release. **Frequency-alignment note:** the loader requires `length(HF) ≥ m × length(LF)` and drops the leading ragged edge (reported on stderr); the estimator then drops any remaining incomplete `K`-block internally.
+
 ## estimate iv
 
 Instrumental variables (2SLS) regression. `--endogenous` names the endogenous regressor(s) and `--instruments` names the **excluded** instrument(s) — extra columns that identify the endogenous regressors but do not enter the structural equation. Every *other* numeric column (besides `--dep` and the endogenous ones) is treated as an exogenous regressor and instrument; include a `const` column of ones for an intercept. So the regressor matrix `X` = all columns except `{dep, excluded instruments}`, and the instrument matrix `Z` = all columns except `{dep, endogenous}`.

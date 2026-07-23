@@ -341,3 +341,33 @@ function dgp_pmg(; N::Int=10, T::Int=60, θ::Float64=1.0, seed::Int=42)
     end
     return write_csv(DataFrame(id=id, time=time, y=y, x=x); prefix="pmgpanel")
 end
+
+"""Mixed-frequency MIDAS DGP (C062d): a high-frequency indicator `x_hf` (AR(0.5), length
+`m*Tlf`) drives a low-frequency target `y = a + b·Σ_k w_k x_{HF-lag k} + e` through a known
+exp-Almon weight curve (θ=(θ₁,θ₂), decaying, sums to 1). Returns `(lf_csv, hf_csv, b)`: the LF
+target CSV (column `gdp`), the HF indicator CSV (column `ip`, exactly `m` obs per LF period), and
+the true HF loading `b`. Used to check `estimate midas` recovers a positive, finite HF loading
+and a sensible R² (loose — restricted MIDAS NLS is noisy)."""
+function dgp_midas(; Tlf::Int=120, m::Int=3, K::Int=6, a::Float64=1.0, b::Float64=2.0,
+                    θ1::Float64=0.3, θ2::Float64=-0.08, seed::Int=42)
+    rng = MersenneTwister(seed)
+    lenhf = m * Tlf
+    x = zeros(lenhf)
+    for h in 2:lenhf
+        x[h] = 0.5 * x[h-1] + randn(rng)          # AR(0.5) high-frequency indicator
+    end
+    # known exp-Almon weight curve over K most-recent HF lags (sums to 1)
+    kk = collect(1.0:K)
+    z = θ1 .* kk .+ θ2 .* (kk .^ 2); z .-= maximum(z)
+    w = exp.(z); w ./= sum(w)
+    y = zeros(Tlf)
+    for t in 1:Tlf
+        hi = lenhf - (Tlf - t) * m                # most-recent HF obs in LF period t
+        lo = hi - K + 1
+        s = lo >= 1 ? sum(w[k] * x[hi-(k-1)] for k in 1:K) : 0.0
+        y[t] = a + b * s + 0.3 * randn(rng)
+    end
+    lf = write_csv(DataFrame(gdp=y); prefix="midas_lf")
+    hf = write_csv(DataFrame(ip=x); prefix="midas_hf")
+    return lf, hf, b
+end

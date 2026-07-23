@@ -56,6 +56,39 @@ function load_univariate_series(data::String, column::Int)
     return y, varnames[column]
 end
 
+"""
+    _load_midas_data(data, column, hf_data, hf_column; m) → (y_lf, x_hf, ynm, xnm)
+
+Load a mixed-frequency MIDAS dataset from two CSVs: the low-frequency target
+(`data`, numeric column `column`) and the high-frequency indicator (`hf_data`,
+numeric column `hf_column`). Both are read through the already-hardened
+`load_univariate_series`, so a missing/non-numeric cell or an out-of-range column
+surfaces a typed `data/missing-values`/`data/column-range` (never an untyped
+exit-1 from a `Vector{Float64}` conversion — the standing shared-loader lesson;
+this is the 5th hardened shared loader after univariate/multivariate/reg/panel).
+
+The HF series must supply AT LEAST `m` observations per low-frequency period,
+i.e. `length(x_hf) >= m * length(y_lf)`. The estimator's internal `_align_hf`
+anchors the *last* HF observation to the *last* low-frequency period and works
+backwards, so any *leading* ragged edge (extra early HF history) is dropped
+automatically — the natural nowcasting layout (a long high-frequency indicator
+against a shorter low-frequency target) is fully supported. Only a HF series
+*shorter* than `m×LF` is rejected as a typed `data/shape` (exit 3), since
+end-anchoring would then silently drop low-frequency target periods. A `K`
+larger than the available aligned HF history surfaces via the estimator's own
+typed error, mapped by `_midas_error`.
+"""
+function _load_midas_data(data::String, column::Int, hf_data::String, hf_column::Int; m::Int)
+    y_lf, ynm = load_univariate_series(data, column)
+    x_hf, xnm = load_univariate_series(hf_data, hf_column)
+    nlf = length(y_lf); nhf = length(x_hf)
+    nhf >= m * nlf || throw(CliError("data/shape",
+        "high-frequency series '$xnm' has only $nhf observation(s) but the low-frequency target '$ynm' has $nlf and --m=$m needs at least m×LF = $(m * nlf) high-frequency observations (≥ $m aligned per low-frequency period)";
+        hint="check --m, --hf-column, and that the HF file covers at least the target window"))
+    nhf > m * nlf && _status("MIDAS alignment: dropping $(nhf - m * nlf) leading high-frequency observation(s) of '$xnm' (anchoring the last HF obs to the last low-frequency period)")
+    return y_lf, x_hf, ynm, xnm
+end
+
 # ── Naming Helpers ─────────────────────────────────────────
 
 """Safe shock name: uses variable name if in range, else "shock_N"."""

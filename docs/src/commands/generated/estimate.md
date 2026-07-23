@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 60
+**Leaves:** 61
 
 ### `friedman estimate 3sls`
 
@@ -799,6 +799,34 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_lp` (Path to CSV data file)
+
+---
+
+### `friedman estimate midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to the low-frequency target CSV |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | — | `Int64` | `1` | — | Low-frequency target column in --data (1-based) |
+| `--hf-data` | — | `String` | `""` | — | High-frequency indicator CSV (REQUIRED) |
+| `--hf-column` | — | `Int64` | `1` | — | High-frequency indicator column in --hf-data (1-based) |
+| `--m` | — | `Int64` | `0` | — | Frequency ratio HF/LF, e.g. 3 = monthly→quarterly (REQUIRED, ≥ 1) |
+| `--k` | — | `Int64` | `0` | — | Number of high-frequency lags (REQUIRED, ≥ 1) |
+| `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | Weight scheme: expalmon|beta2|beta3|almon|umidas |
+| `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS, ≥ 0) |
+| `--poly-degree` | — | `Int64` | `2` | — | Polynomial degree for --weights almon |
+| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon h stored in the model (1 = nowcast) |
+| `--max-iter` | — | `Int64` | `500` | — | LBFGS iteration cap per NLS start |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_midas` (Path to CSV data file)
 
 ---
 

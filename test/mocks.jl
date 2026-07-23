@@ -6966,4 +6966,145 @@ end
 
 export PMGModel, estimate_pmg
 
+# ─── C062d: MIDAS mixed-frequency regression (EV-01) ─────────────────────────
+# MidasModel mirrors the real MEMs 0.7.0 field NAMES/ORDER (a subset is fine — check_mock_surface
+# is mock ⊆ real). `estimate_midas` is a genuine-ish concentrated-OLS fit that VALIDATES like the
+# real one (m≥1, K≥1 / K≥2 for Beta, weights enum, p_ar≥0, complete-HF-block availability →
+# ArgumentError) so T1/T2 exercise the error mapping AND the hand-built weight-curve/coef renderers.
+# `midas_weights(m::MidasModel)` is the accessor form (== m.w); the pure-math `midas_weights(θ,K)`
+# evaluator is out of scope. StatsAPI accessors mirror real (coef = [β; θ], stderror uses abs.diag).
+struct MidasModel{T<:AbstractFloat}
+    y::Vector{T}
+    Xlags::Matrix{T}
+    Wlin::Matrix{T}
+    theta::Vector{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    weights_kind::Symbol
+    m::Int
+    K::Int
+    p_ar::Int
+    poly_degree::Int
+    h::Int
+    w::Vector{T}
+    fitted::Vector{T}
+    residuals::Vector{T}
+    ssr::T
+    sigma2::T
+    r2::T
+    adj_r2::T
+    loglik::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+end
+
+coef(m::MidasModel) = vcat(m.beta, m.theta)
+vcov(m::MidasModel) = m.vcov_mat
+stderror(m::MidasModel) = sqrt.(abs.([m.vcov_mat[i, i] for i in 1:size(m.vcov_mat, 1)]))
+nobs(m::MidasModel) = length(m.y)
+residuals(m::MidasModel) = m.residuals
+predict(m::MidasModel) = m.fitted
+
+"""Accessor form: realized weight curve w(θ̂) (== m.w, length K, most-recent-first)."""
+midas_weights(m::MidasModel) = m.w
+
+# Normalized MIDAS weight curve (mirrors the real `_midas_weights`; sums to 1 for restricted kinds).
+function _mock_midas_w(theta::AbstractVector{T}, K::Int, kind::Symbol) where {T}
+    if kind === :expalmon
+        k = T.(1:K); z = theta[1] .* k .+ theta[2] .* (k .^ 2); z .-= maximum(z)
+        u = exp.(z); return u ./ sum(u)
+    elseif kind === :beta2 || kind === :beta3
+        K >= 2 || throw(ArgumentError("Beta weights require K ≥ 2 (got K=$K)"))
+        x = T[clamp((T(kk) - one(T)) / (T(K) - one(T)), T(1e-8), one(T) - T(1e-8)) for kk in 1:K]
+        u = (x .^ (theta[1] - one(T))) .* ((one(T) .- x) .^ (theta[2] - one(T)))
+        kind === :beta3 && (u = u .+ theta[3])
+        return u ./ sum(u)
+    elseif kind === :almon
+        k = T.(1:K); u = zeros(T, K)
+        for (j, tj) in enumerate(theta); u .+= tj .* (k .^ (j - 1)); end
+        return u ./ sum(u)
+    elseif kind === :umidas
+        return fill(one(T) / T(K), K)
+    else
+        throw(ArgumentError("unknown MIDAS weight kind: $kind"))
+    end
+end
+
+function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
+                        m::Int, K::Int, weights::Symbol=:expalmon,
+                        p_ar::Int=0, poly_degree::Int=2, h::Int=1, max_iter::Int=500)
+    weights ∈ (:expalmon, :beta2, :beta3, :almon, :umidas) ||
+        throw(ArgumentError("unknown MIDAS weight kind: $weights"))
+    m >= 1 || throw(ArgumentError("m must be ≥ 1 (got m=$m)"))
+    K >= 1 || throw(ArgumentError("K must be ≥ 1"))
+    p_ar >= 0 || throw(ArgumentError("p_ar must be ≥ 0"))
+    (weights ∈ (:beta2, :beta3) && K < 2) && throw(ArgumentError("Beta weights require K ≥ 2 (got K=$K)"))
+    T = Float64
+    yv = collect(T, y_lf); xv = collect(T, X_hf)
+    Tlf = length(yv); lenhf = length(xv)
+    # Frequency alignment (mirror `_align_hf`): most-recent-first K-block per LF period; drop the
+    # leading ragged edge (incomplete early blocks).
+    retained = Int[]; blocks = Vector{Vector{T}}()
+    for t in 1:Tlf
+        hi = lenhf - (Tlf - t) * m; lo = hi - K + 1
+        (lo >= 1 && hi <= lenhf) || continue
+        push!(retained, t); push!(blocks, xv[hi:-1:lo])
+    end
+    isempty(retained) && throw(ArgumentError(
+        "no complete high-frequency blocks: need ≥ $K HF obs before a low-frequency period"))
+    # AR block: keep periods with p_ar available own-lags.
+    keep = Int[i for (i, t) in enumerate(retained) if t - p_ar >= 1]
+    isempty(keep) && throw(ArgumentError("no periods with $p_ar autoregressive lags available"))
+    n = length(keep)
+    Xlags = reduce(vcat, [reshape(blocks[i], 1, K) for i in keep])
+    Wlin = Matrix{T}(undef, n, 1 + p_ar); yv_used = Vector{T}(undef, n)
+    for (r, i) in enumerate(keep)
+        t = retained[i]; Wlin[r, 1] = one(T)
+        for j in 1:p_ar; Wlin[r, 1 + j] = yv[t - j]; end
+        yv_used[r] = yv[t]
+    end
+    # Concentrated OLS at a documented default θ (no NLS — genuine-ish fit for shape/error tests).
+    if weights === :umidas
+        M = hcat(Wlin[:, 1], Xlags, Wlin[:, 2:end])
+        beta = M \ yv_used
+        theta = T[]; w = beta[2:(1 + K)]
+        varnames = vcat("const", String["HF lag $kk" for kk in 1:K], String["AR($j)" for j in 1:p_ar])
+        Jfull = M
+    else
+        theta = weights === :expalmon ? T[0.0, 0.0] :
+                weights === :beta2 ? T[1.0, 3.0] :
+                weights === :beta3 ? T[1.0, 3.0, 0.0] :
+                vcat(one(T), zeros(T, poly_degree))            # :almon (poly_degree + 1 params)
+        w = _mock_midas_w(theta, K, weights)
+        s = Xlags * w
+        M = hcat(Wlin[:, 1], s, Wlin[:, 2:end])
+        beta = M \ yv_used
+        varnames = vcat("const", "β₁ (HF loading)", String["AR($j)" for j in 1:p_ar],
+                        String["θ$l" for l in 1:length(theta)])
+        # Stand-in Gauss-Newton θ-gradient block (Vandermonde in lag index) — right-sized, generally
+        # full-rank → finite SEs; the mock exercises shape/finiteness, T3 covers real numerics.
+        Jtheta = beta[2] .* (Xlags * T[T(kk)^l for kk in 1:K, l in 1:length(theta)])
+        Jfull = hcat(M, Jtheta)
+    end
+    fitted = M * beta
+    resid = yv_used .- fitted
+    ssr = sum(abs2, resid)
+    p = length(beta) + length(theta)
+    dofres = max(n - p, 1); sigma2 = ssr / T(dofres)
+    G = Jfull' * Jfull
+    vcov = sigma2 .* ((G + T(1e-8) .* Matrix{T}(I, p, p)) \ Matrix{T}(I, p, p))
+    ybar = mean(yv_used); tss = sum(abs2, yv_used .- ybar)
+    r2 = tss > 0 ? one(T) - ssr / tss : zero(T)
+    adj_r2 = n > p ? one(T) - (one(T) - r2) * T(n - 1) / T(n - p) : r2
+    loglik = -T(0.5) * n * (log(T(2π)) + log(max(ssr / n, eps())) + one(T))
+    aic = T(2) * p - T(2) * loglik; bic = T(log(n)) * p - T(2) * loglik
+    MidasModel{T}(yv_used, Xlags, Wlin, theta, beta, Matrix{T}(vcov), weights, m, K, p_ar,
+                  poly_degree, h, w, fitted, resid, ssr, sigma2, r2, adj_r2, loglik, aic, bic,
+                  varnames, true)
+end
+
+export MidasModel, estimate_midas, midas_weights
+
 end # module
