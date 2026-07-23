@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 55
+**Leaves:** 57
 
 ### `friedman estimate 3sls`
 
@@ -216,6 +216,33 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_cgarch` (Path to CSV data file)
+
+---
+
+### `friedman estimate cointreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent (levels) column name (default: first numeric column) |
+| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | fmols|ccr|dols |
+| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministics: none|const|linear |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett|parzen|qs|tukey-hanning |
+| `--bandwidth` | — | `String` | `andrews` | — | andrews|nw94 or a fixed truncation lag (>=0) |
+| `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
+| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | DOLS lead/lag selection: aic|bic |
+| `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv|robust |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_cointreg` (Path to CSV data file)
 
 ---
 
@@ -1321,6 +1348,37 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_vecm` (Path to CSV data file)
+
+---
+
+### `friedman estimate xtcointreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | — | `String` | `""` | — | Regressors, comma-separated (default: all other variables) |
+| `--method` | — | `String` | `fmols` | `fmols`, `dols` | fmols|dols (no ccr for panels) |
+| `--pooling` | — | `String` | `group` | `group`, `pooled` | group (between) | pooled (within) |
+| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Per-unit deterministics: none|const|linear |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett|parzen|qs|tukey-hanning |
+| `--bandwidth` | — | `String` | `andrews` | — | andrews|nw94 or a fixed truncation lag (>=0) |
+| `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
+| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | DOLS lead/lag selection: aic|bic |
+| `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv|robust |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_xtcointreg` (Path to CSV data file)
 
 ---
 

@@ -414,6 +414,81 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(csvc; force=true)
     end
 
+    @testset "estimate cointreg/xtcointreg — cointegrating regression (C062a, M5c)" begin
+        # Real cointegration DGP: x_t random walk, y_t = β x_t + I(0). Teeth: FMOLS/CCR/DOLS
+        # recover β within a LOOSE tol (the estimators are noisy), the coef table carries the
+        # full tidy schema, and diagnostics/CIs are finite. Panel: N units, common β → group
+        # & pooled β̄ within a loose tol; back-solved group-mean SE may be Inf (round-safe).
+        _coefrow(doc, term) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                cols = table_cols(v)
+                ti = findfirst(==("term"), cols); ei = findfirst(==("estimate"), cols)
+                (ti === nothing || ei === nothing) && continue
+                for row in table_rows(v)
+                    r = collect(row)
+                    string(r[ti]) == term && return (v, Float64(r[ei]))
+                end
+            end
+            (nothing, nothing)
+        end
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        _coefcols = ["term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"]
+
+        @testset "cointreg — FMOLS/CCR/DOLS recover β≈1 (loose) + tidy schema" begin
+            csv = dgp_coint(; T=300, β=1.0, seed=45)
+            for meth in ("fmols", "ccr", "dols")
+                r = run_json(["estimate", "cointreg", csv, "--dep", "y", "--method", meth])
+                assert_envelope_ok(r; label="estimate cointreg $meth")
+                tbl, bx = _coefrow(r.doc, "x")
+                @test tbl !== nothing && Set(_coefcols) ⊆ Set(table_cols(tbl))
+                @test bx !== nothing && abs(bx - 1.0) < 0.3        # loose slope recovery
+                d = _diag(r.doc)
+                @test metric_value(d, "method") !== nothing
+                @test Int(metric_value(d, "k")) == 1
+                @test isfinite(Float64(metric_value(d, "omega_uv")))
+            end
+            # DOLS exposes leads/lags in the diagnostics block
+            rd = run_json(["estimate", "cointreg", csv, "--dep", "y", "--method", "dols"])
+            @test metric_value(_diag(rd.doc), "leads") !== nothing
+            rm(csv; force=true)
+        end
+
+        @testset "xtcointreg — panel group & pooled β̄≈1 (loose), SE finite-or-Inf-safe" begin
+            cp = dgp_coint_panel(; N=8, T=50, β=1.0, seed=61)
+            for pool in ("group", "pooled"), meth in ("fmols", "dols")
+                r = run_json(["estimate", "xtcointreg", cp, "--dep", "y", "--indep", "x",
+                              "--method", meth, "--pooling", pool])
+                assert_envelope_ok(r; label="estimate xtcointreg $meth/$pool")
+                tbl, bx = _coefrow(r.doc, "x")
+                @test tbl !== nothing && Set(_coefcols) ⊆ Set(table_cols(tbl))
+                @test bx !== nothing && abs(bx - 1.0) < 0.3       # common-β recovery
+                d = _diag(r.doc)
+                @test Int(metric_value(d, "N")) == 8
+                @test string(metric_value(d, "pooling")) == pool
+            end
+            rm(cp; force=true)
+        end
+
+        @testset "bad input stays typed (not internal exit 1)" begin
+            csv = dgp_coint(; T=200, seed=63)
+            @test run_json(["estimate", "cointreg", csv, "--dep", "nope"]).code == 3       # data/column-range
+            @test run_json(["estimate", "cointreg", csv, "--method", "bogus"]).code == 2   # enum
+            @test run_json(["estimate", "cointreg", csv, "--bandwidth", "junk"]).code == 2 # dual-type parse
+            @test run_json(["estimate", "cointreg", csv, "--leads", "-1"]).code == 2
+            cp = dgp_coint_panel(; N=6, T=40, seed=65)
+            @test run_json(["estimate", "xtcointreg", cp, "--dep", "y", "--indep", "x", "--method", "ccr"]).code == 2
+            @test run_json(["estimate", "xtcointreg", cp, "--dep", "nope", "--indep", "x"]).code == 2
+            rm(csv; force=true); rm(cp; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

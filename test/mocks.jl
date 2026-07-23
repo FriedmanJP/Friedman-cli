@@ -1574,6 +1574,11 @@ function xtset(df, group_col::Symbol, time_col::Symbol;
         ut = sort(unique(raw_t)); tmap = Dict(t => i for (i, t) in enumerate(ut))
         Int[tmap[t] for t in raw_t]
     end
+    # Mirror real xtset: a duplicate (group, time) pair is an invalid panel → ArgumentError
+    # (load_panel_data maps this to a typed data/invalid, so the panel family's hardening is
+    # exercised at T1/T2, not only against real MEMs at T3).
+    length(unique(zip(gid, tid))) == T_obs ||
+        throw(ArgumentError("duplicate (group, time) pairs are not allowed in a panel"))
     PanelData(data, vn, gid, tid, length(ug), n, T_obs, true)
 end
 
@@ -3126,6 +3131,155 @@ stderror(m::HeckmanModel) = [sqrt(max(m.vcov_beta[i, i], 0.0)) for i in 1:length
 export PenalizedRegModel, RobustRegModel, TobitModel, TruncRegModel, HeckmanModel
 export estimate_lasso, estimate_ridge, estimate_elastic_net, estimate_robust, estimate_tobit
 export estimate_truncreg, estimate_heckman
+
+# ─── C062a: cointegrating regression (FMOLS / CCR / DOLS) ────────────────────
+# CointRegModel / PanelCointRegModel mirror the real MEMs 0.7.0 field NAMES (a subset is
+# fine — check_mock_surface is mock ⊆ real, and these are non-core). The estimators are
+# genuine-ish OLS-on-levels fits that VALIDATE like the real ones (n>5, y/X shape, method /
+# trend / pooling enums throw ArgumentError/DimensionMismatch) so T1/T2 exercise the error
+# mapping and the hand-built coef-table shapes. The panel group-mean path deliberately lets
+# a per-coefficient SE go to `Inf` (t==0 degenerate) to exercise the non-finite render path.
+struct CointRegModel{T<:AbstractFloat}
+    method::Symbol
+    trend::Symbol
+    kernel::Symbol
+    bandwidth::T
+    coef::Vector{T}
+    vcov::Matrix{T}
+    varnames::Vector{String}
+    nobs::Int
+    leads::Int
+    lags::Int
+    omega_uv::T
+    d::Int
+    k::Int
+end
+
+struct PanelCointRegModel{T<:AbstractFloat}
+    method::Symbol
+    pooling::Symbol
+    trend::Symbol
+    kernel::Symbol
+    coef::Vector{T}
+    se::Vector{T}
+    tstats::Vector{T}
+    pvalues::Vector{T}
+    varnames::Vector{String}
+    N::Int
+    T_i::Vector{Int}
+    nobs::Int
+    k::Int
+    d::Int
+    balanced::Bool
+end
+
+coef(m::CointRegModel) = m.coef
+vcov(m::CointRegModel) = m.vcov
+stderror(m::CointRegModel) = [sqrt(max(m.vcov[i, i], 0.0)) for i in 1:length(m.coef)]
+nobs(m::CointRegModel) = m.nobs
+
+# Logistic approximation to 1 - Φ(|z|) (Φ ≈ 1/(1+exp(-1.702 z))); finite, monotone, in (0,1) —
+# enough for a mock p-value (tests assert finiteness/shape, not magnitude). Avoids importing a
+# real normal CDF into the mock module.
+_mock_norm_sf(z::Real) = 1.0 / (1.0 + exp(1.702 * abs(z)))
+
+function _mock_cointreg_det(n::Int, trend::Symbol, ::Type{T}) where {T}
+    trend === :none && return zeros(T, n, 0), String[]
+    trend === :const && return ones(T, n, 1), String["const"]
+    trend === :linear && return hcat(ones(T, n), T.(1:n)), String["const", "trend"]
+    throw(ArgumentError("trend must be :none, :const, or :linear; got :$trend"))
+end
+
+function estimate_cointreg(y::AbstractVector, X::AbstractVecOrMat;
+                           method::Symbol=:fmols, trend::Symbol=:const,
+                           kernel::Symbol=:bartlett, bandwidth=:andrews,
+                           leads=:auto, lags=:auto, ic::Symbol=:aic, dols_se::Symbol=:lrv)
+    method ∈ (:fmols, :ccr, :dols) ||
+        throw(ArgumentError("method must be :fmols, :ccr, or :dols; got :$method"))
+    T = Float64
+    yv = collect(T, y)
+    Xm = X isa AbstractVector ? reshape(collect(T, X), :, 1) : Matrix{T}(X)
+    size(Xm, 1) == length(yv) ||
+        throw(DimensionMismatch("length(y)=$(length(yv)) must equal size(X,1)=$(size(Xm, 1))"))
+    n = length(yv)
+    n > 5 || throw(ArgumentError("need at least 6 observations; got $n"))
+    D, dnames = _mock_cointreg_det(n, trend, T)
+    d = size(D, 2); k = size(Xm, 2)
+    Z = hcat(D, Xm)
+    beta = (Z'Z) \ (Z'yv)
+    resid = yv .- Z * beta
+    s2 = sum(abs2, resid) / max(n - d - k, 1)
+    vcovm = s2 .* ((Z'Z) \ Matrix{T}(I(d + k)))
+    xn = k == 1 ? String["x"] : String["x$i" for i in 1:k]
+    varnames = vcat(dnames, xn)
+    ld = method === :dols ? (leads === :auto ? 1 : Int(leads)) : 0
+    lg = method === :dols ? (lags === :auto ? 1 : Int(lags)) : 0
+    bw = bandwidth isa Symbol ? 4.0 : Float64(bandwidth)
+    CointRegModel{T}(method, trend, kernel, bw, beta, Matrix{T}(vcovm), varnames,
+                     n, ld, lg, T(max(s2, eps())), d, k)
+end
+
+function estimate_xtcointreg(pd::PanelData, y::Union{Symbol,String},
+                             xs::Union{Symbol,String}...;
+                             method::Symbol=:fmols, pooling::Symbol=:group,
+                             trend::Symbol=:const, kernel::Symbol=:bartlett,
+                             bandwidth=:andrews, leads=:auto, lags=:auto,
+                             ic::Symbol=:aic, dols_se::Symbol=:lrv)
+    method ∈ (:fmols, :dols) ||
+        throw(ArgumentError("method must be :fmols or :dols; got :$method"))
+    pooling ∈ (:group, :pooled) ||
+        throw(ArgumentError("pooling must be :group or :pooled; got :$pooling"))
+    trend ∈ (:none, :const, :linear) ||
+        throw(ArgumentError("trend must be :none, :const, or :linear; got :$trend"))
+    isempty(xs) && throw(ArgumentError("At least one regressor is required"))
+    _vc(v) = (j = findfirst(==(string(v)), pd.varnames);
+              j === nothing ? throw(ArgumentError("variable $v not found in panel")) : j)
+    yc = _vc(y)
+    xcs = Int[_vc(x) for x in xs]
+    N = pd.n_groups
+    N ≥ 1 || throw(ArgumentError("need at least one unit"))
+    T = Float64
+    k = length(xcs)
+    d = trend === :none ? 0 : trend === :const ? 1 : 2
+    unit_coefs = Vector{Vector{T}}()
+    T_i = Int[]
+    for g in unique(pd.group_id)
+        rows = findall(==(g), pd.group_id)
+        rr = rows[sortperm(pd.time_id[rows])]
+        yg = T.(pd.data[rr, yc])
+        Xg = T.(pd.data[rr, xcs])
+        m = estimate_cointreg(yg, Xg; method=method, trend=trend, kernel=kernel,
+                              bandwidth=bandwidth, leads=leads, lags=lags, ic=ic, dols_se=dols_se)
+        push!(unit_coefs, m.coef)
+        push!(T_i, length(yg))
+    end
+    balanced = all(==(first(T_i)), T_i)
+    xn = k == 1 ? String["x"] : String["x$i" for i in 1:k]
+    dnames = d == 0 ? String[] : d == 1 ? String["const"] : String["const", "trend"]
+    if pooling === :group
+        C = reduce(hcat, unit_coefs)               # p×N per-unit coefficient vectors
+        coefv = vec(sum(C; dims=2)) ./ T(N)
+        tstats = similar(coefv)
+        for j in eachindex(coefv)
+            tvec = [C[j, i] / (abs(C[j, i]) < 1e-8 ? one(T) : T(0.1) * abs(C[j, i])) for i in 1:N]
+            tstats[j] = sum(tvec) / sqrt(T(N))
+        end
+        se = [tstats[j] == 0 ? T(Inf) : abs(coefv[j] / tstats[j]) for j in eachindex(coefv)]
+        pv = [2.0 * _mock_norm_sf(t) for t in tstats]
+        varnames = vcat(dnames, xn)
+    else
+        slopes = [uc[(d + 1):(d + k)] for uc in unit_coefs]
+        coefv = reduce(+, slopes) ./ T(N)
+        se = fill(T(0.1), k)
+        tstats = coefv ./ se
+        pv = [2.0 * _mock_norm_sf(t) for t in tstats]
+        varnames = xn
+    end
+    PanelCointRegModel{T}(method, pooling, trend, kernel, coefv, se, tstats, pv,
+                          varnames, N, T_i, sum(T_i), k, d, balanced)
+end
+
+export CointRegModel, PanelCointRegModel, estimate_cointreg, estimate_xtcointreg
 
 # ─── C066: state-space + nonparametric estimation ───────────────────────────
 # StateSpaceModel / KernelDensity / KernelRegression / LowessFit mirror the real MEMs 0.7.0

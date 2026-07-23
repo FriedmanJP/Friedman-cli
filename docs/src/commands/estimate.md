@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 55 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 57 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -907,6 +907,61 @@ friedman estimate lowess data.csv --dep=y --indep=x --frac=0.3 --iter=5
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** smoothed-curve table (`x|fitted`, sorted by `x`) + diagnostics (`frac`, `iter`, `nobs`). `LowessFit` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+## estimate cointreg
+
+Single-equation **cointegrating regression** for a long-run relationship `y_t = D_t'δ + x_t'β + u_t` where the `--dep` variable and the other numeric columns are `I(1)` (integrated of order 1). Three estimators correct the OLS-on-levels fit for regressor endogeneity and error serial correlation: `fmols` (Phillips-Hansen fully-modified OLS), `ccr` (Park canonical cointegrating regression), and `dols` (Saikkonen / Stock-Watson dynamic OLS). Deterministics are added via `--trend` (the cointreg vocabulary is `none|const|linear` — do not confuse with the ARDL/PMG trend vocabularies). No intercept is prepended to the regressor matrix — cointreg builds its own deterministic block.
+
+```bash
+friedman estimate cointreg data.csv --dep=y --method=fmols
+friedman estimate cointreg data.csv --dep=y --method=dols --leads=2 --lags=2 --ic=bic
+friedman estimate cointreg data.csv --dep=y --method=ccr --trend=linear --kernel=qs --bandwidth=nw94
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent (levels) column name |
+| `--method` | | String | `fmols` | `fmols`, `ccr`, `dols` |
+| `--trend` | | String | `const` | Deterministics: `none`, `const`, `linear` |
+| `--kernel` | | String | `bartlett` | HAC kernel: `bartlett`, `parzen`, `qs`, `tukey-hanning` |
+| `--bandwidth` | | String | `andrews` | `andrews`, `nw94`, or a fixed truncation lag (≥0) |
+| `--leads` | | String | `auto` | DOLS leads: `auto` or a non-negative integer |
+| `--lags` | | String | `auto` | DOLS lags: `auto` or a non-negative integer |
+| `--ic` | | String | `aic` | DOLS lead/lag selection: `aic`, `bic` |
+| `--dols-se` | | String | `lrv` | DOLS standard errors: `lrv`, `robust` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** tidy long-run coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`; p-values/CIs use the large-sample normal approximation, the estimators being asymptotically mixed-normal) + diagnostics (`method`, `trend`, `kernel`, resolved `bandwidth`, `omega_uv`, `nobs`, `d`, `k`; DOLS adds `leads`/`lags`). `CointRegModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). `--bandwidth`/`--leads`/`--lags` are dual-type flags parsed in-handler; note `--bandwidth 4` = a fixed truncation lag while `--bandwidth andrews` = data-driven selection.
+
+## estimate xtcointreg
+
+**Panel cointegrating regression** across the `N` units of a long-format panel (`--id-col`/`--time-col` default to the first/second columns). Each unit is fit by the single-equation estimator ([`estimate cointreg`](#estimate-cointreg)) and aggregated either group-mean (`--pooling=group`, Pedroni 2001 between-dimension) or pooled (`--pooling=pooled`, within-dimension: Pedroni 2000 FMOLS / Kao-Chiang 2000 DOLS). Only `fmols` and `dols` are available for panels (no `ccr`).
+
+```bash
+friedman estimate xtcointreg panel.csv --dep=lc --indep=ly --method=fmols --pooling=group
+friedman estimate xtcointreg panel.csv --id-col=country --time-col=year --dep=lc --indep=ly,r --method=dols --pooling=pooled
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--id-col` | | String | (1st col) | Panel group id column |
+| `--time-col` | | String | (2nd col) | Panel time column |
+| `--dep` | | String | (1st var) | Dependent panel variable |
+| `--indep` | | String | (all others) | Regressors, comma-separated |
+| `--method` | | String | `fmols` | `fmols`, `dols` (no `ccr` for panels) |
+| `--pooling` | | String | `group` | `group` (between) or `pooled` (within) |
+| `--trend` | | String | `const` | Per-unit deterministics: `none`, `const`, `linear` |
+| `--kernel` | | String | `bartlett` | HAC kernel: `bartlett`, `parzen`, `qs`, `tukey-hanning` |
+| `--bandwidth` | | String | `andrews` | `andrews`, `nw94`, or a fixed truncation lag (≥0) |
+| `--leads` | | String | `auto` | DOLS leads: `auto` or a non-negative integer |
+| `--lags` | | String | `auto` | DOLS lags: `auto` or a non-negative integer |
+| `--ic` | | String | `aic` | DOLS lead/lag selection: `aic`, `bic` |
+| `--dols-se` | | String | `lrv` | DOLS standard errors: `lrv`, `robust` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** tidy panel coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`; group-mean reports Pedroni's between-dimension `t`-statistic and a back-solved display SE that can be `Inf` for a degenerate coefficient — rendered non-finite-safe) + diagnostics (`method`, `pooling`, `trend`, `kernel`, `N` units, total `nobs`, `T_i` span, `balanced`, `k`, `d`). `PanelCointRegModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
 ## estimate iv
 

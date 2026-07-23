@@ -633,6 +633,60 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_lowess),
         ),
+        # ── C062a: cointegrating regression (FMOLS / CCR / DOLS) ──────────────
+        # `estimate cointreg` (single-equation, `_load_reg_data`) + `estimate xtcointreg`
+        # (panel, `_load_panel_reg`). Hand-built coef table (C051 exception). NOTE the trend
+        # vocabulary is cointreg-specific: none|const|linear (do NOT share the OptionSpec —
+        # PMG uses :constant, ARDL uses :const/:trend). Dual-type --bandwidth/--leads/--lags
+        # are declared String and parsed in-handler (`_parse_cointreg_*`).
+        CommandSpec(
+            path=["estimate", "cointreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent (levels) column name (default: first numeric column)"),
+                OptionSpec(name="method", type=String, default="fmols", description="fmols|ccr|dols", choices=["fmols","ccr","dols"]),
+                OptionSpec(name="trend", type=String, default="const", description="Deterministics: none|const|linear", choices=["none","const","linear"]),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="HAC kernel: bartlett|parzen|qs|tukey-hanning", choices=["bartlett","parzen","qs","tukey-hanning"]),
+                OptionSpec(name="bandwidth", type=String, default="andrews", description="andrews|nw94 or a fixed truncation lag (>=0)"),
+                OptionSpec(name="leads", type=String, default="auto", description="DOLS leads: auto or a non-negative integer"),
+                OptionSpec(name="lags", type=String, default="auto", description="DOLS lags: auto or a non-negative integer"),
+                OptionSpec(name="ic", type=String, default="aic", description="DOLS lead/lag selection: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="dols-se", type=String, default="lrv", description="DOLS standard errors: lrv|robust", choices=["lrv","robust"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_cointreg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_cointreg),
+        ),
+        CommandSpec(
+            path=["estimate", "xtcointreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent panel variable (default: first variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Regressors, comma-separated (default: all other variables)"),
+                OptionSpec(name="method", type=String, default="fmols", description="fmols|dols (no ccr for panels)", choices=["fmols","dols"]),
+                OptionSpec(name="pooling", type=String, default="group", description="group (between) | pooled (within)", choices=["group","pooled"]),
+                OptionSpec(name="trend", type=String, default="const", description="Per-unit deterministics: none|const|linear", choices=["none","const","linear"]),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="HAC kernel: bartlett|parzen|qs|tukey-hanning", choices=["bartlett","parzen","qs","tukey-hanning"]),
+                OptionSpec(name="bandwidth", type=String, default="andrews", description="andrews|nw94 or a fixed truncation lag (>=0)"),
+                OptionSpec(name="leads", type=String, default="auto", description="DOLS leads: auto or a non-negative integer"),
+                OptionSpec(name="lags", type=String, default="auto", description="DOLS lags: auto or a non-negative integer"),
+                OptionSpec(name="ic", type=String, default="aic", description="DOLS lead/lag selection: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="dols-se", type=String, default="lrv", description="DOLS standard errors: lrv|robust", choices=["lrv","robust"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_xtcointreg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_xtcointreg),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -3367,4 +3421,149 @@ function _estimate_lowess(; data::String, dep::String="", indep::String="",
         "nobs" => lf.nobs,
     ]; format=format, title="LOWESS Diagnostics")
     return lf
+end
+
+# ── C062a: cointegrating regression (FMOLS / CCR / DOLS) ─────────────
+# Single-equation `estimate cointreg` (`_load_reg_data`, y = --dep levels, X = other numeric
+# columns, no intercept prepended — cointreg adds its own deterministics via --trend) and
+# panel `estimate xtcointreg` (`_load_panel_reg`). `CointRegModel`/`PanelCointRegModel` are
+# StatsAPI RegressionModels but NOT registered in MEMs `_COEF_TABLE_TYPES`, so the tidy coef
+# table is hand-built (documented C051 exception, like io/mgarch/sur). Every MEMs call is
+# wrapped → typed CliError via `_garch_variant_error`; enums are guarded up front (`choices=`
+# on the spec). The cointreg trend vocabulary is `none|const|linear` (NOT shared with other
+# leaves — PMG uses `:constant`, ARDL uses `:const`/`:trend`).
+
+"""Parse a cointreg `--bandwidth`: `andrews`|`nw94` → Symbol, else a non-negative number
+(a fixed HAC truncation lag). A bad token → typed `usage/invalid` (never a raw MEMs error)."""
+function _parse_cointreg_bandwidth(s::AbstractString)
+    (s == "andrews" || s == "nw94") && return Symbol(s)
+    v = tryparse(Float64, s)
+    (v === nothing || !isfinite(v) || v < 0) && throw(CliError("usage/invalid",
+        "--bandwidth must be andrews|nw94 or a non-negative number, got '$s'"))
+    return v
+end
+
+"""Parse a DOLS `--leads`/`--lags`: `auto` → `:auto`, else a non-negative integer.
+A bad token → typed `usage/invalid` (0 is valid — do NOT route through `_parse_bandwidth`,
+which rejects 0)."""
+function _parse_cointreg_leadlag(s::AbstractString, flag::String)
+    s == "auto" && return :auto
+    v = tryparse(Int, s)
+    (v === nothing || v < 0) && throw(CliError("usage/invalid",
+        "$flag must be 'auto' or a non-negative integer, got '$s'"))
+    return v
+end
+
+"""Hand-built coefficient table for a single-equation cointegrating regression
+(`CointRegModel`): `term|estimate|std_error|stat|p_value|ci_lower|ci_upper`. p-values/CIs use
+the large-sample normal approximation (the estimators are asymptotically mixed-normal; same
+convention as `_garch_variant_coef_table`/`dsge` using `_normal_cdf`)."""
+function _cointreg_coef_table(model)
+    est = Float64.(coef(model))
+    se = Float64.(stderror(model))
+    names = String.(model.varnames)[1:length(est)]
+    z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
+    pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    zc = 1.959963984540054   # Φ⁻¹(0.975)
+    return DataFrame(term=names, estimate=round.(est; digits=6),
+                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
+                     p_value=round.(pv; digits=4),
+                     ci_lower=round.(est .- zc .* se; digits=6),
+                     ci_upper=round.(est .+ zc .* se; digits=6))
+end
+
+"""Hand-built coefficient table for a panel cointegrating regression
+(`PanelCointRegModel`): reads the PRECOMPUTED `coef`/`se`/`tstats`/`pvalues` fields directly.
+The group-mean SE is a back-solved display SE and can be `Inf` — do NOT recompute from
+`vcov`; non-finite entries are kept (round-safe) and rendered by the non-finite-safe output
+path (C067a/C073)."""
+function _panel_cointreg_coef_table(model)
+    est = Float64.(model.coef)
+    se = Float64.(model.se)
+    names = String.(model.varnames)[1:length(est)]
+    zc = 1.959963984540054
+    return DataFrame(term=names, estimate=round.(est; digits=6),
+                     std_error=round.(se; digits=6), stat=round.(Float64.(model.tstats); digits=4),
+                     p_value=round.(Float64.(model.pvalues); digits=4),
+                     ci_lower=round.(est .- zc .* se; digits=6),
+                     ci_upper=round.(est .+ zc .* se; digits=6))
+end
+
+function _estimate_cointreg(; data::String, dep::String="", method::String="fmols",
+                             trend::String="const", kernel::String="bartlett",
+                             bandwidth::String="andrews", leads::String="auto",
+                             lags::String="auto", ic::String="aic", dols_se::String="lrv",
+                             output::String="", format::String="table")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    bw = _parse_cointreg_bandwidth(bandwidth)
+    ld = _parse_cointreg_leadlag(leads, "--leads")
+    lg = _parse_cointreg_leadlag(lags, "--lags")
+    _status("Cointegrating regression ($(uppercase(method))): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
+    _status()
+    model = try
+        estimate_cointreg(y, X; method=Symbol(method), trend=Symbol(trend),
+            kernel=Symbol(replace(kernel, '-' => '_')), bandwidth=bw,
+            leads=ld, lags=lg, ic=Symbol(ic), dols_se=Symbol(dols_se))
+    catch e
+        throw(_garch_variant_error(e, "cointreg"))
+    end
+    output_result(_cointreg_coef_table(model); format=Symbol(format), output=output,
+                  title="Cointegrating Regression Coefficients ($dep_name)")
+    pairs = Pair{String,Any}[
+        "method"    => String(model.method),
+        "trend"     => String(model.trend),
+        "kernel"    => String(model.kernel),
+        "bandwidth" => round(Float64(model.bandwidth); digits=4),
+        "omega_uv"  => round(Float64(model.omega_uv); digits=6),
+        "nobs"      => model.nobs,
+        "d"         => model.d,
+        "k"         => model.k,
+    ]
+    if model.method === :dols
+        push!(pairs, "leads" => model.leads)
+        push!(pairs, "lags"  => model.lags)
+    end
+    output_kv(pairs; format=format, title="Cointegrating Regression Diagnostics")
+    return model
+end
+
+function _estimate_xtcointreg(; data::String, id_col::String="", time_col::String="",
+                               dep::String="", indep::String="", method::String="fmols",
+                               pooling::String="group", trend::String="const",
+                               kernel::String="bartlett", bandwidth::String="andrews",
+                               leads::String="auto", lags::String="auto", ic::String="aic",
+                               dols_se::String="lrv", output::String="", format::String="table")
+    pd, depsym, indepsyms, depc, indeps = _load_panel_reg(data, id_col, time_col, dep, indep)
+    bw = _parse_cointreg_bandwidth(bandwidth)
+    ld = _parse_cointreg_leadlag(leads, "--leads")
+    lg = _parse_cointreg_leadlag(lags, "--lags")
+    _status("Panel cointegrating regression ($(uppercase(method)), $pooling): $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)")
+    _status()
+    model = try
+        estimate_xtcointreg(pd, depsym, indepsyms...; method=Symbol(method),
+            pooling=Symbol(pooling), trend=Symbol(trend),
+            kernel=Symbol(replace(kernel, '-' => '_')), bandwidth=bw,
+            leads=ld, lags=lg, ic=Symbol(ic), dols_se=Symbol(dols_se))
+    catch e
+        throw(_garch_variant_error(e, "xtcointreg"))
+    end
+    title = model.pooling === :group ? "Group-mean" : "Pooled"
+    output_result(_panel_cointreg_coef_table(model); format=Symbol(format), output=output,
+                  title="Panel Cointegrating Regression $title Coefficients ($depc)")
+    tspan = model.balanced ? string(first(model.T_i)) :
+            "$(minimum(model.T_i))-$(maximum(model.T_i))"
+    output_kv(Pair{String,Any}[
+        "method"   => String(model.method),
+        "pooling"  => String(model.pooling),
+        "trend"    => String(model.trend),
+        "kernel"   => String(model.kernel),
+        "N"        => model.N,
+        "nobs"     => model.nobs,
+        "T_i"      => tspan,
+        "balanced" => model.balanced,
+        "k"        => model.k,
+        "d"        => model.d,
+    ]; format=format, title="Panel Cointegrating Regression Diagnostics")
+    return model
 end

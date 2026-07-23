@@ -425,8 +425,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 55 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 56 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066)
-        @test length(node.subcmds) == 56
+        # 57 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 58 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a)
+        @test length(node.subcmds) == 58
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1416,6 +1416,99 @@ end  # Shared utilities
                 finally
                     old === nothing ? delete!(ENV, "FRIEDMAN_LEGACY_OUTPUT") : (ENV["FRIEDMAN_LEGACY_OUTPUT"] = old)
                 end
+            end
+        end
+    end
+
+    @testset "estimate cointreg/xtcointreg (C062a)" begin
+        # cointreg (single-equation FMOLS/CCR/DOLS) + xtcointreg (panel FMOLS/DOLS). Both
+        # render the hand-built tidy coef table term|estimate|std_error|stat|p_value|
+        # ci_lower|ci_upper (CointRegModel/PanelCointRegModel are not Tables.jl-registered)
+        # plus a metric|value diagnostics block. Bad input → typed classes, never exit-1.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        _coefcols = ("term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper")
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3, colnames=["y", "x1", "x2"])
+
+            @testset "cointreg — coef table + diag, all three methods" begin
+                for meth in ("fmols", "ccr", "dols")
+                    doc = _doc(["cointreg", csv, "--dep", "y", "--method", meth])
+                    @test doc.status == "ok"
+                    coef = _tbl_with(doc, _coefcols...)
+                    terms = Set(String(collect(r)[1]) for r in coef.rows)
+                    @test Set(["const", "x1", "x2"]) ⊆ terms   # const from default --trend const
+                    m = _metrics(doc)
+                    @test Set(["method", "trend", "kernel", "bandwidth", "omega_uv", "nobs", "d", "k"]) ⊆ m
+                end
+                # DOLS exposes leads/lags in the diagnostics block
+                @test Set(["leads", "lags"]) ⊆ _metrics(_doc(["cointreg", csv, "--dep", "y", "--method", "dols"]))
+                # --trend none drops the deterministic term
+                dn = _doc(["cointreg", csv, "--dep", "y", "--trend", "none"])
+                @test !("const" in Set(String(collect(r)[1]) for r in _tbl_with(dn, _coefcols...).rows))
+            end
+
+            @testset "xtcointreg — panel coef table + diag, group & pooled" begin
+                panel = _make_panel_csv(dir; G=6, T_per=20, n=2, colnames=["y", "x1"])
+                for pool in ("group", "pooled"), meth in ("fmols", "dols")
+                    doc = _doc(["xtcointreg", panel, "--dep", "y", "--indep", "x1",
+                                "--method", meth, "--pooling", pool])
+                    @test doc.status == "ok"
+                    @test !isempty(collect(_tbl_with(doc, _coefcols...).rows))
+                    @test Set(["method", "pooling", "trend", "kernel", "N", "nobs", "T_i", "balanced", "k", "d"]) ⊆ _metrics(doc)
+                end
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                # bad enum → ParseError (or usage/invalid) — both exit 2
+                em = _err(["cointreg", csv, "--dep", "y", "--method", "foo"])
+                @test em isa ParseError || (em isa CliError && exit_class(em) == 2)
+                # panel rejects ccr (choices=fmols|dols) at parse
+                ec = _err(["xtcointreg", _make_panel_csv(dir; G=6, T_per=20, n=2, colnames=["y", "x1"]),
+                           "--dep", "y", "--indep", "x1", "--method", "ccr"])
+                @test ec isa ParseError || (ec isa CliError && exit_class(ec) == 2)
+                # bad --dep → data/column-range (hardened _load_reg_data)
+                @test _err(["cointreg", csv, "--dep", "nope"]).code == "data/column-range"
+                # bad dual-type flags → usage/invalid (in-handler parsers, 0 valid for leads/lags)
+                @test _err(["cointreg", csv, "--dep", "y", "--bandwidth", "notanum"]).code == "usage/invalid"
+                @test _err(["cointreg", csv, "--dep", "y", "--leads", "-1"]).code == "usage/invalid"
+                # --leads 0 is VALID (do not route through _parse_bandwidth which rejects 0)
+                @test _doc(["cointreg", csv, "--dep", "y", "--method", "dols", "--leads", "0", "--lags", "0"]).status == "ok"
+                # missing cell → data/missing-values (not exit-1)
+                misscsv = joinpath(dir, "misscoint.csv")
+                write(misscsv, "y,x1\n1.0,2.0\n2.0,\n3.0,5.0\n4.0,7.0\n5.0,8.0\n6.0,9.0\n7.0,10.0\n")
+                em2 = _err(["cointreg", misscsv, "--dep", "y"])
+                @test em2 isa CliError && em2.code == "data/missing-values" && exit_class(em2) == 3
+                # xtcointreg: a missing cell in dep/indep → data/missing-values too, NOT silent
+                # NaN coefficients at exit 0 (adversarial review C062a: xtset NaN-fills blanks).
+                xtmiss = joinpath(dir, "xtmiss.csv")
+                write(xtmiss, "group,time,y,x1\n1,1,1.0,2.0\n1,2,,3.0\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                exm = _err(["xtcointreg", xtmiss, "--dep", "y", "--indep", "x1"])
+                @test exm isa CliError && exm.code == "data/missing-values" && exit_class(exm) == 3
+                # duplicate (id,time) panel → data/invalid (hardened load_panel_data)
+                dupcsv = joinpath(dir, "dupcoint.csv")
+                write(dupcsv, "group,time,y,x1\n1,1,1.0,2.0\n1,1,1.5,2.5\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                ed = _err(["xtcointreg", dupcsv, "--dep", "y", "--indep", "x1"])
+                @test ed isa CliError && ed.code == "data/invalid"
+                # non-numeric-only panel var → data/invalid
+                nncsv = joinpath(dir, "nncoint.csv")
+                write(nncsv, "group,time,label\n1,1,foo\n1,2,bar\n2,1,baz\n2,2,qux\n")
+                en = _err(["xtcointreg", nncsv, "--dep", "y", "--indep", "x1"])
+                @test en isa CliError && en.code == "data/invalid"
             end
         end
     end
@@ -3543,7 +3636,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 56  # 55 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5)
+        @test length(node.subcmds) == 58  # 57 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -4960,7 +5053,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 56  # 55 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5)
+        @test length(node.subcmds) == 58  # 57 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2)
     end
 
     @testset "register_irf_commands! includes pvar" begin

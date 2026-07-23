@@ -88,6 +88,7 @@ Friedman._load_and_structural_lp
 Friedman._var_forecast_point
 Friedman._maybe_plot
 Friedman.load_panel_data
+Friedman._load_panel_reg
 Friedman._load_dsge_model
 Friedman._solve_dsge
 Friedman._load_dsge_constraints

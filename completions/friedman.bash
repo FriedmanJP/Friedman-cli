@@ -11,7 +11,7 @@ _friedman() {
     data) COMPREPLY=( $(compgen -W "balance describe diagnose dropna filter fix keeprows list load transform validate" -- "$cur") ) ;;
     did) COMPREPLY=( $(compgen -W "estimate event-study lp-did test" -- "$cur") ) ;;
     dsge) COMPREPLY=( $(compgen -W "bayes ct estimate fevd ha hd irf olg perfect-foresight simulate solve steady-state" -- "$cur") ) ;;
-    estimate) COMPREPLY=( $(compgen -W "3sls aparch arch arfima arima bekk bvar ccc cgarch dcc dynamic egarch elastic-net fastica favar fiegarch figarch garch garch-midas gdfm gjr-garch gmm heckman igarch iv kde kernel-reg lasso logit lowess lp ml mlogit ologit oprobit piv plogit pprobit preg probit pvar reg ridge robust sdfm smm statespace static sur sv tobit truncreg tvp var vecm" -- "$cur") ) ;;
+    estimate) COMPREPLY=( $(compgen -W "3sls aparch arch arfima arima bekk bvar ccc cgarch cointreg dcc dynamic egarch elastic-net fastica favar fiegarch figarch garch garch-midas gdfm gjr-garch gmm heckman igarch iv kde kernel-reg lasso logit lowess lp ml mlogit ologit oprobit piv plogit pprobit preg probit pvar reg ridge robust sdfm smm statespace static sur sv tobit truncreg tvp var vecm xtcointreg" -- "$cur") ) ;;
     fevd) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm var vecm" -- "$cur") ) ;;
     filter) COMPREPLY=( $(compgen -W "bhp bk bn hamilton hp x13" -- "$cur") ) ;;
     forecast) COMPREPLY=( $(compgen -W "arch arima bvar dynamic egarch evaluate favar garch gdfm gjr-garch lp static sv var vecm" -- "$cur") ) ;;

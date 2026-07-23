@@ -3772,8 +3772,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 55 primary leaves + 1 snake alias (gjr_garch) = 56 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066)
-    @test length(est_node.subcmds) == 56
+    # 57 primary leaves + 1 snake alias (gjr_garch) = 58 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a)
+    @test length(est_node.subcmds) == 58
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")

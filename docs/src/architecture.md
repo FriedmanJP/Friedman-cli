@@ -44,11 +44,15 @@ preference:
    `estimate` var/reg/iv/logit/probit/preg/piv/plogit/pprobit/ologit/oprobit/mlogit.
 3. **Hand-built `DataFrame(...)`** — the pre-C051 fallback, kept only where MEMs has no
    matching result type (`irf`/`fevd pvar`, `hd`, `predict`/`residuals`, Arias/Uhlig/sign
-   IRF paths, and the whole `io` family — IO result types are not Tables.jl-registered
-   upstream) or where the tidy schema would lose information the command needs to convey
-   (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT summary).
-   The `io` matrices (Leontief/Ghosh inverses, coefficients) render **wide** (sector×sector);
-   its vector results render one row per sector.
+   IRF paths, the whole `io` family, the SUR/3SLS systems and MGARCH (CCC/DCC/BEKK) leaves,
+   the penalized/robust/Tobit/truncated/Heckman regression leaves, the state-space/TVP and
+   nonparametric (KDE/kernel-reg/LOWESS) leaves, and the single-equation/panel cointegrating
+   regression leaves (`CointRegModel`/`PanelCointRegModel`) — none of these result types are
+   Tables.jl-registered upstream) or where the tidy schema would lose information the command
+   needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
+   summary). The `io` matrices (Leontief/Ghosh inverses, coefficients) and MGARCH conditional
+   correlations render **wide** (sector×sector / series×series); vector results render one row
+   per sector/term.
 
 ## CLI Framework
 

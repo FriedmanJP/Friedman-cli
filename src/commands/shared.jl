@@ -837,6 +837,48 @@ function load_panel_data(data::String, id_col::String, time_col::String)
 end
 
 """
+    _load_panel_reg(data, id_col, time_col, dep, indep) → (pd, depsym, indepsyms, depc, indeps)
+
+Load a long-format panel CSV and resolve `--dep`/`--indep` to `Symbol`s for the panel
+estimators that take `(PanelData, dep, xs...)` — `estimate xtcointreg` (C062a) and, later,
+`estimate pmg` / `test pmg-hausman` (C062c). Generalizes `_panel_coint_inputs` (test.jl):
+`id`/`time` default to the first/second DATA column, `--dep` defaults to the first panel
+variable, and `--indep` defaults to every other variable. Reuses the hardened
+`load_panel_data` (typed duplicate-`(id,time)` / non-numeric / missing-column guards) and
+validates every resolved name → `usage/invalid`, so bad input never reaches MEMs as an
+untyped exit-1.
+"""
+function _load_panel_reg(data::String, id_col::String, time_col::String,
+                         dep::String, indep::String)
+    df = load_data(data)
+    cols = names(df)
+    length(cols) >= 3 || throw(CliError("usage/invalid",
+        "panel cointegrating regression needs id, time, and variable column(s) (found $(length(cols)))"))
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)          # typed: data/missing-column, data/invalid
+    vars = pd.varnames                          # numeric cols minus id/time (non-empty — load_panel_data guards)
+    depc = isempty(dep) ? vars[1] : dep
+    depc in vars || throw(CliError("usage/invalid",
+        "--dep '$depc' is not a panel variable (have: $(join(vars, ", ")))"))
+    indeps = isempty(indep) ? filter(!=(depc), vars) : _parse_varlist(indep)
+    isempty(indeps) && throw(CliError("usage/invalid", "need at least one regressor via --indep"))
+    for v in indeps
+        v in vars || throw(CliError("usage/invalid",
+            "--indep '$v' is not a panel variable (have: $(join(vars, ", ")))"))
+    end
+    # Guard missing cells in the dep + regressor columns: `xtset`/`load_panel_data` silently
+    # NaN-fills a blank cell (data/panel.jl `ismissing(v) ? NaN : …`), which would propagate to
+    # NaN coefficients at exit 0 — inconsistent with `estimate cointreg`'s `_load_reg_data`,
+    # which rejects the same input. Reject it here too (adversarial review C062a).
+    for c in vcat([depc], indeps)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    return pd, Symbol(depc), Symbol.(indeps), depc, indeps
+end
+
+"""
     _load_and_estimate_pvar(data, id_col, time_col, lags; kwargs...) -> (model, panel, varnames)
 
 Combined load + estimate for Panel VAR.
