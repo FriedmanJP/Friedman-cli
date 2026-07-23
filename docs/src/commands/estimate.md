@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 59 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 60 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -1096,6 +1096,35 @@ friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umida
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** a headline **weight-curve table** (`lag|weight`, length `K`, most-recent-first; for `umidas` these are the raw lag coefficients) + a coefficient table (`term|estimate|std_error|stat|p_value` over `[β; θ]`, normal-approximation p-values) + diagnostics (`weights_kind`, `m`, `K`, `p_ar`, `poly_degree`, `h`, `nobs`, `r2`, `adj_r2`, `ssr`, `sigma2`, `aic`, `bic`, `loglik`, `converged`). `MidasModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). The restricted NLS is noisy on short samples; a "failed to converge from any start" is surfaced as `model/convergence`. `forecast midas` is deferred to a later release. **Frequency-alignment note:** the loader requires `length(HF) ≥ m × length(LF)` and drops the leading ragged edge (reported on stderr); the estimator then drops any remaining incomplete `K`-block internally.
+
+## estimate setar
+
+**Self-exciting threshold autoregression (SETAR)** (Tong 1990; Hansen 2000) — a two-regime autoregression whose regime is switched by a lagged value of the series itself. The model is `yₜ = X_t'β₁·1{qₜ ≤ γ} + X_t'β₂·1{qₜ > γ} + uₜ`, with `qₜ = y_{t−d}` the self-exciting threshold variable and `X_t = [1, y_{t−1}, …, y_{t−p}]`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; its confidence interval inverts the Hansen (2000) likelihood-ratio statistic (tabulated only for the three levels below).
+
+`--d` is the delay lag `d` and accepts either a positive integer or `auto` (search the `1:p` grid and pick the delay with the smallest concentrated SSR). By default a **Hansen (1996) sup-LM / sup-Wald linearity test** is fitted alongside and folded into the diagnostics (`--no-linearity` skips it; `--het` uses a heteroskedastic White bootstrap for its p-values). `--ci-level` must be **exactly** one of `0.90`, `0.95`, `0.99` — the Hansen (2000) critical values are tabulated only at those levels.
+
+```bash
+# SETAR(2; 1, 1) with delay d = 1 and 1000 bootstrap replications
+friedman estimate setar y.csv --p 1 --d 1
+
+# Auto-select the delay over the 1:p grid; heteroskedastic bootstrap, no linearity test
+friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | `1` | Column index (1-based) |
+| `--p` | | Int | `1` | AR order (≥ 1) |
+| `--d` | | String | `1` | Delay lag: an integer ≥ 1, or `auto` (=`1:p` grid) |
+| `--trim` | | Float | `0.15` | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | | Int | `1000` | Bootstrap reps for the Hansen test / threshold CI (≥ 1) |
+| `--ci-level` | | Float | `0.95` | Threshold CI level: `0.90`, `0.95`, or `0.99` (exact) |
+| `--het` | | Flag | off | Heteroskedastic (White) bootstrap |
+| `--no-linearity` | | Flag | off | Skip the attached Hansen (1996) linearity test |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
 
 ## estimate iv
 

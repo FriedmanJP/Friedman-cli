@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 52 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR linearity), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 53 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -169,6 +169,27 @@ friedman test bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Per-dimension table (`embed_dim|statistic|p_value`); the decision uses the smallest p-value across dimensions.
+
+### test hansen-linearity
+
+Hansen (1996) **sup-LM / sup-Wald test of linearity** against a two-regime SETAR threshold alternative, with fixed-regressor-bootstrap p-values. H0 is that the series is linear (`β₁ = β₂`, no threshold); a **low p-value rejects** linearity in favour of a two-regime self-exciting threshold model. Because the threshold `γ` is unidentified under the null (the Davies problem), the distribution is nonstandard and p-values come from Hansen's fixed-regressor bootstrap, not a χ². The handler builds the SETAR design internally by fitting `estimate_setar(y, p, d; linearity=true)` and surfacing its attached test (identical numbers to a standalone build). This is the same test folded into [`estimate setar`](estimate.md#estimate-setar)'s diagnostics, exposed here as a first-class test leaf.
+
+```bash
+friedman test hansen-linearity y.csv --column=1 --p=1 --d=1
+friedman test hansen-linearity y.csv --p=2 --d=1 --reps=2000
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | AR order for the SETAR design (≥ 1) |
+| `--d` | | Int | 1 | Delay lag for the threshold variable `q = y[t−d]` (≥ 1) |
+| `--trim` | | Float | 0.15 | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | | Int | 1000 | Fixed-regressor bootstrap replications (≥ 1) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a kv block (`sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`, `reps`, `trim`, `n_grid`) plus a decision line. A too-short series (too few observations for the SETAR design) surfaces as a typed `data/invalid`, never an uncaught internal error.
 
 ## Instrumental-Variable Diagnostics
 

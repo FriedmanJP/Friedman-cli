@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 61
+**Leaves:** 62
 
 ### `friedman estimate 3sls`
 
@@ -1219,6 +1219,35 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_sdfm` (Path to CSV data file)
+
+---
+
+### `friedman estimate setar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap reps for the Hansen test / threshold CI (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--het` | — | Heteroskedastic (White) bootstrap for the linearity test / CI |
+| `--no-linearity` | — | Skip the attached Hansen (1996) linearity test |
+
+**Output tables:** `estimate_setar` (Path to CSV data file)
 
 ---
 

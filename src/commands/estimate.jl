@@ -798,6 +798,33 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_midas),
         ),
+        # ── C065a: SETAR (self-exciting threshold autoregression) ──
+        # Two-regime SETAR via `estimate_setar` (Hansen 2000 threshold CI + attached
+        # Hansen 1996 linearity test). Hand-built two-regime coef table + kv diagnostics
+        # (ThresholdModel is NOT in MEMs `_COEF_TABLE_TYPES`). `--d` is a `Int|:auto`
+        # sentinel; `--ci-level` MUST be exactly 0.90/0.95/0.99 (Hansen 2000 tabulation).
+        CommandSpec(
+            path=["estimate", "setar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap reps for the Hansen test / threshold CI (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=[
+                FlagSpec(name="het", description="Heteroskedastic (White) bootstrap for the linearity test / CI"),
+                FlagSpec(name="no-linearity", description="Skip the attached Hansen (1996) linearity test")
+            ],
+            tables=[TableSpec(name=:estimate_setar, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_setar),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -2802,6 +2829,56 @@ function _garch_variant_error(e, label::String)
         hint="the QMLE optimizer did not converge — try a longer or cleaner return series")
 end
 
+# ── C065 nonlinear-TS shared renderers/mappers (reused by SETAR/STAR/MS sub-waves) ──
+# The three nonlinear model types are NOT in MEMs `_COEF_TABLE_TYPES`, so every
+# coefficient table is hand-built (the documented C051 exception, like io/mgarch/sur).
+
+"""Tidy per-regime coefficient table for a nonlinear-TS model regime block:
+`regime | term | estimate | std_error | z_stat | p_value` (large-sample normal
+z/p, matching the `_garch_variant`/`dsge` `_normal_cdf` convention). Callers `vcat`
+the two regime blocks into one table (C065a SETAR, reused by C065b STAR)."""
+function _threshold_coef_table(betas::AbstractVector, ses::AbstractVector,
+                               terms::Vector{String}, regime_label::String)
+    b = Float64.(betas); s = Float64.(ses)
+    n = length(b)
+    tm = length(terms) == n ? terms : String["term$i" for i in 1:n]
+    z  = [s[i] == 0.0 ? 0.0 : b[i] / s[i] for i in 1:n]
+    pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
+                     estimate=round.(b; digits=6), std_error=round.(s; digits=6),
+                     z_stat=round.(z; digits=4), p_value=round.(pv; digits=4))
+end
+
+"""Map an untyped MEMs nonlinear-TS failure (SETAR/STAR/MS estimator, test, or
+forecast) to a typed CliError — never an uncaught exit-1 on bad input (the standing
+shared lesson). Same shape as `_garch_variant_error`: bad-input `ArgumentError`/
+`DomainError` → `data/invalid` (3); external-series length mismatch → `data/shape`
+(3); anything else (optimizer failure) → `model/error` (5); a `CliError` passes
+through."""
+function _nonlinear_error(e, label::String)
+    e isa CliError && return e
+    if e isa ArgumentError || e isa DomainError
+        return CliError("data/invalid", "$label: $(sprint(showerror, e))";
+            hint="check the series length, AR order p, delay d, trimming, and any external transition series")
+    elseif e isa DimensionMismatch
+        return CliError("data/shape", "$label: $(sprint(showerror, e))")
+    end
+    return CliError("model/error", "$label failed: $(sprint(showerror, e))";
+        hint="the nonlinear optimizer did not converge — try a longer or cleaner series")
+end
+
+"""Parse a SETAR `--d` delay argument: the sentinel `"auto"` → `:auto` (=1:p grid
+inside MEMs), else a positive integer. Junk or a non-positive integer → a typed
+`usage/invalid` (never a raw parse throw). Shared by `estimate setar`/`forecast setar`."""
+function _parse_setar_delay(d::AbstractString)
+    lowercase(strip(d)) == "auto" && return :auto
+    v = tryparse(Int, strip(d))
+    v === nothing && throw(CliError("usage/invalid",
+        "--d must be 'auto' or a positive integer (got '$d')"))
+    v >= 1 || throw(CliError("usage/invalid", "--d must be ≥ 1 (got $v)"))
+    return v
+end
+
 function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                            output::String="", format::String="table")
     y, vname = load_univariate_series(data, column)
@@ -4039,5 +4116,69 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
         "loglik"       => _ardl_kv(model.loglik; digits=4),
         "converged"    => model.converged,
     ]; format=format, title="MIDAS Diagnostics")
+    return model
+end
+
+# ── C065a: SETAR handler ───────────────────────────────────────
+# Every user option is guarded up-front → usage/invalid (before any MEMs call); the
+# estimator is try-wrapped → typed CliError via `_nonlinear_error` (never exit-1). The
+# two regime blocks render via the shared `_threshold_coef_table`; the Hansen (1996)
+# linearity test, attached iff `linearity`, folds into the diagnostics kv.
+function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
+                          trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
+                          het::Bool=false, no_linearity::Bool=false,
+                          output::String="", format::String="table")
+    p >= 1 || throw(CliError("usage/invalid", "estimate setar: --p must be ≥ 1 (got $p)"))
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "estimate setar: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "estimate setar: --reps must be ≥ 1 (got $reps)"))
+    # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
+    # else makes `_hansen2000_crit` throw an uncaught ArgumentError, so guard exactly.
+    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
+        "estimate setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    d_arg = _parse_setar_delay(d)
+    y, vname = load_univariate_series(data, column)
+    _status("Estimating SETAR(2;$p,$p): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level" *
+            (het ? ", het bootstrap" : "") * (no_linearity ? ", linearity test skipped" : ""))
+    _status()
+    model = try
+        estimate_setar(y, p, d_arg; trim=trim, linearity=!no_linearity, reps=reps,
+                       ci_level=ci_level, het=het)
+    catch e
+        throw(_nonlinear_error(e, "SETAR"))
+    end
+    coef = vcat(
+        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 (q≤γ)"),
+        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 (q>γ)"),
+    )
+    output_result(coef; format=Symbol(format), output=output,
+                  title="SETAR(2;$p,$p) Coefficients ($vname)")
+    diag = Pair{String,Any}[
+        "gamma"          => round(Float64(model.gamma); digits=6),
+        "gamma_ci_lower" => round(Float64(model.gamma_ci[1]); digits=6),
+        "gamma_ci_upper" => round(Float64(model.gamma_ci[2]); digits=6),
+        "gamma_ci_level" => Float64(model.gamma_ci_level),
+        "n"              => model.n,
+        "n1"             => model.n1,
+        "n2"             => model.n2,
+        "ssr"            => round(Float64(model.ssr); digits=6),
+        "sigma2"         => round(Float64(model.sigma2); digits=6),
+        "aic"            => round(Float64(model.aic); digits=4),
+        "bic"            => round(Float64(model.bic); digits=4),
+        "p"              => model.p,
+        "d"              => model.d,
+        "is_setar"       => model.is_setar,
+    ]
+    if model.linearity !== nothing
+        lt = model.linearity
+        append!(diag, Pair{String,Any}[
+            "sup_lm"      => round(Float64(lt.sup_lm); digits=4),
+            "pvalue_lm"   => round(Float64(lt.pvalue_lm); digits=4),
+            "sup_wald"    => round(Float64(lt.sup_wald); digits=4),
+            "pvalue_wald" => round(Float64(lt.pvalue_wald); digits=4),
+            "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
+        ])
+    end
+    output_kv(diag; format=format, title="SETAR(2;$p,$p) Diagnostics")
     return model
 end

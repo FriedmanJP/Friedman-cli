@@ -3,7 +3,7 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 20
+**Leaves:** 21
 
 ### `friedman forecast arch`
 
@@ -417,6 +417,30 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `forecast_lp` (Path to CSV data file)
+
+---
+
+### `friedman forecast setar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
+| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `forecast_setar` (Path to CSV data file)
 
 ---
 

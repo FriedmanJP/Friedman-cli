@@ -296,6 +296,27 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_bds),
         ),
+        # C065a: Hansen (1996) sup-LM / sup-Wald test of linearity vs a two-regime SETAR
+        # threshold, with fixed-regressor-bootstrap p-values. Reads `.linearity` off a
+        # `estimate_setar(...; linearity=true)` fit (identical numbers, no design rebuild).
+        CommandSpec(
+            path=["test", "hansen-linearity"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order for the SETAR design (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the threshold variable q=y[t-d] (≥ 1)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Fixed-regressor bootstrap replications (≥ 1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_hansen_linearity, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_hansen_linearity),
+        ),
         CommandSpec(
             path=["test", "hadri"],
             summary="Path to CSV data file (rows=T, cols=N units)",
@@ -1957,6 +1978,44 @@ function _test_bds(; data::String, column::Int=1, max_dim::Int=6, eps_frac::Floa
     interpret_test_result(minimum(Float64.(res.pvalue)),
         "Reject H0 (iid) at 5% -- nonlinear dependence / structure detected",
         "Cannot reject H0 (iid) at 5%")
+    return res
+end
+
+# C065a: Hansen (1996) linearity test. Per the locked design decision, DO NOT rebuild the
+# SETAR design in-handler — fit `estimate_setar(y, p, d; linearity=true, ...)` and read the
+# attached `HansenLinearityTest` (`.linearity`); identical numbers, far less code. Every
+# option is guarded up-front → usage/invalid; the fit is try-wrapped → typed CliError via the
+# shared `_nonlinear_error` (a too-short series surfaces there as data/invalid, never exit-1).
+function _test_hansen_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
+        trim::Float64=0.15, reps::Int=1000, format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "test hansen-linearity: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "test hansen-linearity: --d must be ≥ 1 (got $d)"))
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "test hansen-linearity: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "test hansen-linearity: --reps must be ≥ 1 (got $reps)"))
+    y, vname = load_univariate_series(data, column)
+    _status("Hansen (1996) Linearity Test: variable=$vname, observations=$(length(y)), SETAR(p=$p, d=$d), reps=$reps"); _status()
+    model = try
+        estimate_setar(y, p, d; linearity=true, reps=reps, trim=trim)
+    catch e
+        throw(_nonlinear_error(e, "Hansen linearity test"))
+    end
+    res = model.linearity
+    res === nothing && throw(CliError("model/error",
+        "Hansen linearity test: the SETAR fit did not attach a linearity test result"))
+    output_kv(Pair{String,Any}[
+        "sup_lm"      => round(Float64(res.sup_lm); digits=4),
+        "pvalue_lm"   => round(Float64(res.pvalue_lm); digits=4),
+        "sup_wald"    => round(Float64(res.sup_wald); digits=4),
+        "pvalue_wald" => round(Float64(res.pvalue_wald); digits=4),
+        "gamma_sup"   => round(Float64(res.gamma_sup); digits=6),
+        "reps"        => res.reps,
+        "trim"        => round(Float64(res.trim); digits=4),
+        "n_grid"      => res.n_grid,
+    ]; format=format, output=output, title="Hansen (1996) Linearity Test: $vname")
+    interpret_test_result(Float64(res.pvalue_lm),
+        "Reject H0 (linearity) at 5% -- evidence of two-regime threshold nonlinearity",
+        "Cannot reject H0 (linearity) at 5%")
     return res
 end
 

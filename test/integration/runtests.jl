@@ -773,6 +773,85 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "estimate setar + test hansen-linearity + forecast setar — nonlinear TS (C065a, M5c)" begin
+        # Real SETAR/threshold family. Teeth are LOOSE/direction-only (bootstrap Hansen +
+        # threshold search are noisy): both regimes populated, γ̂ inside its CI, finite AIC,
+        # and the nonlinear DGP rejects linearity (pvalue_lm < 0.10).
+        Random.seed!(65065)
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        mv(doc, name) = (d = _diag(doc); d === nothing ? nothing : metric_value(d, name))
+
+        @testset "estimate setar — two regimes, γ in CI, attached Hansen rejects" begin
+            csv = dgp_setar(; n=400, seed=651)
+            r = run_json(["estimate", "setar", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "199"])
+            assert_envelope_ok(r; label="estimate setar")
+            # coef table: regime|term|estimate|std_error|z_stat|p_value, 2 regimes × 2 terms
+            ct = nothing
+            for (_, v) in pairs(r.doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "regime" in table_cols(v) && (ct = v)
+            end
+            @test ct !== nothing
+            @test Set(["regime", "term", "estimate", "std_error"]) ⊆ Set(table_cols(ct))
+            @test length(table_rows(ct)) == 4
+            @test string(mv(r.doc, "is_setar")) == "true"
+            @test Int(mv(r.doc, "n1")) > 0 && Int(mv(r.doc, "n2")) > 0
+            γ  = Float64(mv(r.doc, "gamma"))
+            γl = Float64(mv(r.doc, "gamma_ci_lower")); γu = Float64(mv(r.doc, "gamma_ci_upper"))
+            @test isfinite(γ) && γl < γ < γu
+            @test isfinite(Float64(mv(r.doc, "aic")))
+            # attached Hansen (1996) linearity test rejects on the nonlinear DGP (loose)
+            @test Float64(mv(r.doc, "pvalue_lm")) < 0.10
+            # --d auto grid also runs
+            @test run_json(["estimate", "setar", csv, "--p", "1", "--d", "auto", "--reps", "99"]).code == 0
+            # a constant series admits no threshold split → data/invalid (exit 3) on REAL MEMs
+            # (ArgumentError "Empty threshold grid"), NEVER an internal exit 1 — the mock mirrors this class
+            constcsv = write_csv(DataFrame(y=fill(1.0, 60)); prefix="setar_const")
+            @test run_json(["estimate", "setar", constcsv, "--p", "1", "--d", "1"]).code == 3
+            rm(csv; force=true); rm(constcsv; force=true)
+        end
+
+        @testset "test hansen-linearity — rejects on the SETAR DGP" begin
+            csv = dgp_setar(; n=400, seed=652)
+            r = run_json(["test", "hansen-linearity", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "199"])
+            assert_envelope_ok(r; label="test hansen-linearity")
+            @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald", "gamma_sup", "n_grid"]) ⊆
+                  Set(String(string(collect(row)[1])) for row in table_rows(_diag(r.doc)))
+            @test Float64(mv(r.doc, "pvalue_lm")) < 0.10
+            # too-short series → data/invalid (wrapped estimate_setar), never internal exit-1
+            short = write_csv(DataFrame(y=collect(1.0:6.0)); prefix="setar_short")
+            @test run_json(["test", "hansen-linearity", short, "--p", "1", "--d", "1"]).code == 3
+            rm(csv; force=true); rm(short; force=true)
+        end
+
+        @testset "forecast setar — h=6 finite paths, lower ≤ value ≤ upper" begin
+            csv = dgp_setar(; n=400, seed=653)
+            r = run_json(["forecast", "setar", csv, "--column", "1", "--p", "1", "--d", "1",
+                          "--horizons", "6", "--reps", "199"])
+            assert_envelope_ok(r; label="forecast setar")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "value", "lower", "upper"]
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(rows) == 6
+            vi = col_index(tbl, "value"); li = col_index(tbl, "lower"); ui = col_index(tbl, "upper")
+            for row in rows
+                v = Float64(row[vi]); lo = Float64(row[li]); hi = Float64(row[ui])
+                @test isfinite(v) && isfinite(lo) && isfinite(hi)
+                @test lo <= v <= hi
+            end
+            # --ci-level 0.8 → usage error (exit 2), not a Hansen-crit crash
+            @test run_json(["forecast", "setar", csv, "--horizons", "4", "--ci-level", "0.8"]).code == 2
+            rm(csv; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

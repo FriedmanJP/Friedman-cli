@@ -371,3 +371,16 @@ function dgp_midas(; Tlf::Int=120, m::Int=3, K::Int=6, a::Float64=1.0, b::Float6
     hf = write_csv(DataFrame(ip=x); prefix="midas_hf")
     return lf, hf, b
 end
+
+"""Genuine two-regime SETAR: yₜ = 0.6 yₜ₋₁ + εₜ if yₜ₋₁ ≤ 0, else -0.5 yₜ₋₁ + εₜ. The
+sign flip of the AR coefficient at the threshold 0 makes this self-exciting series clearly
+nonlinear → both regimes are populated, γ̂ lands near 0, and the Hansen (1996) linearity
+test rejects linearity (loose bootstrap direction)."""
+function dgp_setar(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    y = zeros(n)
+    for t in 2:n
+        y[t] = (y[t-1] <= 0 ? 0.6 * y[t-1] : -0.5 * y[t-1]) + randn(rng)
+    end
+    return write_csv(DataFrame(y=y); prefix="setar")
+end

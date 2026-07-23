@@ -426,8 +426,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 61 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 62 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d)
-        @test length(node.subcmds) == 62
+        # 62 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 63 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a)
+        @test length(node.subcmds) == 63
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1822,6 +1822,83 @@ end  # Shared utilities
         end
     end
 
+    @testset "estimate setar (C065a)" begin
+        # SETAR: two-regime hand-built coef table (regime|term|estimate|std_error|z_stat|
+        # p_value, 2 regimes × |xnames| rows) + diagnostics kv; the attached Hansen (1996)
+        # linearity test folds into the kv iff linearity is on (default). ThresholdModel is
+        # not Tables.jl-registered. Every option is guarded up-front → usage/invalid; the
+        # estimator is wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "setar"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "setar"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "coef table (2 regimes) + diagnostics + attached linearity" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--reps", "50"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # p=1 ⇒ xnames = [const, y[t-1]] (2 terms) × 2 regimes = 4 rows
+                @test length(rows) == 4
+                regimes = Set(String(collect(r)[1]) for r in rows)
+                @test length(regimes) == 2
+                m = _metrics(doc)
+                @test Set(["gamma", "gamma_ci_lower", "gamma_ci_upper", "n", "n1", "n2",
+                           "aic", "bic", "is_setar"]) ⊆ m
+                # linearity on by default → Hansen sup-LM / p-value present in the kv
+                @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald", "gamma_sup"]) ⊆ m
+            end
+
+            @testset "--no-linearity drops the attached test; --d auto ok" begin
+                dn = _doc([csv, "--no-linearity"])
+                @test dn.status == "ok"
+                @test !("sup_lm" in _metrics(dn))
+                @test _doc([csv, "--d", "auto"]).status == "ok"
+                @test _doc([csv, "--p", "2", "--d", "2"]).status == "ok"
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--trim", "0.6"]).code == "usage/invalid"
+                @test _err([csv, "--reps", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "foo"]).code == "usage/invalid"
+                @test _err([csv, "--d", "0"]).code == "usage/invalid"
+                # --ci-level 0.8: blocked by choices at parse (ParseError, exit 2) or the
+                # in-handler exact-float guard (CliError usage/invalid, exit 2)
+                eci = _err([csv, "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+                # out-of-range column / missing cell via the hardened univariate loader
+                @test _err([csv, "--column", "99"]).code == "data/column-range"
+                misscsv = joinpath(dir, "miss.csv")
+                write(misscsv, "y,aux\n" * join(["$(i == 5 ? "" : string(0.1 * i)),0.5" for i in 1:60], "\n") * "\n")
+                em = _err([misscsv, "--column", "1"])
+                @test em isa CliError && em.code == "data/missing-values" && exit_class(em) == 3
+                # A (near-)constant series admits no threshold split → data/invalid (exit 3), NOT an
+                # internal model/error: real MEMs raises ArgumentError("Empty threshold grid") and the
+                # mock mirrors that class (so the T1/T2 exit class tracks real's T3, not a
+                # SingularException → model/error divergence).
+                constcsv = joinpath(dir, "const.csv")
+                write(constcsv, "y\n" * join(fill("1.0", 60), "\n") * "\n")
+                ec = _err([constcsv, "--column", "1"])
+                @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
+            end
+        end
+    end
+
     @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
         _edoc(args) = begin
             out = _capture() do
@@ -2411,8 +2488,8 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 56 primary + 2 snake aliases (arch_lm, ljung_box) = 58 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
-        @test length(node.subcmds) == 58
+        # 57 primary + 2 snake aliases (arch_lm, ljung_box) = 59 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a)
+        @test length(node.subcmds) == 59
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
@@ -2819,6 +2896,50 @@ end  # Estimate handlers
                 strcsv = joinpath(dir, "panel_str.csv")
                 write(strcsv, "id,time,label\n1,1,foo\n1,2,bar\n2,1,baz\n2,2,qux\n")
                 es = _errcode(["pedroni", strcsv])
+                @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
+            end
+        end
+    end
+
+    @testset "test hansen-linearity (C065a)" begin
+        # Hansen (1996) sup-LM/sup-Wald linearity test via the attached SETAR `.linearity`.
+        # Pure kv (sup_lm/pvalue_lm/sup_wald/pvalue_wald/gamma_sup/reps/trim/n_grid) + an
+        # interpretation line. Options guarded up-front → usage/invalid; a too-short series
+        # surfaces (through the wrapped estimate_setar) as a typed data/invalid, never exit-1.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test", "hansen-linearity"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test", "hansen-linearity"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            uni = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "kv keys + interpretation" begin
+                doc = _doc([uni, "--column", "1", "--p", "1", "--d", "1", "--reps", "50"])
+                @test doc.status == "ok"
+                @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald",
+                           "gamma_sup", "reps", "trim", "n_grid"]) ⊆ _metrics(doc)
+            end
+
+            @testset "bad input → typed classes" begin
+                @test _errcode([uni, "--p", "0"]).code == "usage/invalid"
+                @test _errcode([uni, "--d", "0"]).code == "usage/invalid"
+                @test _errcode([uni, "--trim", "0.7"]).code == "usage/invalid"
+                # too-short series → data/invalid (wrapped estimate_setar ArgumentError)
+                short = joinpath(dir, "short.csv")
+                write(short, "y\n" * join([string(0.1 * i) for i in 1:6], "\n") * "\n")
+                es = _errcode([short, "--p", "1", "--d", "1"])
                 @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
             end
         end
@@ -3511,8 +3632,8 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 14 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 16 keys (C044/C072)
-        @test length(node.subcmds) == 16
+        # 15 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 17 keys (C044/C072; +setar C065a)
+        @test length(node.subcmds) == 17
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -3523,6 +3644,56 @@ end  # HD handlers
         @test node.subcmds["evaluate"] isa NodeCommand
         for leaf in ["metrics", "dm", "clark-west", "mincer-zarnowitz", "encompassing", "combine"]
             @test haskey(node.subcmds["evaluate"].subcmds, leaf)
+        end
+    end
+
+    @testset "forecast setar (C065a)" begin
+        # SETAR bootstrap forecast: re-estimate then forecast → ThresholdForecast, rendered
+        # via the generic long_table (horizon|variable|value|lower|upper). Options guarded
+        # up-front → usage error; MEMs calls wrapped → typed CliError (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["forecast", "setar"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "setar"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "long_table forecast columns + horizon count" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--horizons", "6", "--reps", "50"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "horizon")
+                @test Set(["horizon", "variable", "value", "lower", "upper"]) ⊆ Set(String.(tbl.columns))
+                @test length(collect(tbl.rows)) == 6
+            end
+
+            @testset "bad input → usage error" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--horizons", "0"]).code == "usage/invalid"
+                @test _err([csv, "--reps", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "foo"]).code == "usage/invalid"
+                eci = _err([csv, "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+            end
+
+            @testset "no --plot/--plot-save (MEMs has no ThresholdForecast plot recipe)" begin
+                # Intentionally NOT offered: real MEMs 0.7.0 ships no plot_result(::ThresholdForecast),
+                # so advertising the flag would drive _maybe_plot into an uncaught MethodError → exit 1.
+                # They must be rejected as unknown options (exit 2), never silently accepted.
+                ep = _err([csv, "--plot"])
+                @test ep isa ParseError || (ep isa CliError && exit_class(ep) == 2)
+                eps = _err([csv, "--plot-save", joinpath(dir, "out.html")])
+                @test eps isa ParseError || (eps isa CliError && exit_class(eps) == 2)
+            end
         end
     end
 
@@ -3945,7 +4116,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 62  # 61 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas)
+        @test length(node.subcmds) == 63  # 62 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -3970,13 +4141,13 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 16  # 14 primary + gjr_garch alias + evaluate node
+        @test length(node.subcmds) == 17  # 15 primary + gjr_garch alias + evaluate node (+setar C065a)
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 58  # 56 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
+        @test length(node.subcmds) == 59  # 57 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5362,7 +5533,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 62  # 61 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas)
+        @test length(node.subcmds) == 63  # 62 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -5393,7 +5564,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 58  # 56 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c)
+        @test length(node.subcmds) == 59  # 57 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a)
     end
 
     @testset "_parse_varlist" begin

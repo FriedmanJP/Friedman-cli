@@ -1,6 +1,6 @@
 # forecast
 
-Compute forecasts. 14 model subcommands covering VAR, BVAR, LP, ARIMA, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
+Compute forecasts. 15 model subcommands covering VAR, BVAR, LP, ARIMA, SETAR, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
 
 ## Output format (C051)
 
@@ -125,6 +125,28 @@ friedman forecast arima data.csv --column=2 --criterion=aic
 | `--plot-save` | | String | | Save plot to HTML file |
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate).
+
+## forecast setar
+
+Bootstrap-simulation forecast from a **self-exciting threshold autoregression (SETAR)**. The handler re-estimates the SETAR (see [`estimate setar`](estimate.md#estimate-setar)) and then simulates forward paths through the fitted two-regime dynamics, reporting the mean path and percentile bands. `--d` accepts an integer delay or `auto` (=`1:p` grid); `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` (the re-estimated threshold CI uses the Hansen 2000 tabulation). Only self-exciting SETAR models are forecastable, so no external transition-variable option is offered.
+
+```bash
+friedman forecast setar y.csv --p=1 --d=1 --horizons=12
+friedman forecast setar y.csv --p=2 --d=auto --horizons=6 --ci-level=0.90 --reps=2000
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | AR order (≥ 1) |
+| `--d` | | String | `1` | Delay lag: an integer ≥ 1, or `auto` (=`1:p` grid) |
+| `--horizons` | `-h` | Int | 12 | Forecast horizon (≥ 1) |
+| `--reps` | | Int | 1000 | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | | Float64 | 0.95 | Band coverage: `0.90`, `0.95`, or `0.99` (exact) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `ThresholdForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Unlike the other `forecast` leaves, `forecast setar` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `ThresholdForecast` (only the fitted `ThresholdModel` from `estimate setar` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
 
 ## forecast static
 

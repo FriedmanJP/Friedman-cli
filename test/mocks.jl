@@ -3568,6 +3568,205 @@ long_table(f::VECMForecast)       = _mock_fc_lt(f.levels, f.ci_lower, f.ci_upper
 long_table(f::FactorForecast)     = _mock_fc_lt(f.observables, f.observables_lower, f.observables_upper, String[])
 export long_table
 
+# ─── C065a: SETAR / threshold nonlinear-TS mocks ─────────────
+# Mirror the real MEMs 0.7.0 nonlinear types (src/nonlinear/{types,threshold}.jl), fields a
+# subset in real order so check_mock_surface (mock ⊆ real) passes. HansenLinearityTest is
+# defined BEFORE ThresholdModel (a Union field references it); all estimator/forecast/test
+# fns are defined AFTER the structs. The estimators VALIDATE like real (throwing the same
+# ArgumentError/DimensionMismatch classes) so the CLI's `_nonlinear_error` mapping is honestly
+# exercised at T1/T2, then return a genuine-ish two-regime OLS fit. NO `; kwargs...` absorbers.
+struct HansenLinearityTest{T<:AbstractFloat}
+    sup_lm::T
+    sup_wald::T
+    pvalue_lm::T
+    pvalue_wald::T
+    gamma_sup::T
+    reps::Int
+    trim::T
+    n_grid::Int
+end
+
+struct ThresholdModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
+    y::Vector{T}
+    X::Matrix{T}
+    q::Vector{T}
+    gamma::T
+    gamma_ci::Tuple{T,T}
+    gamma_ci_level::T
+    beta1::Vector{T}
+    beta2::Vector{T}
+    se1::Vector{T}
+    se2::Vector{T}
+    regime::Vector{Bool}
+    ssr1::T
+    ssr2::T
+    ssr::T
+    sigma2::T
+    residuals::Vector{T}
+    n::Int
+    k::Int
+    n1::Int
+    n2::Int
+    p::Int
+    d::Int
+    is_setar::Bool
+    aic::T
+    bic::T
+    xnames::Vector{String}
+    qname::String
+    trim::T
+    linearity::Union{Nothing,HansenLinearityTest{T}}
+end
+
+struct ThresholdForecast{T<:AbstractFloat}
+    forecast::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    se::Vector{T}
+    horizon::Int
+    conf_level::T
+    reps::Int
+end
+
+# Ordinary least squares on (Xr, yr): returns (beta, se, ssr); falls back to a degenerate
+# fit if the regime has too few observations (mirrors the pooled-fallback edge in real).
+function _mock_ols_regime(Xr::AbstractMatrix, yr::AbstractVector)
+    k = size(Xr, 2)
+    if size(Xr, 1) > k
+        b = Xr \ yr
+        resid = yr .- Xr * b
+        ssr = sum(abs2, resid)
+        s2 = ssr / max(size(Xr, 1) - k, 1)
+        # A rank-deficient regime design (collinear columns) makes `inv(Xr'Xr)` throw an untyped
+        # SingularException. Real MEMs never reaches SE computation on such a split (its threshold
+        # grid rejects it first — see the constant-q guard in estimate_setar), but guard here so a
+        # degenerate regime yields Inf SEs (rendered non-finite-safe) rather than a raw throw.
+        XtXinv = try
+            inv(Xr' * Xr)
+        catch
+            return b, fill(Inf, k), ssr
+        end
+        se = Float64[sqrt(max(s2 * XtXinv[j, j], 0.0)) for j in 1:k]
+        return b, se, ssr
+    end
+    return zeros(k), fill(0.1, k), 0.0
+end
+
+function hansen_linearity_test(y::AbstractVector, X::AbstractMatrix, q::AbstractVector;
+                               trim::Real=0.15, reps::Int=1000,
+                               rng::Random.AbstractRNG=Random.default_rng())
+    n = length(y)
+    (size(X, 1) == n && length(q) == n) ||
+        throw(DimensionMismatch("y, rows of X, and q must have equal length"))
+    (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
+    g = quantile(Vector{Float64}(collect(Float64, q)), 0.5)
+    reg = q .<= g
+    gap = (any(reg) && any(.!reg)) ? abs(mean(y[reg]) - mean(y[.!reg])) : 0.0
+    sup_lm = 5.0 + 10.0 * gap
+    pv = clamp(exp(-gap), 1e-4, 1.0)          # decreasing in the regime mean gap
+    ngrid = max(n - 2 * floor(Int, trim * n), 1)
+    HansenLinearityTest{Float64}(sup_lm, 1.1 * sup_lm, pv, pv, g, reps, Float64(trim), ngrid)
+end
+
+function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, linearity::Bool=true,
+                        reps::Int=1000, ci_level::Real=0.95, het::Bool=false,
+                        rng::Random.AbstractRNG=Random.default_rng())
+    p >= 1 || throw(ArgumentError("SETAR order p must be ≥ 1; got $p."))
+    (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
+    (ci_level ≈ 0.90 || ci_level ≈ 0.95 || ci_level ≈ 0.99) ||
+        throw(ArgumentError("Hansen (2000) critical values are tabulated only for " *
+                            "ci_level ∈ {0.90, 0.95, 0.99}; got $ci_level."))
+    delays = if d === :auto
+        1:p
+    elseif d isa AbstractRange
+        d
+    elseif d isa Integer
+        d:d
+    else
+        throw(ArgumentError("d must be an Int, an AbstractRange, or :auto; got $(typeof(d))."))
+    end
+    all(dd -> dd >= 1, delays) || throw(ArgumentError("all delays must be ≥ 1."))
+    dd = Int(first(delays))
+    yv = Vector{Float64}(collect(Float64, y))
+    m0 = max(p, maximum(delays))
+    n_full = length(yv)
+    (n_full > m0 + 2 * (p + 2)) || throw(ArgumentError(
+        "Series too short for SETAR(p=$p): need more than $(m0 + 2*(p+2)) observations."))
+    idx = (m0 + 1):n_full
+    n = length(idx)
+    yy = Vector{Float64}(undef, n)
+    X = Matrix{Float64}(undef, n, p + 1)
+    q = Vector{Float64}(undef, n)
+    for (i, t) in enumerate(idx)
+        yy[i] = yv[t]
+        X[i, 1] = 1.0
+        for j in 1:p
+            X[i, j + 1] = yv[t - j]
+        end
+        q[i] = yv[t - dd]
+    end
+    # Mirror real MEMs' admissible-threshold guard: a (near-)constant threshold variable q admits no
+    # valid two-regime split. Real `_threshold_grid` raises ArgumentError("Empty threshold grid"),
+    # which `_nonlinear_error` maps to data/invalid (exit 3); throw the same class here so the mock's
+    # T1/T2 exit class tracks real's T3 (the standing mock-fidelity lesson).
+    qlo, qhi = extrema(q)
+    qlo < qhi || throw(ArgumentError(
+        "Empty threshold grid: threshold variable is (near-)constant; no admissible SETAR split."))
+    gamma = quantile(q, 0.5)
+    reg = q .<= gamma
+    b1, se1, ssr1 = _mock_ols_regime(X[reg, :], yy[reg])
+    b2, se2, ssr2 = _mock_ols_regime(X[.!reg, :], yy[.!reg])
+    resid = similar(yy)
+    resid[reg]  .= yy[reg]  .- X[reg, :]  * b1
+    resid[.!reg] .= yy[.!reg] .- X[.!reg, :] * b2
+    ssr = ssr1 + ssr2
+    sigma2 = ssr / n
+    k = p + 1
+    npar = 2k + 1
+    aic = n * log(sigma2 + eps()) + 2 * npar
+    bic = n * log(sigma2 + eps()) + npar * log(n)
+    xn = vcat("const", String["y[t-$i]" for i in 1:p])
+    gci = (gamma - 0.5, gamma + 0.5)
+    lt = linearity ? hansen_linearity_test(yy, X, q; trim=trim, reps=reps, rng=rng) : nothing
+    ThresholdModel{Float64}(yy, X, q, gamma, gci, Float64(ci_level), b1, b2, se1, se2, reg,
+        ssr1, ssr2, ssr, sigma2, resid, n, k, count(reg), count(.!reg), p, dd, true,
+        aic, bic, xn, "y[t-$dd]", Float64(trim), lt)
+end
+
+function forecast(m::ThresholdModel, h::Int; reps::Int=1000, level::Real=0.95,
+                  rng::Random.AbstractRNG=Random.default_rng())
+    m.is_setar || throw(ArgumentError(
+        "forecast is only defined for SETAR models (from estimate_setar)."))
+    h >= 1 || throw(ArgumentError("horizon h must be ≥ 1."))
+    (0 < level < 1) || throw(ArgumentError("level must satisfy 0 < level < 1."))
+    p = m.p; d = m.d
+    hist = copy(m.y)
+    pf = Vector{Float64}(undef, h)
+    se = Vector{Float64}(undef, h)
+    sd = sqrt(max(m.sigma2, eps()))
+    for step in 1:h
+        L = length(hist)
+        qval = L - d + 1 >= 1 ? hist[L - d + 1] : hist[end]
+        beta = qval <= m.gamma ? m.beta1 : m.beta2
+        xt = Float64[1.0]
+        for j in 1:p
+            push!(xt, L - j + 1 >= 1 ? hist[L - j + 1] : 0.0)
+        end
+        kk = min(length(beta), length(xt))
+        val = sum(beta[i] * xt[i] for i in 1:kk; init=0.0)
+        push!(hist, val)
+        pf[step] = val
+        se[step] = sd * sqrt(step)
+    end
+    z = 1.959963984540054
+    ThresholdForecast{Float64}(pf, pf .- z .* se, pf .+ z .* se, se, h, Float64(level), reps)
+end
+
+long_table(f::ThresholdForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+
+export ThresholdModel, ThresholdForecast, HansenLinearityTest
+export estimate_setar, hansen_linearity_test
+
 # BVAR forecast dispatch — returns BVARForecast
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)
     n = post.n

@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 64
+**Leaves:** 65
 
 ### `friedman test adf`
 
@@ -488,6 +488,28 @@ Path to CSV data file (rows=T, cols=N units)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hadri` (Path to CSV data file (rows=T, cols=N units))
+
+---
+
+### `friedman test hansen-linearity`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order for the SETAR design (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the threshold variable q=y[t-d] (≥ 1) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | — | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `test_hansen_linearity` (Path to CSV data file)
 
 ---
 
