@@ -1,6 +1,6 @@
 # forecast
 
-Compute forecasts. 15 model subcommands covering VAR, BVAR, LP, ARIMA, SETAR, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
+Compute forecasts. 16 model subcommands covering VAR, BVAR, LP, ARIMA, SETAR, STAR, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
 
 ## Output format (C051)
 
@@ -147,6 +147,29 @@ friedman forecast setar y.csv --p=2 --d=auto --horizons=6 --ci-level=0.90 --reps
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `ThresholdForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Unlike the other `forecast` leaves, `forecast setar` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `ThresholdForecast` (only the fitted `ThresholdModel` from `estimate setar` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
+
+## forecast star
+
+Bootstrap-simulation forecast from a **smooth-transition autoregression (STAR)**. The handler re-estimates a *self-exciting* STAR (see [`estimate star`](estimate.md#estimate-star)) and simulates forward paths through the fitted smooth-transition dynamics, drawing residuals with replacement and reporting the mean path and percentile bands. `--type` selects the transition shape (or `auto`). Only self-exciting STAR models are forecastable (a future path of an external transition variable would be required), so no `--transition-col` option is offered.
+
+```bash
+friedman forecast star y.csv --p=1 --d=1 --horizons=12
+friedman forecast star y.csv --p=2 --type=lstr1 --horizons=6 --ci-level=0.90 --reps=2000
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | AR order (≥ 1) |
+| `--d` | | Int | 1 | Delay lag for the self-exciting transition var (≥ 1) |
+| `--type` | | String | `auto` | Transition shape: `lstr1`, `lstr2`, `estr`, `auto` |
+| `--horizons` | `-h` | Int | 12 | Forecast horizon (≥ 1) |
+| `--reps` | | Int | 1000 | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | | Float64 | 0.95 | Band coverage: `0.90`, `0.95`, or `0.99` (exact) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `STARForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Like `forecast setar`, `forecast star` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `STARForecast` (only the fitted `STARModel` from `estimate star` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
 
 ## forecast static
 

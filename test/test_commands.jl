@@ -426,8 +426,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 62 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 63 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a)
-        @test length(node.subcmds) == 63
+        # 63 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 64 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b)
+        @test length(node.subcmds) == 64
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1899,6 +1899,79 @@ end  # Shared utilities
         end
     end
 
+    @testset "estimate star (C065b)" begin
+        # STAR: two regime-weight blocks (1−G / G) render as one hand-built table
+        # (regime|term|estimate|std_error|z_stat|p_value); the transition parameters (γ, c)
+        # render as a separate parameter|estimate|std_error|z_stat|p_value table; LM3 + (for
+        # --type auto) the Teräsvirta selection triple fold into the kv. STARModel is not
+        # Tables.jl-registered. Every option is guarded up-front → usage/invalid; the estimator
+        # is wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "star"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "star"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "regime blocks + transition params + diagnostics (--type auto)" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--type", "auto"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # p=1 ⇒ znames = [const, y[t-1]] (2 terms) × 2 regimes = 4 rows
+                @test length(rows) == 4
+                @test length(Set(String(collect(r)[1]) for r in rows)) == 2
+                # transition-params block: γ (+ location c) in a `parameter` table
+                trans = _tbl_with(doc, "parameter", "estimate", "std_error")
+                @test any(occursin("γ", String(collect(r)[1])) for r in trans.rows)
+                m = _metrics(doc)
+                @test Set(["trans_type", "sname", "sigma_s", "lm3_stat", "lm3_pvalue",
+                           "lm3_fstat", "lm3_fpvalue", "converged"]) ⊆ m
+                # --type auto ⇒ the Teräsvirta sequential selection triple is present
+                @test Set(["sel_H04", "sel_H03", "sel_H02"]) ⊆ m
+            end
+
+            @testset "--type lstr1 drops the selection triple; external transition col" begin
+                m1 = _metrics(_doc([csv, "--type", "lstr1"]))
+                @test !("sel_H04" in m1)
+                # a valid non-constant external transition column fits (sname reports "s")
+                csv2 = _make_csv(dir; T=200, n=2, colnames=["y", "x"])
+                de = _doc([csv2, "--column", "1", "--transition-col", "2", "--type", "lstr1"])
+                @test de.status == "ok"
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "0"]).code == "usage/invalid"
+                @test _err([csv, "--n-gamma", "1"]).code == "usage/invalid"
+                @test _err([csv, "--n-c", "1"]).code == "usage/invalid"
+                # --type bogus: blocked by choices at parse (ParseError, exit 2) or the
+                # defensive in-handler enum guard (CliError usage/invalid, exit 2)
+                et = _err([csv, "--type", "bogus"])
+                @test et isa ParseError || (et isa CliError && exit_class(et) == 2)
+                # constant external transition column → data/invalid (zero variance, cannot scale γ)
+                constcsv = joinpath(dir, "star_const.csv")
+                write(constcsv, "y,s\n" * join(["$(0.1 * i),1.0" for i in 1:80], "\n") * "\n")
+                ec = _err([constcsv, "--column", "1", "--transition-col", "2"])
+                @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
+                # out-of-range column via the hardened univariate loader
+                @test _err([csv, "--column", "99"]).code == "data/column-range"
+            end
+        end
+    end
+
     @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
         _edoc(args) = begin
             out = _capture() do
@@ -2488,8 +2561,8 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 57 primary + 2 snake aliases (arch_lm, ljung_box) = 59 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a)
-        @test length(node.subcmds) == 59
+        # 58 primary + 2 snake aliases (arch_lm, ljung_box) = 60 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 60
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
@@ -2941,6 +3014,58 @@ end  # Estimate handlers
                 write(short, "y\n" * join([string(0.1 * i) for i in 1:6], "\n") * "\n")
                 es = _errcode([short, "--p", "1", "--d", "1"])
                 @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
+            end
+        end
+    end
+
+    @testset "test star-linearity (C065b)" begin
+        # STAR (LSTV LM3) linearity test → a NamedTuple (stat, pvalue, fstat, fpvalue, df)
+        # rendered as pure kv + an interpretation line. Options guarded up-front → usage/invalid;
+        # the test call is wrapped → typed CliError (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test", "star-linearity"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test", "star-linearity"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            uni = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "kv keys + interpretation" begin
+                doc = _doc([uni, "--column", "1", "--p", "1", "--d", "1"])
+                @test doc.status == "ok"
+                @test Set(["stat", "pvalue", "fstat", "fpvalue", "df"]) ⊆ _metrics(doc)
+            end
+
+            @testset "bad input → typed classes" begin
+                @test _errcode([uni, "--p", "0"]).code == "usage/invalid"
+                @test _errcode([uni, "--d", "0"]).code == "usage/invalid"
+                # constant external transition column → data/invalid
+                constcsv = joinpath(dir, "sl_const.csv")
+                write(constcsv, "y,s\n" * join(["$(0.1 * i),1.0" for i in 1:80], "\n") * "\n")
+                ec = _errcode([constcsv, "--column", "1", "--transition-col", "2"])
+                @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
+            end
+
+            @testset "short series accepted — matches real MEMs (LM3 is defensively coded)" begin
+                # Real star_linearity_test returns a FINITE result for a short effective sample
+                # (VERIFIED against real MEMs: n=14,p=3 → eff=11 → stat=11.0, ok), so the mock must
+                # NOT over-reject it as data/invalid (the mock guard is `n >= 1`, not `n > 3p+2`).
+                shortcsv = joinpath(dir, "sl_short.csv")
+                write(shortcsv, "y\n" * join([string(0.1 * i + 0.3 * sin(i)) for i in 1:14], "\n") * "\n")
+                ds = _doc([shortcsv, "--column", "1", "--p", "3", "--d", "1"])
+                @test ds.status == "ok"
+                @test Set(["stat", "pvalue", "df"]) ⊆ _metrics(ds)
             end
         end
     end
@@ -3632,8 +3757,8 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 15 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 17 keys (C044/C072; +setar C065a)
-        @test length(node.subcmds) == 17
+        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
+        @test length(node.subcmds) == 18
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -3689,6 +3814,58 @@ end  # HD handlers
                 # Intentionally NOT offered: real MEMs 0.7.0 ships no plot_result(::ThresholdForecast),
                 # so advertising the flag would drive _maybe_plot into an uncaught MethodError → exit 1.
                 # They must be rejected as unknown options (exit 2), never silently accepted.
+                ep = _err([csv, "--plot"])
+                @test ep isa ParseError || (ep isa CliError && exit_class(ep) == 2)
+                eps = _err([csv, "--plot-save", joinpath(dir, "out.html")])
+                @test eps isa ParseError || (eps isa CliError && exit_class(eps) == 2)
+            end
+        end
+    end
+
+    @testset "forecast star (C065b)" begin
+        # STAR bootstrap forecast: re-estimate a self-exciting STAR then forecast → STARForecast,
+        # rendered via the generic long_table (horizon|variable|value|lower|upper). Options guarded
+        # up-front → usage error; MEMs calls wrapped → typed CliError (never uncaught exit-1). Like
+        # forecast setar, NO --plot/--plot-save (MEMs ships no plot_result(::STARForecast) recipe).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["forecast", "star"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "star"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "long_table forecast columns + horizon count" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--horizons", "6", "--reps", "50"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "horizon")
+                @test Set(["horizon", "variable", "value", "lower", "upper"]) ⊆ Set(String.(tbl.columns))
+                @test length(collect(tbl.rows)) == 6
+            end
+
+            @testset "bad input → usage error" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--horizons", "0"]).code == "usage/invalid"
+                @test _err([csv, "--reps", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "0"]).code == "usage/invalid"
+                eci = _err([csv, "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+                et = _err([csv, "--type", "bogus"])
+                @test et isa ParseError || (et isa CliError && exit_class(et) == 2)
+            end
+
+            @testset "no --plot/--plot-save (MEMs has no STARForecast plot recipe)" begin
+                # Intentionally NOT offered: real MEMs 0.7.0 ships no plot_result(::STARForecast),
+                # so advertising the flag would drive _maybe_plot into an uncaught MethodError → exit 1.
                 ep = _err([csv, "--plot"])
                 @test ep isa ParseError || (ep isa CliError && exit_class(ep) == 2)
                 eps = _err([csv, "--plot-save", joinpath(dir, "out.html")])
@@ -4116,7 +4293,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 63  # 62 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar)
+        @test length(node.subcmds) == 64  # 63 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -4141,13 +4318,13 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 17  # 15 primary + gjr_garch alias + evaluate node (+setar C065a)
+        @test length(node.subcmds) == 18  # 16 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b)
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 59  # 57 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a)
+        @test length(node.subcmds) == 60  # 58 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5533,7 +5710,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 63  # 62 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar)
+        @test length(node.subcmds) == 64  # 63 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -5564,7 +5741,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 59  # 57 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a)
+        @test length(node.subcmds) == 60  # 58 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin

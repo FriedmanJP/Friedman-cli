@@ -852,6 +852,90 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "estimate star + test star-linearity + forecast star — nonlinear TS (C065b, M5c)" begin
+        # Real STAR family. Teeth are LOOSE/direction-only (NLS is deterministic but noisy):
+        # regime + transition tables present, finite params, and the LSTAR DGP rejects
+        # linearity (lm3_pvalue/pvalue < 0.10) while a linear AR(1) does not strongly reject.
+        Random.seed!(65066)
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        mv(doc, name) = (d = _diag(doc); d === nothing ? nothing : metric_value(d, name))
+
+        @testset "estimate star — regimes + transition params, LM3 rejects on LSTAR" begin
+            csv = dgp_star(; n=400, seed=661)
+            r = run_json(["estimate", "star", csv, "--column", "1", "--p", "1", "--d", "1", "--type", "auto"])
+            assert_envelope_ok(r; label="estimate star")
+            # regime-weight coef table: regime|term|estimate|std_error|z_stat|p_value, 2 regimes × 2 terms
+            ct = nothing; tt = nothing
+            for (_, v) in pairs(r.doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "regime" in table_cols(v) && (ct = v)
+                ("parameter" in table_cols(v) && "z_stat" in table_cols(v)) && (tt = v)
+            end
+            @test ct !== nothing && Set(["regime", "term", "estimate", "std_error"]) ⊆ Set(table_cols(ct))
+            @test length(table_rows(ct)) == 4
+            # transition-params table carries γ with a finite estimate
+            @test tt !== nothing
+            ei = col_index(tt, "estimate")
+            γrow = first(row for row in table_rows(tt) if occursin("γ", String(string(collect(row)[1]))))
+            @test isfinite(Float64(collect(γrow)[ei]))
+            @test isfinite(Float64(mv(r.doc, "sigma2")))
+            @test string(mv(r.doc, "converged")) in ("true", "false")
+            @test Float64(mv(r.doc, "lm3_pvalue")) < 0.10
+            # --type auto ⇒ the Teräsvirta selection triple appears in the diagnostics kv
+            @test mv(r.doc, "sel_H04") !== nothing
+            rm(csv; force=true)
+        end
+
+        @testset "test star-linearity — rejects on LSTAR, not on linear AR(1)" begin
+            csv = dgp_star(; n=400, seed=662)
+            r = run_json(["test", "star-linearity", csv, "--column", "1", "--p", "1", "--d", "1"])
+            assert_envelope_ok(r; label="test star-linearity")
+            @test Set(["stat", "pvalue", "fstat", "fpvalue", "df"]) ⊆
+                  Set(String(string(collect(row)[1])) for row in table_rows(_diag(r.doc)))
+            @test Float64(mv(r.doc, "pvalue")) < 0.10
+            # negative control: a linear AR(1) should NOT strongly reject (loose upper check)
+            lin = dgp_ar1(; T=400, φ=0.5, seed=6620)
+            rl = run_json(["test", "star-linearity", lin, "--column", "1", "--p", "1", "--d", "1"])
+            assert_envelope_ok(rl; label="test star-linearity (linear)")
+            @test Float64(mv(rl.doc, "pvalue")) > 0.01
+            # short series: real star_linearity_test is defensively coded (returns a finite LM3 for a
+            # short effective sample), so this must be exit 0, NOT data/invalid — the mock mirrors it.
+            shortc = write_csv(DataFrame(y=[0.1 * i + 0.3 * sin(i) for i in 1:14]); prefix="starlin_short")
+            @test run_json(["test", "star-linearity", shortc, "--column", "1", "--p", "3", "--d", "1"]).code == 0
+            rm(csv; force=true); rm(lin; force=true); rm(shortc; force=true)
+        end
+
+        @testset "forecast star — h=6 finite paths, coherent bands" begin
+            csv = dgp_star(; n=400, seed=663)
+            r = run_json(["forecast", "star", csv, "--column", "1", "--p", "1", "--d", "1",
+                          "--horizons", "6", "--reps", "199"])
+            assert_envelope_ok(r; label="forecast star")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "value", "lower", "upper"]
+            rows = [collect(row) for row in table_rows(tbl)]
+            @test length(rows) == 6
+            vi = col_index(tbl, "value"); li = col_index(tbl, "lower"); ui = col_index(tbl, "upper")
+            for row in rows
+                v = Float64(row[vi]); lo = Float64(row[li]); hi = Float64(row[ui])
+                @test isfinite(v) && isfinite(lo) && isfinite(hi)
+                # `value` is the bootstrap MEAN path and the bands are percentiles; for a skewed
+                # nonlinear-bootstrap forecast the mean can lie outside the percentile band, so we
+                # assert only the guaranteed invariant (lower percentile ≤ upper percentile).
+                @test lo <= hi
+            end
+            # --ci-level 0.8 → usage error (exit 2)
+            @test run_json(["forecast", "star", csv, "--horizons", "4", "--ci-level", "0.8"]).code == 2
+            rm(csv; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

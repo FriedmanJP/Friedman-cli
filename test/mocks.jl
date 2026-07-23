@@ -3767,6 +3767,187 @@ long_table(f::ThresholdForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_uppe
 export ThresholdModel, ThresholdForecast, HansenLinearityTest
 export estimate_setar, hansen_linearity_test
 
+# ─── C065b: STAR (smooth-transition) nonlinear-TS mocks ──────
+# Mirror the real MEMs 0.7.0 STAR types (src/nonlinear/{types,star}.jl), fields a subset in real
+# order (check_mock_surface mock ⊆ real). STARForecast is a plain struct with a direct `long_table`
+# method (matching the ThresholdForecast mock). The estimator VALIDATES like real (same
+# ArgumentError/DimensionMismatch classes) so the CLI's `_nonlinear_error` mapping is honestly
+# exercised, then returns a genuine-ish two-regime NLS-flavoured fit. A (near-)constant series or
+# transition variable has zero scale σ̂_s → ArgumentError (data/invalid), NEVER a raw
+# SingularException/BoundsError (the C065a mock-fidelity lesson; `_mock_ols_regime` guards singular
+# regime designs). NO `; kwargs...` absorbers.
+struct STARModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
+    y::Vector{T}
+    z::Matrix{T}
+    s::Vector{T}
+    phi1::Vector{T}
+    phi2::Vector{T}
+    se_phi1::Vector{T}
+    se_phi2::Vector{T}
+    gamma::T
+    c::Vector{T}
+    se_gamma::T
+    se_c::Vector{T}
+    G::Vector{T}
+    trans_type::Symbol
+    residuals::Vector{T}
+    ssr::T
+    sigma2::T
+    n::Int
+    p::Int
+    d::Int
+    k::Int
+    sigma_s::T
+    aic::T
+    bic::T
+    znames::Vector{String}
+    sname::String
+    lm3_stat::T
+    lm3_pvalue::T
+    lm3_fstat::T
+    lm3_fpvalue::T
+    sel_pvalues::Union{Nothing,NTuple{3,T}}
+    converged::Bool
+end
+
+struct STARForecast{T<:AbstractFloat}
+    forecast::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    se::Vector{T}
+    horizon::Int
+    conf_level::T
+    reps::Int
+end
+
+function estimate_star(y::AbstractVector, p::Int; s=nothing, d::Int=1, type::Symbol=:auto,
+                       n_gamma::Int=15, n_c::Int=15)
+    p >= 1 || throw(ArgumentError("STAR order p must be ≥ 1; got $p."))
+    d >= 1 || throw(ArgumentError("delay d must be ≥ 1; got $d."))
+    type in (:lstr1, :lstr2, :estr, :auto) ||
+        throw(ArgumentError("type must be :lstr1, :lstr2, :estr, or :auto; got :$type."))
+    yv = Vector{Float64}(collect(Float64, y))
+    n_full = length(yv)
+    if s !== nothing
+        length(s) == n_full || throw(DimensionMismatch(
+            "external transition variable s must have the same length as y ($n_full); got $(length(s))."))
+    end
+    m0 = s === nothing ? max(p, d) : p
+    idx = (m0 + 1):n_full
+    n = length(idx)
+    k = p + 1
+    # Auto selection resolves to LSTR1 (single location) in the mock, matching real
+    # `_terasvirta_select`'s {:lstr1,:estr} codomain; nc = number of transition locations.
+    ttype = type === :auto ? :lstr1 : type
+    nc = ttype === :lstr2 ? 2 : 1
+    (n > 2k + 1 + nc) || throw(ArgumentError(
+        "sample too small: STAR($p, $ttype) needs more than $(2k + 1 + nc) effective observations, has $n."))
+    yy = Vector{Float64}(undef, n)
+    z = Matrix{Float64}(undef, n, k)
+    sv = Vector{Float64}(undef, n)
+    for (i, t) in enumerate(idx)
+        yy[i] = yv[t]
+        z[i, 1] = 1.0
+        for j in 1:p
+            z[i, j + 1] = yv[t - j]
+        end
+        sv[i] = s === nothing ? yv[t - d] : Float64(s[t])
+    end
+    sigma_s = std(sv)
+    sigma_s > 0 || throw(ArgumentError("transition variable has zero variance; cannot scale γ."))
+    # Genuine-ish two-regime split at the transition median → OLS each regime (guarded against
+    # singular designs via `_mock_ols_regime`). G is the hard 0/1 weight of the mock transition.
+    cloc = quantile(sv, 0.5)
+    hi = sv .> cloc
+    b1, se1, _ = _mock_ols_regime(z[.!hi, :], yy[.!hi])
+    b2, se2, _ = _mock_ols_regime(z[hi, :], yy[hi])
+    G = Float64[x > cloc ? 1.0 : 0.0 for x in sv]
+    fitted = (1.0 .- G) .* (z * b1) .+ G .* (z * b2)
+    resid = yy .- fitted
+    ssr = sum(abs2, resid)
+    npar = 2k + 1 + nc
+    sigma2 = ssr / max(n - npar, 1)
+    aic = n * log(sigma2 + eps()) + 2 * npar
+    bic = n * log(sigma2 + eps()) + npar * log(n)
+    # LM3 statistics scale with the regime mean gap so a clearly nonlinear series rejects
+    # linearity (mirrors the hansen_linearity_test mock; the CLI T1/T2 only checks the keys).
+    gap = (any(hi) && any(.!hi)) ? abs(mean(yy[hi]) - mean(yy[.!hi])) : 0.0
+    lm3_stat = 3.0 * p + 12.0 * gap
+    lm3_pvalue = clamp(exp(-gap), 1e-4, 1.0)
+    cvec = fill(cloc, nc)
+    se_cvec = fill(0.1 + 0.05 * abs(cloc), nc)
+    znames = vcat("const", String["y[t-$i]" for i in 1:p])
+    sname = s === nothing ? "y[t-$d]" : "s"     # self-exciting label so `forecast` is defined
+    sel = type === :auto ? (lm3_pvalue, lm3_pvalue / 2, lm3_pvalue / 3) : nothing
+    STARModel{Float64}(yy, z, sv, b1, b2, se1, se2, 1.5, cvec, 0.2, se_cvec, G, ttype,
+        resid, ssr, sigma2, n, p, d, k, sigma_s, aic, bic, znames, sname,
+        lm3_stat, lm3_pvalue, lm3_stat / (3p), lm3_pvalue, sel, true)
+end
+
+function star_linearity_test(y::AbstractVector, p::Int; s=nothing, d::Int=1)
+    p >= 1 || throw(ArgumentError("AR order p must be ≥ 1; got $p."))
+    d >= 1 || throw(ArgumentError("delay d must be ≥ 1; got $d."))
+    yv = Vector{Float64}(collect(Float64, y))
+    n_full = length(yv)
+    if s !== nothing
+        length(s) == n_full || throw(DimensionMismatch(
+            "external transition variable s must have the same length as y ($n_full); got $(length(s))."))
+    end
+    m0 = s === nothing ? max(p, d) : p
+    idx = (m0 + 1):n_full
+    n = length(idx)
+    # Real `star_linearity_test` (_star_lm3) is defensively coded (df2=max(n-k_full,1), r2 clamped,
+    # backslash never throws on rank-deficiency), so it returns a finite (possibly degenerate) LM3
+    # result even for a short effective sample — VERIFIED: n_full=10,p=3 (eff=7) → real stat=7.0, ok.
+    # Only guard against a genuinely empty design (which would make `quantile` throw); do NOT
+    # over-reject the 1..3p+2 range or the mock would map data/invalid where real returns ok.
+    n >= 1 || throw(ArgumentError("STAR LM3 test: no effective observations (series too short for p=$p, d=$d)."))
+    yy = yv[idx]
+    sv = s === nothing ? yv[idx .- d] : Float64.(s[idx])
+    cloc = quantile(sv, 0.5)
+    hi = sv .> cloc
+    gap = (any(hi) && any(.!hi)) ? abs(mean(yy[hi]) - mean(yy[.!hi])) : 0.0
+    stat = 3.0 * p + 12.0 * gap
+    pv = clamp(exp(-gap), 1e-4, 1.0)
+    return (stat=stat, pvalue=pv, fstat=stat / (3p), fpvalue=pv, df=3p)
+end
+
+function forecast(m::STARModel, h::Int; reps::Int=1000, level::Real=0.95,
+                  rng::Random.AbstractRNG=Random.default_rng())
+    startswith(m.sname, "y[t-") || throw(ArgumentError(
+        "forecast is only defined for self-exciting STAR models (sₜ = y_{t-d})."))
+    h >= 1 || throw(ArgumentError("horizon h must be ≥ 1."))
+    (0 < level < 1) || throw(ArgumentError("level must satisfy 0 < level < 1."))
+    p = m.p; d = m.d
+    hist = copy(m.y)
+    pf = Vector{Float64}(undef, h)
+    se = Vector{Float64}(undef, h)
+    sd = sqrt(max(m.sigma2, eps()))
+    cloc = isempty(m.c) ? 0.0 : m.c[1]
+    for step in 1:h
+        L = length(hist)
+        sval = L - d + 1 >= 1 ? hist[L - d + 1] : hist[end]
+        Gt = sval > cloc ? 1.0 : 0.0
+        zt = Float64[1.0]
+        for j in 1:p
+            push!(zt, L - j + 1 >= 1 ? hist[L - j + 1] : 0.0)
+        end
+        k1 = min(length(m.phi1), length(zt)); k2 = min(length(m.phi2), length(zt))
+        v1 = sum(m.phi1[i] * zt[i] for i in 1:k1; init=0.0)
+        v2 = sum(m.phi2[i] * zt[i] for i in 1:k2; init=0.0)
+        val = (1 - Gt) * v1 + Gt * v2
+        push!(hist, val)
+        pf[step] = val
+        se[step] = sd * sqrt(step)
+    end
+    z = 1.959963984540054
+    STARForecast{Float64}(pf, pf .- z .* se, pf .+ z .* se, se, h, Float64(level), reps)
+end
+
+long_table(f::STARForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+
+export STARModel, STARForecast, estimate_star, star_linearity_test
+
 # BVAR forecast dispatch — returns BVARForecast
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)
     n = post.n

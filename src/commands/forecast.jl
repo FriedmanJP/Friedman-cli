@@ -137,6 +137,35 @@ function forecast_specs()::Vector{CommandSpec}
             category="forecast",
             handler=wrap_legacy(_forecast_setar),
         ),
+        # C065b: STAR bootstrap-simulation forecast. Re-estimates a SELF-EXCITING STAR then
+        # simulates `forecast(::STARModel, h)` → STARForecast (AbstractForecastResult → tidy
+        # long_table). `--transition-col` is NOT offered: `forecast(::STARModel)` throws unless
+        # the model is self-exciting (sₜ = y[t-d]), so external-s STARs are not forecastable.
+        # NO `--plot`/`--plot-save`: MEMs 0.7.0 ships NO `plot_result(::STARForecast)` recipe
+        # (only `ThresholdModel`/`STARModel` + the 8 registered forecast types are plottable), so
+        # advertising the flag would drive `_maybe_plot` into an uncaught MethodError → exit 1
+        # (the identical gap fixed for `forecast setar`). Per the C051 convention only plot-capable
+        # leaves add the flags; revisit if MEMs adds a STARForecast recipe.
+        CommandSpec(
+            path=["forecast", "star"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1", "lstr2", "estr", "auto"]),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (≥ 1)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_star, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_star),
+        ),
         CommandSpec(
             path=["forecast", "static"],
             summary="Path to CSV data file",
@@ -537,6 +566,41 @@ function _forecast_setar(; data::String="", column::Int=1, p::Int=1, d::String="
     # No _maybe_plot: MEMs ships no plot_result(::ThresholdForecast) recipe (see the CommandSpec note).
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
+end
+
+# ── C065b: STAR bootstrap forecast ──────────────────────────
+# Re-estimate a SELF-EXCITING STAR (s=nothing; `--transition-col` is not offered because
+# external-s STARs are not forecastable), then simulate `forecast(::STARModel, h)`. Both MEMs
+# calls are try-wrapped → typed CliError via the shared `_nonlinear_error`; every option is
+# guarded up-front → usage/invalid. STARForecast <: AbstractForecastResult → generic long_table.
+function _forecast_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
+                         type::String="auto", horizons::Int=12, reps::Int=1000,
+                         ci_level::Float64=0.95, format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "forecast star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "forecast star: --d must be ≥ 1 (got $d)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast star: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast star: --reps must be ≥ 1 (got $reps)"))
+    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
+        "forecast star: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    ttype = Symbol(type)
+    ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
+        "forecast star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+    y, vname = load_univariate_series(data, column)
+    _status("STAR forecast (h=$horizons) [$type]: variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+    model = try
+        estimate_star(y, p; d=d, type=ttype)
+    catch e
+        throw(_nonlinear_error(e, "STAR forecast"))
+    end
+    fc = try
+        forecast(model, horizons; reps=reps, level=ci_level)
+    catch e
+        throw(_nonlinear_error(e, "STAR forecast"))
+    end
+    # STARForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
+    # No _maybe_plot: MEMs ships no plot_result(::STARForecast) recipe (see the CommandSpec note).
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
 end
 
 # ── Factor Model Forecasts ───────────────────────────────

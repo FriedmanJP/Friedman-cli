@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 60 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 61 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test) and smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR, Teräsvirta NLS), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -1125,6 +1125,34 @@ friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
+
+## estimate star
+
+**Smooth-transition autoregression (STAR)** (Teräsvirta 1994) — the smooth-transition sibling of SETAR. The conditional mean is a convex combination of two linear autoregressions whose weight is a smooth function `G(sₜ; γ, c) ∈ [0, 1]` of a transition variable `sₜ`: `yₜ = φ₁'zₜ·(1 − G) + φ₂'zₜ·G + uₜ`, with `zₜ = [1, y_{t−1}, …, y_{t−p}]`. Unlike SETAR's abrupt switch, `G` transitions smoothly, and the parameters are estimated by nonlinear least squares.
+
+`--type` selects the transition shape: **`lstr1`** (logistic, one location), **`lstr2`** (logistic, two locations), **`estr`** (exponential), or **`auto`** (Teräsvirta's sequential LM3 model-selection procedure picks LSTR1 vs ESTR and reports the `H₀₄`/`H₀₃`/`H₀₂` p-value triple). By default the transition variable is self-exciting (`sₜ = y_{t−d}`, delay `--d`); an external transition series can be supplied via `--transition-col` (a 1-based column index, which then must be non-constant). `--n-gamma`/`--n-c` set the start-value grid resolution for the NLS.
+
+```bash
+# STAR(1) with auto shape selection, self-exciting transition sₜ = y_{t−1}
+friedman estimate star y.csv --p 1 --d 1 --type auto
+
+# Fix a logistic one-location LSTR1(2); external transition variable in column 3
+friedman estimate star y.csv --p 2 --type lstr1 --transition-col 3
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | `1` | Column index (1-based) |
+| `--p` | | Int | `1` | AR order (≥ 1) |
+| `--d` | | Int | `1` | Delay lag for the self-exciting transition var (≥ 1) |
+| `--type` | | String | `auto` | Transition shape: `lstr1`, `lstr2`, `estr`, `auto` |
+| `--n-gamma` | | Int | `15` | Grid points for the γ start values (≥ 2) |
+| `--n-c` | | Int | `15` | Grid points for the c start values (≥ 2) |
+| `--transition-col` | | Int | `0` | Column of an external transition var s (0 = self-exciting) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** two hand-built tables plus diagnostics — a **regime-weight coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, the two blocks `regime1 (G→0)` / `regime2 (G→1)` stacked) and a **transition-parameters table** (`parameter|estimate|std_error|z_stat|p_value` over `γ` and the location(s) `c`, length 1 for LSTR1/ESTR or 2 for LSTR2), both with normal-approximation z/p; then a diagnostics block (`trans_type`, `sname`, `sigma_s`, `n`, `p`, `d`, `ssr`, `sigma2`, `aic`, `bic`, the Luukkonen–Saikkonen–Teräsvirta LM3 statistics `lm3_stat`/`lm3_pvalue`/`lm3_fstat`/`lm3_fpvalue`, `converged`, and — for `--type auto` only — the Teräsvirta selection triple `sel_H04`/`sel_H03`/`sel_H02`). Note the two **regime weights** here (`1−G` / `G`) are smooth combination weights, unlike SETAR's hard split; the `switching_variance` diagnostic is a Markov-switching concept and does not apply to STAR. `STARModel` is not Tables.jl-registered, so the tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant transition variable, too-short series, or NLS failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error. See also [`test star-linearity`](test.md#test-star-linearity) and [`forecast star`](forecast.md#forecast-star).
 
 ## estimate iv
 

@@ -317,6 +317,26 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_hansen_linearity),
         ),
+        # C065b: Luukkonen–Saikkonen–Teräsvirta LM3 test of linearity vs a smooth-transition
+        # (STAR) alternative. Wraps `star_linearity_test` (a deterministic NamedTuple → pure
+        # kv). An external transition variable can be supplied via `--transition-col`.
+        CommandSpec(
+            path=["test", "star-linearity"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_star_linearity, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_star_linearity),
+        ),
         CommandSpec(
             path=["test", "hadri"],
             summary="Path to CSV data file (rows=T, cols=N units)",
@@ -2015,6 +2035,45 @@ function _test_hansen_linearity(; data::String, column::Int=1, p::Int=1, d::Int=
     ]; format=format, output=output, title="Hansen (1996) Linearity Test: $vname")
     interpret_test_result(Float64(res.pvalue_lm),
         "Reject H0 (linearity) at 5% -- evidence of two-regime threshold nonlinearity",
+        "Cannot reject H0 (linearity) at 5%")
+    return res
+end
+
+# C065b: STAR (smooth-transition) linearity test. Wraps `star_linearity_test` — the LSTV
+# LM3 auxiliary regression (χ² and F forms) → a NamedTuple `(stat, pvalue, fstat, fpvalue,
+# df)`, rendered as pure kv. Options are guarded up-front → usage/invalid; the optional
+# external transition series gets the same length/constant guards as `estimate star`; the
+# test call is try-wrapped → typed CliError via the shared `_nonlinear_error` (never exit-1).
+function _test_star_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
+        transition_col::Int=0, format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "test star-linearity: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "test star-linearity: --d must be ≥ 1 (got $d)"))
+    y, vname = load_univariate_series(data, column)
+    s = nothing
+    if transition_col > 0
+        s, _ = load_univariate_series(data, transition_col)
+        length(s) == length(y) || throw(CliError("data/shape",
+            "test star-linearity: transition variable (column $transition_col) has length $(length(s)), " *
+            "but the series has length $(length(y))"))
+        std(s) > 0 || throw(CliError("data/invalid",
+            "test star-linearity: transition variable (column $transition_col) is constant"))
+    end
+    _status("STAR Linearity Test (LM3): variable=$vname, observations=$(length(y)), p=$p, d=$d" *
+            (transition_col > 0 ? ", external transition col=$transition_col" : ", self-exciting")); _status()
+    res = try
+        star_linearity_test(y, p; s=s, d=d)
+    catch e
+        throw(_nonlinear_error(e, "STAR linearity test"))
+    end
+    output_kv(Pair{String,Any}[
+        "stat"     => round(Float64(res.stat); digits=4),
+        "pvalue"   => round(Float64(res.pvalue); digits=4),
+        "fstat"    => round(Float64(res.fstat); digits=4),
+        "fpvalue"  => round(Float64(res.fpvalue); digits=4),
+        "df"       => res.df,
+    ]; format=format, output=output, title="STAR Linearity Test (LM3): $vname")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (linearity) at 5% -- evidence of smooth-transition nonlinearity",
         "Cannot reject H0 (linearity) at 5%")
     return res
 end

@@ -825,6 +825,32 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_setar),
         ),
+        # ── C065b: STAR (smooth-transition autoregression) ──
+        # Two-regime STAR via `estimate_star` (Teräsvirta 1994 NLS). Hand-built two-regime
+        # weight tables (1−G / G) + a transition-parameters block (γ, c) + kv diagnostics
+        # (STARModel is NOT in MEMs `_COEF_TABLE_TYPES`). `--type` selects the transition
+        # shape (lstr1|lstr2|estr) or `auto` (Teräsvirta sequential selection); an external
+        # transition variable can be supplied via `--transition-col` (else self-exciting y[t-d]).
+        CommandSpec(
+            path=["estimate", "star"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1", "lstr2", "estr", "auto"]),
+                OptionSpec(name="n-gamma", type=Int, default=15, description="Grid points for the γ start values (≥ 2)"),
+                OptionSpec(name="n-c", type=Int, default=15, description="Grid points for the c start values (≥ 2)"),
+                OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_star, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_star),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -4180,5 +4206,94 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
         ])
     end
     output_kv(diag; format=format, title="SETAR(2;$p,$p) Diagnostics")
+    return model
+end
+
+# ── C065b: STAR handler ─────────────────────────────────────────
+# Tidy transition-parameters table for a STARModel: `parameter | estimate | std_error |
+# z_stat | p_value` (γ then the location(s) c — length 1 for lstr1/estr, 2 for lstr2), with
+# large-sample normal z/p (the `_garch_variant`/`dsge` `_normal_cdf` convention). Rendered
+# as its own table, distinct from the two regime-weight blocks.
+function _star_transition_table(model)
+    cnames = length(model.c) == 1 ? String["c"] : String["c$i" for i in 1:length(model.c)]
+    params = vcat("γ", cnames)
+    est = Float64.(vcat(model.gamma, model.c))
+    se  = Float64.(vcat(model.se_gamma, model.se_c))
+    z   = [se[i] == 0.0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
+    pv  = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    return DataFrame(parameter=params, estimate=round.(est; digits=6),
+                     std_error=round.(se; digits=6),
+                     z_stat=round.(z; digits=4), p_value=round.(pv; digits=4))
+end
+
+# Every user option is guarded up-front → usage/invalid (before any MEMs call); the estimator
+# is try-wrapped → typed CliError via the shared `_nonlinear_error` (never uncaught exit-1). The
+# two regime-weight blocks (1−G / G) render via the shared `_threshold_coef_table`; the transition
+# parameters (γ, c) via `_star_transition_table`; the LM3 linearity statistics + the optional
+# Teräsvirta sequential-selection triple (only for `--type auto`) fold into the diagnostics kv.
+function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
+                         type::String="auto", n_gamma::Int=15, n_c::Int=15,
+                         transition_col::Int=0, output::String="", format::String="table")
+    p >= 1 || throw(CliError("usage/invalid", "estimate star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "estimate star: --d must be ≥ 1 (got $d)"))
+    n_gamma >= 2 || throw(CliError("usage/invalid", "estimate star: --n-gamma must be ≥ 2 (got $n_gamma)"))
+    n_c >= 2 || throw(CliError("usage/invalid", "estimate star: --n-c must be ≥ 2 (got $n_c)"))
+    ttype = Symbol(type)
+    ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
+        "estimate star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+    y, vname = load_univariate_series(data, column)
+    s = nothing
+    if transition_col > 0
+        s, _ = load_univariate_series(data, transition_col)
+        length(s) == length(y) || throw(CliError("data/shape",
+            "estimate star: transition variable (column $transition_col) has length $(length(s)), " *
+            "but the series has length $(length(y))"))
+        std(s) > 0 || throw(CliError("data/invalid",
+            "estimate star: transition variable (column $transition_col) is constant; cannot scale γ"))
+    end
+    _status("Estimating STAR($p) [$type]: variable=$vname, obs=$(length(y)), d=$d" *
+            (transition_col > 0 ? ", external transition col=$transition_col" : ", self-exciting")); _status()
+    model = try
+        estimate_star(y, p; s=s, d=d, type=ttype, n_gamma=n_gamma, n_c=n_c)
+    catch e
+        throw(_nonlinear_error(e, "STAR"))
+    end
+    coef = vcat(
+        _threshold_coef_table(model.phi1, model.se_phi1, model.znames, "regime1 (G→0)"),
+        _threshold_coef_table(model.phi2, model.se_phi2, model.znames, "regime2 (G→1)"),
+    )
+    output_result(coef; format=Symbol(format), output=output,
+                  title="STAR($p) Regime Coefficients ($vname)")
+    # Second table to a DISTINCT --output path (mirrors ardl/pmg): a shared file path would let
+    # the transition table overwrite the regime-coefficient file. No-op for stdout/envelope.
+    output_result(_star_transition_table(model); format=Symbol(format),
+                  output=_per_var_output_path(output, "transition"),
+                  title="STAR($p) Transition Parameters")
+    diag = Pair{String,Any}[
+        "trans_type"  => string(model.trans_type),
+        "sname"       => model.sname,
+        "sigma_s"     => round(Float64(model.sigma_s); digits=6),
+        "n"           => model.n,
+        "p"           => model.p,
+        "d"           => model.d,
+        "ssr"         => round(Float64(model.ssr); digits=6),
+        "sigma2"      => round(Float64(model.sigma2); digits=6),
+        "aic"         => round(Float64(model.aic); digits=4),
+        "bic"         => round(Float64(model.bic); digits=4),
+        "lm3_stat"    => round(Float64(model.lm3_stat); digits=4),
+        "lm3_pvalue"  => round(Float64(model.lm3_pvalue); digits=4),
+        "lm3_fstat"   => round(Float64(model.lm3_fstat); digits=4),
+        "lm3_fpvalue" => round(Float64(model.lm3_fpvalue); digits=4),
+        "converged"   => model.converged,
+    ]
+    if model.sel_pvalues !== nothing
+        sp = model.sel_pvalues
+        append!(diag, Pair{String,Any}[
+            "sel_H04" => round(Float64(sp[1]); digits=4),
+            "sel_H03" => round(Float64(sp[2]); digits=4),
+            "sel_H02" => round(Float64(sp[3]); digits=4),
+        ])
+    end
+    output_kv(diag; format=format, title="STAR($p) Diagnostics")
     return model
 end

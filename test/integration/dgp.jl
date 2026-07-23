@@ -384,3 +384,19 @@ function dgp_setar(; n::Int=400, seed::Int=42)
     end
     return write_csv(DataFrame(y=y); prefix="setar")
 end
+
+"""Genuine self-exciting LSTAR: yₜ = (1−Gₜ)·0.8 yₜ₋₁ + Gₜ·(−0.4 yₜ₋₁) + εₜ, where the
+logistic weight Gₜ = 1/(1+exp(−5·yₜ₋₁)) switches smoothly in yₜ₋₁. The strong asymmetry
+(0.8 vs −0.4) makes the series clearly nonlinear → the STAR LM3 test rejects linearity and
+`estimate star` recovers a nonzero γ̂ with lm3_pvalue < 0.10 (loose direction only)."""
+function dgp_star(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    burn = 100
+    total = n + burn
+    yy = zeros(total)
+    for t in 2:total
+        G = 1.0 / (1.0 + exp(-5.0 * yy[t-1]))
+        yy[t] = (1 - G) * (0.8 * yy[t-1]) + G * (-0.4 * yy[t-1]) + randn(rng)
+    end
+    return write_csv(DataFrame(y=yy[(burn+1):total]); prefix="star")
+end

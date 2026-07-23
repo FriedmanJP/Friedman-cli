@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR linearity), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 53 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 54 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -190,6 +190,26 @@ friedman test hansen-linearity y.csv --p=2 --d=1 --reps=2000
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** a kv block (`sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`, `reps`, `trim`, `n_grid`) plus a decision line. A too-short series (too few observations for the SETAR design) surfaces as a typed `data/invalid`, never an uncaught internal error.
+
+### test star-linearity
+
+Luukkonen–Saikkonen–Teräsvirta **LM3 test of linearity** against a smooth-transition (STAR) alternative. The auxiliary regression augments the linear AR with the interaction blocks `z̃ₜ·sₜ`, `z̃ₜ·sₜ²`, `z̃ₜ·sₜ³` (the third-order Taylor expansion of the transition weight around `γ = 0`); the LM statistic `n·R² ∼ χ²(3p)` and its better-sized F-form `F(3p, n−4p−1)` test H0 = linearity. A **low p-value rejects** linearity in favour of smooth-transition nonlinearity — the natural companion to [`estimate star`](estimate.md#estimate-star). The transition variable is self-exciting (`sₜ = y_{t−d}`) by default; supply an external series with `--transition-col`.
+
+```bash
+friedman test star-linearity y.csv --column=1 --p=1 --d=1
+friedman test star-linearity y.csv --p=2 --transition-col=3
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | AR order (≥ 1) |
+| `--d` | | Int | 1 | Delay lag for the self-exciting transition var (≥ 1) |
+| `--transition-col` | | Int | 0 | Column of an external transition var s (0 = self-exciting) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a kv block (`stat`, `pvalue`, `fstat`, `fpvalue`, `df` = `3p`) plus a decision line. The test is deterministic (no bootstrap). Every option is validated up-front (`usage/invalid`); a constant external transition variable or too-short series surfaces as a typed `data/invalid`/`data/shape`, never an uncaught internal error.
 
 ## Instrumental-Variable Diagnostics
 
