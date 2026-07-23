@@ -3644,6 +3644,93 @@ export PANICResult, PesaranCIPSResult, MoonPerronResult, FactorBreakResult
 export panic_test, pesaran_cips_test, moon_perron_test, factor_break_test
 export panel_unit_root_summary
 
+# ─── C069/C070: randomness/nonlinearity + panel cointegration tests ────
+# NamedTuple returns (no result structs) with the exact field names the real
+# MEMs result types expose. Kwargs are enumerated (no `; kwargs...` catch-all) to
+# stay within the check_mock_surface absorber budget. Minimal real-like validation
+# so T1/T2 catch shape/arity bugs.
+
+# Lo–MacKinlay / Chow–Denning variance-ratio test (real fields: q, vr, z, z_star,
+# z_pvalue, z_star_pvalue, cd_stat, cd_pvalue, cd_star_stat, cd_star_pvalue, ...).
+function variance_ratio_test(y; q=[2, 4, 8, 16], method=:lomackinlay, robust=true,
+                             bootstrap=0, boot_weights=:rademacher, seed=1234)
+    method in (:lomackinlay, :wright) ||
+        throw(ArgumentError("method must be :lomackinlay or :wright, got :$method"))
+    yv = float.(collect(y))
+    nlev = length(yv)
+    nlev >= 4 || throw(ArgumentError("need at least 4 level observations, got $nlev"))
+    qvec = sort(unique(Int.(collect(q))))
+    all(qi -> qi >= 2, qvec) || throw(ArgumentError("every q must be ≥ 2"))
+    maximum(qvec) < nlev - 1 ||
+        throw(ArgumentError("every q must be < number of returns ($(nlev - 1))"))
+    nq = length(qvec)
+    return (q=qvec, vr=fill(0.92, nq), z=fill(-0.9, nq), z_star=fill(-0.8, nq),
+            z_pvalue=fill(0.37, nq), z_star_pvalue=fill(0.42, nq),
+            cd_stat=1.55, cd_pvalue=0.34, cd_star_stat=1.42, cd_star_pvalue=0.41,
+            method=method, robust=robust, nobs=nlev)
+end
+
+# BDS iid/nonlinearity test — statistic/pvalue are (n_dims × n_eps) matrices.
+function bds_test(y; m=2:6, eps_frac=0.7, bootstrap=0, seed=1234)
+    yv = float.(collect(y))
+    n = length(yv)
+    ms = sort(unique(filter(mm -> mm >= 1, collect(Int, m))))
+    isempty(ms) && throw(ArgumentError("no valid embedding dimension in m=$m"))
+    nm = length(ms)
+    stat = reshape(Float64[1.4 + 0.1 * i for i in 1:nm], nm, 1)
+    pval = reshape(fill(0.22, nm), nm, 1)
+    return (m=ms, statistic=stat, pvalue=pval, nobs=n)
+end
+
+# Hadri panel stationarity test (H0: all units stationary).
+function hadri_test(X; deterministic=:constant, hetero=true, cs_demean=false)
+    deterministic in (:constant, :trend) ||
+        throw(ArgumentError("Hadri deterministic must be :constant or :trend, got :$deterministic"))
+    T_obs, N = size(X)
+    T_obs >= 10 || throw(ArgumentError("Time dimension T=$T_obs too small for Hadri"))
+    N >= 2 || throw(ArgumentError("Hadri needs at least N=2 panel units, got N=$N"))
+    return (statistic=1.35, pvalue=0.11, n_units=N, nobs=T_obs,
+            deterministic=deterministic, hetero=hetero)
+end
+
+# Panel cointegration trio (H0: no cointegration). All three expose the uniform
+# names/statistics/pvalues/n_units/n_regressors/nobs output triple.
+_panel_coint_meta(pd, xs) = (n_units=pd.n_groups, n_regressors=length(xs),
+                             nobs=pd.n_groups == 0 ? pd.T_obs : pd.T_obs ÷ pd.n_groups)
+
+function pedroni_test(pd::PanelData, y::Symbol, xs::Symbol...; trend=:constant,
+                      lags=:auto, adf_lags=2)
+    isempty(xs) && throw(ArgumentError("pedroni_test needs at least one regressor"))
+    m = _panel_coint_meta(pd, xs)
+    names = ["panel-v", "panel-rho", "panel-pp", "panel-adf", "group-rho", "group-pp", "group-adf"]
+    return (names=names, statistics=[2.1, -1.9, -2.0, -2.2, -1.6, -1.9, -2.1],
+            pvalues=[0.02, 0.04, 0.03, 0.02, 0.06, 0.04, 0.03],
+            n_units=m.n_units, n_regressors=m.n_regressors, nobs=m.nobs)
+end
+
+function kao_test(pd::PanelData, y::Symbol, xs::Symbol...; lags=:auto, kernel_lags=:auto)
+    isempty(xs) && throw(ArgumentError("kao_test needs at least one regressor"))
+    m = _panel_coint_meta(pd, xs)
+    names = ["DFrho", "DFt", "DFrho_star", "DFt_star", "ADF"]
+    return (names=names, statistics=[-2.3, -2.1, -2.4, -2.2, -2.0],
+            pvalues=[0.02, 0.03, 0.02, 0.03, 0.04],
+            n_units=m.n_units, n_regressors=m.n_regressors, nobs=m.nobs)
+end
+
+function westerlund_test(pd::PanelData, y::Symbol, xs::Symbol...; trend=:constant,
+                         lags=1, leads=0, lrwindow=2, bootstrap=0, seed=20240716)
+    isempty(xs) && throw(ArgumentError("westerlund_test needs at least one regressor"))
+    length(xs) <= 6 || throw(ArgumentError("Westerlund test supports at most 6 regressors"))
+    m = _panel_coint_meta(pd, xs)
+    names = ["Gt", "Ga", "Pt", "Pa"]
+    return (names=names, statistics=[-2.5, -8.0, -3.0, -9.5],
+            pvalues=[0.02, 0.03, 0.02, 0.03],
+            n_units=m.n_units, n_regressors=m.n_regressors, nobs=m.nobs)
+end
+
+export variance_ratio_test, bds_test, hadri_test
+export pedroni_test, kao_test, westerlund_test
+
 # ─── Cross-Sectional Regression Types & Functions ──────────────────
 
 struct RegModel{T<:Real}

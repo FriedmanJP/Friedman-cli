@@ -261,6 +261,108 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_nyblom),
         ),
+        # C069/C070: randomness/nonlinearity (variance-ratio, BDS) + panel
+        # stationarity/cointegration (Hadri; Pedroni/Kao/Westerlund) test batteries.
+        # All flat `test` leaves.
+        CommandSpec(
+            path=["test", "variance-ratio"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="horizons", type=String, default="2,4,8,16", description="Comma-separated holding periods q (each ≥ 2)"),
+                OptionSpec(name="method", type=String, default="lomackinlay", description="Variance-ratio method", choices=["lomackinlay"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:variance_ratio, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_variance_ratio),
+        ),
+        CommandSpec(
+            path=["test", "bds"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="max-dim", type=Int, default=6, description="Maximum embedding dimension (≥ 2; tests m=2..max)"),
+                OptionSpec(name="eps-frac", type=Float64, default=0.7, description="Distance threshold as a fraction of the sample sd"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:bds, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_bds),
+        ),
+        CommandSpec(
+            path=["test", "hadri"],
+            summary="Path to CSV data file (rows=T, cols=N units)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (rows=T, cols=N units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:hadri, description="Path to CSV data file (rows=T, cols=N units)")],
+            category="test",
+            handler=wrap_legacy(_test_hadri),
+        ),
+        CommandSpec(
+            path=["test", "pedroni"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
+                OptionSpec(name="trend", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pedroni, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pedroni),
+        ),
+        CommandSpec(
+            path=["test", "kao"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:kao, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_kao),
+        ),
+        CommandSpec(
+            path=["test", "westerlund"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
+                OptionSpec(name="trend", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:westerlund, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_westerlund),
+        ),
         # C071: VECM cointegration restriction tests (Johansen LR on β / α).
         # Each fits a VECM then tests a linear restriction on the cointegrating
         # structure; restriction matrices come from a [vecm_restriction] config.
@@ -1602,6 +1704,204 @@ function _test_vecm_weak_exog(; data::String, vars::String="", lags::Int=2, rank
         throw(_vecm_restriction_error(e, "weak-exogeneity"))
     end
     _vecm_restriction_output(res, "VECM weak-exogeneity", join([varnames[i] for i in idxs], ","); format=format, output=output)
+    return res
+end
+
+# ── C069/C070: randomness/nonlinearity + panel stationarity/cointegration ──
+# variance-ratio & BDS (univariate); Hadri (panel matrix); Pedroni/Kao/Westerlund
+# (panel cointegration). The MEMs teststat calls throw bare, untyped exceptions on
+# bad user input (ArgumentError: series too short / bad q / too many regressors;
+# DimensionMismatch on shape), so every call is wrapped to a typed CliError via
+# `_teststat_error` (standing lesson: never let an untyped exception on user input
+# reach the top level as an internal exit-1).
+
+"""Map an untyped MEMs test-statistic failure to a typed CliError (never exit-1)."""
+function _teststat_error(e, what::String)
+    e isa CliError && return e
+    (e isa ArgumentError || e isa DomainError) && return CliError("data/invalid",
+        "$what: $(sprint(showerror, e))"; hint="need a longer/cleaner series or a well-formed panel")
+    e isa DimensionMismatch && return CliError("data/shape", "$what: $(sprint(showerror, e))")
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
+"""Parse a comma-separated list of integers (e.g. horizons "2,4,8,16"). Empty or
+non-integer tokens → a typed usage error (never an untyped parse throw)."""
+function _parse_int_list(s::AbstractString)
+    toks = [strip(t) for t in split(s, ",") if !isempty(strip(t))]
+    isempty(toks) && throw(CliError("usage/invalid",
+        "expected a comma-separated list of integers, got '$s'"))
+    out = Int[]
+    for t in toks
+        v = tryparse(Int, t)
+        v === nothing && throw(CliError("usage/invalid", "invalid integer '$t' in '$s'"))
+        push!(out, v)
+    end
+    return out
+end
+
+function _test_variance_ratio(; data::String, column::Int=1, horizons::String="2,4,8,16",
+        method::String="lomackinlay", format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    q = _parse_int_list(horizons)
+    all(qi -> qi >= 2, q) || throw(CliError("usage/invalid",
+        "every horizon q must be ≥ 2 (got $q)"))
+    _status("Variance-Ratio Test: variable=$vname, observations=$(length(y)), horizons=$(join(q, ","))"); _status()
+    res = try
+        variance_ratio_test(y; q=q, method=Symbol(method))
+    catch e
+        throw(_teststat_error(e, "variance-ratio test"))
+    end
+    # Per-horizon rows carry the robust (heteroskedasticity-consistent) individual
+    # z*-stats, matching the robust=true default. The joint headline is the robust
+    # Chow–Denning max|z*| (cd_star_*) — exactly StatsAPI.pvalue(res) when robust=true,
+    # so it stays internally consistent with the robust z* above.
+    df = DataFrame(horizon=res.q, variance_ratio=round.(Float64.(res.vr); digits=4),
+                   z_star=round.(Float64.(res.z_star); digits=4),
+                   p_value=round.(Float64.(res.z_star_pvalue); digits=4))
+    output_result(df; format=Symbol(format), output=output, title="Variance-Ratio Test: $vname")
+    output_kv(Pair{String,Any}[
+        "Chow-Denning stat" => round(Float64(res.cd_star_stat); digits=4),
+        "Chow-Denning p-value" => round(Float64(res.cd_star_pvalue); digits=4),
+        "robust" => res.robust,
+        "observations" => res.nobs];
+        format=format, title="Joint Random-Walk Test")
+    interpret_test_result(Float64(res.cd_star_pvalue),
+        "Reject H0 (random walk) at 5% -- variance ratios differ from 1 (mean reversion / momentum)",
+        "Cannot reject H0 (random walk) at 5%")
+    return res
+end
+
+function _test_bds(; data::String, column::Int=1, max_dim::Int=6, eps_frac::Float64=0.7,
+        format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    max_dim >= 2 || throw(CliError("usage/invalid", "--max-dim must be ≥ 2 (got $max_dim)"))
+    eps_frac > 0 || throw(CliError("usage/invalid", "--eps-frac must be > 0 (got $eps_frac)"))
+    _status("BDS Test: variable=$vname, observations=$(length(y)), embedding dims=2..$max_dim"); _status()
+    res = try
+        bds_test(y; m=2:max_dim, eps_frac=eps_frac)
+    catch e
+        throw(_teststat_error(e, "BDS test"))
+    end
+    # res.statistic / res.pvalue are (n_dims × n_eps) matrices; a single scalar
+    # --eps-frac ⇒ one ε column, so flatten to per-dimension vectors aligned with res.m.
+    df = DataFrame(embed_dim=res.m,
+                   statistic=round.(Float64.(vec(res.statistic)); digits=4),
+                   p_value=round.(Float64.(vec(res.pvalue)); digits=4))
+    output_result(df; format=Symbol(format), output=output, title="BDS Test: $vname")
+    interpret_test_result(minimum(Float64.(res.pvalue)),
+        "Reject H0 (iid) at 5% -- nonlinear dependence / structure detected",
+        "Cannot reject H0 (iid) at 5%")
+    return res
+end
+
+function _test_hadri(; data::String, deterministic::String="constant",
+        format::String="table", output::String="")
+    Y, varnames = load_multivariate_data(data)
+    deterministic in ("constant", "trend") || throw(CliError("usage/invalid",
+        "--deterministic must be constant|trend (got '$deterministic')"))
+    _status("Hadri Panel Stationarity Test: units=$(size(Y,2)), observations=$(size(Y,1)), deterministic=$deterministic"); _status()
+    res = try
+        hadri_test(Y; deterministic=Symbol(deterministic))
+    catch e
+        throw(_teststat_error(e, "Hadri test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => round(Float64(res.statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, output=output, title="Hadri Panel Stationarity Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all panels stationary) at 5% -- at least one unit has a unit root",
+        "Cannot reject H0 (all panels stationary) at 5%")
+    return res
+end
+
+"""Load a panel + resolve --dep/--indep to Symbols for the panel-cointegration
+trio (Pedroni/Kao/Westerlund). id/time default to the first/second DATA column
+(mirrors `_load_panel_for_preg`)."""
+function _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    cols = names(load_data(data))
+    length(cols) >= 3 || throw(CliError("usage/invalid",
+        "panel cointegration needs id, time, and variable column(s) (found $(length(cols)))"))
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)          # typed: data/missing-column (bad id/time),
+                                                # data/invalid (no numeric vars / duplicate (id,time) pairs)
+    vars = pd.varnames                          # numeric cols minus id/time (non-empty — load_panel_data guards)
+    depc = isempty(dep) ? vars[1] : dep
+    depc in vars || throw(CliError("usage/invalid",
+        "--dep '$depc' is not a panel variable (have: $(join(vars, ", ")))"))
+    indeps = isempty(indep) ? filter(!=(depc), vars) : _parse_varlist(indep)
+    isempty(indeps) && throw(CliError("usage/invalid", "need at least one regressor via --indep"))
+    for v in indeps
+        v in vars || throw(CliError("usage/invalid",
+            "--indep '$v' is not a panel variable (have: $(join(vars, ", ")))"))
+    end
+    return pd, Symbol(depc), Symbol.(indeps), depc, indeps
+end
+
+"""Render a Pedroni/Kao/Westerlund result: statistic|value|p_value table + metadata
+kv (all three share the `.names`/`.statistics`/`.pvalues`/`.n_units`/`.n_regressors`/
+`.nobs` output triple). H0 = no cointegration; any p-value < 0.05 rejects."""
+function _panel_coint_output(res, label, depc, indeps; format, output)
+    df = DataFrame(statistic=String.(res.names),
+                   value=round.(Float64.(res.statistics); digits=4),
+                   p_value=round.(Float64.(res.pvalues); digits=4))
+    output_result(df; format=Symbol(format), output=output,
+                  title="$label: $depc ~ $(join(indeps, " + "))")
+    output_kv(Pair{String,Any}[
+        "n_units" => res.n_units,
+        "n_regressors" => res.n_regressors,
+        "observations" => res.nobs];
+        format=format, title="$label Summary")
+    interpret_test_result(minimum(Float64.(res.pvalues)),
+        "Reject H0 (no cointegration) at 5% -- evidence of panel cointegration",
+        "Cannot reject H0 (no cointegration) at 5%")
+end
+
+function _test_pedroni(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", trend::String="constant",
+        format::String="table", output::String="")
+    trend in ("constant", "trend") || throw(CliError("usage/invalid",
+        "--trend must be constant|trend (got '$trend')"))
+    pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    _status("Pedroni Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    res = try
+        pedroni_test(pd, depsym, indepsyms...; trend=Symbol(trend))
+    catch e
+        throw(_teststat_error(e, "Pedroni test"))
+    end
+    _panel_coint_output(res, "Pedroni cointegration", depc, indeps; format=format, output=output)
+    return res
+end
+
+function _test_kao(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", format::String="table", output::String="")
+    pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    _status("Kao Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    res = try
+        kao_test(pd, depsym, indepsyms...)
+    catch e
+        throw(_teststat_error(e, "Kao test"))
+    end
+    _panel_coint_output(res, "Kao cointegration", depc, indeps; format=format, output=output)
+    return res
+end
+
+function _test_westerlund(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", trend::String="constant",
+        format::String="table", output::String="")
+    trend in ("constant", "trend") || throw(CliError("usage/invalid",
+        "--trend must be constant|trend (got '$trend')"))
+    pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    _status("Westerlund Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    res = try
+        westerlund_test(pd, depsym, indepsyms...; trend=Symbol(trend))
+    catch e
+        throw(_teststat_error(e, "Westerlund test"))
+    end
+    _panel_coint_output(res, "Westerlund cointegration", depc, indeps; format=format, output=output)
     return res
 end
 

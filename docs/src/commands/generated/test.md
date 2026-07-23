@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 54
+**Leaves:** 60
 
 ### `friedman test adf`
 
@@ -132,6 +132,26 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `bartlett_wn` (Path to CSV data file)
+
+---
+
+### `friedman test bds`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--max-dim` | — | `Int64` | `6` | — | Maximum embedding dimension (≥ 2; tests m=2..max) |
+| `--eps-frac` | — | `Float64` | `0.7` | — | Distance threshold as a fraction of the sample sd |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `bds` (Path to CSV data file)
 
 ---
 
@@ -426,6 +446,24 @@ Path to CSV data file
 
 ---
 
+### `friedman test hadri`
+
+Path to CSV data file (rows=T, cols=N units)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file (rows=T, cols=N units) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `hadri` (Path to CSV data file (rows=T, cols=N units))
+
+---
+
 ### `friedman test hausman`
 
 Path to CSV panel data file
@@ -530,6 +568,27 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `johansen` (Path to CSV data file)
+
+---
+
+### `friedman test kao`
+
+Path to CSV panel data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV panel data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `kao` (Path to CSV panel data file)
 
 ---
 
@@ -773,6 +832,28 @@ Path to CSV data file (rows=T, cols=N)
 
 ---
 
+### `friedman test pedroni`
+
+Path to CSV panel data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV panel data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `pedroni` (Path to CSV panel data file)
+
+---
+
 ### `friedman test pesaran-cd`
 
 Path to CSV panel data file
@@ -953,6 +1034,26 @@ Path to CSV data file
 
 ---
 
+### `friedman test variance-ratio`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--horizons` | — | `String` | `2,4,8,16` | — | Comma-separated holding periods q (each ≥ 2) |
+| `--method` | — | `String` | `lomackinlay` | `lomackinlay` | Variance-ratio method |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `variance_ratio` (Path to CSV data file)
+
+---
+
 ### `friedman test vecm alpha`
 
 Path to CSV data file
@@ -1108,6 +1209,28 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `vif` (Path to CSV data file)
+
+---
+
+### `friedman test westerlund`
+
+Path to CSV panel data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV panel data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `westerlund` (Path to CSV panel data file)
 
 ---
 

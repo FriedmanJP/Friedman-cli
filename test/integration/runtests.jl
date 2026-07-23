@@ -678,6 +678,112 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(bcfg; force=true)
     end
 
+    @testset "TS + panel test batteries — real MEMs (C069/C070)" begin
+        # scan every kv table (metric|value) across the envelope for a metric value
+        scan_metric(doc, name) = begin
+            v = nothing
+            for (_, tbl) in pairs(doc.data)
+                if (tbl isa JSON3.Object || tbl isa AbstractDict) && (haskey(tbl, :rows) || haskey(tbl, "rows"))
+                    mv = metric_value(tbl, name)
+                    mv !== nothing && (v = mv)
+                end
+            end
+            v
+        end
+        # the (first) table that contains a named column
+        coltable(doc, col) = begin
+            for (_, tbl) in pairs(doc.data)
+                if (tbl isa JSON3.Object || tbl isa AbstractDict) && (haskey(tbl, :columns) || haskey(tbl, "columns"))
+                    col in table_cols(tbl) && return tbl
+                end
+            end
+            nothing
+        end
+        pmin(tbl) = minimum(Float64(collect(r)[col_index(tbl, "p_value")]) for r in table_rows(tbl))
+
+        @testset "variance-ratio — random walk (H0) vs mean-reverting (reject)" begin
+            rw = dgp_random_walk(; T=600, seed=91)
+            rrw = run_json(["test", "variance-ratio", rw, "--column", "1"])
+            assert_envelope_ok(rrw; label="variance-ratio rw")
+            prw = scan_metric(rrw.doc, "Chow-Denning p-value")
+            @test prw !== nothing && 0.0 <= Float64(prw) <= 1.0
+            t = coltable(rrw.doc, "variance_ratio")
+            @test t !== nothing && length(table_rows(t)) == 4        # default q = 2,4,8,16
+
+            mr = dgp_ar1(; T=600, φ=0.3, seed=93)                    # stationary → VR ≠ 1
+            rmr = run_json(["test", "variance-ratio", mr, "--column", "1"])
+            assert_envelope_ok(rmr; label="variance-ratio mean-reverting")
+            pmr = scan_metric(rmr.doc, "Chow-Denning p-value")
+            @test pmr !== nothing && Float64(pmr) < 0.05             # reject random walk
+            rm(rw; force=true); rm(mr; force=true)
+        end
+
+        @testset "bds — iid (H0) vs nonlinear GARCH (reject)" begin
+            iid = dgp_iid(; T=400, seed=95)
+            rii = run_json(["test", "bds", iid, "--column", "1"])
+            assert_envelope_ok(rii; label="bds iid")
+            t = coltable(rii.doc, "embed_dim")
+            @test t !== nothing && length(table_rows(t)) == 5        # m = 2..6
+            @test 0.0 <= pmin(t) <= 1.0
+
+            g = dgp_garch(; T=500, seed=97)
+            rg = run_json(["test", "bds", g, "--column", "1"])
+            assert_envelope_ok(rg; label="bds garch")
+            @test pmin(coltable(rg.doc, "p_value")) < 0.05          # nonlinear ⇒ reject iid
+            rm(iid; force=true); rm(g; force=true)
+        end
+
+        @testset "hadri — stationary vs unit-root panel" begin
+            i0 = dgp_panel_matrix(; N=10, T=80, unit_root=false, seed=101)
+            r0 = run_json(["test", "hadri", i0])
+            assert_envelope_ok(r0; label="hadri stationary")
+            p0 = scan_metric(r0.doc, "p-value"); s0 = scan_metric(r0.doc, "statistic")
+            @test p0 !== nothing && 0.0 <= Float64(p0) <= 1.0
+            @test s0 !== nothing && isfinite(Float64(s0))
+
+            i1 = dgp_panel_matrix(; N=10, T=80, unit_root=true, seed=103)
+            r1 = run_json(["test", "hadri", i1])
+            assert_envelope_ok(r1; label="hadri unit-root")
+            p1 = scan_metric(r1.doc, "p-value"); s1 = scan_metric(r1.doc, "statistic")
+            @test p1 !== nothing && Float64(p1) < 0.05              # reject all-stationary
+            # the I(1) panel's LM statistic is far larger than the (over-rejecting but
+            # bounded) stationary panel's — the robust discriminating direction.
+            @test s1 !== nothing && Float64(s1) > Float64(s0)
+            rm(i0; force=true); rm(i1; force=true)
+        end
+
+        @testset "pedroni / kao / westerlund — cointegrated panel (reject no-coint)" begin
+            cp = dgp_coint_panel(; N=10, T=50, seed=105)
+            for (leaf, ncols) in [("pedroni", 7), ("kao", 5), ("westerlund", 4)]
+                r = run_json(["test", leaf, cp, "--dep", "y", "--indep", "x"])
+                assert_envelope_ok(r; label="$leaf coint panel")
+                t = coltable(r.doc, "p_value")
+                @test t !== nothing && length(table_rows(t)) == ncols
+                @test pmin(t) < 0.05                                # genuinely cointegrated
+                @test scan_metric(r.doc, "n_regressors") == 1
+            end
+            rm(cp; force=true)
+        end
+
+        @testset "bad input stays typed (not internal exit 1)" begin
+            uni = dgp_iid(; T=200, seed=111)
+            @test run_json(["test", "variance-ratio", uni, "--horizons", "junk"]).code == 2
+            @test run_json(["test", "variance-ratio", uni, "--horizons", "1,2"]).code == 2
+            @test run_json(["test", "bds", uni, "--max-dim", "1"]).code == 2
+            cp = dgp_coint_panel(; N=6, T=40, seed=113)
+            @test run_json(["test", "pedroni", cp, "--dep", "nope"]).code == 2
+            @test run_json(["test", "pedroni", cp, "--indep", "nope"]).code == 2
+            @test run_json(["test", "pedroni", cp, "--id-col", "nosuch"]).code == 3   # data/missing-column
+            # duplicate (id,time) pair → real xtset ArgumentError mapped to typed data/invalid
+            # (regression: adversarial review C069/C070 — was an uncaught internal exit-1)
+            dup = tempname() * ".csv"
+            write(dup, "id,time,y,x\n1,1,0.5,1.2\n1,1,0.7,1.3\n1,2,0.9,1.4\n2,1,0.3,0.8\n2,2,0.6,0.9\n")
+            @test run_json(["test", "pedroni", dup, "--dep", "y", "--indep", "x"]).code == 3
+            rm(dup; force=true)
+            rm(uni; force=true); rm(cp; force=true)
+        end
+    end
+
     @testset "forecast bvar/dynamic/gdfm/favar tidy (C051 redesign)" begin
         # Previously hand-computed; now routed through MEMs forecast(...) → long_table.
         csv = dgp_var2(; T=150, seed=51)

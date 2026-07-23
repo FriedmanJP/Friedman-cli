@@ -1704,11 +1704,12 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 46 primary + 2 snake aliases (arch_lm, ljung_box) = 48 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
-        @test length(node.subcmds) == 48
+        # 52 primary + 2 snake aliases (arch_lm, ljung_box) = 54 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
+        @test length(node.subcmds) == 54
         for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
+                     "variance-ratio", "bds", "hadri", "pedroni", "kao", "westerlund",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
                      "adf-2break", "gregory-hansen", "vif",
@@ -2015,6 +2016,103 @@ end  # Estimate handlers
                 write(honly, "[vecm_restriction]\nH = [[1.0], [-1.0]]\n")
                 e = _errcode(["vecm", "joint", csv, "--config", honly, "--rank", "1"])
                 @test e isa CliError && e.code == "config/missing-key" && exit_class(e) == 4
+            end
+        end
+    end
+
+    @testset "TS + panel test batteries (C069/C070)" begin
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            uni = _make_csv(dir; T=120, n=2, colnames=["ret", "other"])
+            mv  = _make_csv(dir; T=60, n=4, colnames=["u1", "u2", "u3", "u4"])
+            panel = _make_panel_csv(dir; G=6, T_per=20, n=3, colnames=["y", "x1", "x2"])
+
+            @testset "variance-ratio — per-horizon table + joint kv" begin
+                doc = _doc(["variance-ratio", uni, "--column", "1", "--horizons", "2,4,8"])
+                @test doc.status == "ok"
+                @test Set(["horizon", "variance_ratio", "z_star", "p_value"]) ⊆ Set(String.(_tbl(doc, "horizon").columns))
+                @test length(_tbl(doc, "horizon").rows) == 3
+                @test Set(["Chow-Denning stat", "Chow-Denning p-value", "observations"]) ⊆ _metrics(doc)
+            end
+
+            @testset "bds — per-dimension statistic table" begin
+                doc = _doc(["bds", uni, "--column", "1", "--max-dim", "5"])
+                @test doc.status == "ok"
+                @test Set(["embed_dim", "statistic", "p_value"]) ⊆ Set(String.(_tbl(doc, "embed_dim").columns))
+                @test length(_tbl(doc, "embed_dim").rows) == 4   # m = 2..5
+            end
+
+            @testset "hadri — panel stationarity kv" begin
+                doc = _doc(["hadri", mv, "--deterministic", "constant"])
+                @test doc.status == "ok"
+                @test Set(["statistic", "p-value", "n_units", "observations"]) ⊆ _metrics(doc)
+                @test _doc(["hadri", mv, "--deterministic", "trend"]).status == "ok"
+            end
+
+            @testset "pedroni/kao/westerlund — shared statistic table + metadata kv" begin
+                for (leaf, ncols) in [("pedroni", 7), ("kao", 5), ("westerlund", 4)]
+                    doc = _doc([leaf, panel])
+                    @test doc.status == "ok"
+                    stat_tbl = _tbl(doc, "statistic")
+                    @test Set(["statistic", "value", "p_value"]) ⊆ Set(String.(stat_tbl.columns))
+                    @test length(stat_tbl.rows) == ncols
+                    @test Set(["n_units", "n_regressors", "observations"]) ⊆ _metrics(doc)
+                end
+                # explicit --dep/--indep selection
+                @test _doc(["pedroni", panel, "--dep", "y", "--indep", "x1,x2"]).status == "ok"
+                @test _doc(["kao", panel, "--dep", "y", "--indep", "x1"]).status == "ok"
+            end
+
+            @testset "bad input → typed CliError (never internal exit 1)" begin
+                # bad --column → data/column-range (loader)
+                e = _errcode(["variance-ratio", uni, "--column", "9"])
+                @test e isa CliError && e.code == "data/column-range"
+                # junk --horizons → usage/invalid
+                e = _errcode(["variance-ratio", uni, "--horizons", "junk"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # horizon < 2 → usage/invalid
+                e = _errcode(["variance-ratio", uni, "--horizons", "1,2"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # bds --max-dim 1 → usage/invalid
+                e = _errcode(["bds", uni, "--max-dim", "1"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # pedroni unknown --dep → usage/invalid
+                e = _errcode(["pedroni", panel, "--dep", "nope"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # pedroni unknown --indep → usage/invalid
+                e = _errcode(["pedroni", panel, "--indep", "nope"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # hadri bad --deterministic → usage error (enum-rejected at parse → ParseError,
+                # exit 2; the handler also guards it if reached directly)
+                e = _errcode(["hadri", mv, "--deterministic", "bogus"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                # pedroni missing id/time column → typed data error (loader)
+                e = _errcode(["pedroni", panel, "--id-col", "nosuch"])
+                @test e isa CliError && e.code == "data/missing-column"
+                # a panel whose only variable column is non-numeric → data/invalid, NOT an
+                # uncaught exit-1 (regression: adversarial review C069/C070 — load_panel_data's
+                # untyped error() → typed CliError; benefits the whole panel family)
+                strcsv = joinpath(dir, "panel_str.csv")
+                write(strcsv, "id,time,label\n1,1,foo\n1,2,bar\n2,1,baz\n2,2,qux\n")
+                es = _errcode(["pedroni", strcsv])
+                @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
             end
         end
     end
@@ -3171,7 +3269,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 48  # 46 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
+        @test length(node.subcmds) == 54  # 52 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -4588,7 +4686,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 48  # 46 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
+        @test length(node.subcmds) == 54  # 52 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
     end
 
     @testset "_parse_varlist" begin

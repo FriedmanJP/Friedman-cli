@@ -23,7 +23,7 @@ _friedman() {
     predict) COMPREPLY=( $(compgen -W "arch arima bvar dynamic egarch favar garch gdfm gjr-garch logit mlogit ologit oprobit piv plogit pprobit preg probit reg static sv var vecm" -- "$cur") ) ;;
     residuals) COMPREPLY=( $(compgen -W "arch arima bvar dynamic egarch favar garch gdfm gjr-garch logit mlogit ologit oprobit piv plogit pprobit preg probit reg static sv var vecm" -- "$cur") ) ;;
     spectral) COMPREPLY=( $(compgen -W "acf cross density periodogram transfer" -- "$cur") ) ;;
-    test) COMPREPLY=( $(compgen -W "adf adf-2break andrews arch-lm bai-perron bartlett-wn box-pierce brant breusch-pagan cips dfgls durbin-watson f-fe factor-break fisher fourier-adf fourier-kpss gph granger gregory-hansen hausman hausman-iia heteroskedasticity identifiability johansen kpss ljung-box lm lm-unitroot local-whittle lr modified-wald moon-perron normality np nyblom panic pesaran-cd pp pvar sign-bias var vecm vif wooldridge-ar za" -- "$cur") ) ;;
+    test) COMPREPLY=( $(compgen -W "adf adf-2break andrews arch-lm bai-perron bartlett-wn bds box-pierce brant breusch-pagan cips dfgls durbin-watson f-fe factor-break fisher fourier-adf fourier-kpss gph granger gregory-hansen hadri hausman hausman-iia heteroskedasticity identifiability johansen kao kpss ljung-box lm lm-unitroot local-whittle lr modified-wald moon-perron normality np nyblom panic pedroni pesaran-cd pp pvar sign-bias var variance-ratio vecm vif westerlund wooldridge-ar za" -- "$cur") ) ;;
   esac
 }
 complete -F _friedman friedman

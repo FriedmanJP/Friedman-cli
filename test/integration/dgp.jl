@@ -184,3 +184,57 @@ function dgp_trend_cycle(; T::Int=200, seed::Int=42)
     y = trend .+ cycle
     return write_csv(DataFrame(y=y); prefix="tc")
 end
+
+# ── C069/C070: variance-ratio / BDS / Hadri / panel-cointegration DGPs ──
+
+"""Pure random walk y_t = y_{t-1} + ε_t — the variance-ratio H0 (VR ≈ 1)."""
+function dgp_random_walk(; T::Int=600, seed::Int=42)
+    rng = MersenneTwister(seed)
+    return write_csv(DataFrame(y=cumsum(randn(rng, T))); prefix="rw")
+end
+
+"""iid white noise y_t = ε_t — the BDS H0 (iid)."""
+function dgp_iid(; T::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    return write_csv(DataFrame(y=randn(rng, T)); prefix="iid")
+end
+
+"""Wide T×N panel matrix (columns = units) for the Hadri panel-stationarity test
+(H0: all units stationary). `unit_root=false` ⇒ each column a stationary AR(1);
+`unit_root=true` ⇒ each column an independent random walk."""
+function dgp_panel_matrix(; N::Int=10, T::Int=80, unit_root::Bool=false,
+                           φ::Float64=0.5, seed::Int=42)
+    rng = MersenneTwister(seed)
+    df = DataFrame()
+    for j in 1:N
+        e = randn(rng, T)
+        if unit_root
+            df[!, "u$j"] = cumsum(e)
+        else
+            col = zeros(T)
+            for t in 2:T
+                col[t] = φ * col[t-1] + e[t]
+            end
+            df[!, "u$j"] = col
+        end
+    end
+    return write_csv(df; prefix=unit_root ? "hadri_i1" : "hadri_i0")
+end
+
+"""Long-format cointegrated panel (columns id/time/y/x): per unit i, x_it is a
+unit-specific I(1) random walk and y_it = β·x_it + stationary error, so y and x are
+cointegrated within each unit → the Pedroni/Kao/Westerlund tests should reject
+no-cointegration."""
+function dgp_coint_panel(; N::Int=10, T::Int=50, β::Float64=1.0, seed::Int=42)
+    rng = MersenneTwister(seed)
+    id = Int[]; time = Int[]; y = Float64[]; x = Float64[]
+    for i in 1:N
+        xi = cumsum(randn(rng, T))            # unit-specific I(1) regressor
+        yi = β .* xi .+ 0.5 .* randn(rng, T)  # cointegrated with x (stationary resid)
+        for t in 1:T
+            push!(id, i); push!(time, t)
+            push!(y, yi[t]); push!(x, xi[t])
+        end
+    end
+    return write_csv(DataFrame(id=id, time=time, y=y, x=x); prefix="cpanel")
+end

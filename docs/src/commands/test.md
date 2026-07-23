@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 43 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS), panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 49 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -130,6 +130,45 @@ friedman test local-whittle data.csv --bandwidth=32
 
 **Output:** `d` estimate, standard error, z-statistic, p-value (H₀: d = 0),
 bandwidth, observations, minimized objective R(d̂).
+
+## Randomness & Nonlinearity
+
+### test variance-ratio
+
+Lo-MacKinlay variance-ratio test with the Chow-Denning joint (multiple-horizon) statistic. H0: the series follows a random walk (all variance ratios equal 1). A rejection indicates mean reversion or momentum. Per-horizon rows carry heteroskedasticity-robust `z*` statistics; the headline is the robust Chow-Denning `max|z*|`.
+
+```bash
+friedman test variance-ratio data.csv --column=1
+friedman test variance-ratio data.csv --horizons=2,5,10,20
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--horizons` | | String | `2,4,8,16` | Comma-separated holding periods q (each ≥ 2) |
+| `--method` | | String | `lomackinlay` | Variance-ratio method |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Per-horizon table (`horizon|variance_ratio|z_star|p_value`) + joint Chow-Denning statistic and p-value.
+
+### test bds
+
+BDS test (Brock-Dechert-Scheinkman) for independence / nonlinear dependence in a series (often applied to model residuals). H0: the series is iid. Reported per embedding dimension.
+
+```bash
+friedman test bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--max-dim` | | Int | 6 | Maximum embedding dimension (tests m = 2..max-dim) |
+| `--eps-frac` | | Float | 0.7 | Distance threshold ε as a fraction of the series SD |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Per-dimension table (`embed_dim|statistic|p_value`); the decision uses the smallest p-value across dimensions.
 
 ## Cointegration
 
@@ -495,6 +534,60 @@ friedman test pvar stability data.csv --id-col=country --time-col=year --lags=2
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Companion matrix eigenvalues with moduli, stability verdict, max modulus.
+
+## Panel Stationarity & Cointegration
+
+`test hadri` tests panel stationarity from a wide matrix (one column per unit); `test pedroni | kao | westerlund` test panel cointegration from a long-format panel (`id`, `time`, and variable columns — like the panel regression / Panel VAR commands). The three cointegration tests share the same `--id-col`/`--time-col`/`--dep`/`--indep` interface and report a `statistic|value|p_value` table (H0: no cointegration; any p-value < 0.05 rejects). `--id-col`/`--time-col` default to the first/second columns; `--dep` defaults to the first variable and `--indep` to the rest.
+
+### test hadri
+
+Hadri (2000) LM test for panel stationarity. H0: all units are (trend-)stationary; a rejection indicates at least one unit has a unit root. Takes a wide numeric matrix (columns = units).
+
+```bash
+friedman test hadri panel_wide.csv --deterministic=constant
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--deterministic` | | String | `constant` | `constant` or `trend` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `statistic`, `p-value`, `n_units`, `observations`.
+
+### test pedroni
+
+Pedroni residual-based panel cointegration test (seven panel/group statistics).
+
+```bash
+friedman test pedroni panel.csv --id-col=country --time-col=year --dep=y --indep=x1,x2 --trend=constant
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--id-col` | | String | (1st col) | Panel unit identifier column |
+| `--time-col` | | String | (2nd col) | Time period column |
+| `--dep` | | String | (1st var) | Dependent variable |
+| `--indep` | | String | (rest) | Regressors (comma-separated) |
+| `--trend` | | String | `constant` | `constant` or `trend` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+### test kao
+
+Kao residual-based panel cointegration test (DF/ADF-type statistics). Same interface as `test pedroni` but without `--trend`.
+
+```bash
+friedman test kao panel.csv --dep=y --indep=x
+```
+
+### test westerlund
+
+Westerlund error-correction panel cointegration test (Gt/Ga/Pt/Pa statistics). Same interface as `test pedroni`.
+
+```bash
+friedman test westerlund panel.csv --dep=y --indep=x --trend=constant
+```
 
 ## Advanced Unit Root Tests
 

@@ -3962,8 +3962,8 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 46 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071)
-    @test length(test_node.subcmds) == 48
+    # 52 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070)
+    @test length(test_node.subcmds) == 54
     @test haskey(test_node.subcmds, "gph")
     @test haskey(test_node.subcmds, "local-whittle")
     # C071: nested VECM restriction-test node

@@ -818,11 +818,22 @@ function load_panel_data(data::String, id_col::String, time_col::String)
     # Get numeric variable columns excluding id and time (matches xtset's own
     # num_cols filter; passed explicitly so the panel keeps CLI-facing names).
     varnames = [n for n in variable_names(df) if n != id_col && n != time_col]
-    isempty(varnames) && error("no numeric variables found after excluding id/time columns")
+    isempty(varnames) && throw(CliError("data/invalid",
+        "no numeric variable columns found after excluding id='$id_col'/time='$time_col'; a panel needs at least one numeric variable column"))
     # MEMs 0.7.0 xtset takes (df, group_col::Symbol, time_col::Symbol; ...) and
     # resolves group/time ID mapping internally (C054: the old Matrix/Vector
-    # signature was removed upstream).
-    return xtset(df, Symbol(id_col), Symbol(time_col); varnames=varnames)
+    # signature was removed upstream). It throws untyped ArgumentErrors on a bad panel
+    # structure (duplicate (group,time) pairs, degenerate ids) — map those to a typed
+    # data error so bad user input never surfaces as an internal exit-1 (benefits the whole
+    # panel family: pvar/cips/hausman/pedroni/kao/westerlund).
+    return try
+        xtset(df, Symbol(id_col), Symbol(time_col); varnames=varnames)
+    catch e
+        e isa CliError && rethrow()
+        e isa ArgumentError && throw(CliError("data/invalid", "invalid panel structure: $(e.msg)";
+            hint="ensure (id, time) pairs are unique and variable columns are numeric"))
+        rethrow()
+    end
 end
 
 """
