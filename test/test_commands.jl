@@ -426,8 +426,8 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 63 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 64 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b)
-        @test length(node.subcmds) == 64
+        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
+        @test length(node.subcmds) == 66
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1968,6 +1968,132 @@ end  # Shared utilities
                 @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
                 # out-of-range column via the hardened univariate loader
                 @test _err([csv, "--column", "99"]).code == "data/column-range"
+            end
+        end
+    end
+
+    @testset "estimate ms-ar + estimate ms (C065c)" begin
+        # Markov-switching family. MSRegModel is not Tables.jl-registered → three hand-built
+        # tables via the shared `_ms_render`: a per-regime coefficient table (regime|term|…),
+        # a per-regime variance table (regime|sigma2|std_error), and a WIDE K×K transition
+        # matrix (from_regime|to_regime1|…) parallel to the MGARCH correlation matrix, plus a
+        # diagnostics kv. The two estimators have OPPOSITE switching_variance defaults (ms-ar
+        # FALSE, ms TRUE). Every option guarded up-front → usage/invalid; the estimator is
+        # wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
+        _doc(cmd, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", cmd], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _mtbl(doc) = first(t for t in _tables(doc) if "metric" in String.(t.columns))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in _mtbl(doc).rows)
+        _mval(doc, name) = begin
+            for r in _mtbl(doc).rows
+                rr = collect(r)
+                String(rr[1]) == name && return rr[2]
+            end
+            nothing
+        end
+        _err(cmd, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", cmd], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            # Distinct file paths per structure (`_make_csv` always writes the same `data.csv`, so a
+            # second call would clobber a single-column fixture the intercept-only test relies on).
+            Random.seed!(65067)
+            _write_csv(path, header, ncol; T=200) = open(path, "w") do io
+                println(io, header)
+                for _ in 1:T
+                    println(io, join((string(randn()) for _ in 1:ncol), ","))
+                end
+            end
+            csv = joinpath(dir, "ms_uni.csv");     _write_csv(csv, "y", 1)
+            multi = joinpath(dir, "ms_multi.csv"); _write_csv(multi, "y,x1,x2", 3)
+            collide = joinpath(dir, "ms_collide.csv"); _write_csv(collide, "y,from_regime,to_regime1", 3)
+
+            @testset "estimate ms-ar — mu rows + common-AR block, variance + wide P, kv" begin
+                doc = _doc("ms-ar", [csv, "--column", "1", "--p", "1"])
+                @test doc.status == "ok"
+                # coef table: per-regime `mu` rows + a common-AR block (φ1)
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                terms = Set(String(collect(r)[2]) for r in rows)
+                @test "mu" in terms
+                @test "φ1" in terms
+                regimes = Set(String(collect(r)[1]) for r in rows)
+                @test "regime1" in regimes && "regime2" in regimes && "common-AR" in regimes
+                # per-regime variance table (2 regimes)
+                vt = _tbl_with(doc, "regime", "sigma2", "std_error")
+                @test length(collect(vt.rows)) == 2
+                # WIDE K×K transition matrix
+                pt = _tbl_with(doc, "from_regime", "to_regime1", "to_regime2")
+                @test length(collect(pt.rows)) == 2
+                m = _metrics(doc)
+                @test Set(["loglik", "n_params", "aic", "bic", "ergodic_1", "ergodic_2",
+                           "expected_duration_1", "expected_duration_2", "switching_var",
+                           "switching_ar", "converged", "iterations"]) ⊆ m
+                # Hamilton form default: switching_var = false
+                @test string(_mval(doc, "switching_var")) == "false"
+                # --switching-variance flag turns it on
+                d2 = _doc("ms-ar", [csv, "--p", "1", "--switching-variance"])
+                @test string(_mval(d2, "switching_var")) == "true"
+            end
+
+            @testset "estimate ms-ar — bad input → typed usage/invalid" begin
+                @test _err("ms-ar", [csv, "--p", "0"]).code == "usage/invalid"
+                @test _err("ms-ar", [csv, "--k-regimes", "1"]).code == "usage/invalid"
+                @test _err("ms-ar", [csv, "--max-iter", "0"]).code == "usage/invalid"
+                @test _err("ms-ar", [csv, "--column", "99"]).code == "data/column-range"
+            end
+
+            @testset "estimate ms — regressors path, switching_var default TRUE" begin
+                # multi-column CSV → per-regime switching coefs over the regressor columns
+                doc = _doc("ms", [multi, "--dep", "y"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                regimes = Set(String(collect(r)[1]) for r in collect(coef.rows))
+                @test regimes == Set(["regime1", "regime2"])
+                @test string(_mval(doc, "switching_var")) == "true"   # default for ms
+                # --no-switching-variance forces a common σ²
+                dn = _doc("ms", [multi, "--dep", "y", "--no-switching-variance"])
+                @test string(_mval(dn, "switching_var")) == "false"
+            end
+
+            @testset "estimate ms — intercept-only single-arg dispatch (dep-only CSV)" begin
+                # only the dependent column is numeric → _load_reg_data raises "no regressor
+                # columns", routing to the single-arg estimate_ms(y; …) intercept-only dispatch
+                doc = _doc("ms", [csv])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # intercept-only: one `const` term per regime (2 rows)
+                @test length(rows) == 2
+                @test all(String(collect(r)[2]) == "const" for r in rows)
+            end
+
+            @testset "estimate ms — bad input → typed usage/invalid" begin
+                @test _err("ms", [csv, "--k-regimes", "1"]).code == "usage/invalid"
+                @test _err("ms", [csv, "--max-iter", "0"]).code == "usage/invalid"
+                @test _err("ms", [csv, "--tol", "0"]).code == "usage/invalid"
+            end
+
+            @testset "estimate ms — regressors named like P-labels render cleanly" begin
+                # UNLIKE MGARCH (where the input series names ARE the wide-matrix headers → a real
+                # collision the makeunique guards), the MS wide-P headers are FIXED strings
+                # (from_regime / to_regimeN), so a regressor column named `from_regime`/`to_regime1`
+                # only ever becomes a `term` VALUE in the coef table, never a header. This test just
+                # confirms such oddly-named regressors render exit-0 (the makeunique on the P DataFrame
+                # is retained as harmless defense-in-depth, mirroring `_mgarch_corr_df`, but the MS
+                # table headers cannot be driven by user input, so no header collision can occur).
+                cdoc = _doc("ms", [collide, "--dep", "y"])
+                @test cdoc.status == "ok"
+                @test _tbl_with(cdoc, "from_regime", "to_regime1", "to_regime2") !== nothing
             end
         end
     end
@@ -4293,7 +4419,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 64  # 63 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star)
+        @test length(node.subcmds) == 66  # 65 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -5710,7 +5836,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 64  # 63 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star)
+        @test length(node.subcmds) == 66  # 65 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms)
     end
 
     @testset "register_irf_commands! includes pvar" begin

@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 61 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test) and smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR, Teräsvirta NLS), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models. 65 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test) and smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR, Teräsvirta NLS), Markov-switching autoregression (MS-AR, Hamilton mean-switching) and K-state Markov-switching regression (with a wide regime-transition matrix), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -1153,6 +1153,58 @@ friedman estimate star y.csv --p 2 --type lstr1 --transition-col 3
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** two hand-built tables plus diagnostics — a **regime-weight coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, the two blocks `regime1 (G→0)` / `regime2 (G→1)` stacked) and a **transition-parameters table** (`parameter|estimate|std_error|z_stat|p_value` over `γ` and the location(s) `c`, length 1 for LSTR1/ESTR or 2 for LSTR2), both with normal-approximation z/p; then a diagnostics block (`trans_type`, `sname`, `sigma_s`, `n`, `p`, `d`, `ssr`, `sigma2`, `aic`, `bic`, the Luukkonen–Saikkonen–Teräsvirta LM3 statistics `lm3_stat`/`lm3_pvalue`/`lm3_fstat`/`lm3_fpvalue`, `converged`, and — for `--type auto` only — the Teräsvirta selection triple `sel_H04`/`sel_H03`/`sel_H02`). Note the two **regime weights** here (`1−G` / `G`) are smooth combination weights, unlike SETAR's hard split; the `switching_variance` diagnostic is a Markov-switching concept and does not apply to STAR. `STARModel` is not Tables.jl-registered, so the tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant transition variable, too-short series, or NLS failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error. See also [`test star-linearity`](test.md#test-star-linearity) and [`forecast star`](forecast.md#forecast-star).
+
+## estimate ms-ar
+
+**Markov-switching autoregression (MS-AR)** (Hamilton 1989) — the *mean-switching* autoregression `(yₜ − μ_{sₜ}) = Σⱼ φⱼ (y_{t−j} − μ_{s_{t−j}}) + εₜ`, `εₜ ~ N(0, σ²_{sₜ})`, where a latent `K`-state Markov chain `sₜ` (with transition matrix `P`) switches the level `μ` while the AR coefficients `φ` are **common** across regimes. Estimated by the Hamilton forward filter, the Kim smoother, and EM with a maximum-likelihood polish (delta-method standard errors). Regimes are labelled deterministically in order of increasing conditional mean `μ` (defeating label-switching across seeds), so regime 1 is always the lowest-mean state.
+
+> **Note the `switching_variance` polarity:** for `estimate ms-ar` the variance is **common by default** (the Hamilton form) — `--switching-variance` turns per-regime variances *on*. This is the **opposite** default of [`estimate ms`](#estimate-ms), where the variance switches by default (`--no-switching-variance` turns it off). The two are intentionally not unified.
+
+```bash
+# 2-regime MS-AR(1) with a common variance (Hamilton form)
+friedman estimate ms-ar y.csv --p 1
+
+# 3-regime MS-AR(2) with per-regime (switching) variances
+friedman estimate ms-ar y.csv --p 2 --k-regimes 3 --switching-variance
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | `1` | Column index (1-based) |
+| `--p` | | Int | `1` | AR order (≥ 1) |
+| `--k-regimes` | | Int | `2` | Number of regimes (≥ 2) |
+| `--max-iter` | | Int | `1000` | Max EM iterations (≥ 1) |
+| `--switching-variance` | | Flag | off | Let σ² switch across regimes (default: off, Hamilton form) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** three hand-built tables plus diagnostics — a **per-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`: one switching `mu` row per regime, then a single `common-AR` block for the shared φ₁…φₚ, normal-approximation z/p), a **per-regime variance table** (`regime|sigma2|std_error`), and the **wide K×K transition matrix** (`from_regime|to_regime1|…|to_regimeK`, `P[i,j] = Pr(sₜ=j | s_{t−1}=i)`, rows sum to 1) — the transition matrix renders **wide** (regime×regime), a documented [C051](#coefficient-table-format-c051) exception parallel to the MGARCH conditional-correlation matrix; then a diagnostics block (`loglik`, `n_params`, `aic`, `bic`, per-regime `ergodic_k` and `expected_duration_k`, `switching_var`, `switching_ar`, `converged`, `iterations`). `MSRegModel` is not Tables.jl-registered, so all tables are hand-built. Every option is validated up-front (`usage/invalid`); a too-short series or EM failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+
+## estimate ms
+
+**Markov-switching regression (MS)** — a `K`-state switching regression `yₜ = xₜ'β_{sₜ} + εₜ`, `εₜ ~ N(0, σ²_{sₜ})`, where **every** coefficient (not just the level) switches with the latent `K`-state Markov chain, and (by default) the variance switches too. Regressors come from the numeric columns other than `--dep` (**no auto-intercept** — include a `const` column, exactly like [`estimate reg`](#estimate-reg)); when the dependent variable is the **only** numeric column, the command routes to the single-argument intercept-only dispatch (a switching-intercept model, `X = ones(n, 1)`). Regimes are labelled by increasing conditional mean.
+
+> **Note the `switching_variance` polarity:** for `estimate ms` the variance **switches by default** — `--no-switching-variance` forces a common σ². This is the **opposite** default of [`estimate ms-ar`](#estimate-ms-ar) (common variance by default).
+
+```bash
+# 2-regime switching regression: dep = y, regressors = the other numeric columns (add a const)
+friedman estimate ms data.csv --dep y
+
+# Intercept-only switching-mean model (dep is the only numeric column), common variance
+friedman estimate ms y.csv --no-switching-variance
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | | Dependent variable column (default: first numeric) |
+| `--k-regimes` | | Int | `2` | Number of regimes (≥ 2) |
+| `--max-iter` | | Int | `500` | Max EM iterations (≥ 1) |
+| `--tol` | | Float | `1e-8` | EM convergence tolerance (> 0) |
+| `--no-switching-variance` | | Flag | off | Force a common σ² across regimes (default: σ² switches) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** the same three hand-built tables as [`estimate ms-ar`](#estimate-ms-ar) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
 
 ## estimate iv
 

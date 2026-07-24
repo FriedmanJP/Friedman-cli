@@ -50,11 +50,14 @@ preference:
    regression leaves (`CointRegModel`/`PanelCointRegModel`), the ARDL/NARDL family
    (`ARDLModel`/`NARDLModel`/`ARDLLongRun`/`ARDLBoundsTest`/`NARDLSymmetryTest`/`NARDLMultipliers`
    — `estimate ardl`/`nardl`, `test ardl-bounds`/`nardl-symmetry`, `multipliers nardl`), and the
-   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate pmg`, `test pmg-hausman`) — none of
+   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate pmg`, `test pmg-hausman`), and the
+   nonlinear-TS family (`ThresholdModel`/`STARModel`/`MSRegModel` — `estimate setar`/`star`/`ms-ar`/`ms`;
+   the two `*Forecast` types ARE registered and render via `long_table`) — none of
    these result types are Tables.jl-registered upstream) or where the tidy schema would lose information the command
    needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
-   summary). The `io` matrices (Leontief/Ghosh inverses, coefficients) and MGARCH conditional
-   correlations render **wide** (sector×sector / series×series); vector results render one row
+   summary). The `io` matrices (Leontief/Ghosh inverses, coefficients), MGARCH conditional
+   correlations, and the Markov-switching K×K regime-transition matrix (`estimate ms-ar`/`ms`) render
+   **wide** (sector×sector / series×series / regime×regime); vector results render one row
    per sector/term.
 
 ## CLI Framework
@@ -167,4 +170,4 @@ leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `haus
 
 ## Totals
 
-18 top-level commands, 292 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+18 top-level commands, 303 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).

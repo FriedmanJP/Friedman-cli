@@ -19,7 +19,7 @@
 
 module MacroEconometricModels
 
-using LinearAlgebra: I, diagm, Diagonal
+using LinearAlgebra: I, diagm, Diagonal, dot
 using Statistics: mean, var, std, quantile
 using Random
 import Serialization
@@ -3947,6 +3947,202 @@ end
 long_table(f::STARForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 
 export STARModel, STARForecast, estimate_star, star_linearity_test
+
+# ─── C065c: Markov-switching (MSRegModel) nonlinear-TS mocks ──
+# Mirror the real MEMs 0.7.0 MSRegModel (src/nonlinear/{types,markov_switching}.jl), fields the
+# FULL real set in real order (check_mock_surface mock ⊆ real). MSRegModel is NOT Tables.jl-
+# registered → no `DataFrames.DataFrame(::MSRegModel)` method (the CLI renders hand-built), so no
+# forward-reference dispatch risk. `estimate_ms`/`estimate_ms_ar` VALIDATE like real (mirroring the
+# EXACT sample-size guards `n > K·kx + nσ + K(K−1)` / `n_eff > K + p + nσ + K(K−1) + 1`, nσ = K if
+# switching_variance else 1) so the CLI's `_nonlinear_error` mapping is honestly exercised, then
+# return a genuine-ish quantile-split EM-free fit. Any inv()/\ is singular-guarded (via
+# `_mock_ols_regime` and the max(var,ε) floors) so a degenerate input yields degenerate finite
+# values, never a raw SingularException. NO `; kwargs...` absorbers.
+struct MSRegModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
+    model_type::Symbol
+    y::Vector{T}
+    X::Matrix{T}
+    k_regimes::Int
+    p::Int
+    mu::Vector{T}
+    coefs::Matrix{T}
+    se_coefs::Matrix{T}
+    ar::Vector{T}
+    se_ar::Vector{T}
+    sigma2::Vector{T}
+    se_sigma2::Vector{T}
+    P::Matrix{T}
+    ergodic::Vector{T}
+    expected_durations::Vector{T}
+    filtered_prob::Matrix{T}
+    smoothed_prob::Matrix{T}
+    residuals::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    n::Int
+    n_params::Int
+    switching_var::Bool
+    switching_ar::Bool
+    converged::Bool
+    iterations::Int
+    xnames::Vector{String}
+    yname::String
+end
+
+# Ergodic (stationary) distribution of a row-stochastic P via power iteration (guarded, no inv).
+function _mock_ms_ergodic(P::AbstractMatrix)
+    K = size(P, 1)
+    v = fill(1.0 / K, K)
+    for _ in 1:200
+        v = vec(v' * P)
+        s = sum(v)
+        s > 0 && (v ./= s)
+    end
+    return v
+end
+
+# Row-stochastic K×K transition matrix with a sticky diagonal (mirrors real's EM init geometry).
+function _mock_ms_P(K::Int)
+    P = fill(0.2 / (K - 1), K, K)
+    for i in 1:K
+        P[i, i] = 0.8
+    end
+    return P
+end
+
+# Gaussian log-likelihood of a hard-assigned K-regime fit (finite; sigma2 floored).
+function _mock_ms_loglik(resid::AbstractVector, assign::AbstractVector{Int}, sig2::AbstractVector)
+    ll = 0.0
+    for t in eachindex(resid)
+        s2 = max(sig2[assign[t]], 1e-8)
+        ll += -0.5 * (log(2π * s2) + resid[t]^2 / s2)
+    end
+    return ll
+end
+
+function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
+                     switching_variance::Bool=true, max_iter::Int=500,
+                     tol::Real=1e-8, xnames=nothing)
+    k_regimes >= 2 || throw(ArgumentError("k_regimes must be ≥ 2; got $k_regimes."))
+    yv = Vector{Float64}(collect(Float64, y))
+    Xm = Matrix{Float64}(X)
+    n, kx = size(Xm)
+    length(yv) == n || throw(DimensionMismatch(
+        "length(y)=$(length(yv)) must equal size(X,1)=$n."))
+    K = k_regimes
+    nσ = switching_variance ? K : 1
+    (n > K * kx + nσ + K * (K - 1)) || throw(ArgumentError(
+        "sample too small for a $K-regime switching regression with $kx regressors."))
+    # Quantile-bin assignment of y → K regimes (mirrors real's EM initialisation), then per-regime
+    # OLS. Regimes are relabelled by increasing conditional mean (defeating label-switching).
+    order = sortperm(yv)
+    binsz = cld(n, K)
+    assign0 = Vector{Int}(undef, n)
+    for k in 1:K
+        idx = order[((k - 1) * binsz + 1):min(k * binsz, n)]
+        assign0[idx] .= k
+    end
+    B = Matrix{Float64}(undef, kx, K)
+    seB = Matrix{Float64}(undef, kx, K)
+    means = Vector{Float64}(undef, K)
+    for k in 1:K
+        rows = findall(==(k), assign0)
+        b, se, _ = _mock_ols_regime(Xm[rows, :], yv[rows])
+        B[:, k] = b
+        seB[:, k] = se
+        means[k] = isempty(rows) ? 0.0 : mean(yv[rows])
+    end
+    perm = sortperm(means)
+    B = B[:, perm]; seB = seB[:, perm]; means = means[perm]
+    remap = Dict(perm[k] => k for k in 1:K)
+    assign = Int[remap[a] for a in assign0]
+    fitted = Float64[dot(Xm[t, :], B[:, assign[t]]) for t in 1:n]
+    resid = yv .- fitted
+    sig2 = Vector{Float64}(undef, K)
+    for k in 1:K
+        rk = resid[findall(==(k), assign)]
+        sig2[k] = max(isempty(rk) ? 1e-4 : var(rk), 1e-4)
+    end
+    switching_variance || (sig2 .= mean(sig2))
+    se_sig2 = Float64[0.1 * s for s in sig2]
+    P = _mock_ms_P(K)
+    filt = zeros(Float64, n, K)
+    for t in 1:n
+        filt[t, assign[t]] = 1.0
+    end
+    loglik = _mock_ms_loglik(resid, assign, sig2)
+    n_params = K * kx + nσ + K * (K - 1)
+    aic = -2 * loglik + 2 * n_params
+    bic = -2 * loglik + log(n) * n_params
+    xnms = xnames === nothing ? String["x$i" for i in 1:kx] : collect(String, xnames)
+    MSRegModel{Float64}(:regression, yv, Xm, K, 0, means, B, seB, Float64[], Float64[],
+        sig2, se_sig2, P, _mock_ms_ergodic(P),
+        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, copy(filt), resid,
+        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y")
+end
+
+# Single-arg intercept-only dispatch (X = ones(n,1)); kwargs enumerated explicitly (NOT a
+# `; kwargs...` absorber — that trips the check_mock_surface budget regex).
+estimate_ms(y::AbstractVector; k_regimes::Int=2, switching_variance::Bool=true,
+            max_iter::Int=500, tol::Real=1e-8) =
+    estimate_ms(y, ones(Float64, length(y), 1); xnames=String["const"], k_regimes=k_regimes,
+                switching_variance=switching_variance, max_iter=max_iter, tol=tol)
+
+function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
+                        switching_variance::Bool=false, max_iter::Int=1000, yname::String="y")
+    p >= 1 || throw(ArgumentError("AR order p must be ≥ 1; got $p."))
+    k_regimes >= 2 || throw(ArgumentError("k_regimes must be ≥ 2; got $k_regimes."))
+    yv = Vector{Float64}(collect(Float64, y))
+    n_full = length(yv)
+    K = k_regimes
+    nσ = switching_variance ? K : 1
+    n = n_full - p                                   # effective sample
+    n > K + p + nσ + K * (K - 1) + 1 || throw(ArgumentError(
+        "series too short for a $K-regime MS-AR($p)."))
+    # Linear AR(p) on the effective sample → common φ (guarded against a singular design).
+    Xlin = Matrix{Float64}(undef, n, p + 1)
+    Xlin[:, 1] .= 1.0
+    ylin = yv[(p + 1):n_full]
+    for j in 1:p
+        Xlin[:, j + 1] = yv[(p + 1 - j):(n_full - j)]
+    end
+    blin, selin, _ = _mock_ols_regime(Xlin, ylin)
+    phi = blin[2:(p + 1)]
+    se_phi = selin[2:(p + 1)]
+    # Regime means spread across the y quantiles, in increasing order (defeats label-switching).
+    mu = Float64.(quantile(yv, range(0.1, 0.9, length=K)))
+    se_mu = fill(0.1 + 0.05 * abs(mean(mu)), K)
+    # Hard-assign each effective obs to its closest regime mean → residuals + variances.
+    assign = Int[argmin(abs.(mu .- ylin[t])) for t in 1:n]
+    fitted = Float64[mu[assign[t]] + (p > 0 ? dot(phi, Xlin[t, 2:(p + 1)] .- mu[assign[t]]) : 0.0) for t in 1:n]
+    resid = ylin .- fitted
+    sig2 = Vector{Float64}(undef, K)
+    for k in 1:K
+        rk = resid[findall(==(k), assign)]
+        sig2[k] = max(isempty(rk) ? 1e-3 : var(rk), 1e-3)
+    end
+    switching_variance || (sig2 .= mean(sig2))
+    se_sig2 = Float64[0.1 * s for s in sig2]
+    coefs = reshape(copy(mu), 1, K)
+    se_coefs = reshape(copy(se_mu), 1, K)
+    P = _mock_ms_P(K)
+    filt = zeros(Float64, n, K)
+    for t in 1:n
+        filt[t, assign[t]] = 1.0
+    end
+    loglik = _mock_ms_loglik(resid, assign, sig2)
+    n_params = K + p + nσ + K * (K - 1)
+    aic = -2 * loglik + 2 * n_params
+    bic = -2 * loglik + log(n) * n_params
+    xnms = vcat("const", String["y[t-$i]" for i in 1:p])
+    MSRegModel{Float64}(:ms_ar, ylin, Xlin, K, p, mu, coefs, se_coefs, phi, se_phi,
+        sig2, se_sig2, P, _mock_ms_ergodic(P),
+        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, copy(filt), resid,
+        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname)
+end
+
+export MSRegModel, estimate_ms, estimate_ms_ar
 
 # BVAR forecast dispatch — returns BVARForecast
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)

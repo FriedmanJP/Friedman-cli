@@ -851,6 +851,55 @@ function estimate_specs()::Vector{CommandSpec}
             category="estimate",
             handler=wrap_legacy(_estimate_star),
         ),
+        # ── C065c: MS-AR (Markov-switching autoregression, Hamilton 1989 mean-switching) ──
+        # `estimate_ms_ar` → MSRegModel(model_type=:ms_ar). Only the level μ switches across
+        # regimes; the AR coefficients φ are COMMON. Hand-built per-regime coef table (μ rows +
+        # a common-AR block) + a per-regime variance table + a WIDE K×K transition matrix +
+        # diagnostics kv (MSRegModel is NOT in MEMs `_COEF_TABLE_TYPES`). NOTE the Hamilton form's
+        # `switching_variance` default is FALSE (the `--switching-variance` flag turns it ON) —
+        # the OPPOSITE polarity of `estimate ms`; do not unify.
+        CommandSpec(
+            path=["estimate", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:estimate_ms_ar, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ms_ar),
+        ),
+        # ── C065c: MS regression (K-state Markov-switching regression) ──
+        # `estimate_ms` → MSRegModel(model_type=:regression) — every coefficient switches with the
+        # latent regime. Loaded via `_load_reg_data` (y + numeric regressors, NO auto-intercept —
+        # include a `const` column, like `estimate reg`); when the dependent variable is the ONLY
+        # numeric column, routes to the single-arg intercept-only dispatch `estimate_ms(y; …)`.
+        # Same hand-built rendering as ms-ar via the shared `_ms_render`. NOTE the regression form's
+        # `switching_variance` default is TRUE (the `--no-switching-variance` flag turns it OFF) —
+        # the OPPOSITE polarity of `estimate ms-ar`.
+        CommandSpec(
+            path=["estimate", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:estimate_ms, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_ms),
+        ),
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Path to CSV data file",
@@ -4296,4 +4345,162 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
     end
     output_kv(diag; format=format, title="STAR($p) Diagnostics")
     return model
+end
+
+# ── C065c: Markov-switching (MSRegModel) shared renderer ─────────
+# `estimate_ms_ar` (Hamilton mean-switching) and `estimate_ms` (K-state regression) both
+# return an MSRegModel, which is NOT in MEMs `_COEF_TABLE_TYPES` → every table is hand-built
+# (the documented C051 exception, like io/mgarch/sur). The transition matrix P renders WIDE
+# (regime×regime), the parallel of the MGARCH conditional-correlation matrix.
+
+"""Wide K×K transition-matrix DataFrame with a leading `from_regime` label column and
+`to_regime\$j` value columns (`P[i,j] = Pr(sₜ=j | s_{t−1}=i)`, rows sum to 1). `makeunique=true`
+on BOTH the matrix constructor AND the `insertcols!` guards the recurring wide-matrix
+header/label collision (a duplicate/colliding header would otherwise crash the UNWRAPPED
+renderer → exit-1), exactly as `_mgarch_corr_df` does for the MGARCH correlation matrix."""
+function _ms_transition_df(P::AbstractMatrix)
+    K = size(P, 1)
+    df = DataFrame(round.(Float64.(P); digits=6), String["to_regime$j" for j in 1:K]; makeunique=true)
+    insertcols!(df, 1, :from_regime => String["regime$i" for i in 1:K]; makeunique=true)
+    return df
+end
+
+"""Shared renderer for a Markov-switching fit (`estimate ms-ar` / `estimate ms`). Emits, in
+order: a tidy per-regime coefficient table, a per-regime variance table, the WIDE K×K
+transition matrix, and a diagnostics kv. Branches on `model.model_type`:
+
+- `:ms_ar` (Hamilton mean-switching) — one switching-`mu` row per regime (from `model.mu` /
+  `model.se_coefs[1,k]`) PLUS a single `common-AR` block for the shared AR coefficients φ
+  (from `model.ar` / `model.se_ar`), since only the level switches.
+- `:regression` — the full per-regime switching coefficients over `model.xnames` (from
+  `model.coefs[:,k]` / `model.se_coefs[:,k]`).
+
+Each `output_result`/`output_kv` uses a DISTINCT title → distinct envelope slug; the 2nd/3rd
+tables route `--output` to a distinct `_per_var_output_path` so a `-o file` export is not
+overwritten by the subsequent table (the C065b multi-table lesson; no-op for stdout/envelope)."""
+function _ms_render(model, format::String, output::String)
+    K = model.k_regimes
+    label = model.model_type == :ms_ar ? "MS-AR($(model.p))" : "MS Regression"
+    yname = String(model.yname)
+    blocks = DataFrame[]
+    if model.model_type == :ms_ar
+        for k in 1:K
+            push!(blocks, _threshold_coef_table(
+                Float64[model.mu[k]], Float64[model.se_coefs[1, k]],
+                String["mu"], "regime$k"))
+        end
+        # AR coefficients φ are COMMON across regimes → one separate block
+        if !isempty(model.ar)
+            push!(blocks, _threshold_coef_table(
+                Float64.(model.ar), Float64.(model.se_ar),
+                String["φ$i" for i in 1:length(model.ar)], "common-AR"))
+        end
+    else
+        for k in 1:K
+            push!(blocks, _threshold_coef_table(
+                Float64.(model.coefs[:, k]), Float64.(model.se_coefs[:, k]),
+                model.xnames, "regime$k"))
+        end
+    end
+    output_result(vcat(blocks...); format=Symbol(format), output=output,
+                  title="$label Regime Coefficients ($yname)")
+    vardf = DataFrame(regime=String["regime$k" for k in 1:K],
+                      sigma2=round.(Float64.(model.sigma2); digits=6),
+                      std_error=round.(Float64.(model.se_sigma2); digits=6))
+    output_result(vardf; format=Symbol(format),
+                  output=_per_var_output_path(output, "variance"),
+                  title="$label Regime Variances")
+    output_result(_ms_transition_df(model.P); format=Symbol(format),
+                  output=_per_var_output_path(output, "transition"),
+                  title="$label Transition Matrix")
+    diag = Pair{String,Any}[
+        "loglik"   => round(Float64(model.loglik); digits=4),
+        "n_params" => model.n_params,
+        "aic"      => round(Float64(model.aic); digits=4),
+        "bic"      => round(Float64(model.bic); digits=4),
+    ]
+    for k in 1:K
+        push!(diag, "ergodic_$k" => round(Float64(model.ergodic[k]); digits=6))
+    end
+    for k in 1:K
+        push!(diag, "expected_duration_$k" => round(Float64(model.expected_durations[k]); digits=4))
+    end
+    append!(diag, Pair{String,Any}[
+        "switching_var" => model.switching_var,
+        "switching_ar"  => model.switching_ar,
+        "converged"     => model.converged,
+        "iterations"    => model.iterations,
+    ])
+    output_kv(diag; format=format, title="$label Diagnostics")
+    return model
+end
+
+# ── C065c: MS-AR handler ─────────────────────────────────────────
+# Every option guarded up-front → usage/invalid (before any MEMs call); the estimator is
+# try-wrapped → typed CliError via the shared `_nonlinear_error` (never uncaught exit-1).
+# `switching_variance` default FALSE (Hamilton) — the `--switching-variance` flag turns it on.
+function _estimate_ms_ar(; data::String, column::Int=1, p::Int=1, k_regimes::Int=2,
+                          switching_variance::Bool=false, max_iter::Int=1000,
+                          output::String="", format::String="table")
+    p >= 1 || throw(CliError("usage/invalid", "estimate ms-ar: --p must be ≥ 1 (got $p)"))
+    k_regimes >= 2 || throw(CliError("usage/invalid",
+        "estimate ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
+    y, vname = load_univariate_series(data, column)
+    _status("Estimating MS-AR($p) [$k_regimes regimes]: variable=$vname, obs=$(length(y))" *
+            (switching_variance ? ", switching variance" : ", common variance")); _status()
+    model = try
+        estimate_ms_ar(y, p; k_regimes=k_regimes, switching_variance=switching_variance,
+                       max_iter=max_iter, yname=vname)
+    catch e
+        throw(_nonlinear_error(e, "MS-AR"))
+    end
+    return _ms_render(model, format, output)
+end
+
+# ── C065c: MS regression handler ─────────────────────────────────
+# Loaded via the hardened `_load_reg_data` (y + numeric regressors, NO auto-intercept). When
+# the dependent variable is the ONLY numeric column, `_load_reg_data` raises data/invalid
+# ("no regressor columns remaining") — that specific case routes to the single-arg intercept-only
+# dispatch `estimate_ms(y; …)` (X === nothing). Every option guarded up-front → usage/invalid;
+# the estimator is try-wrapped → typed CliError. `switching_variance` default TRUE — the
+# `--no-switching-variance` flag turns it off.
+function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
+                       no_switching_variance::Bool=false, max_iter::Int=500,
+                       tol::Float64=1e-8, output::String="", format::String="table")
+    k_regimes >= 2 || throw(CliError("usage/invalid",
+        "estimate ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate ms: --max-iter must be ≥ 1 (got $max_iter)"))
+    tol > 0 || throw(CliError("usage/invalid", "estimate ms: --tol must be > 0 (got $tol)"))
+    sv = !no_switching_variance
+    y = Float64[]; X = nothing; xcols = String[]; intercept_only = false
+    try
+        y, X, xcols = _load_reg_data(data, dep)
+    catch e
+        if e isa CliError && e.code == "data/invalid" && occursin("no regressor columns", e.message)
+            df = load_data(data)
+            numcols = variable_names(df)
+            dep_col = isempty(dep) ? numcols[1] : dep
+            idx = findfirst(==(dep_col), numcols)
+            idx === nothing && rethrow(e)
+            y, _ = load_univariate_series(data, idx)
+            X = nothing; xcols = String["const"]; intercept_only = true
+        else
+            rethrow(e)
+        end
+    end
+    _status("Estimating MS regression [$k_regimes regimes]: obs=$(length(y)), " *
+            (intercept_only ? "intercept-only" : "regressors=$(length(xcols))") *
+            (sv ? ", switching variance" : ", common variance")); _status()
+    model = try
+        X === nothing ?
+            estimate_ms(y; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter, tol=tol) :
+            estimate_ms(y, X; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter,
+                        tol=tol, xnames=xcols)
+    catch e
+        throw(_nonlinear_error(e, "MS regression"))
+    end
+    return _ms_render(model, format, output)
 end

@@ -936,6 +936,70 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "estimate ms-ar + estimate ms — Markov-switching nonlinear TS (C065c, M5c)" begin
+        # Real Markov-switching EM. Teeth are LOOSE/direction-only (EM is noisy): ms-ar converges
+        # with an ordered mu, a row-stochastic K=2 transition matrix, and a finite loglik; ms
+        # (intercept-only on the same series) recovers two distinct regime means.
+        Random.seed!(65067)
+        _find(doc, cols...) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                Set(String.(cols)) ⊆ Set(table_cols(v)) && return v
+            end
+            nothing
+        end
+        _diag(doc) = _find(doc, "metric", "value")
+        mv(doc, name) = (d = _diag(doc); d === nothing ? nothing : metric_value(d, name))
+
+        @testset "estimate ms-ar — converged, ordered mu, row-stochastic P, finite loglik" begin
+            csv = dgp_msar(; n=500, seed=671)
+            r = run_json(["estimate", "ms-ar", csv, "--column", "1", "--p", "1"])
+            assert_envelope_ok(r; label="estimate ms-ar")
+            # coef table: per-regime `mu` rows (ordered increasing) + a common-AR block
+            ct = _find(r.doc, "regime", "term", "estimate")
+            @test ct !== nothing
+            ei = col_index(ct, "estimate"); ti = col_index(ct, "term")
+            murows = [collect(row) for row in table_rows(ct) if string(collect(row)[ti]) == "mu"]
+            @test length(murows) == 2
+            mu1 = Float64(murows[1][ei]); mu2 = Float64(murows[2][ei])
+            @test isfinite(mu1) && isfinite(mu2) && mu1 < mu2
+            # WIDE K×K transition matrix, K = 2, rows sum ≈ 1 (row-stochastic)
+            pt = _find(r.doc, "from_regime", "to_regime1", "to_regime2")
+            @test pt !== nothing
+            prows = [collect(row) for row in table_rows(pt)]
+            @test length(prows) == 2
+            c1 = col_index(pt, "to_regime1"); c2 = col_index(pt, "to_regime2")
+            for row in prows
+                @test isapprox(Float64(row[c1]) + Float64(row[c2]), 1.0; atol=1e-4)
+            end
+            # per-regime variance table (2 regimes) + finite loglik + convergence flag
+            vt = _find(r.doc, "regime", "sigma2", "std_error")
+            @test vt !== nothing && length(table_rows(vt)) == 2
+            @test isfinite(Float64(mv(r.doc, "loglik")))
+            @test string(mv(r.doc, "converged")) == "true"
+            @test string(mv(r.doc, "switching_var")) == "false"     # Hamilton default
+            # bad input → typed usage error (exit 2), never internal exit-1
+            @test run_json(["estimate", "ms-ar", csv, "--k-regimes", "1"]).code == 2
+            rm(csv; force=true)
+        end
+
+        @testset "estimate ms — intercept-only recovers two distinct regime means" begin
+            csv = dgp_msar(; n=500, seed=672)
+            r = run_json(["estimate", "ms", csv])
+            assert_envelope_ok(r; label="estimate ms")
+            ct = _find(r.doc, "regime", "term", "estimate")
+            @test ct !== nothing
+            ei = col_index(ct, "estimate")
+            ests = [Float64(collect(row)[ei]) for row in table_rows(ct)]
+            @test length(ests) == 2                                 # intercept-only: 1 term × 2 regimes
+            @test all(isfinite, ests)
+            @test abs(ests[1] - ests[2]) > 0.5                      # two DISTINCT regime means
+            @test string(mv(r.doc, "switching_var")) == "true"      # ms default (switching σ²)
+            @test run_json(["estimate", "ms", csv, "--tol", "0"]).code == 2
+            rm(csv; force=true)
+        end
+    end
+
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin
         # Coefficient extractor: scan all tables for a row whose `termcol` == term, return
         # its `estimate`. Works for the IV tidy table (term), truncreg (parameter), and the

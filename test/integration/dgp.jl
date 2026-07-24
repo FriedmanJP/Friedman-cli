@@ -400,3 +400,25 @@ function dgp_star(; n::Int=400, seed::Int=42)
     end
     return write_csv(DataFrame(y=yy[(burn+1):total]); prefix="star")
 end
+
+"""Genuine 2-regime mean-switching series: a latent 2-state Markov chain (sticky, stay
+probability 0.95) drives the level μ ∈ {−3, 3} with a common AR(1) φ = 0.5 and unit-variance
+Gaussian noise, `(yₜ − μ_{sₜ}) = 0.5·(y_{t−1} − μ_{s_{t−1}}) + εₜ`. The wide, well-separated
+means make the two regimes recoverable → `estimate ms-ar` converges to an ordered `mu` with a
+row-stochastic P, and `estimate ms` (intercept-only on the same series) recovers two distinct
+regime means. Loose/direction-only teeth (EM is noisy)."""
+function dgp_msar(; n::Int=500, seed::Int=42)
+    rng = MersenneTwister(seed)
+    mus = (-3.0, 3.0)
+    s = 1
+    y = zeros(n)
+    prev_mu = mus[s]
+    y[1] = prev_mu + randn(rng)
+    for t in 2:n
+        rand(rng) < 0.05 && (s = 3 - s)         # sticky 2-state chain (stay prob 0.95)
+        mu = mus[s]
+        y[t] = mu + 0.5 * (y[t-1] - prev_mu) + randn(rng)
+        prev_mu = mu
+    end
+    return write_csv(DataFrame(y=y); prefix="msar")
+end
