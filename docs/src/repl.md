@@ -79,8 +79,8 @@ friedman> estimate var --la<Tab>  -> --lags
 
 | Command | Description |
 |---------|-------------|
-| `data use <path>` | Load CSV file into session |
-| `data use :<name>` | Load built-in dataset (`:fred-md`, `:fred-qd`, `:pwt`, `:mpdta`, `:ddcg`) |
+| `data use <path>` | Load CSV file into session (`~` is expanded) |
+| `data use :<name>` | Load a bundled dataset -- any name from `data list`, with either separator (`:fred-md` or `:fred_md`) |
 | `data current` | Show current dataset and cached results |
 | `data clear` | Clear data and all cached results |
 | `exit` / `quit` | Leave the REPL (also Ctrl-D) |

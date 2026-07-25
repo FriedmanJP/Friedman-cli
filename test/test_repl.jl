@@ -4,8 +4,29 @@ using CSV, DataFrames
 # Set up minimal Friedman context for testing repl.jl
 module Friedman
     using CSV, DataFrames
+
     # Minimal stubs matching io.jl functions
+    struct CliError <: Exception
+        code::String; message::String; hint::String
+    end
+    CliError(code::String, message::String; hint::String="") = CliError(code, message, hint)
+
+    const EXAMPLE_DATASETS = (:fred_md, :fred_qd, :pwt, :mpdta, :ddcg)
+
+    function parse_dataset_name(name::AbstractString)
+        stem = String(strip(name))
+        startswith(stem, ":") && (stem = stem[2:end])
+        sym = Symbol(replace(lowercase(stem), "-" => "_"))
+        sym in EXAMPLE_DATASETS && return sym
+        throw(CliError("data/unknown-dataset", "unknown dataset '$name'"))
+    end
+
     function load_data(path::String)
+        if startswith(path, ":")
+            ds = load_example(parse_dataset_name(path))
+            return DataFrame(ds.data, ds.varnames; makeunique=true)
+        end
+        path = expanduser(path)
         isfile(path) || error("file not found: $path")
         df = CSV.read(path, DataFrame)
         nrow(df) == 0 && error("empty dataset: $path")
@@ -201,13 +222,19 @@ end
         @test Friedman.parse_data_source(":mpdta") == (:builtin, :mpdta)
         @test Friedman.parse_data_source(":ddcg") == (:builtin, :ddcg)
         @test Friedman.parse_data_source("myfile.csv") == (:file, "myfile.csv")
-        @test_throws ErrorException Friedman.parse_data_source(":nonexistent")
+        @test_throws Friedman.CliError Friedman.parse_data_source(":nonexistent")
+
+        # Both separator spellings resolve — `data list`/`data load` say `fred_md`,
+        # so the REPL must not reject it (regression: underscore form was an error).
+        @test Friedman.parse_data_source(":fred_md") == (:builtin, :fred_md)
+        @test Friedman.parse_data_source(":fred_qd") == (:builtin, :fred_qd)
+        @test Friedman.parse_data_source(":FRED-MD") == (:builtin, :fred_md)
     end
 
     @testset "session_load_builtin!" begin
         s = Friedman.Session()
         Friedman.session_load_builtin!(s, :fred_md)
-        @test s.data_path == ":fred-md"
+        @test s.data_path == ":fred_md"
         @test !isnothing(s.df)
         @test !isnothing(s.Y)
         @test size(s.Y) == (3, 3)
@@ -382,7 +409,7 @@ end
         s = Friedman.Session()
         app = Friedman.build_app()
         Friedman.repl_dispatch(s, app, ["data", "use", ":fred-md"])
-        @test s.data_path == ":fred-md"
+        @test s.data_path == ":fred_md"
         @test s.varnames == ["INDPRO", "CPI", "FEDFUNDS"]
     end
 
@@ -418,7 +445,7 @@ end
                 try; rm(tmppath; force=true); catch; end
             end
         end
-        @test contains(output2, ":fred-md")
+        @test contains(output2, ":fred_md")
         @test contains(output2, "3×3")
     end
 
@@ -571,7 +598,7 @@ end
     @testset "builtin dataset workflow" begin
         s = Friedman.Session()
         Friedman.session_load_builtin!(s, :fred_md)
-        @test s.data_path == ":fred-md"
+        @test s.data_path == ":fred_md"
         @test !isnothing(s.Y)
 
         # Store result

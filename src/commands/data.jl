@@ -33,8 +33,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "load"],
-            summary="Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path",
-            args=[ArgSpec(name="name", type=String, required=true, default=nothing, description="")],
+            summary="Example dataset name (see 'data list'), or omit and pass --path for a CSV",
+            args=[ArgSpec(name="name", type=String, required=false, default="", description="Example dataset name")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -43,8 +43,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="dates", type=String, default="", description="Column name for date labels"),
                 OptionSpec(name="path", type=String, default="", description="Path to CSV file (alternative to named dataset)")
             ],
-            flags=FlagSpec[],
-            tables=[TableSpec(name=:data_load, description="Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path")],
+            flags=[FlagSpec(name="transform", short="t", description="Apply FRED transformation codes")],
+            tables=[TableSpec(name=:data_load, description="Example dataset name (see 'data list'), or omit and pass --path for a CSV")],
             category="data",
             handler=wrap_legacy(_data_load),
         ),
@@ -191,30 +191,49 @@ end
 
 # ── Handlers ─────────────────────────────────────────────
 
+# Descriptions for the bundled example datasets, keyed by their MEMs symbol.
+# The table is built by walking EXAMPLE_DATASETS, so this map cannot silently
+# omit a dataset that `data load` accepts.
+const _DATASET_INFO = Dict(
+    :fred_md      => ("Time Series",  "804 × 126",    "FRED-MD Monthly Database (126 macroeconomic indicators)"),
+    :fred_qd      => ("Time Series",  "268 × 245",    "FRED-QD Quarterly Database (245 macroeconomic indicators)"),
+    :pwt          => ("Panel",        "38 × 74 × 42", "Penn World Table (38 OECD countries, 74 years, 42 variables)"),
+    :mpdta        => ("Panel",        "500 × 5 × 3",  "Callaway-Sant'Anna (2021) minimum wage panel"),
+    :ddcg         => ("Panel",        "184 × 51 × 2", "Acemoglu et al. democracy-GDP panel"),
+    :denmark      => ("Time Series",  "55 × 5",       "Danish money-demand data (Johansen-Juselius cointegration)"),
+    :gnp_hamilton => ("Time Series",  "135 × 1",      "US GNP growth (Hamilton 1989 Markov-switching example)"),
+    :grunfeld     => ("Panel",        "10 × 20 × 3",  "Grunfeld investment panel (10 firms, 20 years)"),
+    :mroz         => ("Cross Section", "753 × 22",    "Mroz (1987) female labour supply"),
+    :nile         => ("Time Series",  "100 × 1",      "Nile river annual flow (local-level state space)"),
+    :stackloss    => ("Cross Section", "21 × 4",      "Brownlee stack-loss plant data (robust regression)"),
+)
+
 function _data_list(; format::String="table", output::String="")
-    datasets = [
-        ("fred_md",  "Time Series", "804 × 126",    "FRED-MD Monthly Database (126 macroeconomic indicators)"),
-        ("fred_qd",  "Time Series", "268 × 245",    "FRED-QD Quarterly Database (245 macroeconomic indicators)"),
-        ("pwt",      "Panel",       "38 × 74 × 42", "Penn World Table (38 OECD countries, 74 years, 42 variables)"),
-        ("mpdta",    "Panel",       "500 × 5 × 3",  "Callaway-Sant'Anna (2021) minimum wage panel"),
-        ("ddcg",     "Panel",       "184 × 51",     "Acemoglu et al. democracy-GDP panel"),
-    ]
+    info(d) = get(_DATASET_INFO, d, ("", "", ""))
 
     df = DataFrame(
-        name=String[d[1] for d in datasets],
-        type=String[d[2] for d in datasets],
-        dimensions=String[d[3] for d in datasets],
-        description=String[d[4] for d in datasets]
+        name=String[String(d) for d in EXAMPLE_DATASETS],
+        type=String[info(d)[1] for d in EXAMPLE_DATASETS],
+        dimensions=String[info(d)[2] for d in EXAMPLE_DATASETS],
+        description=String[info(d)[3] for d in EXAMPLE_DATASETS]
     )
 
     output_result(df; format=Symbol(format), output=output, title="Available Datasets")
 end
 
-function _data_load(; name::String, output::String="", format::String="table",
+function _data_load(; name::String="", output::String="", format::String="table",
                      vars::String="", country::String="", transform::Bool=false,
                      dates::String="", path::String="")
+    if isempty(name) && isempty(path)
+        throw(CliError("usage/missing",
+                       "give an example dataset name or --path <file.csv>";
+                       hint="run 'friedman data list' to see the available datasets"))
+    end
+
     # If --path is given, load from CSV instead of example datasets
     if !isempty(path)
+        isempty(name) || _status("Both <name> and --path given; loading --path $path")
+        path = expanduser(path)
         df = load_data(path)
         Y = df_to_matrix(df)
         vn = variable_names(df)
@@ -232,7 +251,7 @@ function _data_load(; name::String, output::String="", format::String="table",
             end
         end
 
-        out_path = isempty(output) ? replace(basename(path), r"\.[^.]+$" => "_loaded.csv") : output
+        out_path = isempty(output) ? "$(dataset_stem(path))_loaded.csv" : output
         _validate_output_path(out_path)
         out_df = DataFrame(Y, vn)
         CSV.write(out_path, out_df)
@@ -241,7 +260,8 @@ function _data_load(; name::String, output::String="", format::String="table",
         return
     end
 
-    name_sym = Symbol(name)
+    name_sym = parse_dataset_name(name)
+    name = String(name_sym)   # canonical stem for messages and default output paths
     dataset = load_example(name_sym)
 
     if dataset isa PanelData
@@ -263,7 +283,9 @@ function _data_load(; name::String, output::String="", format::String="table",
             var_list = [strip(s) for s in split(vars, ",") if !isempty(strip(s))]
             keep_cols = ["group", "time"]
             for v in var_list
-                v in vn || error("variable '$v' not found in $name (available: $(join(vn[1:min(5, length(vn))], ", "))...)")
+                v in vn || throw(CliError("data/column-range",
+                    "variable '$v' not found in $name";
+                    hint="available: $(join(vn[1:min(5, length(vn))], ", "))..."))
                 push!(keep_cols, v)
             end
             df = df[!, keep_cols]
@@ -273,11 +295,14 @@ function _data_load(; name::String, output::String="", format::String="table",
         _status("Loaded $name: $n_obs observations × $n_vars variables (Panel, $(dataset.n_groups) groups)")
         _status("Written to $out_path")
     else
-        # TimeSeriesData
+        # TimeSeriesData, or a CrossSectionData set with no time dimension
+        is_ts = dataset isa TimeSeriesData
         data_mat = to_matrix(dataset)
         vn = varnames(dataset)
 
         if transform
+            is_ts || throw(CliError("usage/invalid",
+                "--transform applies FRED transformation codes, which $name (cross section) does not have"))
             dataset = apply_tcode(dataset, dataset.tcode)
             data_mat = to_matrix(dataset)
             _status("Applied FRED transformation codes")
@@ -288,14 +313,16 @@ function _data_load(; name::String, output::String="", format::String="table",
             col_idx = Int[]
             for v in var_list
                 idx = findfirst(==(v), vn)
-                isnothing(idx) && error("variable '$v' not found in $name (available: $(join(vn[1:min(5, length(vn))], ", "))...)")
+                isnothing(idx) && throw(CliError("data/column-range",
+                    "variable '$v' not found in $name";
+                    hint="available: $(join(vn[1:min(5, length(vn))], ", "))..."))
                 push!(col_idx, idx)
             end
             data_mat = data_mat[:, col_idx]
             vn = vn[col_idx]
         end
 
-        if !isempty(dates)
+        if !isempty(dates) && is_ts
             # For named datasets, dates column would need to be in the variable names
             if dates in vn
                 date_values = string.(data_mat[:, findfirst(==(dates), vn)])
@@ -311,8 +338,9 @@ function _data_load(; name::String, output::String="", format::String="table",
         n_obs, n_vars = size(data_mat)
         df = DataFrame(data_mat, vn)
         CSV.write(out_path, df)
-        freq_str = string(frequency(dataset))
-        _status("Loaded $name: $n_obs × $n_vars ($freq_str)")
+        # `frequency` is only defined for time-series/panel sets, not cross sections.
+        kind = is_ts ? string(frequency(dataset)) : "Cross Section"
+        _status("Loaded $name: $n_obs × $n_vars ($kind)")
         _status("Written to $out_path")
     end
 end
@@ -328,7 +356,7 @@ function _data_describe(; data::String, format::String="table", output::String="
 
     result_df = DataFrame(
         variable=vn,
-        n=fill(summary.n, n_vars),
+        n=summary.n,   # already per-variable; fill() nested a vector into every cell
         mean=round.(summary.mean; digits=4),
         std=round.(summary.std; digits=4),
         min=round.(summary.min; digits=4),
@@ -392,8 +420,7 @@ function _data_fix(; data::String, method::String="listwise", output::String="",
     out_path = if !isempty(output)
         output
     else
-        base = replace(basename(data), r"\.[^.]+$" => "")
-        "$(base)_clean.csv"
+        "$(dataset_stem(data))_clean.csv"
     end
     _validate_output_path(out_path)
 
@@ -409,10 +436,13 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
     vn = variable_names(df)
     n_obs, n_vars = size(Y)
 
-    isempty(tcodes) && error("--tcodes is required (comma-separated FRED transformation codes, e.g., 5,5,1,6)")
+    isempty(tcodes) && throw(CliError("usage/missing",
+        "--tcodes is required";
+        hint="comma-separated FRED transformation codes, e.g. --tcodes 5,5,1,6"))
 
     codes = [parse(Int, strip(s)) for s in split(tcodes, ",") if !isempty(strip(s))]
-    length(codes) == n_vars || error("number of tcodes ($(length(codes))) must match number of variables ($n_vars)")
+    length(codes) == n_vars || throw(CliError("usage/invalid",
+        "number of tcodes ($(length(codes))) must match number of variables ($n_vars)"))
 
     tsd = TimeSeriesData(Y; varnames=vn, tcode=codes, time_index=collect(1:n_obs))
     transformed = apply_tcode(tsd, codes)
@@ -423,8 +453,7 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
     out_path = if !isempty(output)
         output
     else
-        base = replace(basename(data), r"\.[^.]+$" => "")
-        "$(base)_transformed.csv"
+        "$(dataset_stem(data))_transformed.csv"
     end
     _validate_output_path(out_path)
 

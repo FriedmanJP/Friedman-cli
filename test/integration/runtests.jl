@@ -2668,6 +2668,101 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true)
         end
     end
+
+    # ── Data loading on real MEMs ────────────────────────────────────────────
+    # This family had NO T3 coverage, which is why a broken `data load --path`,
+    # a `:name` reference that exited 1, and panel datasets that silently lost
+    # their id columns all survived. Keep these here.
+    @testset "data loading (real load_example)" begin
+        @testset "data load --path without a positional name" begin
+            mktempdir() do dir
+                src = joinpath(dir, "mine.csv")
+                CSV.write(src, DataFrame(a=randn(30), b=randn(30)))
+                out = joinpath(dir, "out.csv")
+                # Regression: <name> used to be required → "missing required argument"
+                @test run_json(["data", "load", "--path", src, "-o", out]).code == 0
+                @test isfile(out)
+                @test nrow(CSV.read(out, DataFrame)) == 30
+            end
+        end
+
+        @testset "dataset names: ':' refs, both separators, typos" begin
+            mktempdir() do dir
+                for (i, form) in enumerate(["fred_md", "fred-md", ":fred-md", ":fred_md"])
+                    out = joinpath(dir, "d$i.csv")
+                    # Regression: ':fred-md' raised an untyped ArgumentError → exit 1
+                    @test run_json(["data", "load", form, "-o", out]).code == 0
+                    @test isfile(out)
+                end
+            end
+            # Unknown name → typed data error (exit 3), never the exit-1 "likely a bug" tail
+            @test run_json(["data", "load", "frd_md"]).code == 3
+            @test run_json(["data", "load", ":wiot"]).code == 3
+            # Neither a name nor --path → usage error (exit 2)
+            @test run_json(["data", "load"]).code == 2
+        end
+
+        @testset "every advertised dataset actually loads" begin
+            # data list is built from EXAMPLE_DATASETS; assert the list is honest.
+            mktempdir() do dir
+                for (i, d) in enumerate(Friedman.EXAMPLE_DATASETS)
+                    out = joinpath(dir, "ds$i.csv")
+                    r = run_json(["data", "load", String(d), "-o", out])
+                    @test r.code == 0
+                    @test isfile(out)
+                end
+            end
+        end
+
+        @testset "builtin panels keep their group/time identifiers" begin
+            # Without this, every panel command fails on a bundled panel dataset.
+            df = Friedman.load_data(":pwt")
+            @test "group" in names(df)
+            @test "time" in names(df)
+            # …and a real panel command can bind to them end-to-end.
+            r = run_json(["test", "cips", ":grunfeld", "--id-col", "group",
+                          "--time-col", "time", "--lags", "1"])
+            @test r.code == 0
+        end
+
+        @testset "default output paths never contain the ':' marker" begin
+            mktempdir() do dir
+                cd(dir) do
+                    # Regression: produced a file literally named ':fred-md_clean.csv'
+                    @test run_json(["data", "fix", ":denmark"]).code == 0
+                    @test isfile(joinpath(dir, "denmark_clean.csv"))
+                    @test !isfile(joinpath(dir, ":denmark_clean.csv"))
+                end
+            end
+        end
+
+        @testset "data describe reports a scalar n per variable" begin
+            mktempdir() do dir
+                src = joinpath(dir, "d.csv")
+                CSV.write(src, DataFrame(a=randn(50), b=randn(50)))
+                r = run_json(["data", "describe", src])
+                @test r.code == 0
+                _, tbl = first_table(r.doc)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    ni = findfirst(==("n"), table_cols(tbl))
+                    @test ni !== nothing
+                    # Regression: fill(summary.n, n_vars) put the whole vector in every cell
+                    @test all(row -> collect(row)[ni] isa Integer, table_rows(tbl))
+                    @test all(row -> collect(row)[ni] == 50, table_rows(tbl))
+                end
+            end
+        end
+
+        @testset "~ is expanded by the loader (the REPL has no shell)" begin
+            mktempdir() do dir
+                CSV.write(joinpath(dir, "tilde.csv"), DataFrame(a=randn(20)))
+                withenv("HOME" => dir) do
+                    @test nrow(Friedman.load_data("~/tilde.csv")) == 20
+                end
+            end
+        end
+    end
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

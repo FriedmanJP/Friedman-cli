@@ -26,6 +26,9 @@ end
 Session() = Session("", nothing, nothing, String[], Dict{Symbol,Any}(), :none)
 
 function session_load_data!(s::Session, path::String)
+    # `~` has no shell to expand it inside the REPL; store the expanded path so
+    # every downstream command that receives it via inject_session_data resolves.
+    path = startswith(path, ":") ? path : expanduser(path)
     df = load_data(path)
     Y = df_to_matrix(df)
     vnames = variable_names(df)
@@ -58,32 +61,27 @@ session_has_data(s::Session) = !isempty(s.data_path)
 
 session_get_result(s::Session, model_type::Symbol) = get(s.results, model_type, nothing)
 
-const BUILTIN_DATASETS = Dict(
-    "fred-md" => :fred_md, "fred-qd" => :fred_qd,
-    "pwt" => :pwt, "mpdta" => :mpdta, "ddcg" => :ddcg,
-)
+"""
+    parse_data_source(source) → (:builtin, Symbol) | (:file, String)
 
+Classify a `data use` argument. A leading `:` marks a bundled example dataset,
+resolved through the shared `parse_dataset_name` so the REPL accepts exactly the
+names `data list`/`data load` advertise (either separator spelling).
+"""
 function parse_data_source(source::String)
-    if startswith(source, ":")
-        name = source[2:end]
-        haskey(BUILTIN_DATASETS, name) || error("unknown built-in dataset ':$name'. Available: $(join(keys(BUILTIN_DATASETS), ", "))")
-        return (:builtin, BUILTIN_DATASETS[name])
-    else
-        return (:file, source)
-    end
+    startswith(source, ":") && return (:builtin, parse_dataset_name(source))
+    return (:file, source)
 end
 
+"""
+    session_load_builtin!(session, name)
+
+Load a bundled example dataset into the session. Delegates to `session_load_data!`
+via the canonical `:name` reference so builtins and files take one code path —
+in particular panel datasets keep their `group`/`time` id columns.
+"""
 function session_load_builtin!(s::Session, name::Symbol)
-    ts = load_example(name)
-    df = DataFrame(ts.data, ts.varnames)
-    Y = Matrix{Float64}(ts.data)
-    s.data_path = ":$(replace(string(name), "_" => "-"))"
-    s.df = df
-    s.Y = Y
-    s.varnames = ts.varnames
-    s.results = Dict{Symbol,Any}()
-    s.last_model = :none
-    return s
+    return session_load_data!(s, ":$(name)")
 end
 
 """

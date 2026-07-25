@@ -2798,7 +2798,7 @@ function _test_cips(; data::String, lags::String="auto",
     result = pesaran_cips_test(dat; lags=lags_arg, deterministic=Symbol(deterministic))
 
     pairs = Pair{String,Any}[
-        "CIPS statistic" => round(result.cips; digits=4),
+        "CIPS statistic" => round(result.cips_statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
         "Lags" => result.lags,
         "Deterministic" => result.deterministic,

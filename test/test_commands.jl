@@ -6195,6 +6195,40 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["balance"].options) == 5
     end
 
+    @testset "dataset_to_dataframe — panels keep their identifiers" begin
+        # Without group/time columns every panel command fails on a bundled panel
+        # (`--id-col group` has nothing to bind to).
+        df = dataset_to_dataframe(load_example(:pwt))
+        @test names(df)[1:2] == ["group", "time"]
+        @test df.group == load_example(:pwt).group_id
+
+        # Same via the public loader used by handlers and the REPL
+        df2 = load_data(":pwt")
+        @test "group" in names(df2) && "time" in names(df2)
+
+        # Non-panel datasets are unchanged
+        ts = dataset_to_dataframe(load_example(:fred_md))
+        @test !("group" in names(ts))
+
+        # Cross-section datasets load too (added alongside the other bundled sets)
+        cs = dataset_to_dataframe(load_example(:stackloss))
+        @test nrow(cs) == 21
+    end
+
+    @testset "_data_describe — n is per-variable" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "d.csv")
+            CSV.write(csv, DataFrame(a=[1.0, 2.0, 3.0], b=[4.0, 5.0, 6.0]))
+            outfile = joinpath(dir, "desc.json")
+            _capture() do
+                _data_describe(; data=csv, format="json", output=outfile)
+            end
+            rows = JSON3.read(read(outfile, String))
+            # Regression: fill(summary.n, n_vars) nested the whole vector into every cell
+            @test all(r -> r.n isa Integer, rows)
+        end
+    end
+
     @testset "_data_list — table" begin
         out = _capture() do
             _data_list(; format="table")
@@ -6209,8 +6243,56 @@ end  # Enhanced Granger handlers
             end
             @test isfile(outfile)
             json_data = JSON3.read(read(outfile, String))
-            @test length(json_data) == 5
+            # Derived from EXAMPLE_DATASETS, so `data list` can never advertise
+            # fewer datasets than `data load` accepts.
+            @test length(json_data) == length(EXAMPLE_DATASETS)
         end
+    end
+
+    @testset "_data_load — loading existing data (regressions)" begin
+        node = register_data_commands!()
+        load_leaf = node.subcmds["load"]
+
+        # <name> is optional so `data load --path file.csv` is reachable at all.
+        @test !load_leaf.args[1].required
+        # --transform was documented + handler-supported but never registered.
+        @test "transform" in [f.name for f in load_leaf.flags]
+
+        mktempdir() do dir
+            src = joinpath(dir, "mine.csv")
+            CSV.write(src, DataFrame(a=[1.0, 2.0, 3.0], b=[4.0, 5.0, 6.0]))
+
+            # --path alone (no positional) loads the CSV
+            cd(dir) do
+                _capture() do
+                    _data_load(; path=src)
+                end
+            end
+            @test isfile(joinpath(dir, "mine_loaded.csv"))
+
+            # Neither name nor --path → typed usage error, not a missing-arg crash
+            e = try; _capture() do; _data_load(); end; nothing catch err; err end
+            @test e isa CliError
+            @test e.code == "usage/missing"
+        end
+
+        # ':name' references resolve (REPL syntax must work on the CLI too)
+        for form in ("fred-md", ":fred-md", ":fred_md")
+            mktempdir() do dir
+                cd(dir) do
+                    _capture() do
+                        _data_load(; name=form)
+                    end
+                end
+                # Default output uses the canonical stem — never ':fred-md.csv'
+                @test isfile(joinpath(dir, "fred_md.csv"))
+            end
+        end
+
+        # Unknown dataset → typed data/unknown-dataset (was untyped ArgumentError → exit 1)
+        e = try; _capture() do; _data_load(; name="frd_md"); end; nothing catch err; err end
+        @test e isa CliError
+        @test e.code == "data/unknown-dataset"
     end
 
     @testset "_data_load — fred_md" begin
@@ -8671,6 +8753,9 @@ end
                 _test_cips(; data=csv, lags="2", deterministic="constant",
                              id_col="", time_col="", format="table")
             end
+            # Regression: the handler read `result.cips`, a field real MEMs does not
+            # have (it is `cips_statistic`) — a mock getproperty alias hid the crash.
+            @test contains(out, "CIPS statistic")
         end
     end
 

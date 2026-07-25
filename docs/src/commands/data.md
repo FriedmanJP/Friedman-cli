@@ -23,7 +23,29 @@ friedman data list
 | `fred_qd` | Time Series | 268 x 245 | FRED-QD Quarterly Database (245 macroeconomic indicators) |
 | `pwt` | Panel | 38 x 74 x 42 | Penn World Table (38 OECD countries, 74 years, 42 variables) |
 | `mpdta` | Panel | 500 x 5 x 3 | Callaway-Sant'Anna (2021) minimum wage panel |
-| `ddcg` | Panel | 184 x 51 | Acemoglu et al. democracy-GDP panel |
+| `ddcg` | Panel | 184 x 51 x 2 | Acemoglu et al. democracy-GDP panel |
+| `denmark` | Time Series | 55 x 5 | Danish money-demand data (Johansen-Juselius cointegration) |
+| `gnp_hamilton` | Time Series | 135 x 1 | US GNP growth (Hamilton 1989 Markov-switching example) |
+| `grunfeld` | Panel | 10 x 20 x 3 | Grunfeld investment panel (10 firms, 20 years) |
+| `mroz` | Cross Section | 753 x 22 | Mroz (1987) female labour supply |
+| `nile` | Time Series | 100 x 1 | Nile river annual flow (local-level state space) |
+| `stackloss` | Cross Section | 21 x 4 | Brownlee stack-loss plant data (robust regression) |
+
+The `wiot` input-output table is not listed here: it is an IO archive served by the
+[`io`](io.md) family rather than a rectangular dataset.
+
+### Referring to a dataset
+
+Every command that takes a `<data>` path also accepts a `:name` reference to a bundled
+dataset, and both separator spellings resolve to the same set:
+
+```bash
+friedman data describe :fred_md      # equivalently :fred-md, fred_md, fred-md
+friedman test cips :grunfeld --id-col=group --time-col=time
+```
+
+Panel datasets expose their identifiers as leading `group` and `time` columns, so panel
+commands can bind `--id-col`/`--time-col` directly to a bundled panel.
 
 ## data load
 
@@ -34,14 +56,18 @@ Load an example dataset or CSV file and export.
 friedman data load fred_md --output=macro.csv
 friedman data load fred_md --vars=INDPRO,UNRATE,CPIAUCSL --transform
 friedman data load pwt --country=USA --output=us_data.csv
+friedman data load :fred-md --output=macro.csv     # ':' reference also accepted
 
-# From CSV file with date labels
-friedman data load mydata --path=data.csv --dates=date_column
+# From a CSV file — no dataset name needed
+friedman data load --path=data.csv --dates=date_column
 ```
+
+Give either a dataset `<name>` or `--path`; supplying neither is a usage error. When both
+are given, `--path` wins and a note is written to stderr.
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | Dataset name (`fred_md`, `fred_qd`, `pwt`, `mpdta`, `ddcg`) or label for `--path` |
+| `<name>` | Example dataset name (optional; see `data list`). Omit when using `--path` |
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
