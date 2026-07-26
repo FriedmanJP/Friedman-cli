@@ -112,10 +112,12 @@ Options match those in the corresponding `estimate` command for each model type.
 |------|-------------|
 | `--marginal-effects` | Output average marginal effects instead of fitted probabilities |
 | `--odds-ratio` | Output odds ratio table (logit only) |
-| `--classification-table` | Output confusion matrix |
-| `--threshold` | Classification threshold (default: 0.5, with `--classification-table`) |
+| `--classification-table` | Output classification metrics plus the confusion matrix |
+| `--threshold` | Classification threshold (option, default `0.5`; used with `--classification-table`) |
 
-These flags are mutually exclusive with default fitted-values output.
+`--marginal-effects`, `--odds-ratio` and `--classification-table` are boolean flags —
+pass them bare, without a value. They are mutually exclusive with the default
+fitted-values output. `--threshold` takes a value.
 
 ### Panel Regression Models (preg, piv, plogit, pprobit)
 
@@ -135,4 +137,10 @@ For `piv`, also requires `--endog` and `--instruments`.
 | `--dep` | | String | (1st col) | Dependent variable column name |
 | `--cov-type` | | String | `hc1` | Covariance type |
 
-`predict ologit`, `predict oprobit`, and `predict mlogit` return predicted category probabilities. `predict mlogit` supports `--base-category` to control the reference level.
+`predict ologit`, `predict oprobit`, and `predict mlogit` return one predicted-probability
+column per category (`prob_<category>`), plus an `observation` index.
+
+`residuals ologit`, `residuals oprobit` and `residuals mlogit` exit with
+`model/unsupported` (exit 5): MacroEconometricModels 0.7.0 defines no `residuals` method
+for ordered or multinomial models, and there is no single standard residual definition
+for them. Use `predict` for the per-category probabilities instead.

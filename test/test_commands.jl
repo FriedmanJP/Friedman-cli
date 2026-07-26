@@ -9611,23 +9611,39 @@ end
             end
         end
 
-        @testset "_residuals_ologit" begin
+        @testset "_residuals_ologit — model/unsupported (no upstream residuals)" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                out = _capture() do
-                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
-                                       clusters="", output="", format="table")
+                e = try
+                    _capture() do
+                        _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                           clusters="", output="", format="table")
+                    end
+                    nothing
+                catch err
+                    err
                 end
+                # MEMs 0.7.0 defines no residuals for ordered models; refuse with a
+                # typed error rather than invent a definition (was exit 1).
+                @test e isa CliError
+                @test e.code == "model/unsupported"
             end
         end
 
-        @testset "_residuals_mlogit" begin
+        @testset "_residuals_mlogit — model/unsupported (no upstream residuals)" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                out = _capture() do
-                    _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
-                                       output="", format="table")
+                e = try
+                    _capture() do
+                        _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                           output="", format="table")
+                    end
+                    nothing
+                catch err
+                    err
                 end
+                @test e isa CliError
+                @test e.code == "model/unsupported"
             end
         end
     end

@@ -310,7 +310,9 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
 
     _maybe_plot(bfevd; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(bfevd.mean, varnames, horizons;
+    # BayesianFEVD.point_estimate is (horizon, variable, shock); the shared renderer
+    # indexes [variable, shock, horizon] like the frequentist FEVD array.
+    _output_fevd_tables(permutedims(bfevd.point_estimate, (2, 3, 1)), varnames, horizons;
                         id=id, title_prefix="Bayesian FEVD", format=format, output=output)
 end
 

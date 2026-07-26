@@ -1208,16 +1208,16 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    n_h = size(irf_result.mean, 1)
-    ns = size(irf_result.mean, 3)
+    n_h = size(irf_result.point_estimate, 1)
+    ns = size(irf_result.point_estimate, 3)
     varnames = irf_result.variables
     for si in 1:ns
         shock_name = si <= length(irf_result.shocks) ? irf_result.shocks[si] : "shock_$si"
         irf_df = DataFrame()
         irf_df.horizon = 0:(n_h - 1)
         for (vi, vname) in enumerate(varnames)
-            vi > size(irf_result.mean, 2) && break
-            irf_df[!, vname] = irf_result.mean[:, vi, si]
+            vi > size(irf_result.point_estimate, 2) && break
+            irf_df[!, vname] = irf_result.point_estimate[:, vi, si]
         end
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
@@ -1249,9 +1249,9 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
-    n_v = size(fevd_result.mean, 2)
-    ns = size(fevd_result.mean, 3)
-    n_h = size(fevd_result.mean, 1)
+    n_v = size(fevd_result.point_estimate, 2)
+    ns = size(fevd_result.point_estimate, 3)
+    n_h = size(fevd_result.point_estimate, 1)
     varnames = fevd_result.variables
     for vi in 1:min(n_v, length(varnames))
         vname = varnames[vi]
@@ -1259,7 +1259,7 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
         fevd_df.horizon = 1:n_h
         for si in 1:ns
             shock_name = si <= length(fevd_result.shocks) ? fevd_result.shocks[si] : "shock_$si"
-            fevd_df[!, shock_name] = fevd_result.mean[:, vi, si]
+            fevd_df[!, shock_name] = fevd_result.point_estimate[:, vi, si]
         end
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),

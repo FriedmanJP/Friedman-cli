@@ -1054,7 +1054,9 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
             end
         end
     end
-    isempty(key_indices) && error("--key-vars is required for FAVAR (comma-separated column names or indices)")
+    isempty(key_indices) && throw(CliError("usage/missing",
+        "--key-vars is required for FAVAR";
+        hint="comma-separated column names or indices, e.g. --key-vars y,x"))
 
     # Auto-select factors if not specified
     r = if factors === nothing

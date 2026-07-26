@@ -732,11 +732,15 @@ optimize_hyperparameters(Y, p) = MinnesotaHyperparameters(tau=0.2, decay=1.0, la
 
 # StatsAPI-like functions
 coef(m::VARModel) = m.B
-coef(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.coefficients
+function coef(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel})
+    m isa ARModel && return getfield(m, :phi)
+    m isa MAModel && return getfield(m, :theta)
+    return vcat(getfield(m, :phi), getfield(m, :theta))
+end
 loglikelihood(m::VARModel) = -500.0
-loglikelihood(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.ll
+loglikelihood(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = m.loglik
 stderror(m::GMMModel) = fill(0.1, length(m.theta))
-stderror(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = fill(0.01, length(m.coefficients))
+stderror(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = fill(0.01, length(coef(m)))
 stderror(m::ARCHModel) = fill(0.01, 2 + m.q)  # mu, omega, alpha...
 stderror(m::GARCHModel) = fill(0.01, 2 + m.q + m.p)  # mu, omega, alpha..., beta...
 stderror(m::EGARCHModel) = fill(0.01, 2 + m.q + m.q + m.p)  # mu, omega, alpha..., gamma..., beta...
@@ -871,15 +875,17 @@ function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothin
 end
 function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
               data=nothing, quantiles=[0.16, 0.5, 0.84])
-    props = ones(n, n, horizon) / n
-    q = ones(n, n, horizon, length(quantiles)) / n
+    # Real BayesianFEVD.point_estimate is (horizon, variable, shock) — match it, or
+    # the mock hides a transposed render (the layout half of #84's fevd bvar bug).
+    props = ones(horizon, n, n) / n
+    q = ones(horizon, n, n, length(quantiles)) / n
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 function fevd(post::BVARPosterior, horizon::Int;
               quantiles=[0.16, 0.5, 0.84])
     n = post.n
-    props = ones(n, n, horizon) / n
-    q = ones(n, n, horizon, length(quantiles)) / n
+    props = ones(horizon, n, n) / n
+    q = ones(horizon, n, n, length(quantiles)) / n
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 
@@ -4961,8 +4967,8 @@ coef(m::RegModel) = m.beta
 vcov(m::RegModel) = m.vcov_mat
 residuals(m::RegModel) = m.residuals
 predict(m::RegModel) = m.fitted
-stderror(m::RegModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta, 1)]
-nobs(m::RegModel) = m.nobs
+stderror(m::RegModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat, 1)]
+nobs(m::RegModel) = m.n_obs
 loglikelihood(m::RegModel) = m.loglik
 aic(m::RegModel) = m.aic
 bic(m::RegModel) = m.bic
@@ -4974,8 +4980,8 @@ coef(m::LogitModel) = m.beta
 vcov(m::LogitModel) = m.vcov_mat
 residuals(m::LogitModel) = m.residuals
 predict(m::LogitModel) = m.fitted
-stderror(m::LogitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta, 1)]
-nobs(m::LogitModel) = m.nobs
+stderror(m::LogitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat, 1)]
+nobs(m::LogitModel) = length(m.y)
 loglikelihood(m::LogitModel) = m.loglik
 aic(m::LogitModel) = m.aic
 bic(m::LogitModel) = m.bic
@@ -4987,8 +4993,8 @@ coef(m::ProbitModel) = m.beta
 vcov(m::ProbitModel) = m.vcov_mat
 residuals(m::ProbitModel) = m.residuals
 predict(m::ProbitModel) = m.fitted
-stderror(m::ProbitModel) = [sqrt(m.var_beta[i,i]) for i in 1:size(m.var_beta, 1)]
-nobs(m::ProbitModel) = m.nobs
+stderror(m::ProbitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat, 1)]
+nobs(m::ProbitModel) = length(m.y)
 loglikelihood(m::ProbitModel) = m.loglik
 aic(m::ProbitModel) = m.aic
 bic(m::ProbitModel) = m.bic
@@ -5098,7 +5104,8 @@ function odds_ratio(m::LogitModel{T}; conf_level=0.95) where T
     z_crit = T(1.96)
     ci_lo = exp.(m.beta .- z_crit .* se)
     ci_hi = exp.(m.beta .+ z_crit .* se)
-    (odds_ratio=or, ci_lower=ci_lo, ci_upper=ci_hi, varnames=m.varnames)
+    # Field is `or` upstream (OddsRatio struct) — name it the same here.
+    (or=or, se=se, ci_lower=ci_lo, ci_upper=ci_hi, varnames=m.varnames, conf_level=conf_level)
 end
 
 function vif(m::RegModel{T}) where T
@@ -5613,81 +5620,6 @@ function durbin_watson_test(residuals::AbstractVector{T}) where T
 end
 
 # Field aliases for spectral handler compat (legacy mock names → real fields)
-function Base.getproperty(r::SpectralDensityResult, s::Symbol)
-    s === :spectrum && return getfield(r, :density)
-    s === :frequencies && return getfield(r, :freq)
-    s === :log_spectrum && return log.(max.(getfield(r, :density), eps(eltype(getfield(r, :density)))))
-    s === :kernel && return :none
-    s === :varname && return "y"
-    return getfield(r, s)
-end
-function Base.getproperty(r::CrossSpectrumResult, s::Symbol)
-    s === :frequencies && return getfield(r, :freq)
-    s === :cross_spectrum && return complex.(getfield(r, :co_spectrum), getfield(r, :quad_spectrum))
-    s === :var1 && return "y1"
-    s === :var2 && return "y2"
-    return getfield(r, s)
-end
-function Base.getproperty(r::TransferFunctionResult, s::Symbol)
-    s === :frequencies && return getfield(r, :freq)
-    s === :coherence && return ones(eltype(getfield(r, :gain)), length(getfield(r, :gain)))
-    s === :var_input && return string(getfield(r, :filter))
-    s === :var_output && return "output"
-    s === :nobs && return length(getfield(r, :freq)) * 2
-    return getfield(r, s)
-end
-function Base.getproperty(r::ACFResult, s::Symbol)
-    s === :ci_band && return getfield(r, :ci)
-    s === :conf_level && return 0.95
-    s === :varname && return "y"
-    return getfield(r, s)
-end
-function Base.getproperty(r::FisherTestResult, s::Symbol)
-    s === :dominant_frequency && return getfield(r, :peak_freq)
-    s === :periodogram_values && return Float64[]
-    s === :frequencies && return Float64[]
-    return getfield(r, s)
-end
-function Base.getproperty(r::BartlettWhiteNoiseResult, s::Symbol)
-    s === :lags_tested && return 0
-    s === :individual_stats && return Float64[]
-    s === :individual_pvalues && return Float64[]
-    return getfield(r, s)
-end
-function Base.getproperty(r::BoxPierceResult, s::Symbol)
-    s === :ljung_box && return true
-    return getfield(r, s)
-end
-function Base.getproperty(r::DurbinWatsonResult, s::Symbol)
-    s === :decision && return :inconclusive
-    s === :lower_bound && return 1.5
-    s === :upper_bound && return 2.5
-    return getfield(r, s)
-end
-function Base.getproperty(r::DFGLSResult, s::Symbol)
-    s === :tau_statistic && return getfield(r, :statistic)
-    s === :mgls_statistics && return Dict(:MZa => getfield(r, :MZa), :MZt => getfield(r, :MZt),
-                                          :MSB => getfield(r, :MSB), :MPT => getfield(r, :MPT))
-    return getfield(r, s)
-end
-function Base.getproperty(r::LMUnitRootResult, s::Symbol)
-    s === :break_indices && return getfield(r, :break_dates)
-    return getfield(r, s)
-end
-function Base.getproperty(r::ADF2BreakResult, s::Symbol)
-    s === :break_index1 && return getfield(r, :break1)
-    s === :break_index2 && return getfield(r, :break2)
-    s === :break_fraction1 && return getfield(r, :break1_fraction)
-    s === :break_fraction2 && return getfield(r, :break2_fraction)
-    return getfield(r, s)
-end
-function Base.getproperty(r::GregoryHansenResult, s::Symbol)
-    s === :adf_break_index && return getfield(r, :adf_break)
-    s === :zt_break_index && return getfield(r, :zt_break)
-    s === :za_break_index && return getfield(r, :za_break)
-    s === :critical_values && return getfield(r, :adf_critical_values)
-    return getfield(r, s)
-end
 
 export ACFResult, SpectralDensityResult, CrossSpectrumResult, TransferFunctionResult
 export FisherTestResult, BartlettWhiteNoiseResult, BoxPierceResult, DurbinWatsonResult
@@ -5823,8 +5755,8 @@ vcov(m::PanelLogitModel) = m.vcov_mat
 vcov(m::PanelProbitModel) = m.vcov_mat
 residuals(m::PanelRegModel) = m.residuals
 residuals(m::PanelIVModel) = m.residuals
-residuals(m::PanelLogitModel) = m.residuals
-residuals(m::PanelProbitModel) = m.residuals
+residuals(m::PanelLogitModel) = m.y .- m.fitted
+residuals(m::PanelProbitModel) = m.y .- m.fitted
 predict(m::PanelRegModel) = m.fitted
 predict(m::PanelIVModel) = m.fitted
 predict(m::PanelLogitModel) = m.fitted
@@ -5833,10 +5765,10 @@ stderror(m::PanelRegModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1
 stderror(m::PanelIVModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
 stderror(m::PanelLogitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
 stderror(m::PanelProbitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
-nobs(m::PanelRegModel) = m.nobs
-nobs(m::PanelIVModel) = m.nobs
-nobs(m::PanelLogitModel) = m.nobs
-nobs(m::PanelProbitModel) = m.nobs
+nobs(m::PanelRegModel) = m.n_obs
+nobs(m::PanelIVModel) = m.n_obs
+nobs(m::PanelLogitModel) = m.n_obs
+nobs(m::PanelProbitModel) = m.n_obs
 loglikelihood(m::PanelRegModel) = m.loglik
 loglikelihood(m::PanelLogitModel) = m.loglik
 loglikelihood(m::PanelProbitModel) = m.loglik
@@ -6030,22 +5962,6 @@ predict(m::OrderedProbitModel) = m.fitted[:, 1]
 predict(m::MultinomialLogitModel) = m.fitted[:, 1]
 
 # Compat aliases for handlers still using legacy field names
-function Base.getproperty(m::Union{OrderedLogitModel,OrderedProbitModel}, s::Symbol)
-    s === :thresholds && return getfield(m, :cutpoints)
-    s === :n_categories && return length(getfield(m, :categories))
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :nobs && return length(getfield(m, :y))
-    s === :residuals && return getfield(m, :y) .- getfield(m, :fitted)[:, 1]
-    return getfield(m, s)
-end
-function Base.getproperty(m::MultinomialLogitModel, s::Symbol)
-    s === :n_categories && return length(getfield(m, :categories))
-    s === :base_category && return first(getfield(m, :categories))
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :nobs && return length(getfield(m, :y))
-    s === :residuals && return getfield(m, :y) .- getfield(m, :fitted)[:, 1]
-    return getfield(m, s)
-end
 stderror(m::OrderedLogitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
 stderror(m::OrderedProbitModel) = [sqrt(m.vcov_mat[i,i]) for i in 1:size(m.vcov_mat,1)]
 stderror(m::MultinomialLogitModel) = vcat([[sqrt(m.vcov_mat[i,i,c]) for i in 1:size(m.vcov_mat,1)] for c in 1:size(m.vcov_mat,3)]...)
@@ -6098,7 +6014,7 @@ end
 
 function estimate_mlogit(y::AbstractVector{T}, X::AbstractMatrix{T};
         n_categories::Int=3, base_category::Int=1, cov_type::Symbol=:hc1,
-        varnames=nothing, maxiter::Int=100, tol::Real=1e-8) where T
+        varnames=nothing, clusters=nothing, maxiter::Int=100, tol::Real=1e-8) where T
     n, k = size(X)
     nc = n_categories
     beta = ones(T, k, nc) * T(0.3)
@@ -6180,124 +6096,16 @@ function keeprows(ts, indices::AbstractVector)
     ts
 end
 
-# Compat field aliases (handlers may still use legacy names)
-function Base.getproperty(m::PanelRegModel, s::Symbol)
-    s === :nobs && return getfield(m, :n_obs)
-    s === :within_r2 && return getfield(m, :r2_within)
-    s === :between_r2 && return getfield(m, :r2_between)
-    s === :overall_r2 && return getfield(m, :r2_overall)
-    s === :f_pvalue && return getfield(m, :f_pval)
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :fe_type && return getfield(m, :method)
-    s === :panel && return getfield(m, :data)
-    s === :dof_resid && return getfield(m, :n_obs) - length(getfield(m, :beta))
-    s === :rank && return length(getfield(m, :beta))
-    s === :clusters && return nothing
-    return getfield(m, s)
-end
-function Base.getproperty(m::PanelIVModel, s::Symbol)
-    s === :nobs && return getfield(m, :n_obs)
-    s === :within_r2 && return getfield(m, :r2_within)
-    s === :overall_r2 && return getfield(m, :r2_overall)
-    s === :f_pvalue && return getfield(m, :f_stat)  # no f_pval on real IV; expose f_stat
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :fe_type && return getfield(m, :method)
-    s === :panel && return getfield(m, :data)
-    s === :dof_resid && return getfield(m, :n_obs) - length(getfield(m, :beta))
-    s === :rank && return length(getfield(m, :beta))
-    s === :clusters && return nothing
-    return getfield(m, s)
-end
-function Base.getproperty(m::Union{PanelLogitModel,PanelProbitModel}, s::Symbol)
-    s === :nobs && return getfield(m, :n_obs)
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :fe_type && return getfield(m, :method)
-    s === :panel && return getfield(m, :data)
-    s === :residuals && return getfield(m, :y) .- getfield(m, :fitted)
-    return getfield(m, s)
-end
-function Base.getproperty(m::RegModel, s::Symbol)
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :f_pvalue && return getfield(m, :f_pval)
-    s === :nobs && return length(getfield(m, :y))
-    s === :rank && return length(getfield(m, :beta))
-    s === :dof_resid && return length(getfield(m, :y)) - length(getfield(m, :beta))
-    s === :clusters && return nothing
-    return getfield(m, s)
-end
-function Base.getproperty(m::Union{LogitModel,ProbitModel}, s::Symbol)
-    s === :var_beta && return getfield(m, :vcov_mat)
-    s === :nobs && return length(getfield(m, :y))
-    return getfield(m, s)
-end
-function Base.getproperty(m::BayesianImpulseResponse, s::Symbol)
-    s === :mean && return getfield(m, :point_estimate)
-    return getfield(m, s)
-end
-function Base.getproperty(m::BayesianFEVD, s::Symbol)
-    s === :mean && return getfield(m, :point_estimate)
-    return getfield(m, s)
-end
-function Base.getproperty(m::BayesianHistoricalDecomposition, s::Symbol)
-    s === :mean && return getfield(m, :point_estimate)
-    s === :initial_mean && return getfield(m, :initial_point_estimate)
-    s === :shocks_mean && return getfield(m, :shocks_point_estimate)
-    return getfield(m, s)
-end
-function Base.getproperty(m::LPDiDResult, s::Symbol)
-    s === :se_vec && return getfield(m, :se)
-    s === :nobs_h && return getfield(m, :nobs_per_horizon)
-    s === :pooled_post_result && return getfield(m, :pooled_post)
-    s === :pooled_pre_result && return getfield(m, :pooled_pre)
-    s === :vcov_all && return getfield(m, :vcov)
-    s === :outcome_name && return getfield(m, :outcome_var)
-    s === :treatment_name && return getfield(m, :treatment_var)
-    s === :spec_type && return getfield(m, :specification)
-    s === :pd && return getfield(m, :data)
-    return getfield(m, s)
-end
-function Base.getproperty(m::BVARForecast, s::Symbol)
-    s === :ci_method && return getfield(m, :point_estimate)
-    return getfield(m, s)
-end
-function Base.getproperty(m::BayesianFAVAR, s::Symbol)
-    s === :Y && return getfield(m, :data)
-    s === :factors && return dropdims(mean(getfield(m, :factor_draws); dims=3); dims=3)
-    s === :loadings && return dropdims(mean(getfield(m, :loadings_draws); dims=3); dims=3)
-    s === :n_draws && return size(getfield(m, :B_draws), 3)
-    return getfield(m, s)
-end
-# NOTE: no `cips`/`individual_cadf` aliases here. Real MEMs 0.7.0 exposes only
-# `cips_statistic`/`individual_cadf_stats`; the aliases this mock used to provide
-# hid a handler that read `result.cips` and crashed (exit 1) on real MEMs.
-# Keep the mock's property surface a subset of the real one.
-function Base.getproperty(m::FactorBreakResult, s::Symbol)
-    s === :r && return getfield(m, :n_factors)
-    s === :n_units && return getfield(m, :n_vars)
-    return getfield(m, s)
-end
-function Base.getproperty(m::GeneralizedDynamicFactorModel, s::Symbol)
-    s === :loadings && return dropdims(mean(getfield(m, :loadings_spectral); dims=3); dims=3)
-    return getfield(m, s)
-end
-function Base.getproperty(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}, s::Symbol)
-    s === :aic_val && return getfield(m, :aic)
-    s === :bic_val && return getfield(m, :bic)
-    s === :ll && return getfield(m, :loglik)
-    s === :sigma && return sqrt(getfield(m, :sigma2))
-    s === :coefficients && begin
-        if m isa ARModel
-            return getfield(m, :phi)
-        elseif m isa MAModel
-            return getfield(m, :theta)
-        elseif m isa ARMAModel
-            return vcat(getfield(m, :phi), getfield(m, :theta))
-        else
-            return vcat(getfield(m, :phi), getfield(m, :theta))
-        end
-    end
-    return getfield(m, s)
-end
+# NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.
+#
+# Aliases here (`result.cips` → `cips_statistic`, `bfevd.mean` → `point_estimate`,
+# `model.nobs`, `arima.coefficients`, …) invent a property surface real MEMs does
+# not have. Because they are methods rather than fields, `check_mock_surface`'s
+# field-subset test could not see them, so eleven commands shipped reading fields
+# that do not exist and crashed with `FieldError` (exit 1) on real MEMs while
+# T1/T2 stayed green — see #84. `check_mock_surface.jl` now fails the gate on any
+# mock `getproperty` alias that is not a real field. Keep it that way: make the
+# handler use the real accessor instead of teaching the mock a new name.
 
 # --- C039 Phase-4 surface mocks (MEMs 0.6.7 fields ⊆ real) ---
 struct HADSGESpec{T<:AbstractFloat}

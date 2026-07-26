@@ -12,8 +12,8 @@
 
 | Command | Description |
 |---------|-------------|
-| `predict ologit/oprobit/mlogit` | Predicted probabilities |
-| `residuals ologit/oprobit/mlogit` | Model residuals |
+| `predict ologit/oprobit/mlogit` | Predicted probabilities (one `prob_<category>` column per category) |
+| `residuals ologit/oprobit/mlogit` | Not supported upstream — exits `model/unsupported` (5); use `predict` |
 
 ## Tests
 

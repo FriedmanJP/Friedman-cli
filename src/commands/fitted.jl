@@ -335,15 +335,35 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
                       title="Average Marginal Effects (Logit)")
     elseif odds_ratio
         or = MacroEconometricModels.odds_ratio(model)
-        or_df = DataFrame(Variable=or.varnames, Odds_Ratio=round.(or.odds_ratio; digits=6),
+        or_df = DataFrame(Variable=or.varnames, Odds_Ratio=round.(or.or; digits=6),
             CI_Lower=round.(or.ci_lower; digits=6), CI_Upper=round.(or.ci_upper; digits=6))
         output_result(or_df; format=Symbol(format), output=output,
                       title="Odds Ratios (Logit)")
     elseif classification_table
         ct = MacroEconometricModels.classification_table(model; threshold=threshold)
         _status("Classification Table (threshold=$threshold):")
-        for (k, v) in sort(collect(ct))
-            _status("  $k: $v")
+        # Sort by KEY: the dict mixes scalars with a `confusion` matrix, so sorting
+        # the pairs themselves compares a Matrix against a Float (exit 1).
+        scalars = Pair{String,Any}[]
+        confusion = nothing
+        for k in sort(collect(keys(ct)))
+            v = ct[k]
+            if v isa AbstractMatrix
+                confusion = v
+            else
+                push!(scalars, k => v isa AbstractFloat ? round(v; digits=6) : v)
+            end
+        end
+        output_kv(scalars; format=format, output=output,
+                  title="Classification Metrics (threshold=$threshold)")
+        if confusion !== nothing
+            conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
+                                makeunique=true)
+            insertcols!(conf_df, 1, :actual => ["actual_$i" for i in 0:size(confusion, 1) - 1];
+                        makeunique=true)
+            output_result(conf_df; format=Symbol(format),
+                          output=_per_var_output_path(output, "confusion"),
+                          title="Confusion Matrix")
         end
     else
         _status("Logit Fitted Probabilities: $dep_name")
@@ -383,8 +403,28 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
     elseif classification_table
         ct = MacroEconometricModels.classification_table(model; threshold=threshold)
         _status("Classification Table (threshold=$threshold):")
-        for (k, v) in sort(collect(ct))
-            _status("  $k: $v")
+        # Sort by KEY: the dict mixes scalars with a `confusion` matrix, so sorting
+        # the pairs themselves compares a Matrix against a Float (exit 1).
+        scalars = Pair{String,Any}[]
+        confusion = nothing
+        for k in sort(collect(keys(ct)))
+            v = ct[k]
+            if v isa AbstractMatrix
+                confusion = v
+            else
+                push!(scalars, k => v isa AbstractFloat ? round(v; digits=6) : v)
+            end
+        end
+        output_kv(scalars; format=format, output=output,
+                  title="Classification Metrics (threshold=$threshold)")
+        if confusion !== nothing
+            conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
+                                makeunique=true)
+            insertcols!(conf_df, 1, :actual => ["actual_$i" for i in 0:size(confusion, 1) - 1];
+                        makeunique=true)
+            output_result(conf_df; format=Symbol(format),
+                          output=_per_var_output_path(output, "confusion"),
+                          title="Confusion Matrix")
         end
     else
         _status("Probit Fitted Probabilities: $dep_name")
@@ -485,6 +525,29 @@ end
 
 # ── Ordered/Multinomial Predict ─────────────────────────
 
+"""
+    _choice_prob_table(probs, categories) → DataFrame
+
+Tidy per-category predicted probabilities.
+
+`predict` on an ordered/multinomial model returns an `n x n_categories` matrix, not a
+vector — feeding it straight to `DataFrame` raised "adding AbstractArray other than
+AbstractVector as a column" (exit 1) on every call (#85).
+"""
+function _choice_prob_table(probs::AbstractMatrix, categories)
+    df = DataFrame(observation=1:size(probs, 1))
+    labels = length(categories) == size(probs, 2) ? string.(categories) :
+             string.(1:size(probs, 2))
+    for (j, lab) in enumerate(labels)
+        df[!, "prob_$lab"] = round.(probs[:, j]; digits=6)
+    end
+    return df
+end
+
+# A univariate result still renders as a single fitted-probability column.
+_choice_prob_table(probs::AbstractVector, categories) =
+    DataFrame(observation=1:length(probs), fitted_prob=round.(probs; digits=6))
+
 function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
                           clusters::String="",
                           output::String="", format::String="table")
@@ -498,7 +561,7 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Logit Predicted Probabilities")
 end
@@ -516,23 +579,25 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Probit Predicted Probabilities")
 end
 
 function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ols",
+                          clusters::String="",
                           output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
+    cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
     _status("Multinomial Logit Predicted Probabilities: $dep_name")
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Multinomial Logit Predicted Probabilities")
 end
@@ -976,6 +1041,19 @@ end
 
 # ── Ordered/Multinomial Residuals ───────────────────────
 
+"""
+    _unsupported_residuals(label, leaf)
+
+Ordered/multinomial choice models have no `residuals` method in MEMs 0.7.0, and there
+is no single standard residual definition for them (the test mock used to invent
+`y - fitted[:, 1]`, which is not a recognised statistic). Fail with a typed error
+rather than fabricate one — `predict` gives the per-category probabilities.
+"""
+_unsupported_residuals(label::String, leaf::String) =
+    throw(CliError("model/unsupported",
+        "$label residuals are not defined upstream (MEMs 0.7.0 has no residuals method)";
+        hint="use 'friedman predict $leaf' for per-category predicted probabilities"))
+
 function _residuals_ologit(; data::String="", dep::String="", cov_type::String="hc1",
                             clusters::String="",
                             output::String="", format::String="table")
@@ -988,10 +1066,7 @@ function _residuals_ologit(; data::String="", dep::String="", cov_type::String="
     _status("Ordered Logit Residuals: $dep_name")
     _status()
 
-    resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="Ordered Logit Residuals")
+    _unsupported_residuals("Ordered Logit", "ologit")
 end
 
 function _residuals_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
@@ -1006,10 +1081,7 @@ function _residuals_oprobit(; data::String="", dep::String="", cov_type::String=
     _status("Ordered Probit Residuals: $dep_name")
     _status()
 
-    resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="Ordered Probit Residuals")
+    _unsupported_residuals("Ordered Probit", "oprobit")
 end
 
 function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="ols",
@@ -1023,10 +1095,7 @@ function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="
     _status("Multinomial Logit Residuals: $dep_name")
     _status()
 
-    resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output,
-                  title="Multinomial Logit Residuals")
+    _unsupported_residuals("Multinomial Logit", "mlogit")
 end
 
 
@@ -1053,20 +1122,34 @@ function _fitted_base_options(; include_lags=true, include_column=false, include
 end
 
 # Extra option sets for discrete choice / special leaves
+# The handlers take `marginal_effects`/`odds_ratio`/`classification_table` as `Bool`,
+# so these MUST be flags. Declaring them as String options made the default `""`
+# fail Bool conversion on every call ("non-boolean (String) used in boolean
+# context" -> exit 1), breaking predict logit|probit|ologit|oprobit|mlogit
+# outright; none had T3 coverage (#85).
 const _LOGIT_EXTRA = [
-    OptionSpec(name="marginal-effects", type=String, default="", description="Compute marginal effects (empty=off)"),
-    OptionSpec(name="odds-ratio", type=String, default="", description="Odds ratios (logit)"),
-    OptionSpec(name="classification-table", type=String, default="", description="Classification table"),
     OptionSpec(name="threshold", type=Float64, default=0.5, description="Classification threshold"),
 ]
-const _ORDERED_EXTRA = [
-    OptionSpec(name="marginal-effects", type=String, default="", description="Marginal effects"),
-    OptionSpec(name="category", type=Int, default=0, description="Category index"),
+const _LOGIT_EXTRA_FLAGS = [
+    FlagSpec(name="marginal-effects", description="Report average marginal effects"),
+    FlagSpec(name="odds-ratio", description="Report odds ratios (logit)"),
+    FlagSpec(name="classification-table", description="Report the classification table"),
 ]
-const _MLOGIT_EXTRA = [
-    OptionSpec(name="marginal-effects", type=String, default="", description="Marginal effects"),
-    OptionSpec(name="base-category", type=Int, default=1, description="Base category"),
-]
+# NOTE: no extras for the ordered/multinomial leaves. `_predict_ologit`,
+# `_predict_oprobit` and `_predict_mlogit` accept no `marginal_effects`,
+# `category` or `base_category` kwargs, so declaring them produced a
+# MethodError -> exit 1 on every call. Add the options back only together with
+# handler support.
+const _ORDERED_EXTRA = OptionSpec[]
+const _MLOGIT_EXTRA = OptionSpec[]
+
+"""Flags for a fitted leaf — only `predict` exposes the discrete-choice reports."""
+function _flags_for_kind(kind::Symbol, verb::Symbol)
+    verb === :predict || return FlagSpec[]
+    kind === :logit && return _LOGIT_EXTRA_FLAGS
+    kind === :probit && return filter(f -> f.name != "odds-ratio", _LOGIT_EXTRA_FLAGS)
+    return FlagSpec[]
+end
 
 # kind => (handler_predict, handler_residuals, opts_builder_symbol)
 const FITTED_MODEL_KINDS = [
@@ -1118,7 +1201,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     elseif kind === :logit
         return [REG_OPTIONS...; (verb === :predict ? _LOGIT_EXTRA : OptionSpec[])]
     elseif kind === :probit
-        return [REG_OPTIONS...; (verb === :predict ? filter(o -> o.name != "odds-ratio", _LOGIT_EXTRA) : OptionSpec[])]
+        return [REG_OPTIONS...; (verb === :predict ? _LOGIT_EXTRA : OptionSpec[])]
     elseif kind === :ologit || kind === :oprobit
         return [REG_OPTIONS...; (verb === :predict ? _ORDERED_EXTRA : OptionSpec[])]
     elseif kind === :mlogit
@@ -1167,7 +1250,7 @@ function _specs_for_verb(verb::Symbol, title_prefix::String)
             summary="$title_prefix ($(m.name))",
             args=_fitted_data_arg(),
             options=_opts_for_kind(m.kind, verb),
-            flags=FlagSpec[],
+            flags=_flags_for_kind(m.kind, verb),
             tables=[TableSpec(name=Symbol("$(path0)_$tbl"), description=title_prefix)],
             category=path0,
             aliases=aliases,
