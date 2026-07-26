@@ -1048,6 +1048,12 @@ Ordered/multinomial choice models have no `residuals` method in MEMs 0.7.0, and 
 is no single standard residual definition for them (the test mock used to invent
 `y - fitted[:, 1]`, which is not a recognised statistic). Fail with a typed error
 rather than fabricate one — `predict` gives the per-category probabilities.
+
+Filed upstream as MacroEconometricModels.jl#507 (which also asks them to settle the
+return shape: an `n x K` response-residual matrix vs a length-`n` generalised
+residual). Re-enabling these leaves is gated on that: CLI issue #87. If upstream
+declines, remove the three leaves at v1.0 (C055) instead of shipping leaves that
+can only error.
 """
 _unsupported_residuals(label::String, leaf::String) =
     throw(CliError("model/unsupported",

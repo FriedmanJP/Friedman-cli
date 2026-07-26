@@ -13,7 +13,7 @@
 | Command | Description |
 |---------|-------------|
 | `predict ologit/oprobit/mlogit` | Predicted probabilities (one `prob_<category>` column per category) |
-| `residuals ologit/oprobit/mlogit` | Not supported upstream — exits `model/unsupported` (5); use `predict` |
+| `residuals ologit/oprobit/mlogit` | Not supported upstream ([MEMs#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507)) — exits `model/unsupported` (5); use `predict` |
 
 ## Tests
 

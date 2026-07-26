@@ -144,3 +144,7 @@ column per category (`prob_<category>`), plus an `observation` index.
 `model/unsupported` (exit 5): MacroEconometricModels 0.7.0 defines no `residuals` method
 for ordered or multinomial models, and there is no single standard residual definition
 for them. Use `predict` for the per-category probabilities instead.
+
+This is tracked upstream as
+[MacroEconometricModels.jl#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507);
+the leaves will be enabled once it ships.
