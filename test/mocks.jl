@@ -2137,7 +2137,12 @@ function nowcast(model::AbstractNowcastModel; target_var=nothing)
 end
 
 function nowcast_news(X_new, X_old, model::AbstractNowcastModel, target_period; target_var=size(X_new, 2), groups=nothing)
-    N = size(X_new, 2)
+    # Validate like real (nowcast/news.jl): a vintage differs by which cells are
+    # filled in, not by shape. Without this the CLI's data/shape mapping is untested.
+    T_obs, N = size(X_new)
+    size(X_old) == (T_obs, N) || throw(ArgumentError("X_new and X_old must have same size"))
+    1 <= target_period <= T_obs || throw(ArgumentError("target_period out of range"))
+    1 <= target_var <= N || throw(ArgumentError("target_var out of range"))
     NowcastNews{Float64}(1.0, 1.5, randn(N), 0.1, 0.05,
         isnothing(groups) ? randn(1) : randn(length(unique(groups))),
         ["var$i" for i in 1:N])
@@ -5122,10 +5127,24 @@ function vif(m::RegModel{T}) where T
     vals
 end
 
+# Real returns Dict{String,Any} mixing scalars with a "confusion" MATRIX (rows =
+# actual 0/1, cols = predicted 0/1) — that mix is what made `sort(collect(ct))`
+# compare a Matrix against a Float (#85). The old mock returned scalars only,
+# under invented keys (recall/f1/true_positive/…) that real does not have, so the
+# matrix branch of the renderer was never exercised. Mirror the real key set.
 function classification_table(m::Union{LogitModel,ProbitModel}; threshold=0.5)
-    Dict("accuracy" => 0.85, "precision" => 0.80, "recall" => 0.75,
-         "f1" => 0.77, "true_positive" => 30, "true_negative" => 55,
-         "false_positive" => 8, "false_negative" => 10, "threshold" => threshold)
+    tn, fp, fn, tp = 55.0, 8.0, 10.0, 30.0
+    Dict{String,Any}(
+        "confusion"   => [tn fp; fn tp],
+        "accuracy"    => (tp + tn) / (tp + tn + fp + fn),
+        "sensitivity" => tp / (tp + fn),
+        "specificity" => tn / (tn + fp),
+        "precision"   => tp / (tp + fp),
+        "f1_score"    => 2 * (tp / (tp + fp)) * (tp / (tp + fn)) /
+                             ((tp / (tp + fp)) + (tp / (tp + fn))),
+        "n"           => Int(tp + tn + fp + fn),
+        "threshold"   => threshold,
+    )
 end
 
 export RegModel, LogitModel, ProbitModel, MarginalEffects
@@ -5265,6 +5284,9 @@ end
 
 function gregory_hansen_test(Y::AbstractMatrix{T};
         model=:C, lags=:aic, max_lags=nothing, trim=0.15) where T
+    # Real rejects a single-column matrix (teststat/gregory_hansen.jl) — a
+    # cointegrating regression needs a dependent plus at least one regressor.
+    size(Y, 2) >= 2 || throw(ArgumentError("Need at least 2 columns (dependent + regressor)"))
     n = size(Y, 1)
     bp = div(n, 2)
     cvs = Dict(1 => T(-5.13), 5 => T(-4.61), 10 => T(-4.34))
