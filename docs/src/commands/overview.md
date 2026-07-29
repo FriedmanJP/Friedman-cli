@@ -25,9 +25,9 @@ friedman
 ├── predict     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
 ├── residuals     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
 ├── spectral     acf | cross | density | periodogram | transfer
-└── test     adf | adf-2break | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breusch-pagan | chow | cips | cusum | cusumsq | dfgls | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | glejser | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | harvey | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | influence | johansen | kao | kpss | ljung-box | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | recursive-residuals | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | white | wooldridge-ar | za
+└── test     adf | adf-2break | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breitung | breusch-pagan | chow | cips | cusum | cusumsq | dfgls | dh-causality | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fisher-johansen | fourier-adf | fourier-kpss | glejser | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | harvey | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | influence | ips | johansen | kao | kpss | ljung-box | llc | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | recursive-residuals | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | white | wooldridge-ar | za
 
-Total: 18 top-level commands, 321 leaves (from registry).
+Total: 18 top-level commands, 326 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -51,7 +51,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`predict`](generated/predict.md) — 23 leaves
 - [`residuals`](generated/residuals.md) — 23 leaves
 - [`spectral`](generated/spectral.md) — 5 leaves
-- [`test`](generated/test.md) — 83 leaves
+- [`test`](generated/test.md) — 88 leaves
 
 <!-- END GENERATED -->
 

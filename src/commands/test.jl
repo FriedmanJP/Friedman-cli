@@ -466,6 +466,97 @@ function test_specs()::Vector{CommandSpec}
         # C067 remainder (#72): cross-section OLS diagnostics. All fit via
         # _load_reg_data + estimate_reg — NOT the panel loader that the existing
         # `test breusch-pagan` (panel RE variant) uses.
+        # C070 remainder (#75). LLC/IPS/Breitung take a T×N MATRIX (columns = units, like
+        # `test hadri`); Fisher-Johansen and DH-causality take a PanelData + variable names.
+        # H0 flips: these three test "ALL units have a unit root" (the OPPOSITE of hadri).
+        CommandSpec(
+            path=["test", "llc"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
+                OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
+                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion", choices=["aic","bic","tstat"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t (mitigates cross-sectional dependence)")],
+            tables=[TableSpec(name=:llc, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_llc),
+        ),
+        CommandSpec(
+            path=["test", "ips"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
+                OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
+                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion", choices=["aic","bic","tstat"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t")],
+            tables=[TableSpec(name=:ips, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_ips),
+        ),
+        CommandSpec(
+            path=["test", "breitung"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=Int, default=0, description="Augmentation lags (≥ 0)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t")],
+            tables=[TableSpec(name=:breitung, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_breitung),
+        ),
+        CommandSpec(
+            path=["test", "fisher-johansen"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to long-format panel CSV")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="vars", type=String, default="", description="Comma-separated series (≥ 2; default: every panel variable)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=Int, default=2, description="VECM lag order (≥ 1)"),
+                OptionSpec(name="combine", type=String, default="mw", description="Fisher combination", choices=["mw","choi"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:fisher_johansen, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_fisher_johansen),
+        ),
+        CommandSpec(
+            path=["test", "dh-causality"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to long-format panel CSV")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="cause", type=String, default="", description="Required: candidate causal variable"),
+                OptionSpec(name="effect", type=String, default="", description="Required: dependent variable"),
+                OptionSpec(name="p", type=Int, default=1, description="Lag order (≥ 1)"),
+                OptionSpec(name="bootstrap", type=Int, default=0, description="Bootstrap replications for the p-value (0 = asymptotic only)"),
+                OptionSpec(name="seed", type=Int, default=1234, description="RNG seed for the bootstrap"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:dh_causality, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_dh_causality),
+        ),
         CommandSpec(
             path=["test", "white"],
             summary="Path to CSV data file",
@@ -3022,6 +3113,224 @@ function _test_star_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (linearity) at 5% -- evidence of smooth-transition nonlinearity",
         "Cannot reject H0 (linearity) at 5%")
+    return res
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C070 remainder (#75): first-generation panel unit-root tests + Fisher-Johansen
+# panel cointegration + Dumitrescu-Hurlin panel causality.
+#
+# TWO input shapes, matching the upstream signatures:
+#   * a T×N MATRIX (columns = units) — llc, ips, breitung, like `test hadri`
+#   * a PanelData + variable symbols  — fisher-johansen, dh-causality
+#
+# NOTE the H0 direction flips between families: LLC/IPS/Breitung test H0 = ALL
+# units have a unit root (low p ⇒ stationary), which is the OPPOSITE of `test
+# hadri` (H0 = all stationary). The interpretation strings spell each one out.
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""Load a panel and resolve `--vars` (comma-separated) to `Symbol`s, defaulting to every
+non-id numeric column. Shared by the two PanelData-input leaves in this block. Every
+failure is typed — unknown names are usage/invalid, and `load_panel_data` already maps a
+bad id/time column and a duplicate (id,time) pair to typed data errors."""
+function _panel_symbols(data::String, id_col::String, time_col::String, vars::String,
+                        label::String)
+    cols = names(load_data(data))
+    length(cols) >= 3 || throw(CliError("usage/invalid",
+        "test $label needs id, time, and variable column(s) (found $(length(cols)))"))
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)
+    available = pd.varnames
+    chosen = isempty(vars) ? available : _parse_varlist(vars)
+    isempty(chosen) && throw(CliError("usage/invalid", "test $label: --vars is empty"))
+    for v in chosen
+        v in available || throw(CliError("usage/invalid",
+            "test $label: '$v' is not a panel variable (have: $(join(available, ", ")))"))
+    end
+    return pd, Symbol.(unique(chosen))
+end
+
+"""Shared option handling for the three matrix-input panel unit-root tests."""
+function _panel_ur_inputs(data::String, deterministic::String, label::String)
+    deterministic in ("none", "constant", "trend") || throw(CliError("usage/invalid",
+        "test $label: --deterministic must be none|constant|trend (got '$deterministic')"))
+    Y, _ = load_multivariate_data(data)
+    return Y
+end
+
+function _test_llc(; data::String, deterministic::String="constant", lags::String="auto",
+        max_lags::String="", criterion::String="aic", cs_demean::Bool=false,
+        format::String="table", output::String="")
+    Y = _panel_ur_inputs(data, deterministic, "llc")
+    lg = _parse_test_lags(lags, "--lags", ("auto",))
+    ml = isempty(max_lags) ? nothing : begin
+        v = tryparse(Int, max_lags)
+        (v === nothing || v < 0) && throw(CliError("usage/invalid",
+            "test llc: --max-lags must be a non-negative integer, got '$max_lags'"))
+        v
+    end
+    _status("Levin-Lin-Chu Panel Unit-Root Test: units=$(size(Y,2)), observations=$(size(Y,1))"); _status()
+    res = try
+        llc_test(Y; deterministic=Symbol(deterministic), lags=lg, max_lags=ml,
+                 criterion=Symbol(criterion), cs_demean=cs_demean)
+    catch e
+        throw(_teststat_error(e, "LLC test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "t (unadjusted)" => _finite_or_str(Float64(res.t_unadjusted)),
+        "delta" => _finite_or_str(Float64(res.delta)),
+        "deterministic" => String(res.deterministic),
+        "lags (per unit)" => join(res.lags, ", "),
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, output=output, title="Levin-Lin-Chu Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all units have a unit root) at 5% -- the panel is stationary",
+        "Cannot reject H0 (all units have a unit root) at 5%")
+    return res
+end
+
+function _test_ips(; data::String, deterministic::String="constant", lags::String="auto",
+        max_lags::String="", criterion::String="aic", cs_demean::Bool=false,
+        format::String="table", output::String="")
+    Y = _panel_ur_inputs(data, deterministic, "ips")
+    lg = _parse_test_lags(lags, "--lags", ("auto",))
+    ml = isempty(max_lags) ? nothing : begin
+        v = tryparse(Int, max_lags)
+        (v === nothing || v < 0) && throw(CliError("usage/invalid",
+            "test ips: --max-lags must be a non-negative integer, got '$max_lags'"))
+        v
+    end
+    _status("Im-Pesaran-Shin Panel Unit-Root Test: units=$(size(Y,2)), observations=$(size(Y,1))"); _status()
+    res = try
+        ips_test(Y; deterministic=Symbol(deterministic), lags=lg, max_lags=ml,
+                 criterion=Symbol(criterion), cs_demean=cs_demean)
+    catch e
+        throw(_teststat_error(e, "IPS test"))
+    end
+    # IPS is a MEAN-GROUP test: the per-unit ADF t-statistics are the interesting detail.
+    output_result(DataFrame(unit=collect(1:length(res.individual_t)),
+                            t_statistic=round.(Float64.(res.individual_t); digits=4),
+                            lags=res.lags);
+        format=Symbol(format), output=output, title="IPS Per-Unit ADF Statistics")
+    output_kv(Pair{String,Any}[
+        "W[t-bar] statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "t-bar" => _finite_or_str(Float64(res.tbar)),
+        "deterministic" => String(res.deterministic),
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, title="Im-Pesaran-Shin Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all units have a unit root) at 5% -- some units are stationary",
+        "Cannot reject H0 (all units have a unit root) at 5%")
+    return res
+end
+
+function _test_breitung(; data::String, deterministic::String="constant", lags::Int=0,
+        cs_demean::Bool=false, format::String="table", output::String="")
+    Y = _panel_ur_inputs(data, deterministic, "breitung")
+    lags >= 0 || throw(CliError("usage/invalid", "test breitung: --lags must be ≥ 0 (got $lags)"))
+    _status("Breitung Panel Unit-Root Test: units=$(size(Y,2)), observations=$(size(Y,1))"); _status()
+    res = try
+        breitung_panel_test(Y; deterministic=Symbol(deterministic), lags=lags,
+                            cs_demean=cs_demean)
+    catch e
+        throw(_teststat_error(e, "Breitung test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "deterministic" => String(res.deterministic),
+        "lags" => res.lags,
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, output=output, title="Breitung Panel Unit-Root Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all units have a unit root) at 5% -- the panel is stationary",
+        "Cannot reject H0 (all units have a unit root) at 5%")
+    return res
+end
+
+# Fisher-type combination of per-unit Johansen tests. Needs >= 2 series, which come
+# from the panel's variable columns (--vars, else every non-id numeric column).
+function _test_fisher_johansen(; data::String, id_col::String="", time_col::String="",
+        vars::String="", deterministic::String="constant", lags::Int=2,
+        combine::String="mw", format::String="table", output::String="")
+    lags >= 1 || throw(CliError("usage/invalid", "test fisher-johansen: --lags must be ≥ 1 (got $lags)"))
+    pd, varsyms = _panel_symbols(data, id_col, time_col, vars, "fisher-johansen")
+    length(varsyms) >= 2 || throw(CliError("usage/invalid",
+        "test fisher-johansen needs at least 2 series (got $(length(varsyms)))";
+        hint="name them with --vars, e.g. --vars y,x"))
+    _status("Fisher-Johansen Panel Cointegration Test: series=$(join(String.(varsyms), ", ")), combine=$combine"); _status()
+    res = try
+        fisher_johansen_test(pd, varsyms...; deterministic=Symbol(deterministic),
+                             lags=lags, combine=Symbol(combine))
+    catch e
+        throw(_teststat_error(e, "Fisher-Johansen test"))
+    end
+    output_result(DataFrame(
+            rank = res.ranks,
+            trace_statistic = round.(Float64.(res.trace_statistics); digits=4),
+            trace_p_value = round.(Float64.(res.trace_pvalues); digits=4),
+            max_statistic = round.(Float64.(res.max_statistics); digits=4),
+            max_p_value = round.(Float64.(res.max_pvalues); digits=4));
+        format=Symbol(format), output=output,
+        title="Fisher-Johansen Panel Cointegration Test")
+    output_kv(Pair{String,Any}[
+        "selected rank" => res.rank,
+        "combine" => String(res.combine),
+        "deterministic" => String(res.deterministic),
+        "lags" => res.lags,
+        "n_units" => res.n_units];
+        format=format, title="Fisher-Johansen Summary")
+    _status_styled("H0 at each row is rank <= r; the selected rank is the first not rejected.\n"; color=:cyan)
+    return res
+end
+
+# Dumitrescu-Hurlin (2012) panel Granger non-causality. Direction matters: this tests
+# whether --cause Granger-causes --effect, so the two are NOT interchangeable.
+function _test_dh_causality(; data::String, id_col::String="", time_col::String="",
+        cause::String="", effect::String="", p::Int=1, bootstrap::Int=0, seed::Int=1234,
+        format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "test dh-causality: --p must be ≥ 1 (got $p)"))
+    bootstrap >= 0 || throw(CliError("usage/invalid",
+        "test dh-causality: --bootstrap must be ≥ 0 (got $bootstrap)"))
+    isempty(cause) && throw(CliError("usage/missing", "test dh-causality: --cause is required";
+        hint="name the candidate causal variable, e.g. --cause x"))
+    isempty(effect) && throw(CliError("usage/missing", "test dh-causality: --effect is required";
+        hint="name the dependent variable, e.g. --effect y"))
+    pd, varsyms = _panel_symbols(data, id_col, time_col, "$cause,$effect", "dh-causality")
+    length(varsyms) == 2 || throw(CliError("usage/invalid",
+        "test dh-causality: --cause and --effect must name two distinct columns"))
+    _status("Dumitrescu-Hurlin Panel Causality: $cause -> $effect, p=$p"); _status()
+    res = try
+        dh_causality_test(pd, varsyms[1], varsyms[2]; p=p, bootstrap=bootstrap, seed=seed)
+    catch e
+        throw(_teststat_error(e, "Dumitrescu-Hurlin test"))
+    end
+    pairs = Pair{String,Any}[
+        "cause" => String(res.cause),
+        "effect" => String(res.effect),
+        "W-bar" => _finite_or_str(Float64(res.Wbar)),
+        "Z-bar" => _finite_or_str(Float64(res.Zbar)),
+        "Z-bar p-value" => _finite_or_str(Float64(res.Zbar_pvalue)),
+        "Z-tilde" => _finite_or_str(Float64(res.Ztilde)),
+        "Z-tilde p-value" => _finite_or_str(Float64(res.Ztilde_pvalue)),
+        "lags (p)" => res.p,
+        "n_units" => res.N,
+        "units skipped" => res.n_skipped,
+        "observations" => res.nobs,
+    ]
+    res.bootstrap > 0 && push!(pairs, "bootstrap p-value" => _finite_or_str(Float64(res.bootstrap_pvalue)))
+    output_kv(pairs; format=format, output=output, title="Dumitrescu-Hurlin Panel Causality")
+    # Z-tilde is the small-T-corrected statistic and is the one to read by default.
+    interpret_test_result(Float64(res.Ztilde_pvalue),
+        "Reject H0 (no causality for any unit) at 5% -- $cause Granger-causes $effect for some units",
+        "Cannot reject H0 (no causality for any unit) at 5%")
     return res
 end
 

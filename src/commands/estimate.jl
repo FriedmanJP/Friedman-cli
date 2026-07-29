@@ -1156,7 +1156,19 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                PREG_OPTIONS...
+                # cov-type is WIDENED to include pcse for THIS leaf only, and the two new
+                # options are appended HERE rather than to PREG_OPTIONS: that const is
+                # shared with piv/plogit/pprobit, predict/residuals and several `test`
+                # leaves whose estimators take no :pcse and whose handlers accept no
+                # ar1/pcse_unbalanced kwarg (declaring an option a handler cannot take is
+                # an exit-1 MethodError on every invocation — see #85).
+                map(o -> o.name == "cov-type" ?
+                        OptionSpec(name="cov-type", type=String, default="cluster",
+                                   choices=["ols","cluster","twoway","driscoll-kraay","pcse"],
+                                   description="ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs)") : o,
+                    PREG_OPTIONS)...;
+                OptionSpec(name="ar1", type=String, default="none", description="Prais-Winsten AR(1) correction", choices=["none","common","panel-specific"]);
+                OptionSpec(name="pcse-unbalanced", type=String, default="casewise", description="Unbalanced-panel handling for --cov-type pcse", choices=["casewise","pairwise"])
             ],
             flags=[
                 FlagSpec(name="twoway", description="Include time fixed effects")
@@ -2751,20 +2763,36 @@ end
 
 function _estimate_preg(; data::String, dep::String="", indep::String="",
                          method::String="fe", twoway::Bool=false,
-                         cov_type::String="cluster",
+                         cov_type::String="cluster", ar1::String="none",
+                         pcse_unbalanced::String="casewise",
                          id_col::String="", time_col::String="",
                          output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    # was a bare error() -> internal/error exit 1 for an ordinary usage mistake
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    # #75: Beck-Katz PCSE + Prais-Winsten AR(1). --pcse-unbalanced only affects the PCSE
+    # covariance, so a mismatch is a usage error rather than a silent no-op.
+    (cov_type == "pcse" || pcse_unbalanced == "casewise") || throw(CliError("usage/invalid",
+        "estimate preg: --pcse-unbalanced applies only to --cov-type pcse (got --cov-type $cov_type)"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
     model_sym = _to_sym(method)
     cov_sym = _to_sym(cov_type)
     _status("Panel Regression ($method): $dep ~ $(join(indep_syms, " + "))")
+    ar1 == "none" || _status("  Prais-Winsten AR(1): $ar1")
+    cov_type == "pcse" && _status("  PCSE unbalanced handling: $pcse_unbalanced")
     _status()
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
-        model=model_sym, twoway=twoway, cov_type=cov_sym)
+    # Previously unwrapped: an upstream ArgumentError surfaced as exit 1.
+    model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms;
+            model=model_sym, twoway=twoway, cov_type=cov_sym,
+            ar1=_to_sym(replace(ar1, '-' => '_')),
+            pcse_unbalanced=_to_sym(pcse_unbalanced))
+    catch e
+        throw(_garch_variant_error(e, "panel regression"))
+    end
 
     coef_df = _preg_coef_table(model, model.varnames)
     output_result(coef_df; format=Symbol(format), output=output,

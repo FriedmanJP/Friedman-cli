@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 83
+**Leaves:** 88
 
 ### `friedman test adf`
 
@@ -220,6 +220,29 @@ Path to CSV data file
 
 ---
 
+### `friedman test breitung`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file (columns = panel units) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
+| `--lags` | — | `Int64` | `0` | — | Augmentation lags (≥ 0) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--cs-demean` | — | Subtract the cross-sectional mean at each t |
+
+**Output tables:** `breitung` (Path to CSV data file)
+
+---
+
 ### `friedman test breusch-pagan`
 
 Path to CSV panel data file
@@ -342,6 +365,30 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `dfgls` (Path to CSV data file)
+
+---
+
+### `friedman test dh-causality`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to long-format panel CSV |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--cause` | — | `String` | `""` | — | Required: candidate causal variable |
+| `--effect` | — | `String` | `""` | — | Required: dependent variable |
+| `--p` | — | `Int64` | `1` | — | Lag order (≥ 1) |
+| `--bootstrap` | — | `Int64` | `0` | — | Bootstrap replications for the p-value (0 = asymptotic only) |
+| `--seed` | — | `Int64` | `1234` | — | RNG seed for the bootstrap |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `dh_causality` (Path to CSV data file)
 
 ---
 
@@ -485,6 +532,29 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `fisher` (Path to CSV data file)
+
+---
+
+### `friedman test fisher-johansen`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to long-format panel CSV |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--vars` | — | `String` | `""` | — | Comma-separated series (≥ 2; default: every panel variable) |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
+| `--lags` | — | `Int64` | `2` | — | VECM lag order (≥ 1) |
+| `--combine` | — | `String` | `mw` | `mw`, `choi` | Fisher combination |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `fisher_johansen` (Path to CSV data file)
 
 ---
 
@@ -853,6 +923,31 @@ Path to CSV data file
 
 ---
 
+### `friedman test ips`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file (columns = panel units) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
+| `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
+| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `tstat` | Lag-selection criterion |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--cs-demean` | — | Subtract the cross-sectional mean at each t |
+
+**Output tables:** `ips` (Path to CSV data file)
+
+---
+
 ### `friedman test johansen`
 
 Path to CSV data file
@@ -928,6 +1023,31 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `ljung_box` (Path to CSV data file)
+
+---
+
+### `friedman test llc`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file (columns = panel units) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
+| `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
+| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `tstat` | Lag-selection criterion |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--cs-demean` | — | Subtract the cross-sectional mean at each t (mitigates cross-sectional dependence) |
+
+**Output tables:** `llc` (Path to CSV data file)
 
 ---
 

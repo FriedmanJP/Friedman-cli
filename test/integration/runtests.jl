@@ -1624,6 +1624,82 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ci; force=true); rm(nc; force=true)
         end
 
+        @testset "llc/ips/breitung — unit-root vs stationary panel" begin
+            # H0 for all three is that EVERY unit has a unit root — the OPPOSITE of hadri.
+            i1 = dgp_panel_matrix(; N=10, T=80, unit_root=true, seed=301)
+            i0 = dgp_panel_matrix(; N=10, T=80, unit_root=false, seed=303)
+            for leaf in ("llc", "ips", "breitung")
+                r1 = run_json(["test", leaf, i1])
+                assert_envelope_ok(r1; label="$leaf unit-root panel")
+                p1 = Float64(scan_metric(r1.doc, "p-value"))
+                @test p1 > 0.05                       # cannot reject "all have a unit root"
+
+                r0 = run_json(["test", leaf, i0])
+                assert_envelope_ok(r0; label="$leaf stationary panel")
+                p0 = Float64(scan_metric(r0.doc, "p-value"))
+                @test p0 < p1                         # stationary panel scores stronger
+                @test scan_metric(r0.doc, "n_units") == 10
+            end
+            # IPS reports the per-unit ADF statistics
+            t = coltable(run_json(["test", "ips", i0]).doc, "t_statistic")
+            @test t !== nothing && length(table_rows(t)) == 10
+            @test run_json(["test", "llc", i0, "--deterministic", "trend"]).code == 0
+            @test run_json(["test", "breitung", i0, "--cs-demean"]).code == 0
+            rm(i1; force=true); rm(i0; force=true)
+        end
+
+        @testset "fisher-johansen / dh-causality — panel leaves" begin
+            cp = dgp_coint_panel(; N=10, T=50, seed=305)
+            fj = run_json(["test", "fisher-johansen", cp, "--vars", "y,x"])
+            assert_envelope_ok(fj; label="fisher-johansen")
+            t = coltable(fj.doc, "trace_statistic")
+            @test t !== nothing && length(table_rows(t)) >= 1
+            @test Set(["rank", "trace_statistic", "trace_p_value", "max_statistic",
+                       "max_p_value"]) ⊆ Set(String.(table_cols(t)))
+            @test scan_metric(fj.doc, "n_units") == 10
+            @test run_json(["test", "fisher-johansen", cp, "--vars", "y,x",
+                            "--combine", "choi"]).code == 0
+
+            dh = run_json(["test", "dh-causality", cp, "--cause", "x", "--effect", "y"])
+            assert_envelope_ok(dh; label="dh-causality")
+            for m in ("cause", "effect", "W-bar", "Z-bar", "Z-tilde", "Z-tilde p-value")
+                @test scan_metric(dh.doc, m) !== nothing
+            end
+            @test String(scan_metric(dh.doc, "cause")) == "x"
+            @test String(scan_metric(dh.doc, "effect")) == "y"
+            rm(cp; force=true)
+        end
+
+        @testset "estimate preg — PCSE and Prais-Winsten AR(1) (#75)" begin
+            cp = dgp_coint_panel(; N=10, T=50, seed=307)
+            base = ["estimate", "preg", cp, "--dep", "y", "--indep", "x"]
+            @test run_json(vcat(base, ["--cov-type", "pcse"])).code == 0
+            @test run_json(vcat(base, ["--cov-type", "pcse", "--pcse-unbalanced", "pairwise"])).code == 0
+            for a in ("common", "panel-specific")
+                @test run_json(vcat(base, ["--ar1", a])).code == 0
+            end
+            # --pcse-unbalanced only means anything under --cov-type pcse
+            @test run_json(vcat(base, ["--pcse-unbalanced", "pairwise"])).code == 2
+            @test run_json(vcat(base, ["--ar1", "bogus"])).code == 2
+            rm(cp; force=true)
+        end
+
+        @testset "C070 remainder — bad input stays typed" begin
+            mv = dgp_panel_matrix(; N=8, T=60, seed=309)
+            cp = dgp_coint_panel(; N=8, T=40, seed=311)
+            @test run_json(["test", "llc", mv, "--lags", "junk"]).code == 2
+            @test run_json(["test", "llc", mv, "--max-lags", "-1"]).code == 2
+            @test run_json(["test", "breitung", mv, "--lags", "-1"]).code == 2
+            @test run_json(["test", "llc", mv, "--deterministic", "bogus"]).code == 2
+            @test run_json(["test", "fisher-johansen", cp, "--vars", "y"]).code == 2
+            @test run_json(["test", "fisher-johansen", cp, "--vars", "nosuch"]).code == 2
+            @test run_json(["test", "dh-causality", cp, "--effect", "y"]).code == 2
+            @test run_json(["test", "dh-causality", cp, "--cause", "x", "--effect", "y",
+                            "--p", "0"]).code == 2
+            @test run_json(["test", "dh-causality", cp, "--cause", "y", "--effect", "y"]).code == 2
+            rm(mv; force=true); rm(cp; force=true)
+        end
+
         # ── C067 remainder (#72): cross-section OLS diagnostics. Each case asserts the
         # DISCRIMINATING DIRECTION on a DGP built for that null.
 
