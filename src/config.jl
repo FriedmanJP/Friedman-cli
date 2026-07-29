@@ -24,7 +24,8 @@ const CONFIG_SCHEMA = Dict{String,Vector{String}}(
     "identification" => ["method", "sign_matrix", "narrative", "zero_restrictions",
                          "sign_restrictions", "uhlig"],
     "gmm" => ["moment_conditions", "instruments", "weighting"],
-    "smm" => ["weighting", "sim_ratio", "burn"],
+    "smm" => ["model", "theta0", "lags", "p", "lower", "upper",
+              "weighting", "sim_ratio", "burn"],
     "nongaussian" => ["method", "contrast", "distribution", "n_regimes",
                       "transition_variable", "regime_variable"],
     "model" => ["parameters", "endogenous", "exogenous", "equations"],
@@ -52,6 +53,7 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
                                 "garch_id"],
     "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step"],
     "smm.weighting" => ["identity", "optimal", "two_step", "iterated", "twostep"],
+    "smm.model" => ["ar1", "arp", "var1", "iid_normal"],
     "nongaussian.method" => ["fastica", "jade", "ml", "markov", "garch",
                              "smooth_transition", "external"],
     "nongaussian.contrast" => ["logcosh", "exp", "kurtosis"],
@@ -439,18 +441,165 @@ function get_dsge_constraints(config::Dict)
     return result
 end
 
+_smm_floatvec(x, name) = begin
+    x isa AbstractVector || throw(CliError("config/type", "[smm] `$name` must be an array of numbers"))
+    out = Float64[]
+    for v in x
+        v isa Real || throw(CliError("config/type", "[smm] `$name` must contain only numbers, got $(typeof(v))"))
+        push!(out, Float64(v))
+    end
+    out
+end
+
+_smm_int(x, name) = begin
+    x isa Integer && return Int(x)
+    (x isa Real && isinteger(x)) && return Int(x)
+    throw(CliError("config/type", "[smm] `$name` must be an integer"))
+end
+
 """
     get_smm(config) → Dict
 
-Extract SMM specification from a config dict.
+Extract the SMM specification from a config dict. Lenient parser: absent optional keys
+return `nothing` (the handler validates what SMM actually needs — a data-generating
+`model` and `theta0`). SMM matches simulated moments to sample moments, so it requires
+BOTH a simulator (built from the named built-in `model`) and the moment function.
+
+Keys:
+- `model`     — built-in simulator: `ar1` | `arp` | `var1` | `iid_normal` (required by handler)
+- `theta0`    — initial parameter vector, layout depends on `model` (required by handler)
+- `lags`      — autocovariance-moment lags (default 1)
+- `p`         — AR order (required only for `model = "arp"`)
+- `lower`/`upper` — optional parameter bounds → `ParameterTransform` (both, same length as `theta0`)
+- `weighting` — `identity` | `two_step` (aliases `optimal`/`iterated`/`twostep` → `two_step`)
+- `sim_ratio` — simulation-to-sample ratio (default 5)
+- `burn`      — burn-in periods (default 100)
 """
 function get_smm(config::Dict)
     smm = get(config, "smm", Dict())
+    model = get(smm, "model", nothing)
     Dict{String,Any}(
-        "weighting" => get(smm, "weighting", "two_step"),
-        "sim_ratio" => get(smm, "sim_ratio", 5),
-        "burn"      => get(smm, "burn", 100),
+        "model"     => model === nothing ? nothing : String(model),
+        "theta0"    => haskey(smm, "theta0") ? _smm_floatvec(smm["theta0"], "theta0") : nothing,
+        "lags"      => haskey(smm, "lags") ? _smm_int(smm["lags"], "lags") : 1,
+        "p"         => haskey(smm, "p") ? _smm_int(smm["p"], "p") : nothing,
+        "lower"     => haskey(smm, "lower") ? _smm_floatvec(smm["lower"], "lower") : nothing,
+        "upper"     => haskey(smm, "upper") ? _smm_floatvec(smm["upper"], "upper") : nothing,
+        "weighting" => String(get(smm, "weighting", "two_step")),
+        "sim_ratio" => _smm_int(get(smm, "sim_ratio", 5), "sim_ratio"),
+        "burn"      => _smm_int(get(smm, "burn", 100), "burn"),
     )
+end
+
+# Column-name list from a TOML value (a [[equations]] `indep`/`instr` or [instruments] `common`).
+_system_strvec(x, ctx) = begin
+    x isa AbstractVector || throw(CliError("config/type", "$ctx must be an array of column names"))
+    out = String[]
+    for v in x
+        (v isa AbstractString) || throw(CliError("config/type", "$ctx must contain only column-name strings, got $(typeof(v))"))
+        s = strip(String(v))
+        isempty(s) && throw(CliError("config/shape", "$ctx contains an empty column name"))
+        push!(out, s)
+    end
+    isempty(out) && throw(CliError("config/shape", "$ctx must list at least one column"))
+    out
+end
+
+"""
+    get_system(config) → Dict
+
+Extract a multi-equation **systems** specification (SUR / 3SLS) from a config dict.
+Each `[[equations]]` block names a dependent column (`dep`) and regressor columns
+(`indep`); a block may add its own instruments (`instr`) and/or a shared
+`[instruments].common` set may be given (3SLS).
+
+Returns `Dict("equations" => [Dict("name","dep","indep","instr"), ...],
+"common_instruments" => Vector{String} | nothing)`. Column *names* only — the
+handler resolves them against the data CSV. Raises typed `config/*` CliErrors.
+"""
+function get_system(config::Dict)
+    eqs_raw = get(config, "equations", nothing)
+    (eqs_raw isa AbstractVector && !isempty(eqs_raw)) || throw(CliError("config/missing",
+        "systems estimation requires at least one [[equations]] block with `dep` and `indep`"))
+    equations = Vector{Dict{String,Any}}()
+    for (j, e) in enumerate(eqs_raw)
+        e isa AbstractDict || throw(CliError("config/type", "[[equations]] entry $j must be a table"))
+        haskey(e, "dep") || throw(CliError("config/missing-key", "[[equations]] entry $j missing `dep`"))
+        haskey(e, "indep") || throw(CliError("config/missing-key", "[[equations]] entry $j missing `indep`"))
+        dep = strip(String(e["dep"]))
+        isempty(dep) && throw(CliError("config/shape", "[[equations]] entry $j has an empty `dep`"))
+        push!(equations, Dict{String,Any}(
+            "name"  => haskey(e, "name") ? String(e["name"]) : "eq$(j)",
+            "dep"   => dep,
+            "indep" => _system_strvec(e["indep"], "[[equations]] entry $j `indep`"),
+            "instr" => haskey(e, "instr") ? _system_strvec(e["instr"], "[[equations]] entry $j `instr`") : nothing,
+        ))
+    end
+    common = nothing
+    instr_tbl = get(config, "instruments", nothing)
+    if instr_tbl isa AbstractDict && haskey(instr_tbl, "common")
+        common = _system_strvec(instr_tbl["common"], "[instruments] `common`")
+    end
+    Dict{String,Any}("equations" => equations, "common_instruments" => common)
+end
+
+"""
+    get_vecm_restriction(config, key) → Matrix{Float64}
+
+Extract a `p × k` restriction matrix (row-major arrays-of-arrays) named `key`
+(`"H"`, `"A"`, or `"b"`) from a `[vecm_restriction]` TOML section, for VECM
+cointegration restriction tests (C071). Raises typed `config/*` CliErrors on a
+missing section/key, a malformed (ragged / non-numeric / empty) matrix, so bad
+config surfaces as an exit-4 config error rather than an internal exit-1.
+"""
+function get_vecm_restriction(config::Dict, key::String)
+    sec = get(config, "vecm_restriction", nothing)
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "VECM restriction test requires a [vecm_restriction] section with $key = [[...],[...]]"))
+    haskey(sec, key) || throw(CliError("config/missing-key",
+        "[vecm_restriction] must define $key = [[...],[...]] (row-major $key matrix)"))
+    rows = sec[key]
+    (rows isa AbstractVector && !isempty(rows) && all(r -> r isa AbstractVector, rows)) ||
+        throw(CliError("config/type",
+            "[vecm_restriction] $key must be a non-empty array of equal-length numeric rows"))
+    ncol = length(first(rows))
+    (ncol >= 1 && all(r -> length(r) == ncol, rows)) ||
+        throw(CliError("config/shape",
+            "[vecm_restriction] $key rows must all have the same length ≥ 1"))
+    M = try
+        [Float64(rows[i][j]) for i in 1:length(rows), j in 1:ncol]
+    catch
+        throw(CliError("config/type", "[vecm_restriction] $key must contain only numbers"))
+    end
+    return M
+end
+
+"""
+    get_garch_midas(config) → Vector{Float64}
+
+Extract the low-frequency driver series `x_lf` for a GARCH-MIDAS fit (C064a) from a
+config dict. Required only for `--rv macro` (an exogenous macro / realized-variance
+series, one value per calendar block); `--rv realized` derives the long-run
+component from the returns themselves and needs no config. Expects a `[garch_midas]`
+section with `x_lf = [...]`. Raises typed `config/*` CliErrors.
+"""
+function get_garch_midas(config::Dict)
+    sec = get(config, "garch_midas", nothing)
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "garch-midas --rv macro requires a [garch_midas] section with x_lf = [...]"))
+    haskey(sec, "x_lf") || throw(CliError("config/missing-key",
+        "[garch_midas] must define x_lf = [...] (low-frequency driver, one value per block)"))
+    raw = sec["x_lf"]
+    raw isa AbstractVector || throw(CliError("config/type",
+        "[garch_midas] x_lf must be an array of numbers"))
+    isempty(raw) && throw(CliError("config/shape",
+        "[garch_midas] x_lf must list at least one value"))
+    xlf = try
+        Float64[Float64(v) for v in raw]
+    catch
+        throw(CliError("config/type", "[garch_midas] x_lf must contain only numbers"))
+    end
+    return xlf
 end
 
 """

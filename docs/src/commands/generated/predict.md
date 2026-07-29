@@ -204,11 +204,14 @@ In-sample fitted values (logit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
-| `--marginal-effects` | — | `String` | `""` | — | Compute marginal effects (empty=off) |
-| `--odds-ratio` | — | `String` | `""` | — | Odds ratios (logit) |
-| `--classification-table` | — | `String` | `""` | — | Classification table |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--marginal-effects` | — | Report average marginal effects |
+| `--odds-ratio` | — | Report odds ratios (logit) |
+| `--classification-table` | — | Report the classification table |
 
 **Output tables:** `predict_logit` (In-sample fitted values)
 
@@ -229,8 +232,6 @@ In-sample fitted values (mlogit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
-| `--marginal-effects` | — | `String` | `""` | — | Marginal effects |
-| `--base-category` | — | `Int64` | `1` | — | Base category |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_mlogit` (In-sample fitted values)
@@ -252,8 +253,6 @@ In-sample fitted values (ologit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
-| `--marginal-effects` | — | `String` | `""` | — | Marginal effects |
-| `--category` | — | `Int64` | `0` | — | Category index |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_ologit` (In-sample fitted values)
@@ -275,8 +274,6 @@ In-sample fitted values (oprobit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
-| `--marginal-effects` | — | `String` | `""` | — | Marginal effects |
-| `--category` | — | `Int64` | `0` | — | Category index |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_oprobit` (In-sample fitted values)
@@ -394,10 +391,13 @@ In-sample fitted values (probit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
-| `--marginal-effects` | — | `String` | `""` | — | Compute marginal effects (empty=off) |
-| `--classification-table` | — | `String` | `""` | — | Classification table |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--marginal-effects` | — | Report average marginal effects |
+| `--classification-table` | — | Report the classification table |
 
 **Output tables:** `predict_probit` (In-sample fitted values)
 

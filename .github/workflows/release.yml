@@ -12,7 +12,9 @@ jobs:
   build:
     name: Build - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    # 0.7.0 line bundles JuMP+Ipopt into the sysimage (C060), pushing the ubuntu
+    # build past the old 90/60 caps. Headroom for setup+deps+build+archive+upload.
+    timeout-minutes: 150
     strategy:
       fail-fast: true
       matrix:
@@ -42,12 +44,27 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Registry MacroEconometricModels@0.6.7 via Manifest / [compat]
+          # Registry MacroEconometricModels pinned =0.7.0 via [compat]
           julia --project -e 'using Pkg; Pkg.instantiate()'
+
+      # PackageCompiler building the JuMP+Ipopt-bundled sysimage (0.7.0 line, C060)
+      # OOM-kills the ~7 GB ubuntu runner. Give it swap headroom so peak memory
+      # spills to disk instead of terminating the runner. Linux-only (fallocate).
+      - name: Add swap space (Linux OOM headroom)
+        if: runner.os == 'Linux'
+        run: |
+          # GitHub ubuntu runners already have an active /swapfile (fallocate over it
+          # fails "Text file busy"), so add ADDITIONAL swap on the large /mnt temp disk.
+          sudo fallocate -l 12G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          swapon --show
+          free -h
 
       - name: Build sysimage
         run: julia build_release.jl
-        timeout-minutes: 60
+        timeout-minutes: 120
 
       - name: Smoke-test binary (C034 hard JSON + schema + exit codes)
         shell: bash

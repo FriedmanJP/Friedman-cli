@@ -25,8 +25,16 @@ Load CSV, convert to numeric matrix and extract variable names.
 """
 function load_multivariate_data(data::String)
     df = load_data(data)
-    Y = df_to_matrix(df)
     varnames = variable_names(df)
+    # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
+    # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
+    # univariate `load_univariate_series` guard so every multivariate estimator surfaces
+    # a `data/missing-values` (exit 3) instead of an internal error.
+    for c in varnames
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    Y = df_to_matrix(df)
     return Y, varnames
 end
 
@@ -38,9 +46,47 @@ Load CSV and extract a single numeric column by index.
 function load_univariate_series(data::String, column::Int)
     df = load_data(data)
     varnames = variable_names(df)
-    column > length(varnames) && throw(CliError("data/column-range", "column $column out of range (data has $(length(varnames)) numeric columns)"))
-    y = Vector{Float64}(df[!, varnames[column]])
+    (column < 1 || column > length(varnames)) && throw(CliError("data/column-range",
+        "column $column out of range (data has $(length(varnames)) numeric column(s))";
+        hint="--column is 1-based; pick 1..$(length(varnames))"))
+    col = df[!, varnames[column]]
+    any(ismissing, col) && throw(CliError("data/missing-values",
+        "column '$(varnames[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    y = Vector{Float64}(col)
     return y, varnames[column]
+end
+
+"""
+    _load_midas_data(data, column, hf_data, hf_column; m) → (y_lf, x_hf, ynm, xnm)
+
+Load a mixed-frequency MIDAS dataset from two CSVs: the low-frequency target
+(`data`, numeric column `column`) and the high-frequency indicator (`hf_data`,
+numeric column `hf_column`). Both are read through the already-hardened
+`load_univariate_series`, so a missing/non-numeric cell or an out-of-range column
+surfaces a typed `data/missing-values`/`data/column-range` (never an untyped
+exit-1 from a `Vector{Float64}` conversion — the standing shared-loader lesson;
+this is the 5th hardened shared loader after univariate/multivariate/reg/panel).
+
+The HF series must supply AT LEAST `m` observations per low-frequency period,
+i.e. `length(x_hf) >= m * length(y_lf)`. The estimator's internal `_align_hf`
+anchors the *last* HF observation to the *last* low-frequency period and works
+backwards, so any *leading* ragged edge (extra early HF history) is dropped
+automatically — the natural nowcasting layout (a long high-frequency indicator
+against a shorter low-frequency target) is fully supported. Only a HF series
+*shorter* than `m×LF` is rejected as a typed `data/shape` (exit 3), since
+end-anchoring would then silently drop low-frequency target periods. A `K`
+larger than the available aligned HF history surfaces via the estimator's own
+typed error, mapped by `_midas_error`.
+"""
+function _load_midas_data(data::String, column::Int, hf_data::String, hf_column::Int; m::Int)
+    y_lf, ynm = load_univariate_series(data, column)
+    x_hf, xnm = load_univariate_series(hf_data, hf_column)
+    nlf = length(y_lf); nhf = length(x_hf)
+    nhf >= m * nlf || throw(CliError("data/shape",
+        "high-frequency series '$xnm' has only $nhf observation(s) but the low-frequency target '$ynm' has $nlf and --m=$m needs at least m×LF = $(m * nlf) high-frequency observations (≥ $m aligned per low-frequency period)";
+        hint="check --m, --hf-column, and that the HF file covers at least the target window"))
+    nhf > m * nlf && _status("MIDAS alignment: dropping $(nhf - m * nlf) leading high-frequency observation(s) of '$xnm' (anchoring the last HF obs to the last low-frequency period)")
+    return y_lf, x_hf, ynm, xnm
 end
 
 # ── Naming Helpers ─────────────────────────────────────────
@@ -160,6 +206,21 @@ function interpret_test_result(pvalue::Real, reject_msg::String, accept_msg::Str
     else
         _status_styled("-> $accept_msg\n"; color=:green)
     end
+end
+
+"""
+Map an untyped MEMs `ArgumentError`/`DomainError` from the long-memory family
+(ARFIMA / GPH / local Whittle) to a typed `CliError`, so bad input surfaces as a
+`data`-class exit (3) rather than an uncaught internal exit-1 (standing lesson).
+Typed MEMs domain errors are already handled centrally by `_domain_error_class`.
+"""
+function _long_memory_error(e, what::String)
+    e isa CliError && return e
+    if e isa ArgumentError || e isa DomainError
+        return CliError("data/invalid", "$what: $(sprint(showerror, e))";
+            hint="need a longer numeric series (>= 8 obs) and valid p/q/bandwidth")
+    end
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
 end
 
 """Convert trend string to Symbol for test regression kwarg."""
@@ -536,9 +597,12 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
     prior_obj = _build_prior(config, Y, p)
     prior_sym = isnothing(prior_obj) ? :normal : :minnesota
 
+    # Forward --seed as the estimator's own seed (C052/#243): estimate_bvar seeds a
+    # fresh MersenneTwister(seed) and records it in the BVARPosterior ReproManifest,
+    # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj)
+        prior=prior_sym, hyper=prior_obj, seed=_SEED[])
 
     return post, Y, varnames, p, n
 end
@@ -776,6 +840,60 @@ function _parse_varlist(str::String)
 end
 
 """
+    _parse_lag_spec(s, flag; min=0) -> :auto | Int | Vector{Int}
+
+Parse an ARDL/NARDL `--p`/`--q` lag spec: `"auto"` → `:auto`; a bare integer `≥ min` →
+`Int`; a comma-separated list `"2,1,3"` → `Vector{Int}` (each `≥ min`). A bad token → typed
+`usage/invalid` (never a raw parse throw). `min` is the smallest admissible value (`1` for an
+AR order `--p`, `0` for a DL order `--q`). The per-regressor length check (`== k`) is done by
+the caller, which knows the regressor count. (C062b)
+"""
+function _parse_lag_spec(s::AbstractString, flag::String; min::Int=0)
+    s == "auto" && return :auto
+    if occursin(',', s)
+        toks = [strip(t) for t in split(s, ",") if !isempty(strip(t))]
+        isempty(toks) && throw(CliError("usage/invalid", "$flag: empty list"))
+        out = Int[]
+        for t in toks
+            v = tryparse(Int, t)
+            (v === nothing || v < min) && throw(CliError("usage/invalid",
+                "$flag: '$t' must be an integer ≥ $min"))
+            push!(out, v)
+        end
+        return out
+    end
+    v = tryparse(Int, s)
+    (v === nothing || v < min) && throw(CliError("usage/invalid",
+        "$flag must be 'auto', an integer ≥ $min, or a comma-separated list of such; got '$s'"))
+    return v
+end
+
+"""
+    _parse_asym_spec(s) -> :all | Vector{Int}
+
+Parse a NARDL `--asymmetric` spec: `"all"` → `:all` (split every regressor); else a
+comma-separated list of 1-based regressor indices → `Vector{Int}` (non-empty, each `≥ 1`).
+An empty result → typed `usage/invalid` (a fully-symmetric model → use `estimate ardl`). The
+upper bound (`≤ k₀`) is checked by the caller, which knows the regressor count. (C062b)
+"""
+function _parse_asym_spec(s::AbstractString)
+    s == "all" && return :all
+    idxs = Int[]
+    for t in split(s, ",")
+        ts = strip(t)
+        isempty(ts) && continue
+        v = tryparse(Int, ts)
+        (v === nothing || v < 1) && throw(CliError("usage/invalid",
+            "--asymmetric: '$ts' must be a positive 1-based regressor index (or 'all')"))
+        push!(idxs, v)
+    end
+    isempty(idxs) && throw(CliError("usage/invalid",
+        "--asymmetric resolved to no indices; pass 'all' or 1-based indices like '1,3' " *
+        "(a fully-symmetric model → use `estimate ardl`)"))
+    return idxs
+end
+
+"""
     load_panel_data(data, id_col, time_col; varnames=nothing) -> PanelData
 
 Load CSV data and set panel structure using xtset().
@@ -784,13 +902,67 @@ function load_panel_data(data::String, id_col::String, time_col::String)
     df = load_data(data)
     id_col in names(df) || throw(CliError("data/missing-column", "id column '$id_col' not found in data (columns: $(join(names(df), ", ")))"))
     time_col in names(df) || throw(CliError("data/missing-column", "time column '$time_col' not found in data (columns: $(join(names(df), ", ")))"))
-    group_ids = Int.(df[!, id_col])
-    time_ids = Int.(df[!, time_col])
-    # Get numeric columns excluding id and time
+    # Get numeric variable columns excluding id and time (matches xtset's own
+    # num_cols filter; passed explicitly so the panel keeps CLI-facing names).
     varnames = [n for n in variable_names(df) if n != id_col && n != time_col]
-    isempty(varnames) && error("no numeric variables found after excluding id/time columns")
-    Y = Matrix{Float64}(df[!, varnames])
-    return xtset(Y, group_ids, time_ids; varnames=varnames)
+    isempty(varnames) && throw(CliError("data/invalid",
+        "no numeric variable columns found after excluding id='$id_col'/time='$time_col'; a panel needs at least one numeric variable column"))
+    # MEMs 0.7.0 xtset takes (df, group_col::Symbol, time_col::Symbol; ...) and
+    # resolves group/time ID mapping internally (C054: the old Matrix/Vector
+    # signature was removed upstream). It throws untyped ArgumentErrors on a bad panel
+    # structure (duplicate (group,time) pairs, degenerate ids) — map those to a typed
+    # data error so bad user input never surfaces as an internal exit-1 (benefits the whole
+    # panel family: pvar/cips/hausman/pedroni/kao/westerlund).
+    return try
+        xtset(df, Symbol(id_col), Symbol(time_col); varnames=varnames)
+    catch e
+        e isa CliError && rethrow()
+        e isa ArgumentError && throw(CliError("data/invalid", "invalid panel structure: $(e.msg)";
+            hint="ensure (id, time) pairs are unique and variable columns are numeric"))
+        rethrow()
+    end
+end
+
+"""
+    _load_panel_reg(data, id_col, time_col, dep, indep) → (pd, depsym, indepsyms, depc, indeps)
+
+Load a long-format panel CSV and resolve `--dep`/`--indep` to `Symbol`s for the panel
+estimators that take `(PanelData, dep, xs...)` — `estimate xtcointreg` (C062a) and, later,
+`estimate pmg` / `test pmg-hausman` (C062c). Generalizes `_panel_coint_inputs` (test.jl):
+`id`/`time` default to the first/second DATA column, `--dep` defaults to the first panel
+variable, and `--indep` defaults to every other variable. Reuses the hardened
+`load_panel_data` (typed duplicate-`(id,time)` / non-numeric / missing-column guards) and
+validates every resolved name → `usage/invalid`, so bad input never reaches MEMs as an
+untyped exit-1.
+"""
+function _load_panel_reg(data::String, id_col::String, time_col::String,
+                         dep::String, indep::String)
+    df = load_data(data)
+    cols = names(df)
+    length(cols) >= 3 || throw(CliError("usage/invalid",
+        "panel cointegrating regression needs id, time, and variable column(s) (found $(length(cols)))"))
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)          # typed: data/missing-column, data/invalid
+    vars = pd.varnames                          # numeric cols minus id/time (non-empty — load_panel_data guards)
+    depc = isempty(dep) ? vars[1] : dep
+    depc in vars || throw(CliError("usage/invalid",
+        "--dep '$depc' is not a panel variable (have: $(join(vars, ", ")))"))
+    indeps = isempty(indep) ? filter(!=(depc), vars) : _parse_varlist(indep)
+    isempty(indeps) && throw(CliError("usage/invalid", "need at least one regressor via --indep"))
+    for v in indeps
+        v in vars || throw(CliError("usage/invalid",
+            "--indep '$v' is not a panel variable (have: $(join(vars, ", ")))"))
+    end
+    # Guard missing cells in the dep + regressor columns: `xtset`/`load_panel_data` silently
+    # NaN-fills a blank cell (data/panel.jl `ismissing(v) ? NaN : …`), which would propagate to
+    # NaN coefficients at exit 0 — inconsistent with `estimate cointreg`'s `_load_reg_data`,
+    # which rejects the same input. Reject it here too (adversarial review C062a).
+    for c in vcat([depc], indeps)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    return pd, Symbol(depc), Symbol.(indeps), depc, indeps
 end
 
 """
@@ -810,17 +982,20 @@ function _load_and_estimate_pvar(data::String, id_col::String, time_col::String,
     pre = _parse_varlist(predet)
     exo = _parse_varlist(exog)
 
+    # MEMs 0.7.0 renamed the variable-role kwargs (C054): dependent→dependent_vars,
+    # predetermined→predet_vars, exogenous→exog_vars, system→system_instruments.
+    # predet_vars/exog_vars are now plain String vectors (empty = none).
     model = if method == "feols"
         estimate_pvar_feols(panel, lags;
-            dependent=isempty(dep) ? nothing : dep,
-            exogenous=isempty(exo) ? nothing : exo)
+            dependent_vars=isempty(dep) ? nothing : dep,
+            exog_vars=exo)
     else
         estimate_pvar(panel, lags;
             transformation=Symbol(transformation), steps=Symbol(steps),
-            system=system, collapse=collapse,
-            dependent=isempty(dep) ? nothing : dep,
-            predetermined=isempty(pre) ? nothing : pre,
-            exogenous=isempty(exo) ? nothing : exo,
+            system_instruments=system, collapse=collapse,
+            dependent_vars=isempty(dep) ? nothing : dep,
+            predet_vars=pre,
+            exog_vars=exo,
             min_lag_endo=min_lag_endo, max_lag_endo=max_lag_endo)
     end
     return model, panel, panel.varnames
@@ -879,7 +1054,9 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
             end
         end
     end
-    isempty(key_indices) && error("--key-vars is required for FAVAR (comma-separated column names or indices)")
+    isempty(key_indices) && throw(CliError("usage/missing",
+        "--key-vars is required for FAVAR";
+        hint="comma-separated column names or indices, e.g. --key-vars y,x"))
 
     # Auto-select factors if not specified
     r = if factors === nothing
@@ -942,12 +1119,80 @@ end
 # ── DSGE Helpers ───────────────────────────────────────────
 
 """
+    _dsge_call(f, args...; kwargs...)
+
+Invoke `f` at the latest world age (`Base.invokelatest`). A representative-agent DSGE
+spec loaded from a `.toml`/`.jl` file carries `@dsge`-generated residual functions that
+are compiled at load time — i.e. in a *newer* world age than the running handler's
+frame. Any MEMs call that **evaluates** those residual functions (steady state,
+linearize, solve, DSGE estimation, perfect foresight, OccBin, Bayesian re-solves) must
+go through this, or Julia throws a "method too new to be called from this world context"
+`MethodError`. Calls that only consume an already-solved solution object (irf/fevd/
+simulate/historical_decomposition on a `*Solution`) operate on numeric matrices and do
+NOT need this. See the "RA DSGE loader" durable gotcha in CLAUDE.md.
+"""
+_dsge_call(f, args...; kwargs...) = Base.invokelatest(f, args...; kwargs...)
+
+"""
+    _dsge_sandbox() → Module
+
+Fresh module for evaluating a runtime DSGE spec (a `.jl` file or a synthesized `@dsge`
+block). The in-scope `MacroEconometricModels` object is injected as a const and its
+exports are brought in via a *relative* `using .MacroEconometricModels` — so the bare
+`@dsge`/`DSGESpec` names the macro expands to resolve against the injected object rather
+than the load path. This is what makes the loader work identically under the real
+package and the test mock (which shadows `MacroEconometricModels` in the test session).
+"""
+function _dsge_sandbox()
+    mod = Module()
+    Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
+    Base.eval(mod, :(using .MacroEconometricModels))
+    return mod
+end
+
+"""
+    _dsge_toml_block(dsge_cfg) → String
+
+Synthesize an `@dsge begin … end` source block from the parsed `[model]` TOML fields
+(`get_dsge`): `parameters` (name→value), `endogenous`, `exogenous`, `equations` (already
+in `var[t]` form), and the optional `linear` flag. Real MEMs has no keyword `DSGESpec`
+constructor — specs are built by the `@dsge` macro, which parses the equations into
+callable residual functions — so the TOML path must route through the macro too.
+"""
+function _dsge_toml_block(dsge_cfg::Dict)
+    params = dsge_cfg["parameters"]     # Dict name => value
+    endog  = dsge_cfg["endogenous"]     # Vector{String}
+    exog   = dsge_cfg["exogenous"]      # Vector{String}
+    eqs    = dsge_cfg["equations"]      # Vector{String}
+    is_linear = Bool(get(dsge_cfg, "linear", false))
+
+    lines = String[]
+    if !isempty(params)
+        push!(lines, "    parameters: " * join(["$k = $v" for (k, v) in params], ", "))
+    end
+    push!(lines, "    endogenous: " * join(endog, ", "))
+    isempty(exog) || push!(lines, "    exogenous: " * join(exog, ", "))
+    is_linear && push!(lines, "    linear: true")
+    push!(lines, "")
+    for eq in eqs
+        push!(lines, "    " * eq)
+    end
+    return "@dsge begin\n" * join(lines, "\n") * "\nend"
+end
+
+"""
     _load_dsge_model(path) → DSGESpec
 
 Load a representative-agent DSGE model from a `.toml` or `.jl` file.
 
-- `.toml`: parse `[model]` (incl. optional `linear = true` → `DSGESpec.linear`)
-- `.jl`: last expression must be `DSGESpec`
+- `.toml`: parse `[model]` (incl. optional `linear = true` → `DSGESpec.linear`) and
+  build the spec by synthesizing an `@dsge` block from the equations ([`_dsge_toml_block`]).
+- `.jl`: last expression must be a `DSGESpec` — typically the file is an `@dsge begin … end`
+  block. The sandbox pre-imports MEMs' exports, so the file may use `@dsge`/`DSGESpec`
+  unqualified without its own `using MacroEconometricModels`.
+
+Both paths compile the spec's residual functions at load time; every downstream MEMs
+call that evaluates them must go through [`_dsge_call`] (world-age barrier).
 
 If a `.jl` file evaluates to `HADSGESpec`, throw `usage/wrong-command` (exit 2)
 pointing the user at `dsge ha …` — never crash downstream (C046 / P4-9).
@@ -966,22 +1211,25 @@ function _load_dsge_model(path::String)
         isempty(dsge_cfg["equations"]) && throw(CliError("config/invalid",
             "TOML model must have [[model.equations]]"))
 
-        endog = Symbol.(dsge_cfg["endogenous"])
-        exog = Symbol.(dsge_cfg["exogenous"])
         is_linear = Bool(get(dsge_cfg, "linear", false))
-
-        # Pass linear= so pre-linearized specs (MEMs #115/#116) are not re-parsed as nonlinear.
-        # Real MEMs constructs DSGESpec via @dsge; the mock accepts n_endog/n_exog/linear kwargs.
-        spec = MacroEconometricModels.DSGESpec(; n_endog=length(endog), n_exog=length(exog),
-                                                 linear=is_linear)
+        block = _dsge_toml_block(dsge_cfg)
+        mod = _dsge_sandbox()
+        spec = try
+            include_string(mod, block)
+        catch e
+            throw(CliError("config/invalid",
+                "could not build a DSGE spec from the TOML model — check [[model.equations]]" *
+                " and [model] parameters/endogenous/exogenous: $(sprint(showerror, e))"))
+        end
+        spec isa MacroEconometricModels.DSGESpec || throw(CliError("config/invalid",
+            "TOML model did not build a DSGESpec (got $(typeof(spec)))"))
 
         lin_note = is_linear ? ", linear=true" : ""
-        _status("Loaded DSGE model from TOML: $(length(endog)) endogenous, $(length(exog)) exogenous, $(length(dsge_cfg["equations"])) equations$lin_note")
+        _status("Loaded DSGE model from TOML: $(length(dsge_cfg["endogenous"])) endogenous, $(length(dsge_cfg["exogenous"])) exogenous, $(length(dsge_cfg["equations"])) equations$lin_note")
         return spec
 
     elseif ext == ".jl"
-        mod = Module()
-        Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
+        mod = _dsge_sandbox()
         result = Base.include(mod, path)
         if result isa MacroEconometricModels.HADSGESpec
             throw(CliError("usage/wrong-command",
@@ -1129,10 +1377,12 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
                      constraint_solver::String="")
     _status("Computing steady state...")
     ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    spec = compute_steady_state(spec; ss_kw...)
+    # World-age barrier: a runtime-loaded spec's @dsge residual fns are "too new" for
+    # this frame — every MEMs call that evaluates them must go through _dsge_call.
+    spec = _dsge_call(compute_steady_state, spec; ss_kw...)
 
     _status("Linearizing model...")
-    linearize(spec)
+    _dsge_call(linearize, spec)
 
     _status("Solving with method=$method" *
             (method == "perturbation" ? ", order=$order" : "") *
@@ -1140,7 +1390,7 @@ function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
             "...")
 
     solve_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    sol = solve(spec; method=Symbol(method), order=order,
+    sol = _dsge_call(solve, spec; method=Symbol(method), order=order,
                 degree=degree, grid=Symbol(grid), solve_kw...)
 
     # Report diagnostics
@@ -1185,7 +1435,8 @@ function _load_dsge_constraints(path::String; spec=nothing)
 
     if has_nonlinear
         for nl in con_cfg["nonlinear"]
-            c = parse_constraint(nl["expr"], spec)
+            # parse_constraint compiles against the spec's residual fns → world-age barrier
+            c = _dsge_call(parse_constraint, nl["expr"], spec)
             push!(constraints, c)
         end
     end
@@ -1226,19 +1477,188 @@ If dep is empty, uses first numeric column as y.
 function _load_reg_data(data::String, dep::String; weights_col::String="", clusters_col::String="")
     df = load_data(data)
     numcols = variable_names(df)
+    # Guard an all-non-numeric CSV before defaulting `--dep` to numcols[1] (else BoundsError →
+    # untyped exit-1). Mirrors the same fix in `_load_xy_data`/`_load_iv_data` (adversarial review).
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
 
     dep_col = isempty(dep) ? numcols[1] : dep
-    !isempty(dep) && !(dep_col in numcols) && error("dependent variable '$dep_col' not found in numeric columns: $numcols")
+    # C067a: typed errors, not bare `error()` — a bad `--dep` or a degenerate column set
+    # is user input (exit 3), not a CLI bug (exit 1). Benefits the whole cross-section reg
+    # family (reg/iv/logit/probit/ologit/oprobit/mlogit/predict/residuals) that shares this.
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "dependent variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
 
     exclude = Set([dep_col])
     !isempty(weights_col) && push!(exclude, weights_col)
     !isempty(clusters_col) && push!(exclude, clusters_col)
     xcols = filter(c -> !(c in exclude), numcols)
-    isempty(xcols) && error("no regressor columns remaining after excluding dep='$dep_col'")
+    isempty(xcols) && throw(CliError("data/invalid",
+        "no regressor columns remaining after excluding dep='$dep_col'"))
 
+    # Guard missing cells BEFORE the Vector/Matrix{Float64} conversion (which throws an
+    # untyped ArgumentError → exit-1). `_numeric_column_names` admits Union{Missing,…}
+    # columns, so a single blank cell in dep or any regressor reaches here. Mirror the
+    # univariate/multivariate loaders' typed guard for the whole reg family.
+    for c in vcat([dep_col], xcols)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
     y = Vector{Float64}(df[!, dep_col])
     X = Matrix{Float64}(df[!, xcols])
     return y, X, xcols
+end
+
+"""
+    _load_iv_data(data, dep, endogenous, instruments)
+        → (; y, X, Z, xcols, zcols, endog_idx, endog_names, inst_names, dep_col)
+
+Shared IV/2SLS data loader for `estimate iv` and `test weak-instrument`, using the standard
+(Stata `ivregress`) column partition. `--instruments` lists the **excluded** instruments
+only; every other numeric column (besides `--dep` and `--endogenous`) is an exogenous
+regressor (include a `const` column of ones for an intercept, matching `estimate reg`). So:
+
+* `X` (regressors) = all numeric \\ ({dep} ∪ excluded-instruments) — exogenous + endogenous;
+* `Z` (instruments) = all numeric \\ ({dep} ∪ endogenous) — exogenous + excluded instruments.
+
+This keeps the excluded instruments OUT of the structural regressor matrix. The previous
+`X = all-except-dep` layout let them leak into `X`, so MEMs raised an untyped
+`Order condition violated (m < k)` on any real multi-instrument IV → uncaught exit-1 (C067b
+fix; there was no T3 coverage for `estimate iv`).
+
+All failure modes are TYPED CliErrors, never a bare `error()`: missing `--endogenous`/
+`--instruments` → `usage/missing` (2); an unknown column, dep listed as endog/instr, a
+column named as both endogenous and instrument, or an endogenous not among the regressors →
+`data/column-range` (3); fewer excluded instruments than endogenous regressors (order
+condition) or a degenerate regressor set → `data/invalid` (3); a missing cell in any
+consumed column → `data/missing-values` (3), guarded BEFORE the `Matrix{Float64}`
+conversion that would otherwise throw an untyped `ArgumentError`.
+"""
+function _load_iv_data(data::String, dep::String, endogenous::String, instruments::String)
+    isempty(endogenous) && throw(CliError("usage/missing",
+        "--endogenous is required (comma-separated endogenous regressor column names)"))
+    isempty(instruments) && throw(CliError("usage/missing",
+        "--instruments is required (comma-separated EXCLUDED instrument column names)"))
+
+    df = load_data(data)
+    numcols = variable_names(df)
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
+
+    dep_col = isempty(dep) ? numcols[1] : dep
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "dependent variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+
+    endog_names = String[strip(s) for s in split(endogenous, ",") if !isempty(strip(s))]
+    inst_names  = String[strip(s) for s in split(instruments, ",") if !isempty(strip(s))]
+    isempty(endog_names) && throw(CliError("usage/missing",
+        "--endogenous is required (comma-separated endogenous regressor column names)"))
+    isempty(inst_names) && throw(CliError("usage/missing",
+        "--instruments is required (comma-separated EXCLUDED instrument column names)"))
+    for nm in endog_names
+        nm in numcols || throw(CliError("data/column-range",
+            "endogenous variable '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+        nm == dep_col && throw(CliError("data/column-range",
+            "endogenous variable '$nm' cannot be the dependent variable"))
+    end
+    for nm in inst_names
+        nm in numcols || throw(CliError("data/column-range",
+            "instrument '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+        nm == dep_col && throw(CliError("data/column-range",
+            "instrument '$nm' cannot be the dependent variable"))
+    end
+    overlap = intersect(endog_names, inst_names)
+    isempty(overlap) || throw(CliError("data/column-range",
+        "column(s) $(join(overlap, ", ")) listed as both --endogenous and --instruments (an endogenous regressor cannot be its own excluded instrument)"))
+    # Order condition (m ≥ k reduces to |excluded| ≥ |endogenous| here): a clearer message
+    # than the wrapped MEMs `Order condition violated`.
+    length(inst_names) >= length(endog_names) || throw(CliError("data/invalid",
+        "under-identified: need at least as many excluded instruments ($(length(inst_names))) as endogenous regressors ($(length(endog_names)))"))
+
+    # X = exogenous + endogenous (exclude dep and the excluded instruments).
+    xcols = filter(c -> c != dep_col && !(c in inst_names), numcols)
+    isempty(xcols) && throw(CliError("data/invalid",
+        "no regressor columns remaining after excluding dep='$dep_col' and the instruments"))
+    # Z = exogenous + excluded instruments (exclude dep and the endogenous regressors).
+    zcols = filter(c -> c != dep_col && !(c in endog_names), numcols)
+
+    endog_idx = Int[]
+    for nm in endog_names
+        i = findfirst(==(nm), xcols)
+        i === nothing && throw(CliError("data/column-range",
+            "endogenous variable '$nm' is not among the regressors"))
+        push!(endog_idx, i)
+    end
+
+    for c in unique(vcat([dep_col], xcols, zcols))
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+
+    y = Vector{Float64}(df[!, dep_col])
+    X = Matrix{Float64}(df[!, xcols])
+    Z = Matrix{Float64}(df[!, zcols])
+    # Guard the degenerate more-instruments-than-observations regime up front: with m ≥ n the
+    # first-stage F has non-positive df → MEMs returns a NaN diagnostic (and `robust_inv`
+    # silently pinv's the rank-deficient Z'Z rather than throwing), yielding meaningless
+    # estimates. A clear typed error beats a NaN verdict downstream (adversarial-review fix).
+    size(Z, 2) < length(y) || throw(CliError("data/invalid",
+        "too many instruments: the instrument set Z has $(size(Z, 2)) columns but only $(length(y)) observations (need m < n for an identified first stage)"))
+    return (; y, X, Z, xcols, zcols, endog_idx, endog_names, inst_names, dep_col)
+end
+
+"""
+    _load_xy_data(data, dep, indep) → (y, x, ynm, xnm)
+
+Shared response/single-predictor loader for the nonparametric-regression leaves
+(`estimate kernel-reg`, `estimate lowess`, C066). `--dep` (default: first numeric column)
+is the response `y`; `--indep` (required) is a SINGLE predictor `x`. The 6th shared-loader
+hardening: every failure is a TYPED `CliError`, never a bare `error()` (untyped exit-1).
+Missing `--indep` → `usage/missing`; an unknown dep/indep column, or dep==indep →
+`data/column-range`; a missing cell in either column → `data/missing-values`, guarded
+BEFORE the `Vector{Float64}` conversion that would otherwise throw an untyped
+`ArgumentError`. Returns `(Vector{Float64} y, Vector{Float64} x, dep_name, indep_name)`.
+"""
+function _load_xy_data(data::String, dep::String, indep::String)
+    isempty(indep) && throw(CliError("usage/missing",
+        "--indep is required (the single predictor column name)"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    isempty(numcols) && throw(CliError("data/invalid",
+        "no numeric columns found in the data"))
+    dep_col = isempty(dep) ? numcols[1] : dep
+    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
+        "response variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    indep in numcols || throw(CliError("data/column-range",
+        "predictor '$indep' not found in numeric columns: $(join(numcols, ", "))"))
+    indep == dep_col && throw(CliError("data/column-range",
+        "predictor '$indep' cannot equal the response '$dep_col'"))
+    for c in (dep_col, indep)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    y = Vector{Float64}(df[!, dep_col])
+    x = Vector{Float64}(df[!, indep])
+    return y, x, dep_col, indep
+end
+
+"""
+    _parse_bandwidth(s, syms) → Union{Symbol,Real}
+
+Parse a `--bw` argument for the nonparametric leaves (C066): a string matching one of the
+allowed rule names in `syms` (e.g. `(:silverman, :sj)` or `(:cv, :rot)`) → that `Symbol`;
+otherwise a positive number. Junk, a non-number, or a non-positive value → a typed
+`usage/invalid` error (never a raw MEMs `ArgumentError`). Mirrors `_parse_penalty_lambda`.
+"""
+function _parse_bandwidth(s::AbstractString, syms::Tuple)
+    for sym in syms
+        s == string(sym) && return sym
+    end
+    v = tryparse(Float64, s)
+    # Reject non-finite too: `Inf`/`NaN` slip past a bare `v <= 0` (both compare false), then
+    # either produce a degenerate fit with a non-finite bandwidth or hit MEMs' `h > 0` with the
+    # WRONG error class (a bad CLI arg must be usage/invalid, not data/invalid).
+    (v === nothing || !isfinite(v) || v <= 0) && throw(CliError("usage/invalid",
+        "--bw must be one of $(join(syms, '|')) or a positive number, got '$s'"))
+    return v
 end
 
 """Load cluster assignments from a CSV column, or return nothing."""
@@ -1259,21 +1679,11 @@ end
 
 """Build coefficient table DataFrame from a regression model."""
 function _reg_coef_table(model, varnames::Vector{String})
-    b = coef(model)
-    se = stderror(model)
-    t = b ./ se
-    p = [2.0 * (1.0 - _normal_cdf(abs(ti))) for ti in t]
-    ci = confint(model)
-    labels = length(b) == length(varnames) + 1 ? ["_cons"; varnames] : varnames
-    DataFrame(
-        Variable = labels,
-        Coefficient = round.(b; digits=6),
-        Std_Error = round.(se; digits=6),
-        t_stat = round.(t; digits=4),
-        p_value = round.(p; digits=4),
-        CI_Lower = round.(ci[:, 1]; digits=6),
-        CI_Upper = round.(ci[:, 2]; digits=6),
-    )
+    # C051: MEMs renders coefficient-bearing models (RegModel/Logit/Probit/IV, which the
+    # CLI estimates with varnames=xcols) as a tidy coef table via Tables.jl — term|estimate|
+    # std_error|stat|p_value|ci_lower|ci_upper. `varnames` is retained for the call sites
+    # but the names now come from the model itself.
+    DataFrame(model)
 end
 
 # --- Panel Regression Shared Helpers (v0.4.0) ---
@@ -1317,19 +1727,8 @@ _to_sym(s::String) = Symbol(replace(s, "-" => "_"))
 
 """Build coefficient table from panel regression model."""
 function _preg_coef_table(model, varnames::Vector{String})
-    b = coef(model)
-    se = stderror(model)
-    t = b ./ se
-    p = [2.0 * (1.0 - _normal_cdf(abs(ti))) for ti in t]
-    ci_lo = b .- 1.96 .* se
-    ci_hi = b .+ 1.96 .* se
-    DataFrame(
-        Variable = varnames,
-        Coefficient = round.(b; digits=6),
-        Std_Error = round.(se; digits=6),
-        t_stat = round.(t; digits=4),
-        p_value = round.(p; digits=4),
-        CI_Lower = round.(ci_lo; digits=6),
-        CI_Upper = round.(ci_hi; digits=6),
-    )
+    # C051: MEMs renders panel coefficient models (PanelReg/IV/Logit/Probit) as a tidy
+    # coef table via Tables.jl (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
+    # `varnames` retained for the call sites; names now come from the model.
+    DataFrame(model)
 end

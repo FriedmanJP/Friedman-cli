@@ -69,6 +69,56 @@ end
 
 _count_kwargs_absorbers(src::String) = length(collect(eachmatch(r";\s*kwargs\.\.\.\)", src)))
 
+"""
+    _mock_getproperty_aliases(src) → Dict{String,Vector{String}}
+
+Type name → the property symbols a mock `Base.getproperty` method special-cases.
+
+Field-subset checking is blind to these: an alias is a *method*, not a field, so a
+mock can invent `result.cips` while its declared fields stay a perfect subset of
+real. That is exactly how `test cips` shipped reading a field real MEMs does not
+have (`cips_statistic`) and still passed every gate (#84).
+"""
+function _mock_getproperty_aliases(src::String)
+    out = Dict{String,Vector{String}}()
+    # Matches both `m::T` and `m::Union{A,B}` receivers — a Union form hides just as
+    # many invented properties as a single-type one.
+    pat = r"(?s)function\s+Base\.getproperty\(\s*\w+\s*::\s*(\w+(?:\{[^}]*\})?)\s*,\s*\w+\s*::\s*Symbol\s*\)(.*?)\n\s*end"
+    for m in eachmatch(pat, src)
+        recv = m.captures[1]
+        syms = String[sm.captures[1] for sm in eachmatch(r"===\s*:(\w+)", m.captures[2])]
+        isempty(syms) && continue
+        tnames = if startswith(recv, "Union{")
+            split(recv[7:end-1], ",")
+        else
+            [recv]
+        end
+        for t in tnames
+            tn = String(strip(t))
+            isempty(tn) && continue
+            out[tn] = unique(vcat(get(out, tn, String[]), syms))
+        end
+    end
+    return out
+end
+
+"""True if the real package defines a `Base.getproperty` method specific to `T`."""
+function _real_has_custom_getproperty(T::Type)
+    for m in methods(Base.getproperty)
+        sig = m.sig
+        sig isa DataType || continue
+        length(sig.parameters) >= 2 || continue
+        argT = sig.parameters[2]
+        argT === Any && continue
+        argT isa Type || continue
+        try
+            T <: argT && return true
+        catch
+        end
+    end
+    return false
+end
+
 function main()
     real_mod = MacroEconometricModels
     hard = String[]
@@ -107,6 +157,33 @@ function main()
             end
         catch e
             println("SKIP struct $sname fields: $e")
+        end
+    end
+
+    # Property aliases invented by mock `Base.getproperty` methods (#84).
+    aliases = _mock_getproperty_aliases(MOCK_SRC)
+    for tname in sort!(collect(keys(aliases)))
+        haskey(MOCK_ALLOWLIST, tname) && continue
+        isdefined(real_mod, Symbol(tname)) || continue   # struct check already reported it
+        real_T = getfield(real_mod, Symbol(tname))
+        real_T isa Type || continue
+        real_fields = try
+            Set(string.(fieldnames(real_T)))
+        catch
+            continue
+        end
+        # If real defines its own getproperty for this type, its property surface
+        # cannot be read statically — report as soft rather than fail the gate.
+        custom = _real_has_custom_getproperty(real_T)
+        bogus = [a for a in aliases[tname] if !(a in real_fields)]
+        if isempty(bogus)
+            println("OK getproperty $tname (aliases ⊆ real fields)")
+        elseif custom
+            push!(soft, "getproperty $tname: aliases not real fields (real defines a custom " *
+                        "getproperty, verify by hand): $(join(sort(bogus), ", "))")
+        else
+            push!(hard, "getproperty $tname: mock invents properties real does not have: " *
+                        "$(join(sort(bogus), ", ")) — a handler reading these crashes on real MEMs")
         end
     end
 

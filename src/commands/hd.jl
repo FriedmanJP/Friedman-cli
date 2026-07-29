@@ -269,13 +269,13 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
     _status_report(() -> report(bhd))
     _maybe_plot(bhd; plot=plot, plot_save=plot_save)
 
-    mean_contrib = bhd.mean
+    mean_contrib = bhd.point_estimate
     T_eff = size(mean_contrib, 1)
 
     _output_hd_tables((vi, si) -> mean_contrib[:, vi, si], varnames, T_eff;
                       id=id, title_prefix="Bayesian HD",
                       format=format, output=output,
-                      initial=bhd.initial_mean)
+                      initial=bhd.initial_point_estimate)
 end
 
 # ── LP HD ────────────────────────────────────────────────

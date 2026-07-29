@@ -8,8 +8,10 @@ complete -c friedman -n "__fish_use_subcommand" -a fevd
 complete -c friedman -n "__fish_use_subcommand" -a filter
 complete -c friedman -n "__fish_use_subcommand" -a forecast
 complete -c friedman -n "__fish_use_subcommand" -a hd
+complete -c friedman -n "__fish_use_subcommand" -a io
 complete -c friedman -n "__fish_use_subcommand" -a irf
 complete -c friedman -n "__fish_use_subcommand" -a model
+complete -c friedman -n "__fish_use_subcommand" -a multipliers
 complete -c friedman -n "__fish_use_subcommand" -a nowcast
 complete -c friedman -n "__fish_use_subcommand" -a predict
 complete -c friedman -n "__fish_use_subcommand" -a residuals

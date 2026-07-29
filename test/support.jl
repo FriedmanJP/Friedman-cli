@@ -75,9 +75,11 @@ function _dispatch_via_app(args::Vector{String})
         "residuals" => register_residuals_commands!(),
         "filter"    => register_filter_commands!(),
         "data"      => register_data_commands!(),
+        "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),
+        "multipliers" => register_multipliers_commands!(),
         "spectral"  => register_spectral_commands!(),
     )
     root = NodeCommand("friedman", root_cmds, "test tree")
@@ -251,6 +253,8 @@ function _normalize_envelope_json(json_str::AbstractString)
         m["cli_version"] = "GOLDEN"
         m["mems_version"] = "GOLDEN"
         m["julia"] = "GOLDEN"
+        # manifest carries volatile provenance (timestamp/threads/os/git) — pin it
+        haskey(m, "manifest") && (m["manifest"] = "GOLDEN")
         d["meta"] = _sort_keys(m)
     end
     if haskey(d, "command")

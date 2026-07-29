@@ -3,7 +3,57 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 31
+**Leaves:** 65
+
+### `friedman estimate 3sls`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config: [[equations]] + instruments (required) |
+| `--instruments` | — | `String` | `common` | `common`, `perequation` | common|perequation instrument sets |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-intercept` | — | Do not add a per-equation constant |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `estimate_3sls` (Path to CSV data file)
+
+---
+
+### `friedman estimate aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Pin power δ (>0); default estimates it |
+| `--fix-gamma` | — | `Float64` | — | — | Pin leverage γ ∈ (-1,1); default estimates it |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_aparch` (Path to CSV data file)
+
+---
 
 ### `friedman estimate arch`
 
@@ -27,6 +77,56 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_arch` (Path to CSV data file)
+
+---
+
+### `friedman estimate ardl`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer (all regressors), or a comma-separated per-regressor list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none|const|trend |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_ardl` (Path to CSV data file)
+
+---
+
+### `friedman estimate arfima`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `0` | — | AR order |
+| `--q` | — | `Int64` | `0` | — | MA order |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css|mle (fractional-integration estimator) |
+| `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_arfima` (Path to CSV data file)
 
 ---
 
@@ -57,6 +157,25 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate bekk`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `scalar` | `scalar`, `diagonal` | BEKK(1,1) parameterization: scalar | diagonal |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_bekk` (Path to CSV data file)
+
+---
+
 ### `friedman estimate bvar`
 
 Path to CSV data file
@@ -84,6 +203,93 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_bvar` (Path to CSV data file)
+
+---
+
+### `friedman estimate ccc`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--p` | — | `Int64` | `1` | — | GARCH order p for the univariate margins |
+| `--q` | — | `Int64` | `1` | — | ARCH order q for the univariate margins |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_ccc` (Path to CSV data file)
+
+---
+
+### `friedman estimate cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_cgarch` (Path to CSV data file)
+
+---
+
+### `friedman estimate cointreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent (levels) column name (default: first numeric column) |
+| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | fmols|ccr|dols |
+| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministics: none|const|linear |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett|parzen|qs|tukey-hanning |
+| `--bandwidth` | — | `String` | `andrews` | — | andrews|nw94 or a fixed truncation lag (>=0) |
+| `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
+| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | DOLS lead/lag selection: aic|bic |
+| `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv|robust |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_cointreg` (Path to CSV data file)
+
+---
+
+### `friedman estimate dcc`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--p` | — | `Int64` | `1` | — | GARCH order p for the univariate margins |
+| `--q` | — | `Int64` | `1` | — | ARCH order q for the univariate margins |
+| `--correction` | — | `String` | `none` | `none`, `aielli` | DCC targeting correction: none | aielli (cDCC) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_dcc` (Path to CSV data file)
 
 ---
 
@@ -139,6 +345,28 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate elastic-net`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--alpha` | — | `Float64` | `0.5` | — | L1/L2 mixing in [0,1] (1=lasso, 0=ridge) |
+| `--lambda` | — | `String` | `auto` | — | Penalty: auto (CV path) or a non-negative number |
+| `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv|aic|bic|ebic |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_elastic_net` (Path to CSV data file)
+
+---
+
 ### `friedman estimate fastica`
 
 Path to CSV data file
@@ -188,6 +416,54 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH β(L) order p |
+| `--q` | — | `Int64` | `1` | — | ARCH φ(L) order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional-integration order d ∈ (0,1) |
+| `--truncation` | — | `Int64` | `1000` | — | MA(∞) truncation lag |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_fiegarch` (Path to CSV data file)
+
+---
+
+### `friedman estimate figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH β(L) order p |
+| `--q` | — | `Int64` | `1` | — | ARCH φ(L) order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional-integration order d ∈ (0,1) |
+| `--truncation` | — | `Int64` | `1000` | — | ARCH(∞) truncation lag |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_figarch` (Path to CSV data file)
+
+---
+
 ### `friedman estimate garch`
 
 Path to CSV data file
@@ -211,6 +487,36 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_garch` (Path to CSV data file)
+
+---
+
+### `friedman estimate garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | High-frequency return series column (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags (K ≥ 2) |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver: realized (from returns) | macro (exogenous) |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | τ span: fixed (per block) | rolling (rolling RV) |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf = [...] (required for --rv macro) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `estimate_garch_midas` (Path to CSV data file)
 
 ---
 
@@ -286,6 +592,50 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate heckman`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Outcome variable column name (default: first numeric column) |
+| `--select` | — | `String` | `""` | — | Binary selection-indicator column (0/1), required |
+| `--outcome-vars` | — | `String` | `""` | — | Outcome-equation regressor columns, comma-separated (required) |
+| `--select-vars` | — | `String` | `""` | — | Selection-equation regressor columns, comma-separated (required) |
+| `--method` | — | `String` | `twostep` | `twostep`, `mle` | twostep (Heckit) | mle (FIML) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_heckman` (Path to CSV data file)
+
+---
+
+### `friedman estimate igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_igarch` (Path to CSV data file)
+
+---
+
 ### `friedman estimate iv`
 
 Path to CSV data file
@@ -297,14 +647,82 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--endogenous` | — | `String` | `""` | — | Endogenous column names, comma-separated (required) |
-| `--instruments` | — | `String` | `""` | — | Instrument column names, comma-separated (required) |
+| `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
+| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
 | `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_iv` (Path to CSV data file)
+
+---
+
+### `friedman estimate kde`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column |
+| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian | epanechnikov | triangular | uniform |
+| `--bw` | — | `String` | `silverman` | — | Bandwidth: silverman | sj | a positive number |
+| `--npoints` | — | `Int64` | `512` | — | Number of grid points |
+| `--cut` | — | `Float64` | `3.0` | — | Grid extends cut·h beyond the data range each side |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_kde` (Path to CSV data file)
+
+---
+
+### `friedman estimate kernel-reg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Response variable column name (default: first numeric column) |
+| `--indep` | — | `String` | `""` | — | Single predictor column name (required) |
+| `--method` | — | `String` | `ll` | `nw`, `ll`, `lp` | nw (Nadaraya-Watson) | ll (local linear) | lp (local polynomial) |
+| `--degree` | — | `Int64` | `1` | — | Local-polynomial degree (method=lp) |
+| `--bw` | — | `String` | `cv` | — | Bandwidth: cv | rot | a positive number |
+| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian | epanechnikov | triangular | uniform |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_kernel_reg` (Path to CSV data file)
+
+---
+
+### `friedman estimate lasso`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lambda` | — | `String` | `auto` | — | L1 penalty: auto (CV path) or a non-negative number |
+| `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv|aic|bic|ebic |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_lasso` (Path to CSV data file)
 
 ---
 
@@ -328,6 +746,28 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_logit` (Path to CSV data file)
+
+---
+
+### `friedman estimate lowess`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Response variable column name (default: first numeric column) |
+| `--indep` | — | `String` | `""` | — | Single predictor column name (required) |
+| `--frac` | — | `Float64` | `0.6667` | — | Smoother span f ∈ (0,1] (fraction of points per window) |
+| `--iter` | — | `Int64` | `3` | — | Number of bisquare robustifying passes |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_lowess` (Path to CSV data file)
 
 ---
 
@@ -359,6 +799,34 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_lp` (Path to CSV data file)
+
+---
+
+### `friedman estimate midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to the low-frequency target CSV |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | — | `Int64` | `1` | — | Low-frequency target column in --data (1-based) |
+| `--hf-data` | — | `String` | `""` | — | High-frequency indicator CSV (REQUIRED) |
+| `--hf-column` | — | `Int64` | `1` | — | High-frequency indicator column in --hf-data (1-based) |
+| `--m` | — | `Int64` | `0` | — | Frequency ratio HF/LF, e.g. 3 = monthly→quarterly (REQUIRED, ≥ 1) |
+| `--k` | — | `Int64` | `0` | — | Number of high-frequency lags (REQUIRED, ≥ 1) |
+| `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | Weight scheme: expalmon|beta2|beta3|almon|umidas |
+| `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS, ≥ 0) |
+| `--poly-degree` | — | `Int64` | `2` | — | Polynomial degree for --weights almon |
+| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon h stored in the model (1 = nowcast) |
+| `--max-iter` | — | `Int64` | `500` | — | LBFGS iteration cap per NLS start |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_midas` (Path to CSV data file)
 
 ---
 
@@ -399,6 +867,84 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_mlogit` (Path to CSV data file)
+
+---
+
+### `friedman estimate ms`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
+| `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
+
+**Output tables:** `estimate_ms` (Path to CSV data file)
+
+---
+
+### `friedman estimate ms-ar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
+| `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
+
+**Output tables:** `estimate_ms_ar` (Path to CSV data file)
+
+---
+
+### `friedman estimate nardl`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--asymmetric` | — | `String` | `all` | — | 'all' or comma-separated 1-based regressor indices to split into +/- partial sums |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer (all split regressors), or a comma-separated list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_nardl` (Path to CSV data file)
 
 ---
 
@@ -491,6 +1037,34 @@ Path to CSV panel data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_plogit` (Path to CSV panel data file)
+
+---
+
+### `friedman estimate pmg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
+| `--method` | — | `String` | `pmg` | `pmg`, `mg`, `dfe` | pmg (pooled mean group) | mg (mean group) | dfe (dynamic fixed effects) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none|constant|trend |
+| `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
+| `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
+| `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
+| `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_pmg` (Path to CSV data file)
 
 ---
 
@@ -625,6 +1199,48 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate ridge`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lambda` | — | `String` | `auto` | — | L2 penalty: auto (CV path) or a non-negative number |
+| `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv|aic|bic|ebic |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_ridge` (Path to CSV data file)
+
+---
+
+### `friedman estimate robust`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--psi` | — | `String` | `huber` | `huber`, `bisquare` | ψ (weight) function: huber|bisquare |
+| `--method` | — | `String` | `m` | `m`, `mm` | Estimator: m|mm (MM = high-breakdown) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_robust` (Path to CSV data file)
+
+---
+
 ### `friedman estimate sdfm`
 
 Path to CSV data file
@@ -658,6 +1274,35 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate setar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap reps for the Hansen test / threshold CI (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--het` | — | Heteroskedastic (White) bootstrap for the linearity test / CI |
+| `--no-linearity` | — | Skip the attached Hansen (1996) linearity test |
+
+**Output tables:** `estimate_setar` (Path to CSV data file)
+
+---
+
 ### `friedman estimate smm`
 
 Path to CSV data file
@@ -686,6 +1331,53 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate star`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
+| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1|lstr2|estr|auto |
+| `--n-gamma` | — | `Int64` | `15` | — | Grid points for the γ start values (≥ 2) |
+| `--n-c` | — | `Int64` | `15` | — | Grid points for the c start values (≥ 2) |
+| `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_star` (Path to CSV data file)
+
+---
+
+### `friedman estimate statespace`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column to model |
+| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level | local-linear-trend |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_statespace` (Path to CSV data file)
+
+---
+
 ### `friedman estimate static`
 
 Path to CSV data file
@@ -711,6 +1403,33 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate sur`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config: [[equations]] blocks (dep + indep) (required) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--iterate` | — | Iterate FGLS to the Gaussian MLE |
+| `--no-intercept` | — | Do not add a per-equation constant |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `estimate_sur` (Path to CSV data file)
+
+---
+
 ### `friedman estimate sv`
 
 Path to CSV data file
@@ -733,6 +1452,73 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_sv` (Path to CSV data file)
+
+---
+
+### `friedman estimate tobit`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lower` | — | `Float64` | `0.0` | — | Lower censoring bound |
+| `--upper` | — | `Float64` | `Inf` | — | Upper censoring bound (default: none) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_tobit` (Path to CSV data file)
+
+---
+
+### `friedman estimate truncreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lower` | — | `Float64` | `0.0` | — | Lower truncation bound |
+| `--upper` | — | `Float64` | `Inf` | — | Upper truncation bound (default: none) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_truncreg` (Path to CSV data file)
+
+---
+
+### `friedman estimate tvp`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-intercept` | — | Do NOT prepend a time-varying intercept coefficient |
+
+**Output tables:** `estimate_tvp` (Path to CSV data file)
 
 ---
 
@@ -776,6 +1562,37 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_vecm` (Path to CSV data file)
+
+---
+
+### `friedman estimate xtcointreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | — | `String` | `""` | — | Regressors, comma-separated (default: all other variables) |
+| `--method` | — | `String` | `fmols` | `fmols`, `dols` | fmols|dols (no ccr for panels) |
+| `--pooling` | — | `String` | `group` | `group`, `pooled` | group (between) | pooled (within) |
+| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Per-unit deterministics: none|const|linear |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett|parzen|qs|tukey-hanning |
+| `--bandwidth` | — | `String` | `andrews` | — | andrews|nw94 or a fixed truncation lag (>=0) |
+| `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
+| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | DOLS lead/lag selection: aic|bic |
+| `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv|robust |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_xtcointreg` (Path to CSV data file)
 
 ---
 

@@ -186,16 +186,16 @@ sigma = 1.0
 phi_n = 1.0
 
 [[model.equations]]
-expr = "c^(-sigma) = beta * c(+1)^(-sigma) * (alpha * exp(eps_a(+1)) * k^(alpha-1) * n(+1)^(1-alpha) + 1 - delta)"
+expr = "c[t]^(-sigma) = beta * c[t+1]^(-sigma) * (alpha * exp(eps_a[t+1]) * k[t]^(alpha-1) * n[t+1]^(1-alpha) + 1 - delta)"
 
 [[model.equations]]
-expr = "phi_n * n^phi_n = c^(-sigma) * (1-alpha) * exp(eps_a) * k(-1)^alpha * n^(-alpha)"
+expr = "phi_n * n[t]^phi_n = c[t]^(-sigma) * (1-alpha) * exp(eps_a[t]) * k[t-1]^alpha * n[t]^(-alpha)"
 
 [[model.equations]]
-expr = "k = (1-delta)*k(-1) + y - c"
+expr = "k[t] = (1-delta)*k[t-1] + y[t] - c[t]"
 
 [[model.equations]]
-expr = "y = exp(eps_a) * k(-1)^alpha * n^(1-alpha)"
+expr = "y[t] = exp(eps_a[t]) * k[t-1]^alpha * n[t]^(1-alpha)"
 
 [solver]
 method = "gensys"    # gensys|klein|perturbation|projection|pfi
@@ -211,7 +211,10 @@ grid = "auto"        # auto|chebyshev|smolyak
 | `[[model.equations]]` | Model equations (one per block, `expr` field) |
 | `[solver]` | Solution method and settings |
 
-Time notation: `x(+1)` = lead, `x(-1)` = lag, `x` = current.
+Equations use MEMs' `@dsge` syntax — the CLI builds the spec by feeding them to that
+macro. Time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]` = lead; the expectations
+operator `E[t](expr)` is stripped under rational expectations. (Bare `x` and the older
+`x(+1)`/`x(-1)` forms are **not** accepted — always index by `[t]`.)
 
 ## OccBin Constraints
 
@@ -234,20 +237,153 @@ Each `[[constraints.bounds]]` block specifies a variable with optional `lower` a
 
 ## SMM Specification
 
-Used by `estimate smm --config=...`.
+Used by `estimate smm --config=...` (required — SMM matches simulated moments to sample
+moments, so it needs a data-generating `model` and an initial parameter vector `theta0`).
 
 ```toml
 [smm]
-weighting = "two_step"    # identity|optimal|two_step|iterated
-sim_ratio = 5             # simulation-to-sample ratio
-burn = 100                # burn-in periods for simulation
+model     = "ar1"          # ar1 | arp | var1 | iid_normal
+theta0    = [0.4, 0.5]     # initial parameters (layout depends on model)
+lags      = 2              # autocovariance-moment lags (default 1)
+weighting = "two_step"     # identity | two_step (optimal/iterated/twostep → two_step)
+sim_ratio = 5              # simulation-to-sample ratio
+burn      = 100            # burn-in periods for the simulator
+lower     = [-0.99, 1.0e-4]  # optional parameter bounds (both required together)
+upper     = [0.99, 10.0]     # → ParameterTransform; same length as theta0
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `weighting` | `two_step` | Weighting matrix method |
+| `model` | — (required) | Built-in simulator: `ar1`, `arp`, `var1`, `iid_normal` |
+| `theta0` | — (required) | Initial parameter vector; layout depends on `model` |
+| `lags` | `1` | Autocovariance-moment lags (moments = `k(k+1)/2 + k·lags`) |
+| `p` | — | AR order — required only for `model = "arp"` |
+| `weighting` | `two_step` | `identity` or `two_step` (aliases `optimal`/`iterated`/`twostep`) |
 | `sim_ratio` | `5` | How many simulated observations per data observation |
 | `burn` | `100` | Discard this many initial simulation periods |
+| `lower` / `upper` | — | Optional bounds (both together, length = `theta0`) |
+
+### Built-in simulator models
+
+Each simulator draws Gaussian innovations and is matched via autocovariance moments. The
+number of variables `k` is taken from the data; `theta0` must have the length shown:
+
+| `model` | Data | `theta0` layout | Params |
+|---------|------|-----------------|--------|
+| `ar1` | univariate (`k=1`) | `[phi, sigma]` | 2 |
+| `arp` | univariate (`k=1`) | `[phi_1, …, phi_p, sigma]` (needs `p`) | `p+1` |
+| `var1` | multivariate | `[vec(A) (k², column-major); sigma_1, …, sigma_k]` | `k²+k` |
+| `iid_normal` | multivariate | `[sigma_1, …, sigma_k]` | `k` |
+
+The moment count must be at least the parameter count (`k(k+1)/2 + k·lags ≥ #params`); raise
+`lags` if a model is under-identified (e.g. `var1` with `k=2` needs `lags ≥ 2`). `--seed`
+forwards to the simulator's RNG so a two-step fit is byte-reproducible.
+
+Example (AR(1)):
+
+```toml
+[smm]
+model  = "ar1"
+theta0 = [0.4, 0.5]
+lags   = 2
+lower  = [-0.99, 1.0e-4]
+upper  = [0.99, 10.0]
+```
+
+## Systems Specification (SUR / 3SLS)
+
+Used by `estimate sur --config=...` and `estimate 3sls --config=...`. Each `[[equations]]`
+block defines one equation of the system by naming a dependent column (`dep`) and its
+regressor columns (`indep`) — all column names come from the data CSV. A per-equation
+constant is added unless `--no-intercept` is passed.
+
+```toml
+[[equations]]
+name  = "consumption"        # optional label (default eq1, eq2, ...)
+dep   = "cons"
+indep = ["income", "wealth"]
+
+[[equations]]
+name  = "investment"
+dep   = "inv"
+indep = ["income", "interest"]
+```
+
+For **3SLS**, instruments are either a shared set:
+
+```toml
+[instruments]
+common = ["gov", "taxes", "lag_income"]
+```
+
+or per-equation (run with `--instruments perequation`), giving each `[[equations]]` block its
+own `instr` list:
+
+```toml
+[[equations]]
+dep   = "cons"
+indep = ["income", "wealth"]
+instr = ["gov", "lag_income"]
+```
+
+| Key | Where | Description |
+|-----|-------|-------------|
+| `dep` | each `[[equations]]` | Dependent-variable column (required) |
+| `indep` | each `[[equations]]` | Regressor columns (required, ≥1) |
+| `name` | each `[[equations]]` | Optional equation label |
+| `instr` | each `[[equations]]` | Per-equation instruments (3SLS `--instruments perequation`) |
+| `common` | `[instruments]` | Shared instrument set (3SLS `--instruments common`, the default) |
+
+## GARCH-MIDAS Driver
+
+Used by `estimate garch-midas --config=...`, and **only required for `--rv macro`** (an
+exogenous low-frequency driver). With the default `--rv realized`, the long-run component
+is derived from the returns themselves and no config is needed. The `[garch_midas]` section
+supplies `x_lf`, the low-frequency driver series — one value per calendar block (its length
+must be at least the number of complete blocks, `⌊n / m_freq⌋`). All other parameters
+(`--m-freq`, `--k`, `--rv`, `--span`) are passed as flags.
+
+```toml
+[garch_midas]
+# low-frequency macro / realized-variance driver, one value per block
+x_lf = [1.02, 0.98, 1.15, 1.07, 0.91, 1.20, 1.05]
+```
+
+| Key | Where | Description |
+|-----|-------|-------------|
+| `x_lf` | `[garch_midas]` | Low-frequency driver series (required for `--rv macro`; array of numbers, one per block) |
+
+## VECM Restriction Matrices
+
+Used by the `test vecm beta | alpha | known-beta | joint` cointegration restriction
+tests. Each supplies a restriction matrix on the estimated VECM's cointegrating
+structure via a `[vecm_restriction]` section, given **row-major** as an array of
+equal-length numeric rows. Let `p` be the number of series and `r` the (fitted or
+`--rank`-forced) cointegrating rank.
+
+- `H` — `β = Hφ` restriction (`test vecm beta`, `test vecm joint`). `H` is `p × s`
+  with `s ≥ r`. The non-binding case `H = Iₚ` (`s = p`) yields `LR ≈ 0`, `df = 0`.
+- `A` — `α = Aψ` restriction (`test vecm alpha`, `test vecm joint`). `A` is `p × a`
+  with `a ≥ r`.
+- `b` — fully specified cointegrating space `β = b` (`test vecm known-beta`). `b` is
+  `p × r` (exactly `r` columns). Setting `b` to the estimated β yields `LR ≈ 0`.
+
+`test vecm joint` reads **both** `H` and `A`. `test vecm weak-exog` needs no config —
+it takes `--vars` (comma-separated indices or names) instead.
+
+```toml
+[vecm_restriction]
+# p = 2 series, r = 1 cointegrating vector
+H = [[1.0], [-1.0]]   # β = Hφ  (p×s, s ≥ r)
+A = [[1.0], [0.0]]    # α = Aψ  (p×a, a ≥ r)
+b = [[1.0], [-1.0]]   # β = b   (p×r, exactly r columns)
+```
+
+| Key | Where | Description |
+|-----|-------|-------------|
+| `H` | `[vecm_restriction]` | `β = Hφ` matrix (`p × s`, `s ≥ r`; `beta`/`joint`) |
+| `A` | `[vecm_restriction]` | `α = Aψ` matrix (`p × a`, `a ≥ r`; `alpha`/`joint`) |
+| `b` | `[vecm_restriction]` | Known cointegrating space (`p × r`, exactly `r` cols; `known-beta`) |
 
 ## Output Formats
 

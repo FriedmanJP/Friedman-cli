@@ -5,13 +5,13 @@
 [![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg?token=TIYTWTJG36)](https://codecov.io/gh/FriedmanJP/Friedman-cli)
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 
-Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.6.7).
+Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (v0.7.0).
 
 > **v0.5.0+ agent contract:** with `--format=json`, stdout is **exactly one** versioned JSON envelope; status goes to **stderr**. Exit codes: 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal. See the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/). `FRIEDMAN_LEGACY_OUTPUT=1` restores pre-0.5 JSON for one minor release.
 >
-> **v0.6.0:** targets MacroEconometricModels **v0.6.7** from the Julia General registry. Pin rule: CI/release/integration use registry resolve against `[compat] MacroEconometricModels = "0.6.7"` (canary/nightly-dev may track MEMs `dev`).
+> **v0.7.0 (M5a re-platform on MEMs 0.7.0):** targets MacroEconometricModels **v0.7.0** from the Julia General registry. Pin rule: CI/release/integration use registry resolve against `[compat] MacroEconometricModels = "0.7.0"` (canary/nightly-dev may track MEMs `dev`). At this baseline JuMP + Ipopt become required upstream deps (bundled — see the solver note below).
 
-16 top-level commands (incl. `schema`, `model`, `completions`), ~222 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `schema`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow, historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV), non-Gaussian SVAR, GMM/SMM, time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), VIF multicollinearity diagnostics, and data management.
+18 top-level commands (incl. `multipliers`, `model`, `completions`), 303 subcommands. Action-first CLI: commands are organized by action (`estimate`, `irf`, `forecast`, `dsge`, `did`, `spectral`, `io`, `multipliers`, ...) rather than by model type. Features include VAR/BVAR/Panel VAR, FAVAR, structural DFM, cross-sectional regression (OLS/WLS/IV/Logit/Probit/ordered logit/ordered probit/multinomial logit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation and panel cointegrating regression (FMOLS/CCR/DOLS), single-equation ARDL and nonlinear/asymmetric NARDL (with PSS bounds tests, symmetry Wald tests, and cumulative dynamic multipliers), dynamic heterogeneous-panel ARDL (Pooled Mean Group / Mean Group / Dynamic Fixed Effects, with a PMG Hausman selection test), mixed-frequency MIDAS regression (exp-Almon / Beta / Almon / U-MIDAS weights, with ADL-MIDAS autoregressive augmentation), Stock-Yogo weak-instrument diagnostics, structural state-space models (local level/local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), self-exciting threshold autoregression (SETAR) and smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR) with Hansen (1996) and Teräsvirta LM3 linearity testing and bootstrap-simulation forecasts, Markov-switching autoregression (MS-AR, Hamilton mean-switching) and K-state Markov-switching regression (per-regime coefficients/variances and a wide regime-transition matrix), panel regression (POLS/FE/RE/FD/IV), local projections, DSGE (including full Bayesian workflow with convergence/identification diagnostics -- R-hat/ESS/Geweke, Iskrev rank test, learning-rate, prior/posterior overlap, bridge-sampling marginal likelihood -- historical decomposition, and 3rd-order perturbation), DID/event study/LP-DiD, factor models, ARIMA, ARFIMA long memory (with GPH and local-Whittle `d` estimators), volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/cDCC/BEKK) with sign-bias and Nyblom-stability residual diagnostics, non-Gaussian SVAR, GMM/SMM, forecast evaluation & combination (Diebold-Mariano, Clark-West, Mincer-Zarnowitz, encompassing, accuracy metrics, forecast combination), input-output analysis (Leontief/Ghosh multipliers, linkages, SDA, environmental footprints, Baqaee-Farhi), time series filtering, nowcasting, spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function), advanced unit root tests (Fourier ADF/KPSS, DF-GLS, LM with breaks, ADF 2-break, Gregory-Hansen), structural break tests (Andrews, Bai-Perron), panel unit root tests (PANIC, CIPS, Moon-Perron, factor break), Hadri panel stationarity and Pedroni/Kao/Westerlund panel cointegration tests, variance-ratio (Lo-MacKinlay/Chow-Denning) and BDS randomness/nonlinearity tests, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), VIF multicollinearity diagnostics, and data management.
 
 ### Agent quick start
 
@@ -42,7 +42,7 @@ The installer checks for Julia 1.12 (installs [juliaup](https://github.com/Julia
 
 **Supported platforms:** macOS ARM64 (Apple Silicon), Linux x86_64, Windows x86_64.
 
-> **Note:** The precompiled release does not include JuMP, Ipopt, or PATHSolver due to license incompatibility (Ipopt's EPL-2.0 conflicts with GPL-3.0). For DSGE constrained optimization (OccBin, etc.), install them separately: `julia -e 'using Pkg; Pkg.add(["JuMP", "Ipopt"])'`
+> **Solver dependencies:** The current precompiled release (v0.6.x line) does not bundle JuMP, Ipopt, or PATHSolver. For DSGE constrained optimization (OccBin, etc.) on this line, install them separately: `julia -e 'using Pkg; Pkg.add(["JuMP", "Ipopt"])'`. Starting with the MacroEconometricModels 0.7.0 adoption, JuMP (MPL-2.0) and Ipopt (MIT Julia wrapper over the EPL-2.0 Ipopt library, linked dynamically as a separate work) become required upstream dependencies and are bundled in the release. PATHSolver remains optional and is not bundled — add it with `Pkg.add("PATHSolver")` if a model needs the PATH solver.
 
 ### Install from Source
 
@@ -64,20 +64,22 @@ friedman [command] [subcommand] [args...] [options...]
 
 | Command | Subcommands | Description |
 |---------|-------------|-------------|
-| `estimate` | `var` `bvar` `lp` `arima` `gmm` `smm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `fastica` `ml` `vecm` `pvar` `favar` `sdfm` `reg` `iv` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Estimate models (31 model types, incl. panel reg, ordered/multinomial choice) |
-| `test` | `adf` `kpss` `pp` `za` `np` `johansen` `normality` `identifiability` `heteroskedasticity` `arch-lm` `ljung-box` `granger` `lr` `lm` `andrews` `bai-perron` `panic` `cips` `moon-perron` `factor-break` `fourier-adf` `fourier-kpss` `dfgls` `lm-unitroot` `adf-2break` `gregory-hansen` `vif` + panel spec tests + spectral diagnostics + discrete choice tests + `var` (`lagselect` `stability`) + `pvar` (`hansen-j` `mmsc` `lagselect` `stability`) | Statistical tests (41+ leaves + nested) |
+| `estimate` | `var` `bvar` `lp` `arima` `arfima` `gmm` `smm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `igarch` `cgarch` `aparch` `figarch` `fiegarch` `garch-midas` `ccc` `dcc` `bekk` `lasso` `ridge` `elastic-net` `robust` `tobit` `truncreg` `heckman` `cointreg` `xtcointreg` `ardl` `nardl` `pmg` `midas` `setar` `star` `ms-ar` `ms` `statespace` `tvp` `kde` `kernel-reg` `lowess` `fastica` `ml` `vecm` `pvar` `favar` `sdfm` `reg` `iv` `sur` `3sls` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Estimate models (65 model types, incl. ARFIMA long memory, 6 univariate GARCH variants, multivariate GARCH CCC/DCC/BEKK, penalized (Lasso/Ridge/Elastic-Net) + robust + Tobit + truncated + Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) + panel (group/pooled) cointegrating regression, single-equation ARDL + nonlinear/asymmetric NARDL (with folded long-run + ECM/bounds), dynamic heterogeneous-panel ARDL (PMG/MG/DFE), mixed-frequency MIDAS/ADL-MIDAS/U-MIDAS, self-exciting threshold autoregression (SETAR, with attached Hansen 1996 linearity test), smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR, Teräsvirta NLS), Markov-switching (MS-AR mean-switching + K-state MS regression, with a wide regime-transition matrix), structural state-space (local level/linear trend) + TVP regression, nonparametric (KDE/kernel-reg/LOWESS), SUR/3SLS systems, panel reg, ordered/multinomial choice) |
+| `test` | `adf` `kpss` `pp` `za` `np` `gph` `local-whittle` `variance-ratio` `bds` `hansen-linearity` `star-linearity` `weak-instrument` `johansen` `normality` `identifiability` `heteroskedasticity` `arch-lm` `ljung-box` `sign-bias` `nyblom` `ardl-bounds` `nardl-symmetry` `pmg-hausman` `granger` `lr` `lm` `andrews` `bai-perron` `panic` `cips` `moon-perron` `factor-break` `hadri` `pedroni` `kao` `westerlund` `fourier-adf` `fourier-kpss` `dfgls` `lm-unitroot` `adf-2break` `gregory-hansen` `vif` + panel spec tests + spectral diagnostics + discrete choice tests + `var` (`lagselect` `stability`) + `pvar` (`hansen-j` `mmsc` `lagselect` `stability`) + `vecm` (`beta` `alpha` `weak-exog` `known-beta` `joint`) | Statistical tests (55+ leaves + nested; incl. GPH & local-Whittle long-memory `d`, variance-ratio & BDS randomness, Hansen (1996) SETAR & Teräsvirta LM3 STAR linearity, Stock-Yogo weak-instrument diagnostics, sign-bias & Nyblom volatility diagnostics, ARDL PSS bounds & NARDL symmetry tests, PMG Hausman panel selection test, VECM cointegration restriction tests, Hadri panel stationarity + Pedroni/Kao/Westerlund panel cointegration) |
 | `irf` | `var` `bvar` `lp` `vecm` `pvar` `favar` `sdfm` | Impulse response functions |
 | `fevd` | `var` `bvar` `lp` `vecm` `pvar` `favar` `sdfm` | Forecast error variance decomposition |
 | `hd` | `var` `bvar` `lp` `vecm` `favar` | Historical decomposition |
-| `forecast` | `var` `bvar` `lp` `arima` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `vecm` `favar` | Forecasting (14 model types) |
+| `forecast` | `var` `bvar` `lp` `arima` `setar` `star` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `vecm` `favar` · `evaluate metrics/dm/clark-west/mincer-zarnowitz/encompassing/combine` | Forecasting (16 model types, incl. SETAR/STAR bootstrap-simulation forecasts) + evaluation & combination sub-family |
 | `predict` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | In-sample fitted values (23 model types) |
 | `residuals` | `var` `bvar` `arima` `vecm` `static` `dynamic` `gdfm` `arch` `garch` `egarch` `gjr-garch` `sv` `favar` `reg` `logit` `probit` `ologit` `oprobit` `mlogit` `preg` `pols` `pfe` `pre` | Model residuals (23 model types) |
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` `x13` | Time series filters (+ X-13ARIMA-SEATS) |
 | `data` | `list` `load` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` | Data management (11 leaves) |
+| `io` | `sources` `download` `load` `leontief` `ghosh` `multipliers` `linkages` `key-sectors` `sda` `extract` `footprint` `baqaee-farhi` | Input-output analysis (12 leaves) |
 | `nowcast` | `dfm` `bvar` `bridge` `news` `forecast` | Nowcasting (DFM, BVAR, bridge equations) |
-| `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.6.7) |
+| `dsge` | RA leaves + `bayes` + `ha` + `ct` (solve, transition) + `olg` (solve, simulate) | RA, Bayesian, HA, continuous-time Aiyagari, Blanchard OLG (MEMs 0.7.0) |
 | `spectral` | `acf` `periodogram` `density` `cross` `transfer` | Spectral analysis (ACF, periodogram, spectral density, cross-spectrum, transfer function) |
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
+| `multipliers` | `nardl` | NARDL cumulative asymmetric dynamic multipliers (m⁺/m⁻ response curves + bootstrap bands) |
 | `schema` | — | Machine-readable self-description (raw JSON) |
 
 All commands support `--format` (`table`|`csv`|`json`) and `--output` (file path) options.
@@ -154,8 +156,8 @@ friedman estimate arima data.csv --criterion=bic   # auto-select
 # GMM
 friedman estimate gmm data.csv --config=gmm_spec.toml --weighting=twostep
 
-# Simulated Method of Moments (SMM)
-friedman estimate smm data.csv --config=smm_spec.toml --weighting=two_step --sim-ratio=5
+# Simulated Method of Moments (SMM) — --config required (names a built-in simulator + theta0)
+friedman estimate smm gdp.csv --config=smm_ar1.toml
 
 # Static factor model (PCA) — auto-selects factors via Bai-Ng IC
 friedman estimate static data.csv
@@ -217,6 +219,81 @@ friedman predict logit data.csv --dep=employed --marginal-effects
 friedman test vif data.csv --dep=wage
 ```
 
+### ARDL / NARDL (single-equation cointegration)
+
+```bash
+# ARDL(p, q): coefficients + long-run multipliers + ECM speed of adjustment (folded in)
+friedman estimate ardl data.csv --dep=y --p=1 --q=1 --case=3
+
+# Pesaran-Shin-Smith bounds test for a level relationship (decision symbols, NO p-value)
+friedman test ardl-bounds data.csv --dep=y --p=1 --q=1 --case=3 --level=0.05
+
+# Nonlinear (asymmetric) ARDL: split every regressor into +/- partial sums
+friedman estimate nardl data.csv --dep=y --asymmetric=all --p=1 --q=1
+
+# Long- and short-run symmetry Wald tests (H0: theta+ = theta-)
+friedman test nardl-symmetry data.csv --dep=y --asymmetric=all
+
+# Cumulative asymmetric dynamic multipliers with bootstrap bands
+friedman multipliers nardl data.csv --dep=y --horizon=24 --nreps=500
+```
+
+### PMG / MG / DFE (dynamic heterogeneous-panel ARDL)
+
+```bash
+# Pooled Mean Group: common long-run theta + heterogeneous short-run/EC speeds (long panel)
+friedman estimate pmg panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2 --method=pmg
+
+# Mean Group (per-unit averaged) and Dynamic Fixed Effects alternatives
+friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=mg
+friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=dfe
+
+# PMG Hausman selection test (H0: long-run homogeneity; low p favours MG)
+friedman test pmg-hausman panel.csv --dep=y --indep=x1,x2 --efficient=pmg
+```
+
+### MIDAS (mixed-frequency regression)
+
+```bash
+# Nowcast a quarterly target from a monthly indicator (m=3, 6 HF lags, exp-Almon weights)
+# --data = low-frequency target CSV; --hf-data = high-frequency indicator CSV (aligned: len(HF)=m*len(LF))
+friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights expalmon
+
+# ADL-MIDAS (one AR lag of the target) with Beta weights; unrestricted U-MIDAS (OLS on K lags)
+friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights beta2 --p-ar 1
+friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umidas
+```
+
+### Nonlinear Time Series (SETAR / STAR)
+
+```bash
+# Self-exciting threshold AR: SETAR(2; 1, 1), delay d=1, with an attached Hansen (1996) linearity test
+friedman estimate setar y.csv --p 1 --d 1
+
+# Auto-select the delay over the 1:p grid; standalone Hansen linearity test; SETAR bootstrap forecast
+friedman estimate setar y.csv --p 2 --d auto
+friedman test hansen-linearity y.csv --p 1 --d 1
+friedman forecast setar y.csv --p 1 --d 1 --horizons 12
+
+# Smooth-transition AR (STAR): Teräsvirta auto-select the transition shape (LSTR1/LSTR2/ESTR)
+friedman estimate star y.csv --p 1 --d 1 --type auto
+
+# Fix the shape (e.g. logistic one-location LSTR1); Teräsvirta LM3 linearity test; STAR bootstrap forecast
+friedman estimate star y.csv --p 2 --type lstr1
+friedman test star-linearity y.csv --p 1 --d 1
+friedman forecast star y.csv --p 1 --d 1 --horizons 12
+
+# Markov-switching AR (Hamilton mean-switching, 2 regimes, common variance)
+friedman estimate ms-ar y.csv --p 1 --k-regimes 2
+# ... with per-regime (switching) variances
+friedman estimate ms-ar y.csv --p 1 --switching-variance
+
+# K-state Markov-switching regression: dep = y, regressors = the other numeric columns (add a const)
+friedman estimate ms data.csv --dep y
+# Intercept-only switching-mean model (dep is the only numeric column), common variance
+friedman estimate ms y.csv --no-switching-variance
+```
+
 ### Volatility Models
 
 ```bash
@@ -234,6 +311,15 @@ friedman estimate gjr-garch data.csv --column=1 --p=1 --q=1
 
 # Stochastic volatility
 friedman estimate sv data.csv --column=1 --draws=2000
+
+# Multivariate GARCH (T×n returns matrix; conditional correlation matrix)
+friedman estimate ccc returns.csv --p=1 --q=1
+friedman estimate dcc returns.csv --correction=aielli   # cDCC
+friedman estimate bekk returns.csv --kind=diagonal
+
+# Volatility residual diagnostics (fit a model, test its residuals)
+friedman test sign-bias data.csv --column=1 --model=garch
+friedman test nyblom data.csv --column=1 --model=gjr-garch
 ```
 
 ### Testing
@@ -485,9 +571,15 @@ friedman filter x13 monthly.csv --frequency=12 --method=x11
 # List available example datasets
 friedman data list
 
-# Load example dataset (FRED-MD, FRED-QD, PWT, mpdta, ddcg)
+# Load an example dataset (see `data list` for all 11)
 friedman data load fred_md --output=fred_md.csv
 friedman data load fred_md --vars=INDPRO,CPIAUCSL --transform
+
+# Load your own CSV (no dataset name needed)
+friedman data load --path=mydata.csv --output=loaded.csv
+
+# Any <data> argument also accepts a `:name` reference to a bundled dataset
+friedman data describe :fred_md
 
 # Describe data (summary statistics)
 friedman data describe data.csv
@@ -530,6 +622,30 @@ friedman nowcast news --data-new=new.csv --data-old=old.csv --monthly-vars=4 --q
 friedman nowcast forecast data.csv --method=dfm --horizons=4
 ```
 
+### Input-Output Analysis
+
+```bash
+# Inspect the bundled Miller & Blair example (no data needed)
+friedman io load
+
+# Leontief inverse (total requirements), Ghosh inverse, multipliers
+friedman io leontief --matrix both
+friedman io multipliers --kind output --type I
+
+# Linkages / key sectors, structural decomposition, extraction
+friedman io linkages --forward ghosh
+friedman io sda --data period0.csv --data2 period1.csv --n-sectors 35
+friedman io extract --sectors-extract Manufacturing
+
+# Environmental footprint + Baqaee-Farhi decomposition
+friedman io footprint --account CO2 --detail
+friedman io baqaee-farhi --second-order
+
+# Download MRIO tables (network; --offline refuses with exit 6)
+friedman io sources
+friedman io download --source oecd --storage ./io_data --version v2023
+```
+
 ### DSGE Models
 
 ```bash
@@ -539,7 +655,7 @@ friedman dsge solve model.toml --method=perturbation --order=2
 friedman dsge solve model.toml --method=perturbation --order=3
 friedman dsge solve model.toml --method=projection --degree=5 --grid=chebyshev
 
-# HA-DSGE builtins (MEMs 0.6.7): huggett | krusell-smith | one-asset-hank | two-asset-hank
+# HA-DSGE builtins (MEMs 0.7.0): huggett | krusell-smith | one-asset-hank | two-asset-hank
 friedman dsge ha steady-state huggett
 friedman dsge ha solve huggett --method=reiter --n-reduced=20
 friedman dsge ha irf huggett --method=reiter --horizon=40
@@ -585,6 +701,13 @@ friedman dsge bayes simulate model.toml --data=macro.csv --params=rho,sigma --pr
 friedman dsge bayes summary model.toml --data=macro.csv --params=rho,sigma --priors=priors.toml
 friedman dsge bayes compare model1.toml --data=macro.csv --params=rho,sigma --priors=priors.toml --model2=model2.toml --params2=rho,sigma --priors2=priors2.toml
 friedman dsge bayes predictive model.toml --data=macro.csv --params=rho,sigma --priors=priors.toml --n-sim=100
+
+# Bayesian DSGE diagnostics (convergence + identification)
+friedman dsge bayes mcmc-diag model.toml --data=macro.csv --params=rho,sigma --priors=priors.toml       # R-hat / ESS / Geweke
+friedman dsge bayes identification model.toml --params=rho,sigma --observables=Y                          # Iskrev (2010) rank test (no MCMC)
+friedman dsge bayes learning-rate model.toml --data=macro.csv --params=rho,sigma --priors=priors.toml     # Koop-Pesaran-Smith (2013)
+friedman dsge bayes overlap model.toml --data=macro.csv --params=rho,sigma --priors=priors.toml           # prior/posterior overlap
+friedman dsge bayes marginal-lik model.toml --data=macro.csv --params=rho,sigma --priors=priors.toml      # bridge-sampling log-ML
 
 # Compute steady state
 friedman dsge steady-state model.toml
@@ -648,6 +771,44 @@ friedman estimate var data.csv --format=csv --output=results.csv
 # JSON export
 friedman estimate var data.csv --format=json --output=results.json
 ```
+
+### Tidy result tables
+
+Array-valued results (`irf`, `fevd`, `forecast`) render through MacroEconometricModels.jl's
+tidy `long_table(result)`: one row per `(horizon, variable[, shock])` cell, columns
+`horizon | variable | shock | value | lower | upper` (`fevd` drops `lower`/`upper`;
+`forecast` drops `shock`). Coefficient-bearing models (`estimate var`/`reg`/`iv`/`logit`/
+`probit`/panel/ordered/multinomial) render through `DataFrame(model)`: one row per term,
+columns `term | estimate | std_error | stat | p_value | ci_lower | ci_upper`. A handful of
+leaves are deliberate exceptions and keep a domain-specific wide table instead — volatility
+`forecast` (`variance`/`volatility` columns), `did estimate` (an ATT summary), `irf`/`fevd
+pvar`, `hd`, and `predict`/`residuals` — either because MEMs has no matching tidy result
+type for them yet or because collapsing to the generic schema would drop information.
+
+### Model handles & reproducibility
+
+Save a fitted model and reuse it later without re-estimation:
+
+```bash
+friedman estimate var data.csv --lags 2 --save-model model.jld2   # native, versioned
+friedman irf var --model model.jld2 --horizons 12                 # load, skip re-estimation
+friedman model info model.jld2                                    # inspect type / dims / versions
+```
+
+Two on-disk formats, chosen by suffix + model type:
+
+- **`.jld2`** — native MacroEconometricModels.jl `save_model`/`load_model` (JLD2-backed,
+  versioned, portable across a package upgrade). Supports `VARModel`, `BVARPosterior`,
+  `RegModel`, `LogitModel`, `ProbitModel`, `LPModel`; a file whose format version is
+  incompatible refuses to load (exit 3) rather than mis-read. Saving an unsupported type to
+  `.jld2` is a clear error (exit 5).
+- **`.fmod`** — the interim `Serialization` handle, an automatic fallback for any other model type.
+
+Every `--format json` envelope carries a **reproducibility manifest** under `meta.manifest`
+(RNG seed, thread count, OS, Julia + package versions, dependency versions, git, timestamp) —
+provenance enough to reproduce and audit a published result. `--seed N` (a leading global) is
+echoed at `meta.seed` and `meta.manifest.seed`, and is forwarded to the BVAR family and VAR/VECM
+IRF estimators so their draws — and the resulting posteriors/IRFs — reproduce bit-for-bit.
 
 ## TOML Configuration
 
@@ -783,13 +944,19 @@ expr = "K[t] + C[t] <= Y[t]"
 label = "resource constraint"
 ```
 
-**SMM specification:**
+**SMM specification** (`--config` required — SMM matches simulated to sample moments, so it
+needs a data-generating `model` and `theta0`; built-ins: `ar1`, `arp`, `var1`, `iid_normal`):
 
 ```toml
 [smm]
-weighting = "two_step"
+model     = "ar1"          # ar1 | arp | var1 | iid_normal
+theta0    = [0.4, 0.5]     # layout depends on model (ar1: [phi, sigma])
+lags      = 2              # autocovariance-moment lags
+weighting = "two_step"     # identity | two_step
 sim_ratio = 5
-burn = 100
+burn      = 100
+lower     = [-0.99, 1.0e-4]  # optional bounds (both together, length = theta0)
+upper     = [0.99, 10.0]
 ```
 
 ## License

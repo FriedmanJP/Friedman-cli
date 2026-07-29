@@ -1,6 +1,6 @@
 # Agent Guide
 
-Contract for agents driving Friedman-cli (CLI v0.5.0+; package v0.6.0 targets MEMs v0.6.7).
+Contract for agents driving Friedman-cli (CLI v0.5.0+; package v0.7.0 targets MEMs v0.7.0).
 
 ## One envelope on stdout
 
@@ -18,8 +18,8 @@ Example shape (fields abbreviated):
   "command": "friedman estimate var",
   "status": "ok",
   "meta": {
-    "cli_version": "0.6.0",
-    "mems_version": "0.4.x",
+    "cli_version": "0.8.0",
+    "mems_version": "0.7.0",
     "julia": "1.12.x",
     "seed": null,
     "argv": ["estimate", "var", "data.csv", "--lags", "1", "--format", "json"],
@@ -77,13 +77,24 @@ friedman schema estimate var | jq '.options[].name'  # leaf options
 
 Output is **raw JSON** (not wrapped in an envelope).
 
-## Determinism
+## Determinism & reproducibility
 
 ```bash
 friedman --seed 42 estimate var data.csv --format json
 ```
 
-`meta.seed` echoes the seed. Use the same seed for reproducible stochastic paths.
+`meta.seed` echoes the seed; use the same seed for reproducible stochastic paths. Every JSON
+envelope also carries `meta.manifest` — the MacroEconometricModels.jl reproducibility manifest
+(seed, threads, OS, Julia + package + dependency versions, git, timestamp) — for provenance.
+`--seed` is additionally forwarded as the estimator's own `seed=` for the BVAR family and
+VAR/VECM IRFs, so their `ReproManifest` records it and the draws reproduce bit-for-bit.
+
+## Model handles
+
+`--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
+`.jld2` is the native, versioned format (`VARModel`/`BVARPosterior`/`RegModel`/`LogitModel`/
+`ProbitModel`/`LPModel`); `.fmod` is an interim fallback for other model types. `friedman model
+info PATH` inspects a handle without re-running estimation.
 
 ## Quiet / no-color / json alias
 

@@ -101,6 +101,37 @@ function test_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_test_np),
         ),
         CommandSpec(
+            path=["test", "gph"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="bandwidth", short="m", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
+                OptionSpec(name="trim", type=Int, default=0, description="Trim the first N frequencies"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:gph, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_gph),
+        ),
+        CommandSpec(
+            path=["test", "local-whittle"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
+                OptionSpec(name="bandwidth", short="m", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=Symbol("local-whittle"), description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_local_whittle),
+        ),
+        CommandSpec(
             path=["test", "johansen"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -194,6 +225,378 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             aliases=["ljung_box"],
             handler=wrap_legacy(_test_ljung_box),
+        ),
+        # C064b: volatility-model residual diagnostics (Engle-Ng sign bias; Nyblom stability).
+        CommandSpec(
+            path=["test", "sign-bias"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Return series column (1-based)"),
+                OptionSpec(name="model", type=String, default="garch", description="Volatility model to fit: garch | egarch | gjr-garch", choices=["garch","egarch","gjr-garch"]),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:sign_bias, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_sign_bias),
+        ),
+        CommandSpec(
+            path=["test", "nyblom"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Return series column (1-based)"),
+                OptionSpec(name="model", type=String, default="garch", description="Volatility model to fit: garch | egarch | gjr-garch", choices=["garch","egarch","gjr-garch"]),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:nyblom, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_nyblom),
+        ),
+        # C069/C070: randomness/nonlinearity (variance-ratio, BDS) + panel
+        # stationarity/cointegration (Hadri; Pedroni/Kao/Westerlund) test batteries.
+        # All flat `test` leaves.
+        CommandSpec(
+            path=["test", "variance-ratio"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="horizons", type=String, default="2,4,8,16", description="Comma-separated holding periods q (each ≥ 2)"),
+                OptionSpec(name="method", type=String, default="lomackinlay", description="Variance-ratio method", choices=["lomackinlay"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:variance_ratio, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_variance_ratio),
+        ),
+        CommandSpec(
+            path=["test", "bds"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="max-dim", type=Int, default=6, description="Maximum embedding dimension (≥ 2; tests m=2..max)"),
+                OptionSpec(name="eps-frac", type=Float64, default=0.7, description="Distance threshold as a fraction of the sample sd"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:bds, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_bds),
+        ),
+        # C065a: Hansen (1996) sup-LM / sup-Wald test of linearity vs a two-regime SETAR
+        # threshold, with fixed-regressor-bootstrap p-values. Reads `.linearity` off a
+        # `estimate_setar(...; linearity=true)` fit (identical numbers, no design rebuild).
+        CommandSpec(
+            path=["test", "hansen-linearity"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order for the SETAR design (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the threshold variable q=y[t-d] (≥ 1)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Fixed-regressor bootstrap replications (≥ 1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_hansen_linearity, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_hansen_linearity),
+        ),
+        # C065b: Luukkonen–Saikkonen–Teräsvirta LM3 test of linearity vs a smooth-transition
+        # (STAR) alternative. Wraps `star_linearity_test` (a deterministic NamedTuple → pure
+        # kv). An external transition variable can be supplied via `--transition-col`.
+        CommandSpec(
+            path=["test", "star-linearity"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_star_linearity, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_star_linearity),
+        ),
+        CommandSpec(
+            path=["test", "hadri"],
+            summary="Path to CSV data file (rows=T, cols=N units)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (rows=T, cols=N units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:hadri, description="Path to CSV data file (rows=T, cols=N units)")],
+            category="test",
+            handler=wrap_legacy(_test_hadri),
+        ),
+        CommandSpec(
+            path=["test", "pedroni"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
+                OptionSpec(name="trend", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pedroni, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_pedroni),
+        ),
+        CommandSpec(
+            path=["test", "kao"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:kao, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_kao),
+        ),
+        CommandSpec(
+            path=["test", "westerlund"],
+            summary="Path to CSV panel data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
+                OptionSpec(name="trend", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:westerlund, description="Path to CSV panel data file")],
+            category="test",
+            handler=wrap_legacy(_test_westerlund),
+        ),
+        # C067b: weak-instrument diagnostics for cross-section 2SLS. Fits `estimate_iv`
+        # (shared `_load_iv_data` loader) and reports the stored first-stage/Cragg-Donald/
+        # Kleibergen-Paap F against the Stock-Yogo 10%-maximal-bias critical value.
+        CommandSpec(
+            path=["test", "weak-instrument"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
+                OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="threshold", type=Float64, default=10.0, description="First-stage F rule-of-thumb (used if no Stock-Yogo CV)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:weak_instrument, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_weak_instrument),
+        ),
+        # C062b: ARDL bounds test (Pesaran-Shin-Smith 2001) + NARDL symmetry Wald tests.
+        # Both fit a single-equation (N)ARDL via the shared `_load_reg_data` loader + the
+        # `_fit_ardl`/`_fit_nardl` helpers (estimate.jl), then run the test. The bounds test has
+        # NO p-value (non-standard I(0)/I(1) bounds) → decision symbols, never interpret_test_result.
+        CommandSpec(
+            path=["test", "ardl-bounds"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
+                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
+                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer, or a comma-separated per-regressor list"),
+                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
+                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
+                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="trend", type=String, default="none", description="Informational trend label: none|const|trend", choices=["none","const","trend"]),
+                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Decision level: one of 0.10|0.05|0.025|0.01"),
+                OptionSpec(name="cv-source", type=String, default="pss", description="Critical-value source (only pss)", choices=["pss"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:ardl_bounds, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_ardl_bounds),
+        ),
+        CommandSpec(
+            path=["test", "nardl-symmetry"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
+                OptionSpec(name="asymmetric", type=String, default="all", description="'all' or comma-separated 1-based regressor indices to split into +/-"),
+                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
+                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer, or a comma-separated list"),
+                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
+                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
+                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
+                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:nardl_symmetry, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_nardl_symmetry),
+        ),
+        # C062c: PMG Hausman selection test. Fits a long-format panel twice (efficient PMG/DFE
+        # vs consistent MG) via the shared `_load_panel_reg` loader, then runs the PMG-typed
+        # hausman_test on the common long-run θ. Standard PanelTestResult (HAS a p-value) →
+        # interpret_test_result. H0 = long-run homogeneity; low p favours MG.
+        CommandSpec(
+            path=["test", "pmg-hausman"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent panel variable (default: first variable)"),
+                OptionSpec(name="indep", type=String, default="", description="Long-run regressors, comma-separated (default: all other variables)"),
+                OptionSpec(name="efficient", type=String, default="pmg", description="Estimator efficient under H0: pmg|dfe (consistent is always MG)", choices=["pmg","dfe"]),
+                OptionSpec(name="trend", type=String, default="constant", description="Per-unit EC deterministics: none|constant|trend", choices=["none","constant","trend"]),
+                OptionSpec(name="p", type=Int, default=1, description="Autoregressive order (≥ 1)"),
+                OptionSpec(name="q", type=Int, default=1, description="Distributed-lag order for all regressors (≥ 0)"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="PMG outer-loop max iterations"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="PMG outer-loop convergence tolerance"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:pmg_hausman, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_pmg_hausman),
+        ),
+        # C071: VECM cointegration restriction tests (Johansen LR on β / α).
+        # Each fits a VECM then tests a linear restriction on the cointegrating
+        # structure; restriction matrices come from a [vecm_restriction] config.
+        CommandSpec(
+            path=["test", "vecm", "beta"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_beta, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_beta),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "alpha"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_alpha, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_alpha),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "weak-exog"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="vars", type=String, default="", description="Comma-separated variable indices or names to test for weak exogeneity"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_weak_exog, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_weak_exog),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "known-beta"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_known_beta, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_known_beta),
+        ),
+        CommandSpec(
+            path=["test", "vecm", "joint"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] both H and A matrices"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:test_vecm_joint, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_vecm_joint),
         ),
         CommandSpec(
             path=["test", "var", "lagselect"],
@@ -844,6 +1247,72 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
     output_kv(pairs; format=format, output=output, title="Ng-Perron Test: $vname")
 end
 
+# ── Long-Memory (fractional integration) ─────────────────
+
+function _test_gph(; data::String, column::Int=1, bandwidth=nothing, trim::Int=0,
+                    format::String="table", output::String="")
+    trim >= 0 || throw(CliError("usage/invalid",
+        "GPH test: --trim must be >= 0, got $trim"))
+    y, vname = load_univariate_series(data, column)
+    m_arg = isnothing(bandwidth) ? :default : bandwidth
+
+    _status("GPH Log-Periodogram Test: variable=$vname, observations=$(length(y))")
+    _status()
+
+    result = try
+        gph_test(y; m=m_arg, trim=trim)
+    catch e
+        throw(_long_memory_error(e, "GPH test"))
+    end
+
+    pairs = Pair{String,Any}[
+        "d (long-memory)" => round(result.d; digits=4),
+        "Std. error" => round(result.se; digits=4),
+        "z-statistic" => round(result.tstat; digits=4),
+        "p-value" => round(result.pval; digits=4),
+        "Frequencies (m)" => result.m,
+        "Trimmed" => result.trim,
+        "Observations" => result.n,
+    ]
+
+    output_kv(pairs; format=format, output=output, title="GPH Test: $vname")
+
+    interpret_test_result(result.pval,
+        "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
+        "Cannot reject H0 (d = 0) at 5% -- no evidence of long memory")
+end
+
+function _test_local_whittle(; data::String, column::Int=1, bandwidth=nothing,
+                              format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    m_arg = isnothing(bandwidth) ? :default : bandwidth
+
+    _status("Local Whittle Test: variable=$vname, observations=$(length(y))")
+    _status()
+
+    result = try
+        local_whittle(y; m=m_arg)
+    catch e
+        throw(_long_memory_error(e, "local Whittle test"))
+    end
+
+    pairs = Pair{String,Any}[
+        "d (long-memory)" => round(result.d; digits=4),
+        "Std. error" => round(result.se; digits=4),
+        "z-statistic" => round(result.tstat; digits=4),
+        "p-value" => round(result.pval; digits=4),
+        "Frequencies (m)" => result.m,
+        "Observations" => result.n,
+        "Objective R(d)" => round(result.objective; digits=4),
+    ]
+
+    output_kv(pairs; format=format, output=output, title="Local Whittle Test: $vname")
+
+    interpret_test_result(result.pval,
+        "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
+        "Cannot reject H0 (d = 0) at 5% -- no evidence of long memory")
+end
+
 # ── Cointegration ────────────────────────────────────────
 
 function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
@@ -1121,6 +1590,759 @@ function _test_ljung_box(; data::String, column::Int=1, lags::Int=10,
         "Cannot reject H0 at 5% -- no significant ARCH effects")
 end
 
+# ── C064b: volatility-model residual diagnostics ─────────
+# Engle-Ng (1993) sign/size bias and Nyblom (1989)/Hansen (1992) parameter stability.
+# Both first fit a univariate volatility model to the series, then test its residuals.
+# v1 scope: `--model` is restricted to garch|egarch|gjr-garch — the three that share the
+# `(y,p,q)` estimator signature AND are supported by BOTH diagnostics (IGARCH/CGARCH/
+# APARCH nyblom support exists upstream but those estimators take different signatures).
+
+"""Fit the univariate volatility model requested by a diagnostic leaf's `--model`.
+Restricted to the three (y,p,q)-signature estimators (see scope note above)."""
+function _fit_vol_for_diag(y, model::String, p::Int, q::Int)
+    model == "garch"     && return estimate_garch(y, p, q)
+    model == "egarch"    && return estimate_egarch(y, p, q)
+    model == "gjr-garch" && return estimate_gjr_garch(y, p, q)
+    throw(CliError("usage/invalid", "unknown --model '$model' (garch|egarch|gjr-garch)"))
+end
+
+function _test_sign_bias(; data::String, column::Int=1, model::String="garch",
+                          p::Int=1, q::Int=1, format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    _status("Sign-Bias Test (Engle-Ng): variable=$vname, observations=$(length(y)), model=$model")
+    _status()
+    fitted = try
+        _fit_vol_for_diag(y, model, p, q)
+    catch e
+        throw(_garch_variant_error(e, "$model fit"))
+    end
+    result = try
+        sign_bias_test(fitted)
+    catch e
+        throw(_garch_variant_error(e, "sign-bias test"))
+    end
+    pairs = Pair{String,Any}[
+        "sign_bias" => round(result.sign_bias; digits=4),
+        "sign_bias_t" => round(result.sign_bias_t; digits=4),
+        "sign_bias_p" => round(result.sign_bias_p; digits=4),
+        "neg_size_t" => round(result.neg_size_t; digits=4),
+        "neg_size_p" => round(result.neg_size_p; digits=4),
+        "pos_size_t" => round(result.pos_size_t; digits=4),
+        "pos_size_p" => round(result.pos_size_p; digits=4),
+        "joint_statistic" => round(result.joint_statistic; digits=4),
+        "joint_pvalue" => round(result.joint_pvalue; digits=4),
+        "dof" => result.dof,
+    ]
+    output_kv(pairs; format=format, output=output, title="Sign-Bias Test: $vname ($model)")
+    interpret_test_result(result.joint_pvalue,
+        "Reject H0 (no remaining asymmetry) at 5% -- leverage/asymmetry present; consider EGARCH/GJR",
+        "Cannot reject H0 (no remaining asymmetry) at 5%")
+end
+
+function _test_nyblom(; data::String, column::Int=1, model::String="garch",
+                       p::Int=1, q::Int=1, format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    _status("Nyblom Parameter-Stability Test: variable=$vname, observations=$(length(y)), model=$model")
+    _status()
+    fitted = try
+        _fit_vol_for_diag(y, model, p, q)
+    catch e
+        throw(_garch_variant_error(e, "$model fit"))
+    end
+    result = try
+        nyblom_test(fitted)
+    catch e
+        throw(_garch_variant_error(e, "nyblom test"))
+    end
+    # Headline: per-parameter individual Lᵢ vs the Hansen (1992) 5% critical value (≈0.470).
+    df = DataFrame(parameter=result.param_names,
+                   L_stat=round.(Float64.(result.individual); digits=4),
+                   cv_5pct=fill(round(Float64(result.cv_individual); digits=3), length(result.individual)),
+                   reject_5pct=Float64.(result.individual) .> Float64(result.cv_individual))
+    output_result(df; format=Symbol(format), output=output,
+                  title="Nyblom Individual Stability: $vname ($model)")
+    reject_joint = Float64(result.joint) > Float64(result.cv_joint)
+    output_kv(Pair{String,Any}[
+        "joint_LC" => round(Float64(result.joint); digits=4),
+        "cv_joint_5pct" => round(Float64(result.cv_joint); digits=4),
+        "n_params" => result.k,
+        "reject_joint_5pct" => reject_joint,
+    ]; format=format, title="Nyblom Joint Stability: $vname ($model)")
+    # nyblom_test is a critical-value test (no p-value); synthesize a decision-consistent
+    # pseudo p-value so the standard interpretation line prints (stdout stays data-only).
+    interpret_test_result(reject_joint ? 0.01 : 0.5,
+        "Reject H0 (stable parameters) at 5% -- evidence of parameter instability",
+        "Cannot reject H0 (stable parameters) at 5%")
+end
+
+# ── C067b: weak-instrument diagnostics for cross-section 2SLS ──────
+# Fits `estimate_iv` (shared typed `_load_iv_data` loader) and surfaces the stored
+# excluded-instrument first-stage F, Cragg-Donald F, Kleibergen-Paap (robust) rk-Wald F,
+# and the Stock-Yogo 10%-maximal-bias critical value. Verdict: instruments are WEAK when the
+# comparison statistic (Cragg-Donald when available — the multi-endogenous statistic; else
+# the first-stage partial F) falls below the Stock-Yogo 10% CV, or below `--threshold`
+# (Staiger-Stock rule of thumb, default 10) when no critical value is tabulated.
+function _test_weak_instrument(; data::String, dep::String="", endogenous::String="",
+                                instruments::String="", cov_type::String="hc1",
+                                threshold::Float64=10.0, format::String="table", output::String="")
+    cov_type in ("ols", "hc0", "hc1", "hc2", "hc3") || throw(CliError("usage/invalid",
+        "test weak-instrument: --cov-type must be one of ols|hc0|hc1|hc2|hc3, got '$cov_type'"))
+    d = _load_iv_data(data, dep, endogenous, instruments)
+    y, X, Z, xcols, endog_idx = d.y, d.X, d.Z, d.xcols, d.endog_idx
+    n_excl = length(d.inst_names)   # number of excluded instruments q
+
+    _status("Weak-Instrument Test (Stock-Yogo): $(d.dep_col) ~ $(join(xcols, " + "))")
+    _status("  Endogenous: $(join(d.endog_names, ", ")); excluded instruments: $(join(d.inst_names, ", "))")
+    _status("  Observations: $(length(y)), excluded instruments: $n_excl, cov type: $cov_type")
+    _status()
+
+    model = try
+        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "IV (2SLS) estimation"))
+    end
+
+    fs_f = model.first_stage_f
+    cd_f = model.cragg_donald_f
+    kp_f = model.kleibergen_paap_f
+    sy   = model.stock_yogo_10pct
+    # Comparison statistic: Cragg-Donald (proper with >1 endogenous) if present, else first-stage F.
+    stat = (cd_f !== nothing && isfinite(cd_f)) ? Float64(cd_f) :
+           (fs_f !== nothing ? Float64(fs_f) : NaN)
+    cv   = (sy !== nothing) ? Float64(sy) : threshold
+    # A NON-FINITE statistic (e.g. a degenerate first stage: more instruments than usable
+    # observations → df≤0 → MEMs returns NaN, stored raw) must NOT read as "strong". Treat a
+    # non-finite F as weak/unusable, not as a passing verdict (adversarial-review fix — the
+    # `_load_iv_data` m<n guard normally prevents this, but keep the handler robust).
+    degenerate = !isfinite(stat)
+    weak = degenerate || stat < cv
+
+    pairs = Pair{String,Any}["n_endogenous" => length(endog_idx),
+                             "n_excluded_instruments" => n_excl]
+    # Non-finite diagnostics render as strings (legacy JSON writer rejects NaN/Inf floats).
+    _fnum(x) = isfinite(x) ? round(Float64(x); digits=4) : string(Float64(x))
+    fs_f !== nothing && push!(pairs, "first_stage_f" => _fnum(fs_f))
+    (cd_f !== nothing) && push!(pairs, "cragg_donald_f" => _fnum(cd_f))
+    (kp_f !== nothing) && push!(pairs, "kleibergen_paap_f" => _fnum(kp_f))
+    if sy !== nothing
+        push!(pairs, "stock_yogo_10pct_cv" => round(Float64(sy); digits=4))
+    else
+        push!(pairs, "threshold" => round(threshold; digits=4))
+    end
+    push!(pairs, "weak" => weak)
+    output_kv(pairs; format=format, output=output,
+              title="Weak-Instrument Diagnostics: $(d.dep_col)")
+
+    if degenerate
+        interpret_test_result(0.5, "",
+            "Weak-instrument F is non-finite (degenerate first stage — likely too many instruments relative to usable observations); instruments are effectively unusable/weak")
+    else
+        cvsrc = (sy !== nothing) ? "Stock-Yogo 10% CV" : "rule-of-thumb threshold"
+        # H0 = "instruments are weak"; a large F rejects it (instruments are strong).
+        interpret_test_result(weak ? 0.5 : 0.01,
+            "Reject H0 (weak instruments): F=$(round(stat; digits=3)) exceeds the $cvsrc ($(round(cv; digits=3))) -- instruments look strong",
+            "Cannot reject H0 (weak instruments): F=$(round(stat; digits=3)) ≤ the $cvsrc ($(round(cv; digits=3))) -- instruments may be weak (biased 2SLS)")
+    end
+end
+
+# ── C071: VECM cointegration restriction tests ───────────
+# Johansen LR tests of linear restrictions on the cointegrating structure
+# (β = Hφ, α = Aψ, weak exogeneity, β = b known, and joint β&α). Each fits a VECM
+# then runs the restriction test; both the fit and the test throw bare untyped
+# MEMs exceptions on bad input (r<1 → ArgumentError, matrix dims → DimensionMismatch/
+# ArgumentError), so both are wrapped to typed CliErrors (standing lesson: never let
+# an untyped exception on user input reach the top level as an internal exit-1).
+
+"""Fit the VECM every restriction leaf needs; map fit failures to typed errors and
+require a cointegrating rank ≥ 1 (all restriction tests demand r ≥ 1 upstream)."""
+function _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, _, varnames, _ = try
+        _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
+    catch e
+        e isa CliError && rethrow()
+        (e isa ArgumentError || e isa DomainError) && throw(CliError("data/invalid",
+            "VECM estimation: $(sprint(showerror, e))"; hint="check --lags/--rank/--deterministic"))
+        e isa DimensionMismatch && throw(CliError("data/shape", "VECM estimation: $(sprint(showerror, e))"))
+        throw(CliError("model/error", "VECM estimation failed: $(sprint(showerror, e))"))
+    end
+    vecm.rank >= 1 || throw(CliError("data/no-cointegration",
+        "restriction tests need cointegrating rank ≥ 1 (fitted rank = $(vecm.rank)); set --rank ≥ 1 or check the series"))
+    return vecm, varnames
+end
+
+"""Map a restriction-test failure. Matrix-dimension errors come from the user's
+`--config` restriction matrix → `config/shape`; other bad input → `data/invalid`."""
+function _vecm_restriction_error(e, what::String)
+    e isa CliError && return e
+    e isa DimensionMismatch && return CliError("config/shape",
+        "$what: $(sprint(showerror, e))"; hint="check the restriction matrix dimensions in [vecm_restriction]")
+    e isa ArgumentError && return CliError("config/shape", "$what: $(sprint(showerror, e))";
+        hint="the restriction must have at least r columns and p rows (p = number of series, r = rank)")
+    e isa DomainError && return CliError("data/invalid", "$what: $(sprint(showerror, e))")
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
+"""Render a `VECMRestrictionTest`: a kv block (LR statistic / df / p-value / rank /
+converged / restriction) plus a decision line. H0 = the restriction holds, so a low
+p-value rejects the imposed restriction."""
+function _vecm_restriction_output(res, label, vname; format, output)
+    pairs = Pair{String,Any}[
+        "LR statistic" => round(Float64(res.lr_stat); digits=4),
+        "df"           => res.df,
+        "p-value"      => round(Float64(res.pvalue); digits=4),
+        "rank (r)"     => res.rank,
+        "converged"    => res.converged,
+        "restriction"  => res.description,
+    ]
+    output_kv(pairs; format=format, output=output, title="$label: $vname")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (restriction holds) at 5% -- the imposed cointegration restriction is rejected",
+        "Cannot reject H0 at 5% -- the restriction is consistent with the data")
+end
+
+function _test_vecm_beta(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm beta requires --config <toml> with [vecm_restriction] H = [[...],...]"))
+    cfg = load_config(config)
+    H = get_vecm_restriction(cfg, "H")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM β-restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_beta_restriction(vecm, H)
+    catch e
+        throw(_vecm_restriction_error(e, "β restriction"))
+    end
+    _vecm_restriction_output(res, "VECM β-restriction (β = Hφ)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_alpha(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm alpha requires --config <toml> with [vecm_restriction] A = [[...],...]"))
+    cfg = load_config(config)
+    A = get_vecm_restriction(cfg, "A")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM α-restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_alpha_restriction(vecm, A)
+    catch e
+        throw(_vecm_restriction_error(e, "α restriction"))
+    end
+    _vecm_restriction_output(res, "VECM α-restriction (α = Aψ)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_known_beta(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm known-beta requires --config <toml> with [vecm_restriction] b = [[...],...]"))
+    cfg = load_config(config)
+    b = get_vecm_restriction(cfg, "b")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM known-β test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_known_beta(vecm, b)
+    catch e
+        throw(_vecm_restriction_error(e, "known-β restriction"))
+    end
+    _vecm_restriction_output(res, "VECM known-β (β = b)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_joint(; data::String, config::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(config) && throw(CliError("usage/missing-config",
+        "test vecm joint requires --config <toml> with [vecm_restriction] both H and A matrices"))
+    cfg = load_config(config)
+    H = get_vecm_restriction(cfg, "H")
+    A = get_vecm_restriction(cfg, "A")
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    _status("VECM joint β&α restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
+    res = try
+        test_joint_restriction(vecm, H, A)
+    catch e
+        throw(_vecm_restriction_error(e, "joint restriction"))
+    end
+    _vecm_restriction_output(res, "VECM joint (β=Hφ, α=Aψ)", join(varnames, ","); format=format, output=output)
+    return res
+end
+
+function _test_vecm_weak_exog(; data::String, vars::String="", lags::Int=2, rank::String="auto",
+        deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
+        format::String="table", output::String="")
+    isempty(strip(vars)) && throw(CliError("usage/invalid",
+        "test vecm weak-exog requires --vars (e.g. --vars 1,2 or --vars gdp,rate)"))
+    # Fit first: need varnames for name resolution + n for the range check.
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    n = length(varnames)
+    idxs = Int[]
+    for tok in split(vars, ",")
+        t = strip(tok)
+        isempty(t) && continue
+        i = tryparse(Int, t)
+        if i === nothing
+            j = findfirst(==(t), varnames)
+            j === nothing && throw(CliError("usage/invalid",
+                "unknown variable '$t' (have: $(join(varnames, ", ")))"))
+            push!(idxs, j)
+        else
+            (1 <= i <= n) || throw(CliError("usage/invalid", "variable index $i out of range 1:$n"))
+            push!(idxs, i)
+        end
+    end
+    isempty(idxs) && throw(CliError("usage/invalid", "no variables parsed from --vars"))
+    # Guard on DISTINCT variables and the cointegrating rank: making `k` variables weakly
+    # exogenous leaves `n-k` error-correcting rows, and MEMs needs `n-k ≥ r` (else it throws
+    # a bare ArgumentError that would mismap to config/shape — this command takes no config
+    # matrix). Dedupe to match MEMs' setdiff-based selection (so `--vars 1,1` == `--vars 1`).
+    idxs = unique(idxs)
+    (n - length(idxs)) >= vecm.rank || throw(CliError("usage/invalid",
+        "weak-exogeneity of $(length(idxs)) variable(s) leaves $(n - length(idxs)) error-correcting equation(s), but cointegrating rank r=$(vecm.rank) needs ≥ r; select fewer variables"))
+    _status("VECM weak-exogeneity test: series=$n, rank=$(vecm.rank), vars=$(join([varnames[i] for i in idxs], ","))"); _status()
+    res = try
+        test_weak_exogeneity(vecm, idxs)
+    catch e
+        throw(_vecm_restriction_error(e, "weak-exogeneity"))
+    end
+    _vecm_restriction_output(res, "VECM weak-exogeneity", join([varnames[i] for i in idxs], ","); format=format, output=output)
+    return res
+end
+
+# ── C069/C070: randomness/nonlinearity + panel stationarity/cointegration ──
+# variance-ratio & BDS (univariate); Hadri (panel matrix); Pedroni/Kao/Westerlund
+# (panel cointegration). The MEMs teststat calls throw bare, untyped exceptions on
+# bad user input (ArgumentError: series too short / bad q / too many regressors;
+# DimensionMismatch on shape), so every call is wrapped to a typed CliError via
+# `_teststat_error` (standing lesson: never let an untyped exception on user input
+# reach the top level as an internal exit-1).
+
+"""Map an untyped MEMs test-statistic failure to a typed CliError (never exit-1)."""
+function _teststat_error(e, what::String)
+    e isa CliError && return e
+    (e isa ArgumentError || e isa DomainError) && return CliError("data/invalid",
+        "$what: $(sprint(showerror, e))"; hint="need a longer/cleaner series or a well-formed panel")
+    e isa DimensionMismatch && return CliError("data/shape", "$what: $(sprint(showerror, e))")
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
+"""Parse a comma-separated list of integers (e.g. horizons "2,4,8,16"). Empty or
+non-integer tokens → a typed usage error (never an untyped parse throw)."""
+function _parse_int_list(s::AbstractString)
+    toks = [strip(t) for t in split(s, ",") if !isempty(strip(t))]
+    isempty(toks) && throw(CliError("usage/invalid",
+        "expected a comma-separated list of integers, got '$s'"))
+    out = Int[]
+    for t in toks
+        v = tryparse(Int, t)
+        v === nothing && throw(CliError("usage/invalid", "invalid integer '$t' in '$s'"))
+        push!(out, v)
+    end
+    return out
+end
+
+function _test_variance_ratio(; data::String, column::Int=1, horizons::String="2,4,8,16",
+        method::String="lomackinlay", format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    q = _parse_int_list(horizons)
+    all(qi -> qi >= 2, q) || throw(CliError("usage/invalid",
+        "every horizon q must be ≥ 2 (got $q)"))
+    _status("Variance-Ratio Test: variable=$vname, observations=$(length(y)), horizons=$(join(q, ","))"); _status()
+    res = try
+        variance_ratio_test(y; q=q, method=Symbol(method))
+    catch e
+        throw(_teststat_error(e, "variance-ratio test"))
+    end
+    # Per-horizon rows carry the robust (heteroskedasticity-consistent) individual
+    # z*-stats, matching the robust=true default. The joint headline is the robust
+    # Chow–Denning max|z*| (cd_star_*) — exactly StatsAPI.pvalue(res) when robust=true,
+    # so it stays internally consistent with the robust z* above.
+    df = DataFrame(horizon=res.q, variance_ratio=round.(Float64.(res.vr); digits=4),
+                   z_star=round.(Float64.(res.z_star); digits=4),
+                   p_value=round.(Float64.(res.z_star_pvalue); digits=4))
+    output_result(df; format=Symbol(format), output=output, title="Variance-Ratio Test: $vname")
+    output_kv(Pair{String,Any}[
+        "Chow-Denning stat" => round(Float64(res.cd_star_stat); digits=4),
+        "Chow-Denning p-value" => round(Float64(res.cd_star_pvalue); digits=4),
+        "robust" => res.robust,
+        "observations" => res.nobs];
+        format=format, title="Joint Random-Walk Test")
+    interpret_test_result(Float64(res.cd_star_pvalue),
+        "Reject H0 (random walk) at 5% -- variance ratios differ from 1 (mean reversion / momentum)",
+        "Cannot reject H0 (random walk) at 5%")
+    return res
+end
+
+function _test_bds(; data::String, column::Int=1, max_dim::Int=6, eps_frac::Float64=0.7,
+        format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    max_dim >= 2 || throw(CliError("usage/invalid", "--max-dim must be ≥ 2 (got $max_dim)"))
+    eps_frac > 0 || throw(CliError("usage/invalid", "--eps-frac must be > 0 (got $eps_frac)"))
+    _status("BDS Test: variable=$vname, observations=$(length(y)), embedding dims=2..$max_dim"); _status()
+    res = try
+        bds_test(y; m=2:max_dim, eps_frac=eps_frac)
+    catch e
+        throw(_teststat_error(e, "BDS test"))
+    end
+    # res.statistic / res.pvalue are (n_dims × n_eps) matrices; a single scalar
+    # --eps-frac ⇒ one ε column, so flatten to per-dimension vectors aligned with res.m.
+    df = DataFrame(embed_dim=res.m,
+                   statistic=round.(Float64.(vec(res.statistic)); digits=4),
+                   p_value=round.(Float64.(vec(res.pvalue)); digits=4))
+    output_result(df; format=Symbol(format), output=output, title="BDS Test: $vname")
+    interpret_test_result(minimum(Float64.(res.pvalue)),
+        "Reject H0 (iid) at 5% -- nonlinear dependence / structure detected",
+        "Cannot reject H0 (iid) at 5%")
+    return res
+end
+
+# C065a: Hansen (1996) linearity test. Per the locked design decision, DO NOT rebuild the
+# SETAR design in-handler — fit `estimate_setar(y, p, d; linearity=true, ...)` and read the
+# attached `HansenLinearityTest` (`.linearity`); identical numbers, far less code. Every
+# option is guarded up-front → usage/invalid; the fit is try-wrapped → typed CliError via the
+# shared `_nonlinear_error` (a too-short series surfaces there as data/invalid, never exit-1).
+function _test_hansen_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
+        trim::Float64=0.15, reps::Int=1000, format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "test hansen-linearity: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "test hansen-linearity: --d must be ≥ 1 (got $d)"))
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "test hansen-linearity: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "test hansen-linearity: --reps must be ≥ 1 (got $reps)"))
+    y, vname = load_univariate_series(data, column)
+    _status("Hansen (1996) Linearity Test: variable=$vname, observations=$(length(y)), SETAR(p=$p, d=$d), reps=$reps"); _status()
+    model = try
+        estimate_setar(y, p, d; linearity=true, reps=reps, trim=trim)
+    catch e
+        throw(_nonlinear_error(e, "Hansen linearity test"))
+    end
+    res = model.linearity
+    res === nothing && throw(CliError("model/error",
+        "Hansen linearity test: the SETAR fit did not attach a linearity test result"))
+    output_kv(Pair{String,Any}[
+        "sup_lm"      => round(Float64(res.sup_lm); digits=4),
+        "pvalue_lm"   => round(Float64(res.pvalue_lm); digits=4),
+        "sup_wald"    => round(Float64(res.sup_wald); digits=4),
+        "pvalue_wald" => round(Float64(res.pvalue_wald); digits=4),
+        "gamma_sup"   => round(Float64(res.gamma_sup); digits=6),
+        "reps"        => res.reps,
+        "trim"        => round(Float64(res.trim); digits=4),
+        "n_grid"      => res.n_grid,
+    ]; format=format, output=output, title="Hansen (1996) Linearity Test: $vname")
+    interpret_test_result(Float64(res.pvalue_lm),
+        "Reject H0 (linearity) at 5% -- evidence of two-regime threshold nonlinearity",
+        "Cannot reject H0 (linearity) at 5%")
+    return res
+end
+
+# C065b: STAR (smooth-transition) linearity test. Wraps `star_linearity_test` — the LSTV
+# LM3 auxiliary regression (χ² and F forms) → a NamedTuple `(stat, pvalue, fstat, fpvalue,
+# df)`, rendered as pure kv. Options are guarded up-front → usage/invalid; the optional
+# external transition series gets the same length/constant guards as `estimate star`; the
+# test call is try-wrapped → typed CliError via the shared `_nonlinear_error` (never exit-1).
+function _test_star_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
+        transition_col::Int=0, format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "test star-linearity: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "test star-linearity: --d must be ≥ 1 (got $d)"))
+    y, vname = load_univariate_series(data, column)
+    s = nothing
+    if transition_col > 0
+        s, _ = load_univariate_series(data, transition_col)
+        length(s) == length(y) || throw(CliError("data/shape",
+            "test star-linearity: transition variable (column $transition_col) has length $(length(s)), " *
+            "but the series has length $(length(y))"))
+        std(s) > 0 || throw(CliError("data/invalid",
+            "test star-linearity: transition variable (column $transition_col) is constant"))
+    end
+    _status("STAR Linearity Test (LM3): variable=$vname, observations=$(length(y)), p=$p, d=$d" *
+            (transition_col > 0 ? ", external transition col=$transition_col" : ", self-exciting")); _status()
+    res = try
+        star_linearity_test(y, p; s=s, d=d)
+    catch e
+        throw(_nonlinear_error(e, "STAR linearity test"))
+    end
+    output_kv(Pair{String,Any}[
+        "stat"     => round(Float64(res.stat); digits=4),
+        "pvalue"   => round(Float64(res.pvalue); digits=4),
+        "fstat"    => round(Float64(res.fstat); digits=4),
+        "fpvalue"  => round(Float64(res.fpvalue); digits=4),
+        "df"       => res.df,
+    ]; format=format, output=output, title="STAR Linearity Test (LM3): $vname")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (linearity) at 5% -- evidence of smooth-transition nonlinearity",
+        "Cannot reject H0 (linearity) at 5%")
+    return res
+end
+
+function _test_hadri(; data::String, deterministic::String="constant",
+        format::String="table", output::String="")
+    Y, varnames = load_multivariate_data(data)
+    deterministic in ("constant", "trend") || throw(CliError("usage/invalid",
+        "--deterministic must be constant|trend (got '$deterministic')"))
+    _status("Hadri Panel Stationarity Test: units=$(size(Y,2)), observations=$(size(Y,1)), deterministic=$deterministic"); _status()
+    res = try
+        hadri_test(Y; deterministic=Symbol(deterministic))
+    catch e
+        throw(_teststat_error(e, "Hadri test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => round(Float64(res.statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, output=output, title="Hadri Panel Stationarity Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all panels stationary) at 5% -- at least one unit has a unit root",
+        "Cannot reject H0 (all panels stationary) at 5%")
+    return res
+end
+
+"""Load a panel + resolve --dep/--indep to Symbols for the panel-cointegration
+trio (Pedroni/Kao/Westerlund). id/time default to the first/second DATA column
+(mirrors `_load_panel_for_preg`)."""
+function _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    cols = names(load_data(data))
+    length(cols) >= 3 || throw(CliError("usage/invalid",
+        "panel cointegration needs id, time, and variable column(s) (found $(length(cols)))"))
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)          # typed: data/missing-column (bad id/time),
+                                                # data/invalid (no numeric vars / duplicate (id,time) pairs)
+    vars = pd.varnames                          # numeric cols minus id/time (non-empty — load_panel_data guards)
+    depc = isempty(dep) ? vars[1] : dep
+    depc in vars || throw(CliError("usage/invalid",
+        "--dep '$depc' is not a panel variable (have: $(join(vars, ", ")))"))
+    indeps = isempty(indep) ? filter(!=(depc), vars) : _parse_varlist(indep)
+    isempty(indeps) && throw(CliError("usage/invalid", "need at least one regressor via --indep"))
+    for v in indeps
+        v in vars || throw(CliError("usage/invalid",
+            "--indep '$v' is not a panel variable (have: $(join(vars, ", ")))"))
+    end
+    return pd, Symbol(depc), Symbol.(indeps), depc, indeps
+end
+
+"""Render a Pedroni/Kao/Westerlund result: statistic|value|p_value table + metadata
+kv (all three share the `.names`/`.statistics`/`.pvalues`/`.n_units`/`.n_regressors`/
+`.nobs` output triple). H0 = no cointegration; any p-value < 0.05 rejects."""
+function _panel_coint_output(res, label, depc, indeps; format, output)
+    df = DataFrame(statistic=String.(res.names),
+                   value=round.(Float64.(res.statistics); digits=4),
+                   p_value=round.(Float64.(res.pvalues); digits=4))
+    output_result(df; format=Symbol(format), output=output,
+                  title="$label: $depc ~ $(join(indeps, " + "))")
+    output_kv(Pair{String,Any}[
+        "n_units" => res.n_units,
+        "n_regressors" => res.n_regressors,
+        "observations" => res.nobs];
+        format=format, title="$label Summary")
+    interpret_test_result(minimum(Float64.(res.pvalues)),
+        "Reject H0 (no cointegration) at 5% -- evidence of panel cointegration",
+        "Cannot reject H0 (no cointegration) at 5%")
+end
+
+function _test_pedroni(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", trend::String="constant",
+        format::String="table", output::String="")
+    trend in ("constant", "trend") || throw(CliError("usage/invalid",
+        "--trend must be constant|trend (got '$trend')"))
+    pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    _status("Pedroni Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    res = try
+        pedroni_test(pd, depsym, indepsyms...; trend=Symbol(trend))
+    catch e
+        throw(_teststat_error(e, "Pedroni test"))
+    end
+    _panel_coint_output(res, "Pedroni cointegration", depc, indeps; format=format, output=output)
+    return res
+end
+
+function _test_kao(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", format::String="table", output::String="")
+    pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    _status("Kao Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    res = try
+        kao_test(pd, depsym, indepsyms...)
+    catch e
+        throw(_teststat_error(e, "Kao test"))
+    end
+    _panel_coint_output(res, "Kao cointegration", depc, indeps; format=format, output=output)
+    return res
+end
+
+function _test_westerlund(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", trend::String="constant",
+        format::String="table", output::String="")
+    trend in ("constant", "trend") || throw(CliError("usage/invalid",
+        "--trend must be constant|trend (got '$trend')"))
+    pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
+    _status("Westerlund Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    res = try
+        westerlund_test(pd, depsym, indepsyms...; trend=Symbol(trend))
+    catch e
+        throw(_teststat_error(e, "Westerlund test"))
+    end
+    _panel_coint_output(res, "Westerlund cointegration", depc, indeps; format=format, output=output)
+    return res
+end
+
+# ── C062b: ARDL bounds test + NARDL symmetry Wald tests ──────────────
+# Both fit a single-equation (N)ARDL via the shared `_load_reg_data` + `_fit_ardl`/`_fit_nardl`
+# helpers (estimate.jl) then run the test. `ARDLBoundsTest`/`NARDLSymmetryTest` are NOT
+# CLI-registered test types → hand-built rendering. The bounds test has NO p-value: it is
+# compared ONLY to the tabulated I(0)/I(1) bounds, so we render decision symbols + the
+# bracketing bounds and NEVER feed `interpret_test_result` (that would require a p-value).
+
+"""Map a bounds/symmetry MEMs failure to a typed CliError (never exit-1). Enums/case/level are
+pre-guarded up front → usage/invalid, so this only sees genuine data/model faults."""
+_ardl_test_error(e, what::String) = _teststat_error(e, what)
+
+const _ARDL_BOUNDS_LEVELS = [0.10, 0.05, 0.025, 0.01]
+
+function _test_ardl_bounds(; data::String, dep::String="", p::String="auto", q::String="auto",
+        max_p::Int=4, max_q::Int=4, ic::String="aic", trend::String="none", case::Int=3,
+        level::Float64=0.05, cv_source::String="pss", format::String="table", output::String="")
+    # Up-front usage guards (before any fit) so bad knobs → exit 2, never a wrapped data error.
+    (1 <= case <= 5) || throw(CliError("usage/invalid", "test ardl-bounds: --case must be in 1:5, got $case"))
+    any(x -> isapprox(x, level), _ARDL_BOUNDS_LEVELS) || throw(CliError("usage/invalid",
+        "test ardl-bounds: --level must be one of 0.10|0.05|0.025|0.01, got $level"))
+    cv_source == "pss" || throw(CliError("usage/invalid",
+        "test ardl-bounds: --cv-source must be pss (narayan finite-sample bounds are not bundled), got '$cv_source'"))
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("ARDL bounds test (PSS 2001, case $case, level $level): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
+    m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
+                  ic=ic, case=case, trend=trend, label="test ardl-bounds")
+    res = try
+        bounds_test(m; case=case, level=level, cv_source=:pss)
+    catch e
+        throw(_ardl_test_error(e, "ARDL bounds test"))
+    end
+    li = findfirst(x -> isapprox(x, res.level), res.levels)
+    li === nothing && (li = 2)   # fall back to the 5% row (levels are the fixed PSS grid)
+    # Bounds table at the decision level: t-bounds are NaN for cases II/IV → "undefined".
+    _fb(x) = isnan(x) ? "undefined" : round(Float64(x); digits=4)
+    df = DataFrame(bound=String["F", "t"],
+                   statistic=round.(Float64[res.fstat, res.tstat]; digits=4),
+                   i0_lower=[_fb(res.f_lower[li]), _fb(res.t_lower[li])],
+                   i1_upper=[_fb(res.f_upper[li]), _fb(res.t_upper[li])],
+                   decision=String[String(res.f_decision), String(res.t_decision)])
+    output_result(df; format=Symbol(format), output=output,
+                  title="ARDL Bounds Test (I(0)/I(1) bounds; NO p-value)")
+    output_kv(Pair{String,Any}[
+        "f_stat"     => round(Float64(res.fstat); digits=4),
+        "t_stat"     => round(Float64(res.tstat); digits=4),
+        "k"          => res.k,
+        "case"       => res.case,
+        "cv_source"  => String(res.cv_source),
+        "level"      => res.level,
+        "f_decision" => String(res.f_decision),
+        "t_decision" => String(res.t_decision),
+        "nobs"       => res.n,
+    ]; format=format, title="ARDL Bounds Test Summary")
+    # Decision text keyed off the SYMBOLS (not a p-value): F-bound is the primary conclusion.
+    _status()
+    fmsg = res.f_decision === :cointegrated ?
+               "F-bound: evidence of a level (cointegrating) relationship (F above the I(1) bound)" :
+           res.f_decision === :not_cointegrated ?
+               "F-bound: no level relationship (F below the I(0) bound)" :
+               "F-bound: inconclusive — F falls inside the I(0)/I(1) band"
+    _status_styled("-> $fmsg\n"; color=(res.f_decision === :inconclusive ? :yellow : :green))
+    return res
+end
+
+"""Render a `NARDLSymmetryTest` as a tidy multi-row table (one row per asymmetric regressor):
+`regressor|theta_pos|theta_neg|lr_stat|lr_p_chi2|lr_p_f|sr_stat|sr_p_chi2|sr_p_f`."""
+function _nardl_symmetry_table(res)
+    return DataFrame(
+        regressor = String.(res.reg_names),
+        theta_pos = round.(Float64.(res.theta_pos); digits=6),
+        theta_neg = round.(Float64.(res.theta_neg); digits=6),
+        lr_stat   = round.(Float64.(res.lr_stat); digits=4),
+        lr_p_chi2 = round.(Float64.(res.lr_p_chi2); digits=4),
+        lr_p_f    = round.(Float64.(res.lr_p_f); digits=4),
+        sr_stat   = round.(Float64.(res.sr_stat); digits=4),
+        sr_p_chi2 = round.(Float64.(res.sr_p_chi2); digits=4),
+        sr_p_f    = round.(Float64.(res.sr_p_f); digits=4),
+    )
+end
+
+function _test_nardl_symmetry(; data::String, dep::String="", asymmetric::String="all",
+        p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4, ic::String="aic",
+        case::Int=3, format::String="table", output::String="")
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("NARDL symmetry Wald tests: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, case=$case), n=$(length(y))"); _status()
+    m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
+                   max_p=max_p, max_q=max_q, ic=ic, case=case, label="test nardl-symmetry")
+    res = try
+        symmetry_test(m)
+    catch e
+        throw(_ardl_test_error(e, "NARDL symmetry test"))
+    end
+    output_result(_nardl_symmetry_table(res); format=Symbol(format), output=output,
+                  title="NARDL Symmetry Tests (H0: θ⁺=θ⁻ long-run / Σπ⁺=Σπ⁻ short-run)")
+    output_kv(Pair{String,Any}[
+        "df"        => res.df,
+        "dof_resid" => res.dof_resid,
+        "n_asym"    => length(res.reg_names),
+    ]; format=format, title="NARDL Symmetry Test Summary")
+    # χ²(1) p-values ARE available — interpret the long-run test on the first regressor.
+    isempty(res.reg_names) || interpret_test_result(Float64(res.lr_p_chi2[1]),
+        "Reject H0 (long-run symmetry) at 5% for $(res.reg_names[1]) -- asymmetric adjustment",
+        "Cannot reject H0 (long-run symmetry) at 5% for $(res.reg_names[1])")
+    return res
+end
+
+# ── C062c: PMG Hausman selection test (PMG/DFE-vs-MG) ─────────────────────────
+# `test pmg-hausman` fits the SAME panel TWICE — the estimator efficient under H0 (PMG or DFE)
+# and the always-consistent Mean Group — then runs the PMG-typed `hausman_test(::PMGModel,
+# ::PMGModel)` on the common long-run θ (the (PMGModel,PMGModel) dispatch, distinct from the
+# generic FE-vs-RE hausman). H0 = long-run homogeneity: failing to reject supports the pooled
+# (PMG) long-run vector. Result is a standard `PanelTestResult` (HAS a p-value) → the usual
+# test kv + `interpret_test_result`, exactly the pedroni/kao/westerlund pattern. Every MEMs
+# call is wrapped → typed CliError (single-unit panel etc. → data/invalid, never exit-1).
+function _test_pmg_hausman(; data::String, id_col::String="", time_col::String="",
+        dep::String="", indep::String="", trend::String="constant", p::Int=1, q::Int=1,
+        maxiter::Int=100, tol::Float64=1e-8, efficient::String="pmg",
+        format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "--p must be ≥ 1, got $p"))
+    q >= 0 || throw(CliError("usage/invalid", "--q must be ≥ 0, got $q"))
+    pd, depsym, indepsyms, depc, indeps = _load_panel_reg(data, id_col, time_col, dep, indep)
+    _status("PMG Hausman Test ($(uppercase(efficient)) vs MG): $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
+    eff = try
+        estimate_pmg(pd, depsym, indepsyms...; method=Symbol(efficient), p=p, q=q,
+                     trend=Symbol(trend), maxiter=maxiter, tol=tol)
+    catch e
+        throw(_teststat_error(e, "PMG Hausman ($efficient) fit"))
+    end
+    cons = try
+        estimate_pmg(pd, depsym, indepsyms...; method=:mg, p=p, q=q,
+                     trend=Symbol(trend), maxiter=maxiter, tol=tol)
+    catch e
+        throw(_teststat_error(e, "PMG Hausman (MG) fit"))
+    end
+    res = try
+        hausman_test(eff, cons)
+    catch e
+        throw(_teststat_error(e, "PMG Hausman test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test_name"   => res.test_name,
+        "statistic"   => round(Float64(res.statistic); digits=4),
+        "pvalue"      => round(Float64(res.pvalue); digits=4),
+        "df"          => res.df,
+        "description" => res.description,
+    ]; format=format, output=output, title="PMG Hausman Specification Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (long-run homogeneity) -- PMG inconsistent, prefer MG",
+        "Cannot reject H0 -- PMG long-run homogeneity supported")
+    return res
+end
+
 # ── VAR Lag Selection ────────────────────────────────────
 
 function _test_var_lagselect(; data::String, max_lags::Int=12, criterion::String="aic",
@@ -1335,15 +2557,23 @@ function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
     _status("MMSC Model Selection: max lags=$max_lags, criterion=$criterion")
     _status()
 
-    result = pvar_mmsc(panel, max_lags; criterion=Symbol(criterion))
+    # MEMs 0.7.0 (C054): pvar_mmsc is now a single-model criterion; MMSC-based
+    # lag selection is pvar_lag_selection, which returns a (table, best_bic,
+    # best_aic, best_hqic, models) NamedTuple (`.table` is an [p, BIC, AIC, HQIC]
+    # Matrix{Any}) and computes all three criteria at once.
+    result = pvar_lag_selection(panel, max_lags)
 
-    res_df = DataFrame(result.results)
-    rename!(res_df, :p => :lags, :bic => :BIC, :aic => :AIC, :hqic => :HQIC)
+    res_df = DataFrame(result.table, [:lags, :BIC, :AIC, :HQIC])
     output_result(res_df; format=Symbol(format), output=output, title="MMSC Results")
 
     _status()
-    _status_styled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
+    _status_styled("Optimal lag order ($criterion): $(_pvar_best_lag(result, criterion))\n"; bold=true)
 end
+
+"""Optimal lag from a pvar_lag_selection result for the requested criterion."""
+_pvar_best_lag(result, criterion::AbstractString) =
+    criterion == "aic"  ? result.best_aic  :
+    criterion == "hqic" ? result.best_hqic : result.best_bic
 
 function _test_pvar_lagselect(; data::String, id_col::String="", time_col::String="",
                                 max_lags::Int=4, criterion::String="bic",
@@ -1356,14 +2586,13 @@ function _test_pvar_lagselect(; data::String, id_col::String="", time_col::Strin
     _status("Panel VAR Lag Selection: max lags=$max_lags, criterion=$criterion")
     _status()
 
-    result = pvar_lag_selection(panel, max_lags; criterion=Symbol(criterion))
+    result = pvar_lag_selection(panel, max_lags)
 
-    res_df = DataFrame(result.results)
-    rename!(res_df, :p => :lags, :bic => :BIC, :aic => :AIC, :hqic => :HQIC)
+    res_df = DataFrame(result.table, [:lags, :BIC, :AIC, :HQIC])
     output_result(res_df; format=Symbol(format), output=output, title="Lag Selection Results")
 
     _status()
-    _status_styled("Optimal lag order ($criterion): $(result.optimal_lag)\n"; bold=true)
+    _status_styled("Optimal lag order ($criterion): $(_pvar_best_lag(result, criterion))\n"; bold=true)
 end
 
 function _test_pvar_stability(; data::String, id_col::String="", time_col::String="",
@@ -1569,7 +2798,7 @@ function _test_cips(; data::String, lags::String="auto",
     result = pesaran_cips_test(dat; lags=lags_arg, deterministic=Symbol(deterministic))
 
     pairs = Pair{String,Any}[
-        "CIPS statistic" => round(result.cips; digits=4),
+        "CIPS statistic" => round(result.cips_statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
         "Lags" => result.lags,
         "Deterministic" => result.deterministic,
@@ -1626,8 +2855,8 @@ function _test_factor_break(; data::String, factors::Int=2,
         "p-value" => round(result.pvalue; digits=4),
         "Break date (index)" => result.break_date,
         "Method" => result.method,
-        "Factors" => result.r,
-        "Units" => result.n_units,
+        "Factors" => result.n_factors,
+        "Units" => result.n_vars,
     ]
     output_kv(pairs; format=format, output=output, title="Factor Break Test")
 
@@ -1734,16 +2963,16 @@ function _test_dfgls(; data::String, column::Int=1,
     result = dfgls_test(y; lags=lags_arg, kw...)
 
     pairs = Pair{String,Any}[
-        "DF-GLS tau statistic" => round(result.tau_statistic; digits=4),
+        "DF-GLS tau statistic" => round(result.statistic; digits=4),
         "PT statistic" => round(result.pt_statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
 
-    # Add M-GLS statistics if available
-    for (k, v) in result.mgls_statistics
-        push!(pairs, "M-GLS $k" => round(v; digits=4))
+    # M-GLS statistics are separate fields upstream, not a collection.
+    for k in (:MZa, :MZt, :MSB, :MPT)
+        push!(pairs, "M-GLS $k" => round(getfield(result, k); digits=4))
     end
 
     output_kv(pairs; format=format, output=output, title="DF-GLS Test: $vname")
@@ -1780,8 +3009,8 @@ function _test_lm_unitroot(; data::String, column::Int=1,
         "Observations" => result.nobs,
     ]
 
-    if !isnothing(result.break_indices)
-        push!(pairs, "Break indices" => join(result.break_indices, ", "))
+    if !isnothing(result.break_dates)
+        push!(pairs, "Break indices" => join(result.break_dates, ", "))
         push!(pairs, "Break fractions" => join(round.(result.break_fractions; digits=4), ", "))
     end
 
@@ -1814,10 +3043,10 @@ function _test_adf_2break(; data::String, column::Int=1,
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "Break 1 index" => result.break_index1,
-        "Break 1 fraction" => round(result.break_fraction1; digits=4),
-        "Break 2 index" => result.break_index2,
-        "Break 2 fraction" => round(result.break_fraction2; digits=4),
+        "Break 1 index" => result.break1,
+        "Break 1 fraction" => round(result.break1_fraction; digits=4),
+        "Break 2 index" => result.break2,
+        "Break 2 fraction" => round(result.break2_fraction; digits=4),
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
@@ -1829,7 +3058,7 @@ function _test_adf_2break(; data::String, column::Int=1,
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
 
     _status()
-    _status("Estimated structural breaks at observations $(result.break_index1) and $(result.break_index2)")
+    _status("Estimated structural breaks at observations $(result.break1) and $(result.break2)")
 end
 
 # ── Gregory-Hansen Cointegration Test ───────────────
@@ -1848,18 +3077,27 @@ function _test_gregory_hansen(; data::String, model::String="C",
 
     kw = Dict{Symbol,Any}(:model => model_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
-    result = gregory_hansen_test(Y; lags=lags_arg, kw...)
+    # Cointegration needs a dependent + at least one regressor; upstream signals a
+    # one-column matrix with a bare ArgumentError, which would exit 1 (#81 class).
+    result = try
+        gregory_hansen_test(Y; lags=lags_arg, kw...)
+    catch e
+        e isa ArgumentError && throw(CliError("data/shape",
+            "gregory-hansen needs at least 2 columns (dependent + regressor)";
+            hint="got $(length(varnames)): $(join(varnames, ", "))"))
+        rethrow()
+    end
 
     pairs = Pair{String,Any}[
         "ADF* statistic" => round(result.adf_statistic; digits=4),
         "ADF* p-value" => round(result.adf_pvalue; digits=4),
-        "ADF* break index" => result.adf_break_index,
+        "ADF* break index" => result.adf_break,
         "Zt* statistic" => round(result.zt_statistic; digits=4),
         "Zt* p-value" => round(result.zt_pvalue; digits=4),
-        "Zt* break index" => result.zt_break_index,
+        "Zt* break index" => result.zt_break,
         "Za* statistic" => round(result.za_statistic; digits=4),
         "Za* p-value" => round(result.za_pvalue; digits=4),
-        "Za* break index" => result.za_break_index,
+        "Za* break index" => result.za_break,
         "Model" => result.model,
         "Observations" => result.nobs,
     ]
@@ -1872,7 +3110,7 @@ function _test_gregory_hansen(; data::String, model::String="C",
         "Cannot reject H0: no cointegration with structural break")
 
     _status()
-    _status("Estimated break at observation $(result.adf_break_index) (ADF* criterion)")
+    _status("Estimated break at observation $(result.adf_break) (ADF* criterion)")
 end
 
 # ── VIF (Variance Inflation Factor) ─────────────────
@@ -2118,14 +3356,18 @@ function _test_durbin_watson(; data::String, column::Int=1,
 
     result = durbin_watson_test(y)
 
+    # DurbinWatsonResult is (statistic, pvalue, nobs) — real MEMs exposes no
+    # Savin-White dL/dU bounds or decision string, so report the p-value instead.
     pairs = Pair{String,Any}[
         "DW statistic" => round(result.statistic; digits=4),
-        "Lower bound (dL)" => round(result.lower_bound; digits=4),
-        "Upper bound (dU)" => round(result.upper_bound; digits=4),
-        "Decision" => result.decision,
+        "p-value" => round(result.pvalue; digits=4),
         "Observations" => result.nobs,
     ]
     output_kv(pairs; format=format, output=output, title="Durbin-Watson Test: $vname")
+
+    interpret_test_result(result.pvalue,
+        "Reject H0: residuals are autocorrelated",
+        "Cannot reject H0: no first-order autocorrelation")
 end
 
 # ── Discrete Choice Tests ────────────────────────────

@@ -252,6 +252,7 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     if stationary_only
         kwargs[:stationary_only] = true
     end
+    isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + ImpulseResponse manifest (C052/#243)
 
     irf_result = irf(model, horizons; kwargs...)
 
@@ -264,10 +265,12 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
 
     _status_report(() -> report(irf_result))
 
-    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
-    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
-    irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock)
-    shock_name = _shock_name(varnames, shock)
+    # C051: render via MEMs' uniform tidy long_table (horizon|variable|shock|value|lower|
+    # upper), replacing the wide per-shock build_irf_table. Preserve the --shock selector
+    # by filtering the tidy rows to the chosen structural shock.
+    shock_name = irf_result.shocks[shock]
+    irf_df = long_table(irf_result)
+    irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock ($id identification)")
 end
@@ -361,19 +364,12 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
 
     _status_report(() -> report(birf))
 
-    irf_mean_vals = birf.mean
-    q_levels = birf.quantile_levels
-    q_idx_lo = findfirst(==(0.16), q_levels)
-    q_idx_med = findfirst(==(0.5), q_levels)
-    q_idx_hi = findfirst(==(0.84), q_levels)
-
-    point = !isnothing(q_idx_med) ? birf.quantiles[:, :, :, q_idx_med] : irf_mean_vals
-    ci_lo = !isnothing(q_idx_lo) ? birf.quantiles[:, :, :, q_idx_lo] : nothing
-    ci_hi = !isnothing(q_idx_hi) ? birf.quantiles[:, :, :, q_idx_hi] : nothing
-    irf_df = build_irf_table(point, ci_lo, ci_hi, varnames, shock;
-                             lower_suffix="_16pct", upper_suffix="_84pct")
-
-    shock_name = _shock_name(varnames, shock)
+    # C051: tidy long_table (horizon|variable|shock|value|lower|upper); value = posterior
+    # mean, lower/upper = the outer credible quantiles (16/84pct). Preserve --shock by
+    # filtering the tidy rows to the selected structural shock.
+    shock_name = birf.shocks[shock]
+    irf_df = long_table(birf)
+    irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
                   title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)")
 end
@@ -417,17 +413,23 @@ function _irf_lp(; data::String="", shock::Int=1, shocks::String="",
     _status("Computing LP IRFs: horizons=$horizons, id=$id, ci=$ci")
     _status()
 
-    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
-    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
     for shock_idx in shock_indices
         (shock_idx < 1 || shock_idx > n) && error("shock index $shock_idx out of range (data has $n variables)")
-        shock_name = _shock_name(varnames, shock_idx)
-        irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock_idx)
-        output_result(irf_df; format=Symbol(format),
-                      output=isempty(output) ? "" : (length(shock_indices) > 1 ? replace(output, "." => "_$(shock_name).") : output),
-                      title="LP IRF to $shock_name shock ($id identification)")
-        _status()
     end
+    # C051: tidy long_table (horizon|variable|shock|value|lower|upper); slp.irf is a full
+    # ImpulseResponse — Plagborg-Møller & Wolf (2021) stack LP responses into the same 3D
+    # (horizon, variable, shock) array as a VAR IRF — same schema as irf var. --shocks may
+    # name more than one shock (unlike irf var's single --shock), so filter to all
+    # selected shocks in one tidy table instead of splitting into per-shock files. Index
+    # into irf_result.shocks (not the CLI-loaded varnames — see irf var/vecm) since
+    # structural_lp names shocks after its own internal VAR, not the CLI's column names.
+    shock_names = [irf_result.shocks[s] for s in shock_indices]
+    irf_df = long_table(irf_result)
+    irf_df = irf_df[in.(irf_df.shock, Ref(shock_names)), :]
+    title = length(shock_names) == 1 ?
+        "LP IRF to $(shock_names[1]) shock ($id identification)" :
+        "LP IRF to shocks $(join(shock_names, ", ")) ($id identification)"
+    output_result(irf_df; format=Symbol(format), output=output, title=title)
 end
 
 # ── VECM IRF ────────────────────────────────────────────
@@ -458,6 +460,7 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
     kwargs = _build_identification_kwargs(id, config)
     kwargs[:ci_type] = Symbol(ci)
     kwargs[:reps] = replications
+    isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + manifest (C052/#243)
 
     irf_result = irf(var_model, horizons; kwargs...)
 
@@ -465,10 +468,10 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _status_report(() -> report(irf_result))
 
-    ci_lo = (ci != "none" && !isnothing(irf_result.ci_lower)) ? irf_result.ci_lower : nothing
-    ci_hi = (ci != "none" && !isnothing(irf_result.ci_upper)) ? irf_result.ci_upper : nothing
-    irf_df = build_irf_table(irf_result.values, ci_lo, ci_hi, varnames, shock)
-    shock_name = _shock_name(varnames, shock)
+    # C051: tidy long_table filtered to the selected --shock (see irf var).
+    shock_name = irf_result.shocks[shock]
+    irf_df = long_table(irf_result)
+    irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
                   title="VECM IRF to $shock_name shock ($id identification)")
 end
@@ -496,16 +499,18 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
     _status("Computing Panel VAR IRFs: type=$irf_type, horizons=$horizons, bootstrap=$boot_draws")
     _status()
 
-    # Compute IRFs with bootstrap CIs
+    # Compute IRFs with bootstrap CIs. MEMs 0.7.0 (C054) renamed kwargs
+    # (n_boot→n_draws, conf_level→ci) and returns a NamedTuple
+    # (irf, lower, upper, draws) instead of an ImpulseResponse struct.
     irf_result = pvar_bootstrap_irf(model, horizons;
-        n_boot=boot_draws, conf_level=confidence, irf_type=Symbol(irf_type))
+        n_draws=boot_draws, ci=confidence, irf_type=Symbol(irf_type))
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
     # Output per-shock IRF tables
     for shock in 1:n
         shock_name = _shock_name(varnames, shock)
-        irf_df = build_irf_table(irf_result.values, irf_result.ci_lower, irf_result.ci_upper,
+        irf_df = build_irf_table(irf_result.irf, irf_result.lower, irf_result.upper,
                                  varnames, shock)
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
@@ -544,17 +549,12 @@ function _irf_favar(; data::String="", factors=nothing, lags::Int=2,
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    n_vars = size(irf_result.values, 2)
-    n_shocks = size(irf_result.values, 3)
-    vnames = String[v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
-                    for v in 1:n_vars]
-    for s in 1:n_shocks
-        shock_name = s <= length(irf_result.shocks) ? irf_result.shocks[s] : "shock_$s"
-        irf_df = build_irf_table(irf_result.values, nothing, nothing, vnames, s; digits=6)
-        output_result(irf_df; format=Symbol(format),
-                      output=_per_var_output_path(output, shock_name),
-                      title="FAVAR IRF — shock: $shock_name")
-    end
+    # C051: tidy long_table (horizon|variable|shock|value|lower|upper); irf(favar,...)
+    # delegates to irf(to_var(favar),...) — the same ImpulseResponse type as irf var —
+    # so one tidy table covers every shock (no more per-shock output files).
+    irf_df = long_table(irf_result)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="FAVAR IRF ($id identification)" * (panel_irf ? ", panel-wide" : ""))
 end
 
 # ── Structural DFM IRF ────────────────────────────────
@@ -580,15 +580,10 @@ function _irf_sdfm(; data::String="", factors=nothing, id::String="cholesky",
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    n_vars = size(irf_result.values, 2)
-    n_shocks = size(irf_result.values, 3)
-    vnames = String[v <= length(irf_result.variables) ? irf_result.variables[v] : "var_$v"
-                    for v in 1:n_vars]
-    for s in 1:n_shocks
-        shock_name = s <= length(irf_result.shocks) ? irf_result.shocks[s] : "shock_$s"
-        irf_df = build_irf_table(irf_result.values, nothing, nothing, vnames, s; digits=6)
-        output_result(irf_df; format=Symbol(format),
-                      output=_per_var_output_path(output, shock_name),
-                      title="SDFM IRF — shock: $shock_name")
-    end
+    # C051: tidy long_table (horizon|variable|shock|value|lower|upper); irf(sdfm,...)
+    # returns a panel-wide ImpulseResponse directly (see MEMs favar/analysis.jl), same
+    # schema as irf var — one tidy table covers every shock.
+    irf_df = long_table(irf_result)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="SDFM IRF ($id identification)")
 end

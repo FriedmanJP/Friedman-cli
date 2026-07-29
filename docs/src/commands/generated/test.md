@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 45
+**Leaves:** 66
 
 ### `friedman test adf`
 
@@ -91,6 +91,33 @@ Path to CSV data file
 
 ---
 
+### `friedman test ardl-bounds`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated per-regressor list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none|const|trend |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--level` | — | `Float64` | `0.05` | — | Decision level: one of 0.10|0.05|0.025|0.01 |
+| `--cv-source` | — | `String` | `pss` | `pss` | Critical-value source (only pss) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `ardl_bounds` (Path to CSV data file)
+
+---
+
 ### `friedman test bai-perron`
 
 Path to CSV data file
@@ -132,6 +159,26 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `bartlett_wn` (Path to CSV data file)
+
+---
+
+### `friedman test bds`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--max-dim` | — | `Int64` | `6` | — | Maximum embedding dimension (≥ 2; tests m=2..max) |
+| `--eps-frac` | — | `Float64` | `0.7` | — | Distance threshold as a fraction of the sample sd |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `bds` (Path to CSV data file)
 
 ---
 
@@ -358,6 +405,26 @@ Path to CSV data file
 
 ---
 
+### `friedman test gph`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test |
+| `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--trim` | — | `Int64` | `0` | — | Trim the first N frequencies |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `gph` (Path to CSV data file)
+
+---
+
 ### `friedman test granger`
 
 Path to CSV data file
@@ -403,6 +470,46 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `gregory_hansen` (Path to CSV data file)
+
+---
+
+### `friedman test hadri`
+
+Path to CSV data file (rows=T, cols=N units)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file (rows=T, cols=N units) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `hadri` (Path to CSV data file (rows=T, cols=N units))
+
+---
+
+### `friedman test hansen-linearity`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order for the SETAR design (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the threshold variable q=y[t-d] (≥ 1) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | — | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `test_hansen_linearity` (Path to CSV data file)
 
 ---
 
@@ -513,6 +620,27 @@ Path to CSV data file
 
 ---
 
+### `friedman test kao`
+
+Path to CSV panel data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV panel data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `kao` (Path to CSV panel data file)
+
+---
+
 ### `friedman test kpss`
 
 Path to CSV data file
@@ -594,6 +722,25 @@ Path to CSV data file
 
 ---
 
+### `friedman test local-whittle`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test |
+| `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `local-whittle` (Path to CSV data file)
+
+---
+
 ### `friedman test lr`
 
 Path to CSV data file for restricted model
@@ -655,6 +802,31 @@ Path to CSV data file (rows=T, cols=N)
 
 ---
 
+### `friedman test nardl-symmetry`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--asymmetric` | — | `String` | `all` | — | 'all' or comma-separated 1-based regressor indices to split into +/- |
+| `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
+| `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated list |
+| `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
+| `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `nardl_symmetry` (Path to CSV data file)
+
+---
+
 ### `friedman test normality`
 
 Path to CSV data file
@@ -692,6 +864,27 @@ Path to CSV data file
 
 ---
 
+### `friedman test nyblom`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
+| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch | egarch | gjr-garch |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `nyblom` (Path to CSV data file)
+
+---
+
 ### `friedman test panic`
 
 Path to CSV data file (rows=T, cols=N)
@@ -713,6 +906,28 @@ Path to CSV data file (rows=T, cols=N)
 
 ---
 
+### `friedman test pedroni`
+
+Path to CSV panel data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV panel data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `pedroni` (Path to CSV panel data file)
+
+---
+
 ### `friedman test pesaran-cd`
 
 Path to CSV panel data file
@@ -731,6 +946,33 @@ Path to CSV panel data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
 **Output tables:** `pesaran_cd` (Path to CSV panel data file)
+
+---
+
+### `friedman test pmg-hausman`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
+| `--efficient` | — | `String` | `pmg` | `pmg`, `dfe` | Estimator efficient under H0: pmg|dfe (consistent is always MG) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none|constant|trend |
+| `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
+| `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
+| `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
+| `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `pmg_hausman` (Path to CSV data file)
 
 ---
 
@@ -835,6 +1077,48 @@ Path to CSV panel data file
 
 ---
 
+### `friedman test sign-bias`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
+| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch | egarch | gjr-garch |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `sign_bias` (Path to CSV data file)
+
+---
+
+### `friedman test star-linearity`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
+| `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `test_star_linearity` (Path to CSV data file)
+
+---
+
 ### `friedman test var lagselect`
 
 Path to CSV data file
@@ -872,6 +1156,165 @@ Path to CSV data file
 
 ---
 
+### `friedman test variance-ratio`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--horizons` | — | `String` | `2,4,8,16` | — | Comma-separated holding periods q (each ≥ 2) |
+| `--method` | — | `String` | `lomackinlay` | `lomackinlay` | Variance-ratio method |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `variance_ratio` (Path to CSV data file)
+
+---
+
+### `friedman test vecm alpha`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r) |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
+| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `test_vecm_alpha` (Path to CSV data file)
+
+---
+
+### `friedman test vecm beta`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r) |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
+| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `test_vecm_beta` (Path to CSV data file)
+
+---
+
+### `friedman test vecm joint`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] both H and A matrices |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
+| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `test_vecm_joint` (Path to CSV data file)
+
+---
+
+### `friedman test vecm known-beta`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols) |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
+| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `test_vecm_known_beta` (Path to CSV data file)
+
+---
+
+### `friedman test vecm weak-exog`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--vars` | — | `String` | `""` | — | Comma-separated variable indices or names to test for weak exogeneity |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
+| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `test_vecm_weak_exog` (Path to CSV data file)
+
+---
+
 ### `friedman test vif`
 
 Path to CSV data file
@@ -888,6 +1331,50 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `vif` (Path to CSV data file)
+
+---
+
+### `friedman test weak-instrument`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
+| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
+| `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
+| `--threshold` | — | `Float64` | `10.0` | — | First-stage F rule-of-thumb (used if no Stock-Yogo CV) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `weak_instrument` (Path to CSV data file)
+
+---
+
+### `friedman test westerlund`
+
+Path to CSV panel data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV panel data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `westerlund` (Path to CSV panel data file)
 
 ---
 

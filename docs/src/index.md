@@ -18,6 +18,8 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Non-Gaussian SVAR** | FastICA, JADE, SOBI, dCov, HSIC, ML (Student-t, mixture, PML, skew-normal) | `estimate fastica`, `estimate ml` |
 | **GMM** | Identity, optimal, two-step, iterated weighting | `estimate gmm` |
 | **Cross-Sectional** | OLS, WLS, IV (2SLS), Logit, Probit | `estimate reg`, `estimate iv`, `estimate logit`, `estimate probit` |
+| **ARDL / NARDL** | Single-equation ARDL, nonlinear/asymmetric NARDL, PSS bounds test, symmetry Wald tests, cumulative dynamic multipliers | `estimate ardl`, `estimate nardl`, `test ardl-bounds`, `test nardl-symmetry`, `multipliers nardl` |
+| **Panel ARDL (PMG)** | Dynamic heterogeneous-panel ARDL: Pooled Mean Group / Mean Group / Dynamic Fixed Effects, PMG Hausman selection test | `estimate pmg`, `test pmg-hausman` |
 | **IRF** | Cholesky, sign, narrative, long-run, Arias, Uhlig, non-Gaussian methods | `irf var`, `irf bvar`, `irf lp`, `irf vecm`, `irf pvar` |
 | **FEVD** | Frequentist, Bayesian, LP (bias-corrected), VECM, Panel VAR | `fevd var`, `fevd bvar`, `fevd lp`, `fevd vecm`, `fevd pvar` |
 | **Historical Decomposition** | Frequentist, Bayesian, LP-based, VECM | `hd var`, `hd bvar`, `hd lp`, `hd vecm` |
@@ -25,6 +27,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Predict / Residuals** | In-sample fitted values and model residuals | `predict var`, `residuals var`, ... |
 | **Filters** | HP, Hamilton, Beveridge-Nelson, Baxter-King, Boosted HP | `filter hp`, `filter hamilton`, ... |
 | **Nowcasting** | DFM, BVAR, bridge equations, news decomposition | `nowcast dfm`, `nowcast bvar`, ... |
+| **Input-Output** | Leontief/Ghosh multipliers, linkages, SDA, hypothetical extraction, environmental footprints, Baqaee-Farhi (2019) | `io leontief`, `io multipliers`, `io footprint`, ... |
 | **Data Management** | Example datasets, diagnostics, transformations, validation, balancing | `data list`, `data load`, `data describe`, ... |
 | **DSGE** | RA + Bayesian + **HA** + **CT Aiyagari** + **Blanchard OLG** | `dsge solve`, `dsge ha`, `dsge ct`, `dsge olg`, ... |
 | **DID** | TWFE, Callaway-Sant'Anna, Sun-Abraham, BJS, dCdH, event study LP, LP-DiD | `did estimate`, `did event-study`, `did lp-did` |
@@ -47,7 +50,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Spectral Analysis** | ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function | `spectral acf`, `spectral density`, ... |
 | **Data Utilities** | Drop rows with missing values, keep rows by condition | `data dropna`, `data keeprows` |
 
-**14 top-level commands, ~204 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, ...) rather than by model type.
+**18 top-level commands, 303 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `multipliers`, ...) rather than by model type.
 
 ## Quick Start
 
@@ -108,9 +111,11 @@ Pages = [
     "commands/predict_residuals.md",
     "commands/filter.md",
     "commands/data.md",
+    "commands/io.md",
     "commands/nowcast.md",
     "commands/dsge.md",
     "commands/did.md",
+    "commands/multipliers.md",
     "commands/favar.md",
     "commands/structural-breaks.md",
     "commands/panel-unit-root.md",

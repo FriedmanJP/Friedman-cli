@@ -2763,6 +2763,56 @@ end
     @test exit_class(CliError("usage/bad-format", "…")) == 2
     @test exit_class(CliError("model/singular", "…")) == 5
     @test exit_class(CliError("env/network", "…")) == 6
+
+    # C050: MEMs domain exceptions (MacroModelError hierarchy) → typed CliError.
+    # Mock exception types are same-named subtypes of MacroModelError.
+    conv = _domain_error_class(MacroEconometricModels.ConvergenceError("no convergence", 500, 1e-2))
+    @test conv isa CliError
+    @test conv.code == "model/convergence"
+    @test exit_class(conv) == 5
+    @test occursin("no convergence", conv.message)
+
+    ident = _domain_error_class(MacroEconometricModels.IdentificationError("under-identified"))
+    @test ident.code == "model/identification"
+    @test exit_class(ident) == 5
+
+    sing = _domain_error_class(MacroEconometricModels.SingularSystemError("singular", 1e18))
+    @test sing.code == "model/singular"
+    @test exit_class(sing) == 5
+
+    ser = _domain_error_class(MacroEconometricModels.SerializationError("bad handle version"))
+    @test ser.code == "data/serialization"
+    @test exit_class(ser) == 3
+
+    # C054 #142: MEMs `_orient_data` ArgumentError → data/orientation (exit 3).
+    orient = _domain_error_class(ArgumentError(
+        "data has shape (3, 100) but neither dimension equals the number of " *
+        "observables n_obs=2. Pass data as T×n (time in rows, variables in columns)."))
+    @test orient isa CliError
+    @test orient.code == "data/orientation"
+    @test exit_class(orient) == 3
+    @test occursin("transpose", orient.hint)
+
+    # Non-MEMs exceptions have no typed mapping → caller falls back to exit 1.
+    @test _domain_error_class(ArgumentError("x")) === nothing
+    @test _domain_error_class(ErrorException("x")) === nothing
+    # A message is always recoverable (prefers `.msg`, else showerror).
+    @test _err_message(MacroEconometricModels.IdentificationError("hi")) == "hi"
+    @test _err_message(ErrorException("boom")) == "boom"
+end
+
+@testset "C061: no active validity warnings" begin
+    # C047 shipped the validity_warning! mechanism with ZERO active warnings —
+    # every targeted upstream defect (#122/#130/#163) was fixed within the pin,
+    # and re-verified sound on 0.7.0 (dsge bayes compare, did test honest). This
+    # guards that no command handler re-introduces a validity_warning! call site.
+    cmd_dir = joinpath(dirname(@__DIR__), "src", "commands")
+    offenders = String[]
+    for (root, _, files) in walkdir(cmd_dir), f in files
+        endswith(f, ".jl") || continue
+        occursin("validity_warning!", read(joinpath(root, f), String)) && push!(offenders, f)
+    end
+    @test isempty(offenders)
 end
 
 @testset "IO utilities" begin
@@ -2788,16 +2838,113 @@ end
         end
     end
 
-    @testset "load_data path traversal rejection" begin
-        @test_throws CliError load_data("../etc/passwd")
-        @test_throws CliError load_data("data/../../../secret.csv")
+    @testset "path confinement under FRIEDMAN_DATA_ROOT (#83)" begin
+        mktempdir() do root
+            inside = joinpath(root, "ok.csv")
+            CSV.write(inside, DataFrame(a=[1.0, 2.0]))
+            outside = tempname() * ".csv"
+            CSV.write(outside, DataFrame(a=[1.0, 2.0]))
+            mkpath(joinpath(root, "sub"))   # a `..` only resolves through a real directory
+            withenv("FRIEDMAN_DATA_ROOT" => root) do
+                # Inside the root loads, including via a `..` segment resolving back in
+                @test nrow(load_data(inside)) == 2
+                @test nrow(load_data(joinpath(root, "sub", "..", "ok.csv"))) == 2
+                # Escapes are refused on the RESOLVED path, not a substring match
+                @test_throws CliError load_data(outside)
+                @test_throws CliError load_data(joinpath(root, "..", "etc", "passwd"))
+                df = DataFrame(a=[1, 2, 3])
+                @test_throws CliError output_result(df; format=:csv,
+                                                   output=joinpath(root, "..", "bad.csv"))
+                ok_out = joinpath(root, "written.csv")
+                output_result(df; format=:csv, output=ok_out)
+                @test isfile(ok_out)
+            end
+            rm(outside; force=true)
+        end
     end
 
-    @testset "output path traversal rejection" begin
-        df = DataFrame(a=[1,2,3])
-        @test_throws CliError output_result(df; format=:csv, output="../bad.csv")
-        @test_throws CliError output_result(df; format=:csv, output="foo/../../bad.csv")
+    @testset "no false path rejections when unconfined (#83)" begin
+        # Regression: `contains(path, "..")` rejected both of these outright.
+        mktempdir() do dir
+            weird = joinpath(dir, "dotdot..name.csv")   # '..' inside an ordinary filename
+            CSV.write(weird, DataFrame(a=[1.0, 2.0]))
+            sub = joinpath(dir, "sub"); mkpath(sub)
+            withenv("FRIEDMAN_DATA_ROOT" => nothing) do
+                @test nrow(load_data(weird)) == 2
+                @test nrow(load_data(joinpath(sub, "..", "dotdot..name.csv"))) == 2
+                df = DataFrame(a=[1, 2, 3])
+                out = joinpath(sub, "..", "out..1.csv")
+                output_result(df; format=:csv, output=out)
+                @test isfile(out)
+            end
+        end
     end
+
+    @testset "load_data expands ~" begin
+        # The REPL has no shell, so `~` must be expanded by the loader itself — on every
+        # platform (Base.expanduser is a no-op on Windows, hence io.jl's own _expanduser).
+        mktempdir() do dir
+            # homedir() reads HOME on unix and USERPROFILE on Windows (libuv), so set
+            # both, then write to whatever `~` actually resolves to on this platform.
+            withenv("HOME" => dir, "USERPROFILE" => dir) do
+                csv_path = joinpath(homedir(), "tilde.csv")
+                CSV.write(csv_path, DataFrame(a=[1.0, 2.0]))
+                try
+                    # A path that expands to a real file loads; the raw `~` form would not.
+                    @test nrow(load_data("~/tilde.csv")) == 2
+                    # PowerShell users type the native separator.
+                    Sys.iswindows() && @test nrow(load_data("~\\tilde.csv")) == 2
+                finally
+                    rm(csv_path; force=true)
+                end
+            end
+        end
+        # `~` is expanded before the not-found check, so the message shows the real path.
+        e = try; load_data("~/definitely-not-a-real-file-9f3a.csv"); nothing
+            catch err; err end
+        @test e isa CliError
+        @test contains(e.message, homedir())
+        # `~user` is unimplemented in Base and throws an untyped ArgumentError; the
+        # loader must leave it alone and report the usual typed not-found instead.
+        e2 = try; load_data("~nosuchuser/definitely-not-a-real-file-9f3a.csv"); nothing
+             catch err; err end
+        @test e2 isa CliError
+        @test e2.code == "data/file-not-found"
+    end
+
+    @testset "parse_dataset_name" begin
+        # Both separator spellings and an optional leading ':' resolve to the MEMs symbol
+        for form in (":fred-md", ":fred_md", "fred-md", "fred_md", "FRED_MD", " fred_md ")
+            @test parse_dataset_name(form) == :fred_md
+        end
+        @test parse_dataset_name("pwt") == :pwt
+        @test parse_dataset_name(":nile") == :nile
+
+        # Unknown → typed data/unknown-dataset (never an untyped exit-1 ArgumentError)
+        e = try; parse_dataset_name("frd_md"); nothing catch err; err end
+        @test e isa CliError
+        @test e.code == "data/unknown-dataset"
+        @test contains(e.hint, "fred_md")           # nearest-match suggestion
+
+        # :wiot is real but IO-shaped — point at the io family rather than a typo hint
+        e2 = try; parse_dataset_name(":wiot"); nothing catch err; err end
+        @test e2 isa CliError
+        @test e2.code == "data/unknown-dataset"
+        @test contains(e2.hint, "io")
+
+        e3 = try; parse_dataset_name("zzzz"); nothing catch err; err end
+        @test e3 isa CliError
+        @test contains(e3.hint, "data list")
+    end
+
+    @testset "dataset_stem" begin
+        # A ':' dataset ref must not leak into a filename (regression: ':fred-md_clean.csv')
+        @test dataset_stem(":fred-md") == "fred_md"
+        @test dataset_stem(":pwt") == "pwt"
+        @test dataset_stem("data/my file.csv") == "my file"
+        @test dataset_stem("noext") == "noext"
+    end
+
 
     @testset "strict format validation (F18/F19)" begin
         df = DataFrame(a=[1.0], b=[2.0])
@@ -3104,6 +3251,70 @@ using TOML
         @test gmm_empty["weighting"] == "twostep"
     end
 
+    @testset "get_system (SUR/3SLS, C063)" begin
+        cfg = Dict("equations" => [
+                Dict("name" => "consumption", "dep" => "y1", "indep" => ["x1", "x2"]),
+                Dict("dep" => "y2", "indep" => ["x2", "x3"]),
+            ],
+            "instruments" => Dict("common" => ["x1", "x2", "x3"]))
+        sys = get_system(cfg)
+        @test length(sys["equations"]) == 2
+        @test sys["equations"][1]["name"] == "consumption"
+        @test sys["equations"][2]["name"] == "eq2"          # default name
+        @test sys["equations"][1]["dep"] == "y1"
+        @test sys["equations"][1]["indep"] == ["x1", "x2"]
+        @test sys["equations"][1]["instr"] === nothing
+        @test sys["common_instruments"] == ["x1", "x2", "x3"]
+
+        # per-equation instruments
+        sys2 = get_system(Dict("equations" => [
+            Dict("dep" => "y1", "indep" => ["x1"], "instr" => ["z1", "z2"])]))
+        @test sys2["equations"][1]["instr"] == ["z1", "z2"]
+        @test sys2["common_instruments"] === nothing
+
+        # errors: no equations, missing dep/indep, bad types
+        @test_throws CliError get_system(Dict())
+        @test_throws CliError get_system(Dict("equations" => []))
+        @test_throws CliError get_system(Dict("equations" => [Dict("indep" => ["x1"])]))          # no dep
+        @test_throws CliError get_system(Dict("equations" => [Dict("dep" => "y1")]))              # no indep
+        @test_throws CliError get_system(Dict("equations" => [Dict("dep" => "y1", "indep" => [])])) # empty indep
+    end
+
+    @testset "get_garch_midas (GARCH-MIDAS driver, C064a)" begin
+        xlf = get_garch_midas(Dict("garch_midas" => Dict("x_lf" => [0.9, 1.1, 1.3, 1.0])))
+        @test xlf == [0.9, 1.1, 1.3, 1.0]
+        @test eltype(xlf) == Float64
+        @test get_garch_midas(Dict("garch_midas" => Dict("x_lf" => Any[1, 2, 3]))) == [1.0, 2.0, 3.0]  # int coercion
+        # errors: missing section, missing key, non-array, empty, non-numeric
+        @test_throws CliError get_garch_midas(Dict())
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("foo" => 1)))
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => 3.0)))
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => Float64[])))
+        @test_throws CliError get_garch_midas(Dict("garch_midas" => Dict("x_lf" => ["a", "b"])))
+    end
+
+    @testset "get_vecm_restriction (VECM restriction tests, C071)" begin
+        # Valid 2×1 H (row-major arrays-of-arrays) → Matrix{Float64}
+        H = get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [[1.0], [-1.0]])), "H")
+        @test size(H) == (2, 1)
+        @test H == reshape([1.0, -1.0], 2, 1)
+        @test eltype(H) == Float64
+        # Int coercion + 2×2 A
+        A = get_vecm_restriction(Dict("vecm_restriction" => Dict("A" => Any[[1, 0], [0, 1]])), "A")
+        @test size(A) == (2, 2)
+        @test A == [1.0 0.0; 0.0 1.0]
+        # Distinct keys resolve independently
+        cfg = Dict("vecm_restriction" => Dict("H" => [[1.0], [1.0]], "b" => [[2.0], [3.0]]))
+        @test get_vecm_restriction(cfg, "b") == reshape([2.0, 3.0], 2, 1)
+        # errors: missing section, missing key, non-array, empty, ragged rows, non-numeric
+        @test_throws CliError get_vecm_restriction(Dict(), "H")                                          # config/missing
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("A" => [[1.0]])), "H") # config/missing-key
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => 3.0)), "H")     # config/type (non-array)
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [])), "H")      # config/type (empty)
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [[1.0], [1.0, 2.0]])), "H") # config/shape (ragged)
+        @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [["a"], ["b"]])), "H")      # config/type (non-numeric)
+    end
+
     @testset "_parse_matrix" begin
         # Valid 2x3 → correct Matrix{Float64}
         mat = _parse_matrix([[1, 2, 3], [4, 5, 6]])
@@ -3407,6 +3618,13 @@ using TOML
         @test result["weighting"] == "optimal"
         @test result["sim_ratio"] == 10
         @test result["burn"] == 200
+        # New M5b keys default to nothing / lags=1 when absent
+        @test result["model"] === nothing
+        @test result["theta0"] === nothing
+        @test result["lags"] == 1
+        @test result["p"] === nothing
+        @test result["lower"] === nothing
+        @test result["upper"] === nothing
     end
 
     @testset "get_smm — defaults" begin
@@ -3415,6 +3633,42 @@ using TOML
         @test result["weighting"] == "two_step"
         @test result["sim_ratio"] == 5
         @test result["burn"] == 100
+        @test result["model"] === nothing
+        @test result["theta0"] === nothing
+        @test result["lags"] == 1
+    end
+
+    @testset "get_smm — model/theta0/lags/bounds" begin
+        cfg = Dict(
+            "smm" => Dict(
+                "model" => "ar1",
+                "theta0" => [0.5, 1.0],
+                "lags" => 2,
+                "lower" => [-0.99, 1.0e-4],
+                "upper" => [0.99, Inf],
+            )
+        )
+        result = get_smm(cfg)
+        @test result["model"] == "ar1"
+        @test result["theta0"] == [0.5, 1.0]
+        @test eltype(result["theta0"]) == Float64
+        @test result["lags"] == 2
+        @test result["lower"] == [-0.99, 1.0e-4]
+        @test result["upper"][2] == Inf
+    end
+
+    @testset "get_smm — arp order p" begin
+        cfg = Dict("smm" => Dict("model" => "arp", "p" => 3,
+                                 "theta0" => [0.3, 0.2, 0.1, 1.0]))
+        result = get_smm(cfg)
+        @test result["model"] == "arp"
+        @test result["p"] == 3
+        @test length(result["theta0"]) == 4
+    end
+
+    @testset "get_smm — bad theta0 type → config/type" begin
+        cfg = Dict("smm" => Dict("theta0" => ["a", "b"]))
+        @test_throws CliError get_smm(cfg)
     end
 end
 
@@ -3501,10 +3755,10 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test "method" in opt_names
     @test "weighting" in opt_names
 
-    # bayes is a NodeCommand with 8 sub-leaves
+    # bayes is a NodeCommand with 13 sub-leaves (8 core + 5 diagnostics, C073)
     bayes_node = dsge_node.subcmds["bayes"]
     @test bayes_node isa NodeCommand
-    @test length(bayes_node.subcmds) == 8
+    @test length(bayes_node.subcmds) == 13
     @test haskey(bayes_node.subcmds, "estimate")
     @test haskey(bayes_node.subcmds, "irf")
     @test haskey(bayes_node.subcmds, "fevd")
@@ -3513,6 +3767,12 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(bayes_node.subcmds, "compare")
     @test haskey(bayes_node.subcmds, "predictive")
     @test haskey(bayes_node.subcmds, "hd")
+    # C073 Bayesian diagnostics
+    @test haskey(bayes_node.subcmds, "mcmc-diag")
+    @test haskey(bayes_node.subcmds, "identification")
+    @test haskey(bayes_node.subcmds, "learning-rate")
+    @test haskey(bayes_node.subcmds, "overlap")
+    @test haskey(bayes_node.subcmds, "marginal-lik")
 
     # All bayes sub-leaves are LeafCommands
     for (name, cmd) in bayes_node.subcmds
@@ -3609,14 +3869,16 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 31 primary leaves + 1 snake alias (gjr_garch) = 32 keys (C044)
-    @test length(est_node.subcmds) == 32
+    # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
+    @test length(est_node.subcmds) == 66
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
-    for key in ["var", "bvar", "lp", "arima", "gmm", "static", "dynamic", "gdfm",
+    @test haskey(est_node.subcmds, "arfima")
+    for key in ["var", "bvar", "lp", "arima", "arfima", "gmm", "static", "dynamic", "gdfm",
                  "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml",
-                 "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit"]
+                 "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit",
+                 "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas"]
         @test haskey(est_node.subcmds, key)
         @test est_node.subcmds[key] isa LeafCommand
     end
@@ -3768,9 +4030,9 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 14 primary + gjr_garch alias (C044)
+    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 15
+    @test length(fc_node.subcmds) == 18
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
@@ -3803,8 +4065,14 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 41 primary + 2 snake aliases (C044)
-    @test length(test_node.subcmds) == 43
+    # 58 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+    @test length(test_node.subcmds) == 60
+    @test haskey(test_node.subcmds, "gph")
+    @test haskey(test_node.subcmds, "local-whittle")
+    # C071: nested VECM restriction-test node
+    @test haskey(test_node.subcmds, "vecm")
+    @test test_node.subcmds["vecm"] isa NodeCommand
+    @test length(test_node.subcmds["vecm"].subcmds) == 5
 
     # Andrews structural break test
     @test haskey(test_node.subcmds, "andrews")

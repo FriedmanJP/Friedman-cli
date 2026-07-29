@@ -49,7 +49,7 @@ friedman did estimate panel.csv --outcome=y --treatment=treat --method=cs \
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** ATT table (event time, ATT, SE, CI bounds) + overall ATT summary. Callaway-Sant'Anna (`cs`) additionally outputs group-time ATT matrix.
+**Output:** ATT table (event time, ATT, SE, CI bounds) + overall ATT summary. Callaway-Sant'Anna (`cs`) additionally outputs group-time ATT matrix. This is a hand-built, domain-specific summary — a deliberate exception to the [C051](irf.md#output-format-c051) tidy `long_table`/`DataFrame(model)` conventions used elsewhere: `DIDResult` is an event-time ATT report, not an array-valued IRF/forecast or a per-observation coefficient table.
 
 ### DID Methods
 

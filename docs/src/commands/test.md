@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, and multicollinearity (VIF). 41 subcommands plus nested `var` (2) and `pvar` (4) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 54 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -86,6 +86,156 @@ friedman test np data.csv --column=1 --trend=constant
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
+## Long-Memory (Fractional Integration)
+
+Semiparametric estimators of the fractional integration order `d`. Both test
+H₀: d = 0 (no long memory) with a two-sided normal z. `d > 0` indicates long-memory /
+fractional integration; the estimator is complementary to `estimate arfima`.
+
+### test gph
+
+Geweke & Porter-Hudak (1983) log-periodogram regression estimator of `d`.
+
+```bash
+friedman test gph data.csv --column=1
+friedman test gph data.csv --bandwidth=32 --trim=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--bandwidth` | `-m` | Int | ⌊√T⌋ | Number of Fourier frequencies |
+| `--trim` | | Int | 0 | Trim the first N frequencies |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `d` estimate, standard error, z-statistic, p-value (H₀: d = 0),
+bandwidth, trim, observations.
+
+### test local-whittle
+
+Robinson (1995) local Whittle semiparametric estimator of `d`.
+
+```bash
+friedman test local-whittle data.csv --column=1
+friedman test local-whittle data.csv --bandwidth=32
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--bandwidth` | `-m` | Int | ⌊√T⌋ | Number of Fourier frequencies |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `d` estimate, standard error, z-statistic, p-value (H₀: d = 0),
+bandwidth, observations, minimized objective R(d̂).
+
+## Randomness & Nonlinearity
+
+### test variance-ratio
+
+Lo-MacKinlay variance-ratio test with the Chow-Denning joint (multiple-horizon) statistic. H0: the series follows a random walk (all variance ratios equal 1). A rejection indicates mean reversion or momentum. Per-horizon rows carry heteroskedasticity-robust `z*` statistics; the headline is the robust Chow-Denning `max|z*|`.
+
+```bash
+friedman test variance-ratio data.csv --column=1
+friedman test variance-ratio data.csv --horizons=2,5,10,20
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--horizons` | | String | `2,4,8,16` | Comma-separated holding periods q (each ≥ 2) |
+| `--method` | | String | `lomackinlay` | Variance-ratio method |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Per-horizon table (`horizon|variance_ratio|z_star|p_value`) + joint Chow-Denning statistic and p-value.
+
+### test bds
+
+BDS test (Brock-Dechert-Scheinkman) for independence / nonlinear dependence in a series (often applied to model residuals). H0: the series is iid. Reported per embedding dimension.
+
+```bash
+friedman test bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--max-dim` | | Int | 6 | Maximum embedding dimension (tests m = 2..max-dim) |
+| `--eps-frac` | | Float | 0.7 | Distance threshold ε as a fraction of the series SD |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** Per-dimension table (`embed_dim|statistic|p_value`); the decision uses the smallest p-value across dimensions.
+
+### test hansen-linearity
+
+Hansen (1996) **sup-LM / sup-Wald test of linearity** against a two-regime SETAR threshold alternative, with fixed-regressor-bootstrap p-values. H0 is that the series is linear (`β₁ = β₂`, no threshold); a **low p-value rejects** linearity in favour of a two-regime self-exciting threshold model. Because the threshold `γ` is unidentified under the null (the Davies problem), the distribution is nonstandard and p-values come from Hansen's fixed-regressor bootstrap, not a χ². The handler builds the SETAR design internally by fitting `estimate_setar(y, p, d; linearity=true)` and surfacing its attached test (identical numbers to a standalone build). This is the same test folded into [`estimate setar`](estimate.md#estimate-setar)'s diagnostics, exposed here as a first-class test leaf.
+
+```bash
+friedman test hansen-linearity y.csv --column=1 --p=1 --d=1
+friedman test hansen-linearity y.csv --p=2 --d=1 --reps=2000
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | AR order for the SETAR design (≥ 1) |
+| `--d` | | Int | 1 | Delay lag for the threshold variable `q = y[t−d]` (≥ 1) |
+| `--trim` | | Float | 0.15 | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | | Int | 1000 | Fixed-regressor bootstrap replications (≥ 1) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a kv block (`sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`, `reps`, `trim`, `n_grid`) plus a decision line. A too-short series (too few observations for the SETAR design) surfaces as a typed `data/invalid`, never an uncaught internal error.
+
+### test star-linearity
+
+Luukkonen–Saikkonen–Teräsvirta **LM3 test of linearity** against a smooth-transition (STAR) alternative. The auxiliary regression augments the linear AR with the interaction blocks `z̃ₜ·sₜ`, `z̃ₜ·sₜ²`, `z̃ₜ·sₜ³` (the third-order Taylor expansion of the transition weight around `γ = 0`); the LM statistic `n·R² ∼ χ²(3p)` and its better-sized F-form `F(3p, n−4p−1)` test H0 = linearity. A **low p-value rejects** linearity in favour of smooth-transition nonlinearity — the natural companion to [`estimate star`](estimate.md#estimate-star). The transition variable is self-exciting (`sₜ = y_{t−d}`) by default; supply an external series with `--transition-col`.
+
+```bash
+friedman test star-linearity y.csv --column=1 --p=1 --d=1
+friedman test star-linearity y.csv --p=2 --transition-col=3
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | 1 | AR order (≥ 1) |
+| `--d` | | Int | 1 | Delay lag for the self-exciting transition var (≥ 1) |
+| `--transition-col` | | Int | 0 | Column of an external transition var s (0 = self-exciting) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a kv block (`stat`, `pvalue`, `fstat`, `fpvalue`, `df` = `3p`) plus a decision line. The test is deterministic (no bootstrap). Every option is validated up-front (`usage/invalid`); a constant external transition variable or too-short series surfaces as a typed `data/invalid`/`data/shape`, never an uncaught internal error.
+
+## Instrumental-Variable Diagnostics
+
+### test weak-instrument
+
+Stock-Yogo weak-instrument diagnostics for a cross-section 2SLS regression. Uses the same data layout as [`estimate iv`](estimate.md#estimate-iv): `--endogenous` names the endogenous regressor(s), `--instruments` names the **excluded** instrument(s), and every other numeric column (besides `--dep`) is an exogenous regressor/instrument (include a `const` column for an intercept). Fits `estimate_iv` and reports the excluded-instrument first-stage F, the Cragg-Donald F (the multi-endogenous statistic), the Kleibergen-Paap robust rk-Wald F, and the Stock-Yogo 10%-maximal-bias critical value.
+
+The verdict compares the Cragg-Donald F (or the first-stage partial F when a single endogenous regressor) against the Stock-Yogo 10% critical value — or, when no critical value is tabulated, the Staiger-Stock rule-of-thumb `--threshold` (default 10). Instruments are flagged **weak** when the statistic falls below that bound.
+
+```bash
+friedman test weak-instrument data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
+friedman test weak-instrument data.csv --dep=y --endogenous=x_endog --instruments=z1,z2 --threshold=10
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--endogenous` | | String | (required) | Comma-separated endogenous regressor column names |
+| `--instruments` | | String | (required) | Comma-separated **excluded** instrument column names |
+| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3` |
+| `--threshold` | | Float | 10.0 | First-stage F rule-of-thumb (used only if no Stock-Yogo critical value) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a diagnostics kv block (`n_endogenous`, `n_excluded_instruments`, `first_stage_f`, `cragg_donald_f`, `kleibergen_paap_f`, `stock_yogo_10pct_cv` or `threshold`, `weak`) plus a decision line (H0: instruments are weak — a large F rejects it).
+
 ## Cointegration
 
 ### test johansen
@@ -104,6 +254,31 @@ friedman test johansen data.csv --lags=2 --trend=constant
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Trace statistics table, max eigenvalue statistics table, estimated cointegration rank.
+
+### VECM Cointegration Restriction Tests
+
+`test vecm beta | alpha | weak-exog | known-beta | joint` are Johansen likelihood-ratio tests of linear restrictions on the cointegrating structure of a VECM. Each first fits a VECM to the data (same options as `estimate vecm`: `--lags`, `--rank`, `--deterministic`, `--method`, `--significance`) — the fitted cointegrating rank must be **≥ 1** (else `data/no-cointegration`) — then tests the restriction. H0 is that the restriction holds, so a **low p-value rejects** the imposed restriction. Output is a kv block (`LR statistic`, `df`, `p-value`, `rank`, `converged`, restriction description) plus a decision line.
+
+The restriction matrices are supplied via `--config` in a `[vecm_restriction]` TOML section, given **row-major** (an array of equal-length numeric rows). See [Configuration](../configuration.md).
+
+| Leaf | Restriction | Config matrix | df |
+|------|-------------|---------------|----|
+| `test vecm beta` | β = Hφ (β lies in span(H)) | `H` (p×s, s ≥ r) | r(p−s) |
+| `test vecm alpha` | α = Aψ (α lies in span(A)) | `A` (p×a, a ≥ r) | r(p−a) |
+| `test vecm known-beta` | β = b (fully specified) | `b` (p×r, exactly r cols) | r(p−r) |
+| `test vecm joint` | β = Hφ **and** α = Aψ | both `H` and `A` | r(p−s)+r(p−a) |
+| `test vecm weak-exog` | weak exogeneity of `--vars` | — (uses `--vars`, not config) | r·\|vars\| |
+
+```bash
+# β restriction (H in the config)
+friedman test vecm beta data.csv --config restr.toml --rank=1
+
+# weak exogeneity of the policy rate (by name or index), no config needed
+friedman test vecm weak-exog data.csv --vars rate --rank=1
+friedman test vecm joint data.csv --config restr.toml
+```
+
+Common options (all 5 leaves): `--lags`/`-p` (Int, 2), `--rank`/`-r` (String, `auto`), `--deterministic` (`none`|`constant`|`trend`), `--method` (`johansen`|`engle_granger`), `--significance` (Float64, 0.05), `--format`/`-f`, `--output`/`-o`. The four matrix-based leaves take `--config`; `weak-exog` takes `--vars` (comma-separated indices or names) instead.
 
 ## VAR Diagnostics
 
@@ -230,6 +405,45 @@ friedman test ljung_box data.csv --column=1 --lags=10
 |--------|-------|------|---------|-------------|
 | `--column` | `-c` | Int | 1 | Column index (1-based) |
 | `--lags` | `-p` | Int | 10 | Number of lags |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+## Volatility Model Diagnostics
+
+`test sign-bias` and `test nyblom` first fit a univariate volatility model to the chosen return column, then test its standardized residuals / parameters. `--model` selects the volatility model to fit and is restricted to `garch`, `egarch`, `gjr-garch` — the three that share the `(p,q)` estimator signature and are supported by both diagnostics.
+
+### test sign-bias
+
+Engle-Ng (1993) sign-bias and size-bias test for asymmetry left in a fitted volatility model. H0: no remaining asymmetry (a rejection suggests a leverage/asymmetric model such as EGARCH or GJR-GARCH). Reports the sign bias, negative/positive size bias `t`-statistics and the joint χ²(3) test.
+
+```bash
+friedman test sign-bias data.csv --column=1 --model=garch
+friedman test sign-bias data.csv --model=egarch --p=1 --q=1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Return series column (1-based) |
+| `--model` | | String | `garch` | Volatility model to fit: `garch`, `egarch`, `gjr-garch` |
+| `--p` | | Int | 1 | GARCH order p |
+| `--q` | | Int | 1 | ARCH order q |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+### test nyblom
+
+Nyblom (1989) / Hansen (1992) parameter-stability test against the alternative that parameters follow a martingale. H0: stable parameters. Reports per-parameter individual `Lᵢ` statistics and the joint `L_C` against the Hansen (1992) 5% critical values (a critical-value test — no p-value). Supported for `garch`, `egarch`, `gjr-garch` fits.
+
+```bash
+friedman test nyblom data.csv --column=1 --model=garch
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Return series column (1-based) |
+| `--model` | | String | `garch` | Volatility model to fit: `garch`, `egarch`, `gjr-garch` |
+| `--p` | | Int | 1 | GARCH order p |
+| `--q` | | Int | 1 | ARCH order q |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
@@ -386,6 +600,132 @@ friedman test pvar stability data.csv --id-col=country --time-col=year --lags=2
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Companion matrix eigenvalues with moduli, stability verdict, max modulus.
+
+## Panel Stationarity & Cointegration
+
+`test hadri` tests panel stationarity from a wide matrix (one column per unit); `test pedroni | kao | westerlund` test panel cointegration from a long-format panel (`id`, `time`, and variable columns — like the panel regression / Panel VAR commands). The three cointegration tests share the same `--id-col`/`--time-col`/`--dep`/`--indep` interface and report a `statistic|value|p_value` table (H0: no cointegration; any p-value < 0.05 rejects). `--id-col`/`--time-col` default to the first/second columns; `--dep` defaults to the first variable and `--indep` to the rest.
+
+### test hadri
+
+Hadri (2000) LM test for panel stationarity. H0: all units are (trend-)stationary; a rejection indicates at least one unit has a unit root. Takes a wide numeric matrix (columns = units).
+
+```bash
+friedman test hadri panel_wide.csv --deterministic=constant
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--deterministic` | | String | `constant` | `constant` or `trend` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `statistic`, `p-value`, `n_units`, `observations`.
+
+### test pedroni
+
+Pedroni residual-based panel cointegration test (seven panel/group statistics).
+
+```bash
+friedman test pedroni panel.csv --id-col=country --time-col=year --dep=y --indep=x1,x2 --trend=constant
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--id-col` | | String | (1st col) | Panel unit identifier column |
+| `--time-col` | | String | (2nd col) | Time period column |
+| `--dep` | | String | (1st var) | Dependent variable |
+| `--indep` | | String | (rest) | Regressors (comma-separated) |
+| `--trend` | | String | `constant` | `constant` or `trend` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+### test kao
+
+Kao residual-based panel cointegration test (DF/ADF-type statistics). Same interface as `test pedroni` but without `--trend`.
+
+```bash
+friedman test kao panel.csv --dep=y --indep=x
+```
+
+### test westerlund
+
+Westerlund error-correction panel cointegration test (Gt/Ga/Pt/Pa statistics). Same interface as `test pedroni`.
+
+```bash
+friedman test westerlund panel.csv --dep=y --indep=x --trend=constant
+```
+
+## ARDL / NARDL Tests
+
+### test ardl-bounds
+
+**Pesaran-Shin-Smith (2001) bounds test** for the existence of a level (long-run) relationship. Fits a single-equation ARDL (same loader/options as [`estimate ardl`](estimate.md#estimate-ardl)) then computes the joint bounds `F`-statistic (all error-correction level terms zero) and the Dickey-Fuller-type `t`-statistic on the lagged `y` level.
+
+**No p-value.** The null distributions are non-standard functionals of Brownian motion, so the statistics are compared **only** to the tabulated I(0)/I(1) critical-value bounds: above the I(1) upper bound ⇒ `cointegrated`; below the I(0) lower bound ⇒ `not_cointegrated`; in between ⇒ `inconclusive`. The command renders the decision **symbols** plus the bracketing bounds — it never produces a p-value or calls `interpret_test_result`. The `t`-bounds are undefined for cases II and IV (restricted deterministic) and render as `"undefined"` (`t_decision = undefined`).
+
+```bash
+friedman test ardl-bounds data.csv --dep=y --p=1 --q=1 --case=3 --level=0.05
+friedman test ardl-bounds data.csv --dep=y --p=auto --q=auto --case=2
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st numeric) | Dependent column |
+| `--p` / `--q` | | String | `auto` | ARDL AR / DL orders (`auto`, an integer, or a per-regressor list for `--q`) |
+| `--max-p` / `--max-q` | | Int | `4` | Grid bounds for `auto` selection |
+| `--ic` | | String | `aic` | `aic`, `bic` |
+| `--trend` | | String | `none` | Informational trend label |
+| `--case` | | Int | `3` | PSS deterministic case 1..5 |
+| `--level` | | Float64 | `0.05` | Decision level: one of `0.10`, `0.05`, `0.025`, `0.01` |
+| `--cv-source` | | String | `pss` | Critical-value source (only `pss`; `narayan` finite-sample bounds are not bundled) |
+| `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
+
+**Output:** a bounds table (`bound|statistic|i0_lower|i1_upper|decision` — one row each for `F` and `t`; **no `p_value` column**) + a summary (`f_stat`, `t_stat`, `k`, `case`, `cv_source`, `level`, `f_decision`, `t_decision`, `nobs`) and a decision line keyed off the F-bound. `ARDLBoundsTest` is not a CLI-registered test type, so the rendering is hand-built. A bad `--level`/`--case` or `--cv-source narayan` is a usage error (exit 2).
+
+### test nardl-symmetry
+
+Long- and short-run **symmetry Wald tests** for a nonlinear ARDL, one row per asymmetric regressor. Fits a NARDL (same loader/options as [`estimate nardl`](estimate.md#estimate-nardl)) then tests `H₀: θ⁺ = θ⁻` (long-run, a delta-method Wald whose Jacobian carries the `1 − Σφ̂` denominator) and `H₀: Σ_ℓ π⁺_ℓ = Σ_ℓ π⁻_ℓ` (short-run, a linear Wald on the ECM differenced-term coefficients). Each single-restriction statistic is reported as both a `χ²(1)` and an `F(1, n−K)` with the matching p-value — rejecting is evidence of asymmetric adjustment.
+
+```bash
+friedman test nardl-symmetry data.csv --dep=y --asymmetric=all --p=1 --q=1
+friedman test nardl-symmetry data.csv --dep=y --asymmetric=1,3
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st numeric) | Dependent column |
+| `--asymmetric` | | String | `all` | `all` or comma-separated 1-based regressor indices to split |
+| `--p` / `--q` | | String | `auto` | ARDL AR / DL orders |
+| `--max-p` / `--max-q` | | Int | `4` | Grid bounds |
+| `--ic` | | String | `aic` | `aic`, `bic` |
+| `--case` | | Int | `3` | PSS deterministic case 1..5 |
+| `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
+
+**Output:** a tidy multi-row table `regressor|theta_pos|theta_neg|lr_stat|lr_p_chi2|lr_p_f|sr_stat|sr_p_chi2|sr_p_f` + a summary (`df`, `dof_resid`, `n_asym`) and an interpretation of the long-run test on the first regressor. Unlike the bounds test, this test HAS p-values (χ² & F).
+
+### test pmg-hausman
+
+**PMG Hausman selection test** for dynamic heterogeneous panels (Pesaran, Shin & Smith 1999). Fits the same long-format panel **twice** — the estimator efficient under `H₀` (`--efficient=pmg` or `dfe`) and the always-consistent Mean Group — via the same loader/options as [`estimate pmg`](estimate.md#estimate-pmg), then runs the generalized Hausman quadratic form on the common long-run coefficients `θ`. `H₀` is **long-run homogeneity**: failing to reject supports the pooled (PMG) long-run vector; a low p-value favours the unrestricted Mean Group estimator.
+
+```bash
+friedman test pmg-hausman panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2
+friedman test pmg-hausman panel.csv --dep=y --indep=x1,x2 --efficient=dfe
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--id-col` | | String | (1st column) | Panel group id column |
+| `--time-col` | | String | (2nd column) | Panel time column |
+| `--dep` | | String | (1st variable) | Dependent panel variable |
+| `--indep` | | String | (all others) | Long-run regressors, comma-separated |
+| `--efficient` | | String | `pmg` | Estimator efficient under `H₀`: `pmg`, `dfe` (consistent is always MG) |
+| `--trend` | | String | `constant` | Per-unit EC deterministics: `none`, `constant`, `trend` |
+| `--p` / `--q` | | Int | `1` / `1` | ARDL AR / DL orders |
+| `--maxiter` | | Int | `100` | PMG outer-loop max iterations |
+| `--tol` | | Float64 | `1e-8` | PMG outer-loop convergence tolerance |
+| `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
+
+**Output:** a standard test summary (`test_name`, `statistic`, `pvalue`, `df`, `description`) with an interpretation line. Unlike [`test ardl-bounds`](#test-ardl-bounds), this test HAS a p-value.
 
 ## Advanced Unit Root Tests
 

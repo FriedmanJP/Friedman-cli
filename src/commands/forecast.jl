@@ -108,6 +108,64 @@ function forecast_specs()::Vector{CommandSpec}
             category="forecast",
             handler=wrap_legacy(_forecast_arima),
         ),
+        # C065a: SETAR bootstrap-simulation forecast. Re-estimates the SETAR then simulates
+        # `forecast(::ThresholdModel, h)` → ThresholdForecast (AbstractForecastResult → tidy
+        # long_table). `forecast` is SETAR-only upstream, but `estimate_setar` always sets
+        # is_setar=true, so no extra guard; `--transition-col` is NOT offered (that path exists
+        # only for STAR external-s models, which are not forecastable). `--ci-level` MUST be
+        # exactly 0.90/0.95/0.99 (Hansen 2000 tabulation used by the re-estimated threshold CI).
+        # NO `--plot`/`--plot-save`: MEMs 0.7.0 ships NO `plot_result(::ThresholdForecast)` recipe
+        # (only `ThresholdModel`/`STARModel` + the 8 registered forecast types are plottable), so
+        # advertising the flag would drive `_maybe_plot` into an uncaught MethodError → exit 1. Per
+        # the C051 convention only plot-capable leaves add the flags; revisit if MEMs adds one.
+        CommandSpec(
+            path=["forecast", "setar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (≥ 1)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_setar, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_setar),
+        ),
+        # C065b: STAR bootstrap-simulation forecast. Re-estimates a SELF-EXCITING STAR then
+        # simulates `forecast(::STARModel, h)` → STARForecast (AbstractForecastResult → tidy
+        # long_table). `--transition-col` is NOT offered: `forecast(::STARModel)` throws unless
+        # the model is self-exciting (sₜ = y[t-d]), so external-s STARs are not forecastable.
+        # NO `--plot`/`--plot-save`: MEMs 0.7.0 ships NO `plot_result(::STARForecast)` recipe
+        # (only `ThresholdModel`/`STARModel` + the 8 registered forecast types are plottable), so
+        # advertising the flag would drive `_maybe_plot` into an uncaught MethodError → exit 1
+        # (the identical gap fixed for `forecast setar`). Per the C051 convention only plot-capable
+        # leaves add the flags; revisit if MEMs adds a STARForecast recipe.
+        CommandSpec(
+            path=["forecast", "star"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1", "lstr2", "estr", "auto"]),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (≥ 1)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_star, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_star),
+        ),
         CommandSpec(
             path=["forecast", "static"],
             summary="Path to CSV data file",
@@ -212,12 +270,111 @@ function forecast_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:forecast_favar, description="Path to CSV data file")],
             category="forecast",
             handler=wrap_legacy(_forecast_favar),
+        ),
+        # ── forecast evaluate: forecast evaluation & combination (C072, M5c) ──
+        # Nested depth-3 sub-node. Uniform input: a CSV + --actual <col> +
+        # --forecasts <c1,c2,...>; the handler forms errors / f_adj / the matrix.
+        CommandSpec(
+            path=["forecast", "evaluate", "metrics"],
+            summary="Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil decomposition",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=1)"),
+                OptionSpec(name="seasonal-period", type=Int, default=1, description="Seasonal lag for MASE naive-forecast scaling"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_accuracy_metrics, description="Point accuracy metrics, one row per forecast")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_metrics),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "dm"],
+            summary="Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
+                OptionSpec(name="loss", type=String, default="se", choices=["se","ad"], description="Loss: se (squared) | ad (absolute)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
+                OptionSpec(name="alternative", type=String, default="two-sided", choices=["two-sided","less","greater"], description="Alternative hypothesis"),
+            ], OUTPUT_OPTIONS),
+            flags=[FlagSpec(name="no-hln", description="Disable the Harvey-Leybourne-Newbold small-sample correction (use N(0,1))")],
+            tables=[TableSpec(name=:diebold_mariano_test, description="DM statistic / p-value")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_dm),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "clark-west"],
+            summary="Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: small then big)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Two forecast columns: small (restricted), big (unrestricted)"),
+                OptionSpec(name="horizon", short="h", type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
+                OptionSpec(name="alternative", type=String, default="greater", choices=["two-sided","less","greater"], description="Alternative hypothesis"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:clark_west_test, description="CW statistic / one-sided p-value")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_clark_west),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "mincer-zarnowitz"],
+            summary="Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="One forecast column name (required)"),
+                OptionSpec(name="lags", type=Int, default=0, description="Newey-West HAC truncation lag (0 = White)"),
+                OptionSpec(name="kernel", type=String, default="bartlett", choices=["bartlett","parzen","quadratic_spectral","tukey_hanning"], description="HAC kernel"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:mincer_zarnowitz_test, description="a, b, HAC SEs, joint Wald/F")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_mincer_zarnowitz),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "encompassing"],
+            summary="Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
+                OptionSpec(name="lags", type=Int, default=0, description="Newey-West HAC truncation lag (0 = White)"),
+                OptionSpec(name="kernel", type=String, default="bartlett", choices=["bartlett","parzen","quadratic_spectral","tukey_hanning"], description="HAC kernel"),
+            ], OUTPUT_OPTIONS),
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_encompassing_test, description="b1, b2, t-stat on b2")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_encompassing),
+        ),
+        CommandSpec(
+            path=["forecast", "evaluate", "combine"],
+            summary="Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 forecasts)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=vcat([
+                OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
+                OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=2)"),
+                OptionSpec(name="method", type=String, default="equal", choices=["equal","bates-granger","granger-ramanathan"], description="Combination method"),
+            ], OUTPUT_OPTIONS),
+            flags=[FlagSpec(name="emit-series", description="Also emit the combined forecast series (index|combined)")],
+            tables=[TableSpec(name=:forecast_combination_weights, description="model | weight | mse")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_eval_combine),
         )
     ]
 end
 
 function register_forecast_commands!()
-    specs = with_config_ergonomics(with_model_option(forecast_specs()))
+    all_specs = forecast_specs()
+    # The `forecast evaluate` leaves are model-agnostic (plain CSV columns) and take
+    # no model handle — don't inject --model onto them, or a stray `--model foo`
+    # would MethodError the handler (exit 1) instead of a clean unknown-option usage error.
+    is_eval(s) = length(s.path) >= 2 && s.path[2] == "evaluate"
+    specs = with_config_ergonomics(vcat(
+        with_model_option(filter(!is_eval, all_specs)),
+        filter(is_eval, all_specs)))
     register!(specs)
     return build_node("forecast", specs; description="Forecasting")
 end
@@ -231,73 +388,32 @@ function _forecast_var(; data::String="", lags=nothing, horizons::Int=12,
                         plot::Bool=false, plot_save::String="",
                         model=nothing)
     if isnothing(model)
-        model, Y, varnames, p = _load_and_estimate_var(data, lags)
+        model, _, _, p = _load_and_estimate_var(data, lags)
     else
-        varnames = model.varnames
         p = model.p
-        Y = model.Y
     end
-    n = size(Y, 2)
+
+    # C051: render the forecast (point + CI) through MEMs' uniform tidy long_table
+    # (horizon | variable | value | lower | upper), replacing the hand-built wide table
+    # and the hand-rolled companion-matrix MSE. MEMs' symbol is :analytic (not :analytical).
+    ci_sym = ci_method == "bootstrap" ? :bootstrap :
+             ci_method == "none"      ? :none : :analytic
 
     _status("Computing VAR($p) forecast: horizons=$horizons, confidence=$confidence, ci=$ci_method")
     _status()
 
-    # Bootstrap CI branch
-    if ci_method == "bootstrap"
-        fc_result = forecast(model, horizons; ci_method=:bootstrap, reps=500, conf_level=confidence)
-        fc_mat = point_forecast(fc_result)
-        ci_lo = lower_bound(fc_result)
-        ci_hi = upper_bound(fc_result)
-        fc_df = DataFrame()
-        fc_df.horizon = 1:horizons
-        for (vi, vname) in enumerate(varnames)
-            fc_df[!, vname] = fc_mat[:, vi]
-            fc_df[!, "$(vname)_lower"] = ci_lo[:, vi]
-            fc_df[!, "$(vname)_upper"] = ci_hi[:, vi]
-        end
-        output_result(fc_df; format=Symbol(format), output=output,
-                      title="VAR($p) Forecast (h=$horizons, bootstrap $(Int(round(confidence*100)))% CI)")
-        _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
-        return
-    end
+    fc_kw = ci_sym == :bootstrap ?
+        (; ci_method=:bootstrap, reps=500, conf_level=confidence) :
+        (; ci_method=ci_sym, conf_level=confidence)
+    fc_result = forecast(model, horizons; fc_kw...)
+    fc_df = long_table(fc_result)
 
-    B = coef(model)
-    forecasts = _var_forecast_point(B, Y, p, horizons)
-
-    # Forecast error variance from MA(inf) representation
-    Sigma = model.Sigma
-    alpha = 1.0 - confidence
-    z = quantile_normal(1.0 - alpha / 2.0)
-
-    comp = companion_matrix(coef(model), n, p)
-    n_comp = size(comp, 1)
-    J = zeros(n, n_comp)
-    J[1:n, 1:n] = I(n)
-
-    mse = zeros(horizons, n)
-    Phi_power = Matrix{Float64}(I(n_comp))
-    cumulative_mse = zeros(n, n)
-    for h in 1:horizons
-        if h > 1
-            Phi_power = Phi_power * comp
-        end
-        Phi_h = J * Phi_power * J'
-        cumulative_mse += Phi_h * Sigma * Phi_h'
-        mse[h, :] = diag(cumulative_mse)
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = forecasts[:, vi]
-        se = sqrt.(max.(mse[:, vi], 0.0))
-        fc_df[!, "$(vname)_lower"] = forecasts[:, vi] .- z .* se
-        fc_df[!, "$(vname)_upper"] = forecasts[:, vi] .+ z .* se
-        fc_df[!, "$(vname)_se"] = se
-    end
-
+    ci_label = ci_sym == :bootstrap ? "bootstrap $(Int(round(confidence*100)))% CI" :
+               ci_sym == :none      ? "point forecast" :
+               "$(Int(round(confidence*100)))% CI"
     output_result(fc_df; format=Symbol(format), output=output,
-                  title="VAR($p) Forecast (h=$horizons, $(Int(round(confidence*100)))% CI)")
+                  title="VAR($p) Forecast (h=$horizons, $ci_label)")
+    _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
 end
 
 # Normal quantile without importing Distributions (Abramowitz & Stegun 26.2.23)
@@ -332,38 +448,11 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
     _status("  Sampler: $sampler, Draws: $draws")
     _status()
 
-    b_vecs, sigmas = MacroEconometricModels.extract_chain_parameters(post)
-    n_draws = size(b_vecs, 1)
-    all_forecasts = zeros(n_draws, horizons, n)
-
-    for d in 1:n_draws
-        model_d = MacroEconometricModels.parameters_to_model(b_vecs[d, :], sigmas[d, :], p, n, Y)
-        B_d = coef(model_d)
-        all_forecasts[d, :, :] = _var_forecast_point(B_d, Y, p, horizons)
-    end
-
-    fc_mean = dropdims(mean(all_forecasts; dims=1); dims=1)
-    fc_q16 = zeros(horizons, n)
-    fc_q50 = zeros(horizons, n)
-    fc_q84 = zeros(horizons, n)
-    for h in 1:horizons
-        for vi in 1:n
-            sorted = sort(all_forecasts[:, h, vi])
-            fc_q16[h, vi] = sorted[max(1, round(Int, 0.16 * n_draws))]
-            fc_q50[h, vi] = sorted[max(1, round(Int, 0.50 * n_draws))]
-            fc_q84[h, vi] = sorted[max(1, round(Int, 0.84 * n_draws))]
-        end
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = fc_q50[:, vi]
-        fc_df[!, "$(vname)_16pct"] = fc_q16[:, vi]
-        fc_df[!, "$(vname)_84pct"] = fc_q84[:, vi]
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: route the posterior forecast through MEMs (→ BVARForecast with the posterior
+    # mean + credible bands) and render its tidy long_table (horizon|variable|value|lower|
+    # upper), replacing the hand-rolled per-draw simulation and quantile computation.
+    fc = forecast(post, horizons; conf_level=0.68)
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)")
 end
 
@@ -396,21 +485,8 @@ function _forecast_lp(; data::String="", shock::Int=1, horizons::Int=12,
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
     shock_name = _shock_name(varnames, shock)
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    n_resp = size(fc.forecast, 2)
-    for vi in 1:n_resp
-        vname = _var_name(varnames, vi)
-        fc_df[!, vname] = fc.forecast[:, vi]
-        if ci_method != "none"
-            fc_df[!, "$(vname)_lower"] = fc.ci_lower[:, vi]
-            fc_df[!, "$(vname)_upper"] = fc.ci_upper[:, vi]
-            fc_df[!, "$(vname)_se"] = fc.se[:, vi]
-        end
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)")
 end
 
@@ -455,16 +531,76 @@ function _forecast_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
     q_sel = ma_order(model)
     label = _model_label(p_sel, d_sel, q_sel)
 
-    fc_df = DataFrame(
-        horizon=1:horizons,
-        forecast=round.(fc.forecast; digits=6),
-        lower=round.(fc.ci_lower; digits=6),
-        upper=round.(fc.ci_upper; digits=6),
-        se=round.(fc.se; digits=6)
-    )
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)")
+end
+
+# ── C065a: SETAR bootstrap forecast ─────────────────────────
+# Re-estimate the SETAR (no attached linearity test — unused here), then simulate
+# `forecast(::ThresholdModel, h)`. Both MEMs calls are try-wrapped → typed CliError via
+# the shared `_nonlinear_error`; every option is guarded up-front → usage/invalid. The
+# ThresholdForecast is an AbstractForecastResult, so it renders via the generic long_table.
+function _forecast_setar(; data::String="", column::Int=1, p::Int=1, d::String="1",
+                          horizons::Int=12, reps::Int=1000, ci_level::Float64=0.95,
+                          format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "forecast setar: --p must be ≥ 1 (got $p)"))
+    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
+        "forecast setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast setar: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast setar: --reps must be ≥ 1 (got $reps)"))
+    d_arg = _parse_setar_delay(d)
+    y, vname = load_univariate_series(data, column)
+    _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+    model = try
+        estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false)
+    catch e
+        throw(_nonlinear_error(e, "SETAR forecast"))
+    end
+    fc = try
+        forecast(model, horizons; reps=reps, level=ci_level)
+    catch e
+        throw(_nonlinear_error(e, "SETAR forecast"))
+    end
+    # ThresholdForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
+    # No _maybe_plot: MEMs ships no plot_result(::ThresholdForecast) recipe (see the CommandSpec note).
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
+end
+
+# ── C065b: STAR bootstrap forecast ──────────────────────────
+# Re-estimate a SELF-EXCITING STAR (s=nothing; `--transition-col` is not offered because
+# external-s STARs are not forecastable), then simulate `forecast(::STARModel, h)`. Both MEMs
+# calls are try-wrapped → typed CliError via the shared `_nonlinear_error`; every option is
+# guarded up-front → usage/invalid. STARForecast <: AbstractForecastResult → generic long_table.
+function _forecast_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
+                         type::String="auto", horizons::Int=12, reps::Int=1000,
+                         ci_level::Float64=0.95, format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "forecast star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "forecast star: --d must be ≥ 1 (got $d)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast star: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast star: --reps must be ≥ 1 (got $reps)"))
+    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
+        "forecast star: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    ttype = Symbol(type)
+    ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
+        "forecast star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+    y, vname = load_univariate_series(data, column)
+    _status("STAR forecast (h=$horizons) [$type]: variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+    model = try
+        estimate_star(y, p; d=d, type=ttype)
+    catch e
+        throw(_nonlinear_error(e, "STAR forecast"))
+    end
+    fc = try
+        forecast(model, horizons; reps=reps, level=ci_level)
+    catch e
+        throw(_nonlinear_error(e, "STAR forecast"))
+    end
+    # STARForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
+    # No _maybe_plot: MEMs ships no plot_result(::STARForecast) recipe (see the CommandSpec note).
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
 end
 
 # ── Factor Model Forecasts ───────────────────────────────
@@ -499,20 +635,8 @@ function _forecast_static(; data::String="", nfactors=nothing, horizons::Int=12,
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = fc.observables[:, vi]
-    end
-
-    if ci_method != "none" && !isnothing(fc.observables_lower)
-        for (vi, vname) in enumerate(varnames)
-            fc_df[!, "$(vname)_lower"] = fc.observables_lower[:, vi]
-            fc_df[!, "$(vname)_upper"] = fc.observables_upper[:, vi]
-        end
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)")
 
     if !isnothing(fc.observables_se)
@@ -555,28 +679,10 @@ function _forecast_dynamic(; data::String="", nfactors=nothing, horizons::Int=12
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    # Reconstruct observables via loadings
-    # fc may be a FactorForecast object, NamedTuple, or raw matrix
-    factor_fc = if hasproperty(fc, :factors)
-        fc.factors
-    elseif fc isa NamedTuple && haskey(fc, :factors)
-        fc.factors
-    else
-        fc
-    end
-    if factor_fc isa AbstractMatrix
-        obs_fc = factor_fc * fm.loadings'
-    else
-        obs_fc = reshape(collect(factor_fc), horizons, r) * fm.loadings'
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = obs_fc[:, vi]
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: render the FactorForecast's observable forecasts through MEMs' tidy
+    # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled
+    # loadings reconstruction.
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)")
 end
 
@@ -617,35 +723,12 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
         varnames = fm.varnames
     end
 
-    # GDFM forecast via AR(1) extrapolation on common component factors
-    common = fm.common_component  # T x N
-    T_obs, N = size(common)
-
-    F_pca = svd(common)
-    factors = F_pca.U[:, 1:r] .* F_pca.S[1:r]'
-    loadings = F_pca.V[:, 1:r]
-
-    obs_fc = zeros(horizons, N)
-    for fi in 1:r
-        f = factors[:, fi]
-        y_ar = f[2:end]
-        x_ar = [ones(length(y_ar)) f[1:end-1]]
-        beta = x_ar \ y_ar
-        f_last = f[end]
-        for h in 1:horizons
-            f_next = beta[1] + beta[2] * f_last
-            obs_fc[h, :] .+= f_next .* loadings[:, fi]
-            f_last = f_next
-        end
-    end
-
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = round.(obs_fc[:, vi]; digits=6)
-    end
-
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: route through MEMs' GDFM forecast (→ FactorForecast) and render its tidy
+    # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled AR(1)
+    # extrapolation on the common-component factors.
+    fc = forecast(fm, horizons)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)")
 
     _status()
@@ -680,21 +763,9 @@ function _forecast_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    for (vi, vname) in enumerate(varnames)
-        fc_df[!, vname] = fc.levels[:, vi]
-    end
-
-    if ci_method != "none" && !isnothing(fc.ci_lower)
-        for (vi, vname) in enumerate(varnames)
-            fc_df[!, "$(vname)_lower"] = fc.ci_lower[:, vi]
-            fc_df[!, "$(vname)_upper"] = fc.ci_upper[:, vi]
-        end
-    end
-
     ci_label = ci_method == "none" ? "" : ", $(Int(round(confidence*100)))% CI"
-    output_result(fc_df; format=Symbol(format), output=output,
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
                   title="VECM Forecast (rank=$r, h=$horizons$ci_label)")
 end
 
@@ -724,19 +795,234 @@ function _forecast_favar(; data::String="", factors=nothing, lags::Int=2,
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
-    pt = point_forecast(fc)
-    lo = lower_bound(fc)
-    hi = upper_bound(fc)
-    n_vars = size(pt, 2)
+    # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="FAVAR Forecast (h=$horizons)")
+end
 
-    fc_df = DataFrame()
-    fc_df.horizon = 1:horizons
-    vnames = panel_forecast ? favar.panel_varnames : favar.varnames
-    for v in 1:n_vars
-        vname = v <= length(vnames) ? vnames[v] : "var_$v"
-        fc_df[!, vname] = round.(pt[:, v]; digits=6)
-        fc_df[!, "$(vname)_lower"] = round.(lo[:, v]; digits=6)
-        fc_df[!, "$(vname)_upper"] = round.(hi[:, v]; digits=6)
+# ── forecast evaluate: forecast evaluation & combination (C072, M5c) ──
+# Wraps the MEMs `fceval/` module (model-agnostic, plain vectors). The result
+# types (ForecastEvaluation/DMTestResult/…) are NOT Tables.jl-registered upstream,
+# so tables are hand-built (a documented C051 exception, like the io and SUR/3SLS
+# families). Uniform input for every leaf: a CSV + --actual <col> +
+# --forecasts <c1,c2,...>; the handler forms the errors / f_adj / forecast matrix.
+#
+# Convention notes (mirrored in docs): DM consumes forecast ERRORS e=actual-fc;
+# Clark-West needs f_adj = f_small - f_big (the forecast difference; the library
+# squares it internally).
+
+"""Resolve the actual + forecast columns by name; return (y, fnames, fcols)."""
+function _fceval_load(data::String, actual::String, forecasts::String; leaf::String)
+    isempty(actual) && throw(CliError("usage/missing-actual",
+        "forecast evaluate $leaf requires --actual <column> (the realized-values column)"))
+    isempty(strip(forecasts)) && throw(CliError("usage/missing-forecasts",
+        "forecast evaluate $leaf requires --forecasts <col1,col2,...>"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    actual in numcols || throw(CliError("data/bad-column",
+        "actual column '$actual' not found in numeric columns: $(join(numcols, ", "))"))
+    fnames = String[String(strip(s)) for s in split(forecasts, ",") if !isempty(strip(s))]
+    isempty(fnames) && throw(CliError("usage/missing-forecasts",
+        "forecast evaluate $leaf requires at least one --forecasts column"))
+    for c in fnames
+        c in numcols || throw(CliError("data/bad-column",
+            "forecast column '$c' not found in numeric columns: $(join(numcols, ", "))"))
     end
-    output_result(fc_df; format=Symbol(format), output=output, title="FAVAR Forecast (h=$horizons)")
+    # `variable_names` admits Union{Number,Missing} columns, so guard for missing
+    # values → typed data error (a blank cell would otherwise MethodError → exit 1).
+    _col(c) = any(ismissing, df[!, c]) ?
+        throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`) before forecast evaluation")) :
+        Vector{Float64}(df[!, c])
+    y = _col(actual)
+    fcols = Vector{Float64}[_col(c) for c in fnames]
+    return (y, fnames, fcols)
+end
+
+# Enforce the per-leaf forecast-count arity → usage error (never a downstream crash).
+function _fceval_arity(fnames::Vector{String}, leaf::String, want::String, ok::Bool)
+    ok || throw(CliError("usage/arity",
+        "forecast evaluate $leaf needs $want --forecasts column(s); got $(length(fnames))"))
+    return nothing
+end
+
+# Map an fceval failure to a typed CliError (never an uncaught exit-1 — io-family lesson).
+function _fceval_error(e, what::String)
+    e isa CliError && return e
+    (e isa ArgumentError || e isa DimensionMismatch) && return CliError("data/fceval",
+        sprint(showerror, e);
+        hint="check --actual/--forecasts refer to equal-length numeric columns with >=2 observations")
+    return CliError("model/error", "$what failed: $(sprint(showerror, e))")
+end
+
+function _forecast_eval_metrics(; data::String, actual::String="", forecasts::String="",
+                                 seasonal_period::Int=1, output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="metrics")
+    _status("Forecast evaluation: $(length(fnames)) forecast(s), n=$(length(y)), seasonal_period=$seasonal_period")
+    _status()
+    Fmat = reduce(hcat, fcols)
+    ev = try
+        forecast_evaluate(y, Fmat; seasonal_period=seasonal_period, model_names=fnames)
+    catch e
+        throw(_fceval_error(e, "forecast evaluation"))
+    end
+    # C051 exception: hand-built WIDE accuracy table model | ME | MAE | ... | U2.
+    acc = DataFrame(model = ev.models)
+    for (k, mname) in enumerate(ev.metrics)
+        acc[!, mname] = round.(ev.values[:, k]; digits=6)
+    end
+    output_result(acc; format=Symbol(format), output=output, title="Forecast Accuracy Metrics")
+    # Theil MSE decomposition (proportions sum to 1): model | bias | variance | covariance.
+    dec = DataFrame(model = ev.models,
+                    bias = round.(ev.decomp[:, 1]; digits=6),
+                    variance = round.(ev.decomp[:, 2]; digits=6),
+                    covariance = round.(ev.decomp[:, 3]; digits=6))
+    output_result(dec; format=Symbol(format), output=output, title="Theil MSE Decomposition")
+    return ev
+end
+
+function _forecast_eval_dm(; data::String, actual::String="", forecasts::String="",
+                            loss::String="se", horizon::Int=1, alternative::String="two-sided",
+                            no_hln::Bool=false, output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="dm")
+    _fceval_arity(fnames, "dm", "exactly 2", length(fnames) == 2)
+    e1 = y .- fcols[1]; e2 = y .- fcols[2]
+    alt = Symbol(replace(alternative, "-" => "_"))
+    _status("Diebold-Mariano: $(fnames[1]) vs $(fnames[2]), loss=$loss, h=$horizon, HLN=$(!no_hln), alt=$alternative")
+    _status()
+    r = try
+        diebold_mariano(e1, e2; h=horizon, loss=Symbol(loss), hln=!no_hln, alternative=alt)
+    catch e
+        throw(_fceval_error(e, "Diebold-Mariano test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"           => "Diebold-Mariano",
+        "model_1"        => fnames[1],
+        "model_2"        => fnames[2],
+        "loss"           => string(r.loss),
+        "statistic"      => round(r.statistic; digits=4),
+        "p_value"        => round(r.pvalue; digits=4),
+        "mean_loss_diff" => round(r.dbar; digits=6),
+        "lrvar"          => round(r.lrvar; digits=6),
+        "horizon"        => r.h,
+        "hln"            => r.hln,
+        "alternative"    => string(r.alternative),
+        "n"              => r.T_obs,
+    ]; format=format, output=output, title="Diebold-Mariano Test")
+    return r
+end
+
+function _forecast_eval_clark_west(; data::String, actual::String="", forecasts::String="",
+                                    horizon::Int=1, alternative::String="greater",
+                                    output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="clark-west")
+    _fceval_arity(fnames, "clark-west", "exactly 2 (small then big)", length(fnames) == 2)
+    f_small = fcols[1]; f_big = fcols[2]
+    e_small = y .- f_small; e_big = y .- f_big; f_adj = f_small .- f_big
+    alt = Symbol(replace(alternative, "-" => "_"))
+    _status("Clark-West (nested): small=$(fnames[1]) big=$(fnames[2]), h=$horizon, alt=$alternative")
+    _status()
+    r = try
+        clark_west(e_small, e_big, f_adj; h=horizon, alternative=alt)
+    catch e
+        throw(_fceval_error(e, "Clark-West test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"          => "Clark-West",
+        "model_small"   => fnames[1],
+        "model_big"     => fnames[2],
+        "statistic"     => round(r.statistic; digits=4),
+        "p_value"       => round(r.pvalue; digits=4),
+        "mean_adj_diff" => round(r.fbar; digits=6),
+        "lrvar"         => round(r.lrvar; digits=6),
+        "horizon"       => r.h,
+        "alternative"   => string(r.alternative),
+        "n"             => r.T_obs,
+    ]; format=format, output=output, title="Clark-West Test")
+    return r
+end
+
+function _forecast_eval_mincer_zarnowitz(; data::String, actual::String="", forecasts::String="",
+                                          lags::Int=0, kernel::String="bartlett",
+                                          output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="mincer-zarnowitz")
+    _fceval_arity(fnames, "mincer-zarnowitz", "exactly 1", length(fnames) == 1)
+    _status("Mincer-Zarnowitz efficiency: forecast=$(fnames[1]), lags=$lags, kernel=$kernel")
+    _status()
+    r = try
+        mincer_zarnowitz(y, fcols[1]; lags=lags, kernel=Symbol(kernel))
+    catch e
+        throw(_fceval_error(e, "Mincer-Zarnowitz test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"         => "Mincer-Zarnowitz",
+        "forecast"     => fnames[1],
+        "a"            => round(r.a; digits=6),
+        "b"            => round(r.b; digits=6),
+        "se_a"         => round(r.se[1]; digits=6),
+        "se_b"         => round(r.se[2]; digits=6),
+        "wald_chi2"    => round(r.wald; digits=4),
+        "p_value_wald" => round(r.pvalue_wald; digits=4),
+        "fstat"        => round(r.fstat; digits=4),
+        "p_value_f"    => round(r.pvalue_f; digits=4),
+        "hac_lags"     => r.lags,
+        "kernel"       => string(r.kernel),
+        "n"            => r.T_obs,
+    ]; format=format, output=output, title="Mincer-Zarnowitz Efficiency Test")
+    return r
+end
+
+function _forecast_eval_encompassing(; data::String, actual::String="", forecasts::String="",
+                                      lags::Int=0, kernel::String="bartlett",
+                                      output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="encompassing")
+    _fceval_arity(fnames, "encompassing", "exactly 2", length(fnames) == 2)
+    _status("Forecast encompassing: fc1=$(fnames[1]) fc2=$(fnames[2]), lags=$lags, kernel=$kernel")
+    _status()
+    r = try
+        forecast_encompassing(y, fcols[1], fcols[2]; lags=lags, kernel=Symbol(kernel))
+    catch e
+        throw(_fceval_error(e, "forecast encompassing test"))
+    end
+    output_kv(Pair{String,Any}[
+        "test"     => "Forecast-Encompassing",
+        "model_1"  => fnames[1],
+        "model_2"  => fnames[2],
+        "b1"       => round(r.b1; digits=6),
+        "b2"       => round(r.b2; digits=6),
+        "se_b2"    => round(r.se_b2; digits=6),
+        "t_stat"   => round(r.tstat; digits=4),
+        "p_value"  => round(r.pvalue; digits=4),
+        "hac_lags" => r.lags,
+        "kernel"   => string(r.kernel),
+        "n"        => r.T_obs,
+    ]; format=format, output=output, title="Forecast Encompassing Test")
+    return r
+end
+
+function _forecast_eval_combine(; data::String, actual::String="", forecasts::String="",
+                                 method::String="equal", emit_series::Bool=false,
+                                 output::String="", format::String="table")
+    y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="combine")
+    _fceval_arity(fnames, "combine", "at least 2", length(fnames) >= 2)
+    F = reduce(hcat, fcols)
+    meth = Symbol(replace(method, "-" => "_"))
+    _status("Forecast combination: $(length(fnames)) forecasts, method=$method")
+    _status()
+    r = try
+        combine_forecasts(F, y; method=meth, model_names=fnames)
+    catch e
+        throw(_fceval_error(e, "forecast combination"))
+    end
+    # C051 exception: hand-built weights table model | weight | mse (weights sum to 1).
+    wtab = DataFrame(model = r.models,
+                     weight = round.(r.weights; digits=6),
+                     mse = round.(r.mse; digits=6))
+    output_result(wtab; format=Symbol(format), output=output, title="Forecast Combination Weights")
+    if emit_series
+        stab = DataFrame(index = collect(1:length(r.combined)),
+                         combined = round.(r.combined; digits=6))
+        output_result(stab; format=Symbol(format), output=output, title="Combined Forecast Series")
+    end
+    return r
 end

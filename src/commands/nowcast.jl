@@ -220,8 +220,10 @@ function _nowcast_news(; data_new::String="", data_old::String="",
                         target_period::Int=0, target_var::Int=0,
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
-    isempty(data_new) && error("--data-new is required")
-    isempty(data_old) && error("--data-old is required")
+    isempty(data_new) && throw(CliError("usage/missing", "--data-new is required";
+        hint="path to the newer data vintage"))
+    isempty(data_old) && throw(CliError("usage/missing", "--data-old is required";
+        hint="path to the older data vintage"))
 
     Y_new, varnames_new = load_multivariate_data(data_new)
     Y_old, _ = load_multivariate_data(data_old)
@@ -240,12 +242,24 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     elseif method == "bvar"
         nowcast_bvar(Y_old, nM, nQ; lags=lags)
     else
-        error("unknown nowcast method for news: $method (expected dfm|bvar)")
+        throw(CliError("usage/invalid",
+            "unknown nowcast method for news: $method"; hint="expected dfm|bvar"))
     end
 
     tp = target_period > 0 ? target_period : T_new
     tv = target_var > 0 ? target_var : size(Y_new, 2)
-    news = nowcast_news(Y_new, Y_old, model, tp; target_var=tv)
+    # The two vintages must be the SAME shape — a vintage differs by which cells are
+    # filled in, not by row count. Upstream signals a mismatch with a bare
+    # ArgumentError, which would exit 1 rather than flag the user's input.
+    news = try
+        nowcast_news(Y_new, Y_old, model, tp; target_var=tv)
+    catch e
+        e isa ArgumentError && throw(CliError("data/shape",
+            "the two vintages must have the same dimensions";
+            hint="new is $(size(Y_new)), old is $(size(Y_old)); a newer vintage fills in " *
+                 "missing cells rather than adding rows"))
+        rethrow()
+    end
 
     _maybe_plot(news; plot=plot, plot_save=plot_save)
 

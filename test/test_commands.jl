@@ -82,9 +82,11 @@ include(joinpath(project_root, "src", "commands", "forecast.jl"))
 include(joinpath(project_root, "src", "commands", "fitted.jl"))
 include(joinpath(project_root, "src", "commands", "filter.jl"))
 include(joinpath(project_root, "src", "commands", "data.jl"))
+include(joinpath(project_root, "src", "commands", "io.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
+include(joinpath(project_root, "src", "commands", "multipliers.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
@@ -424,12 +426,15 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 31 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 32 keys (C044)
-        @test length(node.subcmds) == 32
-        for cmd in ["var", "bvar", "lp", "arima", "gmm", "smm", "static", "dynamic", "gdfm",
+        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
+        @test length(node.subcmds) == 66
+        for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
-                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
+                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit",
+                     "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas",
+                     "ccc", "dcc", "bekk", "lasso", "ridge", "elastic-net", "robust",
+                     "tobit", "truncreg", "heckman"]
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")  # hidden alias
@@ -735,6 +740,46 @@ end  # Shared utilities
         end
     end
 
+    @testset "_estimate_arfima — pure fractional (0,d,0)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3)
+            model = nothing
+            out = cd(dir) do
+                _capture() do
+                    model = _estimate_arfima(; data=csv, column=1, p=0, q=0,
+                                              method="css", format="table")
+                end
+            end
+            @test occursin("ARFIMA", out)
+            @test model.d isa Real
+            @test -0.5 < model.d < 1.0
+        end
+    end
+
+    @testset "_estimate_arfima — with AR/MA orders + mle" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_arfima(; data=csv, column=2, p=1, q=1,
+                                      method="mle", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_arfima — d0 start + json format" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_arfima(; data=csv, column=1, p=0, q=0,
+                                      method="css", d0=0.2, format="json")
+                end
+            end
+        end
+    end
+
     @testset "_estimate_gmm — missing config error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -772,36 +817,174 @@ end  # Shared utilities
         end
     end
 
-    @testset "_estimate_smm — default" begin
+    @testset "_estimate_smm — ar1 config" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=3)
-            out = _capture() do
-                _estimate_smm(; data=csv, format="table")
-            end
-        end
-    end
-
-    @testset "_estimate_smm — with config" begin
-        mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=3)
+            csv = _make_csv(dir; T=100, n=1)
             config_path = joinpath(dir, "smm.toml")
             write(config_path, """
             [smm]
-            weighting = "optimal"
-            sim_ratio = 10
-            burn = 200
+            model = "ar1"
+            theta0 = [0.5, 1.0]
+            lags = 2
+            weighting = "two_step"
+            sim_ratio = 5
+            burn = 50
             """)
             out = _capture() do
                 _estimate_smm(; data=csv, config=config_path, format="table")
             end
+            @test occursin("phi", out)
+            @test occursin("sigma", out)
         end
     end
 
-    @testset "_estimate_smm — custom weighting" begin
+    @testset "_estimate_smm — var1 config (multivariate)" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=3)
+            csv = _make_csv(dir; T=100, n=2)
+            config_path = joinpath(dir, "smm.toml")
+            write(config_path, """
+            [smm]
+            model = "var1"
+            theta0 = [0.4, 0.0, 0.0, 0.4, 1.0, 1.0]
+            lags = 2
+            weighting = "identity"
+            """)
             out = _capture() do
-                _estimate_smm(; data=csv, weighting="identity", sim_ratio=3, format="table")
+                _estimate_smm(; data=csv, config=config_path, format="table")
+            end
+            @test occursin("A[1,1]", out)
+            @test occursin("sigma_2", out)
+        end
+    end
+
+    @testset "_estimate_smm — no config errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1)
+            @test_throws CliError _estimate_smm(; data=csv, format="table")
+        end
+    end
+
+    @testset "_estimate_smm — missing model errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1)
+            config_path = joinpath(dir, "smm.toml")
+            write(config_path, """
+            [smm]
+            theta0 = [0.5, 1.0]
+            """)
+            @test_throws CliError _estimate_smm(; data=csv, config=config_path, format="table")
+        end
+    end
+
+    @testset "_estimate_smm — underidentified errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=2)
+            config_path = joinpath(dir, "smm.toml")
+            # var1 k=2 needs 6 params but lags=1 → only 5 moments
+            write(config_path, """
+            [smm]
+            model = "var1"
+            theta0 = [0.4, 0.0, 0.0, 0.4, 1.0, 1.0]
+            lags = 1
+            """)
+            @test_throws CliError _estimate_smm(; data=csv, config=config_path, format="table")
+        end
+    end
+
+    @testset "_estimate_sur / _estimate_3sls (C063 systems)" begin
+        _sys_csv(dir) = begin
+            path = joinpath(dir, "sys.csv")
+            open(path, "w") do io
+                println(io, "y1,y2,x1,x2,x3")
+                for _ in 1:120
+                    x1 = randn(); x2 = randn(); x3 = randn()
+                    y1 = 1.0 + 0.5x1 + 0.3x2 + 0.2randn()
+                    y2 = -0.5 + 0.8x2 + 0.2x3 + 0.2randn()
+                    println(io, join((y1, y2, x1, x2, x3), ","))
+                end
+            end
+            path
+        end
+        _sur_cfg(dir) = begin
+            p = joinpath(dir, "sur.toml")
+            write(p, """
+            [[equations]]
+            name = "consumption"
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            name = "investment"
+            dep = "y2"
+            indep = ["x2", "x3"]
+            """)
+            p
+        end
+        _sysdoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _coefcols(doc) = first(t for t in values(doc.data)
+                               if "term" in String.(t.columns) && "estimate" in String.(t.columns))
+
+        @testset "sur tidy coef + system stats" begin
+            mktempdir() do dir
+                doc = _sysdoc(["sur", _sys_csv(dir), "--config", _sur_cfg(dir)])
+                @test doc.status == "ok"
+                coef = _coefcols(doc)
+                @test Set(["equation", "term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"]) ⊆ Set(String.(coef.columns))
+                eqs = Set(String(collect(r)[1]) for r in coef.rows)
+                @test "consumption" in eqs && "investment" in eqs
+                @test length(coef.rows) == 6                 # 2 eq × (const + 2 regressors)
+                @test any(t -> "metric" in String.(t.columns), values(doc.data))
+            end
+        end
+
+        @testset "sur --iterate --no-intercept" begin
+            mktempdir() do dir
+                doc = _sysdoc(["sur", _sys_csv(dir), "--config", _sur_cfg(dir), "--iterate", "--no-intercept"])
+                coef = _coefcols(doc)
+                terms = Set(String(collect(r)[2]) for r in coef.rows)
+                @test !("const" in terms)
+                @test length(coef.rows) == 4                 # 2 eq × 2 regressors, no const
+            end
+        end
+
+        @testset "3sls common instruments" begin
+            mktempdir() do dir
+                csv = _sys_csv(dir); cfg = joinpath(dir, "3sls.toml")
+                write(cfg, """
+                [[equations]]
+                dep = "y1"
+                indep = ["x1", "x2"]
+                [[equations]]
+                dep = "y2"
+                indep = ["x2", "x3"]
+                [instruments]
+                common = ["x1", "x2", "x3"]
+                """)
+                doc = _sysdoc(["3sls", csv, "--config", cfg])
+                @test doc.status == "ok"
+                coef = _coefcols(doc)
+                @test length(coef.rows) == 6
+                @test any(t -> "metric" in String.(t.columns), values(doc.data))
+            end
+        end
+
+        @testset "config errors (typed, not exit-1)" begin
+            mktempdir() do dir
+                csv = _sys_csv(dir); cfg = _sur_cfg(dir)
+                _errcode(args) = begin
+                    err = nothing
+                    try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch e; err = e; end
+                    err
+                end
+                @test _errcode(["sur", csv]) isa CliError && _errcode(["sur", csv]).code == "config/missing"
+                @test _errcode(["3sls", csv, "--config", cfg]).code == "config/missing"   # no instruments
+                badcfg = joinpath(dir, "bad.toml")
+                write(badcfg, "[[equations]]\ndep = \"y1\"\nindep = [\"nope\"]\n")
+                @test _errcode(["sur", csv, "--config", badcfg]).code == "config/bad-column"
             end
         end
     end
@@ -925,6 +1108,1296 @@ end  # Shared utilities
                 _capture() do
                     _estimate_sv(; data=csv, column=1, draws=100, format="table")
                 end
+            end
+        end
+    end
+
+    @testset "estimate GARCH variants (C064a)" begin
+        # JSON envelope via the app: assert a hand-built coef table (parameter|estimate)
+        # + a metric|value diagnostics table for each of the 6 volatility variants.
+        _gv_doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _coef_tbl(doc) = first(t for t in _tables(doc) if "parameter" in String.(t.columns) && "estimate" in String.(t.columns))
+        _diag_tbl(doc) = first(t for t in _tables(doc) if "metric" in String.(t.columns) && "value" in String.(t.columns))
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=1, colnames=["ret"])
+
+            @testset "igarch coef + diag" begin
+                doc = _gv_doc(["igarch", csv, "--column", "1", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                coef = _coef_tbl(doc)
+                params = Set(String(collect(r)[1]) for r in coef.rows)
+                @test Set(["mu", "omega", "alpha1", "beta1"]) ⊆ params
+                diag = _diag_tbl(doc)
+                metrics = Set(String(collect(r)[1]) for r in diag.rows)
+                @test "persistence" in metrics && "log_likelihood" in metrics
+            end
+
+            @testset "cgarch coef (rho/phi/alpha/beta) + diag" begin
+                doc = _gv_doc(["cgarch", csv, "--column", "1"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["mu", "omega", "rho", "phi", "alpha", "beta"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "unconditional_variance" in metrics
+            end
+
+            @testset "aparch (gamma + delta) + diag" begin
+                doc = _gv_doc(["aparch", csv, "--column", "1", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["gamma1", "delta"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "n_params" in metrics
+            end
+
+            @testset "aparch --fix-delta --fix-gamma" begin
+                doc = _gv_doc(["aparch", csv, "--column", "1", "--fix-delta", "2.0", "--fix-gamma", "0.0"])
+                @test doc.status == "ok"
+            end
+
+            @testset "figarch (fractional d) + diag" begin
+                doc = _gv_doc(["figarch", csv, "--column", "1", "--d0", "0.4", "--truncation", "50"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test "d" in params && "phi1" in params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "n_neg_lambda" in metrics && "truncation" in metrics
+            end
+
+            @testset "fiegarch (theta/gamma + d)" begin
+                doc = _gv_doc(["fiegarch", csv, "--column", "1", "--truncation", "50"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["theta", "gamma", "d"]) ⊆ params
+            end
+
+            @testset "garch-midas realized + diag" begin
+                doc = _gv_doc(["garch-midas", csv, "--column", "1", "--m-freq", "20", "--k", "6"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["mu", "alpha", "beta", "m", "theta", "w"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "variance_ratio" in metrics && "n_blocks" in metrics
+            end
+
+            @testset "garch-midas macro via --config" begin
+                cfg = joinpath(dir, "gm.toml")
+                write(cfg, "[garch_midas]\nx_lf = [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.0]\n")
+                doc = _gv_doc(["garch-midas", csv, "--column", "1", "--m-freq", "20", "--k", "3",
+                               "--rv", "macro", "--config", cfg])
+                @test doc.status == "ok"
+            end
+
+            @testset "error mapping (never uncaught exit-1)" begin
+                @test_throws CliError _estimate_garch_midas(; data=csv, column=1, m_freq=0)        # missing --m-freq
+                @test_throws CliError _estimate_garch_midas(; data=csv, column=1, m_freq=20, rv="macro")  # macro needs config
+                # typed remap of untyped MEMs failures
+                @test _garch_variant_error(ArgumentError("bad"), "IGARCH").code == "data/invalid"
+                @test _garch_variant_error(DomainError(1.0, "d"), "FIGARCH").code == "data/invalid"
+                @test _garch_variant_error(DimensionMismatch("x"), "APARCH").code == "data/shape"
+                @test _garch_variant_error(ErrorException("boom"), "CGARCH").code == "model/error"
+                @test _garch_variant_error(CliError("config/missing", "x"), "X").code == "config/missing"
+                # review fix (shared helper): --column 0/negative/out-of-range → typed data
+                # error (was an uncaught BoundsError → exit 1 across ALL univariate leaves)
+                err(col) = begin
+                    e = nothing
+                    try; _capture() do; _dispatch_via_app(String["estimate","igarch",csv,"--column",string(col)]); end; catch ex; e=ex; end
+                    e
+                end
+                @test err(0) isa CliError && err(0).code == "data/column-range"
+                @test err(-1).code == "data/column-range"
+                @test err(99).code == "data/column-range"
+                # missing cell → typed data error (was an uncaught MethodError → exit 1)
+                mcsv = joinpath(dir, "miss.csv")
+                write(mcsv, "x,ret\n0.1,0.2\n0.3,\n0.5,0.6\n0.7,0.8\n")
+                me = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","igarch",mcsv,"--column","2"]); end; catch ex; me=ex; end
+                @test me isa CliError && me.code == "data/missing-values"
+            end
+        end
+    end
+
+    @testset "estimate MGARCH ccc/dcc/bekk (C064b)" begin
+        # JSON envelope via the app: assert a wide conditional-correlation matrix (series
+        # column + one column per series) and a diagnostics (metric|value) block for each.
+        _mg_doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _corr_tbl(doc) = first(t for t in _tables(doc) if "series" in String.(t.columns))
+        _diag_tbl(doc) = first(t for t in _tables(doc) if "metric" in String.(t.columns) && "value" in String.(t.columns))
+        _coef_tbl(doc) = first(t for t in _tables(doc) if "parameter" in String.(t.columns) && "estimate" in String.(t.columns))
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=150, n=3, colnames=["ra", "rb", "rc"])
+
+            @testset "ccc — correlation matrix (no dynamics) + diag" begin
+                doc = _mg_doc(["ccc", csv, "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                corr = _corr_tbl(doc)
+                # wide sector×sector: series col + one col per series
+                @test Set(["series", "ra", "rb", "rc"]) ⊆ Set(String.(corr.columns))
+                @test length(collect(corr.rows)) == 3
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "kind" in metrics && "loglik" in metrics && "series" in metrics
+                # CCC has no second-stage params → no dynamics coef table
+                @test isempty([t for t in _tables(doc) if "parameter" in String.(t.columns)])
+            end
+
+            @testset "dcc — a,b dynamics + persistence + correction" begin
+                doc = _mg_doc(["dcc", csv, "--correction", "none"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["a", "b"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "persistence" in metrics && "correction" in metrics
+            end
+
+            @testset "dcc — cDCC via --correction aielli" begin
+                doc = _mg_doc(["dcc", csv, "--correction", "aielli"])
+                @test doc.status == "ok"
+            end
+
+            @testset "bekk scalar (a,b) + bekk_kind" begin
+                doc = _mg_doc(["bekk", csv, "--kind", "scalar"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test Set(["a", "b"]) ⊆ params
+                metrics = Set(String(collect(r)[1]) for r in _diag_tbl(doc).rows)
+                @test "bekk_kind" in metrics
+            end
+
+            @testset "bekk diagonal (a_i/b_i)" begin
+                doc = _mg_doc(["bekk", csv, "--kind", "diagonal"])
+                @test doc.status == "ok"
+                params = Set(String(collect(r)[1]) for r in _coef_tbl(doc).rows)
+                @test "a1" in params && "b1" in params
+            end
+
+            @testset "bad input never uncaught exit-1" begin
+                # 1-column CSV → MGARCH needs ≥2 series → ArgumentError → data/invalid
+                onecol = _make_csv(dir; T=100, n=1, colnames=["x"])
+                e = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","ccc",onecol]); end; catch ex; e=ex; end
+                @test e isa CliError && e.code == "data/invalid" && exit_class(e) == 3
+                # direct-handler typed classes
+                @test_throws CliError _estimate_dcc(; data=csv, correction="bogus")   # usage/invalid up-front
+                @test_throws CliError _estimate_bekk(; data=csv, kind="bogus")        # usage/invalid up-front
+                du = nothing
+                try; _estimate_dcc(; data=csv, correction="bogus"); catch ex; du=ex; end
+                @test du isa CliError && du.code == "usage/invalid" && exit_class(du) == 2
+                # missing cell in a multivariate CSV → typed data error via the hardened
+                # load_multivariate_data (was an uncaught ArgumentError → exit 1)
+                mcsv = joinpath(dir, "mg_miss.csv")
+                write(mcsv, "a,b\n0.1,0.2\n0.3,\n0.5,0.6\n0.7,0.8\n")
+                me = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","bekk",mcsv]); end; catch ex; me=ex; end
+                @test me isa CliError && me.code == "data/missing-values" && exit_class(me) == 3
+                # an input column literally named `series` collides with the wide-matrix
+                # label column → must NOT crash the (unwrapped) renderer to exit-1
+                # (regression: adversarial review C064b; fixed via makeunique in _mgarch_corr_df)
+                scsv = _make_csv(dir; T=120, n=2, colnames=["series", "r2"])
+                sdoc = _mg_doc(["ccc", scsv])
+                @test sdoc.status == "ok"
+            end
+        end
+    end
+
+    @testset "estimate penalized/robust/tobit (C067a)" begin
+        # JSON envelope via the app: penalized fits render `term|estimate|nonzero`
+        # (intercept from beta0, NO std errors); robust/tobit render the shared
+        # `parameter|estimate|std_error|z_stat|p_value` hand-built coef table; every
+        # leaf adds a metric|value diagnostics block.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=4, colnames=["y", "x1", "x2", "x3"])
+
+            @testset "lasso — term/estimate/nonzero + intercept + diag" begin
+                doc = _doc(["lasso", csv, "--dep", "y", "--select", "bic"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "term", "estimate", "nonzero")
+                terms = Set(String(collect(r)[1]) for r in coef.rows)
+                @test "(Intercept)" in terms
+                @test Set(["x1", "x2", "x3"]) ⊆ terms
+                m = _metrics(doc)
+                @test Set(["lambda", "alpha", "n_active", "select", "r2"]) ⊆ m
+            end
+
+            @testset "ridge — fixed-lambda path + diag" begin
+                doc = _doc(["ridge", csv, "--dep", "y", "--lambda", "0.5"])
+                @test doc.status == "ok"
+                @test "(Intercept)" in Set(String(collect(r)[1]) for r in _tbl_with(doc, "term", "estimate", "nonzero").rows)
+                @test "lambda" in _metrics(doc)
+            end
+
+            @testset "elastic-net — --alpha mixing + diag" begin
+                doc = _doc(["elastic-net", csv, "--dep", "y", "--alpha", "0.3"])
+                @test doc.status == "ok"
+                @test "alpha" in _metrics(doc)
+            end
+
+            @testset "robust — parameter/estimate/std_error + diag" begin
+                doc = _doc(["robust", csv, "--dep", "y", "--psi", "huber", "--method", "m"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "parameter", "estimate", "std_error")
+                @test length(collect(coef.rows)) == 3      # x1,x2,x3 (no intercept)
+                m = _metrics(doc)
+                @test Set(["psi", "method", "scale", "robust_r2", "converged"]) ⊆ m
+            end
+
+            @testset "tobit — censoring counts + diag" begin
+                doc = _doc(["tobit", csv, "--dep", "y", "--lower", "0.0"])
+                @test doc.status == "ok"
+                @test length(collect(_tbl_with(doc, "parameter", "estimate", "std_error").rows)) == 3
+                m = _metrics(doc)
+                @test Set(["sigma", "n_censored_left", "n_censored_right", "loglik"]) ⊆ m
+            end
+
+            @testset "bad input never uncaught exit-1 (typed classes)" begin
+                # hardened _load_reg_data: bad --dep → data/column-range (benefits the WHOLE
+                # cross-section reg family — assert for both a new leaf and existing `reg`)
+                @test _err(["lasso", csv, "--dep", "nope"]) isa CliError
+                @test _err(["lasso", csv, "--dep", "nope"]).code == "data/column-range"
+                @test _err(["reg", csv, "--dep", "nope"]).code == "data/column-range"
+                # up-front option-range validation → usage/invalid (exit 2), not raw MEMs
+                ea = _err(["elastic-net", csv, "--dep", "y", "--alpha", "2"])
+                @test ea isa CliError && ea.code == "usage/invalid" && exit_class(ea) == 2
+                et = _err(["tobit", csv, "--dep", "y", "--lower", "5", "--upper", "1"])
+                @test et isa CliError && et.code == "usage/invalid"
+                el = _err(["lasso", csv, "--dep", "y", "--lambda", "notanumber"])
+                @test el isa CliError && el.code == "usage/invalid"
+                # a negative penalty is also rejected up-front
+                @test _err(["ridge", csv, "--dep", "y", "--lambda", "-0.1"]).code == "usage/invalid"
+                # missing cell in a regressor → data/missing-values, NOT an uncaught exit-1
+                # (regression: adversarial review C067a — the hardening left the
+                # Matrix{Float64} conversion unguarded; benefits the whole reg family)
+                misscsv = joinpath(dir, "miss.csv")
+                write(misscsv, "y,x1,x2\n1.0,2.0,3.0\n2.0,,4.0\n3.0,5.0,6.0\n4.0,7.0,8.0\n")
+                em = _err(["lasso", misscsv, "--dep", "y"])
+                @test em isa CliError && em.code == "data/missing-values" && exit_class(em) == 3
+                @test _err(["reg", misscsv, "--dep", "y"]).code == "data/missing-values"
+            end
+
+            @testset "tobit default upper=Inf renders on the legacy JSON path (no Inf crash)" begin
+                # regression (adversarial review C067a): --upper Inf reached JSON3.write on the
+                # FRIEDMAN_LEGACY_OUTPUT path (which does not apply _json_safe) → "Inf not
+                # allowed in JSON spec" → exit-1. Now rendered as the string "Inf".
+                old = get(ENV, "FRIEDMAN_LEGACY_OUTPUT", nothing)
+                ENV["FRIEDMAN_LEGACY_OUTPUT"] = "1"
+                try
+                    e = nothing
+                    try; _capture() do; _dispatch_via_app(String["estimate","tobit",csv,"--dep","y","--lower","0.0","--format","json"]); end
+                    catch ex; e = ex; end
+                    @test e === nothing
+                finally
+                    old === nothing ? delete!(ENV, "FRIEDMAN_LEGACY_OUTPUT") : (ENV["FRIEDMAN_LEGACY_OUTPUT"] = old)
+                end
+            end
+        end
+    end
+
+    @testset "estimate cointreg/xtcointreg (C062a)" begin
+        # cointreg (single-equation FMOLS/CCR/DOLS) + xtcointreg (panel FMOLS/DOLS). Both
+        # render the hand-built tidy coef table term|estimate|std_error|stat|p_value|
+        # ci_lower|ci_upper (CointRegModel/PanelCointRegModel are not Tables.jl-registered)
+        # plus a metric|value diagnostics block. Bad input → typed classes, never exit-1.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        _coefcols = ("term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper")
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3, colnames=["y", "x1", "x2"])
+
+            @testset "cointreg — coef table + diag, all three methods" begin
+                for meth in ("fmols", "ccr", "dols")
+                    doc = _doc(["cointreg", csv, "--dep", "y", "--method", meth])
+                    @test doc.status == "ok"
+                    coef = _tbl_with(doc, _coefcols...)
+                    terms = Set(String(collect(r)[1]) for r in coef.rows)
+                    @test Set(["const", "x1", "x2"]) ⊆ terms   # const from default --trend const
+                    m = _metrics(doc)
+                    @test Set(["method", "trend", "kernel", "bandwidth", "omega_uv", "nobs", "d", "k"]) ⊆ m
+                end
+                # DOLS exposes leads/lags in the diagnostics block
+                @test Set(["leads", "lags"]) ⊆ _metrics(_doc(["cointreg", csv, "--dep", "y", "--method", "dols"]))
+                # --trend none drops the deterministic term
+                dn = _doc(["cointreg", csv, "--dep", "y", "--trend", "none"])
+                @test !("const" in Set(String(collect(r)[1]) for r in _tbl_with(dn, _coefcols...).rows))
+            end
+
+            @testset "xtcointreg — panel coef table + diag, group & pooled" begin
+                panel = _make_panel_csv(dir; G=6, T_per=20, n=2, colnames=["y", "x1"])
+                for pool in ("group", "pooled"), meth in ("fmols", "dols")
+                    doc = _doc(["xtcointreg", panel, "--dep", "y", "--indep", "x1",
+                                "--method", meth, "--pooling", pool])
+                    @test doc.status == "ok"
+                    @test !isempty(collect(_tbl_with(doc, _coefcols...).rows))
+                    @test Set(["method", "pooling", "trend", "kernel", "N", "nobs", "T_i", "balanced", "k", "d"]) ⊆ _metrics(doc)
+                end
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                # bad enum → ParseError (or usage/invalid) — both exit 2
+                em = _err(["cointreg", csv, "--dep", "y", "--method", "foo"])
+                @test em isa ParseError || (em isa CliError && exit_class(em) == 2)
+                # panel rejects ccr (choices=fmols|dols) at parse
+                ec = _err(["xtcointreg", _make_panel_csv(dir; G=6, T_per=20, n=2, colnames=["y", "x1"]),
+                           "--dep", "y", "--indep", "x1", "--method", "ccr"])
+                @test ec isa ParseError || (ec isa CliError && exit_class(ec) == 2)
+                # bad --dep → data/column-range (hardened _load_reg_data)
+                @test _err(["cointreg", csv, "--dep", "nope"]).code == "data/column-range"
+                # bad dual-type flags → usage/invalid (in-handler parsers, 0 valid for leads/lags)
+                @test _err(["cointreg", csv, "--dep", "y", "--bandwidth", "notanum"]).code == "usage/invalid"
+                @test _err(["cointreg", csv, "--dep", "y", "--leads", "-1"]).code == "usage/invalid"
+                # --leads 0 is VALID (do not route through _parse_bandwidth which rejects 0)
+                @test _doc(["cointreg", csv, "--dep", "y", "--method", "dols", "--leads", "0", "--lags", "0"]).status == "ok"
+                # missing cell → data/missing-values (not exit-1)
+                misscsv = joinpath(dir, "misscoint.csv")
+                write(misscsv, "y,x1\n1.0,2.0\n2.0,\n3.0,5.0\n4.0,7.0\n5.0,8.0\n6.0,9.0\n7.0,10.0\n")
+                em2 = _err(["cointreg", misscsv, "--dep", "y"])
+                @test em2 isa CliError && em2.code == "data/missing-values" && exit_class(em2) == 3
+                # xtcointreg: a missing cell in dep/indep → data/missing-values too, NOT silent
+                # NaN coefficients at exit 0 (adversarial review C062a: xtset NaN-fills blanks).
+                xtmiss = joinpath(dir, "xtmiss.csv")
+                write(xtmiss, "group,time,y,x1\n1,1,1.0,2.0\n1,2,,3.0\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                exm = _err(["xtcointreg", xtmiss, "--dep", "y", "--indep", "x1"])
+                @test exm isa CliError && exm.code == "data/missing-values" && exit_class(exm) == 3
+                # duplicate (id,time) panel → data/invalid (hardened load_panel_data)
+                dupcsv = joinpath(dir, "dupcoint.csv")
+                write(dupcsv, "group,time,y,x1\n1,1,1.0,2.0\n1,1,1.5,2.5\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                ed = _err(["xtcointreg", dupcsv, "--dep", "y", "--indep", "x1"])
+                @test ed isa CliError && ed.code == "data/invalid"
+                # non-numeric-only panel var → data/invalid
+                nncsv = joinpath(dir, "nncoint.csv")
+                write(nncsv, "group,time,label\n1,1,foo\n1,2,bar\n2,1,baz\n2,2,qux\n")
+                en = _err(["xtcointreg", nncsv, "--dep", "y", "--indep", "x1"])
+                @test en isa CliError && en.code == "data/invalid"
+            end
+        end
+    end
+
+    @testset "estimate ardl/nardl + test ardl-bounds/nardl-symmetry + multipliers nardl (C062b)" begin
+        # Single-equation ARDL/NARDL family. estimate ardl/nardl render a hand-built levels
+        # coef table + a folded long-run table + a diagnostics kv (ARDL: ECM α; NARDL: enlarged-k
+        # bounds decision). test ardl-bounds renders decision SYMBOLS + I(0)/I(1) bounds and has
+        # NO p_value column. test nardl-symmetry is a tidy multi-row Wald table. multipliers nardl
+        # (new top-level) melts the m⁺/m⁻ curves into one long table with optional band columns.
+        _run(root, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String[root], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(root, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String[root], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3, colnames=["y", "x1", "x2"])   # dep=y, 2 regressors
+            csv1 = _make_csv(dir; T=120, n=2, colnames=["y", "x1"])         # 1 regressor (for q-length)
+
+            @testset "estimate ardl — coef + long-run tables + ECM diagnostics" begin
+                doc = _run("estimate", ["ardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")
+                @test _has_tbl(doc, "term", "estimate", "std_error")   # long-run block
+                m = _metrics(doc)
+                @test Set(["p", "q", "case", "trend", "ic", "nobs", "K", "alpha", "alpha_se", "longrun_denom"]) ⊆ m
+                # auto selection path also runs
+                @test _run("estimate", ["ardl", csv, "--dep", "y", "--p", "auto"]).status == "ok"
+                # per-regressor q vector length must equal k → usage/invalid (1 regressor here)
+                e = _err("estimate", ["ardl", csv1, "--dep", "y", "--q", "2,1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # bad case → usage/invalid
+                @test (_err("estimate", ["ardl", csv, "--dep", "y", "--case", "9"])).code == "usage/invalid"
+            end
+
+            @testset "estimate nardl — split coef (_POS/_NEG) + θ⁺/θ⁻ + bounds decision in kv" begin
+                doc = _run("estimate", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "term", "estimate", "std_error", "stat", "p_value")
+                terms = join(String(collect(r)[1]) for r in coef.rows)
+                @test occursin("_POS", terms) && occursin("_NEG", terms)
+                m = _metrics(doc)
+                @test Set(["k_orig", "k", "asym", "f_decision", "t_decision", "bounds_level"]) ⊆ m
+                # subset of regressors asymmetric
+                @test _run("estimate", ["nardl", csv, "--dep", "y", "--asymmetric", "1"]).status == "ok"
+                # empty/invalid asymmetric index → usage/invalid
+                @test (_err("estimate", ["nardl", csv, "--dep", "y", "--asymmetric", "0"])).code == "usage/invalid"
+                # --q length must match the ENLARGED split design (1 regressor, all asymmetric →
+                # 2 POS/NEG cols) → usage/invalid up front, NOT MEMs data/invalid (review C062b)
+                en = _err("estimate", ["nardl", csv1, "--dep", "y", "--q", "1,2,3"])
+                @test en isa CliError && en.code == "usage/invalid"
+            end
+
+            @testset "test ardl-bounds — decision symbols + bounds, NO p-value" begin
+                doc = _run("test", ["ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                bt = _tbl_with(doc, "bound", "statistic", "i0_lower", "i1_upper", "decision")
+                @test !("p_value" in String.(bt.columns))              # bounds test has NO p-value
+                @test Set(["F", "t"]) ⊆ Set(String(collect(r)[1]) for r in bt.rows)
+                m = _metrics(doc)
+                @test Set(["f_stat", "t_stat", "k", "case", "cv_source", "level", "f_decision", "t_decision"]) ⊆ m
+                # case II has undefined t-bounds → rendered "undefined" (never a NaN crash)
+                d2 = _run("test", ["ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1", "--case", "2"])
+                @test d2.status == "ok"
+                # bad level / cv-source → usage/invalid (never interpret_test_result)
+                @test (_err("test", ["ardl-bounds", csv, "--dep", "y", "--level", "0.03"])).code == "usage/invalid"
+                ecv = _err("test", ["ardl-bounds", csv, "--dep", "y", "--cv-source", "narayan"])
+                @test ecv isa ParseError || (ecv isa CliError && exit_class(ecv) == 2)
+            end
+
+            @testset "test nardl-symmetry — tidy multi-row Wald table" begin
+                doc = _run("test", ["nardl-symmetry", csv, "--dep", "y", "--p", "1", "--q", "1"])
+                @test doc.status == "ok"
+                st = _tbl_with(doc, "regressor", "theta_pos", "theta_neg", "lr_stat", "lr_p_chi2", "lr_p_f", "sr_stat")
+                @test !isempty(collect(st.rows))
+                @test Set(["df", "dof_resid", "n_asym"]) ⊆ _metrics(doc)
+            end
+
+            @testset "multipliers nardl — long table + bands present/absent" begin
+                # bands present with default nreps
+                doc = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "6"])
+                @test doc.status == "ok"
+                mt = _tbl_with(doc, "horizon", "regressor", "m_pos", "m_neg", "m_diff")
+                @test "m_pos_lo" in String.(mt.columns)                # band columns present
+                @test Set(["horizon", "n_asym", "nreps", "level", "bootstrap"]) ⊆ _metrics(doc)
+                # --no-bootstrap drops the band columns
+                dnb = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                                           "--horizon", "6", "--no-bootstrap"])
+                mnb = _tbl_with(dnb, "horizon", "regressor", "m_pos", "m_neg", "m_diff")
+                @test !("m_pos_lo" in String.(mnb.columns))
+                # --nreps 0 also drops bands
+                dn0 = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                                           "--horizon", "6", "--nreps", "0"])
+                @test !("m_pos_lo" in String.(_tbl_with(dn0, "horizon", "regressor", "m_pos").columns))
+                # negative horizon → usage/invalid
+                @test (_err("multipliers", ["nardl", csv, "--dep", "y", "--horizon", "-1"])).code == "usage/invalid"
+            end
+
+            @testset "shared bad input stays typed (never uncaught exit-1)" begin
+                # bad --dep → data/column-range (hardened _load_reg_data), whole family
+                @test (_err("estimate", ["ardl", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("estimate", ["nardl", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("test", ["ardl-bounds", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("multipliers", ["nardl", csv, "--dep", "nope"])).code == "data/column-range"
+                # missing cell → data/missing-values
+                misscsv = joinpath(dir, "missardl.csv")
+                write(misscsv, "y,x1\n1.0,2.0\n2.0,\n3.0,5.0\n4.0,7.0\n5.0,8.0\n6.0,9.0\n7.0,10.0\n8.0,11.0\n")
+                @test (_err("estimate", ["ardl", misscsv, "--dep", "y"])).code == "data/missing-values"
+            end
+
+            @testset "multipliers command structure (new top-level)" begin
+                node = register_multipliers_commands!()
+                @test node isa NodeCommand
+                @test length(node.subcmds) == 1
+                @test haskey(node.subcmds, "nardl")
+                @test node.subcmds["nardl"] isa LeafCommand
+            end
+        end
+    end
+
+    @testset "estimate pmg + test pmg-hausman (C062c)" begin
+        # Dynamic heterogeneous-panel ARDL. estimate pmg renders a hand-built long-run θ table
+        # + a short-run/EC (φ) table + diagnostics kv (PMGModel is not Tables.jl-registered).
+        # test pmg-hausman fits the panel twice (efficient vs MG) → a standard test kv WITH a
+        # p-value + interpretation. Bad input → typed classes, never uncaught exit-1.
+        _run(root, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String[root], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(root, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String[root], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            panel = _make_panel_csv(dir; G=8, T_per=25, n=2, colnames=["y", "x1"])
+
+            @testset "estimate pmg — long-run + short-run/EC tables + diagnostics" begin
+                for meth in ("pmg", "mg", "dfe")
+                    doc = _run("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1",
+                                            "--method", meth, "--p", "1", "--q", "1"])
+                    @test doc.status == "ok"
+                    @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")   # long-run θ
+                    @test _has_tbl(doc, "term", "estimate", "std_error")                       # short-run/EC
+                    ec = _tbl_with(doc, "term", "estimate", "std_error")
+                    @test "EC speed (phi)" in Set(String(collect(r)[1]) for r in ec.rows)
+                    m = _metrics(doc)
+                    @test Set(["method", "N", "p", "q", "T_i", "phi", "phi_se", "loglik", "converged", "iters", "n_nonconv"]) ⊆ m
+                end
+            end
+
+            @testset "test pmg-hausman — standard test kv + interpretation" begin
+                for eff in ("pmg", "dfe")
+                    doc = _run("test", ["pmg-hausman", panel, "--dep", "y", "--indep", "x1",
+                                        "--efficient", eff, "--p", "1", "--q", "1"])
+                    @test doc.status == "ok"
+                    m = _metrics(doc)
+                    @test Set(["test_name", "statistic", "pvalue", "df", "description"]) ⊆ m
+                end
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                # bad enum → ParseError (or usage/invalid) — both exit 2
+                em = _err("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1", "--method", "foo"])
+                @test em isa ParseError || (em isa CliError && exit_class(em) == 2)
+                # pmg-hausman rejects --efficient mg (choices=pmg|dfe) at parse
+                eh = _err("test", ["pmg-hausman", panel, "--dep", "y", "--indep", "x1", "--efficient", "mg"])
+                @test eh isa ParseError || (eh isa CliError && exit_class(eh) == 2)
+                # p<1 → usage/invalid (in-handler guard)
+                @test (_err("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1", "--p", "0"])).code == "usage/invalid"
+                # bad --dep → usage/invalid (not a panel variable)
+                @test (_err("estimate", ["pmg", panel, "--dep", "nope", "--indep", "x1"])).code == "usage/invalid"
+                # single-unit panel → data/invalid (PMG needs N≥2; wrapped, not exit-1)
+                onecsv = joinpath(dir, "onepmg.csv")
+                write(onecsv, "group,time,y,x1\n1,1,1.0,2.0\n1,2,1.4,2.3\n1,3,1.9,2.9\n1,4,2.1,3.2\n1,5,2.6,3.8\n1,6,3.0,4.1\n1,7,3.4,4.7\n1,8,3.9,5.2\n")
+                @test (_err("estimate", ["pmg", onecsv, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+                @test (_err("test", ["pmg-hausman", onecsv, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+                # missing cell in dep/indep → data/missing-values (hardened _load_panel_reg)
+                miss = joinpath(dir, "misspmg.csv")
+                write(miss, "group,time,y,x1\n1,1,1.0,2.0\n1,2,,2.3\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                @test (_err("estimate", ["pmg", miss, "--dep", "y", "--indep", "x1"])).code == "data/missing-values"
+                # duplicate (id,time) → data/invalid (hardened load_panel_data)
+                dup = joinpath(dir, "duppmg.csv")
+                write(dup, "group,time,y,x1\n1,1,1.0,2.0\n1,1,1.5,2.5\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+                @test (_err("estimate", ["pmg", dup, "--dep", "y", "--indep", "x1"])).code == "data/invalid"
+            end
+        end
+    end
+
+    @testset "estimate midas (C062d)" begin
+        # Mixed-frequency MIDAS: a low-frequency target (--data, --column) on --k high-frequency
+        # lags of a single indicator (--hf-data, --hf-column). Renders a hand-built weight-curve
+        # table (lag|weight) + coef table (term|estimate|std_error|stat|p_value) + diagnostics kv
+        # (MidasModel is not Tables.jl-registered). `_load_midas_data` is the 5th hardened shared
+        # loader: both inputs via load_univariate_series (typed missing/range), aligned
+        # len(HF)==m×len(LF) → data/shape. Bad input → typed classes, never uncaught exit-1.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "midas"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "midas"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        # Aligned mixed-frequency pair: LF target (Tlf rows) + HF indicator (m*Tlf rows).
+        _mixed(dir; Tlf=40, m=3, tag="a") = begin
+            lf = joinpath(dir, "lf_$tag.csv"); hf = joinpath(dir, "hf_$tag.csv")
+            CSV.write(lf, DataFrame(gdp=[1.0 + 0.5*sin(t/3.0) + 0.1*t for t in 1:Tlf]))
+            CSV.write(hf, DataFrame(ip=[0.2*cos(h/4.0) + 0.05*h for h in 1:(m*Tlf)]))
+            (lf, hf)
+        end
+
+        mktempdir() do dir
+            lf, hf = _mixed(dir; Tlf=40, m=3, tag="main")
+
+            @testset "weight-curve + coef tables + diagnostics, all 5 schemes" begin
+                for wk in ("expalmon", "beta2", "beta3", "almon", "umidas")
+                    doc = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", wk])
+                    @test doc.status == "ok"
+                    @test _has_tbl(doc, "lag", "weight")                                     # weight curve
+                    wt = _tbl_with(doc, "lag", "weight")
+                    @test length(collect(wt.rows)) == 6                                      # K lags
+                    @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")  # coef table
+                    mt = _metrics(doc)
+                    @test Set(["weights_kind", "m", "K", "p_ar", "poly_degree", "h", "nobs",
+                               "r2", "adj_r2", "ssr", "sigma2", "aic", "bic", "loglik", "converged"]) ⊆ mt
+                end
+            end
+
+            @testset "ADL-MIDAS (--p-ar) runs" begin
+                doc = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "expalmon", "--p-ar", "1"])
+                @test doc.status == "ok"
+                @test _has_tbl(doc, "term", "estimate")
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                # missing --hf-data → usage/missing-option (exit 2)
+                em = _err([lf, "--m", "3", "--k", "6"])
+                @test em isa CliError && em.code == "usage/missing-option" && exit_class(em) == 2
+                # --m 0 / --k 0 → usage/invalid (no upstream default)
+                @test (_err([lf, "--hf-data", hf, "--m", "0", "--k", "6"])).code == "usage/invalid"
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "0"])).code == "usage/invalid"
+                # Beta weight needs K≥2 → data/invalid (pre-guard, friendly message)
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "1", "--weights", "beta2"])).code == "data/invalid"
+                # bad --weights enum → ParseError (choices) — exit 2
+                ew = _err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "bogus"])
+                @test ew isa ParseError || (ew isa CliError && exit_class(ew) == 2)
+                # negative --poly-degree → usage/invalid (up-front guard; every numeric option is
+                # guarded — without it real MEMs throws a bare BoundsError → model/error while the
+                # mock throws ArgumentError → data/invalid, a latent mock/real exit-class divergence)
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "almon", "--poly-degree", "-1"])).code == "usage/invalid"
+                # HF SHORTER than m×LF → data/shape (end-anchoring would drop target periods).
+                # A LONGER HF (nhf > m×LF) is VALID (leading ragged edge dropped) — covered below.
+                hfbad = joinpath(dir, "hf_bad.csv")
+                CSV.write(hfbad, DataFrame(ip=[Float64(h) for h in 1:100]))   # 100 < 3*40 = 120
+                eb = _err([lf, "--hf-data", hfbad, "--m", "3", "--k", "6"])
+                @test eb isa CliError && eb.code == "data/shape" && exit_class(eb) == 3
+                # missing cell in HF → data/missing-values (hardened load_univariate_series).
+                # NOTE: a single-column CSV with a blank line is an EMPTY ROW that CSV.jl skips
+                # (→ a shorter series → data/shape, NOT a real `missing`), so the missing cell must
+                # sit in a multi-column row to survive as `missing`. Two columns; the target HF
+                # column (1) carries one empty cell while the row itself is non-empty (aux keeps it).
+                hfmiss = joinpath(dir, "hf_miss.csv")
+                write(hfmiss, "ip,aux\n" * join(["$(h == 60 ? "" : string(0.1 * h)),0.5" for h in 1:120], "\n") * "\n")
+                @test (_err([lf, "--hf-data", hfmiss, "--m", "3", "--k", "6"])).code == "data/missing-values"
+                # out-of-range --column on the LF file → data/column-range
+                @test (_err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--column", "9"])).code == "data/column-range"
+            end
+
+            @testset "ragged HF (nhf > m×LF) accepted — leading edge dropped" begin
+                # The estimator anchors the last HF obs to the last LF period (its headline
+                # nowcasting feature), so a LONGER high-frequency indicator is valid — the CLI
+                # loader relaxes to `nhf >= m×LF` (not exact) to match. LF=40 rows, m=3 needs 120;
+                # supply 150 HF obs (30 leading dropped).
+                hflong = joinpath(dir, "hf_long.csv")
+                CSV.write(hflong, DataFrame(ip=[0.2 * cos(h / 4.0) + 0.05 * h for h in 1:150]))  # 150 > 3*40 = 120
+                doc = _doc([lf, "--hf-data", hflong, "--m", "3", "--k", "6"])
+                @test doc.status == "ok"
+                @test _has_tbl(doc, "lag", "weight")
+                @test _has_tbl(doc, "term", "estimate")
+            end
+        end
+    end
+
+    @testset "estimate setar (C065a)" begin
+        # SETAR: two-regime hand-built coef table (regime|term|estimate|std_error|z_stat|
+        # p_value, 2 regimes × |xnames| rows) + diagnostics kv; the attached Hansen (1996)
+        # linearity test folds into the kv iff linearity is on (default). ThresholdModel is
+        # not Tables.jl-registered. Every option is guarded up-front → usage/invalid; the
+        # estimator is wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "setar"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "setar"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "coef table (2 regimes) + diagnostics + attached linearity" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--reps", "50"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # p=1 ⇒ xnames = [const, y[t-1]] (2 terms) × 2 regimes = 4 rows
+                @test length(rows) == 4
+                regimes = Set(String(collect(r)[1]) for r in rows)
+                @test length(regimes) == 2
+                m = _metrics(doc)
+                @test Set(["gamma", "gamma_ci_lower", "gamma_ci_upper", "n", "n1", "n2",
+                           "aic", "bic", "is_setar"]) ⊆ m
+                # linearity on by default → Hansen sup-LM / p-value present in the kv
+                @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald", "gamma_sup"]) ⊆ m
+            end
+
+            @testset "--no-linearity drops the attached test; --d auto ok" begin
+                dn = _doc([csv, "--no-linearity"])
+                @test dn.status == "ok"
+                @test !("sup_lm" in _metrics(dn))
+                @test _doc([csv, "--d", "auto"]).status == "ok"
+                @test _doc([csv, "--p", "2", "--d", "2"]).status == "ok"
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--trim", "0.6"]).code == "usage/invalid"
+                @test _err([csv, "--reps", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "foo"]).code == "usage/invalid"
+                @test _err([csv, "--d", "0"]).code == "usage/invalid"
+                # --ci-level 0.8: blocked by choices at parse (ParseError, exit 2) or the
+                # in-handler exact-float guard (CliError usage/invalid, exit 2)
+                eci = _err([csv, "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+                # out-of-range column / missing cell via the hardened univariate loader
+                @test _err([csv, "--column", "99"]).code == "data/column-range"
+                misscsv = joinpath(dir, "miss.csv")
+                write(misscsv, "y,aux\n" * join(["$(i == 5 ? "" : string(0.1 * i)),0.5" for i in 1:60], "\n") * "\n")
+                em = _err([misscsv, "--column", "1"])
+                @test em isa CliError && em.code == "data/missing-values" && exit_class(em) == 3
+                # A (near-)constant series admits no threshold split → data/invalid (exit 3), NOT an
+                # internal model/error: real MEMs raises ArgumentError("Empty threshold grid") and the
+                # mock mirrors that class (so the T1/T2 exit class tracks real's T3, not a
+                # SingularException → model/error divergence).
+                constcsv = joinpath(dir, "const.csv")
+                write(constcsv, "y\n" * join(fill("1.0", 60), "\n") * "\n")
+                ec = _err([constcsv, "--column", "1"])
+                @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
+            end
+        end
+    end
+
+    @testset "estimate star (C065b)" begin
+        # STAR: two regime-weight blocks (1−G / G) render as one hand-built table
+        # (regime|term|estimate|std_error|z_stat|p_value); the transition parameters (γ, c)
+        # render as a separate parameter|estimate|std_error|z_stat|p_value table; LM3 + (for
+        # --type auto) the Teräsvirta selection triple fold into the kv. STARModel is not
+        # Tables.jl-registered. Every option is guarded up-front → usage/invalid; the estimator
+        # is wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "star"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "star"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "regime blocks + transition params + diagnostics (--type auto)" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--type", "auto"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # p=1 ⇒ znames = [const, y[t-1]] (2 terms) × 2 regimes = 4 rows
+                @test length(rows) == 4
+                @test length(Set(String(collect(r)[1]) for r in rows)) == 2
+                # transition-params block: γ (+ location c) in a `parameter` table
+                trans = _tbl_with(doc, "parameter", "estimate", "std_error")
+                @test any(occursin("γ", String(collect(r)[1])) for r in trans.rows)
+                m = _metrics(doc)
+                @test Set(["trans_type", "sname", "sigma_s", "lm3_stat", "lm3_pvalue",
+                           "lm3_fstat", "lm3_fpvalue", "converged"]) ⊆ m
+                # --type auto ⇒ the Teräsvirta sequential selection triple is present
+                @test Set(["sel_H04", "sel_H03", "sel_H02"]) ⊆ m
+            end
+
+            @testset "--type lstr1 drops the selection triple; external transition col" begin
+                m1 = _metrics(_doc([csv, "--type", "lstr1"]))
+                @test !("sel_H04" in m1)
+                # a valid non-constant external transition column fits (sname reports "s")
+                csv2 = _make_csv(dir; T=200, n=2, colnames=["y", "x"])
+                de = _doc([csv2, "--column", "1", "--transition-col", "2", "--type", "lstr1"])
+                @test de.status == "ok"
+            end
+
+            @testset "bad input → typed classes, never uncaught exit-1" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "0"]).code == "usage/invalid"
+                @test _err([csv, "--n-gamma", "1"]).code == "usage/invalid"
+                @test _err([csv, "--n-c", "1"]).code == "usage/invalid"
+                # --type bogus: blocked by choices at parse (ParseError, exit 2) or the
+                # defensive in-handler enum guard (CliError usage/invalid, exit 2)
+                et = _err([csv, "--type", "bogus"])
+                @test et isa ParseError || (et isa CliError && exit_class(et) == 2)
+                # constant external transition column → data/invalid (zero variance, cannot scale γ)
+                constcsv = joinpath(dir, "star_const.csv")
+                write(constcsv, "y,s\n" * join(["$(0.1 * i),1.0" for i in 1:80], "\n") * "\n")
+                ec = _err([constcsv, "--column", "1", "--transition-col", "2"])
+                @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
+                # out-of-range column via the hardened univariate loader
+                @test _err([csv, "--column", "99"]).code == "data/column-range"
+            end
+        end
+    end
+
+    @testset "estimate ms-ar + estimate ms (C065c)" begin
+        # Markov-switching family. MSRegModel is not Tables.jl-registered → three hand-built
+        # tables via the shared `_ms_render`: a per-regime coefficient table (regime|term|…),
+        # a per-regime variance table (regime|sigma2|std_error), and a WIDE K×K transition
+        # matrix (from_regime|to_regime1|…) parallel to the MGARCH correlation matrix, plus a
+        # diagnostics kv. The two estimators have OPPOSITE switching_variance defaults (ms-ar
+        # FALSE, ms TRUE). Every option guarded up-front → usage/invalid; the estimator is
+        # wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
+        _doc(cmd, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", cmd], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _mtbl(doc) = first(t for t in _tables(doc) if "metric" in String.(t.columns))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in _mtbl(doc).rows)
+        _mval(doc, name) = begin
+            for r in _mtbl(doc).rows
+                rr = collect(r)
+                String(rr[1]) == name && return rr[2]
+            end
+            nothing
+        end
+        _err(cmd, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", cmd], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            # Distinct file paths per structure (`_make_csv` always writes the same `data.csv`, so a
+            # second call would clobber a single-column fixture the intercept-only test relies on).
+            Random.seed!(65067)
+            _write_csv(path, header, ncol; T=200) = open(path, "w") do io
+                println(io, header)
+                for _ in 1:T
+                    println(io, join((string(randn()) for _ in 1:ncol), ","))
+                end
+            end
+            csv = joinpath(dir, "ms_uni.csv");     _write_csv(csv, "y", 1)
+            multi = joinpath(dir, "ms_multi.csv"); _write_csv(multi, "y,x1,x2", 3)
+            collide = joinpath(dir, "ms_collide.csv"); _write_csv(collide, "y,from_regime,to_regime1", 3)
+
+            @testset "estimate ms-ar — mu rows + common-AR block, variance + wide P, kv" begin
+                doc = _doc("ms-ar", [csv, "--column", "1", "--p", "1"])
+                @test doc.status == "ok"
+                # coef table: per-regime `mu` rows + a common-AR block (φ1)
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                terms = Set(String(collect(r)[2]) for r in rows)
+                @test "mu" in terms
+                @test "φ1" in terms
+                regimes = Set(String(collect(r)[1]) for r in rows)
+                @test "regime1" in regimes && "regime2" in regimes && "common-AR" in regimes
+                # per-regime variance table (2 regimes)
+                vt = _tbl_with(doc, "regime", "sigma2", "std_error")
+                @test length(collect(vt.rows)) == 2
+                # WIDE K×K transition matrix
+                pt = _tbl_with(doc, "from_regime", "to_regime1", "to_regime2")
+                @test length(collect(pt.rows)) == 2
+                m = _metrics(doc)
+                @test Set(["loglik", "n_params", "aic", "bic", "ergodic_1", "ergodic_2",
+                           "expected_duration_1", "expected_duration_2", "switching_var",
+                           "switching_ar", "converged", "iterations"]) ⊆ m
+                # Hamilton form default: switching_var = false
+                @test string(_mval(doc, "switching_var")) == "false"
+                # --switching-variance flag turns it on
+                d2 = _doc("ms-ar", [csv, "--p", "1", "--switching-variance"])
+                @test string(_mval(d2, "switching_var")) == "true"
+            end
+
+            @testset "estimate ms-ar — bad input → typed usage/invalid" begin
+                @test _err("ms-ar", [csv, "--p", "0"]).code == "usage/invalid"
+                @test _err("ms-ar", [csv, "--k-regimes", "1"]).code == "usage/invalid"
+                @test _err("ms-ar", [csv, "--max-iter", "0"]).code == "usage/invalid"
+                @test _err("ms-ar", [csv, "--column", "99"]).code == "data/column-range"
+            end
+
+            @testset "estimate ms — regressors path, switching_var default TRUE" begin
+                # multi-column CSV → per-regime switching coefs over the regressor columns
+                doc = _doc("ms", [multi, "--dep", "y"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                regimes = Set(String(collect(r)[1]) for r in collect(coef.rows))
+                @test regimes == Set(["regime1", "regime2"])
+                @test string(_mval(doc, "switching_var")) == "true"   # default for ms
+                # --no-switching-variance forces a common σ²
+                dn = _doc("ms", [multi, "--dep", "y", "--no-switching-variance"])
+                @test string(_mval(dn, "switching_var")) == "false"
+            end
+
+            @testset "estimate ms — intercept-only single-arg dispatch (dep-only CSV)" begin
+                # only the dependent column is numeric → _load_reg_data raises "no regressor
+                # columns", routing to the single-arg estimate_ms(y; …) intercept-only dispatch
+                doc = _doc("ms", [csv])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # intercept-only: one `const` term per regime (2 rows)
+                @test length(rows) == 2
+                @test all(String(collect(r)[2]) == "const" for r in rows)
+            end
+
+            @testset "estimate ms — bad input → typed usage/invalid" begin
+                @test _err("ms", [csv, "--k-regimes", "1"]).code == "usage/invalid"
+                @test _err("ms", [csv, "--max-iter", "0"]).code == "usage/invalid"
+                @test _err("ms", [csv, "--tol", "0"]).code == "usage/invalid"
+            end
+
+            @testset "estimate ms — regressors named like P-labels render cleanly" begin
+                # UNLIKE MGARCH (where the input series names ARE the wide-matrix headers → a real
+                # collision the makeunique guards), the MS wide-P headers are FIXED strings
+                # (from_regime / to_regimeN), so a regressor column named `from_regime`/`to_regime1`
+                # only ever becomes a `term` VALUE in the coef table, never a header. This test just
+                # confirms such oddly-named regressors render exit-0 (the makeunique on the P DataFrame
+                # is retained as harmless defense-in-depth, mirroring `_mgarch_corr_df`, but the MS
+                # table headers cannot be driven by user input, so no header collision can occur).
+                cdoc = _doc("ms", [collide, "--dep", "y"])
+                @test cdoc.status == "ok"
+                @test _tbl_with(cdoc, "from_regime", "to_regime1", "to_regime2") !== nothing
+            end
+        end
+    end
+
+    @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
+        _edoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tdoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _eerr(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        _terr(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            # Truncated-normal data: every y strictly positive (mock/real both require
+            # y ∈ (lower, upper)); regressors x1,x2.
+            trcsv = joinpath(dir, "trunc.csv")
+            open(trcsv, "w") do io
+                println(io, "y,x1,x2")
+                for t in 1:80
+                    x1 = (t % 7) - 3.0; x2 = (t % 5) - 2.0
+                    y = 5.0 + 0.2*x1 - 0.1*x2 + 0.05*(t % 3)   # always > 0
+                    println(io, "$y,$x1,$x2")
+                end
+            end
+            # Heckman: outcome y, binary selection d, const=1, outcome regressor x1,
+            # selection regressor z1 (the exclusion instrument, not in outcome eqn).
+            hcsv = joinpath(dir, "heck.csv")
+            open(hcsv, "w") do io
+                println(io, "y,d,const,x1,z1")
+                for t in 1:120
+                    x1 = (t % 9) - 4.0; z1 = (t % 6) - 2.5
+                    d = (t % 3 == 0) ? 1.0 : 0.0
+                    y = 2.0 + 0.5*x1
+                    println(io, "$y,$d,1.0,$x1,$z1")
+                end
+            end
+            # IV / weak-instrument: y, const, x_endog, z1, z2 (excluded instruments).
+            ivcsv = joinpath(dir, "iv.csv")
+            open(ivcsv, "w") do io
+                println(io, "y,const,x_endog,z1,z2")
+                for t in 1:100
+                    z1 = (t % 8) - 3.5; z2 = (t % 5) - 2.0
+                    xe = 0.5*z1 + 0.3*z2 + 0.1*(t % 4)
+                    y = 1.0 + 2.0*xe
+                    println(io, "$y,1.0,$xe,$z1,$z2")
+                end
+            end
+
+            @testset "truncreg — parameter/estimate/std_error + diag (Inf-safe)" begin
+                doc = _edoc(["truncreg", trcsv, "--dep", "y", "--lower", "0.0"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "parameter", "estimate", "std_error")
+                @test length(collect(coef.rows)) == 2      # x1,x2
+                m = _metrics(doc)
+                @test Set(["sigma", "n_truncated", "loglik", "converged"]) ⊆ m
+            end
+
+            @testset "heckman — two-equation tidy coef (equation col) + diag" begin
+                doc = _edoc(["heckman", hcsv, "--dep", "y", "--select", "d",
+                             "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "equation", "term", "estimate")
+                eqs = Set(String(collect(r)[findfirst(==("equation"), String.(coef.columns))]) for r in coef.rows)
+                @test Set(["outcome", "selection"]) ⊆ eqs
+                m = _metrics(doc)
+                @test Set(["method", "rho", "sigma", "lambda", "n_selected", "n_total"]) ⊆ m
+            end
+
+            @testset "heckman — mle method also runs" begin
+                doc = _edoc(["heckman", hcsv, "--dep", "y", "--select", "d",
+                             "--outcome-vars", "const,x1", "--select-vars", "const,z1", "--method", "mle"])
+                @test doc.status == "ok"
+            end
+
+            @testset "weak-instrument — F diagnostics + verdict metric" begin
+                doc = _tdoc(["weak-instrument", ivcsv, "--dep", "y",
+                             "--endogenous", "x_endog", "--instruments", "z1,z2"])
+                @test doc.status == "ok"
+                m = _metrics(doc)
+                @test Set(["first_stage_f", "n_endogenous", "n_excluded_instruments", "weak"]) ⊆ m
+            end
+
+            @testset "C067b bad input → typed classes, never uncaught exit-1" begin
+                # heckman: missing required opts → usage/missing (exit 2)
+                @test _eerr(["heckman", hcsv, "--dep", "y", "--outcome-vars", "const,x1",
+                             "--select-vars", "const,z1"]) isa CliError                       # no --select
+                em = _eerr(["heckman", hcsv, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,x1", "--select-vars", "const,z1", "--method", "bogus"])
+                # --method is enum-rejected at parse (ParseError) or by the handler (usage/invalid); both exit 2
+                @test em isa ParseError || (em isa CliError && exit_class(em) == 2)
+                # heckman: unknown column → data/column-range (exit 3)
+                ec = _eerr(["heckman", hcsv, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,nope", "--select-vars", "const,z1"])
+                @test ec isa CliError && ec.code == "data/column-range"
+                # truncreg: y outside bounds → typed data error, not raw MEMs exit-1
+                eb = _eerr(["truncreg", trcsv, "--dep", "y", "--lower", "100.0", "--upper", "200.0"])
+                @test eb isa CliError && exit_class(eb) == 3
+                @test _eerr(["truncreg", trcsv, "--dep", "y", "--lower", "5", "--upper", "1"]).code == "usage/invalid"
+                # weak-instrument: missing --endogenous/--instruments → usage/missing (exit 2)
+                @test _terr(["weak-instrument", ivcsv, "--dep", "y", "--instruments", "z1,z2"]) isa CliError
+                ew = _terr(["weak-instrument", ivcsv, "--dep", "y", "--endogenous", "x_endog", "--instruments", "z1,z2"])
+                @test ew === nothing || ew isa CliError   # runs (or a typed error), never uncaught
+                @test _terr(["weak-instrument", ivcsv, "--dep", "y", "--endogenous", "nope",
+                             "--instruments", "z1,z2"]).code == "data/column-range"
+            end
+
+            @testset "C067b adversarial-review regressions" begin
+                # (1) weak-instrument / iv: more instruments than observations → data/invalid
+                # (loader m<n guard), NOT a NaN "weak=false / instruments look strong" verdict.
+                deg = joinpath(dir, "degenerate_iv.csv")
+                open(deg, "w") do io
+                    println(io, "y,x_endog," * join(["z$k" for k in 1:8], ","))
+                    for t in 1:6   # n=6 rows, but 8 excluded instruments → m=9 ≥ n
+                        vals = [string(0.5*t + 0.1*k) for k in 0:8]
+                        println(io, "$(1.0*t)," * join(vals, ","))
+                    end
+                end
+                edg = _terr(["weak-instrument", deg, "--dep", "y", "--endogenous", "x_endog",
+                             "--instruments", join(["z$k" for k in 1:8], ",")])
+                @test edg isa CliError && edg.code == "data/invalid" && exit_class(edg) == 3
+
+                # (2) heckman: a BLANK outcome for NON-selected (d==0) rows is the canonical
+                # incidental-truncation layout → estimates fine (not data/missing-values).
+                hmiss = joinpath(dir, "heck_blank.csv")
+                open(hmiss, "w") do io
+                    println(io, "y,d,const,x1,z1")
+                    for t in 1:120
+                        x1 = (t % 9) - 4.0; z1 = (t % 6) - 2.5
+                        d = (t % 3 == 0) ? 1.0 : 0.0
+                        ystr = d == 1.0 ? string(2.0 + 0.5*x1) : ""   # blank when unobserved
+                        println(io, "$ystr,$d,1.0,$x1,$z1")
+                    end
+                end
+                dh = _edoc(["heckman", hmiss, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+                @test dh.status == "ok"
+                # but a blank outcome for a SELECTED (d==1) row IS an error.
+                hbad = joinpath(dir, "heck_badsel.csv")
+                open(hbad, "w") do io
+                    println(io, "y,d,const,x1,z1")
+                    for t in 1:120
+                        x1 = (t % 9) - 4.0; z1 = (t % 6) - 2.5
+                        d = (t % 3 == 0) ? 1.0 : 0.0
+                        # row 3 is selected (t=3, d=1) but leave its outcome blank
+                        ystr = (t == 3) ? "" : (d == 1.0 ? string(2.0 + 0.5*x1) : "")
+                        println(io, "$ystr,$d,1.0,$x1,$z1")
+                    end
+                end
+                eh = _eerr(["heckman", hbad, "--dep", "y", "--select", "d",
+                            "--outcome-vars", "const,x1", "--select-vars", "const,z1"])
+                @test eh isa CliError && eh.code == "data/missing-values"
+            end
+        end
+    end
+
+    @testset "estimate statespace/tvp/kde/kernel-reg/lowess (C066)" begin
+        _edoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _eerr(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            # Univariate series for statespace/kde (single numeric column).
+            uni = joinpath(dir, "uni.csv")
+            open(uni, "w") do io
+                println(io, "y")
+                for t in 1:60
+                    println(io, 10.0 + 0.1*t + sin(t/5.0))
+                end
+            end
+            # y + single predictor x for kernel-reg/lowess/tvp (linear y = 1 + 2x).
+            xy = joinpath(dir, "xy.csv")
+            open(xy, "w") do io
+                println(io, "y,x")
+                for t in 1:50
+                    x = (t % 11) - 5.0
+                    println(io, "$(1.0 + 2.0*x + 0.05*(t % 3)),$x")
+                end
+            end
+
+            @testset "statespace local-level — param table + diag" begin
+                doc = _edoc(["statespace", uni, "--model", "local-level"])
+                @test doc.status == "ok"
+                pt = _tbl_with(doc, "parameter", "estimate")
+                @test length(collect(pt.rows)) == 2               # σ²_ε, σ²_η
+                m = _metrics(doc)
+                @test Set(["model", "loglik", "converged", "n_state"]) ⊆ m
+            end
+
+            @testset "statespace local-linear-trend — 3 hyper-params" begin
+                doc = _edoc(["statespace", uni, "--model", "local-linear-trend"])
+                @test doc.status == "ok"
+                @test length(collect(_tbl_with(doc, "parameter", "estimate").rows)) == 3
+            end
+
+            @testset "tvp — coefficient path is tidy (period|coefficient|estimate)" begin
+                doc = _edoc(["tvp", xy, "--dep", "y"])
+                @test doc.status == "ok"
+                path = _tbl_with(doc, "period", "coefficient", "estimate")
+                # 50 periods × 2 coefs (intercept + x) = 100 rows
+                @test length(collect(path.rows)) == 100
+                @test Set(["loglik", "n_coef", "intercept", "method"]) ⊆ _metrics(doc)
+            end
+
+            @testset "kde — x|density grid + bandwidth diag" begin
+                doc = _edoc(["kde", uni, "--npoints", "128"])
+                @test doc.status == "ok"
+                grid = _tbl_with(doc, "x", "density")
+                @test length(collect(grid.rows)) == 128
+                @test Set(["kernel", "bw_method", "bandwidth", "nobs"]) ⊆ _metrics(doc)
+            end
+
+            @testset "kernel-reg — x|fitted|se + diag" begin
+                doc = _edoc(["kernel-reg", xy, "--dep", "y", "--indep", "x"])
+                @test doc.status == "ok"
+                fit = _tbl_with(doc, "x", "fitted", "se")
+                @test length(collect(fit.rows)) == 50
+                @test Set(["method", "degree", "kernel", "bandwidth", "nobs"]) ⊆ _metrics(doc)
+            end
+
+            @testset "lowess — x|fitted + diag" begin
+                doc = _edoc(["lowess", xy, "--dep", "y", "--indep", "x"])
+                @test doc.status == "ok"
+                fit = _tbl_with(doc, "x", "fitted")
+                @test length(collect(fit.rows)) == 50
+                @test Set(["frac", "iter", "nobs"]) ⊆ _metrics(doc)
+            end
+
+            @testset "C066 bad input → typed classes, never uncaught exit-1" begin
+                # kde: junk --bw → usage/invalid
+                @test _eerr(["kde", uni, "--bw", "notanumber"]).code == "usage/invalid"
+                # kernel-reg / lowess: missing --indep → usage/missing
+                @test _eerr(["kernel-reg", xy, "--dep", "y"]).code == "usage/missing"
+                @test _eerr(["lowess", xy, "--dep", "y"]).code == "usage/missing"
+                # unknown --indep column → data/column-range
+                @test _eerr(["kernel-reg", xy, "--dep", "y", "--indep", "nope"]).code == "data/column-range"
+                # predictor == response → data/column-range
+                @test _eerr(["lowess", xy, "--dep", "y", "--indep", "y"]).code == "data/column-range"
+                # lowess: --frac out of (0,1] → usage/invalid
+                @test _eerr(["lowess", xy, "--dep", "y", "--indep", "x", "--frac", "1.5"]).code == "usage/invalid"
+                # missing cell in the predictor → data/missing-values (guard before Float64 conv)
+                xmiss = joinpath(dir, "xmiss.csv")
+                open(xmiss, "w") do io
+                    println(io, "y,x")
+                    println(io, "1.0,0.5"); println(io, "2.0,"); println(io, "3.0,1.5")
+                end
+                @test _eerr(["kernel-reg", xmiss, "--dep", "y", "--indep", "x"]).code == "data/missing-values"
+            end
+
+            @testset "C066 adversarial-review regressions" begin
+                # (fix) _parse_bandwidth must reject non-finite --bw → usage/invalid (exit 2),
+                # not slip Inf through (degenerate fit) or let NaN become MEMs data/invalid (exit 3).
+                @test _eerr(["kde", uni, "--bw", "Inf"]).code == "usage/invalid"
+                @test _eerr(["kde", uni, "--bw", "NaN"]).code == "usage/invalid"
+                @test _eerr(["kernel-reg", xy, "--dep", "y", "--indep", "x", "--bw", "Inf"]).code == "usage/invalid"
+                # (fix) --degree guarded up-front as a CLI arg → usage/invalid, not MEMs data/invalid.
+                ed = _eerr(["kernel-reg", xy, "--dep", "y", "--indep", "x", "--method", "lp", "--degree", "-1"])
+                @test ed isa CliError && ed.code == "usage/invalid" && exit_class(ed) == 2
+                # (fix) all-non-numeric CSV with default --dep → data/invalid, NOT an untyped
+                # BoundsError exit-1 (numcols[1] on an empty vector) — for the whole loader family.
+                strcsv = joinpath(dir, "strings.csv")
+                open(strcsv, "w") do io
+                    println(io, "a,b"); println(io, "foo,bar"); println(io, "baz,qux")
+                end
+                @test _eerr(["kernel-reg", strcsv, "--indep", "b"]).code == "data/invalid"
+                @test _eerr(["lowess", strcsv, "--indep", "b"]).code == "data/invalid"
+                @test _eerr(["reg", strcsv]).code == "data/invalid"           # mirrored _load_reg_data hole
+                # (infra class-fix) the legacy-JSON writer sanitizes non-finite floats (Inf/NaN →
+                # "Inf"/"NaN" strings) instead of crashing JSON3.write ("… not allowed in JSON spec").
+                out = _capture() do
+                    _write_json_raw(Dict("a" => Inf, "b" => NaN, "c" => 1.5), "")
+                end
+                @test occursin("Inf", out) && occursin("NaN", out)           # rendered, no crash
             end
         end
     end
@@ -1214,11 +2687,12 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 41 primary + 2 snake aliases (arch_lm, ljung_box) = 43 keys (C044)
-        @test length(node.subcmds) == 43
-        for cmd in ["adf", "kpss", "pp", "za", "np", "johansen",
+        # 58 primary + 2 snake aliases (arch_lm, ljung_box) = 60 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 60
+        for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
-                     "arch-lm", "ljung-box", "var", "granger", "pvar", "lr", "lm",
+                     "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
+                     "variance-ratio", "bds", "hadri", "pedroni", "kao", "westerlund", "weak-instrument",
                      "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
                      "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
                      "adf-2break", "gregory-hansen", "vif",
@@ -1243,6 +2717,15 @@ end  # Estimate handlers
         @test haskey(pvar_node.subcmds, "mmsc")
         @test haskey(pvar_node.subcmds, "lagselect")
         @test haskey(pvar_node.subcmds, "stability")
+        # VECM: nested NodeCommand with 5 restriction-test leaves (C071)
+        vecm_node = node.subcmds["vecm"]
+        @test vecm_node isa NodeCommand
+        @test length(vecm_node.subcmds) == 5
+        @test haskey(vecm_node.subcmds, "beta")
+        @test haskey(vecm_node.subcmds, "alpha")
+        @test haskey(vecm_node.subcmds, "weak-exog")
+        @test haskey(vecm_node.subcmds, "known-beta")
+        @test haskey(vecm_node.subcmds, "joint")
         # LR and LM are LeafCommands with 2 positional args
         @test node.subcmds["lr"] isa LeafCommand
         @test node.subcmds["lm"] isa LeafCommand
@@ -1311,6 +2794,404 @@ end  # Estimate handlers
             csv = _make_csv(dir; T=100, n=3)
             out = _capture() do
                 _test_np(; data=csv, column=1, trend="constant", format="table")
+            end
+        end
+    end
+
+    @testset "_test_gph" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_gph(; data=csv, column=1, format="table")
+            end
+            @test occursin("GPH", out)
+            @test occursin("long-memory", out)
+        end
+    end
+
+    @testset "_test_gph — bandwidth + trim + json" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_gph(; data=csv, column=1, bandwidth=20, trim=1, format="json")
+            end
+        end
+    end
+
+    @testset "_test_gph — short series errors as CliError" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=5, n=1, colnames=["x"])
+            @test_throws CliError _capture() do
+                _test_gph(; data=csv, column=1, format="table")
+            end
+        end
+    end
+
+    @testset "_test_gph — negative --trim → usage error (review fix)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1, colnames=["x"])
+            # was a BoundsError misclassified as model/error (exit 5); now usage/invalid (exit 2)
+            err = nothing
+            try; _capture() do; _test_gph(; data=csv, column=1, trim=-1, format="table"); end; catch e; err = e; end
+            @test err isa CliError && err.code == "usage/invalid" && exit_class(err) == 2
+        end
+    end
+
+    @testset "_test_local_whittle" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_local_whittle(; data=csv, column=1, format="table")
+            end
+            @test occursin("Whittle", out)
+            @test occursin("long-memory", out)
+        end
+    end
+
+    @testset "_test_local_whittle — bandwidth" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = _capture() do
+                _test_local_whittle(; data=csv, column=1, bandwidth=15, format="table")
+            end
+        end
+    end
+
+    @testset "_test_local_whittle — short series errors as CliError" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=5, n=1, colnames=["x"])
+            @test_throws CliError _capture() do
+                _test_local_whittle(; data=csv, column=1, format="table")
+            end
+        end
+    end
+
+    @testset "_test_sign_bias / _test_nyblom (C064b)" begin
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2, colnames=["ret", "other"])
+
+            @testset "sign-bias — Engle-Ng kv keys (garch)" begin
+                doc = _doc(["sign-bias", csv, "--column", "1", "--model", "garch"])
+                @test doc.status == "ok"
+                metrics = Set(String(collect(r)[1]) for r in _tbl(doc, "metric").rows)
+                @test Set(["sign_bias", "joint_statistic", "joint_pvalue", "dof"]) ⊆ metrics
+            end
+
+            @testset "sign-bias — egarch/gjr-garch models dispatch" begin
+                @test _doc(["sign-bias", csv, "--model", "egarch"]).status == "ok"
+                @test _doc(["sign-bias", csv, "--model", "gjr-garch"]).status == "ok"
+            end
+
+            @testset "nyblom — individual table + joint kv" begin
+                doc = _doc(["nyblom", csv, "--column", "1", "--model", "garch"])
+                @test doc.status == "ok"
+                ind = _tbl(doc, "parameter")
+                @test Set(["parameter", "L_stat", "cv_5pct", "reject_5pct"]) ⊆ Set(String.(ind.columns))
+                metrics = Set(String(collect(r)[1]) for r in _tbl(doc, "metric").rows)
+                @test Set(["joint_LC", "cv_joint_5pct", "n_params", "reject_joint_5pct"]) ⊆ metrics
+            end
+
+            @testset "bad --model → usage/invalid (helper is enum-guarded, but test the dispatcher)" begin
+                @test_throws CliError _fit_vol_for_diag(randn(50), "bogus", 1, 1)
+                fe = nothing
+                try; _fit_vol_for_diag(randn(50), "bogus", 1, 1); catch ex; fe=ex; end
+                @test fe isa CliError && fe.code == "usage/invalid" && exit_class(fe) == 2
+            end
+
+            @testset "column out of range → data/column-range (not exit 1)" begin
+                e = nothing
+                try; _capture() do; _dispatch_via_app(String["test","sign-bias",csv,"--column","9"]); end; catch ex; e=ex; end
+                @test e isa CliError && e.code == "data/column-range"
+            end
+        end
+    end
+
+    @testset "test vecm restriction tests (C071)" begin
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        # kv metric names live in the single-table's `metric` column.
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2, colnames=["gdp", "rate"])
+            # Combined restriction config: H (β), A (α), b (known β) — all p=2, r=1.
+            cfg = joinpath(dir, "restr.toml")
+            write(cfg, """
+            [vecm_restriction]
+            H = [[1.0], [-1.0]]
+            A = [[1.0], [0.0]]
+            b = [[1.0], [-1.0]]
+            """)
+
+            @testset "beta / alpha / known-beta / joint kv keys" begin
+                for (leaf, extra) in [("beta", String[]), ("alpha", String[]),
+                                      ("known-beta", String[]), ("joint", String[])]
+                    doc = _doc(vcat(["vecm", leaf, csv, "--config", cfg, "--rank", "1"], extra))
+                    @test doc.status == "ok"
+                    @test Set(["LR statistic", "df", "p-value", "rank (r)", "converged", "restriction"]) ⊆ _metrics(doc)
+                end
+            end
+
+            @testset "weak-exog by index and by name" begin
+                d1 = _doc(["vecm", "weak-exog", csv, "--vars", "1", "--rank", "1"])
+                @test d1.status == "ok"
+                @test Set(["LR statistic", "df", "p-value", "rank (r)"]) ⊆ _metrics(d1)
+                d2 = _doc(["vecm", "weak-exog", csv, "--vars", "rate", "--rank", "1"])
+                @test d2.status == "ok"
+                # duplicate indices dedupe (regression: adversarial review C071) — real MEMs
+                # selects via setdiff, so `--vars 1,1` == `--vars 1` and must NOT be falsely rejected
+                d3 = _doc(["vecm", "weak-exog", csv, "--vars", "1,1", "--rank", "1"])
+                @test d3.status == "ok"
+            end
+
+            @testset "bad input → typed CliError (never internal exit 1)" begin
+                # missing --config → usage/missing-config (exit 2)
+                for leaf in ["beta", "alpha", "known-beta", "joint"]
+                    e = _errcode(["vecm", leaf, csv, "--rank", "1"])
+                    @test e isa CliError && e.code == "usage/missing-config" && exit_class(e) == 2
+                end
+                # wrong-rows H (3 rows ≠ p=2) → config/shape (exit 4)
+                badcfg = joinpath(dir, "bad.toml")
+                write(badcfg, "[vecm_restriction]\nH = [[1.0], [-1.0], [0.5]]\n")
+                e = _errcode(["vecm", "beta", csv, "--config", badcfg, "--rank", "1"])
+                @test e isa CliError && e.code == "config/shape" && exit_class(e) == 4
+                # weak-exog: empty / out-of-range / unknown name → usage/invalid (exit 2)
+                @test _errcode(["vecm", "weak-exog", csv, "--rank", "1"]) isa CliError            # no --vars
+                for badvars in ["9", "nope"]
+                    e = _errcode(["vecm", "weak-exog", csv, "--vars", badvars, "--rank", "1"])
+                    @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                end
+                # all-vars weakly exogenous rejected before the MEMs call
+                e = _errcode(["vecm", "weak-exog", csv, "--vars", "1,2", "--rank", "1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # rank-aware guard (regression C071): on a 3-series rank-2 fit, making 2 vars
+                # weakly exogenous leaves 1 < r=2 error-correcting rows → usage/invalid at the CLI
+                # boundary, NOT a config/shape (this command takes no config matrix)
+                csv3 = _make_csv(dir; T=150, n=3, colnames=["a", "b", "c"])
+                e = _errcode(["vecm", "weak-exog", csv3, "--vars", "1,2", "--rank", "2"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # fitted rank 0 → data/no-cointegration (exit 3)
+                e = _errcode(["vecm", "beta", csv, "--config", cfg, "--rank", "0"])
+                @test e isa CliError && e.code == "data/no-cointegration" && exit_class(e) == 3
+                # malformed config (missing key A for joint) → config/missing-key (exit 4)
+                honly = joinpath(dir, "honly.toml")
+                write(honly, "[vecm_restriction]\nH = [[1.0], [-1.0]]\n")
+                e = _errcode(["vecm", "joint", csv, "--config", honly, "--rank", "1"])
+                @test e isa CliError && e.code == "config/missing-key" && exit_class(e) == 4
+            end
+        end
+    end
+
+    @testset "TS + panel test batteries (C069/C070)" begin
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            uni = _make_csv(dir; T=120, n=2, colnames=["ret", "other"])
+            mv  = _make_csv(dir; T=60, n=4, colnames=["u1", "u2", "u3", "u4"])
+            panel = _make_panel_csv(dir; G=6, T_per=20, n=3, colnames=["y", "x1", "x2"])
+
+            @testset "variance-ratio — per-horizon table + joint kv" begin
+                doc = _doc(["variance-ratio", uni, "--column", "1", "--horizons", "2,4,8"])
+                @test doc.status == "ok"
+                @test Set(["horizon", "variance_ratio", "z_star", "p_value"]) ⊆ Set(String.(_tbl(doc, "horizon").columns))
+                @test length(_tbl(doc, "horizon").rows) == 3
+                @test Set(["Chow-Denning stat", "Chow-Denning p-value", "observations"]) ⊆ _metrics(doc)
+            end
+
+            @testset "bds — per-dimension statistic table" begin
+                doc = _doc(["bds", uni, "--column", "1", "--max-dim", "5"])
+                @test doc.status == "ok"
+                @test Set(["embed_dim", "statistic", "p_value"]) ⊆ Set(String.(_tbl(doc, "embed_dim").columns))
+                @test length(_tbl(doc, "embed_dim").rows) == 4   # m = 2..5
+            end
+
+            @testset "hadri — panel stationarity kv" begin
+                doc = _doc(["hadri", mv, "--deterministic", "constant"])
+                @test doc.status == "ok"
+                @test Set(["statistic", "p-value", "n_units", "observations"]) ⊆ _metrics(doc)
+                @test _doc(["hadri", mv, "--deterministic", "trend"]).status == "ok"
+            end
+
+            @testset "pedroni/kao/westerlund — shared statistic table + metadata kv" begin
+                for (leaf, ncols) in [("pedroni", 7), ("kao", 5), ("westerlund", 4)]
+                    doc = _doc([leaf, panel])
+                    @test doc.status == "ok"
+                    stat_tbl = _tbl(doc, "statistic")
+                    @test Set(["statistic", "value", "p_value"]) ⊆ Set(String.(stat_tbl.columns))
+                    @test length(stat_tbl.rows) == ncols
+                    @test Set(["n_units", "n_regressors", "observations"]) ⊆ _metrics(doc)
+                end
+                # explicit --dep/--indep selection
+                @test _doc(["pedroni", panel, "--dep", "y", "--indep", "x1,x2"]).status == "ok"
+                @test _doc(["kao", panel, "--dep", "y", "--indep", "x1"]).status == "ok"
+            end
+
+            @testset "bad input → typed CliError (never internal exit 1)" begin
+                # bad --column → data/column-range (loader)
+                e = _errcode(["variance-ratio", uni, "--column", "9"])
+                @test e isa CliError && e.code == "data/column-range"
+                # junk --horizons → usage/invalid
+                e = _errcode(["variance-ratio", uni, "--horizons", "junk"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # horizon < 2 → usage/invalid
+                e = _errcode(["variance-ratio", uni, "--horizons", "1,2"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # bds --max-dim 1 → usage/invalid
+                e = _errcode(["bds", uni, "--max-dim", "1"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # pedroni unknown --dep → usage/invalid
+                e = _errcode(["pedroni", panel, "--dep", "nope"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                # pedroni unknown --indep → usage/invalid
+                e = _errcode(["pedroni", panel, "--indep", "nope"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # hadri bad --deterministic → usage error (enum-rejected at parse → ParseError,
+                # exit 2; the handler also guards it if reached directly)
+                e = _errcode(["hadri", mv, "--deterministic", "bogus"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                # pedroni missing id/time column → typed data error (loader)
+                e = _errcode(["pedroni", panel, "--id-col", "nosuch"])
+                @test e isa CliError && e.code == "data/missing-column"
+                # a panel whose only variable column is non-numeric → data/invalid, NOT an
+                # uncaught exit-1 (regression: adversarial review C069/C070 — load_panel_data's
+                # untyped error() → typed CliError; benefits the whole panel family)
+                strcsv = joinpath(dir, "panel_str.csv")
+                write(strcsv, "id,time,label\n1,1,foo\n1,2,bar\n2,1,baz\n2,2,qux\n")
+                es = _errcode(["pedroni", strcsv])
+                @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
+            end
+        end
+    end
+
+    @testset "test hansen-linearity (C065a)" begin
+        # Hansen (1996) sup-LM/sup-Wald linearity test via the attached SETAR `.linearity`.
+        # Pure kv (sup_lm/pvalue_lm/sup_wald/pvalue_wald/gamma_sup/reps/trim/n_grid) + an
+        # interpretation line. Options guarded up-front → usage/invalid; a too-short series
+        # surfaces (through the wrapped estimate_setar) as a typed data/invalid, never exit-1.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test", "hansen-linearity"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test", "hansen-linearity"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            uni = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "kv keys + interpretation" begin
+                doc = _doc([uni, "--column", "1", "--p", "1", "--d", "1", "--reps", "50"])
+                @test doc.status == "ok"
+                @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald",
+                           "gamma_sup", "reps", "trim", "n_grid"]) ⊆ _metrics(doc)
+            end
+
+            @testset "bad input → typed classes" begin
+                @test _errcode([uni, "--p", "0"]).code == "usage/invalid"
+                @test _errcode([uni, "--d", "0"]).code == "usage/invalid"
+                @test _errcode([uni, "--trim", "0.7"]).code == "usage/invalid"
+                # too-short series → data/invalid (wrapped estimate_setar ArgumentError)
+                short = joinpath(dir, "short.csv")
+                write(short, "y\n" * join([string(0.1 * i) for i in 1:6], "\n") * "\n")
+                es = _errcode([short, "--p", "1", "--d", "1"])
+                @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
+            end
+        end
+    end
+
+    @testset "test star-linearity (C065b)" begin
+        # STAR (LSTV LM3) linearity test → a NamedTuple (stat, pvalue, fstat, fpvalue, df)
+        # rendered as pure kv + an interpretation line. Options guarded up-front → usage/invalid;
+        # the test call is wrapped → typed CliError (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["test", "star-linearity"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                            if (t isa JSON3.Object && haskey(t, :columns) && "metric" in String.(t.columns))
+                            for r in t.rows)
+        _errcode(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["test", "star-linearity"], collect(String, args))); end
+            catch ex; e = ex; end
+            e
+        end
+
+        mktempdir() do dir
+            uni = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "kv keys + interpretation" begin
+                doc = _doc([uni, "--column", "1", "--p", "1", "--d", "1"])
+                @test doc.status == "ok"
+                @test Set(["stat", "pvalue", "fstat", "fpvalue", "df"]) ⊆ _metrics(doc)
+            end
+
+            @testset "bad input → typed classes" begin
+                @test _errcode([uni, "--p", "0"]).code == "usage/invalid"
+                @test _errcode([uni, "--d", "0"]).code == "usage/invalid"
+                # constant external transition column → data/invalid
+                constcsv = joinpath(dir, "sl_const.csv")
+                write(constcsv, "y,s\n" * join(["$(0.1 * i),1.0" for i in 1:80], "\n") * "\n")
+                ec = _errcode([constcsv, "--column", "1", "--transition-col", "2"])
+                @test ec isa CliError && ec.code == "data/invalid" && exit_class(ec) == 3
+            end
+
+            @testset "short series accepted — matches real MEMs (LM3 is defensively coded)" begin
+                # Real star_linearity_test returns a FINITE result for a short effective sample
+                # (VERIFIED against real MEMs: n=14,p=3 → eff=11 → stat=11.0, ok), so the mock must
+                # NOT over-reject it as data/invalid (the mock guard is `n >= 1`, not `n > 3p+2`).
+                shortcsv = joinpath(dir, "sl_short.csv")
+                write(shortcsv, "y\n" * join([string(0.1 * i + 0.3 * sin(i)) for i in 1:14], "\n") * "\n")
+                ds = _doc([shortcsv, "--column", "1", "--p", "3", "--d", "1"])
+                @test ds.status == "ok"
+                @test Set(["stat", "pvalue", "df"]) ⊆ _metrics(ds)
             end
         end
     end
@@ -1686,7 +3567,9 @@ end  # Test handlers
                              format="table")
                 end
             end
-            @test count("LP IRF to", out) >= 2
+            # C051: tidy long_table consolidates both shocks into a single table/title
+            # (previously split into 2 per-shock output blocks).
+            @test count("LP IRF to", out) == 1
         end
     end
 
@@ -1844,8 +3727,8 @@ end  # IRF handlers
                                format="csv", output=outfile)
                 end
             end
-            # Output gets split per variable
-            @test any(isfile, [replace(outfile, "." => s) for s in ["_var1.", "_var2.", "_var3."]])
+            # C051: single tidy long_table (horizon|variable|shock|value), one file
+            @test isfile(outfile)
         end
     end
 
@@ -2000,13 +3883,249 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 14 primary + 1 alias (gjr_garch) = 15 keys (C044)
-        @test length(node.subcmds) == 15
+        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
+        @test length(node.subcmds) == 18
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")
+        # C072: nested forecast evaluate sub-node with 6 leaves
+        @test haskey(node.subcmds, "evaluate")
+        @test node.subcmds["evaluate"] isa NodeCommand
+        for leaf in ["metrics", "dm", "clark-west", "mincer-zarnowitz", "encompassing", "combine"]
+            @test haskey(node.subcmds["evaluate"].subcmds, leaf)
+        end
+    end
+
+    @testset "forecast setar (C065a)" begin
+        # SETAR bootstrap forecast: re-estimate then forecast → ThresholdForecast, rendered
+        # via the generic long_table (horizon|variable|value|lower|upper). Options guarded
+        # up-front → usage error; MEMs calls wrapped → typed CliError (never uncaught exit-1).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["forecast", "setar"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "setar"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "long_table forecast columns + horizon count" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--horizons", "6", "--reps", "50"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "horizon")
+                @test Set(["horizon", "variable", "value", "lower", "upper"]) ⊆ Set(String.(tbl.columns))
+                @test length(collect(tbl.rows)) == 6
+            end
+
+            @testset "bad input → usage error" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--horizons", "0"]).code == "usage/invalid"
+                @test _err([csv, "--reps", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "foo"]).code == "usage/invalid"
+                eci = _err([csv, "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+            end
+
+            @testset "no --plot/--plot-save (MEMs has no ThresholdForecast plot recipe)" begin
+                # Intentionally NOT offered: real MEMs 0.7.0 ships no plot_result(::ThresholdForecast),
+                # so advertising the flag would drive _maybe_plot into an uncaught MethodError → exit 1.
+                # They must be rejected as unknown options (exit 2), never silently accepted.
+                ep = _err([csv, "--plot"])
+                @test ep isa ParseError || (ep isa CliError && exit_class(ep) == 2)
+                eps = _err([csv, "--plot-save", joinpath(dir, "out.html")])
+                @test eps isa ParseError || (eps isa CliError && exit_class(eps) == 2)
+            end
+        end
+    end
+
+    @testset "forecast star (C065b)" begin
+        # STAR bootstrap forecast: re-estimate a self-exciting STAR then forecast → STARForecast,
+        # rendered via the generic long_table (horizon|variable|value|lower|upper). Options guarded
+        # up-front → usage error; MEMs calls wrapped → typed CliError (never uncaught exit-1). Like
+        # forecast setar, NO --plot/--plot-save (MEMs ships no plot_result(::STARForecast) recipe).
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["forecast", "star"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tbl(doc, col) = first(t for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "star"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "long_table forecast columns + horizon count" begin
+                doc = _doc([csv, "--column", "1", "--p", "1", "--horizons", "6", "--reps", "50"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "horizon")
+                @test Set(["horizon", "variable", "value", "lower", "upper"]) ⊆ Set(String.(tbl.columns))
+                @test length(collect(tbl.rows)) == 6
+            end
+
+            @testset "bad input → usage error" begin
+                @test _err([csv, "--p", "0"]).code == "usage/invalid"
+                @test _err([csv, "--horizons", "0"]).code == "usage/invalid"
+                @test _err([csv, "--reps", "0"]).code == "usage/invalid"
+                @test _err([csv, "--d", "0"]).code == "usage/invalid"
+                eci = _err([csv, "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+                et = _err([csv, "--type", "bogus"])
+                @test et isa ParseError || (et isa CliError && exit_class(et) == 2)
+            end
+
+            @testset "no --plot/--plot-save (MEMs has no STARForecast plot recipe)" begin
+                # Intentionally NOT offered: real MEMs 0.7.0 ships no plot_result(::STARForecast),
+                # so advertising the flag would drive _maybe_plot into an uncaught MethodError → exit 1.
+                ep = _err([csv, "--plot"])
+                @test ep isa ParseError || (ep isa CliError && exit_class(ep) == 2)
+                eps = _err([csv, "--plot-save", joinpath(dir, "out.html")])
+                @test eps isa ParseError || (eps isa CliError && exit_class(eps) == 2)
+            end
+        end
+    end
+
+    @testset "forecast evaluate (C072 fceval)" begin
+        _fceval_csv(dir) = begin
+            path = joinpath(dir, "fceval.csv")
+            open(path, "w") do io
+                println(io, "y,f1,f2,f3")
+                for _ in 1:80
+                    y = 5.0 + randn()
+                    f1 = y + 0.2 * randn()       # good forecast
+                    f2 = y + 0.9 * randn()       # noisier forecast
+                    f3 = y + 0.5 * randn()
+                    println(io, join((y, f1, f2, f3), ","))
+                end
+            end
+            path
+        end
+        _evaldoc(args::Vector{String}) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["forecast", "evaluate"], args, String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tblwith(doc, col) = first(t for t in values(doc.data) if col in String.(t.columns))
+        _metric(doc, name) = begin
+            kv = first(t for t in values(doc.data) if "metric" in String.(t.columns))
+            for r in kv.rows
+                rr = collect(r)
+                String(rr[1]) == name && return rr[2]
+            end
+            nothing
+        end
+        _errcode(args::Vector{String}) = begin
+            err = nothing
+            try
+                _capture() do; _dispatch_via_app(vcat(String["forecast", "evaluate"], args)); end
+            catch e
+                err = e
+            end
+            err
+        end
+
+        @testset "metrics — wide accuracy + Theil decomposition" begin
+            mktempdir() do dir
+                doc = _evaldoc(["metrics", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
+                @test doc.status == "ok"
+                acc = _tblwith(doc, "RMSE")
+                @test Set(["model","ME","MAE","RMSE","MAPE","sMAPE","MASE","U1","U2"]) ⊆ Set(String.(acc.columns))
+                @test length(acc.rows) == 2
+                dec = _tblwith(doc, "bias")
+                @test Set(["model","bias","variance","covariance"]) ⊆ Set(String.(dec.columns))
+                @test length(dec.rows) == 2
+            end
+        end
+
+        @testset "dm — kv + arity" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                doc = _evaldoc(["dm", csv, "--actual", "y", "--forecasts", "f1,f2", "--loss", "ad", "--horizon", "2"])
+                @test doc.status == "ok"
+                @test String(_metric(doc, "test")) == "Diebold-Mariano"
+                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+                e = _errcode(["dm", csv, "--actual", "y", "--forecasts", "f1"])
+                @test e isa CliError && e.code == "usage/arity"
+            end
+        end
+
+        @testset "clark-west — kv" begin
+            mktempdir() do dir
+                doc = _evaldoc(["clark-west", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
+                @test String(_metric(doc, "test")) == "Clark-West"
+                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+            end
+        end
+
+        @testset "mincer-zarnowitz — kv + arity" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                doc = _evaldoc(["mincer-zarnowitz", csv, "--actual", "y", "--forecasts", "f1", "--lags", "2"])
+                @test String(_metric(doc, "test")) == "Mincer-Zarnowitz"
+                @test 0.0 <= Float64(_metric(doc, "p_value_wald")) <= 1.0
+                e = _errcode(["mincer-zarnowitz", csv, "--actual", "y", "--forecasts", "f1,f2"])
+                @test e isa CliError && e.code == "usage/arity"
+            end
+        end
+
+        @testset "encompassing — kv" begin
+            mktempdir() do dir
+                doc = _evaldoc(["encompassing", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
+                @test String(_metric(doc, "test")) == "Forecast-Encompassing"
+                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+            end
+        end
+
+        @testset "combine — weights sum to 1 + emit-series + arity" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                doc = _evaldoc(["combine", csv, "--actual", "y", "--forecasts", "f1,f2,f3", "--method", "bates-granger"])
+                w = _tblwith(doc, "weight")
+                @test Set(["model","weight","mse"]) ⊆ Set(String.(w.columns))
+                @test length(w.rows) == 3
+                wi = findfirst(==("weight"), String.(w.columns))
+                wsum = sum(Float64(collect(r)[wi]) for r in w.rows)
+                @test isapprox(wsum, 1.0; atol=1e-4)   # weights rounded to 6 digits before display
+                doc2 = _evaldoc(["combine", csv, "--actual", "y", "--forecasts", "f1,f2", "--emit-series"])
+                @test any(t -> "combined" in String.(t.columns), values(doc2.data))
+                e = _errcode(["combine", csv, "--actual", "y", "--forecasts", "f1"])
+                @test e isa CliError && e.code == "usage/arity"
+            end
+        end
+
+        @testset "typed errors (bad column, missing options)" begin
+            mktempdir() do dir
+                csv = _fceval_csv(dir)
+                @test _errcode(["metrics", csv, "--actual", "nope", "--forecasts", "f1"]).code == "data/bad-column"
+                @test _errcode(["dm", csv, "--actual", "y", "--forecasts", "f1,zzz"]).code == "data/bad-column"
+                @test _errcode(["metrics", csv, "--forecasts", "f1"]).code == "usage/missing-actual"
+                @test _errcode(["metrics", csv, "--actual", "y"]).code == "usage/missing-forecasts"
+                # review fix: missing values → typed data error (was an uncaught exit-1 MethodError)
+                mcsv = joinpath(dir, "miss.csv")
+                write(mcsv, "y,f1\n1.0,1.1\n,2.0\n3.0,2.9\n4.0,3.8\n")
+                @test _errcode(["metrics", mcsv, "--actual", "y", "--forecasts", "f1"]).code == "data/missing-values"
+                # review fix: --model is not injected on the model-agnostic evaluate leaves →
+                # parser rejects it (unknown option), NOT an uncaught handler MethodError
+                me = _errcode(["metrics", csv, "--actual", "y", "--forecasts", "f1", "--model", "foo"])
+                @test me !== nothing && occursin("unknown option", sprint(showerror, me))
+            end
+        end
     end
 
     @testset "_forecast_var" begin
@@ -2154,8 +4273,9 @@ end  # HD handlers
             end
             @test isfile(outfile)
             result_df = CSV.read(outfile, DataFrame)
-            @test nrow(result_df) == 5
-            @test "forecast" in names(result_df)
+            @test nrow(result_df) == 5   # C051: tidy, 5 horizons × 1 variable
+            @test "value" in names(result_df)
+            @test "variable" in names(result_df)
         end
     end
 
@@ -2299,7 +4419,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 32  # 31 primary + gjr_garch alias
+        @test length(node.subcmds) == 66  # 65 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -2324,13 +4444,13 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 15  # 14 primary + gjr_garch alias
+        @test length(node.subcmds) == 18  # 16 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b)
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 43  # 41 primary + 2 snake aliases
+        @test length(node.subcmds) == 60  # 58 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -2481,7 +4601,8 @@ end  # Forecast handlers
                                 id="cholesky", format="csv", output=outfile)
                 end
             end
-            @test any(isfile, [replace(outfile, "." => s) for s in ["_var1.", "_var2.", "_var3."]])
+            # C051: single tidy long_table (horizon|variable|shock|value), one file
+            @test isfile(outfile)
         end
     end
 
@@ -2986,6 +5107,13 @@ end  # VECM handlers
                                  classification_table=true,
                                  format="table", output="")
             end
+            # The dict mixes scalars with a `confusion` MATRIX: the scalars render
+            # as kv and the matrix as its own labelled table. Sorting the pairs
+            # themselves compared a Matrix against a Float and exited 1 (#85).
+            @test contains(out, "accuracy")
+            @test contains(out, "Confusion Matrix")
+            @test contains(out, "predicted_0")
+            @test contains(out, "actual_1")
         end
     end
 
@@ -3025,6 +5153,8 @@ end  # VECM handlers
                                   classification_table=true,
                                   format="table", output="")
             end
+            @test contains(out, "accuracy")
+            @test contains(out, "Confusion Matrix")
         end
     end
 
@@ -3715,7 +5845,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 32  # 31 primary + gjr_garch alias
+        @test length(node.subcmds) == 66  # 65 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -3746,7 +5876,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 43  # 41 primary + 2 aliases
+        @test length(node.subcmds) == 60  # 58 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin
@@ -4074,6 +6204,40 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["balance"].options) == 5
     end
 
+    @testset "dataset_to_dataframe — panels keep their identifiers" begin
+        # Without group/time columns every panel command fails on a bundled panel
+        # (`--id-col group` has nothing to bind to).
+        df = dataset_to_dataframe(load_example(:pwt))
+        @test names(df)[1:2] == ["group", "time"]
+        @test df.group == load_example(:pwt).group_id
+
+        # Same via the public loader used by handlers and the REPL
+        df2 = load_data(":pwt")
+        @test "group" in names(df2) && "time" in names(df2)
+
+        # Non-panel datasets are unchanged
+        ts = dataset_to_dataframe(load_example(:fred_md))
+        @test !("group" in names(ts))
+
+        # Cross-section datasets load too (added alongside the other bundled sets)
+        cs = dataset_to_dataframe(load_example(:stackloss))
+        @test nrow(cs) == 21
+    end
+
+    @testset "_data_describe — n is per-variable" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "d.csv")
+            CSV.write(csv, DataFrame(a=[1.0, 2.0, 3.0], b=[4.0, 5.0, 6.0]))
+            outfile = joinpath(dir, "desc.json")
+            _capture() do
+                _data_describe(; data=csv, format="json", output=outfile)
+            end
+            rows = JSON3.read(read(outfile, String))
+            # Regression: fill(summary.n, n_vars) nested the whole vector into every cell
+            @test all(r -> r.n isa Integer, rows)
+        end
+    end
+
     @testset "_data_list — table" begin
         out = _capture() do
             _data_list(; format="table")
@@ -4088,8 +6252,56 @@ end  # Enhanced Granger handlers
             end
             @test isfile(outfile)
             json_data = JSON3.read(read(outfile, String))
-            @test length(json_data) == 5
+            # Derived from EXAMPLE_DATASETS, so `data list` can never advertise
+            # fewer datasets than `data load` accepts.
+            @test length(json_data) == length(EXAMPLE_DATASETS)
         end
+    end
+
+    @testset "_data_load — loading existing data (regressions)" begin
+        node = register_data_commands!()
+        load_leaf = node.subcmds["load"]
+
+        # <name> is optional so `data load --path file.csv` is reachable at all.
+        @test !load_leaf.args[1].required
+        # --transform was documented + handler-supported but never registered.
+        @test "transform" in [f.name for f in load_leaf.flags]
+
+        mktempdir() do dir
+            src = joinpath(dir, "mine.csv")
+            CSV.write(src, DataFrame(a=[1.0, 2.0, 3.0], b=[4.0, 5.0, 6.0]))
+
+            # --path alone (no positional) loads the CSV
+            cd(dir) do
+                _capture() do
+                    _data_load(; path=src)
+                end
+            end
+            @test isfile(joinpath(dir, "mine_loaded.csv"))
+
+            # Neither name nor --path → typed usage error, not a missing-arg crash
+            e = try; _capture() do; _data_load(); end; nothing catch err; err end
+            @test e isa CliError
+            @test e.code == "usage/missing"
+        end
+
+        # ':name' references resolve (REPL syntax must work on the CLI too)
+        for form in ("fred-md", ":fred-md", ":fred_md")
+            mktempdir() do dir
+                cd(dir) do
+                    _capture() do
+                        _data_load(; name=form)
+                    end
+                end
+                # Default output uses the canonical stem — never ':fred-md.csv'
+                @test isfile(joinpath(dir, "fred_md.csv"))
+            end
+        end
+
+        # Unknown dataset → typed data/unknown-dataset (was untyped ArgumentError → exit 1)
+        e = try; _capture() do; _data_load(; name="frd_md"); end; nothing catch err; err end
+        @test e isa CliError
+        @test e.code == "data/unknown-dataset"
     end
 
     @testset "_data_load — fred_md" begin
@@ -4721,14 +6933,17 @@ end  # Data handlers
         end
     end
 
+    # A vintage differs from its predecessor by which cells are FILLED IN, not by
+    # row count — both matrices must be the same shape. These two used to hand the
+    # handler a 105-row new vintage against a 100-row old one and passed only
+    # because the mock accepted anything; real MEMs raises on it.
     @testset "_nowcast_news — basic" begin
         mktempdir() do dir
             csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
             csv_new = joinpath(dir, "data_new.csv")
-            # Create new vintage with slightly more data
             data = Dict{String,Vector{Float64}}()
             for name in ["m1","m2","m3","m4","q1"]
-                data[name] = randn(105) .+ 1.0
+                data[name] = randn(100) .+ 1.0
             end
             CSV.write(csv_new, DataFrame(data))
 
@@ -4744,13 +6959,38 @@ end  # Data handlers
         @test_throws Exception _nowcast_news(; data_new="new.csv", data_old="")
     end
 
-    @testset "_nowcast_news — bvar method" begin
+    @testset "_nowcast_news — mismatched vintages are data/shape (#85)" begin
         mktempdir() do dir
             csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
             csv_new = joinpath(dir, "data_new.csv")
             data = Dict{String,Vector{Float64}}()
             for name in ["m1","m2","m3","m4","q1"]
                 data[name] = randn(105) .+ 1.0
+            end
+            CSV.write(csv_new, DataFrame(data))
+
+            e = try
+                _capture() do
+                    _nowcast_news(; data_new=csv_new, data_old=csv_old,
+                        monthly_vars=4, quarterly_vars=1, method="dfm")
+                end
+                nothing
+            catch err
+                err
+            end
+            # Upstream signals this with a bare ArgumentError — exit 1 before #85.
+            @test e isa CliError
+            @test e.code == "data/shape"
+        end
+    end
+
+    @testset "_nowcast_news — bvar method" begin
+        mktempdir() do dir
+            csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
+            csv_new = joinpath(dir, "data_new.csv")
+            data = Dict{String,Vector{Float64}}()
+            for name in ["m1","m2","m3","m4","q1"]
+                data[name] = randn(100) .+ 1.0
             end
             CSV.write(csv_new, DataFrame(data))
 
@@ -6550,6 +8790,9 @@ end
                 _test_cips(; data=csv, lags="2", deterministic="constant",
                              id_col="", time_col="", format="table")
             end
+            # Regression: the handler read `result.cips`, a field real MEMs does not
+            # have (it is `cips_statistic`) — a mock getproperty alias hid the crash.
+            @test contains(out, "CIPS statistic")
         end
     end
 
@@ -6758,7 +9001,7 @@ end
         mktempdir() do dir
             model_path, priors_path, csv = _make_bayes_dsge_files(dir)
             # Model 1 has 2 params → log_ml = -498, Model 2 has 1 param → log_ml = -499
-            # So bayes_factor = exp(1) > 1 → "Model 1 favored"
+            # bayes_factor returns log BF = logML₁ − logML₂ = 1 > 0 → "Model 1 favored"
             priors2_path = joinpath(dir, "priors2.toml")
             write(priors2_path, """
             [priors]
@@ -6806,6 +9049,98 @@ end
                     delayed_acceptance=false,
                     n_sim=10, periods=20, output="", format="table",
                     plot=false, plot_save="")
+            end
+        end
+    end
+
+    # ── C073 Bayesian DSGE diagnostics ──
+    @testset "C073 Bayesian DSGE diagnostics" begin
+        _catch(f) = try; f(); nothing; catch e; e; end
+
+        @testset "_dsge_bayes_mcmc_diag" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_mcmc_diag(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, output="", format="table")
+                end
+                @test contains(out, "MCMC") || contains(out, "rhat")
+            end
+        end
+
+        @testset "_dsge_bayes_identification + missing params → usage/missing" begin
+            mktempdir() do dir
+                model_path, _, _ = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_identification(; model=model_path, params="rho,sigma",
+                        observables="", solver="gensys", order=1, n_lags=2,
+                        output="", format="table")
+                end
+                @test contains(out, "rank") || contains(out, "Identification")
+                @test contains(out, "Singular") || contains(out, "singular_value")
+                e = _catch(() -> _dsge_bayes_identification(; model=model_path, params=""))
+                @test e isa CliError && e.code == "usage/missing"
+            end
+        end
+
+        @testset "_dsge_bayes_learning_rate + junk fractions → usage/invalid" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_learning_rate(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, fractions="0.5,1.0",
+                        threshold=0.2, refit_n_smc=30, output="", format="table")
+                end
+                @test contains(out, "Learning") || contains(out, "learning_rate")
+                ej = _catch(() -> _dsge_bayes_learning_rate(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path, fractions="abc"))
+                @test ej isa CliError && ej.code == "usage/invalid"
+                e1 = _catch(() -> _dsge_bayes_learning_rate(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path, fractions="0.5"))
+                @test e1 isa CliError && e1.code == "usage/invalid"
+            end
+        end
+
+        @testset "_dsge_bayes_overlap" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_overlap(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, threshold=0.8, n_grid=0,
+                        output="", format="table")
+                end
+                @test contains(out, "Overlap") || contains(out, "overlap")
+            end
+        end
+
+        @testset "_dsge_bayes_marginal_lik + bad proposal → usage/invalid" begin
+            mktempdir() do dir
+                model_path, priors_path, csv = _make_bayes_dsge_files(dir)
+                out = _capture() do
+                    _dsge_bayes_marginal_lik(; model=model_path, data=csv,
+                        params="rho,sigma", priors=priors_path,
+                        sampler="smc", n_smc=100, n_particles=50,
+                        n_draws=100, burnin=10, ess_target=0.5,
+                        observables="", solver="gensys", order=1,
+                        delayed_acceptance=false, proposal="normal", df=5.0,
+                        output="", format="table")
+                end
+                @test contains(out, "Marginal") || contains(out, "log_marginal_likelihood_bridge")
+                ep = _catch(() -> _dsge_bayes_marginal_lik(; model=model_path, data=csv,
+                    params="rho,sigma", priors=priors_path, proposal="banana"))
+                @test ep isa CliError && ep.code == "usage/invalid"
             end
         end
     end
@@ -6938,6 +9273,26 @@ end
                                       lags="aic", max_lags=nothing,
                                       trim=0.15, format="table", output="")
             end
+        end
+    end
+
+    @testset "_test_gregory_hansen — one column is data/shape (#85)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1)
+            e = try
+                _capture() do
+                    _test_gregory_hansen(; data=csv, model="C",
+                                          lags="aic", max_lags=nothing,
+                                          trim=0.15, format="table", output="")
+                end
+                nothing
+            catch err
+                err
+            end
+            # A cointegrating regression needs a dependent plus a regressor;
+            # upstream raises a bare ArgumentError (exit 1 before #85).
+            @test e isa CliError
+            @test e.code == "data/shape"
         end
     end
 
@@ -7313,23 +9668,39 @@ end
             end
         end
 
-        @testset "_residuals_ologit" begin
+        @testset "_residuals_ologit — model/unsupported (no upstream residuals)" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                out = _capture() do
-                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
-                                       clusters="", output="", format="table")
+                e = try
+                    _capture() do
+                        _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                           clusters="", output="", format="table")
+                    end
+                    nothing
+                catch err
+                    err
                 end
+                # MEMs 0.7.0 defines no residuals for ordered models; refuse with a
+                # typed error rather than invent a definition (was exit 1).
+                @test e isa CliError
+                @test e.code == "model/unsupported"
             end
         end
 
-        @testset "_residuals_mlogit" begin
+        @testset "_residuals_mlogit — model/unsupported (no upstream residuals)" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                out = _capture() do
-                    _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
-                                       output="", format="table")
+                e = try
+                    _capture() do
+                        _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                           output="", format="table")
+                    end
+                    nothing
+                catch err
+                    err
                 end
+                @test e isa CliError
+                @test e.code == "model/unsupported"
             end
         end
     end
@@ -8082,4 +10453,199 @@ end  # Command Handlers
     # Deliberate rename detection (acceptance demo)
     bad = replace(read(joinpath(_GOLDEN_DIR, "spectral.acf.json"), String), "acf_pacf" => "renamed_table")
     @test !_golden_compare(bad, joinpath(_GOLDEN_DIR, "spectral.acf.json"))
+end
+
+# ═══════════════════════════════════════════════════════════════
+# Input-Output analysis command family (C049)
+# ═══════════════════════════════════════════════════════════════
+
+@testset "io command family (C049)" begin
+    # Run an io leaf in JSON mode; return the raw envelope string.
+    _ioraw(args...) = begin
+        out = _capture() do
+            _dispatch_via_app(vcat(String["io"], collect(String, args), String["--format", "json"]))
+        end
+        i = findfirst('{', out)
+        i === nothing ? "" : out[i:end]
+    end
+    _iodoc(args...) = JSON3.read(_ioraw(args...))
+    # Any table in the envelope whose columns ⊇ `cols`.
+    _hascols(doc, cols) = any(t -> all(c -> c in String.(t.columns), cols), values(doc.data))
+    _table(doc, cols) = first(t for t in values(doc.data) if all(c -> c in String.(t.columns), cols))
+
+    @testset "sources (offline catalog)" begin
+        raw = _ioraw("sources")
+        @test isempty(validate_envelope_json(raw))
+        doc = JSON3.read(raw)
+        @test doc.status == "ok"
+        @test _hascols(doc, ["source", "name", "versions", "credentials", "note"])
+        t = _table(doc, ["source"])
+        @test length(t.rows) == 5
+    end
+
+    @testset "load (dims + per-sector)" begin
+        raw = _ioraw("load")
+        @test isempty(validate_envelope_json(raw))
+        doc = JSON3.read(raw)
+        @test _hascols(doc, ["metric", "value"])              # summary kv
+        @test _hascols(doc, ["sector", "gross_output", "final_demand", "value_added"])
+        t = _table(doc, ["sector", "gross_output"])
+        @test length(t.rows) == 2
+    end
+
+    @testset "leontief / ghosh (wide sector×sector)" begin
+        doc = _iodoc("leontief")                               # default: L only
+        t = _table(doc, ["sector", "Agriculture", "Manufacturing"])
+        @test length(t.rows) == 2
+        # L[1,1] ≈ 1.254125 (Miller & Blair)
+        row1 = first(r for r in t.rows if r[1] == "Agriculture")
+        @test isapprox(Float64(row1[2]), 1.254125; atol=1e-4)
+
+        both = _iodoc("leontief", "--matrix", "both")
+        @test length(collect(keys(both.data))) == 2            # A and L
+
+        g = _iodoc("ghosh")
+        @test _hascols(g, ["sector", "Agriculture", "Manufacturing"])
+    end
+
+    @testset "multipliers (kind × type)" begin
+        d1 = _iodoc("multipliers", "--kind", "output", "--type", "I")
+        t = _table(d1, ["sector", "multiplier"])
+        vals = [Float64(r[2]) for r in t.rows]
+        @test isapprox(vals, [1.518152, 1.452145]; atol=1e-4)
+        @test _hascols(_iodoc("multipliers", "--kind", "income", "--type", "II"), ["sector", "multiplier"])
+        @test _hascols(_iodoc("multipliers", "--kind", "employment"), ["sector", "multiplier"])
+    end
+
+    @testset "linkages / key-sectors" begin
+        lk = _iodoc("linkages")
+        @test _hascols(lk, ["sector", "backward", "forward", "Ui", "Uj", "class"])
+        ks = _iodoc("key-sectors")
+        t = _table(ks, ["sector", "class"])
+        classes = [String(r[2]) for r in t.rows]
+        @test "key" in classes && "weak" in classes
+    end
+
+    @testset "sda (two periods; same → ~0)" begin
+        doc = _iodoc("sda", "--method", "additive")
+        t = _table(doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
+        @test all(isapprox(Float64(r[4]), 0.0; atol=1e-6) for r in t.rows)
+    end
+
+    @testset "extract (name / index / errors)" begin
+        d1 = _iodoc("extract", "--sectors-extract", "Agriculture")
+        t = _table(d1, ["sector", "output_loss"])
+        loss = Dict(String(r[1]) => Float64(r[2]) for r in t.rows)
+        @test isapprox(loss["Agriculture"], 1000.0; atol=1e-3)
+        @test _hascols(_iodoc("extract", "--sectors-extract", "1,2"), ["sector", "output_loss"])
+        # missing required option
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "extract"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        # bad sector name → data class
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", "Nope"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "data/bad-sector" && exit_class(err) == 3
+    end
+
+    @testset "footprint (environmental)" begin
+        raw = _ioraw("footprint")
+        @test isempty(validate_envelope_json(raw))
+        doc = JSON3.read(raw)
+        @test _hascols(doc, ["stressor", "footprint"])
+        @test _hascols(doc, ["sector", "CO2"])
+        det = _iodoc("footprint", "--account", "employment", "--detail")
+        @test length(collect(keys(det.data))) == 4            # footprint + by_sector + S + M
+        # unknown account → data class
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "footprint", "--account", "bogus"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "data/no-extension"
+    end
+
+    @testset "baqaee-farhi" begin
+        doc = _iodoc("baqaee-farhi")
+        @test _hascols(doc, ["sector", "domar", "influence", "upstreamness", "downstreamness"])
+        so = _iodoc("baqaee-farhi", "--second-order")
+        @test length(collect(keys(so.data))) == 2
+    end
+
+    @testset "download (offline refusal + usage + mock happy path)" begin
+        # --offline → env/network (exit 6)
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd", "--storage", "/tmp/x", "--offline"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "env/network" && exit_class(err) == 6
+        # FRIEDMAN_OFFLINE env forces the same refusal
+        err = nothing
+        withenv("FRIEDMAN_OFFLINE" => "1") do
+            try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "wiod", "--storage", "/tmp/x"]); end; catch e; err = e; end
+        end
+        @test err isa CliError && err.code == "env/network"
+        # missing --source / --storage → usage
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--storage", "/tmp/x"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        # junk --years → usage error (not an uncaught ArgumentError → exit 1)
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd", "--storage", "/tmp/x", "--years", "abc"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/bad-years" && exit_class(err) == 2
+        # non-offline mock download → log table (2 files, no network)
+        doc = _iodoc("download", "--source", "oecd", "--storage", "/tmp/x")
+        @test _hascols(doc, ["url", "filename"])
+    end
+
+    @testset "download forwards source-specific kwargs correctly (review [1]/[10])" begin
+        # Every source's non-offline mock happy path must succeed — a regression here
+        # means the handler over-forwards `system`/`verify` to a downloader that rejects
+        # them (the mock reproduces the real restricted per-source signatures).
+        for src in ["oecd", "wiod", "gloria", "exiobase3"]
+            doc = _iodoc("download", "--source", src, "--storage", "/tmp/x")
+            @test _hascols(doc, ["url", "filename"])
+        end
+        # exiobase3 is the only source that accepts --system
+        @test _hascols(_iodoc("download", "--source", "exiobase3", "--storage", "/tmp/x", "--system", "ixi"), ["url", "filename"])
+    end
+
+    @testset "error classes on bad input (review findings)" begin
+        # extract: out-of-range integer index → data/bad-sector (not exit-1 BoundsError)
+        for idx in ["99", "0"]
+            err = nothing
+            try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", idx]); end; catch e; err = e; end
+            @test err isa CliError && err.code == "data/bad-sector" && exit_class(err) == 3
+        end
+        # unknown :example → usage/unknown-example (not exit-1 ArgumentError)
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "load", "--data", ":bogus"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/unknown-example" && exit_class(err) == 2
+        # CSV-backed paths (no satellite accounts; oversized n-sectors)
+        mktempdir() do dir
+            csv = joinpath(dir, "io.csv")
+            open(csv, "w") do io; write(io, "150,500,350\n200,100,1700\n"); end
+            # employment multipliers on an extension-less CSV → data/no-extension
+            err = nothing
+            try; _capture() do; _dispatch_via_app(String["io", "multipliers", "--data", csv, "--n-sectors", "2", "--kind", "employment"]); end; catch e; err = e; end
+            @test err isa CliError && err.code == "data/no-extension"
+            # n-sectors larger than the file → data/parse (not exit-1 BoundsError)
+            err = nothing
+            try; _capture() do; _dispatch_via_app(String["io", "load", "--data", csv, "--n-sectors", "99"]); end; catch e; err = e; end
+            @test err isa CliError && err.code == "data/parse" && exit_class(err) == 3
+            # a CSV IO table with valid dims parses and computes
+            doc = JSON3.read(begin
+                out = _capture() do
+                    _dispatch_via_app(String["io", "leontief", "--data", csv, "--n-sectors", "2", "--format", "json"])
+                end
+                out[findfirst('{', out):end]
+            end)
+            @test _hascols(doc, ["sector"])
+        end
+    end
+
+    @testset "table-mode output is non-empty" begin
+        out = _capture() do
+            _dispatch_via_app(String["io", "linkages"])
+        end
+        @test occursin("Agriculture", out) && occursin("Manufacturing", out)
+    end
 end

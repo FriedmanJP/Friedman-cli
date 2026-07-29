@@ -18,10 +18,15 @@ module Friedman
 
 using CSV, DataFrames, PrettyTables, JSON3, TOML
 using MacroEconometricModels
+# Load-bearing (C052): loading JLD2 activates MacroEconometricModelsJLD2Ext, which
+# backs MEMs `save_model`/`load_model` (native `.jld2` handles). Unlike FFTW — pulled in
+# transitively — a bare JLD2 dep does NOT auto-load at runtime, so import it explicitly.
+import JLD2
 using LinearAlgebra: eigvals, diag, I, svd
 using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization
+using Logging: ConsoleLogger, with_logger, Info, Warn
 
 # CLI engine
 include("cli/types.jl")
@@ -57,9 +62,11 @@ include("commands/forecast.jl")
 include("commands/fitted.jl")  # predict + residuals collapsed (C025)
 include("commands/filter.jl")
 include("commands/data.jl")
+include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")
 include("commands/dsge.jl")
 include("commands/did.jl")
+include("commands/multipliers.jl")  # multipliers nardl — new top-level (C062b)
 include("commands/spectral.jl")
 include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
@@ -92,9 +99,11 @@ function build_app()
         "residuals" => register_residuals_commands!(),
         "filter"    => register_filter_commands!(),
         "data"      => register_data_commands!(),
+        "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),
+        "multipliers" => register_multipliers_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
         "model"     => register_model_commands!(),
@@ -109,6 +118,17 @@ end
 
 """Memoized command tree, built once at precompile time (F57)."""
 const APP = build_app()
+
+"""
+    _mems_logger(io=stderr) → ConsoleLogger
+
+Logger for MacroEconometricModels diagnostics (#348 / C050). Emits `@info` and
+above by default; under `--quiet` (`_QUIET[]`) the threshold rises to `@warn`, so
+info-level chatter is dropped while warnings and errors are always surfaced.
+`@debug` stays below threshold unless the user opts in via `JULIA_DEBUG`. `io` is
+injectable so tests can capture the stream.
+"""
+_mems_logger(io::IO=stderr) = ConsoleLogger(io, _QUIET[] ? Warn : Info)
 
 """
     run_cli(args)::Cint
@@ -127,7 +147,11 @@ function run_cli(args::Vector{String})::Cint
     try
         remaining = _extract_global_flags!(copy(args))
         _LAST_ARGV[] = copy(args)
-        dispatch(app, remaining)
+        # Route MEMs @info/@warn/@error to stderr (#348 / C050); --quiet drops
+        # @info, keeps @warn. @debug stays off unless JULIA_DEBUG is set.
+        with_logger(_mems_logger()) do
+            dispatch(app, remaining)
+        end
         return Cint(0)
     catch e
         if e isa CliError
@@ -139,6 +163,13 @@ function run_cli(args::Vector{String})::Cint
             println(stderr, e.message)
             return Cint(2)  # usage
         else
+            # MEMs domain error (MacroModelError hierarchy) → typed exit (C050)
+            mapped = _domain_error_class(e)
+            if mapped !== nothing
+                _status_styled("Error: "; bold=true, color=:red)
+                println(stderr, sprint(showerror, mapped))
+                return Cint(exit_class(mapped))
+            end
             _status_styled("Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
             println(stderr, "this is likely a bug — please report")

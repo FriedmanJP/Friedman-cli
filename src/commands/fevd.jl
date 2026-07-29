@@ -275,8 +275,11 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.proportions, varnames, horizons;
-                        id=id, title_prefix="FEVD", format=format, output=output)
+    # C051: render via MEMs' uniform tidy long_table (horizon|variable|shock|value),
+    # replacing the wide per-variable _output_fevd_tables. (Arias/Uhlig branches above
+    # build proportions by hand with no FEVD result type, so they keep the wide helper.)
+    output_result(long_table(fevd_result); format=Symbol(format), output=output,
+                  title="FEVD ($id identification)")
 end
 
 # ── BVAR FEVD ────────────────────────────────────────────
@@ -307,7 +310,9 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
 
     _maybe_plot(bfevd; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(bfevd.mean, varnames, horizons;
+    # BayesianFEVD.point_estimate is (horizon, variable, shock); the shared renderer
+    # indexes [variable, shock, horizon] like the frequentist FEVD array.
+    _output_fevd_tables(permutedims(bfevd.point_estimate, (2, 3, 1)), varnames, horizons;
                         id=id, title_prefix="Bayesian FEVD", format=format, output=output)
 end
 
@@ -369,8 +374,9 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.proportions, varnames, horizons;
-                        id=id, title_prefix="VECM FEVD", format=format, output=output)
+    # C051: tidy long_table (see fevd var).
+    output_result(long_table(fevd_result); format=Symbol(format), output=output,
+                  title="VECM FEVD ($id identification)")
 end
 
 # ── Panel VAR FEVD ─────────────────────────────────────────
@@ -392,11 +398,15 @@ function _fevd_pvar(; data::String="", id_col::String="", time_col::String="",
     _status("Computing Panel VAR FEVD: horizons=$horizons")
     _status()
 
-    fevd_result = pvar_fevd(model, horizons)
+    # MEMs 0.7.0 (C054): pvar_fevd now returns a raw (H+1)×n×n array indexed
+    # [horizon, variable, shock] (was a struct with `.proportions`). Permute to
+    # [variable, shock, horizon] and drop horizon 0 to keep the 1..H tables.
+    fevd_arr = pvar_fevd(model, horizons)
 
-    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(fevd_arr; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.proportions, varnames, horizons;
+    proportions = permutedims(fevd_arr[2:end, :, :], (2, 3, 1))
+    _output_fevd_tables(proportions, varnames, horizons;
                         id="cholesky", title_prefix="Panel VAR FEVD",
                         format=format, output=output)
 end
@@ -423,20 +433,11 @@ function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
     result = fevd(favar, horizons; id_kwargs...)
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 
-    n_vars = size(result.proportions, 1)
-    n_shocks = size(result.proportions, 2)
-    for v in 1:n_vars
-        vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
-        fevd_df = DataFrame()
-        fevd_df.horizon = 1:horizons
-        for s in 1:n_shocks
-            sname = s <= length(favar.varnames) ? favar.varnames[s] : "shock_$s"
-            fevd_df[!, sname] = round.(result.proportions[v, s, :]; digits=4)
-        end
-        output_result(fevd_df; format=Symbol(format),
-                      output=_per_var_output_path(output, vname),
-                      title="FAVAR FEVD — variable: $vname")
-    end
+    # C051: tidy long_table (horizon|variable|shock|value); fevd(favar,...) delegates to
+    # fevd(to_var(favar),...) — the same FEVD type as fevd var.
+    fevd_df = long_table(result)
+    output_result(fevd_df; format=Symbol(format), output=output,
+                  title="FAVAR FEVD ($id identification)")
 end
 
 # ── Structural DFM FEVD ──────────────────────────────
@@ -460,18 +461,8 @@ function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
     result = fevd(sdfm, horizons)
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 
-    n_vars = size(result.proportions, 1)
-    n_shocks = size(result.proportions, 2)
-    for v in 1:n_vars
-        vname = "factor_$v"
-        fevd_df = DataFrame()
-        fevd_df.horizon = 1:horizons
-        for s in 1:n_shocks
-            sname = "shock_$s"
-            fevd_df[!, sname] = round.(result.proportions[v, s, :]; digits=4)
-        end
-        output_result(fevd_df; format=Symbol(format),
-                      output=_per_var_output_path(output, vname),
-                      title="SDFM FEVD — factor: $vname")
-    end
+    # C051: tidy long_table (horizon|variable|shock|value); fevd(sdfm,...) delegates to
+    # fevd(sdfm.factor_var,...) — the same FEVD type as fevd var, in factor space.
+    fevd_df = long_table(result)
+    output_result(fevd_df; format=Symbol(format), output=output, title="SDFM FEVD")
 end

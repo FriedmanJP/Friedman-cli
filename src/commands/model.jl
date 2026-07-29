@@ -1,11 +1,11 @@
-# Top-level `model` commands — inspect .fmod handles (C029 / P2-7)
+# Top-level `model` commands — inspect .jld2 (native, C052) and .fmod (interim) handles
 
 function _model_info(; path::String="", data::String="",
                       output::String="", format::String="table")
     # positional may bind as `path` or (legacy) first free; accept either
     p = !isempty(path) ? path : data
-    isempty(p) && throw(CliError("usage/missing-arg", "model info requires a .fmod path"))
-    info = model_handle_info(p)
+    isempty(p) && throw(CliError("usage/missing-arg", "model info requires a .jld2 or .fmod path"))
+    info = endswith(lowercase(p), ".jld2") ? _native_model_info(p) : model_handle_info(p)
     rows = DataFrame(
         field = ["path", "magic", "model_type", "cli_version", "mems_version",
                  "runtime_cli", "runtime_mems", "dimensions"],
@@ -28,9 +28,9 @@ function model_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["model", "info"],
-            summary="Inspect a .fmod model handle (type, versions, dimensions)",
+            summary="Inspect a model handle (.jld2 native or .fmod interim): type, versions, dimensions",
             args=[ArgSpec(name="path", type=String, required=true, default=nothing,
-                          description="Path to .fmod handle")],
+                          description="Path to .jld2 or .fmod handle")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="",
                            description="Export results to file"),
@@ -48,5 +48,5 @@ end
 function register_model_commands!()
     specs = model_specs()
     register!(specs)
-    return build_node("model", specs; description="Model handles: inspect .fmod files")
+    return build_node("model", specs; description="Model handles: inspect .jld2 (native) and .fmod (interim) files")
 end

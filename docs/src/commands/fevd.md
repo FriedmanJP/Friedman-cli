@@ -2,6 +2,14 @@
 
 Compute forecast error variance decomposition. 7 subcommands: `var`, `bvar`, `lp`, `vecm`, `pvar`, `favar`, `sdfm`.
 
+## Output format (C051)
+
+`fevd var`, `vecm`, `favar`, and `sdfm` render through MEMs' tidy `long_table(result)`: one
+row per `(horizon, variable, shock)` cell, columns `horizon | variable | shock | value`
+(proportions in `[0, 1]`). `fevd bvar` (`BayesianFEVD`), `fevd lp` (`LPFEVD`), and
+`fevd pvar` (a raw array, not a MEMs result type) aren't covered by `long_table` and stay
+on the older wide table (columns = shocks, rows = horizons).
+
 ## fevd var
 
 Frequentist FEVD with configurable identification.
@@ -22,7 +30,7 @@ friedman fevd var data.csv --id=sign --config=sign_restrictions.toml
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** FEVD proportions table per variable (columns = shocks, rows = horizons).
+**Output:** Tidy table (`horizon|variable|shock|value`); `value` is the variance share in `[0, 1]` (Arias/Uhlig identification still builds its own wide table — no MEMs `FEVD` to route through `long_table`).
 
 ## fevd bvar
 
@@ -46,6 +54,8 @@ friedman fevd bvar data.csv --draws=5000 --sampler=gibbs
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Wide table (columns = shocks, rows = horizons) — `BayesianFEVD` isn't covered by `long_table` yet.
+
 ## fevd lp
 
 LP-based FEVD with bias-corrected proportions (Gorodnichenko & Lee 2019).
@@ -66,6 +76,8 @@ friedman fevd lp data.csv --horizons=20 --id=cholesky
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** Wide table (columns = shocks, rows = horizons) — `LPFEVD` isn't covered by `long_table` yet.
 
 ## fevd vecm
 
@@ -89,6 +101,8 @@ friedman fevd vecm data.csv --rank=2 --deterministic=constant --lags=4
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+**Output:** Tidy table (`horizon|variable|shock|value`); VECM → VAR representation, same schema as `fevd var`.
+
 ## fevd pvar
 
 Panel VAR forecast error variance decomposition.
@@ -107,6 +121,8 @@ friedman fevd pvar data.csv --id-col=country --time-col=year --horizons=20
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** Wide, per-shock-file table (columns = variables, rows = horizons) — `pvar_fevd` returns a raw array, not a MEMs result type, so this leaf stays outside the `long_table` conversion.
 
 ## See Also
 

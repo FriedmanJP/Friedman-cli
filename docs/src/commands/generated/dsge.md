@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 29
+**Leaves:** 34
 
 ### `friedman dsge bayes compare`
 
@@ -153,6 +153,28 @@ Path to DSGE model file (.toml or .jl)
 
 ---
 
+### `friedman dsge bayes identification`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--params` | — | `String` | `""` | — | Comma-separated estimated parameter names (required) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated; default: all endogenous) |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--n-lags` | — | `Int64` | `2` | — | Autocovariance lags in the Iskrev moment vector |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+**Output tables:** `bayes_identification` (Iskrev (2010) local-identification rank test)
+
+---
+
 ### `friedman dsge bayes irf`
 
 Path to DSGE model file (.toml or .jl)
@@ -187,6 +209,149 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `bayes_irf` (Path to DSGE model file (.toml or .jl))
+
+---
+
+### `friedman dsge bayes learning-rate`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--params` | — | `String` | `""` | — | Comma-separated parameter names |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--sampler` | — | `String` | `smc` | — | smc|smc2|mh |
+| `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
+| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--solver` | — | `String` | `gensys` | — | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--fractions` | — | `String` | `0.5,1.0` | — | Nested subsample fractions (comma-separated, in (0,1]) |
+| `--threshold` | — | `Float64` | `0.2` | — | Flag threshold on the learning rate α |
+| `--refit-n-smc` | — | `Int64` | `100` | — | SMC particles per subsample refit |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+
+**Output tables:** `bayes_learning_rate` (Koop-Pesaran-Smith (2013) learning-rate check)
+
+---
+
+### `friedman dsge bayes marginal-lik`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--params` | — | `String` | `""` | — | Comma-separated parameter names |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--sampler` | — | `String` | `smc` | — | smc|smc2|mh |
+| `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
+| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--solver` | — | `String` | `gensys` | — | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--proposal` | — | `String` | `normal` | `normal`, `t` | Bridge proposal family: normal|t |
+| `--df` | — | `Float64` | `5.0` | — | Degrees of freedom for the t proposal |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+
+**Output tables:** `bayes_marginal_lik` (Marginal likelihood via bridge sampling (Meng-Wong 1996))
+
+---
+
+### `friedman dsge bayes mcmc-diag`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--params` | — | `String` | `""` | — | Comma-separated parameter names |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--sampler` | — | `String` | `smc` | — | smc|smc2|mh |
+| `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
+| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--solver` | — | `String` | `gensys` | — | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+
+**Output tables:** `bayes_mcmc_diag` (MCMC convergence diagnostics (R-hat / ESS / Geweke))
+
+---
+
+### `friedman dsge bayes overlap`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--params` | — | `String` | `""` | — | Comma-separated parameter names |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--sampler` | — | `String` | `smc` | — | smc|smc2|mh |
+| `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
+| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--solver` | — | `String` | `gensys` | — | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--threshold` | — | `Float64` | `0.8` | — | Flag threshold on the prior/posterior overlap |
+| `--n-grid` | — | `Int64` | `0` | — | Histogram bins (0 = auto ≈ √N) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+
+**Output tables:** `bayes_overlap` (Prior/posterior overlap (weak-identification signal))
 
 ---
 

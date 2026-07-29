@@ -92,14 +92,21 @@ julia build_release.jl
 
 ## Optional Dependencies
 
-For DSGE constrained optimization, install JuMP and solver packages:
+**JuMP and Ipopt** (DSGE constrained optimization). On the current 0.6.x release line these are **not** bundled in precompiled builds; install them yourself:
 
 ```julia
 using Pkg
 Pkg.add(["JuMP", "Ipopt"])
 ```
 
-These are **not** included in precompiled release builds due to license incompatibility (Ipopt uses EPL-2.0, which conflicts with GPL-3.0).
+With **MacroEconometricModels 0.7.0 and later** they are required upstream dependencies and are bundled in the release build — no separate install needed. JuMP is MPL-2.0; the Ipopt Julia wrapper is MIT and the underlying Ipopt library is EPL-2.0, linked dynamically as a separate work.
+
+**PATHSolver** (PATH mixed-complementarity solver, used only by a niche DSGE constrained path) is never bundled. Install it if a model requires it:
+
+```julia
+using Pkg
+Pkg.add("PATHSolver")
+```
 
 ## Testing
 

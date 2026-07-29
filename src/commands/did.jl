@@ -48,6 +48,10 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
         base_period=Symbol(base_period))
 
+    # C051: DIDResult is deliberately NOT rendered via DataFrame(model)/long_table — the
+    # event-time ATT summary (plus the optional group-time ATT block below) is a
+    # domain-specific report, not a coefficient table or an array-valued IRF/forecast, so
+    # a principled exception (like the volatility forecast variance|volatility table).
     att_df = DataFrame(
         Event_Time = result.event_times,
         ATT = round.(result.att; digits=6),
@@ -114,9 +118,9 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
     _status_styled("  N: "; bold=true)
     _status("$(result.n_obs) obs, $(result.n_groups) groups")
     _status_styled("  Lags: "; bold=true)
-    print("$(result.lags)  ")
+    _status_styled("$(result.lags)  ")
     _status_styled("Leads: "; bold=true)
-    print("$(result.leads)  ")
+    _status_styled("$(result.leads)  ")
     _status_styled("Horizon: "; bold=true)
     _status("$(result.horizon)")
 
@@ -173,31 +177,31 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
     coef_df = DataFrame(
         Event_Time = result.event_times,
         Coefficient = round.(result.coefficients; digits=6),
-        SE = round.(result.se_vec; digits=6),
+        SE = round.(result.se; digits=6),
         CI_Lower = round.(result.ci_lower; digits=6),
         CI_Upper = round.(result.ci_upper; digits=6),
-        N_obs = result.nobs_h
+        N_obs = result.nobs_per_horizon
     )
     fmt = Symbol(lowercase(format))
     output_result(coef_df; format=fmt, output=output,
-        title="LP-DiD (Dube et al. 2023) — $(result.outcome_name)")
+        title="LP-DiD (Dube et al. 2023) — $(result.outcome_var)")
 
     _status()
     _status_styled("  Specification: "; bold=true)
-    _status(result.spec_type)
+    _status(result.specification)
     _status_styled("  N: "; bold=true)
     _status("$(result.T_obs) obs, $(result.n_groups) groups")
     _status_styled("  Window: "; bold=true)
     _status("pre=$(result.pre_window), post=$(result.post_window)")
 
-    if !isnothing(result.pooled_post_result)
-        pp = result.pooled_post_result
+    if !isnothing(result.pooled_post)
+        pp = result.pooled_post
         _status()
         _status_styled("  Pooled post-treatment: "; bold=true)
         _status("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
     end
-    if !isnothing(result.pooled_pre_result)
-        pp = result.pooled_pre_result
+    if !isnothing(result.pooled_pre)
+        pp = result.pooled_pre
         _status_styled("  Pooled pre-treatment:  "; bold=true)
         _status("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
     end

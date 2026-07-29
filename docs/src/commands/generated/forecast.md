@@ -3,7 +3,7 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 14
+**Leaves:** 22
 
 ### `friedman forecast arch`
 
@@ -148,6 +148,139 @@ Path to CSV data file
 
 ---
 
+### `friedman forecast evaluate clark-west`
+
+Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: small then big)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
+| `--forecasts` | — | `String` | `""` | — | Two forecast columns: small (restricted), big (unrestricted) |
+| `--horizon` | `-h` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--alternative` | — | `String` | `greater` | `two-sided`, `less`, `greater` | Alternative hypothesis |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `clark_west_test` (CW statistic / one-sided p-value)
+
+---
+
+### `friedman forecast evaluate combine`
+
+Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 forecasts)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
+| `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=2) |
+| `--method` | — | `String` | `equal` | `equal`, `bates-granger`, `granger-ramanathan` | Combination method |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--emit-series` | — | Also emit the combined forecast series (index|combined) |
+
+**Output tables:** `forecast_combination_weights` (model | weight | mse)
+
+---
+
+### `friedman forecast evaluate dm`
+
+Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
+| `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
+| `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) | ad (absolute) |
+| `--horizon` | `-h` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-hln` | — | Disable the Harvey-Leybourne-Newbold small-sample correction (use N(0,1)) |
+
+**Output tables:** `diebold_mariano_test` (DM statistic / p-value)
+
+---
+
+### `friedman forecast evaluate encompassing`
+
+Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
+| `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
+| `--lags` | — | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `forecast_encompassing_test` (b1, b2, t-stat on b2)
+
+---
+
+### `friedman forecast evaluate metrics`
+
+Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil decomposition
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
+| `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=1) |
+| `--seasonal-period` | — | `Int64` | `1` | — | Seasonal lag for MASE naive-forecast scaling |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `forecast_accuracy_metrics` (Point accuracy metrics, one row per forecast)
+
+---
+
+### `friedman forecast evaluate mincer-zarnowitz`
+
+Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
+| `--forecasts` | — | `String` | `""` | — | One forecast column name (required) |
+| `--lags` | — | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `mincer_zarnowitz_test` (a, b, HAC SEs, joint Wald/F)
+
+---
+
 ### `friedman forecast favar`
 
 Path to CSV data file
@@ -284,6 +417,55 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `forecast_lp` (Path to CSV data file)
+
+---
+
+### `friedman forecast setar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
+| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `forecast_setar` (Path to CSV data file)
+
+---
+
+### `friedman forecast star`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
+| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1|lstr2|estr|auto |
+| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `forecast_star` (Path to CSV data file)
 
 ---
 
