@@ -3152,7 +3152,8 @@ end
 function _test_hausman(; data::String, dep::String="", indep::String="",
                         id_col::String="", time_col::String="",
                         output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3175,7 +3176,8 @@ end
 function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
                               id_col::String="", time_col::String="",
                               output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3197,7 +3199,8 @@ end
 function _test_f_fe(; data::String, dep::String="", indep::String="",
                      id_col::String="", time_col::String="",
                      output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3219,7 +3222,8 @@ end
 function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
                            id_col::String="", time_col::String="",
                            output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3240,7 +3244,8 @@ end
 function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
                               id_col::String="", time_col::String="",
                               output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3262,7 +3267,8 @@ end
 function _test_modified_wald(; data::String, dep::String="", indep::String="",
                               id_col::String="", time_col::String="",
                               output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3399,7 +3405,8 @@ function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    isnothing(omit_category) && error("--omit-category is required")
+    isnothing(omit_category) && throw(CliError("usage/missing", "--omit-category is required";
+        hint="name the alternative to drop, e.g. --omit-category 2"))
 
     model = estimate_mlogit(y, X; cov_type=:ols, varnames=xcols)
 

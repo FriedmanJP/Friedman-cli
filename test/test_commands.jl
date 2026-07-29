@@ -9837,6 +9837,40 @@ end
                 end
             end
         end
+
+        @testset "missing required option → usage/missing, not internal exit 1" begin
+            # These seven handlers guarded their required option with a bare error(),
+            # which run_cli reports as internal/error exit 1 "likely a bug" for what is
+            # an ordinary usage mistake. Same class as the shared-loader hardenings.
+            mktempdir() do dir
+                panel = _make_panel_csv(dir; G=6, T_per=20, n=2, colnames=["y", "x1"])
+                csv = _make_csv(dir; T=100, n=4)
+                for h in (_test_hausman, _test_breusch_pagan, _test_f_fe,
+                          _test_pesaran_cd, _test_wooldridge_ar, _test_modified_wald)
+                    e = try
+                        _capture() do
+                            h(; data=panel, dep="", indep="", id_col="", time_col="",
+                               format="table", output="")
+                        end
+                        nothing
+                    catch err
+                        err
+                    end
+                    @test e isa CliError
+                    @test e.code == "usage/missing" && exit_class(e) == 2
+                end
+                e = try
+                    _capture() do
+                        _test_hausman_iia(; data=csv, dep="var1", omit_category=nothing,
+                                           format="table", output="")
+                    end
+                    nothing
+                catch err
+                    err
+                end
+                @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+            end
+        end
     end
 
 end
