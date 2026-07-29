@@ -5141,6 +5141,8 @@ struct RegModel{T<:Real}
     cragg_donald_f::Union{T,Nothing}
     kleibergen_paap_f::Union{T,Nothing}
     stock_yogo_10pct::Union{T,Nothing}
+    kclass_k::Union{T,Nothing}          # k-class scalar actually used (IV k-class only)
+    kappa_hat::Union{T,Nothing}         # LIML minimum eigenvalue (liml/fuller only)
 end
 
 struct LogitModel{T<:Real}
@@ -5247,33 +5249,48 @@ function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
     RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
                 vnames, :ols, cov_type, weights, nothing, nothing,
-                nothing, nothing, nothing, nothing, nothing, nothing)
+                nothing, nothing, nothing, nothing, nothing, nothing,
+                nothing, nothing)
 end
 
 function estimate_iv(y::AbstractVector{T}, X::AbstractMatrix{T}, Z::AbstractMatrix{T};
-                     endogenous=Int[], cov_type=:hc1, varnames=nothing) where T
-    n, k = size(X)
-    beta = ones(T, k) * T(0.5)
-    vcov_mat = Matrix{T}(I(k)) * T(0.01)
+                     endogenous=Int[], cov_type=:hc1, varnames=nothing,
+                     method::Symbol=:tsls, k=nothing, fuller_a::Real=1.0) where T
+    # Mirror real's validation (reg/iv.jl): the k-class family and the k requirement.
+    method in (:tsls, Symbol("2sls"), :liml, :fuller, :kclass) ||
+        throw(ArgumentError("method must be :tsls, :liml, :fuller, or :kclass; got :$method"))
+    method === :kclass && k === nothing &&
+        throw(ArgumentError("k is required for method=:kclass"))
+    isempty(endogenous) && throw(ArgumentError("endogenous must be non-empty for IV estimation"))
+    # `k` is the k-class SCALAR kwarg here, so the regressor count must not reuse that
+    # name — real calls it k_reg for the same reason.
+    n, k_reg = size(X)
+    beta = ones(T, k_reg) * T(0.5)
+    vcov_mat = Matrix{T}(I(k_reg)) * T(0.01)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     ssr = sum(resids .^ 2)
     tss = sum((y .- mean(y)) .^ 2)
     r2_val = one(T) - ssr / tss
-    adj_r2_val = one(T) - (one(T) - r2_val) * (n - 1) / (n - k)
+    adj_r2_val = one(T) - (one(T) - r2_val) * (n - 1) / (n - k_reg)
     f_val = T(20.0)
     f_p = T(0.002)
     ll = T(-105.0)
     aic_val = T(220.0)
     bic_val = T(230.0)
-    vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
+    vnames = varnames === nothing ? ["x$i" for i in 1:k_reg] : varnames
     first_f = T(15.0)
     sargan_s = T(2.5)
     sargan_p = T(0.30)
+    # Only the k-class methods populate these, exactly as real does.
+    kk = method === :kclass ? T(k) :
+         method === :liml   ? T(1.05) :
+         method === :fuller ? T(1.05) - T(fuller_a) / T(n - size(Z, 2)) : nothing
+    kap = method in (:liml, :fuller) ? T(1.05) : nothing
     RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
                 vnames, :iv, cov_type, nothing, Z, endogenous,
-                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0))
+                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0), kk, kap)
 end
 
 function _build_logit_probit(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{T};
@@ -5499,6 +5516,52 @@ end
 export RegDiagnosticResult, StabilityResult, InfluenceStats
 export white_test, glejser_test, harvey_test, chow_test
 export cusum_test, cusumsq_test, recursive_residuals, influence_stats
+
+# ─── C067 (#72): variable selection. Field-order subset of real; validation mirrors
+# reg/selection.jl so a bad --method/--criterion/p-threshold fails the same way.
+
+struct SelectionResult{T<:AbstractFloat}
+    method::Symbol
+    criterion::Symbol
+    selected::Vector{Int}
+    keep::Vector{Int}
+    varnames::Vector{String}
+    path::Vector{Tuple{Symbol,Int,T}}
+    terminal_models::Vector{Vector{Int}}
+    encompassing_f::Union{Nothing,T}
+    encompassing_pval::Union{Nothing,T}
+    encompassing_df::Union{Nothing,Tuple{Int,Int}}
+    final::RegModel{T}
+    n_gum::Int
+end
+
+function select_variables(y::AbstractVector{T}, X::AbstractMatrix{T};
+                          method::Symbol=:bidirectional, criterion::Symbol=:pvalue,
+                          p_enter::Real=0.05, p_remove::Real=0.10, p_gets::Real=0.05,
+                          diag_level::Real=0.05, bg_lags::Int=1,
+                          keep=nothing, varnames=nothing) where T
+    n, k = size(X)
+    length(y) == n || throw(ArgumentError("X must have $(length(y)) rows (got $n)"))
+    method ∈ (:forward, :backward, :bidirectional, :best_subset, :gets) ||
+        throw(ArgumentError("method must be :forward, :backward, :bidirectional, :best_subset, or :gets; got :$method"))
+    criterion ∈ (:pvalue, :aic, :bic) ||
+        throw(ArgumentError("criterion must be :pvalue, :aic, or :bic; got :$criterion"))
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : varnames
+    length(vn) == k || throw(ArgumentError("varnames must have length $k"))
+    kp = keep === nothing ? Int[] : collect(Int, keep)
+    all(c -> 1 <= c <= k, kp) || throw(ArgumentError("keep indices must be in 1:$k"))
+    method === :bidirectional && criterion === :pvalue && p_remove < p_enter &&
+        throw(ArgumentError("bidirectional :pvalue search requires p_remove ≥ p_enter"))
+    # Keep the first regressor plus anything forced; enough structure to exercise the
+    # renderer without pretending to reproduce a real search.
+    sel = sort(unique(vcat(kp, [1])))
+    final = estimate_reg(y, X[:, sel]; varnames=vn[sel])
+    path = Tuple{Symbol,Int,T}[(:enter, i, T(0.01)) for i in sel]
+    SelectionResult{T}(method, criterion, sel, kp, vn, path, [sel],
+                       T(1.5), T(0.22), (1, n - length(sel)), final, k)
+end
+
+export SelectionResult, select_variables
 
 export RegModel, LogitModel, ProbitModel, MarginalEffects
 export estimate_reg, estimate_iv, estimate_logit, estimate_probit

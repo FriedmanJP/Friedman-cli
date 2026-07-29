@@ -491,3 +491,14 @@ function dgp_reg_diag(; n::Int=200, hetero::Bool=false, break_at::Union{Nothing,
     return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2);
                      prefix="regdiag")
 end
+
+"""Selection DGP (C067/#72): `y = 1 + 2*x1 - 1.5*x2 + e`, with `x3`/`x4` pure noise, so
+a working search keeps x1/x2 and drops x3/x4. String-keyed columns because `const` is a
+Julia reserved word."""
+function dgp_select(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    x1 = randn(rng, n); x2 = randn(rng, n); x3 = randn(rng, n); x4 = randn(rng, n)
+    y = 1.0 .+ 2.0 .* x1 .- 1.5 .* x2 .+ randn(rng, n)
+    return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2,
+                               "x3" => x3, "x4" => x4); prefix="select")
+end

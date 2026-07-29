@@ -1227,6 +1227,55 @@ friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instrumen
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test). See also [`test weak-instrument`](test.md) for the full Stock-Yogo weak-instrument battery.
 
+**k-class family (#72).** `--method` selects the estimator:
+
+| `--method` | k used | Notes |
+|---|---|---|
+| `tsls` (default) | 1 | Two-stage least squares |
+| `liml` | κ̂ | Limited-information maximum likelihood |
+| `fuller` | κ̂ − a/(n−m) | Fuller (1977); `--fuller-a` (default 1) is approximately unbiased |
+| `kclass` | your `--k` | Generic k-class: `--k 0` is OLS, `--k 1` is exactly 2SLS |
+
+`--k` is **required** with `--method kclass` and rejected with any other method;
+`--fuller-a` applies only to `--method fuller`. Both are usage errors (exit 2) rather
+than upstream failures. The diagnostics block reports the `k-class k` actually used and,
+for LIML/Fuller, `kappa_hat`.
+
+```bash
+friedman estimate iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=liml
+friedman estimate iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=kclass --k=1
+```
+
+## estimate select
+
+General-to-specific and stepwise variable selection. This is a **dedicated leaf rather
+than an `estimate reg --select` flag**, so `estimate reg`'s envelope tables stay fixed —
+a leaf whose table set changes with a flag forces every consumer to branch on it.
+
+Regressors are every numeric column except `--dep`, and no intercept is prepended, so
+include a `const` column if you want one. The result carries the refitted final model,
+so the coefficient table is exactly what `estimate reg` would print for the selected
+subset.
+
+```bash
+friedman estimate select data.csv --dep=y
+friedman estimate select data.csv --dep=y --method=gets --criterion=bic
+friedman estimate select data.csv --dep=y --keep=const,x1
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--dep` | String | first numeric | Dependent variable column |
+| `--method` | String | `bidirectional` | `forward`, `backward`, `bidirectional`, `best-subset`, `gets` |
+| `--criterion` | String | `pvalue` | `pvalue`, `aic`, `bic` |
+| `--p-enter` | Float64 | 0.05 | p-value to enter a regressor |
+| `--p-remove` | Float64 | 0.10 | p-value to remove; must be ≥ `--p-enter` for bidirectional + pvalue |
+| `--keep` | String | | Comma-separated regressor names always retained |
+
+**Output:** the selected model's coefficient table, a `step | action | variable |
+statistic` **selection path** (the audit trail), and a summary kv with the selected set,
+forced-in variables, candidate count and the encompassing F-test where available.
+
 ## estimate sur
 
 Seemingly-unrelated regressions (Zellner 1962), fitted by feasible GLS across a multi-equation system. The equation system is specified in a config TOML; each `[[equations]]` block names a dependent column and its regressors (column names from the data CSV). Efficiency gains over equation-by-equation OLS come from cross-equation error correlation.

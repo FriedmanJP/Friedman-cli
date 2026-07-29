@@ -1696,6 +1696,70 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true)
         end
 
+        @testset "estimate select — recovers the true model (#72)" begin
+            # y depends on x1 and x2 only; x3/x4 are pure noise, so a working search
+            # must keep the former and drop the latter.
+            csv = dgp_select(; n=400, seed=217)
+            r = run_json(["estimate", "select", csv, "--dep", "y"])
+            assert_envelope_ok(r; label="estimate select")
+            sel = String(scan_metric(r.doc, "selected"))
+            @test occursin("x1", sel) && occursin("x2", sel)
+            @test !occursin("x3", sel) && !occursin("x4", sel)
+            @test Float64(scan_metric(r.doc, "n selected")) >= 2
+
+            # the selection path is the audit trail
+            t = coltable(r.doc, "action")
+            @test t !== nothing
+            @test Set(["step", "action", "variable", "statistic"]) ⊆ Set(String.(table_cols(t)))
+
+            # --keep forces a regressor in even though it is irrelevant
+            rk = run_json(["estimate", "select", csv, "--dep", "y", "--keep", "x3"])
+            assert_envelope_ok(rk; label="estimate select --keep")
+            @test occursin("x3", String(scan_metric(rk.doc, "selected")))
+
+            for m in ("forward", "backward", "gets")
+                @test run_json(["estimate", "select", csv, "--dep", "y", "--method", m]).code == 0
+            end
+            @test run_json(["estimate", "select", csv, "--dep", "y", "--criterion", "bic"]).code == 0
+
+            @test run_json(["estimate", "select", csv, "--dep", "y", "--p-enter", "0"]).code == 2
+            @test run_json(["estimate", "select", csv, "--dep", "y",
+                            "--p-enter", "0.2", "--p-remove", "0.05"]).code == 2
+            @test run_json(["estimate", "select", csv, "--dep", "y", "--keep", "nosuch"]).code == 3
+            @test run_json(["estimate", "select", csv, "--dep", "y", "--method", "bogus"]).code == 2
+            rm(csv; force=true)
+        end
+
+        @testset "estimate iv — k-class family (#72)" begin
+            csv = dgp_iv(; T=400, seed=215)
+            base = ["estimate", "iv", csv, "--dep", "y", "--endogenous", "x_endog",
+                    "--instruments", "z1,z2"]
+            b = Dict{String,Float64}()
+            for m in ("tsls", "liml", "fuller", "kclass")
+                args = m == "kclass" ? vcat(base, ["--method", m, "--k", "1"]) :
+                                       vcat(base, ["--method", m])
+                r = run_json(args)
+                assert_envelope_ok(r; label="iv $m")
+                t = coltable(r.doc, "estimate")
+                row = first(rr for rr in table_rows(t)
+                            if String(collect(rr)[col_index(t, "term")]) == "x_endog")
+                b[m] = Float64(collect(row)[col_index(t, "estimate")])
+                @test isapprox(b[m], 2.0; atol=0.25)      # all recover the true beta
+            end
+            # k=1 IS 2SLS by construction — a deterministic identity, not a tolerance test
+            @test isapprox(b["kclass"], b["tsls"]; atol=1e-8)
+            # LIML reports kappa_hat >= 1; Fuller shifts k below it by a/(n-m)
+            rl = run_json(vcat(base, ["--method", "liml"]))
+            @test Float64(scan_metric(rl.doc, "kappa_hat")) >= 1.0
+            rf = run_json(vcat(base, ["--method", "fuller"]))
+            @test Float64(scan_metric(rf.doc, "k-class k")) < Float64(scan_metric(rf.doc, "kappa_hat"))
+
+            @test run_json(vcat(base, ["--method", "kclass"])).code == 2      # --k required
+            @test run_json(vcat(base, ["--method", "tsls", "--k", "1"])).code == 2
+            @test run_json(vcat(base, ["--method", "bogus"])).code == 2
+            rm(csv; force=true)
+        end
+
         @testset "C067 remainder — bad input stays typed" begin
             csv = dgp_reg_diag(; n=120, seed=213)
             @test run_json(["test", "chow", csv, "--dep", "y"]).code == 2            # --break-at required

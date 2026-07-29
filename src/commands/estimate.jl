@@ -1051,6 +1051,25 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_reg),
         ),
         CommandSpec(
+            path=["estimate", "select"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="method", type=String, default="bidirectional", description="Search strategy", choices=["forward","backward","bidirectional","best-subset","gets"]),
+                OptionSpec(name="criterion", type=String, default="pvalue", description="Selection criterion", choices=["pvalue","aic","bic"]),
+                OptionSpec(name="p-enter", type=Float64, default=0.05, description="p-value to enter a regressor (0,1)"),
+                OptionSpec(name="p-remove", type=Float64, default=0.10, description="p-value to remove a regressor (0,1); must be ≥ --p-enter for bidirectional pvalue"),
+                OptionSpec(name="keep", type=String, default="", description="Comma-separated regressor names always retained"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_select, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_select),
+        ),
+        CommandSpec(
             path=["estimate", "iv"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1059,6 +1078,9 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
                 OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
                 OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="method", type=String, default="tsls", description="k-class estimator", choices=["tsls","liml","fuller","kclass"]),
+                OptionSpec(name="k", type=String, default="", description="k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS)"),
+                OptionSpec(name="fuller-a", type=Float64, default=1.0, description="Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -2374,35 +2396,136 @@ end
 
 # ── IV (2SLS) Regression ──────────────────────────────
 
+# C067 (#72): general-to-specific / stepwise variable selection. A DEDICATED LEAF
+# rather than an `estimate reg --select` flag, so `estimate reg`'s envelope tables stay
+# fixed — a leaf whose table set changes with a flag forces every agent consuming it to
+# branch. `select_variables` returns a SelectionResult that CARRIES the refitted
+# `final::RegModel`, so this renders the same coefficient table as `estimate reg` plus
+# the selection path.
+function _estimate_select(; data::String, dep::String="", method::String="bidirectional",
+                           criterion::String="pvalue", p_enter::Float64=0.05,
+                           p_remove::Float64=0.10, keep::String="",
+                           output::String="", format::String="table")
+    (0.0 < p_enter < 1.0) || throw(CliError("usage/invalid",
+        "estimate select: --p-enter must be in (0, 1) (got $p_enter)"))
+    (0.0 < p_remove < 1.0) || throw(CliError("usage/invalid",
+        "estimate select: --p-remove must be in (0, 1) (got $p_remove)"))
+    # Upstream requires p_remove >= p_enter for the bidirectional p-value search; guard
+    # it here so the common mistake is a usage error, not a bare ArgumentError.
+    (method != "bidirectional" || criterion != "pvalue" || p_remove >= p_enter) ||
+        throw(CliError("usage/invalid",
+            "estimate select: bidirectional pvalue search needs --p-remove ≥ --p-enter (got $p_remove < $p_enter)"))
+    y, X, xcols = _load_reg_data(data, dep)
+    keep_idx = nothing
+    if !isempty(keep)
+        names = [strip(t) for t in split(keep, ",") if !isempty(strip(t))]
+        isempty(names) && throw(CliError("usage/invalid", "estimate select: --keep is empty"))
+        keep_idx = Int[]
+        for nm in names
+            i = findfirst(==(String(nm)), xcols)
+            i === nothing && throw(CliError("data/column-range",
+                "estimate select: --keep column '$nm' is not a regressor";
+                hint="available: $(join(xcols, ", "))"))
+            push!(keep_idx, i)
+        end
+    end
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Variable Selection ($method/$criterion): $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        select_variables(y, X; method=Symbol(replace(method, '-' => '_')),
+                         criterion=Symbol(criterion), p_enter=p_enter,
+                         p_remove=p_remove, keep=keep_idx, varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "variable selection"))
+    end
+    # The refitted final model renders exactly like `estimate reg`.
+    output_result(_reg_coef_table(res.final, res.varnames[res.selected]);
+        format=Symbol(format), output=output,
+        title="Selected Model Coefficients ($dep_name)")
+    # The search path is the audit trail: each step is (action, column, statistic).
+    if !isempty(res.path)
+        output_result(DataFrame(
+                step = collect(1:length(res.path)),
+                action = [String(p[1]) for p in res.path],
+                variable = [res.varnames[p[2]] for p in res.path],
+                statistic = [round(Float64(p[3]); digits=6) for p in res.path]);
+            format=Symbol(format), output=_per_var_output_path(output, "path"),
+            title="Selection Path ($dep_name)")
+    end
+    pairs = Pair{String,Any}[
+        "method" => String(res.method),
+        "criterion" => String(res.criterion),
+        "selected" => isempty(res.selected) ? "none" : join(res.varnames[res.selected], ", "),
+        "n selected" => length(res.selected),
+        "kept (forced)" => isempty(res.keep) ? "none" : join(res.varnames[res.keep], ", "),
+        "candidates (GUM)" => res.n_gum,
+        "terminal models" => length(res.terminal_models),
+    ]
+    res.encompassing_f === nothing || push!(pairs, "encompassing F" => _finite_or_str_reg(Float64(res.encompassing_f)))
+    res.encompassing_pval === nothing || push!(pairs, "encompassing p-value" => _finite_or_str_reg(Float64(res.encompassing_pval)))
+    output_kv(pairs; format=format, title="Selection Summary")
+    return res
+end
+
+"""Round for display but render a non-finite value as a string (legacy JSON writer)."""
+_finite_or_str_reg(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
+
 function _estimate_iv(; data::String, dep::String="", endogenous::String="",
                        instruments::String="", cov_type::String="hc1",
+                       method::String="tsls", k::String="", fuller_a::Float64=1.0,
                        output::String="", format::String="table")
     # C067b: typed shared loader (`_load_iv_data`) replaces the old bare `error()` sites
     # (untyped exit-1) — a missing/unknown column is user input, not a CLI bug. Shared with
     # `test weak-instrument` so the two never drift.
+    # k-class family (#72): :tsls | :liml | :fuller | :kclass. `k` is REQUIRED for
+    # kclass and meaningless otherwise; guard both up front so a bad combination is a
+    # usage error rather than a bare upstream ArgumentError.
+    kval = nothing
+    if method == "kclass"
+        isempty(k) && throw(CliError("usage/missing",
+            "estimate iv: --method kclass requires --k";
+            hint="give the k-class scalar, e.g. --k 1 (k=0 is OLS, k=1 is 2SLS)"))
+        kv = tryparse(Float64, k)
+        (kv === nothing || !isfinite(kv)) && throw(CliError("usage/invalid",
+            "estimate iv: --k must be a finite number, got '$k'"))
+        kval = kv
+    elseif !isempty(k)
+        throw(CliError("usage/invalid",
+            "estimate iv: --k applies only to --method kclass (got --method $method)"))
+    end
+    method == "fuller" || fuller_a == 1.0 || throw(CliError("usage/invalid",
+        "estimate iv: --fuller-a applies only to --method fuller (got --method $method)"))
+    method != "fuller" || fuller_a > 0 || throw(CliError("usage/invalid",
+        "estimate iv: --fuller-a must be > 0 (got $fuller_a)"))
+
     d = _load_iv_data(data, dep, endogenous, instruments)
     y, X, Z, xcols, endog_idx = d.y, d.X, d.Z, d.xcols, d.endog_idx
 
-    _status("IV (2SLS) Regression: $(d.dep_col) ~ $(join(xcols, " + "))")
+    label = uppercase(method == "tsls" ? "2SLS" : method)
+    _status("IV ($label) Regression: $(d.dep_col) ~ $(join(xcols, " + "))")
     _status("  Endogenous: $(join(d.endog_names, ", "))")
     _status("  Excluded instruments: $(join(d.inst_names, ", "))  (instrument set Z: $(join(d.zcols, ", ")))")
     _status("  Observations: $(length(y)), Cov type: $cov_type")
     _status()
 
     model = try
-        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
+        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type),
+                    method=Symbol(method), k=kval, fuller_a=fuller_a, varnames=xcols)
     catch e
-        throw(_garch_variant_error(e, "IV (2SLS) estimation"))
+        throw(_garch_variant_error(e, "IV ($label) estimation"))
     end
 
     coef_df = _reg_coef_table(model, xcols)
-    output_result(coef_df; format=Symbol(format), output=output, title="IV (2SLS) Regression Coefficients")
+    output_result(coef_df; format=Symbol(format), output=output, title="IV ($label) Regression Coefficients")
 
     _status()
     pairs = Pair{String,Any}[
         "R²"              => round(r2(model); digits=6),
         "Adj. R²"         => round(model.adj_r2; digits=6),
     ]
+    push!(pairs, "method" => method)
+    isnothing(model.kclass_k)   || push!(pairs, "k-class k" => round(Float64(model.kclass_k); digits=6))
+    isnothing(model.kappa_hat)  || push!(pairs, "kappa_hat" => round(Float64(model.kappa_hat); digits=6))
     if !isnothing(model.first_stage_f)
         push!(pairs, "First-stage F" => round(model.first_stage_f; digits=4))
     end
