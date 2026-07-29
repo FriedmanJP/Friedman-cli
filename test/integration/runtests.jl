@@ -2762,6 +2762,228 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
             end
         end
+
+        @testset "path confinement is opt-in and resolves, not substring-matches (#83)" begin
+            mktempdir() do root
+                inside = joinpath(root, "in.csv")
+                CSV.write(inside, DataFrame(a=randn(30), b=randn(30)))
+                sub = joinpath(root, "sub"); mkpath(sub)
+                weird = joinpath(root, "dotdot..name.csv")
+                CSV.write(weird, DataFrame(a=randn(30), b=randn(30)))
+
+                # Unconfined: a parent-relative path and a '..' filename both load
+                @test run_json(["data", "describe", joinpath(sub, "..", "in.csv")]).code == 0
+                @test run_json(["data", "describe", weird]).code == 0
+
+                # Confined: inside is fine, escaping is data/bad-path (exit 3)
+                withenv("FRIEDMAN_DATA_ROOT" => root) do
+                    @test run_json(["data", "describe", inside]).code == 0
+                    @test run_json(["data", "describe",
+                                    joinpath(root, "..", "etc", "passwd")]).code == 3
+                end
+            end
+        end
+    end
+
+    # ── Commands whose result-field access was masked by mock aliases (#84) ──
+    # Each of these read a field real MEMs does not have and exited 1 on EVERY
+    # invocation. The mock's `getproperty` aliases invented the field, so T1/T2
+    # passed; none had T3 coverage. Keep every one of them covered here.
+    @testset "result-field access on real MEMs (#84 regressions)" begin
+        uni = dgp_ar1(; T=200, seed=5)
+        multi = dgp_var2(; T=200, seed=5)
+
+        @testset "test durbin-watson (statistic/pvalue, no invented bounds)" begin
+            r = run_json(["test", "durbin-watson", uni])
+            assert_envelope_ok(r; label="durbin-watson")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test metric_value(tbl, "DW statistic") !== nothing
+            @test metric_value(tbl, "p-value") !== nothing
+        end
+
+        @testset "test dfgls (statistic + separate M-GLS fields)" begin
+            r = run_json(["test", "dfgls", uni])
+            assert_envelope_ok(r; label="dfgls")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test metric_value(tbl, "DF-GLS tau statistic") !== nothing
+            for k in ("M-GLS MZa", "M-GLS MZt", "M-GLS MSB", "M-GLS MPT")
+                @test metric_value(tbl, k) !== nothing
+            end
+        end
+
+        @testset "test adf-2break (break1/break2 + fractions)" begin
+            r = run_json(["test", "adf-2break", uni])
+            assert_envelope_ok(r; label="adf-2break")
+            _, tbl = first_table(r.doc)
+            @test metric_value(tbl, "Break 1 index") !== nothing
+            @test metric_value(tbl, "Break 2 index") !== nothing
+        end
+
+        @testset "test lm-unitroot (breaks/break_dates)" begin
+            r = run_json(["test", "lm-unitroot", uni])
+            assert_envelope_ok(r; label="lm-unitroot")
+            _, tbl = first_table(r.doc)
+            @test metric_value(tbl, "LM statistic") !== nothing
+        end
+
+        @testset "test gregory-hansen (adf_break/zt_break/za_break)" begin
+            r = run_json(["test", "gregory-hansen", multi])
+            assert_envelope_ok(r; label="gregory-hansen")
+            _, tbl = first_table(r.doc)
+            @test metric_value(tbl, "ADF* break index") !== nothing
+            @test metric_value(tbl, "Za* break index") !== nothing
+            # One column is a cointegration shape error (exit 3), not an exit-1 crash
+            @test run_json(["test", "gregory-hansen", uni]).code == 3
+        end
+
+        @testset "test factor-break (n_factors/n_vars)" begin
+            r = run_json(["test", "factor-break", multi, "--factors", "1"])
+            assert_envelope_ok(r; label="factor-break")
+            _, tbl = first_table(r.doc)
+            @test metric_value(tbl, "Factors") !== nothing
+            @test metric_value(tbl, "Units") !== nothing
+        end
+
+        @testset "fevd bvar (point_estimate, and its (h,var,shock) layout)" begin
+            r = run_json(["fevd", "bvar", multi, "--lags", "1", "--horizons", "4"])
+            assert_envelope_ok(r; label="fevd bvar")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            rows = table_rows(tbl)
+            # One row per horizon (a transposed array silently yields n rows instead)
+            @test length(rows) == 4
+            # Variance shares sum to 1 across shocks at every horizon
+            for row in rows
+                vals = Float64.(collect(row)[2:end])
+                @test isapprox(sum(vals), 1.0; atol=1e-6)
+            end
+        end
+
+        @testset "hd bvar (point_estimate + initial_point_estimate)" begin
+            r = run_json(["hd", "bvar", multi, "--lags", "1"])
+            assert_envelope_ok(r; label="hd bvar")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            @test !isempty(table_rows(tbl))
+        end
+
+        @testset "estimate favar --method bayesian (draws from B_draws)" begin
+            r = run_json(["estimate", "favar", multi, "--method", "bayesian",
+                          "--factors", "1", "--lags", "1", "--key-vars", "y1"])
+            assert_envelope_ok(r; label="favar bayesian")
+            # Missing --key-vars is a usage error (exit 2), not an untyped exit 1
+            @test run_json(["estimate", "favar", multi, "--method", "bayesian",
+                            "--factors", "1", "--lags", "1"]).code == 2
+        end
+    end
+
+    # ── Families that had no real-MEMs coverage at all (#85) ──
+    @testset "nowcast family (#85: was entirely uncovered)" begin
+        multi = dgp_var2(; T=160, seed=8)
+        # Each leaf has its own option set — dfm takes --factors, bvar only --lags,
+        # bridge takes per-frequency lag counts.
+        for (leaf, extra) in [("dfm", ["--factors", "1", "--lags", "1"]),
+                              ("bvar", ["--lags", "2"]),
+                              ("bridge", ["--lag-m", "1", "--lag-q", "1", "--lag-y", "1"])]
+            @testset "nowcast $leaf" begin
+                r = run_json(vcat(["nowcast", leaf, multi], extra))
+                assert_envelope_ok(r; label="nowcast $leaf")
+            end
+        end
+        @testset "nowcast forecast" begin
+            r = run_json(["nowcast", "forecast", multi, "--factors", "1",
+                          "--lags", "1", "--horizons", "3"])
+            assert_envelope_ok(r; label="nowcast forecast")
+        end
+        @testset "nowcast news" begin
+            # Same-shape vintages: the old one has the final observation not yet
+            # released (a vintage differs in which cells are filled, not row count).
+            new_df = CSV.read(multi, DataFrame)
+            old_df = copy(new_df)
+            old_df[end, 1] = NaN
+            old_path = tempname() * ".csv"
+            CSV.write(old_path, old_df)
+            r = run_json(["nowcast", "news", "--data-new", multi, "--data-old", old_path,
+                          "--factors", "1", "--lags", "1"])
+            assert_envelope_ok(r; label="nowcast news")
+
+            # A row-count mismatch is the user's input, not an internal bug
+            short_path = tempname() * ".csv"
+            CSV.write(short_path, new_df[1:end-1, :])
+            @test run_json(["nowcast", "news", "--data-new", multi, "--data-old", short_path,
+                            "--factors", "1", "--lags", "1"]).code == 3
+            # Missing a required vintage is a usage error
+            @test run_json(["nowcast", "news", "--data-new", multi]).code == 2
+            rm(old_path; force=true); rm(short_path; force=true)
+        end
+    end
+
+    @testset "predict/residuals sweep (#85: was 1 of 23 leaves, nightly-only)" begin
+        multi = dgp_var2(; T=200, seed=9)
+        uni = dgp_ar1(; T=200, seed=9)
+        reg = dgp_reg(; T=200, seed=9)
+        logit = dgp_logit(; T=300, seed=9)
+        gar = dgp_garch(; T=400, seed=9)
+
+        # (leaf, data, extra args) — one per result-type family, so an accessor rename
+        # upstream cannot slip through on either action.
+        cases = [
+            ("var",    multi, ["--lags", "1"]),
+            ("bvar",   multi, ["--lags", "1"]),
+            ("vecm",   multi, ["--lags", "2", "--rank", "1"]),
+            ("arima",  uni,   ["--column", "1"]),
+            ("reg",    reg,   ["--dep", "y"]),
+            ("logit",  logit, ["--dep", "y"]),
+            ("probit", logit, ["--dep", "y"]),
+            ("garch",  gar,   ["--column", "1"]),
+        ]
+        for (leaf, data, extra) in cases
+            for action in ("predict", "residuals")
+                @testset "$action $leaf" begin
+                    r = run_json(vcat([action, leaf, data], extra))
+                    assert_envelope_ok(r; label="$action $leaf")
+                    _, tbl = first_table(r.doc)
+                    @test tbl !== nothing
+                    @test tbl !== nothing && !isempty(table_rows(tbl))
+                end
+            end
+        end
+
+        # Ordered/multinomial: `predict` returns an n x n_categories probability
+        # matrix (feeding it to DataFrame used to be an exit-1 crash), and MEMs
+        # defines no `residuals` for them, so that must be a typed refusal.
+        ord = tempname() * ".csv"
+        let n = 300
+            Random.seed!(19)
+            CSV.write(ord, DataFrame(y=rand(1:3, n), x1=randn(n), x2=randn(n)))
+        end
+        for leaf in ("ologit", "oprobit", "mlogit")
+            @testset "predict $leaf (per-category probabilities)" begin
+                r = run_json(["predict", leaf, ord, "--dep", "y"])
+                assert_envelope_ok(r; label="predict $leaf")
+                _, tbl = first_table(r.doc)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    cols = table_cols(tbl)
+                    @test count(c -> startswith(c, "prob_"), cols) == 3
+                end
+            end
+            @testset "residuals $leaf → model/unsupported (exit 5)" begin
+                @test run_json(["residuals", leaf, ord, "--dep", "y"]).code == 5
+            end
+        end
+
+        @testset "predict logit reports (flags, not string options)" begin
+            for flag in ("--odds-ratio", "--marginal-effects", "--classification-table")
+                r = run_json(["predict", "logit", logit, "--dep", "y", flag])
+                assert_envelope_ok(r; label="predict logit $flag")
+            end
+            # probit has no odds ratio → unknown option is a usage error
+            @test run_json(["predict", "probit", logit, "--dep", "y", "--odds-ratio"]).code == 2
+        end
+        rm(ord; force=true)
     end
 end
 

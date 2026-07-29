@@ -2838,9 +2838,46 @@ end
         end
     end
 
-    @testset "load_data path traversal rejection" begin
-        @test_throws CliError load_data("../etc/passwd")
-        @test_throws CliError load_data("data/../../../secret.csv")
+    @testset "path confinement under FRIEDMAN_DATA_ROOT (#83)" begin
+        mktempdir() do root
+            inside = joinpath(root, "ok.csv")
+            CSV.write(inside, DataFrame(a=[1.0, 2.0]))
+            outside = tempname() * ".csv"
+            CSV.write(outside, DataFrame(a=[1.0, 2.0]))
+            mkpath(joinpath(root, "sub"))   # a `..` only resolves through a real directory
+            withenv("FRIEDMAN_DATA_ROOT" => root) do
+                # Inside the root loads, including via a `..` segment resolving back in
+                @test nrow(load_data(inside)) == 2
+                @test nrow(load_data(joinpath(root, "sub", "..", "ok.csv"))) == 2
+                # Escapes are refused on the RESOLVED path, not a substring match
+                @test_throws CliError load_data(outside)
+                @test_throws CliError load_data(joinpath(root, "..", "etc", "passwd"))
+                df = DataFrame(a=[1, 2, 3])
+                @test_throws CliError output_result(df; format=:csv,
+                                                   output=joinpath(root, "..", "bad.csv"))
+                ok_out = joinpath(root, "written.csv")
+                output_result(df; format=:csv, output=ok_out)
+                @test isfile(ok_out)
+            end
+            rm(outside; force=true)
+        end
+    end
+
+    @testset "no false path rejections when unconfined (#83)" begin
+        # Regression: `contains(path, "..")` rejected both of these outright.
+        mktempdir() do dir
+            weird = joinpath(dir, "dotdot..name.csv")   # '..' inside an ordinary filename
+            CSV.write(weird, DataFrame(a=[1.0, 2.0]))
+            sub = joinpath(dir, "sub"); mkpath(sub)
+            withenv("FRIEDMAN_DATA_ROOT" => nothing) do
+                @test nrow(load_data(weird)) == 2
+                @test nrow(load_data(joinpath(sub, "..", "dotdot..name.csv"))) == 2
+                df = DataFrame(a=[1, 2, 3])
+                out = joinpath(sub, "..", "out..1.csv")
+                output_result(df; format=:csv, output=out)
+                @test isfile(out)
+            end
+        end
     end
 
     @testset "load_data expands ~" begin
@@ -2908,11 +2945,6 @@ end
         @test dataset_stem("noext") == "noext"
     end
 
-    @testset "output path traversal rejection" begin
-        df = DataFrame(a=[1,2,3])
-        @test_throws CliError output_result(df; format=:csv, output="../bad.csv")
-        @test_throws CliError output_result(df; format=:csv, output="foo/../../bad.csv")
-    end
 
     @testset "strict format validation (F18/F19)" begin
         df = DataFrame(a=[1.0], b=[2.0])

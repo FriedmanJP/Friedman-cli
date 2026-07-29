@@ -2855,8 +2855,8 @@ function _test_factor_break(; data::String, factors::Int=2,
         "p-value" => round(result.pvalue; digits=4),
         "Break date (index)" => result.break_date,
         "Method" => result.method,
-        "Factors" => result.r,
-        "Units" => result.n_units,
+        "Factors" => result.n_factors,
+        "Units" => result.n_vars,
     ]
     output_kv(pairs; format=format, output=output, title="Factor Break Test")
 
@@ -2963,16 +2963,16 @@ function _test_dfgls(; data::String, column::Int=1,
     result = dfgls_test(y; lags=lags_arg, kw...)
 
     pairs = Pair{String,Any}[
-        "DF-GLS tau statistic" => round(result.tau_statistic; digits=4),
+        "DF-GLS tau statistic" => round(result.statistic; digits=4),
         "PT statistic" => round(result.pt_statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
 
-    # Add M-GLS statistics if available
-    for (k, v) in result.mgls_statistics
-        push!(pairs, "M-GLS $k" => round(v; digits=4))
+    # M-GLS statistics are separate fields upstream, not a collection.
+    for k in (:MZa, :MZt, :MSB, :MPT)
+        push!(pairs, "M-GLS $k" => round(getfield(result, k); digits=4))
     end
 
     output_kv(pairs; format=format, output=output, title="DF-GLS Test: $vname")
@@ -3009,8 +3009,8 @@ function _test_lm_unitroot(; data::String, column::Int=1,
         "Observations" => result.nobs,
     ]
 
-    if !isnothing(result.break_indices)
-        push!(pairs, "Break indices" => join(result.break_indices, ", "))
+    if !isnothing(result.break_dates)
+        push!(pairs, "Break indices" => join(result.break_dates, ", "))
         push!(pairs, "Break fractions" => join(round.(result.break_fractions; digits=4), ", "))
     end
 
@@ -3043,10 +3043,10 @@ function _test_adf_2break(; data::String, column::Int=1,
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "Break 1 index" => result.break_index1,
-        "Break 1 fraction" => round(result.break_fraction1; digits=4),
-        "Break 2 index" => result.break_index2,
-        "Break 2 fraction" => round(result.break_fraction2; digits=4),
+        "Break 1 index" => result.break1,
+        "Break 1 fraction" => round(result.break1_fraction; digits=4),
+        "Break 2 index" => result.break2,
+        "Break 2 fraction" => round(result.break2_fraction; digits=4),
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
@@ -3058,7 +3058,7 @@ function _test_adf_2break(; data::String, column::Int=1,
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
 
     _status()
-    _status("Estimated structural breaks at observations $(result.break_index1) and $(result.break_index2)")
+    _status("Estimated structural breaks at observations $(result.break1) and $(result.break2)")
 end
 
 # ── Gregory-Hansen Cointegration Test ───────────────
@@ -3077,18 +3077,27 @@ function _test_gregory_hansen(; data::String, model::String="C",
 
     kw = Dict{Symbol,Any}(:model => model_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
-    result = gregory_hansen_test(Y; lags=lags_arg, kw...)
+    # Cointegration needs a dependent + at least one regressor; upstream signals a
+    # one-column matrix with a bare ArgumentError, which would exit 1 (#81 class).
+    result = try
+        gregory_hansen_test(Y; lags=lags_arg, kw...)
+    catch e
+        e isa ArgumentError && throw(CliError("data/shape",
+            "gregory-hansen needs at least 2 columns (dependent + regressor)";
+            hint="got $(length(varnames)): $(join(varnames, ", "))"))
+        rethrow()
+    end
 
     pairs = Pair{String,Any}[
         "ADF* statistic" => round(result.adf_statistic; digits=4),
         "ADF* p-value" => round(result.adf_pvalue; digits=4),
-        "ADF* break index" => result.adf_break_index,
+        "ADF* break index" => result.adf_break,
         "Zt* statistic" => round(result.zt_statistic; digits=4),
         "Zt* p-value" => round(result.zt_pvalue; digits=4),
-        "Zt* break index" => result.zt_break_index,
+        "Zt* break index" => result.zt_break,
         "Za* statistic" => round(result.za_statistic; digits=4),
         "Za* p-value" => round(result.za_pvalue; digits=4),
-        "Za* break index" => result.za_break_index,
+        "Za* break index" => result.za_break,
         "Model" => result.model,
         "Observations" => result.nobs,
     ]
@@ -3101,7 +3110,7 @@ function _test_gregory_hansen(; data::String, model::String="C",
         "Cannot reject H0: no cointegration with structural break")
 
     _status()
-    _status("Estimated break at observation $(result.adf_break_index) (ADF* criterion)")
+    _status("Estimated break at observation $(result.adf_break) (ADF* criterion)")
 end
 
 # ── VIF (Variance Inflation Factor) ─────────────────
@@ -3347,14 +3356,18 @@ function _test_durbin_watson(; data::String, column::Int=1,
 
     result = durbin_watson_test(y)
 
+    # DurbinWatsonResult is (statistic, pvalue, nobs) — real MEMs exposes no
+    # Savin-White dL/dU bounds or decision string, so report the p-value instead.
     pairs = Pair{String,Any}[
         "DW statistic" => round(result.statistic; digits=4),
-        "Lower bound (dL)" => round(result.lower_bound; digits=4),
-        "Upper bound (dU)" => round(result.upper_bound; digits=4),
-        "Decision" => result.decision,
+        "p-value" => round(result.pvalue; digits=4),
         "Observations" => result.nobs,
     ]
     output_kv(pairs; format=format, output=output, title="Durbin-Watson Test: $vname")
+
+    interpret_test_result(result.pvalue,
+        "Reject H0: residuals are autocorrelated",
+        "Cannot reject H0: no first-order autocorrelation")
 end
 
 # ── Discrete Choice Tests ────────────────────────────

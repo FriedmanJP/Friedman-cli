@@ -2274,12 +2274,12 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
     favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, method, draws)
 
     if favar isa MacroEconometricModels.BayesianFAVAR
-        _status("Bayesian FAVAR: $(favar.n_factors) factors, $(favar.n_key) key vars, $(favar.n_draws) draws")
+        _status("Bayesian FAVAR: $(favar.n_factors) factors, $(favar.n_key) key vars, $(size(favar.B_draws, 3)) draws")
         pairs = Pair{String,Any}[
             "Factors" => favar.n_factors,
             "Key variables" => favar.n_key,
             "Lags" => favar.p,
-            "MCMC draws" => favar.n_draws,
+            "MCMC draws" => size(favar.B_draws, 3),
         ]
         output_kv(pairs; format=format, output=output, title="Bayesian FAVAR")
         return favar
@@ -2713,7 +2713,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
         "AIC"             => round(model.aic; digits=4),
         "BIC"             => round(model.bic; digits=4),
         "Converged"       => model.converged,
-        "N obs"           => model.nobs,
+        "N obs"           => model.n_obs,
         "N groups"        => model.n_groups,
     ]
     output_kv(pairs; format=format, title="Model Statistics")
@@ -2745,7 +2745,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
         "AIC"             => round(model.aic; digits=4),
         "BIC"             => round(model.bic; digits=4),
         "Converged"       => model.converged,
-        "N obs"           => model.nobs,
+        "N obs"           => model.n_obs,
         "N groups"        => model.n_groups,
     ]
     output_kv(pairs; format=format, title="Model Statistics")

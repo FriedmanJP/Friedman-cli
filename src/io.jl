@@ -121,31 +121,62 @@ function _expanduser(path::AbstractString)
 end
 
 """
-    _validate_input_path(path) → String
+    _data_root() → String
 
-Validate that an input file path does not contain path traversal sequences (`..`).
-Returns the path unchanged if valid; throws on suspicious paths.
+Directory that file access is confined to, from `FRIEDMAN_DATA_ROOT`; empty when unset.
+
+Confinement is opt-in. The old guard rejected any path whose *string* contained `..`,
+which blocked ordinary relative paths (`../shared/data.csv` — with no workaround in
+the REPL, which has no shell to resolve them) and even absolute paths whose filename
+merely contained two dots, while still permitting any absolute path to anywhere. That
+is not containment. Set `FRIEDMAN_DATA_ROOT` to get real containment; leave it unset
+for normal filesystem access (#83).
 """
-function _validate_input_path(path::String)
-    if contains(path, "..")
-        throw(CliError("data/bad-path", "path traversal ('..') not allowed in file paths: $path"))
-    end
+_data_root() = get(ENV, "FRIEDMAN_DATA_ROOT", "")
+
+"""
+    _resolve_path(path) → String
+
+Expand `~`, make absolute, and normalize away `.`/`..` segments.
+"""
+_resolve_path(path::String) = normpath(abspath(_expanduser(path)))
+
+"""
+    _validate_path(path, kind) → String
+
+Confine `path` to `FRIEDMAN_DATA_ROOT` when that is set, comparing *normalized*
+paths so `..` segments are resolved rather than pattern-matched. Returns `path`
+unchanged (callers keep using the string the user gave).
+"""
+function _validate_path(path::String, kind::String)
+    isempty(path) && return path
+    root = _data_root()
+    isempty(root) && return path
+
+    resolved = _resolve_path(path)
+    root_resolved = _resolve_path(root)
+    sep = Base.Filesystem.path_separator
+    inside = resolved == root_resolved ||
+             startswith(resolved, endswith(root_resolved, sep) ? root_resolved : root_resolved * sep)
+    inside || throw(CliError("data/bad-path",
+        "$kind path escapes FRIEDMAN_DATA_ROOT: $path";
+        hint="resolved to $resolved, which is outside $root_resolved"))
     return path
 end
+
+"""
+    _validate_input_path(path) → String
+
+Validate an input file path. See [`_validate_path`](@ref).
+"""
+_validate_input_path(path::String) = _validate_path(path, "input")
 
 """
     _validate_output_path(path) → String
 
-Validate that an output file path does not contain path traversal sequences (`..`).
-Returns the path unchanged if valid; throws on suspicious paths.
+Validate an output file path. See [`_validate_path`](@ref).
 """
-function _validate_output_path(path::String)
-    isempty(path) && return path
-    if contains(path, "..")
-        throw(CliError("data/bad-path", "path traversal ('..') not allowed in output paths: $path"))
-    end
-    return path
-end
+_validate_output_path(path::String) = _validate_path(path, "output")
 
 # ── Example datasets ─────────────────────────────────────
 

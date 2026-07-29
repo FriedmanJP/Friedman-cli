@@ -5107,6 +5107,13 @@ end  # VECM handlers
                                  classification_table=true,
                                  format="table", output="")
             end
+            # The dict mixes scalars with a `confusion` MATRIX: the scalars render
+            # as kv and the matrix as its own labelled table. Sorting the pairs
+            # themselves compared a Matrix against a Float and exited 1 (#85).
+            @test contains(out, "accuracy")
+            @test contains(out, "Confusion Matrix")
+            @test contains(out, "predicted_0")
+            @test contains(out, "actual_1")
         end
     end
 
@@ -5146,6 +5153,8 @@ end  # VECM handlers
                                   classification_table=true,
                                   format="table", output="")
             end
+            @test contains(out, "accuracy")
+            @test contains(out, "Confusion Matrix")
         end
     end
 
@@ -6924,14 +6933,17 @@ end  # Data handlers
         end
     end
 
+    # A vintage differs from its predecessor by which cells are FILLED IN, not by
+    # row count — both matrices must be the same shape. These two used to hand the
+    # handler a 105-row new vintage against a 100-row old one and passed only
+    # because the mock accepted anything; real MEMs raises on it.
     @testset "_nowcast_news — basic" begin
         mktempdir() do dir
             csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
             csv_new = joinpath(dir, "data_new.csv")
-            # Create new vintage with slightly more data
             data = Dict{String,Vector{Float64}}()
             for name in ["m1","m2","m3","m4","q1"]
-                data[name] = randn(105) .+ 1.0
+                data[name] = randn(100) .+ 1.0
             end
             CSV.write(csv_new, DataFrame(data))
 
@@ -6947,13 +6959,38 @@ end  # Data handlers
         @test_throws Exception _nowcast_news(; data_new="new.csv", data_old="")
     end
 
-    @testset "_nowcast_news — bvar method" begin
+    @testset "_nowcast_news — mismatched vintages are data/shape (#85)" begin
         mktempdir() do dir
             csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
             csv_new = joinpath(dir, "data_new.csv")
             data = Dict{String,Vector{Float64}}()
             for name in ["m1","m2","m3","m4","q1"]
                 data[name] = randn(105) .+ 1.0
+            end
+            CSV.write(csv_new, DataFrame(data))
+
+            e = try
+                _capture() do
+                    _nowcast_news(; data_new=csv_new, data_old=csv_old,
+                        monthly_vars=4, quarterly_vars=1, method="dfm")
+                end
+                nothing
+            catch err
+                err
+            end
+            # Upstream signals this with a bare ArgumentError — exit 1 before #85.
+            @test e isa CliError
+            @test e.code == "data/shape"
+        end
+    end
+
+    @testset "_nowcast_news — bvar method" begin
+        mktempdir() do dir
+            csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
+            csv_new = joinpath(dir, "data_new.csv")
+            data = Dict{String,Vector{Float64}}()
+            for name in ["m1","m2","m3","m4","q1"]
+                data[name] = randn(100) .+ 1.0
             end
             CSV.write(csv_new, DataFrame(data))
 
@@ -9239,6 +9276,26 @@ end
         end
     end
 
+    @testset "_test_gregory_hansen — one column is data/shape (#85)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=1)
+            e = try
+                _capture() do
+                    _test_gregory_hansen(; data=csv, model="C",
+                                          lags="aic", max_lags=nothing,
+                                          trim=0.15, format="table", output="")
+                end
+                nothing
+            catch err
+                err
+            end
+            # A cointegrating regression needs a dependent plus a regressor;
+            # upstream raises a bare ArgumentError (exit 1 before #85).
+            @test e isa CliError
+            @test e.code == "data/shape"
+        end
+    end
+
     @testset "_test_gregory_hansen — C/T model" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -9611,23 +9668,39 @@ end
             end
         end
 
-        @testset "_residuals_ologit" begin
+        @testset "_residuals_ologit — model/unsupported (no upstream residuals)" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                out = _capture() do
-                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
-                                       clusters="", output="", format="table")
+                e = try
+                    _capture() do
+                        _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                           clusters="", output="", format="table")
+                    end
+                    nothing
+                catch err
+                    err
                 end
+                # MEMs 0.7.0 defines no residuals for ordered models; refuse with a
+                # typed error rather than invent a definition (was exit 1).
+                @test e isa CliError
+                @test e.code == "model/unsupported"
             end
         end
 
-        @testset "_residuals_mlogit" begin
+        @testset "_residuals_mlogit — model/unsupported (no upstream residuals)" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                out = _capture() do
-                    _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
-                                       output="", format="table")
+                e = try
+                    _capture() do
+                        _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                           output="", format="table")
+                    end
+                    nothing
+                catch err
+                    err
                 end
+                @test e isa CliError
+                @test e.code == "model/unsupported"
             end
         end
     end
