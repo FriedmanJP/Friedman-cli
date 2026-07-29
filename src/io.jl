@@ -93,6 +93,34 @@ end
 # ── Path Validation ──────────────────────────────────────
 
 """
+    _expanduser(path) → String
+
+Expand a leading `~` on every platform.
+
+`Base.expanduser` is a no-op on Windows (there `~` historically marks a temporary
+file), so relying on it would make `~/data.csv` work on macOS/Linux and fail with a
+bare file-not-found on Windows — the CLI is agent-first and must behave identically
+on all three. `~user` forms are returned untouched: Base throws an untyped
+`ArgumentError` for them, which would surface as an internal error (exit 1) instead
+of the normal typed `data/file-not-found`.
+"""
+function _expanduser(path::AbstractString)
+    p = String(path)
+    startswith(p, "~") || return p
+    length(p) == 1 && return homedir()
+    if Sys.iswindows()
+        c = p[2]
+        (c == '/' || c == '\\') || return p          # `~user\...` — leave for the caller to report
+        return joinpath(homedir(), lstrip(ch -> ch == '/' || ch == '\\', p[3:end]))
+    end
+    return try
+        expanduser(p)
+    catch e
+        e isa ArgumentError ? p : rethrow()          # `~user/...` is unimplemented in Base
+    end
+end
+
+"""
     _data_root() → String
 
 Directory that file access is confined to, from `FRIEDMAN_DATA_ROOT`; empty when unset.
@@ -111,7 +139,7 @@ _data_root() = get(ENV, "FRIEDMAN_DATA_ROOT", "")
 
 Expand `~`, make absolute, and normalize away `.`/`..` segments.
 """
-_resolve_path(path::String) = normpath(abspath(expanduser(path)))
+_resolve_path(path::String) = normpath(abspath(_expanduser(path)))
 
 """
     _validate_path(path, kind) → String
@@ -240,7 +268,7 @@ function load_data(path::String)
     if startswith(path, ":")
         return dataset_to_dataframe(load_example(parse_dataset_name(path)))
     end
-    path = expanduser(path)
+    path = _expanduser(path)
     _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)

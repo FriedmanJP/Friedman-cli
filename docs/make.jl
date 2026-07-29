@@ -61,6 +61,12 @@ makedocs(;
         prettyurls = get(ENV, "CI", "false") == "true",
         canonical = "https://friedmanjp.github.io/Friedman-cli",
         edit_link = "master",
+        # The generated CLI reference is one page per top-level command, and the
+        # biggest (estimate: 66 leaves, test: 65) render well past Documenter's
+        # 200 KiB default. These are lookup tables an agent greps, not prose —
+        # raise the ceiling instead of fragmenting the reference across pages.
+        size_threshold = 500 * 2^10,
+        size_threshold_warn = 300 * 2^10,
     ),
     # docs_block: internal API surface is large; missing @docs bindings must not fail CI
     warnonly = [:missing_docs, :docs_block],
