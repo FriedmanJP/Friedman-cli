@@ -93,6 +93,34 @@ end
 # ── Path Validation ──────────────────────────────────────
 
 """
+    _expanduser(path) → String
+
+Expand a leading `~` on every platform.
+
+`Base.expanduser` is a no-op on Windows (there `~` historically marks a temporary
+file), so relying on it would make `~/data.csv` work on macOS/Linux and fail with a
+bare file-not-found on Windows — the CLI is agent-first and must behave identically
+on all three. `~user` forms are returned untouched: Base throws an untyped
+`ArgumentError` for them, which would surface as an internal error (exit 1) instead
+of the normal typed `data/file-not-found`.
+"""
+function _expanduser(path::AbstractString)
+    p = String(path)
+    startswith(p, "~") || return p
+    length(p) == 1 && return homedir()
+    if Sys.iswindows()
+        c = p[2]
+        (c == '/' || c == '\\') || return p          # `~user\...` — leave for the caller to report
+        return joinpath(homedir(), lstrip(ch -> ch == '/' || ch == '\\', p[3:end]))
+    end
+    return try
+        expanduser(p)
+    catch e
+        e isa ArgumentError ? p : rethrow()          # `~user/...` is unimplemented in Base
+    end
+end
+
+"""
     _validate_input_path(path) → String
 
 Validate that an input file path does not contain path traversal sequences (`..`).
@@ -119,17 +147,97 @@ function _validate_output_path(path::String)
     return path
 end
 
+# ── Example datasets ─────────────────────────────────────
+
+"""
+Bundled MEMs example datasets that load as a rectangular table.
+
+Single source of truth for `data list`, `data load <name>`, `load_data(":name")`
+and the REPL's `data use :name` — keep every dataset-name surface derived from
+this tuple so they cannot drift apart again.
+
+`:wiot` is deliberately absent: it is an `IOData` archive with no `data`/`varnames`
+and is served by the `io` command family instead.
+"""
+const EXAMPLE_DATASETS = (
+    :fred_md, :fred_qd, :pwt, :mpdta, :ddcg,
+    :denmark, :gnp_hamilton, :grunfeld, :mroz, :nile, :stackloss,
+)
+
+"""
+    parse_dataset_name(name) → Symbol
+
+Normalize a user-supplied example-dataset name to its MEMs symbol.
+
+Accepts an optional leading `:` and either spelling of the separator, so
+`fred_md`, `fred-md`, `:fred_md` and `:fred-md` all resolve to `:fred_md`.
+Throws a typed `data/unknown-dataset` (exit 3) with a nearest-match hint for
+anything else — never let the raw `ArgumentError` from `load_example` escape,
+which surfaces as an exit-1 "likely a bug".
+"""
+function parse_dataset_name(name::AbstractString)
+    stem = String(strip(name))
+    startswith(stem, ":") && (stem = stem[2:end])
+    sym = Symbol(replace(lowercase(stem), "-" => "_"))
+    sym in EXAMPLE_DATASETS && return sym
+
+    known = String[String(d) for d in EXAMPLE_DATASETS]
+    hint = if sym === :wiot
+        "the wiot input-output table is served by the 'io' family, e.g. 'friedman io leontief'"
+    else
+        sugg = _nearest(replace(lowercase(stem), "-" => "_"), known)
+        isnothing(sugg) ? "run 'friedman data list' to see the available datasets" :
+                          "did you mean '$sugg'?"
+    end
+    throw(CliError("data/unknown-dataset",
+                   "unknown dataset '$name' (available: $(join(known, ", ")))"; hint=hint))
+end
+
+"""
+    dataset_to_dataframe(dataset) → DataFrame
+
+Convert a loaded MEMs example dataset to a DataFrame.
+
+Panel datasets keep their identifiers as leading `group`/`time` columns — without
+them every panel command (`estimate pvar`, `test cips`, …) fails on a bundled
+panel because `--id-col`/`--time-col` have nothing to bind to.
+"""
+function dataset_to_dataframe(dataset)
+    df = DataFrame(to_matrix(dataset), varnames(dataset); makeunique=true)
+    if dataset isa PanelData
+        insertcols!(df, 1, :group => dataset.group_id, :time => dataset.time_id;
+                    makeunique=true)
+    end
+    return df
+end
+
+"""
+    dataset_stem(source) → String
+
+Filename stem for a data source, used to build default output paths.
+
+Strips the `:` marker from a dataset reference (so `:fred-md` yields `fred_md`,
+not a file literally named `:fred-md_clean.csv`) and the extension from a path.
+"""
+function dataset_stem(source::AbstractString)
+    s = String(source)
+    startswith(s, ":") && return replace(lowercase(s[2:end]), "-" => "_")
+    return replace(basename(s), r"\.[^.]+$" => "")
+end
+
 """
     load_data(path) → DataFrame
 
 Read a CSV file and return a DataFrame. Validates that the file exists and is non-empty.
+
+A `:name` reference (e.g. `:fred_md`) loads a bundled example dataset instead.
+`~` is expanded here rather than relying on the shell, because the REPL has none.
 """
 function load_data(path::String)
     if startswith(path, ":")
-        name = Symbol(replace(path[2:end], "-" => "_"))
-        ts = load_example(name)
-        return DataFrame(ts.data, ts.varnames)
+        return dataset_to_dataframe(load_example(parse_dataset_name(path)))
     end
+    path = _expanduser(path)
     _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)

@@ -17,7 +17,12 @@ jobs:
   engine:
     name: Engine+contract (Julia ${{ matrix.version }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # 30 min stopped fitting: the surface reached 303 leaves and MEMs 0.7.0 made
+    # JuMP+Ipopt required deps (C060), so a cold-cache run precompiles a heavy tree
+    # before a single test runs. ubuntu-1.12 and windows hit exactly 30m00 while
+    # macOS finished in 23m38 and ubuntu-Julia-1 in 28m30 — every leg was at the
+    # edge and two tipped over. Budget for the slow legs, not the fastest one.
+    timeout-minutes: 60
     permissions:
       actions: write
       contents: read
@@ -81,7 +86,9 @@ jobs:
   integration-core:
     name: Integration core (T3)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # T3 grew 1280 -> 1498 cases as #85 closed the predict/residuals/nowcast/data
+    # coverage gaps; 13m53 on one PR and 15m17 (timeout) on the next. Same story.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
@@ -104,7 +111,8 @@ jobs:
   e2e:
     name: E2E subprocess (T4)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Each E2E case pays a fresh process start; 12m19 vs a 15m budget, then 15m18.
+    timeout-minutes: 40
     if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

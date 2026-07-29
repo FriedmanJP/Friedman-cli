@@ -151,11 +151,11 @@ table|csv|json
 
 ### `friedman data load`
 
-Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path
+Example dataset name (see 'data list'), or omit and pass --path for a CSV
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `name` | `String` | yes | — |  |
+| `name` | `String` | no | `""` | Example dataset name |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -166,7 +166,11 @@ Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path
 | `--dates` | — | `String` | `""` | — | Column name for date labels |
 | `--path` | — | `String` | `""` | — | Path to CSV file (alternative to named dataset) |
 
-**Output tables:** `data_load` (Dataset name (fred_md|fred_qd|pwt|mpdta|ddcg) or empty for --path)
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--transform` | `-t` | Apply FRED transformation codes |
+
+**Output tables:** `data_load` (Example dataset name (see 'data list'), or omit and pass --path for a CSV)
 
 ---
 

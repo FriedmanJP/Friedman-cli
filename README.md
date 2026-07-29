@@ -571,9 +571,15 @@ friedman filter x13 monthly.csv --frequency=12 --method=x11
 # List available example datasets
 friedman data list
 
-# Load example dataset (FRED-MD, FRED-QD, PWT, mpdta, ddcg)
+# Load an example dataset (see `data list` for all 11)
 friedman data load fred_md --output=fred_md.csv
 friedman data load fred_md --vars=INDPRO,CPIAUCSL --transform
+
+# Load your own CSV (no dataset name needed)
+friedman data load --path=mydata.csv --output=loaded.csv
+
+# Any <data> argument also accepts a `:name` reference to a bundled dataset
+friedman data describe :fred_md
 
 # Describe data (summary statistics)
 friedman data describe data.csv

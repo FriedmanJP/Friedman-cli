@@ -2843,6 +2843,71 @@ end
         @test_throws CliError load_data("data/../../../secret.csv")
     end
 
+    @testset "load_data expands ~" begin
+        # The REPL has no shell, so `~` must be expanded by the loader itself — on every
+        # platform (Base.expanduser is a no-op on Windows, hence io.jl's own _expanduser).
+        mktempdir() do dir
+            # homedir() reads HOME on unix and USERPROFILE on Windows (libuv), so set
+            # both, then write to whatever `~` actually resolves to on this platform.
+            withenv("HOME" => dir, "USERPROFILE" => dir) do
+                csv_path = joinpath(homedir(), "tilde.csv")
+                CSV.write(csv_path, DataFrame(a=[1.0, 2.0]))
+                try
+                    # A path that expands to a real file loads; the raw `~` form would not.
+                    @test nrow(load_data("~/tilde.csv")) == 2
+                    # PowerShell users type the native separator.
+                    Sys.iswindows() && @test nrow(load_data("~\\tilde.csv")) == 2
+                finally
+                    rm(csv_path; force=true)
+                end
+            end
+        end
+        # `~` is expanded before the not-found check, so the message shows the real path.
+        e = try; load_data("~/definitely-not-a-real-file-9f3a.csv"); nothing
+            catch err; err end
+        @test e isa CliError
+        @test contains(e.message, homedir())
+        # `~user` is unimplemented in Base and throws an untyped ArgumentError; the
+        # loader must leave it alone and report the usual typed not-found instead.
+        e2 = try; load_data("~nosuchuser/definitely-not-a-real-file-9f3a.csv"); nothing
+             catch err; err end
+        @test e2 isa CliError
+        @test e2.code == "data/file-not-found"
+    end
+
+    @testset "parse_dataset_name" begin
+        # Both separator spellings and an optional leading ':' resolve to the MEMs symbol
+        for form in (":fred-md", ":fred_md", "fred-md", "fred_md", "FRED_MD", " fred_md ")
+            @test parse_dataset_name(form) == :fred_md
+        end
+        @test parse_dataset_name("pwt") == :pwt
+        @test parse_dataset_name(":nile") == :nile
+
+        # Unknown → typed data/unknown-dataset (never an untyped exit-1 ArgumentError)
+        e = try; parse_dataset_name("frd_md"); nothing catch err; err end
+        @test e isa CliError
+        @test e.code == "data/unknown-dataset"
+        @test contains(e.hint, "fred_md")           # nearest-match suggestion
+
+        # :wiot is real but IO-shaped — point at the io family rather than a typo hint
+        e2 = try; parse_dataset_name(":wiot"); nothing catch err; err end
+        @test e2 isa CliError
+        @test e2.code == "data/unknown-dataset"
+        @test contains(e2.hint, "io")
+
+        e3 = try; parse_dataset_name("zzzz"); nothing catch err; err end
+        @test e3 isa CliError
+        @test contains(e3.hint, "data list")
+    end
+
+    @testset "dataset_stem" begin
+        # A ':' dataset ref must not leak into a filename (regression: ':fred-md_clean.csv')
+        @test dataset_stem(":fred-md") == "fred_md"
+        @test dataset_stem(":pwt") == "pwt"
+        @test dataset_stem("data/my file.csv") == "my file"
+        @test dataset_stem("noext") == "noext"
+    end
+
     @testset "output path traversal rejection" begin
         df = DataFrame(a=[1,2,3])
         @test_throws CliError output_result(df; format=:csv, output="../bad.csv")

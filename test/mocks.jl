@@ -1862,6 +1862,12 @@ function TimeSeriesData(data::AbstractMatrix{T}; varnames=String[], frequency=:u
     TimeSeriesData{T}(Matrix{T}(data), varnames, frequency, tcode, time_index, desc, vardesc)
 end
 
+# Field order is a prefix of the real CrossSectionData (source_refs omitted).
+struct CrossSectionData{T<:Real}
+    data::Matrix{T}; varnames::Vector{String}; obs_id::Vector{Int}
+    N_obs::Int; n_vars::Int; desc::String; vardesc::Vector{String}
+end
+
 struct DataDiagnostic
     n_nan::Vector{Int}; n_inf::Vector{Int}; is_constant::Vector{Bool}
     is_short::Bool; is_clean::Bool
@@ -1917,18 +1923,56 @@ function load_example(name::Symbol)
         group_ids = repeat(1:n_groups, inner=n_years)
         time_ids = repeat(1960:2010, outer=n_groups)
         PanelData(data, vn, group_ids, time_ids, n_groups, n_vars, T_obs, true)
+    elseif name == :denmark
+        # Johansen-Juselius Danish money demand: 55 quarters × 5 vars
+        T_obs = 55
+        vn = ["LRM", "LRY", "LPY", "IBO", "IDE"]
+        TimeSeriesData(randn(T_obs, 5) .+ 1.0, vn, :quarterly, fill(1, 5),
+            collect(1:T_obs), "Danish money demand", ["Variable $v" for v in vn])
+    elseif name == :gnp_hamilton
+        # Hamilton (1989) US GNP growth: 135 quarters × 1 var
+        T_obs = 135
+        TimeSeriesData(randn(T_obs, 1) .+ 1.0, ["gnp_growth"], :quarterly, [1],
+            collect(1:T_obs), "US GNP growth (Hamilton 1989)", ["GNP growth"])
+    elseif name == :nile
+        # Nile annual flow: 100 years × 1 var
+        T_obs = 100
+        TimeSeriesData(randn(T_obs, 1) .+ 900.0, ["flow"], :annual, [1],
+            collect(1:T_obs), "Nile river annual flow", ["Flow"])
+    elseif name == :grunfeld
+        # Grunfeld investment panel: 10 firms × 20 years × 3 vars
+        n_groups = 10; n_years = 20; n_vars = 3
+        T_obs = n_groups * n_years
+        vn = ["invest", "value", "capital"]
+        group_ids = repeat(1:n_groups, inner=n_years)
+        time_ids = repeat(1935:1954, outer=n_groups)
+        PanelData(randn(T_obs, n_vars) .+ 1.0, vn, group_ids, time_ids,
+                  n_groups, n_vars, T_obs, true)
+    elseif name == :mroz
+        # Mroz (1987) female labour supply: 753 × 22 cross section
+        vn = vcat(["inlf", "hours", "kidslt6", "kidsge6"], ["var$i" for i in 5:22])
+        CrossSectionData(randn(753, 22) .+ 1.0, vn, collect(1:753), 753, 22,
+                         "Mroz (1987) female labour supply", ["Variable $v" for v in vn])
+    elseif name == :stackloss
+        # Brownlee stack-loss plant data: 21 × 4 cross section
+        vn = ["stackloss", "airflow", "watertemp", "acidconc"]
+        CrossSectionData(randn(21, 4) .+ 1.0, vn, collect(1:21), 21, 4,
+                         "Brownlee stack loss", ["Variable $v" for v in vn])
     elseif name == :wiot
         _mock_wiot()   # Miller & Blair (2009) IO fixture (defined below)
     else
         # Real load_example throws ArgumentError — match it so error-mapping is testable.
-        throw(ArgumentError("Unknown dataset :$name. Available: fred_md, fred_qd, pwt, mpdta, ddcg, wiot"))
+        throw(ArgumentError("Unknown dataset :$name. Available: fred_md, fred_qd, pwt, mpdta, ddcg, " *
+                            "denmark, gnp_hamilton, grunfeld, mroz, nile, stackloss, wiot"))
     end
 end
 
 to_matrix(d::TimeSeriesData) = d.data
 to_matrix(d::PanelData) = d.data
+to_matrix(d::CrossSectionData) = d.data
 varnames(d::TimeSeriesData) = d.varnames
 varnames(d::PanelData) = d.varnames
+varnames(d::CrossSectionData) = d.varnames
 frequency(d::TimeSeriesData) = d.frequency
 desc(d::TimeSeriesData) = d.desc
 vardesc(d::TimeSeriesData) = d.vardesc
@@ -6223,11 +6267,10 @@ function Base.getproperty(m::BayesianFAVAR, s::Symbol)
     s === :n_draws && return size(getfield(m, :B_draws), 3)
     return getfield(m, s)
 end
-function Base.getproperty(m::PesaranCIPSResult, s::Symbol)
-    s === :cips && return getfield(m, :cips_statistic)
-    s === :individual_cadf && return getfield(m, :individual_cadf_stats)
-    return getfield(m, s)
-end
+# NOTE: no `cips`/`individual_cadf` aliases here. Real MEMs 0.7.0 exposes only
+# `cips_statistic`/`individual_cadf_stats`; the aliases this mock used to provide
+# hid a handler that read `result.cips` and crashed (exit 1) on real MEMs.
+# Keep the mock's property surface a subset of the real one.
 function Base.getproperty(m::FactorBreakResult, s::Symbol)
     s === :r && return getfield(m, :n_factors)
     s === :n_units && return getfield(m, :n_vars)
