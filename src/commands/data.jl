@@ -233,7 +233,7 @@ function _data_load(; name::String="", output::String="", format::String="table"
     # If --path is given, load from CSV instead of example datasets
     if !isempty(path)
         isempty(name) || _status("Both <name> and --path given; loading --path $path")
-        path = expanduser(path)
+        path = _expanduser(path)
         df = load_data(path)
         Y = df_to_matrix(df)
         vn = variable_names(df)

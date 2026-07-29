@@ -2844,21 +2844,35 @@ end
     end
 
     @testset "load_data expands ~" begin
-        # The REPL has no shell, so `~` must be expanded by the loader itself.
+        # The REPL has no shell, so `~` must be expanded by the loader itself — on every
+        # platform (Base.expanduser is a no-op on Windows, hence io.jl's own _expanduser).
         mktempdir() do dir
-            csv_path = joinpath(dir, "tilde.csv")
-            CSV.write(csv_path, DataFrame(a=[1.0, 2.0]))
-            # A path that expands to a real file loads; the raw `~` form would not.
-            withenv("HOME" => dir) do
-                df = load_data("~/tilde.csv")
-                @test nrow(df) == 2
+            # homedir() reads HOME on unix and USERPROFILE on Windows (libuv), so set
+            # both, then write to whatever `~` actually resolves to on this platform.
+            withenv("HOME" => dir, "USERPROFILE" => dir) do
+                csv_path = joinpath(homedir(), "tilde.csv")
+                CSV.write(csv_path, DataFrame(a=[1.0, 2.0]))
+                try
+                    # A path that expands to a real file loads; the raw `~` form would not.
+                    @test nrow(load_data("~/tilde.csv")) == 2
+                    # PowerShell users type the native separator.
+                    Sys.iswindows() && @test nrow(load_data("~\\tilde.csv")) == 2
+                finally
+                    rm(csv_path; force=true)
+                end
             end
         end
         # `~` is expanded before the not-found check, so the message shows the real path.
         e = try; load_data("~/definitely-not-a-real-file-9f3a.csv"); nothing
             catch err; err end
         @test e isa CliError
-        @test !contains(e.message, "~")
+        @test contains(e.message, homedir())
+        # `~user` is unimplemented in Base and throws an untyped ArgumentError; the
+        # loader must leave it alone and report the usual typed not-found instead.
+        e2 = try; load_data("~nosuchuser/definitely-not-a-real-file-9f3a.csv"); nothing
+             catch err; err end
+        @test e2 isa CliError
+        @test e2.code == "data/file-not-found"
     end
 
     @testset "parse_dataset_name" begin

@@ -21,12 +21,29 @@ module Friedman
         throw(CliError("data/unknown-dataset", "unknown dataset '$name'"))
     end
 
+    # Mirrors io.jl: Base.expanduser is a no-op on Windows, so repl.jl uses ours.
+    function _expanduser(path::AbstractString)
+        p = String(path)
+        startswith(p, "~") || return p
+        length(p) == 1 && return homedir()
+        if Sys.iswindows()
+            c = p[2]
+            (c == '/' || c == '\\') || return p
+            return joinpath(homedir(), lstrip(ch -> ch == '/' || ch == '\\', p[3:end]))
+        end
+        return try
+            expanduser(p)
+        catch e
+            e isa ArgumentError ? p : rethrow()
+        end
+    end
+
     function load_data(path::String)
         if startswith(path, ":")
             ds = load_example(parse_dataset_name(path))
             return DataFrame(ds.data, ds.varnames; makeunique=true)
         end
-        path = expanduser(path)
+        path = _expanduser(path)
         isfile(path) || error("file not found: $path")
         df = CSV.read(path, DataFrame)
         nrow(df) == 0 && error("empty dataset: $path")
