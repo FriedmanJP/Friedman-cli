@@ -427,7 +427,7 @@ end  # Shared utilities
         @test node isa NodeCommand
         @test node.name == "estimate"
         # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-        @test length(node.subcmds) == 66
+        @test length(node.subcmds) == 67
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -2611,6 +2611,82 @@ end  # Shared utilities
         end
     end
 
+    @testset "_estimate_select — variable selection (#72)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=5, colnames=["y", "x1", "x2", "x3", "x4"])
+            out = _capture() do
+                _estimate_select(; data=csv, dep="y", format="table", output="")
+            end
+            @test contains(out, "Selection Summary") || contains(out, "method")
+            # every method/criterion combination reaches the estimator
+            for m in ("forward", "backward", "bidirectional", "gets")
+                o = _capture() do
+                    _estimate_select(; data=csv, dep="y", method=m, format="table", output="")
+                end
+                @test contains(o, m)
+            end
+            o = _capture() do
+                _estimate_select(; data=csv, dep="y", criterion="aic", format="table", output="")
+            end
+            @test contains(o, "aic")
+            # --keep forces a regressor into the final model
+            o = _capture() do
+                _estimate_select(; data=csv, dep="y", keep="x3", format="table", output="")
+            end
+            @test contains(o, "x3")
+
+            err(kw) = try
+                _capture() do; _estimate_select(; data=csv, dep="y", format="table", output="", kw...); end
+                nothing
+            catch e; e end
+            e = err((p_enter=0.0,));  @test e isa CliError && e.code == "usage/invalid"
+            e = err((p_remove=1.5,)); @test e isa CliError && e.code == "usage/invalid"
+            # bidirectional pvalue needs p_remove >= p_enter — guarded up front
+            e = err((p_enter=0.2, p_remove=0.05))
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+            e = err((keep="nosuch",))
+            @test e isa CliError && e.code == "data/column-range"
+        end
+    end
+
+    @testset "_estimate_iv — k-class family (#72)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
+            for m in ("tsls", "liml", "fuller")
+                out = _capture() do
+                    _estimate_iv(; data=csv, dep="y", endogenous="x1",
+                                  instruments="z1,z2", cov_type="hc1", method=m,
+                                  format="table", output="")
+                end
+                @test contains(out, m)
+            end
+            out = _capture() do
+                _estimate_iv(; data=csv, dep="y", endogenous="x1",
+                              instruments="z1,z2", cov_type="hc1",
+                              method="kclass", k="1", format="table", output="")
+            end
+            @test contains(out, "k-class k")
+
+            # --k is REQUIRED for kclass and REJECTED for the others; --fuller-a only
+            # applies to fuller. Each is a usage error, never an upstream ArgumentError.
+            err(kw) = try
+                _capture() do; _estimate_iv(; data=csv, dep="y", endogenous="x1",
+                    instruments="z1,z2", cov_type="hc1", format="table", output="", kw...); end
+                nothing
+            catch e; e end
+            e = err((method="kclass",))
+            @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+            e = err((method="kclass", k="junk"))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err((method="tsls", k="1"))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err((method="tsls", fuller_a=2.0))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err((method="fuller", fuller_a=0.0))
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     @testset "_estimate_iv — missing endogenous error" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5, colnames=["y", "x1", "x2", "z1", "z2"])
@@ -2687,9 +2763,10 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 67 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 69
-        for cmd in ["hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
+        # 75 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+        @test length(node.subcmds) == 77
+        for cmd in ["white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
+                     "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                      "phillips-ouliaris", "hansen-instability", "park-added",
                      "adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
@@ -3167,6 +3244,82 @@ end  # Estimate handlers
                 @test pa.status == "ok"
                 @test Set(["H(p,q) statistic", "p-value", "q_add (df)", "base trend order (p)"]) ⊆ _metrics(pa)
                 @test _doc(["park-added", reg, "--dep", "y", "--trend", "linear"]).status == "ok"
+            end
+
+            # ── C067 remainder (#72): cross-section OLS diagnostics. `reg` already
+            # exists above as a (y, X) frame.
+            @testset "white/glejser/harvey — RegDiagnosticResult kv" begin
+                for leaf in ("white", "glejser", "harvey")
+                    doc = _doc([leaf, reg, "--dep", "y"])
+                    @test doc.status == "ok"
+                    @test Set(["test", "H0", "statistic", "p-value", "df",
+                               "auxiliary R2", "observations"]) ⊆ _metrics(doc)
+                end
+                # the flag switches the auxiliary regression, not the result shape
+                @test _doc(["white", reg, "--dep", "y", "--no-cross-terms"]).status == "ok"
+            end
+
+            @testset "chow — required --break-at, multi-break, forecast variant" begin
+                doc = _doc(["chow", reg, "--dep", "y", "--break-at", "30"])
+                @test doc.status == "ok"
+                @test Set(["test", "H0", "statistic", "p-value", "df"]) ⊆ _metrics(doc)
+                # a comma-separated list is a multi-break test
+                @test _doc(["chow", reg, "--dep", "y", "--break-at", "20,40"]).status == "ok"
+                @test _doc(["chow", reg, "--dep", "y", "--break-at", "30",
+                            "--type", "forecast"]).status == "ok"
+            end
+
+            @testset "cusum/cusumsq — band path table, NO p-value" begin
+                for (leaf, col) in (("cusum", "cusum"), ("cusumsq", "cusumsq"))
+                    doc = _doc([leaf, reg, "--dep", "y"])
+                    @test doc.status == "ok"
+                    tbl = _tbl(doc, "observation")
+                    @test Set(["observation", col, "lower", "upper"]) ⊆ Set(String.(tbl.columns))
+                    @test length(tbl.rows) > 0
+                    @test Set(["kind", "crossed band", "first crossing", "level"]) ⊆ _metrics(doc)
+                    # StabilityResult carries a band, not a p-value — assert we do NOT
+                    # invent one (the ARDL-bounds / HEGY rule).
+                    @test !("p-value" in _metrics(doc))
+                end
+            end
+
+            @testset "influence / recursive-residuals — per-observation tables" begin
+                doc = _doc(["influence", reg, "--dep", "y"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "hat")
+                @test Set(["observation", "hat", "student_internal", "student_external",
+                           "dffits", "cooksd"]) ⊆ Set(String.(tbl.columns))
+                @test Set(["sigma", "high-leverage count", "influential count"]) ⊆ _metrics(doc)
+
+                rr = _doc(["recursive-residuals", reg, "--dep", "y"])
+                @test rr.status == "ok"
+                rt = _tbl(rr, "recursive_residual")
+                @test Set(["step", "observation", "recursive_residual"]) ⊆ Set(String.(rt.columns))
+                @test Set(["count", "mean", "regressors (k)"]) ⊆ _metrics(rr)
+            end
+
+            @testset "C067 remainder — bad input → typed CliError" begin
+                # --break-at is required (and is NOT spelled --break: `break` is a Julia
+                # reserved word and cannot be a handler kwarg)
+                e = _errcode(["chow", reg, "--dep", "y"])
+                @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "30", "--level", "1.5"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["cusum", reg, "--dep", "y", "--level", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # enum values are parser-rejected
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "30", "--type", "bogus"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                # unknown --dep → typed loader error on every leaf, never exit 1
+                for leaf in ("white", "glejser", "harvey", "cusum", "cusumsq",
+                             "influence", "recursive-residuals")
+                    e = _errcode([leaf, reg, "--dep", "nope"])
+                    @test e isa CliError && e.code == "data/column-range"
+                end
             end
 
             @testset "C069 remainder — bad input → typed CliError" begin
@@ -4538,7 +4691,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 66  # 65 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms)
+        @test length(node.subcmds) == 67  # 66 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -4569,7 +4722,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 69  # 67 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 77  # 75 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5964,7 +6117,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 66  # 65 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms)
+        @test length(node.subcmds) == 67  # 66 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -5995,7 +6148,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 69  # 67 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 77  # 75 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin

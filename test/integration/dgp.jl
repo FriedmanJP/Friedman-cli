@@ -465,3 +465,40 @@ function dgp_no_coint(; T::Int=250, seed::Int=42)
     return write_csv(DataFrame(x=cumsum(randn(rng, T)), y=cumsum(randn(rng, T)));
                      prefix="nocoint")
 end
+
+# ── C067 remainder (#72): cross-section OLS diagnostic DGPs ──────────────────
+
+"""Cross-section OLS design with an explicit `const` column (the CLI prepends no
+intercept — same convention as `estimate reg`). `hetero=true` gives the error the
+multiplicative form `sigma_i = exp(gamma*x1_i)` — MONOTONE in `x1`, which is what
+Glejser (|resid| on X) and Harvey (log resid^2 on X) can actually detect; a variance
+even in `x1` (e.g. scaling by |x1|) leaves both with a ~zero slope and they do not
+reject. `break_at` shifts the slope partway
+through so Chow/CUSUM see a structural break. Columns are STRING-keyed because
+`const` is a Julia reserved word and cannot be a `DataFrame` keyword."""
+function dgp_reg_diag(; n::Int=200, hetero::Bool=false, break_at::Union{Nothing,Int}=nothing,
+                      seed::Int=42)
+    rng = MersenneTwister(seed)
+    x1 = randn(rng, n)
+    x2 = randn(rng, n)
+    e = randn(rng, n)
+    hetero && (e .*= exp.(0.8 .* x1))
+    beta1 = fill(2.0, n)
+    if break_at !== nothing
+        beta1[(break_at + 1):end] .= -2.0        # slope flips at the break
+    end
+    y = 1.0 .+ beta1 .* x1 .- 0.5 .* x2 .+ e
+    return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2);
+                     prefix="regdiag")
+end
+
+"""Selection DGP (C067/#72): `y = 1 + 2*x1 - 1.5*x2 + e`, with `x3`/`x4` pure noise, so
+a working search keeps x1/x2 and drops x3/x4. String-keyed columns because `const` is a
+Julia reserved word."""
+function dgp_select(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    x1 = randn(rng, n); x2 = randn(rng, n); x3 = randn(rng, n); x4 = randn(rng, n)
+    y = 1.0 .+ 2.0 .* x1 .- 1.5 .* x2 .+ randn(rng, n)
+    return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2,
+                               "x3" => x3, "x4" => x4); prefix="select")
+end

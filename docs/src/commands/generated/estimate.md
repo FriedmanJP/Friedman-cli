@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 65
+**Leaves:** 66
 
 ### `friedman estimate 3sls`
 
@@ -650,6 +650,9 @@ Path to CSV data file
 | `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
 | `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
 | `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
+| `--method` | — | `String` | `tsls` | `tsls`, `liml`, `fuller`, `kclass` | k-class estimator |
+| `--k` | — | `String` | `""` | — | k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS) |
+| `--fuller-a` | — | `Float64` | `1.0` | — | Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
@@ -1271,6 +1274,30 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_sdfm` (Path to CSV data file)
+
+---
+
+### `friedman estimate select`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | — | `String` | `bidirectional` | `forward`, `backward`, `bidirectional`, `best-subset`, `gets` | Search strategy |
+| `--criterion` | — | `String` | `pvalue` | `pvalue`, `aic`, `bic` | Selection criterion |
+| `--p-enter` | — | `Float64` | `0.05` | — | p-value to enter a regressor (0,1) |
+| `--p-remove` | — | `Float64` | `0.1` | — | p-value to remove a regressor (0,1); must be ≥ --p-enter for bidirectional pvalue |
+| `--keep` | — | `String` | `""` | — | Comma-separated regressor names always retained |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_select` (Path to CSV data file)
 
 ---
 

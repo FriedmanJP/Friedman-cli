@@ -5141,6 +5141,8 @@ struct RegModel{T<:Real}
     cragg_donald_f::Union{T,Nothing}
     kleibergen_paap_f::Union{T,Nothing}
     stock_yogo_10pct::Union{T,Nothing}
+    kclass_k::Union{T,Nothing}          # k-class scalar actually used (IV k-class only)
+    kappa_hat::Union{T,Nothing}         # LIML minimum eigenvalue (liml/fuller only)
 end
 
 struct LogitModel{T<:Real}
@@ -5247,33 +5249,48 @@ function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
     RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
                 vnames, :ols, cov_type, weights, nothing, nothing,
-                nothing, nothing, nothing, nothing, nothing, nothing)
+                nothing, nothing, nothing, nothing, nothing, nothing,
+                nothing, nothing)
 end
 
 function estimate_iv(y::AbstractVector{T}, X::AbstractMatrix{T}, Z::AbstractMatrix{T};
-                     endogenous=Int[], cov_type=:hc1, varnames=nothing) where T
-    n, k = size(X)
-    beta = ones(T, k) * T(0.5)
-    vcov_mat = Matrix{T}(I(k)) * T(0.01)
+                     endogenous=Int[], cov_type=:hc1, varnames=nothing,
+                     method::Symbol=:tsls, k=nothing, fuller_a::Real=1.0) where T
+    # Mirror real's validation (reg/iv.jl): the k-class family and the k requirement.
+    method in (:tsls, Symbol("2sls"), :liml, :fuller, :kclass) ||
+        throw(ArgumentError("method must be :tsls, :liml, :fuller, or :kclass; got :$method"))
+    method === :kclass && k === nothing &&
+        throw(ArgumentError("k is required for method=:kclass"))
+    isempty(endogenous) && throw(ArgumentError("endogenous must be non-empty for IV estimation"))
+    # `k` is the k-class SCALAR kwarg here, so the regressor count must not reuse that
+    # name — real calls it k_reg for the same reason.
+    n, k_reg = size(X)
+    beta = ones(T, k_reg) * T(0.5)
+    vcov_mat = Matrix{T}(I(k_reg)) * T(0.01)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     ssr = sum(resids .^ 2)
     tss = sum((y .- mean(y)) .^ 2)
     r2_val = one(T) - ssr / tss
-    adj_r2_val = one(T) - (one(T) - r2_val) * (n - 1) / (n - k)
+    adj_r2_val = one(T) - (one(T) - r2_val) * (n - 1) / (n - k_reg)
     f_val = T(20.0)
     f_p = T(0.002)
     ll = T(-105.0)
     aic_val = T(220.0)
     bic_val = T(230.0)
-    vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
+    vnames = varnames === nothing ? ["x$i" for i in 1:k_reg] : varnames
     first_f = T(15.0)
     sargan_s = T(2.5)
     sargan_p = T(0.30)
+    # Only the k-class methods populate these, exactly as real does.
+    kk = method === :kclass ? T(k) :
+         method === :liml   ? T(1.05) :
+         method === :fuller ? T(1.05) - T(fuller_a) / T(n - size(Z, 2)) : nothing
+    kap = method in (:liml, :fuller) ? T(1.05) : nothing
     RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
                 vnames, :iv, cov_type, nothing, Z, endogenous,
-                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0))
+                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0), kk, kap)
 end
 
 function _build_logit_probit(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{T};
@@ -5364,6 +5381,187 @@ function classification_table(m::Union{LogitModel,ProbitModel}; threshold=0.5)
         "threshold"   => threshold,
     )
 end
+
+# ─── C067 remainder (#72): cross-section OLS diagnostics. Structs are field-order
+# subsets of real; every estimator reproduces the REAL argument validation, because a
+# mock looser than real turns a guaranteed MEMs failure into a green suite (#84).
+# PLACEMENT: this must come AFTER `struct RegModel` — mocks.jl is one flat module
+# included top-to-bottom, so a method dispatching on ::RegModel defined earlier is an
+# UndefVarError at include time, not a MethodError at call time.
+
+struct RegDiagnosticResult{T<:AbstractFloat}
+    test_name::String
+    h0::String
+    statistic::T
+    pvalue::T
+    df::Union{Int,Tuple{Int,Int}}
+    f_stat::Union{Nothing,T}
+    f_pvalue::Union{Nothing,T}
+    f_df::Union{Nothing,Tuple{Int,Int}}
+    aux_r2::T
+    n::Int
+end
+
+struct StabilityResult{T<:AbstractFloat}
+    kind::Symbol
+    tindex::Vector{Int}
+    stat_path::Vector{T}
+    upper::Vector{T}
+    lower::Vector{T}
+    crossed::Bool
+    first_crossing::Union{Nothing,Int}
+    level::T
+    recursive_resid::Vector{T}
+    n::Int
+    k::Int
+end
+
+struct InfluenceStats{T<:AbstractFloat}
+    hat::Vector{T}
+    student_internal::Vector{T}
+    student_external::Vector{T}
+    dffits::Vector{T}
+    cooksd::Vector{T}
+    dfbetas::Matrix{T}
+    sigma::T
+    high_leverage::Vector{Int}
+    influential::Vector{Int}
+    varnames::Vector{String}
+    n::Int
+    k::Int
+end
+
+# White/Glejser/Harvey all take (resid, X) with a RegModel convenience method, and all
+# three return RegDiagnosticResult — exactly like real.
+function white_test(resid::AbstractVector, X::AbstractMatrix; cross_terms::Bool=true)
+    n = length(resid)
+    size(X, 1) == n || throw(DimensionMismatch("length(resid)=$n must equal size(X,1)=$(size(X,1))"))
+    df = cross_terms ? max(1, size(X, 2)) : max(1, size(X, 2) - 1)
+    RegDiagnosticResult{Float64}("White test" * (cross_terms ? "" : " (no cross-terms)"),
+        "Homoskedasticity (error variance unrelated to regressors)",
+        7.4, 0.06, df, nothing, nothing, nothing, 0.12, n)
+end
+white_test(m::RegModel; cross_terms::Bool=true) =
+    white_test(m.residuals, m.X; cross_terms=cross_terms)
+
+function glejser_test(resid::AbstractVector, X::AbstractMatrix)
+    n = length(resid)
+    size(X, 1) == n || throw(DimensionMismatch("length(resid)=$n must equal size(X,1)=$(size(X,1))"))
+    RegDiagnosticResult{Float64}("Glejser test",
+        "Homoskedasticity (error variance unrelated to regressors)",
+        5.1, 0.08, max(1, size(X, 2) - 1), 2.4, 0.09, (2, n - 3), 0.07, n)
+end
+glejser_test(m::RegModel) = glejser_test(m.residuals, m.X)
+
+function harvey_test(resid::AbstractVector, X::AbstractMatrix)
+    n = length(resid)
+    size(X, 1) == n || throw(DimensionMismatch("length(resid)=$n must equal size(X,1)=$(size(X,1))"))
+    RegDiagnosticResult{Float64}("Harvey test",
+        "Homoskedasticity (multiplicative form)",
+        4.2, 0.12, max(1, size(X, 2) - 1), nothing, nothing, nothing, 0.05, n)
+end
+harvey_test(m::RegModel) = harvey_test(m.residuals, m.X)
+
+function chow_test(m::RegModel, break_index::Union{Integer,AbstractVector{<:Integer}};
+                   type::Symbol=:breakpoint, level::Real=0.05)
+    type ∈ (:breakpoint, :forecast) ||
+        throw(ArgumentError("type must be :breakpoint or :forecast; got :$type"))
+    n, k = size(m.X)
+    breaks = sort(collect(Int, break_index isa Integer ? [break_index] : break_index))
+    all(b -> 1 <= b < n, breaks) ||
+        throw(ArgumentError("break index/indices must lie in 1:$(n-1) (got $breaks)"))
+    if type === :breakpoint
+        edges = vcat(0, breaks, n)
+        for s in 1:(length(edges) - 1)
+            (edges[s+1] - edges[s]) >= k ||
+                throw(ArgumentError("segment $s has $(edges[s+1]-edges[s]) < k=$k observations; use type=:forecast"))
+        end
+    end
+    df1 = k * length(breaks)
+    RegDiagnosticResult{Float64}("Chow test ($(type))",
+        "No structural break (coefficients constant across segments)",
+        3.3, 0.04, (df1, n - k - df1), 3.3, 0.04, (df1, n - k - df1), 0.0, n)
+end
+
+function _mock_stability(m::RegModel, kind::Symbol, level::Real)
+    (0 < level < 1) || throw(ArgumentError("level must lie in (0,1); got $level"))
+    n, k = size(m.X)
+    n > k + 2 || throw(ArgumentError("need more than k+2=$(k+2) observations, got $n"))
+    idx = collect((k + 1):n)
+    npath = length(idx)
+    path = kind === :cusumsq ? collect(range(0.0, 1.0; length=npath)) : fill(0.3, npath)
+    up = kind === :cusumsq ? [ (t - k) / (n - k) + 0.3 for t in idx ] : fill(1.2, npath)
+    lo = kind === :cusumsq ? [ (t - k) / (n - k) - 0.3 for t in idx ] : fill(-1.2, npath)
+    StabilityResult{Float64}(kind, idx, path, up, lo, false, nothing, Float64(level),
+        fill(0.1, npath), n, k)
+end
+
+cusum_test(m::RegModel; level::Real=0.05) = _mock_stability(m, :cusum, level)
+cusumsq_test(m::RegModel; level::Real=0.05) = _mock_stability(m, :cusumsq, level)
+
+function recursive_residuals(m::RegModel)
+    n, k = size(m.X)
+    n > k || throw(ArgumentError("need n > k, got n=$n, k=$k"))
+    return fill(0.1, n - k)
+end
+
+function influence_stats(m::RegModel)
+    n, k = size(m.X)
+    n > k || throw(ArgumentError("need n > k, got n=$n, k=$k"))
+    InfluenceStats{Float64}(fill(Float64(k) / n, n), fill(0.2, n), fill(0.21, n),
+        fill(0.05, n), fill(0.01, n), fill(0.02, n, k), 1.05,
+        Int[], Int[], copy(m.varnames), n, k)
+end
+
+export RegDiagnosticResult, StabilityResult, InfluenceStats
+export white_test, glejser_test, harvey_test, chow_test
+export cusum_test, cusumsq_test, recursive_residuals, influence_stats
+
+# ─── C067 (#72): variable selection. Field-order subset of real; validation mirrors
+# reg/selection.jl so a bad --method/--criterion/p-threshold fails the same way.
+
+struct SelectionResult{T<:AbstractFloat}
+    method::Symbol
+    criterion::Symbol
+    selected::Vector{Int}
+    keep::Vector{Int}
+    varnames::Vector{String}
+    path::Vector{Tuple{Symbol,Int,T}}
+    terminal_models::Vector{Vector{Int}}
+    encompassing_f::Union{Nothing,T}
+    encompassing_pval::Union{Nothing,T}
+    encompassing_df::Union{Nothing,Tuple{Int,Int}}
+    final::RegModel{T}
+    n_gum::Int
+end
+
+function select_variables(y::AbstractVector{T}, X::AbstractMatrix{T};
+                          method::Symbol=:bidirectional, criterion::Symbol=:pvalue,
+                          p_enter::Real=0.05, p_remove::Real=0.10, p_gets::Real=0.05,
+                          diag_level::Real=0.05, bg_lags::Int=1,
+                          keep=nothing, varnames=nothing) where T
+    n, k = size(X)
+    length(y) == n || throw(ArgumentError("X must have $(length(y)) rows (got $n)"))
+    method ∈ (:forward, :backward, :bidirectional, :best_subset, :gets) ||
+        throw(ArgumentError("method must be :forward, :backward, :bidirectional, :best_subset, or :gets; got :$method"))
+    criterion ∈ (:pvalue, :aic, :bic) ||
+        throw(ArgumentError("criterion must be :pvalue, :aic, or :bic; got :$criterion"))
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : varnames
+    length(vn) == k || throw(ArgumentError("varnames must have length $k"))
+    kp = keep === nothing ? Int[] : collect(Int, keep)
+    all(c -> 1 <= c <= k, kp) || throw(ArgumentError("keep indices must be in 1:$k"))
+    method === :bidirectional && criterion === :pvalue && p_remove < p_enter &&
+        throw(ArgumentError("bidirectional :pvalue search requires p_remove ≥ p_enter"))
+    # Keep the first regressor plus anything forced; enough structure to exercise the
+    # renderer without pretending to reproduce a real search.
+    sel = sort(unique(vcat(kp, [1])))
+    final = estimate_reg(y, X[:, sel]; varnames=vn[sel])
+    path = Tuple{Symbol,Int,T}[(:enter, i, T(0.01)) for i in sel]
+    SelectionResult{T}(method, criterion, sel, kp, vn, path, [sel],
+                       T(1.5), T(0.22), (1, n - length(sel)), final, k)
+end
+
+export SelectionResult, select_variables
 
 export RegModel, LogitModel, ProbitModel, MarginalEffects
 export estimate_reg, estimate_iv, estimate_logit, estimate_probit

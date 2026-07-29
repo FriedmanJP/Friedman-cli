@@ -418,6 +418,96 @@ friedman test park-added data.csv --dep=y --q-add=2 --hac-bandwidth=nw
 degrees of freedom) and its own `--hac-kernel` / `--hac-bandwidth` for the test
 statistic, kept separate from the `--kernel` / `--bandwidth` used to fit the regression.
 
+## OLS Regression Diagnostics
+
+Cross-section diagnostics on an OLS fit. All eight fit the regression the same way
+`estimate reg` does — `--dep` picks the dependent column, every other numeric column
+is a regressor, and **no intercept is prepended**, so include a `const` column if you
+want one. `--cov-type` is forwarded to the fit.
+
+Note `test breusch-pagan` is a *different* test: it is the panel random-effects LM
+test, not a cross-section heteroskedasticity test.
+
+### test white / test glejser / test harvey
+
+Heteroskedasticity tests. H₀ in each case is homoskedasticity, so a **low p-value
+means the errors are heteroskedastic** and you should prefer a robust `--cov-type`.
+
+```bash
+friedman test white data.csv --dep=y
+friedman test white data.csv --dep=y --no-cross-terms
+friedman test glejser data.csv --dep=y
+friedman test harvey data.csv --dep=y
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--dep` | String | first numeric | Dependent variable column |
+| `--cov-type` | String | `hc1` | Covariance estimator for the OLS fit |
+| `--no-cross-terms` (white only) | Flag | off | Omit cross-products from the auxiliary regression |
+
+**Output:** a kv block — test name, H₀, statistic, p-value, degrees of freedom, the
+F-form where the test reports one, auxiliary R², and the observation count.
+
+### test chow
+
+Chow structural-break test. **`--break-at` is required** (note the name: `--break`
+is not usable, since `break` is a reserved word). Pass a comma-separated list for a
+multi-break test. H₀ is that coefficients are constant across the segments.
+
+```bash
+friedman test chow data.csv --dep=y --break-at=100
+friedman test chow data.csv --dep=y --break-at=60,120
+friedman test chow data.csv --dep=y --break-at=190 --type=forecast
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--break-at` | String | **required** | 1-based break index, or a comma-separated list |
+| `--type` | String | `breakpoint` | `breakpoint`, `forecast` |
+| `--level` | Float64 | 0.05 | Significance level in (0,1) |
+
+`type=breakpoint` needs every segment to hold at least `k` observations; use
+`forecast` when a segment is shorter than that.
+
+### test cusum / test cusumsq
+
+Brown-Durbin-Evans recursive-residual stability tests. These report a **path and a
+significance band, not a p-value** — the verdict is whether the path leaves the band,
+so the output carries a `crossed band` flag and the first crossing index instead of a
+significance level to compare. `cusum` is sensitive to drift in the coefficients;
+`cusumsq` to a one-off variance shift.
+
+```bash
+friedman test cusum data.csv --dep=y --level=0.05
+friedman test cusumsq data.csv --dep=y
+```
+
+**Output:** `observation | cusum (or cusumsq) | lower | upper` plus a summary kv
+(`kind`, `crossed band`, `first crossing`, `level`, observations, regressors).
+
+### test recursive-residuals
+
+The Brown-Durbin-Evans recursive least-squares residuals themselves, one per
+recursive step (the first `k` observations initialise the recursion).
+
+**Output:** `step | observation | recursive_residual` plus count and mean.
+
+### test influence
+
+Per-observation influence diagnostics: leverage (`hat`), internally and externally
+studentised residuals, DFFITS and Cook's distance, plus the indices MEMs flags as
+high-leverage or influential.
+
+```bash
+friedman test influence data.csv --dep=y
+```
+
+**Output:** `observation | hat | student_internal | student_external | dffits |
+cooksd` plus a summary kv with `sigma` and the flagged index lists. The `dfbetas`
+matrix is deliberately not in the tidy table (it would need one column per
+regressor).
+
 ## VAR Diagnostics
 
 ### test var lagselect

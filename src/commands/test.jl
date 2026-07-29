@@ -463,6 +463,135 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_park_added),
         ),
+        # C067 remainder (#72): cross-section OLS diagnostics. All fit via
+        # _load_reg_data + estimate_reg — NOT the panel loader that the existing
+        # `test breusch-pagan` (panel RE variant) uses.
+        CommandSpec(
+            path=["test", "white"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="no-cross-terms", description="Omit the cross-product terms from the auxiliary regression")],
+            tables=[TableSpec(name=:white, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_white),
+        ),
+        CommandSpec(
+            path=["test", "glejser"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:glejser, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_glejser),
+        ),
+        CommandSpec(
+            path=["test", "harvey"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:harvey, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_harvey),
+        ),
+        CommandSpec(
+            path=["test", "chow"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                # --break-at, not --break: `break` is a Julia reserved word and cannot be a kwarg.
+                OptionSpec(name="break-at", type=String, default="", description="Required: 1-based break index, or a comma-separated list for a multi-break test"),
+                OptionSpec(name="type", type=String, default="breakpoint", description="Chow variant", choices=["breakpoint","forecast"]),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Significance level in (0,1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:chow, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_chow),
+        ),
+        CommandSpec(
+            path=["test", "cusum"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Band significance level in (0,1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:cusum, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_cusum),
+        ),
+        CommandSpec(
+            path=["test", "cusumsq"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Band significance level in (0,1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:cusumsq, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_cusumsq),
+        ),
+        CommandSpec(
+            path=["test", "recursive-residuals"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:recursive_residuals, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_recursive_residuals),
+        ),
+        CommandSpec(
+            path=["test", "influence"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:influence, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_influence),
+        ),
         # C065a: Hansen (1996) sup-LM / sup-Wald test of linearity vs a two-regime SETAR
         # threshold, with fixed-regressor-bootstrap p-values. Reads `.linearity` off a
         # `estimate_setar(...; linearity=true)` fit (identical numbers, no design rebuild).
@@ -2560,6 +2689,262 @@ function _test_park_added(; data::String, dep::String="", method::String="fmols"
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (genuine cointegration) at 5% -- evidence of a spurious regression",
         "Cannot reject H0 (genuine cointegration) at 5%")
+    return res
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C067 (remainder, #72): OLS regression diagnostics — heteroskedasticity,
+# parameter stability and influence. Eight flat `test` leaves over MEMs
+# `reg/{diagnostics,stability}.jl`.
+#
+# All eight fit a cross-section OLS via `_load_reg_data` + `estimate_reg` (X =
+# every numeric column except --dep, NO intercept prepended — include a `const`
+# column, exactly like `estimate reg`), then run the diagnostic on the fitted
+# RegModel. NOTE the existing `test breusch-pagan` is the PANEL random-effects LM
+# test (`_load_panel_for_preg` + estimate_xtreg); these are the CROSS-SECTION
+# diagnostics and deliberately do NOT share its loader.
+#
+# Three result shapes:
+#   * RegDiagnosticResult — white, glejser, harvey, chow  (statistic + p-value)
+#   * StabilityResult     — cusum, cusumsq  (a BAND PATH with NO p-value)
+#   * InfluenceStats / Vector — influence, recursive-residuals (per-observation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""Round for display, but render a non-finite value as a string — the legacy
+`FRIEDMAN_LEGACY_OUTPUT=1 -f json` writer historically choked on raw Inf/NaN, and a
+string is honest either way. (`_test_weak_instrument` has its own local `_fnum`.)"""
+_finite_or_str(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
+
+"""Fit the cross-section OLS that the `reg` diagnostics consume. Mirrors
+`estimate reg` (same `_load_reg_data` partition and `--cov-type`), so the diagnostic
+describes the regression the user would get from that command."""
+function _reg_for_diagnostic(data::String, dep::String, cov_type::String, label::String)
+    y, X, xcols = _load_reg_data(data, dep)
+    model = try
+        estimate_reg(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    catch e
+        throw(_teststat_error(e, "$label (OLS fit)"))
+    end
+    return model, xcols
+end
+
+"""Render a `RegDiagnosticResult` as a kv block. `df` is an Int or an (Int,Int)
+tuple depending on the test, and the F-form fields are `nothing` for the chi-square-
+only tests — both are handled here so each leaf stays a few lines."""
+function _reg_diagnostic_kv(res, title::String, format::String, output::String)
+    pairs = Pair{String,Any}[
+        "test" => res.test_name,
+        "H0" => res.h0,
+        "statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "df" => res.df isa Tuple ? join(res.df, ", ") : res.df,
+    ]
+    if res.f_stat !== nothing
+        push!(pairs, "F statistic" => _finite_or_str(Float64(res.f_stat)))
+        res.f_pvalue === nothing || push!(pairs, "F p-value" => _finite_or_str(Float64(res.f_pvalue)))
+        res.f_df === nothing || push!(pairs, "F df" => join(res.f_df, ", "))
+    end
+    push!(pairs, "auxiliary R2" => _finite_or_str(Float64(res.aux_r2)))
+    push!(pairs, "observations" => res.n)
+    output_kv(pairs; format=format, output=output, title=title)
+    return nothing
+end
+
+function _test_white(; data::String, dep::String="", cov_type::String="hc1",
+        no_cross_terms::Bool=false, format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "white")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("White Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        white_test(model; cross_terms=!no_cross_terms)
+    catch e
+        throw(_teststat_error(e, "White test"))
+    end
+    _reg_diagnostic_kv(res, "White Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (homoskedasticity) at 5% -- errors are heteroskedastic (use a robust --cov-type)",
+        "Cannot reject H0 (homoskedasticity) at 5%")
+    return res
+end
+
+function _test_glejser(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "glejser")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Glejser Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        glejser_test(model)
+    catch e
+        throw(_teststat_error(e, "Glejser test"))
+    end
+    _reg_diagnostic_kv(res, "Glejser Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (homoskedasticity) at 5% -- errors are heteroskedastic",
+        "Cannot reject H0 (homoskedasticity) at 5%")
+    return res
+end
+
+function _test_harvey(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "harvey")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Harvey Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        harvey_test(model)
+    catch e
+        throw(_teststat_error(e, "Harvey test"))
+    end
+    _reg_diagnostic_kv(res, "Harvey Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (homoskedasticity) at 5% -- multiplicative heteroskedasticity detected",
+        "Cannot reject H0 (homoskedasticity) at 5%")
+    return res
+end
+
+# Chow (1960). `--break` is REQUIRED (a comma-separated list gives a multi-break
+# test); upstream needs every index in 1:n-1 and, for :breakpoint, each segment to
+# hold at least k observations — :forecast is the fallback for a short segment.
+function _test_chow(; data::String, dep::String="", cov_type::String="hc1",
+        break_at::String="", type::String="breakpoint", level::Float64=0.05,
+        format::String="table", output::String="")
+    # NOTE the option is --break-at, not --break: `break` is a Julia reserved word and
+    # cannot be a handler kwarg (the registry binds --multi-word to multi_word).
+    isempty(break_at) && throw(CliError("usage/missing",
+        "test chow: --break-at is required";
+        hint="give the 1-based observation index of the break, e.g. --break-at 50"))
+    breaks = _parse_int_list(break_at)
+    all(b -> b >= 1, breaks) || throw(CliError("usage/invalid",
+        "test chow: every --break-at index must be ≥ 1 (got $breaks)"))
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "test chow: --level must be in (0, 1) (got $level)"))
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "chow")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Chow Structural-Break Test: $dep_name ~ $(join(xcols, " + ")), breaks=$(join(breaks, ","))"); _status()
+    res = try
+        chow_test(model, breaks; type=Symbol(type), level=level)
+    catch e
+        throw(_teststat_error(e, "Chow test"))
+    end
+    _reg_diagnostic_kv(res, "Chow Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (no structural break) at 5% -- coefficients differ across the break",
+        "Cannot reject H0 (no structural break) at 5%")
+    return res
+end
+
+"""Shared body for the CUSUM pair. `StabilityResult` carries a PATH and a
+significance band, NOT a p-value — the verdict is whether the path crosses the band,
+so these leaves render a decision and never call `interpret_test_result` (same rule
+as the ARDL bounds test and HEGY)."""
+function _cusum_leaf(fn, label::String, statcol::String; data::String, dep::String,
+        cov_type::String, level::Float64, format::String, output::String)
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "test $label: --level must be in (0, 1) (got $level)"))
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, label)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("$(uppercase(label)) Stability Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        fn(model; level=level)
+    catch e
+        throw(_teststat_error(e, "$label test"))
+    end
+    # ALL-Pair construction: the statistic column name is dynamic, and DataFrame does
+    # not accept a Pair alongside keyword columns (that combination is an exit-1
+    # MethodError, not a nice error).
+    output_result(DataFrame(
+            "observation" => res.tindex,
+            statcol => round.(Float64.(res.stat_path); digits=6),
+            "lower" => round.(Float64.(res.lower); digits=6),
+            "upper" => round.(Float64.(res.upper); digits=6));
+        format=Symbol(format), output=output,
+        title="$(uppercase(label)) Path: $dep_name")
+    output_kv(Pair{String,Any}[
+        "kind" => String(res.kind),
+        "crossed band" => res.crossed,
+        "first crossing" => res.first_crossing === nothing ? "none" : res.first_crossing,
+        "level" => res.level,
+        "observations" => res.n,
+        "regressors (k)" => res.k];
+        format=format, title="$(uppercase(label)) Summary")
+    # H0 is parameter stability; there is no p-value, so the band crossing IS the verdict.
+    if res.crossed
+        _status_styled("-> Path leaves the $(round(Int, 100*(1-res.level)))% band at observation $(res.first_crossing) -- parameter instability\n"; color=:yellow)
+    else
+        _status_styled("-> Path stays inside the $(round(Int, 100*(1-res.level)))% band -- no evidence of instability\n"; color=:green)
+    end
+    return res
+end
+
+function _test_cusum(; data::String, dep::String="", cov_type::String="hc1",
+        level::Float64=0.05, format::String="table", output::String="")
+    return _cusum_leaf(cusum_test, "cusum", "cusum"; data=data, dep=dep,
+        cov_type=cov_type, level=level, format=format, output=output)
+end
+
+function _test_cusumsq(; data::String, dep::String="", cov_type::String="hc1",
+        level::Float64=0.05, format::String="table", output::String="")
+    return _cusum_leaf(cusumsq_test, "cusumsq", "cusumsq"; data=data, dep=dep,
+        cov_type=cov_type, level=level, format=format, output=output)
+end
+
+# Brown-Durbin-Evans recursive least-squares residuals — a plain Vector, one value
+# per recursive step (the first k observations initialise the recursion).
+function _test_recursive_residuals(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "recursive-residuals")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Recursive Residuals: $dep_name ~ $(join(xcols, " + "))"); _status()
+    w = try
+        recursive_residuals(model)
+    catch e
+        throw(_teststat_error(e, "recursive residuals"))
+    end
+    wv = Float64.(collect(w))
+    k = size(model.X, 2)
+    output_result(DataFrame(step=collect(1:length(wv)),
+                            observation=collect((k + 1):(k + length(wv))),
+                            recursive_residual=round.(wv; digits=6));
+        format=Symbol(format), output=output,
+        title="Recursive Residuals: $dep_name")
+    output_kv(Pair{String,Any}[
+        "count" => length(wv),
+        "mean" => _finite_or_str(isempty(wv) ? NaN : sum(wv) / length(wv)),
+        "regressors (k)" => k];
+        format=format, title="Recursive Residuals Summary")
+    return w
+end
+
+# Per-observation influence diagnostics. `dfbetas` is an n×k MATRIX and is
+# deliberately omitted from the tidy per-observation table (it would need one column
+# per regressor); the flagged index lists are the actionable output.
+function _test_influence(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "influence")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Influence Diagnostics: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        influence_stats(model)
+    catch e
+        throw(_teststat_error(e, "influence statistics"))
+    end
+    output_result(DataFrame(
+            observation = collect(1:res.n),
+            hat = round.(Float64.(res.hat); digits=6),
+            student_internal = round.(Float64.(res.student_internal); digits=6),
+            student_external = round.(Float64.(res.student_external); digits=6),
+            dffits = round.(Float64.(res.dffits); digits=6),
+            cooksd = round.(Float64.(res.cooksd); digits=6));
+        format=Symbol(format), output=output,
+        title="Influence Diagnostics: $dep_name")
+    output_kv(Pair{String,Any}[
+        "sigma" => _finite_or_str(Float64(res.sigma)),
+        "high-leverage count" => length(res.high_leverage),
+        "high-leverage obs" => isempty(res.high_leverage) ? "none" : join(res.high_leverage, ", "),
+        "influential count" => length(res.influential),
+        "influential obs" => isempty(res.influential) ? "none" : join(res.influential, ", "),
+        "observations" => res.n,
+        "regressors (k)" => res.k];
+        format=format, title="Influence Summary")
     return res
 end
 

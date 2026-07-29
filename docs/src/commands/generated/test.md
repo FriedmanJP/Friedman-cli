@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 75
+**Leaves:** 83
 
 ### `friedman test adf`
 
@@ -241,6 +241,28 @@ Path to CSV panel data file
 
 ---
 
+### `friedman test chow`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--break-at` | — | `String` | `""` | — | Required: 1-based break index, or a comma-separated list for a multi-break test |
+| `--type` | — | `String` | `breakpoint` | `breakpoint`, `forecast` | Chow variant |
+| `--level` | — | `Float64` | `0.05` | — | Significance level in (0,1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `chow` (Path to CSV data file)
+
+---
+
 ### `friedman test cips`
 
 Path to CSV data file (rows=T, cols=N)
@@ -259,6 +281,46 @@ Path to CSV data file (rows=T, cols=N)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `cips` (Path to CSV data file (rows=T, cols=N))
+
+---
+
+### `friedman test cusum`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--level` | — | `Float64` | `0.05` | — | Band significance level in (0,1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `cusum` (Path to CSV data file)
+
+---
+
+### `friedman test cusumsq`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--level` | — | `Float64` | `0.05` | — | Band significance level in (0,1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `cusumsq` (Path to CSV data file)
 
 ---
 
@@ -470,6 +532,25 @@ Path to CSV data file
 
 ---
 
+### `friedman test glejser`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `glejser` (Path to CSV data file)
+
+---
+
 ### `friedman test gph`
 
 Path to CSV data file
@@ -625,6 +706,25 @@ Path to CSV data file
 
 ---
 
+### `friedman test harvey`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `harvey` (Path to CSV data file)
+
+---
+
 ### `friedman test hausman`
 
 Path to CSV panel data file
@@ -731,6 +831,25 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 
 **Output tables:** `identifiability` (Path to CSV data file)
+
+---
+
+### `friedman test influence`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `influence` (Path to CSV data file)
 
 ---
 
@@ -1258,6 +1377,25 @@ Path to CSV panel data file
 
 ---
 
+### `friedman test recursive-residuals`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `recursive_residuals` (Path to CSV data file)
+
+---
+
 ### `friedman test sadf`
 
 Path to CSV data file
@@ -1579,6 +1717,29 @@ Path to CSV panel data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `westerlund` (Path to CSV panel data file)
+
+---
+
+### `friedman test white`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-cross-terms` | — | Omit the cross-product terms from the auxiliary regression |
+
+**Output tables:** `white` (Path to CSV data file)
 
 ---
 
