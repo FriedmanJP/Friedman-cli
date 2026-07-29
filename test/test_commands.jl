@@ -4218,7 +4218,7 @@ end  # HD handlers
         @test node isa NodeCommand
         @test node.name == "forecast"
         # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
-        @test length(node.subcmds) == 18
+        @test length(node.subcmds) == 24
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -4778,7 +4778,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 18  # 16 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b)
+        @test length(node.subcmds) == 24  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69)
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -5093,7 +5093,7 @@ end  # VECM handlers
         @test node isa NodeCommand
         @test node.name == "predict"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 24
+        @test length(node.subcmds) == 30
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -5498,6 +5498,73 @@ end  # Predict handlers
 # Residuals handlers (residuals.jl)
 # ═══════════════════════════════════════════════════════════════
 
+@testset "GARCH-variant forecast/predict/residuals (C064 #69)" begin
+    # The six C064a variants are NOT in VOL_MODELS (their option sets differ), so these
+    # verbs are hand-written per variant; each mirrors its `estimate` sibling's options.
+    _capture_ok(f) = begin
+        out = _capture() do; f(); end
+        out
+    end
+    mktempdir() do dir
+        csv = _make_csv(dir; T=200, n=2, colnames=["r", "other"])
+
+        @testset "forecast — variance path per variant" begin
+            for (fn, kw) in ((_forecast_igarch, (;)), (_forecast_cgarch, (;)),
+                             (_forecast_aparch, (;)),
+                             (_forecast_figarch, (;)), (_forecast_fiegarch, (;)))
+                out = _capture_ok(() -> fn(; data=csv, column=1, horizons=5,
+                                             format="table", output="", kw...))
+                @test !isempty(out)
+            end
+            # garch-midas returns a NamedTuple with the long-run/short-run split and has
+            # NO --conf-level (upstream forecast takes none)
+            out = _capture_ok(() -> _forecast_garch_midas(; data=csv, column=1, m_freq=20,
+                                        k=4, horizons=4, format="table", output=""))
+            @test contains(out, "long_run") && contains(out, "short_run")
+        end
+
+        @testset "predict / residuals — per-observation tables" begin
+            for fn in (_predict_igarch, _predict_cgarch, _predict_aparch,
+                       _predict_figarch, _predict_fiegarch)
+                out = _capture_ok(() -> fn(; data=csv, column=1, format="table", output=""))
+                @test contains(out, "variance") && contains(out, "volatility")
+            end
+            for fn in (_residuals_igarch, _residuals_cgarch, _residuals_aparch,
+                       _residuals_figarch, _residuals_fiegarch)
+                out = _capture_ok(() -> fn(; data=csv, column=1, format="table", output=""))
+                @test contains(out, "residual")
+            end
+            out = _capture_ok(() -> _predict_garch_midas(; data=csv, column=1, m_freq=20,
+                                        k=4, format="table", output=""))
+            @test contains(out, "variance")
+            out = _capture_ok(() -> _residuals_garch_midas(; data=csv, column=1, m_freq=20,
+                                        k=4, format="table", output=""))
+            @test contains(out, "residual")
+        end
+
+        @testset "bad input → typed CliError, never exit 1" begin
+            err(f) = try; _capture() do; f(); end; nothing; catch e; e end
+            e = err(() -> _forecast_igarch(; data=csv, column=1, horizons=0,
+                                            format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+            e = err(() -> _forecast_igarch(; data=csv, column=1, conf_level=1.5,
+                                            format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _forecast_garch_midas(; data=csv, column=1, m_freq=20,
+                                                 horizons=0, format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            # --m-freq is required for every garch-midas verb
+            for fn in (_forecast_garch_midas, _predict_garch_midas, _residuals_garch_midas)
+                e = err(() -> fn(; data=csv, column=1, format="table", output=""))
+                @test e isa CliError && exit_class(e) == 2
+            end
+            # a bad --column is a typed loader error on every verb
+            e = err(() -> _predict_igarch(; data=csv, column=9, format="table", output=""))
+            @test e isa CliError && e.code == "data/column-range"
+        end
+    end
+end
+
 @testset "Residuals handlers" begin
 
     @testset "register_residuals_commands!" begin
@@ -5505,7 +5572,7 @@ end  # Predict handlers
         @test node isa NodeCommand
         @test node.name == "residuals"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 24
+        @test length(node.subcmds) == 30
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",

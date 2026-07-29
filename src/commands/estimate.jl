@@ -3105,6 +3105,320 @@ function _parse_setar_delay(d::AbstractString)
     return v
 end
 
+# ─────────────────────────────────────────────────────────────────────────────
+# C064 remainder (#69): forecast / predict / residuals for the six univariate GARCH
+# variants added by C064a.
+#
+# DESIGN: these are per-variant handlers rather than entries in `VOL_MODELS`. That
+# factory (shared.jl) generates all four verbs from one descriptor, but its handler
+# signature is fixed at (data, column, p, q, draws) — it cannot express aparch's
+# --fix-delta/--fix-gamma, figarch/fiegarch's --d0/--truncation/--dist, or
+# garch-midas's --m-freq/--k/--rv/--span. Each verb handler therefore mirrors its
+# `estimate` sibling's option set, refits, and renders through the three shared
+# helpers below, so only the fit call is repeated (2 lines), never the rendering.
+#
+# UPSTREAM SHAPES verified against MEMs garch/{forecast,figarch,midas,types}.jl:
+#   * forecast(m, h; conf_level, n_sim) for igarch/cgarch/aparch/figarch/fiegarch
+#   * forecast(m, h) for GarchMidasModel — NOTE the type is `GarchMidasModel`, not
+#     `GARCHMIDASModel`, and it takes NO conf_level/n_sim, so it gets no --conf-level.
+#   * residuals(m) for all six.
+#   * predict(m) (in-sample conditional variance) exists for igarch/cgarch/aparch and
+#     garch-midas but NOT for figarch/fiegarch, whose only `predict` is the h-argument
+#     forecast form. Those two read the real `.conditional_variance` field instead.
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""In-sample conditional variance table, matching `_make_predict_vol`'s output shape
+so `predict garch` and `predict igarch` render identically."""
+function _vol_variant_predict_output(cond_var, vname::String, title::String;
+                                     format::String, output::String)
+    cv = Float64.(collect(cond_var))
+    output_result(DataFrame(t=1:length(cv), variance=round.(cv; digits=6),
+                            volatility=round.(sqrt.(abs.(cv)); digits=6));
+        format=Symbol(format), output=output, title="$title ($vname)")
+    return cond_var
+end
+
+"""Standardized-residual table, matching `_make_residuals_vol`'s output shape."""
+function _vol_variant_residuals_output(resid, vname::String, title::String;
+                                       format::String, output::String)
+    r = Float64.(collect(resid))
+    output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
+        format=Symbol(format), output=output, title="$title ($vname)")
+    return resid
+end
+
+"""Conditional variance for a fitted variant. figarch/fiegarch have no zero-argument
+`predict` upstream, so read the real `.conditional_variance` field for them."""
+_vol_variant_cond_var(m) = hasmethod(predict, Tuple{typeof(m)}) ? predict(m) :
+                                                                  m.conditional_variance
+
+
+# ── C064 remainder (#69): the 18 verb handlers. Each mirrors its `estimate`
+# sibling's option set so the model can be refit, then renders through the shared
+# helpers above.
+
+function _forecast_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast igarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast igarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    _status("IGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "IGARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "IGARCH($p,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    _status("IGARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "IGARCH($p,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    _status("IGARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "IGARCH($p,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_cgarch(; data::String, column::Int=1, horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast cgarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    _status("Component-GARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "Component-GARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "Component-GARCH(1,1)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    _status("Component-GARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "Component-GARCH(1,1)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    _status("Component-GARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "Component-GARCH(1,1)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast aparch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast aparch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    _status("APARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "APARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "APARCH($p,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    _status("APARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "APARCH($p,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    _status("APARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "APARCH($p,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast figarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast figarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    _status("FIGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "FIGARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "FIGARCH($p,d,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    _status("FIGARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "FIGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    _status("FIGARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "FIGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast fiegarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    _status("FIEGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "FIEGARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "FIEGARCH($p,d,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    _status("FIEGARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "FIEGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    _status("FIEGARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "FIEGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+# garch-midas is the odd one out: forecast(m::GarchMidasModel, h) takes NO conf_level,
+# so this leaf deliberately has no --conf-level (advertising one would be a lie).
+function _garch_midas_refit(data, column, m_freq, k, rv, span, config, model=nothing)
+    # Mirrors `_estimate_garch_midas`'s validation and fit exactly, so the verbs
+    # describe the same model that leaf would produce.
+    m_freq >= 1 || throw(CliError("usage/missing-option",
+        "--m-freq ≥ 1 is required (high-frequency observations per low-frequency block)"))
+    rv_sym = Symbol(rv); span_sym = Symbol(span)
+    rv_sym in (:realized, :macro) || throw(CliError("usage/bad-value", "--rv must be realized|macro, got $rv"))
+    span_sym in (:fixed, :rolling) || throw(CliError("usage/bad-value", "--span must be fixed|rolling, got $span"))
+    y, vname = load_univariate_series(data, column)
+    x_lf = Float64[]
+    if rv_sym === :macro
+        isempty(config) && throw(CliError("config/missing",
+            "--rv macro requires --config <toml> with a [garch_midas] x_lf = [...] low-frequency driver"))
+        x_lf = get_garch_midas(load_config(config))
+    end
+    m = model === nothing ?
+        (try
+            estimate_garch_midas(y, x_lf; K=k, m_freq=m_freq, rv=rv_sym, span=span_sym)
+        catch e
+            throw(_garch_variant_error(e, "GARCH-MIDAS"))
+        end) : model
+    return m, vname
+end
+
+function _forecast_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+        rv::String="realized", span::String="fixed", config::String="", horizons::Int=10,
+        model=nothing, output::String="", format::String="table")
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "forecast garch-midas: --horizons must be ≥ 1 (got $horizons)"))
+    m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
+    _status("GARCH-MIDAS Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons)
+    catch e
+        throw(_garch_variant_error(e, "GARCH-MIDAS forecast"))
+    end
+    # forecast(::GarchMidasModel, h) returns a NamedTuple
+    # (total, long_run, short_run, horizon) — NOT a VolatilityForecast — so it needs its
+    # own renderer. The long-run/short-run split IS the point of GARCH-MIDAS, so surface
+    # all three rather than flattening to a single path.
+    tot = Float64.(collect(fc.total))
+    output_result(DataFrame(
+            horizon = collect(1:length(tot)),
+            total_variance = round.(tot; digits=6),
+            long_run = round.(Float64.(collect(fc.long_run)); digits=6),
+            short_run = round.(Float64.(collect(fc.short_run)); digits=6),
+            volatility = round.(sqrt.(abs.(tot)); digits=6));
+        format=Symbol(format), output=output,
+        title="GARCH-MIDAS Volatility Forecast ($vname)")
+    return fc
+end
+
+function _predict_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+        rv::String="realized", span::String="fixed", config::String="",
+        model=nothing, output::String="", format::String="table")
+    m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
+    _status("GARCH-MIDAS conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "GARCH-MIDAS Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+        rv::String="realized", span::String="fixed", config::String="",
+        model=nothing, output::String="", format::String="table")
+    m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
+    _status("GARCH-MIDAS standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "GARCH-MIDAS Standardized Residuals"; format=format, output=output)
+end
+
 function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                            output::String="", format::String="table")
     y, vname = load_univariate_series(data, column)
