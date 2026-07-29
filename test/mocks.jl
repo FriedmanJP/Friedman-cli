@@ -4716,6 +4716,55 @@ bridge_sampling_ml(result::BayesianDSGE{T}; proposal::Symbol=:normal, df=5,
         n_proposal::Int=0, max_iter::Int=1000, tol=1e-10, rng=nothing) where {T} =
     result.log_marginal_likelihood + T(0.1)
 
+# ─── C073 remainder (#78): posterior mode + prior predictive.
+# Field-order subsets of real (dsge/bayes_types.jl, bayes_estimation.jl).
+
+struct PosteriorMode{T<:AbstractFloat}
+    mode::Vector{T}
+    inv_hessian::Matrix{T}
+    hessian::Matrix{T}
+    log_posterior::T
+    log_likelihood::T
+    laplace_log_ml::T
+    param_names::Vector{Symbol}
+    converged::Bool
+    n_iterations::Int
+end
+
+struct PriorPredictiveResult{T<:AbstractFloat}
+    stat_names::Vector{String}
+    stats::Matrix{T}
+    n_draws::Int
+    n_effective::Int
+    T_periods::Int
+end
+
+function posterior_mode(spec, data::AbstractMatrix, theta0;
+                        priors, observables=Symbol[], measurement_error=nothing,
+                        solver::Symbol=:gensys, solver_kwargs=NamedTuple(),
+                        transform::Bool=true, optimizer=nothing,
+                        f_reltol::Real=1e-8, max_iter::Int=500)
+    names = sort(collect(keys(priors)))
+    d = length(names)
+    d >= 1 || throw(ArgumentError("priors must be non-empty"))
+    PosteriorMode{Float64}(fill(0.5, d), Matrix{Float64}(I(d)) .* 0.01,
+        Matrix{Float64}(I(d)) .* 100.0, -120.5, -118.0, -125.0, names, true, 12)
+end
+
+function prior_predictive(spec, priors; n_draws::Int=500, T_periods::Int=200,
+                          observables=Symbol[], stats=nothing, solver::Symbol=:gensys,
+                          solver_kwargs=NamedTuple(), rng=Random.default_rng())
+    n_draws >= 1 || throw(ArgumentError("n_draws must be ≥ 1"))
+    T_periods >= 1 || throw(ArgumentError("T_periods must be ≥ 1"))
+    obs = isempty(observables) ? [:Y] : observables
+    names = vcat(["mean_$(o)" for o in obs], ["var_$(o)" for o in obs])
+    neff = max(1, n_draws - 1)          # one draw fails to solve, like real can
+    PriorPredictiveResult{Float64}(names, randn(neff, length(names)) .* 0.1 .+ 0.05,
+        n_draws, neff, T_periods)
+end
+
+export PosteriorMode, PriorPredictiveResult, posterior_mode, prior_predictive
+
 export MCMCDiagnostics, IdentificationDiagnostics, LearningRateCheck, PriorPosteriorOverlap
 export mcmc_diagnostics, identification_diagnostics, learning_rate_check
 export prior_posterior_overlap, bridge_sampling_ml
