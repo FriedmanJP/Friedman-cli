@@ -508,6 +508,78 @@ cooksd` plus a summary kv with `sigma` and the flagged index lists. The `dfbetas
 matrix is deliberately not in the tidy table (it would need one column per
 regressor).
 
+## Panel Unit Root, Cointegration & Causality (first generation)
+
+### test llc / test ips / test breitung
+
+First-generation panel unit-root tests on a **T×N matrix** — one column per unit,
+exactly like `test hadri`. **Note the null is the opposite of Hadri's:** H₀ here is
+that *every* unit has a unit root, so a **low p-value means the panel is stationary**.
+
+- `llc` — Levin-Lin-Chu, a *common* autoregressive root.
+- `ips` — Im-Pesaran-Shin, a *heterogeneous* root (mean-group `W[t-bar]`), and it also
+  reports the per-unit ADF statistics.
+- `breitung` — Breitung's bias-free pooled statistic.
+
+```bash
+friedman test llc panel_wide.csv --deterministic=trend
+friedman test ips panel_wide.csv --lags=2
+friedman test breitung panel_wide.csv --cs-demean
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--deterministic` | String | `constant` | `none`, `constant`, `trend` |
+| `--lags` (llc/ips) | String | `auto` | `auto` or a non-negative integer |
+| `--max-lags` (llc/ips) | String | | Upper bound for automatic selection |
+| `--criterion` (llc/ips) | String | `aic` | `aic`, `bic`, `tstat` |
+| `--lags` (breitung) | Int | 0 | Augmentation lags (≥ 0) |
+| `--cs-demean` | Flag | off | Subtract the cross-sectional mean at each `t` (mitigates cross-sectional dependence) |
+
+### test fisher-johansen
+
+Fisher-type combination of per-unit Johansen cointegration tests, on a **long-format
+panel**. Needs at least two series. Each row is a rank hypothesis (H₀: rank ≤ r), and
+the selected rank is the first not rejected.
+
+```bash
+friedman test fisher-johansen panel.csv --vars=y,x --lags=2 --combine=mw
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--id-col` / `--time-col` | String | first / second column | Panel identifiers |
+| `--vars` | String | every panel variable | Comma-separated series (≥ 2) |
+| `--deterministic` | String | `constant` | `none`, `constant`, `trend` |
+| `--lags` | Int | 2 | VECM lag order (≥ 1) |
+| `--combine` | String | `mw` | `mw` (Maddala-Wu), `choi` |
+
+**Output:** `rank | trace_statistic | trace_p_value | max_statistic | max_p_value` plus
+a summary kv with the selected rank.
+
+### test dh-causality
+
+Dumitrescu-Hurlin (2012) panel Granger non-causality. **Direction matters:** this tests
+whether `--cause` Granger-causes `--effect`, so the two are not interchangeable and both
+are required. H₀ is no causality for any unit.
+
+```bash
+friedman test dh-causality panel.csv --cause=x --effect=y --p=2
+friedman test dh-causality panel.csv --cause=x --effect=y --bootstrap=500
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--cause` | String | **required** | Candidate causal variable |
+| `--effect` | String | **required** | Dependent variable |
+| `--p` | Int | 1 | Lag order (≥ 1) |
+| `--bootstrap` | Int | 0 | Bootstrap replications (0 = asymptotic only) |
+| `--seed` | Int | 1234 | RNG seed for the bootstrap |
+
+**Output:** a kv block with `W-bar`, `Z-bar` and the small-T-corrected **`Z-tilde`**
+(the one to read by default) with their p-values, plus the bootstrap p-value when
+`--bootstrap > 0`.
+
 ## VAR Diagnostics
 
 ### test var lagselect

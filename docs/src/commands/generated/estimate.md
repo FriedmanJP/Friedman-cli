@@ -1109,10 +1109,12 @@ Path to CSV panel data file
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay`, `pcse` | ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs) |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--ar1` | — | `String` | `none` | `none`, `common`, `panel-specific` | Prais-Winsten AR(1) correction |
+| `--pcse-unbalanced` | — | `String` | `casewise` | `casewise`, `pairwise` | Unbalanced-panel handling for --cov-type pcse |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |

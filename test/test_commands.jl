@@ -2763,9 +2763,10 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 75 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 77
-        for cmd in ["white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
+        # 80 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+        @test length(node.subcmds) == 82
+        for cmd in ["llc", "ips", "breitung", "fisher-johansen", "dh-causality",
+                     "white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
                      "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                      "phillips-ouliaris", "hansen-instability", "park-added",
                      "adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
@@ -3244,6 +3245,67 @@ end  # Estimate handlers
                 @test pa.status == "ok"
                 @test Set(["H(p,q) statistic", "p-value", "q_add (df)", "base trend order (p)"]) ⊆ _metrics(pa)
                 @test _doc(["park-added", reg, "--dep", "y", "--trend", "linear"]).status == "ok"
+            end
+
+            @testset "llc/ips/breitung — matrix panel unit-root tests" begin
+                for leaf in ("llc", "ips", "breitung")
+                    doc = _doc([leaf, mv])
+                    @test doc.status == "ok"
+                    @test Set(["statistic", "p-value", "deterministic", "n_units",
+                               "observations"]) ⊆ _metrics(doc) ||
+                          Set(["W[t-bar] statistic", "p-value", "n_units"]) ⊆ _metrics(doc)
+                    @test _doc([leaf, mv, "--deterministic", "trend"]).status == "ok"
+                    @test _doc([leaf, mv, "--cs-demean"]).status == "ok"
+                end
+                # IPS additionally reports the per-unit ADF statistics
+                t = _tbl(_doc(["ips", mv]), "unit")
+                @test Set(["unit", "t_statistic", "lags"]) ⊆ Set(String.(t.columns))
+            end
+
+            @testset "fisher-johansen / dh-causality — PanelData leaves" begin
+                fj = _doc(["fisher-johansen", panel, "--vars", "y,x1"])
+                @test fj.status == "ok"
+                ft = _tbl(fj, "rank")
+                @test Set(["rank", "trace_statistic", "trace_p_value",
+                           "max_statistic", "max_p_value"]) ⊆ Set(String.(ft.columns))
+                @test Set(["selected rank", "combine", "deterministic", "lags"]) ⊆ _metrics(fj)
+                @test _doc(["fisher-johansen", panel, "--vars", "y,x1", "--combine", "choi"]).status == "ok"
+
+                dh = _doc(["dh-causality", panel, "--cause", "x1", "--effect", "y"])
+                @test dh.status == "ok"
+                @test Set(["cause", "effect", "W-bar", "Z-bar", "Z-tilde",
+                           "Z-tilde p-value", "lags (p)"]) ⊆ _metrics(dh)
+            end
+
+            @testset "C070 remainder — bad input → typed CliError" begin
+                e = _errcode(["llc", mv, "--deterministic", "bogus"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                e = _errcode(["llc", mv, "--lags", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["llc", mv, "--max-lags", "-1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["breitung", mv, "--lags", "-1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # fisher-johansen needs >= 2 series
+                e = _errcode(["fisher-johansen", panel, "--vars", "y"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                e = _errcode(["fisher-johansen", panel, "--vars", "nosuch"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["fisher-johansen", panel, "--lags", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # dh-causality: --cause/--effect are both required and direction matters
+                e = _errcode(["dh-causality", panel, "--effect", "y"])
+                @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+                e = _errcode(["dh-causality", panel, "--cause", "x1"])
+                @test e isa CliError && e.code == "usage/missing"
+                e = _errcode(["dh-causality", panel, "--cause", "x1", "--effect", "y", "--p", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # naming the same column twice is not a causality test
+                e = _errcode(["dh-causality", panel, "--cause", "y", "--effect", "y"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["dh-causality", panel, "--id-col", "nosuch",
+                              "--cause", "x1", "--effect", "y"])
+                @test e isa CliError && e.code == "data/missing-column"
             end
 
             # ── C067 remainder (#72): cross-section OLS diagnostics. `reg` already
@@ -4722,7 +4784,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 77  # 75 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 82  # 80 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -6148,7 +6210,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 77  # 75 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 82  # 80 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin

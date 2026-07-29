@@ -4890,6 +4890,94 @@ function westerlund_test(pd::PanelData, y::Symbol, xs::Symbol...; trend=:constan
             n_units=m.n_units, n_regressors=m.n_regressors, nobs=m.nobs)
 end
 
+# ─── C070 remainder (#75): first-gen panel unit-root + Fisher-Johansen + DH causality.
+# Structs are field-order subsets of real; validation mirrors upstream.
+
+struct LLCResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; t_unadjusted::T; delta::T; S_N::T
+    mu_star::T; sigma_star::T; T_tilde::T
+    lags::Vector{Int}; deterministic::Symbol; nobs::Int; n_units::Int
+end
+
+struct IPSResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; tbar::T; individual_t::Vector{T}
+    E_mean::T; V_mean::T
+    lags::Vector{Int}; deterministic::Symbol; nobs::Int; n_units::Int
+end
+
+struct BreitungPanelResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; lags::Int; deterministic::Symbol; nobs::Int; n_units::Int
+end
+
+struct FisherJohansenResult{T<:AbstractFloat}
+    ranks::Vector{Int}
+    trace_statistics::Vector{T}; trace_pvalues::Vector{T}
+    max_statistics::Vector{T}; max_pvalues::Vector{T}
+    individual_trace_pvalues::Matrix{T}; individual_max_pvalues::Matrix{T}
+    combine::Symbol; deterministic::Symbol; lags::Int; rank::Int; n_units::Int
+end
+
+struct DumitrescuHurlinResult{T<:AbstractFloat}
+    Wbar::T; Zbar::T; Zbar_pvalue::T; Ztilde::T; Ztilde_pvalue::T
+    W_i::Vector{T}; p::Int; N::Int; nobs::Int; n_skipped::Int
+    bootstrap::Int; seed::Int; bootstrap_pvalue::T
+    cause::Symbol; effect::Symbol
+end
+
+_mock_panel_det(d) = d in (:none, :constant, :trend) ? d :
+    throw(ArgumentError("deterministic must be :none, :constant, or :trend, got :$d"))
+
+function llc_test(X::AbstractMatrix; deterministic::Symbol=:constant, lags=:auto,
+                  max_lags=nothing, criterion::Symbol=:aic, cs_demean::Bool=false)
+    _mock_panel_det(deterministic)
+    n, N = size(X)
+    n > 5 || throw(ArgumentError("need more observations, got $n"))
+    LLCResult{Float64}(-1.9, 0.03, -3.2, -0.04, 1.0, -0.5, 0.8, Float64(n),
+        fill(lags isa Symbol ? 1 : Int(lags), N), deterministic, n, N)
+end
+
+function ips_test(X::AbstractMatrix; deterministic::Symbol=:constant, lags=:auto,
+                  max_lags=nothing, criterion::Symbol=:aic, cs_demean::Bool=false)
+    _mock_panel_det(deterministic)
+    n, N = size(X)
+    n > 5 || throw(ArgumentError("need more observations, got $n"))
+    IPSResult{Float64}(-2.1, 0.02, -1.8, fill(-1.8, N), -1.5, 0.9,
+        fill(lags isa Symbol ? 1 : Int(lags), N), deterministic, n, N)
+end
+
+function breitung_panel_test(X::AbstractMatrix; deterministic::Symbol=:constant,
+                             lags::Int=0, cs_demean::Bool=false)
+    _mock_panel_det(deterministic)
+    lags >= 0 || throw(ArgumentError("lags must be ≥ 0, got $lags"))
+    n, N = size(X)
+    BreitungPanelResult{Float64}(-1.7, 0.045, lags, deterministic, n, N)
+end
+
+function fisher_johansen_test(pd, ys::Symbol...; deterministic::Symbol=:constant,
+                              lags::Int=2, combine::Symbol=:mw)
+    length(ys) >= 2 || throw(ArgumentError("fisher_johansen_test needs at least 2 series, got $(length(ys))"))
+    combine in (:mw, :choi) || throw(ArgumentError("combine must be :mw or :choi; got :$combine"))
+    lags >= 1 || throw(ArgumentError("lags must be ≥ 1, got $lags"))
+    k = length(ys)
+    nun = pd.n_groups
+    FisherJohansenResult{Float64}(collect(0:(k - 1)),
+        fill(25.0, k), fill(0.03, k), fill(18.0, k), fill(0.04, k),
+        fill(0.03, nun, k), fill(0.04, nun, k),
+        combine, deterministic, lags, 1, nun)
+end
+
+function dh_causality_test(pd, x::Symbol, y::Symbol; p::Int=1, bootstrap::Int=0, seed::Int=1234)
+    p >= 1 || throw(ArgumentError("lag order p must be ≥ 1, got $p"))
+    bootstrap >= 0 || throw(ArgumentError("bootstrap must be ≥ 0, got $bootstrap"))
+    nun = pd.n_groups
+    DumitrescuHurlinResult{Float64}(2.1, 3.4, 0.0007, 2.9, 0.0037, fill(2.1, nun),
+        p, nun, size(pd.data, 1), 0, bootstrap, seed,
+        bootstrap > 0 ? 0.01 : NaN, x, y)
+end
+
+export LLCResult, IPSResult, BreitungPanelResult, FisherJohansenResult, DumitrescuHurlinResult
+export llc_test, ips_test, breitung_panel_test, fisher_johansen_test, dh_causality_test
+
 export variance_ratio_test, bds_test, hadri_test
 export pedroni_test, kao_test, westerlund_test
 
@@ -6226,7 +6314,14 @@ confint(m::PanelProbitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m
 
 function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         model=:fe, twoway=false, fe=:twoway, cov_type=:cluster, clusters=nothing,
-        varnames=nothing) where T
+        varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise) where T
+    # Mirror real's validation (preg/estimation.jl) for the #75 additions.
+    cov_type in (:ols, :cluster, :twoway, :driscoll_kraay, :pcse) ||
+        throw(ArgumentError("cov_type must be :ols, :cluster, :twoway, :driscoll_kraay, or :pcse; got :$cov_type"))
+    pcse_unbalanced in (:casewise, :pairwise) ||
+        throw(ArgumentError("pcse_unbalanced must be :casewise or :pairwise; got :$pcse_unbalanced"))
+    ar1 in (:none, :common, :panel_specific) ||
+        throw(ArgumentError("ar1 must be :none, :common, or :panel_specific; got :$ar1"))
     n, k = pd.T_obs, length(covariates) + 1
     beta = ones(T, k) * T(0.5)
     vcov_mat = Matrix{T}(I(k)) * T(0.01)
