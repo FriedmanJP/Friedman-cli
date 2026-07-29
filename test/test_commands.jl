@@ -2687,9 +2687,11 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 58 primary + 2 snake aliases (arch_lm, ljung_box) = 60 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
-        @test length(node.subcmds) == 60
-        for cmd in ["adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
+        # 67 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+        @test length(node.subcmds) == 69
+        for cmd in ["hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
+                     "phillips-ouliaris", "hansen-instability", "park-added",
+                     "adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
                      "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
                      "variance-ratio", "bds", "hadri", "pedroni", "kao", "westerlund", "weak-instrument",
@@ -3096,6 +3098,123 @@ end  # Estimate handlers
                 write(strcsv, "id,time,label\n1,1,foo\n1,2,bar\n2,1,baz\n2,2,qux\n")
                 es = _errcode(["pedroni", strcsv])
                 @test es isa CliError && es.code == "data/invalid" && exit_class(es) == 3
+            end
+
+            # ── C069 remainder: seasonal / point-optimal / bubble / EDF + residual
+            # cointegration. `reg` is a (y, X) frame for the cointegration leaves.
+            reg = _make_csv(dir; T=120, n=3, colnames=["y", "x1", "x2"])
+
+            @testset "hegy — per-frequency decision table (no single p-value)" begin
+                doc = _doc(["hegy", uni, "--column", "1", "--frequency", "4"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "frequency")
+                # HEGY rejects per frequency, so every row carries its own CV + decision.
+                @test Set(["frequency", "kind", "statistic", "cv_5pct", "decision"]) ⊆ Set(String.(tbl.columns))
+                @test length(tbl.rows) == 3          # zero + Nyquist + 1 harmonic pair (quarterly)
+                @test Set(["F (seasonal, joint)", "F (all roots)", "deterministic", "lags"]) ⊆ _metrics(doc)
+                @test _doc(["hegy", uni, "--frequency", "12"]).status == "ok"
+            end
+
+            @testset "ers — point-optimal kv with critical values" begin
+                doc = _doc(["ers", uni, "--column", "1"])
+                @test doc.status == "ok"
+                @test Set(["P_T statistic", "p-value", "regression", "CV 5%"]) ⊆ _metrics(doc)
+                @test _doc(["ers", uni, "--trend"]).status == "ok"
+            end
+
+            @testset "sadf/gsadf — episode table + summary kv" begin
+                for leaf in ("sadf", "gsadf")
+                    doc = _doc([leaf, uni, "--column", "1", "--mc-reps", "20"])
+                    @test doc.status == "ok"
+                    @test Set(["episode", "start_index", "end_index"]) ⊆ Set(String.(_tbl(doc, "episode").columns))
+                    @test Set(["statistic", "p-value", "kind", "r0", "episodes"]) ⊆ _metrics(doc)
+                end
+                @test _doc(["sadf", uni, "--r0", "0.2", "--cv", "wildboot"]).status == "ok"
+            end
+
+            @testset "edf — goodness-of-fit kv" begin
+                doc = _doc(["edf", uni, "--column", "1"])
+                @test doc.status == "ok"
+                @test Set(["statistic", "p-value", "test", "distribution", "case", "theta"]) ⊆ _metrics(doc)
+                @test _doc(["edf", uni, "--test", "ks", "--dist", "logistic"]).status == "ok"
+                # --params specified consumes the supplied --theta (upstream spells this
+                # :specified, NOT :known — a mock that accepted :known hid a real failure)
+                @test _doc(["edf", uni, "--params", "specified", "--theta", "0,1"]).status == "ok"
+            end
+
+            @testset "engle-granger / phillips-ouliaris — residual cointegration" begin
+                doc = _doc(["engle-granger", reg, "--dep", "y"])
+                @test doc.status == "ok"
+                @test Set(["statistic", "p-value", "lags", "regression", "regressors (k)"]) ⊆ _metrics(doc)
+
+                po = _doc(["phillips-ouliaris", reg, "--dep", "y"])
+                @test po.status == "ok"
+                # PO reports BOTH the studentized Z_t and the normalized-bias Z_alpha.
+                stat_tbl = _tbl(po, "statistic")
+                @test Set(["statistic", "value", "p_value"]) ⊆ Set(String.(stat_tbl.columns))
+                @test length(stat_tbl.rows) == 2
+                @test Set(["regression", "kernel", "bandwidth"]) ⊆ _metrics(po)
+                @test _doc(["phillips-ouliaris", reg, "--dep", "y", "--kernel", "parzen",
+                            "--bandwidth", "4"]).status == "ok"
+            end
+
+            @testset "hansen-instability / park-added — fitted on a CointRegModel" begin
+                hi = _doc(["hansen-instability", reg, "--dep", "y"])
+                @test hi.status == "ok"
+                @test Set(["L_c statistic", "p-value", "trend", "parameters"]) ⊆ _metrics(hi)
+
+                pa = _doc(["park-added", reg, "--dep", "y", "--q-add", "3"])
+                @test pa.status == "ok"
+                @test Set(["H(p,q) statistic", "p-value", "q_add (df)", "base trend order (p)"]) ⊆ _metrics(pa)
+                @test _doc(["park-added", reg, "--dep", "y", "--trend", "linear"]).status == "ok"
+            end
+
+            @testset "C069 remainder — bad input → typed CliError" begin
+                # every numeric option guarded up front → usage/invalid (exit 2)
+                e = _errcode(["hegy", uni, "--frequency", "7"])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                e = _errcode(["hegy", uni, "--lags", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["sadf", uni, "--adflag", "-1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["sadf", uni, "--mc-reps", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # --r0 outside (0,1) is rejected by the CLI, not left to upstream
+                e = _errcode(["sadf", uni, "--r0", "1.5"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["gsadf", uni, "--r0", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # --params known without --theta → usage/missing
+                e = _errcode(["edf", uni, "--params", "specified"])
+                @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+                e = _errcode(["edf", uni, "--params", "specified", "--theta", "a,b"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # the old wrong spelling is now rejected at the parser, not by MEMs
+                e = _errcode(["edf", uni, "--params", "known", "--theta", "0,1"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                # enum values are parser-rejected (ParseError, exit 2)
+                e = _errcode(["edf", uni, "--dist", "bogus"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                e = _errcode(["engle-granger", reg, "--trend", "linear"])   # cointreg's spelling, NOT EG's
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                e = _errcode(["engle-granger", reg, "--lags", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["engle-granger", reg, "--max-lags", "-2"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["phillips-ouliaris", reg, "--bandwidth", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["park-added", reg, "--q-add", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["park-added", reg, "--hac-bandwidth", "-1"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # unknown --dep on the (y,X) leaves → typed loader error, never exit 1
+                e = _errcode(["engle-granger", reg, "--dep", "nope"])
+                @test e isa CliError && e.code == "data/column-range"
+                e = _errcode(["hansen-instability", reg, "--dep", "nope"])
+                @test e isa CliError && e.code == "data/column-range"
+                # bad --column on the univariate leaves → data/column-range
+                e = _errcode(["ers", uni, "--column", "9"])
+                @test e isa CliError && e.code == "data/column-range"
             end
         end
     end
@@ -4450,7 +4569,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 60  # 58 primary + 2 snake aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 69  # 67 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5876,7 +5995,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 60  # 58 primary + 2 aliases (+gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 69  # 67 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin

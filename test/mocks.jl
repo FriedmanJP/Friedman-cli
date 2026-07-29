@@ -4893,6 +4893,224 @@ end
 export variance_ratio_test, bds_test, hadri_test
 export pedroni_test, kao_test, westerlund_test
 
+# ─── C069 (remainder): seasonal / point-optimal / bubble / EDF + residual
+# cointegration. Every struct is a field-order subset of real, and every mock
+# estimator reproduces the REAL argument validation — a mock looser than real
+# turns a guaranteed MEMs failure into a green suite (#84).
+
+struct HEGYResult{T<:AbstractFloat}
+    frequency::Int
+    deterministic::Symbol
+    lags::Int
+    pi_coefs::Vector{T}
+    t_zero::T
+    t_nyquist::T
+    t_zero_cv::Dict{Int,T}
+    t_nyquist_cv::Dict{Int,T}
+    pair_freqs::Vector{T}
+    pair_F::Vector{T}
+    pair_F_cv::Dict{Int,T}
+    F_seasonal::T
+    F_all::T
+    nobs::Int
+end
+
+struct ERSResult{T<:AbstractFloat}
+    P_T::T
+    pvalue::T
+    regression::Symbol
+    critical_values::Dict{Int,T}
+    nobs::Int
+end
+
+struct BubbleResult{T<:AbstractFloat}
+    kind::Symbol
+    statistic::T
+    pvalue::T
+    critical_values::Dict{Int,T}
+    bsadf::Vector{T}
+    cv_seq::Vector{T}
+    r2_index::Vector{Int}
+    episodes::Vector{Tuple{Int,Int}}
+    r0::T
+    adflag::Int
+    cv_method::Symbol
+    mc_reps::Int
+    nobs::Int
+end
+
+struct EDFTestResult{T<:AbstractFloat}
+    test::Symbol
+    dist::Symbol
+    params::Symbol
+    statistic::T
+    raw_statistic::T
+    pvalue::T
+    nobs::Int
+    theta::Vector{T}
+    critical_values::Dict{Int,T}
+    case::String
+end
+
+struct EngleGrangerResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    lags::Int
+    regression::Symbol
+    k::Int
+    N::Int
+    nobs::Int
+end
+
+struct PhillipsOuliarisResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    z_alpha::T
+    z_alpha_pvalue::T
+    regression::Symbol
+    kernel::Symbol
+    bandwidth::T
+    k::Int
+    N::Int
+    nobs::Int
+end
+
+struct HansenInstabilityResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    regression::Symbol
+    trend::Symbol
+    nparam::Int
+    k::Int
+    nobs::Int
+end
+
+struct ParkAddedResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    q_add::Int
+    base_order::Int
+    regression::Symbol
+    trend::Symbol
+    k::Int
+    nobs::Int
+end
+
+function hegy_test(y::AbstractVector; frequency::Int=4,
+                   deterministic::Symbol=:const_trend_seas, lags=:auto)
+    frequency ∈ (4, 12) ||
+        throw(ArgumentError("frequency must be 4 (quarterly) or 12 (monthly), got $frequency"))
+    deterministic ∈ (:none, :const, :const_seas, :const_trend, :const_trend_seas) ||
+        throw(ArgumentError("invalid deterministic :$deterministic"))
+    n = length(y)
+    n > 2 * frequency + 8 || throw(ArgumentError("Need more observations, got $n"))
+    npair = frequency == 4 ? 1 : 5
+    lg = lags === :auto ? 1 : Int(lags)
+    return HEGYResult{Float64}(frequency, deterministic, lg, fill(-0.3, 1 + npair),
+        -2.4, -2.9, Dict(1 => -3.7, 5 => -3.1, 10 => -2.8), Dict(1 => -3.6, 5 => -3.0, 10 => -2.7),
+        [Float64(i) * pi / 2 for i in 1:npair], fill(6.2, npair),
+        Dict(1 => 8.5, 5 => 6.5, 10 => 5.5), 7.1, 6.8, n - lg - 1)
+end
+
+function ers_test(y::AbstractVector; trend::Bool=false)
+    n = length(y)
+    n < 30 && throw(ArgumentError("Need at least 30 observations, got $n"))
+    return ERSResult{Float64}(3.2, 0.04, trend ? :trend : :constant,
+        Dict(1 => 1.9, 5 => 3.1, 10 => 4.5), n)
+end
+
+function _mock_bubble(y, kind::Symbol; r0=:auto, adflag::Int=0, mc_reps::Int=999,
+                      cv::Symbol=:asymptotic, seed::Int=20240716)
+    cv ∈ (:asymptotic, :wildboot) ||
+        throw(ArgumentError("cv must be :asymptotic or :wildboot; got :$cv"))
+    n = length(y)
+    r0f = r0 === :auto ? 0.01 + 1.8 / sqrt(n) : Float64(r0)
+    (0.0 < r0f < 1.0) || throw(ArgumentError("r0 must lie in (0,1), got $r0f"))
+    floor(Int, r0f * n) >= adflag + 3 || throw(ArgumentError("window too small for adflag=$adflag"))
+    nseq = max(1, n - floor(Int, r0f * n))
+    return BubbleResult{Float64}(kind, 1.85, 0.03, Dict(1 => 2.1, 5 => 1.5, 10 => 1.2),
+        fill(0.8, nseq), fill(1.5, nseq), collect(1:nseq),
+        [(max(1, n - 20), max(2, n - 10))], r0f, adflag, cv, mc_reps, n)
+end
+
+# Explicit kwargs, NOT `; kwargs...` — the bare absorber form is budgeted by
+# check_mock_surface (it hides signature drift), and each one-liner would spend two.
+sadf_test(y::AbstractVector; r0=:auto, adflag::Int=0, mc_reps::Int=999,
+          cv::Symbol=:asymptotic, seed::Int=20240716) =
+    _mock_bubble(y, :sadf; r0=r0, adflag=adflag, mc_reps=mc_reps, cv=cv, seed=seed)
+
+gsadf_test(y::AbstractVector; r0=:auto, adflag::Int=0, mc_reps::Int=999,
+           cv::Symbol=:asymptotic, seed::Int=20240716) =
+    _mock_bubble(y, :gsadf; r0=r0, adflag=adflag, mc_reps=mc_reps, cv=cv, seed=seed)
+
+const _MOCK_EDF_DISTS = (:normal, :exponential, :logistic, :gumbel, :gamma, :weibull, :chisq)
+const _MOCK_EDF_TESTS = (:ks, :lilliefors, :cvm, :ad, :watson)
+
+function edf_test(y::AbstractVector; dist::Symbol=:normal, test::Symbol=:ad,
+                  params::Symbol=:estimate, theta=nothing)
+    dist ∈ _MOCK_EDF_DISTS || throw(ArgumentError("dist must be one of $(_MOCK_EDF_DISTS); got :$dist"))
+    test ∈ _MOCK_EDF_TESTS || throw(ArgumentError("test must be one of $(_MOCK_EDF_TESTS); got :$test"))
+    params ∈ (:estimate, :specified) ||
+        throw(ArgumentError("params must be :estimate or :specified; got :$params"))
+    params === :specified && theta === nothing &&
+        throw(ArgumentError("params=:specified requires theta"))
+    n = length(y)
+    n >= 5 || throw(ArgumentError("Need at least 5 observations, got $n"))
+    th = theta === nothing ? Float64[mean(y), std(y)] : Float64.(collect(theta))
+    return EDFTestResult{Float64}(test, dist, params, 0.62, 0.58, 0.11, n, th,
+        Dict(1 => 1.03, 5 => 0.75, 10 => 0.63), "case 3")
+end
+
+function engle_granger_test(y::AbstractVector, X::AbstractMatrix;
+                            trend::Symbol=:constant, lags=:aic, max_lags=nothing)
+    trend ∈ (:none, :constant, :trend) ||
+        throw(ArgumentError("trend must be :none, :constant, or :trend; got :$trend"))
+    n = length(y)
+    size(X, 1) == n ||
+        throw(DimensionMismatch("length(y)=$n must equal size(X,1)=$(size(X,1))"))
+    k = size(X, 2)
+    k >= 1 || throw(ArgumentError("need at least one regressor column"))
+    n > 3 * k + 12 || throw(ArgumentError("too few observations ($n) for $k regressor(s)"))
+    lg = lags isa Symbol ? 1 : Int(lags)
+    return EngleGrangerResult{Float64}(-3.85, 0.03, lg, trend, k, k + 1, n - lg - 1)
+end
+
+function phillips_ouliaris_test(y::AbstractVector, X::AbstractMatrix;
+                                trend::Symbol=:constant, kernel::Symbol=:bartlett,
+                                bandwidth=:nw)
+    trend ∈ (:none, :constant, :trend) ||
+        throw(ArgumentError("trend must be :none, :constant, or :trend; got :$trend"))
+    kernel ∈ (:bartlett, :parzen, :qs, :quadratic_spectral, :tukey_hanning) ||
+        throw(ArgumentError("invalid kernel :$kernel"))
+    n = length(y)
+    size(X, 1) == n ||
+        throw(DimensionMismatch("length(y)=$n must equal size(X,1)=$(size(X,1))"))
+    k = size(X, 2)
+    k >= 1 || throw(ArgumentError("need at least one regressor column"))
+    n > 3 * k + 12 || throw(ArgumentError("too few observations ($n) for $k regressor(s)"))
+    bw = bandwidth isa Symbol ? floor(Int, 4 * ((n - 1) / 100)^0.25) : Float64(bandwidth)
+    return PhillipsOuliarisResult{Float64}(-3.6, 0.04, -21.5, 0.05, trend, kernel,
+        Float64(bw), k, k + 1, n - 1)
+end
+
+function hansen_instability_test(m)
+    return HansenInstabilityResult{Float64}(0.42, 0.12, :constant, m.trend,
+        m.k + 1, m.k, m.nobs)
+end
+
+function park_added_test(m; q_add::Int=2, kernel::Symbol=:bartlett, bandwidth=:nw)
+    q_add >= 1 || throw(ArgumentError("q_add must be ≥ 1; got $q_add"))
+    kernel ∈ (:bartlett, :parzen, :qs, :quadratic_spectral, :tukey_hanning) ||
+        throw(ArgumentError("invalid kernel :$kernel"))
+    return ParkAddedResult{Float64}(3.1, 0.21, q_add, m.trend === :linear ? 1 : 0,
+        :constant, m.trend, m.k, m.nobs)
+end
+
+export HEGYResult, ERSResult, BubbleResult, EDFTestResult
+export EngleGrangerResult, PhillipsOuliarisResult, HansenInstabilityResult, ParkAddedResult
+export hegy_test, ers_test, sadf_test, gsadf_test, edf_test
+export engle_granger_test, phillips_ouliaris_test, hansen_instability_test, park_added_test
+
 # ─── Cross-Sectional Regression Types & Functions ──────────────────
 
 struct RegModel{T<:Real}

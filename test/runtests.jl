@@ -4065,8 +4065,12 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 58 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
-    @test length(test_node.subcmds) == 60
+    # 67 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+    @test length(test_node.subcmds) == 69
+    for leaf in ("hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
+                 "phillips-ouliaris", "hansen-instability", "park-added")
+        @test haskey(test_node.subcmds, leaf)
+    end
     @test haskey(test_node.subcmds, "gph")
     @test haskey(test_node.subcmds, "local-whittle")
     # C071: nested VECM restriction-test node

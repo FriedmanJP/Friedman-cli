@@ -1475,6 +1475,179 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(dup; force=true)
             rm(uni; force=true); rm(cp; force=true)
         end
+
+        # ── C069 remainder: seasonal / point-optimal / bubble / EDF + residual
+        # cointegration. Each case asserts the DISCRIMINATING DIRECTION on a DGP built
+        # for that null, not a hard-coded statistic.
+
+        @testset "hegy — seasonal unit root vs deterministic seasonality" begin
+            su = dgp_seasonal(; T=240, deterministic=false, seed=121)
+            r = run_json(["test", "hegy", su, "--frequency", "4"])
+            assert_envelope_ok(r; label="hegy seasonal unit root")
+            t = coltable(r.doc, "decision")
+            # quarterly ⇒ zero + Nyquist + one harmonic pair
+            @test t !== nothing && length(table_rows(t)) == 3
+            @test Set(["frequency", "kind", "statistic", "cv_5pct", "decision"]) ⊆
+                  Set(String.(table_cols(t)))
+            # a seasonal random walk must not reject at EVERY seasonal frequency
+            decs = [String(collect(row)[col_index(t, "decision")]) for row in table_rows(t)]
+            @test any(d -> startswith(d, "cannot reject"), decs)
+
+            ds = dgp_seasonal(; T=240, deterministic=true, seed=123)
+            rd = run_json(["test", "hegy", ds, "--frequency", "4"])
+            assert_envelope_ok(rd; label="hegy deterministic seasonality")
+            decs_d = [String(collect(row)[col_index(coltable(rd.doc, "decision"), "decision")])
+                      for row in table_rows(coltable(rd.doc, "decision"))]
+            # stationary + dummies ⇒ the seasonal roots are rejected
+            @test count(d -> startswith(d, "reject"), decs_d) > count(d -> startswith(d, "reject"), decs)
+            rm(su; force=true); rm(ds; force=true)
+        end
+
+        @testset "ers — random walk (H0) vs stationary AR(1) (reject)" begin
+            rw = dgp_random_walk(; T=300, seed=125)
+            r0 = run_json(["test", "ers", rw])
+            assert_envelope_ok(r0; label="ers random walk")
+            p0 = scan_metric(r0.doc, "p-value")
+            @test p0 !== nothing && Float64(p0) > 0.05          # cannot reject a unit root
+
+            st = dgp_ar1(; T=300, φ=0.2, seed=127)
+            r1 = run_json(["test", "ers", st])
+            assert_envelope_ok(r1; label="ers stationary")
+            p1 = scan_metric(r1.doc, "p-value")
+            @test p1 !== nothing && Float64(p1) < 0.05          # reject the unit root
+            @test scan_metric(r1.doc, "regression") == "constant"
+            @test run_json(["test", "ers", st, "--trend"]).code == 0
+            rm(rw; force=true); rm(st; force=true)
+        end
+
+        @testset "sadf/gsadf — explosive episode vs pure random walk" begin
+            bub = dgp_bubble(; T=300, seed=129)
+            rw  = dgp_random_walk(; T=300, seed=131)
+            for leaf in ("sadf", "gsadf")
+                rb = run_json(["test", leaf, bub, "--mc-reps", "199"])
+                assert_envelope_ok(rb; label="$leaf bubble")
+                sb = scan_metric(rb.doc, "statistic")
+                rr = run_json(["test", leaf, rw, "--mc-reps", "199"])
+                assert_envelope_ok(rr; label="$leaf random walk")
+                sr = scan_metric(rr.doc, "statistic")
+                # the explosive series must score strictly higher than the pure I(1) one
+                @test sb !== nothing && sr !== nothing && Float64(sb) > Float64(sr)
+                @test coltable(rb.doc, "episode") !== nothing
+            end
+            rm(bub; force=true); rm(rw; force=true)
+        end
+
+        @testset "edf — normal sample (H0) vs an obviously non-normal one" begin
+            iid = dgp_iid(; T=400, seed=133)
+            r0 = run_json(["test", "edf", iid, "--dist", "normal", "--test", "ad"])
+            assert_envelope_ok(r0; label="edf normal")
+            p0 = scan_metric(r0.doc, "p-value")
+            @test p0 !== nothing && Float64(p0) > 0.05         # consistent with normality
+
+            # a random-walk LEVEL series is nowhere near normal
+            rw = dgp_random_walk(; T=400, seed=135)
+            r1 = run_json(["test", "edf", rw, "--dist", "normal", "--test", "ad"])
+            assert_envelope_ok(r1; label="edf non-normal")
+            p1 = scan_metric(r1.doc, "p-value")
+            @test p1 !== nothing && Float64(p1) < 0.05
+            @test run_json(["test", "edf", iid, "--test", "ks"]).code == 0
+            # upstream spells the supplied-parameter case :specified — a T3 regression, since
+            # the mock had wrongly accepted :known and hid the failure at T1/T2
+            @test run_json(["test", "edf", iid, "--params", "specified", "--theta", "0,1"]).code == 0
+            @test run_json(["test", "edf", iid, "--params", "known", "--theta", "0,1"]).code == 2
+            rm(iid; force=true); rm(rw; force=true)
+        end
+
+        @testset "engle-granger / phillips-ouliaris — cointegrated vs independent" begin
+            # NOTE the H0 flips relative to a unit-root test: H0 is NO cointegration, so
+            # a LOW p-value is evidence FOR a cointegrating relationship.
+            ci = dgp_coint(; T=250, β=2.0, seed=137)
+            nc = dgp_no_coint(; T=250, seed=139)
+            for leaf in ("engle-granger", "phillips-ouliaris")
+                rc = run_json(["test", leaf, ci, "--dep", "y"])
+                assert_envelope_ok(rc; label="$leaf cointegrated")
+                pc = scan_metric(rc.doc, "p-value")
+                pc = pc === nothing ? nothing : Float64(pc)
+                if pc === nothing                      # PO reports its p-values in a table
+                    t = coltable(rc.doc, "p_value")
+                    pc = minimum(Float64(collect(r)[col_index(t, "p_value")]) for r in table_rows(t))
+                end
+                @test pc < 0.05                        # cointegrated ⇒ reject no-cointegration
+
+                rn = run_json(["test", leaf, nc, "--dep", "y"])
+                assert_envelope_ok(rn; label="$leaf independent")
+                pn = scan_metric(rn.doc, "p-value")
+                pn = pn === nothing ? nothing : Float64(pn)
+                if pn === nothing
+                    t = coltable(rn.doc, "p_value")
+                    pn = minimum(Float64(collect(r)[col_index(t, "p_value")]) for r in table_rows(t))
+                end
+                @test pn > pc                          # independent walks score far weaker
+            end
+            @test run_json(["test", "phillips-ouliaris", ci, "--dep", "y",
+                            "--kernel", "parzen", "--bandwidth", "6"]).code == 0
+            @test run_json(["test", "engle-granger", ci, "--dep", "y", "--lags", "2"]).code == 0
+            rm(ci; force=true); rm(nc; force=true)
+        end
+
+        @testset "hansen-instability / park-added — stable cointegration" begin
+            ci = dgp_coint(; T=250, β=2.0, seed=141)
+            rh = run_json(["test", "hansen-instability", ci, "--dep", "y"])
+            assert_envelope_ok(rh; label="hansen-instability")
+            ph = scan_metric(rh.doc, "p-value")
+            # H0 here is STABLE cointegration, and the DGP has a constant β ⇒ don't reject
+            @test ph !== nothing && Float64(ph) > 0.05
+            @test scan_metric(rh.doc, "trend") == "const"
+
+            rp = run_json(["test", "park-added", ci, "--dep", "y", "--q-add", "2"])
+            assert_envelope_ok(rp; label="park-added")
+            pp = scan_metric(rp.doc, "p-value")
+            # H0 is genuine cointegration ⇒ don't reject on a genuinely cointegrated pair
+            @test pp !== nothing && Float64(pp) > 0.05
+            @test scan_metric(rp.doc, "q_add (df)") == 2
+
+            # A spurious pair must still produce a well-formed result. Deliberately NOT
+            # asserting statistic(spurious) > statistic(cointegrated): the Park H(p,q)
+            # test's power at T=250 on a single draw does not guarantee that ordering
+            # (measured 3.54 vs 4.25 on seeds 143/141), so such a check tests the seed,
+            # not the wrapper.
+            nc = dgp_no_coint(; T=250, seed=143)
+            rs = run_json(["test", "park-added", nc, "--dep", "y"])
+            assert_envelope_ok(rs; label="park-added spurious")
+            @test isfinite(Float64(scan_metric(rs.doc, "H(p,q) statistic")))
+            let psp = Float64(scan_metric(rs.doc, "p-value"))
+                @test 0.0 <= psp <= 1.0
+            end
+
+            @test run_json(["test", "hansen-instability", ci, "--dep", "y",
+                            "--method", "dols", "--leads", "2", "--lags", "2"]).code == 0
+            rm(ci; force=true); rm(nc; force=true)
+        end
+
+        @testset "C069 remainder — bad input stays typed" begin
+            uni = dgp_iid(; T=200, seed=145)
+            reg = dgp_coint(; T=200, seed=147)
+            @test run_json(["test", "hegy", uni, "--frequency", "7"]).code == 2
+            @test run_json(["test", "hegy", uni, "--lags", "junk"]).code == 2
+            @test run_json(["test", "sadf", uni, "--r0", "1.5"]).code == 2
+            @test run_json(["test", "sadf", uni, "--adflag", "-1"]).code == 2
+            @test run_json(["test", "gsadf", uni, "--mc-reps", "0"]).code == 2
+            @test run_json(["test", "edf", uni, "--params", "specified"]).code == 2
+            @test run_json(["test", "edf", uni, "--dist", "bogus"]).code == 2
+            # EG/PO take :none|:constant|:trend — cointreg's "linear" must NOT be accepted
+            @test run_json(["test", "engle-granger", reg, "--trend", "linear"]).code == 2
+            @test run_json(["test", "engle-granger", reg, "--dep", "nope"]).code == 3
+            @test run_json(["test", "phillips-ouliaris", reg, "--bandwidth", "junk"]).code == 2
+            @test run_json(["test", "park-added", reg, "--q-add", "0"]).code == 2
+            @test run_json(["test", "hansen-instability", reg, "--dep", "nope"]).code == 3
+            # too few observations for the (y,X) leaves → typed data error, never exit 1
+            short = tempname() * ".csv"
+            write(short, "y,x\n1.0,2.0\n2.0,3.1\n3.0,3.9\n4.0,5.2\n")
+            @test run_json(["test", "engle-granger", short, "--dep", "y"]).code == 3
+            @test run_json(["test", "ers", short]).code == 3        # ERS needs ≥ 30 obs
+            rm(short; force=true)
+            rm(uni; force=true); rm(reg; force=true)
+        end
     end
 
     @testset "forecast bvar/dynamic/gdfm/favar tidy (C051 redesign)" begin
