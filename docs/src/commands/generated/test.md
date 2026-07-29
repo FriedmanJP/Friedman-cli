@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 66
+**Leaves:** 75
 
 ### `friedman test adf`
 
@@ -301,6 +301,71 @@ Path to CSV data file
 
 ---
 
+### `friedman test edf`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--dist` | — | `String` | `normal` | `normal`, `exponential`, `logistic`, `gumbel`, `gamma`, `weibull`, `chisq` | Null distribution |
+| `--test` | — | `String` | `ad` | `ks`, `lilliefors`, `cvm`, `ad`, `watson` | EDF statistic |
+| `--params` | — | `String` | `estimate` | `estimate`, `specified` | Parameters ML-fitted from the data, or supplied via --theta |
+| `--theta` | — | `String` | `""` | — | Comma-separated parameters (required with --params specified) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `edf` (Path to CSV data file)
+
+---
+
+### `friedman test engle-granger`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
+| `--lags` | — | `String` | `aic` | — | ADF lags on the residuals: aic|bic|tstat or a non-negative integer |
+| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `engle_granger` (Path to CSV data file)
+
+---
+
+### `friedman test ers`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--trend` | — | Include a linear trend (default: constant only) |
+
+**Output tables:** `ers` (Path to CSV data file)
+
+---
+
 ### `friedman test f-fe`
 
 Path to CSV panel data file
@@ -473,6 +538,29 @@ Path to CSV data file
 
 ---
 
+### `friedman test gsadf`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--r0` | — | `String` | `auto` | — | Minimum window fraction: auto or a number in (0,1) |
+| `--adflag` | — | `Int64` | `0` | — | ADF augmentation lags (≥ 0) |
+| `--mc-reps` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
+| `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
+| `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `gsadf` (Path to CSV data file)
+
+---
+
 ### `friedman test hadri`
 
 Path to CSV data file (rows=T, cols=N units)
@@ -488,6 +576,30 @@ Path to CSV data file (rows=T, cols=N units)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hadri` (Path to CSV data file (rows=T, cols=N units))
+
+---
+
+### `friedman test hansen-instability`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
+| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
+| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews|nw94 or a non-negative number |
+| `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
+| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `hansen_instability` (Path to CSV data file)
 
 ---
 
@@ -550,6 +662,27 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hausman_iia` (Path to CSV data file)
+
+---
+
+### `friedman test hegy`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--frequency` | — | `Int64` | `4` | — | Seasonal frequency: 4 (quarterly) or 12 (monthly) |
+| `--deterministic` | — | `String` | `const-trend-seas` | `none`, `const`, `const-seas`, `const-trend`, `const-trend-seas` | Deterministic terms |
+| `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `hegy` (Path to CSV data file)
 
 ---
 
@@ -906,6 +1039,33 @@ Path to CSV data file (rows=T, cols=N)
 
 ---
 
+### `friedman test park-added`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
+| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
+| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews|nw94 or a non-negative number |
+| `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
+| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--q-add` | — | `Int64` | `2` | — | Number of superfluous trends added (≥ 1; the test df) |
+| `--hac-kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the test statistic |
+| `--hac-bandwidth` | — | `String` | `nw` | — | HAC bandwidth for the test: nw|andrews|nw94 or a non-negative number |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `park_added` (Path to CSV data file)
+
+---
+
 ### `friedman test pedroni`
 
 Path to CSV panel data file
@@ -946,6 +1106,27 @@ Path to CSV panel data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
 **Output tables:** `pesaran_cd` (Path to CSV panel data file)
+
+---
+
+### `friedman test phillips-ouliaris`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
+| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the residual long-run variance |
+| `--bandwidth` | — | `String` | `nw` | — | HAC bandwidth: nw|andrews|nw94 or a non-negative number |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `phillips_ouliaris` (Path to CSV data file)
 
 ---
 
@@ -1074,6 +1255,29 @@ Path to CSV panel data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pvar_stability` (Path to CSV panel data file)
+
+---
+
+### `friedman test sadf`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
+| `--r0` | — | `String` | `auto` | — | Minimum window fraction: auto or a number in (0,1) |
+| `--adflag` | — | `Int64` | `0` | — | ADF augmentation lags (≥ 0) |
+| `--mc-reps` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
+| `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
+| `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `sadf` (Path to CSV data file)
 
 ---
 

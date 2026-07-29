@@ -422,3 +422,46 @@ function dgp_msar(; n::Int=500, seed::Int=42)
     end
     return write_csv(DataFrame(y=y); prefix="msar")
 end
+
+# ── C069 (remainder): seasonal / bubble / non-cointegrated DGPs ──────────────
+
+"""Quarterly series with a SEASONAL UNIT ROOT: the seasonal differences accumulate
+(`y_t = y_{t-4} + ε_t`), so HEGY should fail to reject a unit root at the seasonal
+frequencies. `deterministic=true` instead gives fixed quarterly dummies around a
+stationary AR(1), where the seasonal roots ARE rejected."""
+function dgp_seasonal(; T::Int=240, deterministic::Bool=false, seed::Int=42)
+    rng = MersenneTwister(seed)
+    y = zeros(T)
+    if deterministic
+        dummies = [2.0, -1.0, 0.5, -1.5]
+        for t in 2:T
+            y[t] = 0.4 * y[t-1] + dummies[mod1(t, 4)] + randn(rng)
+        end
+    else
+        for t in 5:T
+            y[t] = y[t-4] + randn(rng)      # seasonal random walk
+        end
+    end
+    return write_csv(DataFrame(y=y); prefix="seasonal")
+end
+
+"""Series with an explosive episode in the middle: a random walk that switches to
+`y_t = 1.06 y_{t-1} + ε_t` for a stretch, then reverts. SADF/GSADF should reject the
+unit-root null; a pure random walk (`dgp_random_walk`) should not."""
+function dgp_bubble(; T::Int=300, start::Int=150, stop::Int=210, δ::Float64=1.06,
+                    seed::Int=42)
+    rng = MersenneTwister(seed)
+    y = zeros(T)
+    for t in 2:T
+        y[t] = (start <= t <= stop ? δ * y[t-1] : y[t-1]) + randn(rng)
+    end
+    return write_csv(DataFrame(y=y); prefix="bubble")
+end
+
+"""Two INDEPENDENT random walks — the residual-cointegration H0 (no cointegration).
+The mirror of `dgp_coint`, which is genuinely cointegrated."""
+function dgp_no_coint(; T::Int=250, seed::Int=42)
+    rng = MersenneTwister(seed)
+    return write_csv(DataFrame(x=cumsum(randn(rng, T)), y=cumsum(randn(rng, T)));
+                     prefix="nocoint")
+end
