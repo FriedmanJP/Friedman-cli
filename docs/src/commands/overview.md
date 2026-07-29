@@ -25,9 +25,9 @@ friedman
 ├── predict     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
 ├── residuals     arch | arima | bvar | dynamic | egarch | favar | garch | gdfm | gjr-garch | logit | mlogit | ologit | oprobit | piv | plogit | pprobit | preg | probit | reg | static | sv | var | vecm
 ├── spectral     acf | cross | density | periodogram | transfer
-└── test     adf | adf-2break | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breusch-pagan | cips | dfgls | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | johansen | kao | kpss | ljung-box | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | wooldridge-ar | za
+└── test     adf | adf-2break | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breusch-pagan | chow | cips | cusum | cusumsq | dfgls | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fourier-adf | fourier-kpss | glejser | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | harvey | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | influence | johansen | kao | kpss | ljung-box | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | recursive-residuals | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | white | wooldridge-ar | za
 
-Total: 18 top-level commands, 312 leaves (from registry).
+Total: 18 top-level commands, 320 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -51,7 +51,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`predict`](generated/predict.md) — 23 leaves
 - [`residuals`](generated/residuals.md) — 23 leaves
 - [`spectral`](generated/spectral.md) — 5 leaves
-- [`test`](generated/test.md) — 75 leaves
+- [`test`](generated/test.md) — 83 leaves
 
 <!-- END GENERATED -->
 

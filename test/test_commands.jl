@@ -2687,9 +2687,10 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 67 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 69
-        for cmd in ["hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
+        # 75 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+        @test length(node.subcmds) == 77
+        for cmd in ["white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
+                     "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                      "phillips-ouliaris", "hansen-instability", "park-added",
                      "adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
                      "normality", "identifiability", "heteroskedasticity",
@@ -3167,6 +3168,82 @@ end  # Estimate handlers
                 @test pa.status == "ok"
                 @test Set(["H(p,q) statistic", "p-value", "q_add (df)", "base trend order (p)"]) ⊆ _metrics(pa)
                 @test _doc(["park-added", reg, "--dep", "y", "--trend", "linear"]).status == "ok"
+            end
+
+            # ── C067 remainder (#72): cross-section OLS diagnostics. `reg` already
+            # exists above as a (y, X) frame.
+            @testset "white/glejser/harvey — RegDiagnosticResult kv" begin
+                for leaf in ("white", "glejser", "harvey")
+                    doc = _doc([leaf, reg, "--dep", "y"])
+                    @test doc.status == "ok"
+                    @test Set(["test", "H0", "statistic", "p-value", "df",
+                               "auxiliary R2", "observations"]) ⊆ _metrics(doc)
+                end
+                # the flag switches the auxiliary regression, not the result shape
+                @test _doc(["white", reg, "--dep", "y", "--no-cross-terms"]).status == "ok"
+            end
+
+            @testset "chow — required --break-at, multi-break, forecast variant" begin
+                doc = _doc(["chow", reg, "--dep", "y", "--break-at", "30"])
+                @test doc.status == "ok"
+                @test Set(["test", "H0", "statistic", "p-value", "df"]) ⊆ _metrics(doc)
+                # a comma-separated list is a multi-break test
+                @test _doc(["chow", reg, "--dep", "y", "--break-at", "20,40"]).status == "ok"
+                @test _doc(["chow", reg, "--dep", "y", "--break-at", "30",
+                            "--type", "forecast"]).status == "ok"
+            end
+
+            @testset "cusum/cusumsq — band path table, NO p-value" begin
+                for (leaf, col) in (("cusum", "cusum"), ("cusumsq", "cusumsq"))
+                    doc = _doc([leaf, reg, "--dep", "y"])
+                    @test doc.status == "ok"
+                    tbl = _tbl(doc, "observation")
+                    @test Set(["observation", col, "lower", "upper"]) ⊆ Set(String.(tbl.columns))
+                    @test length(tbl.rows) > 0
+                    @test Set(["kind", "crossed band", "first crossing", "level"]) ⊆ _metrics(doc)
+                    # StabilityResult carries a band, not a p-value — assert we do NOT
+                    # invent one (the ARDL-bounds / HEGY rule).
+                    @test !("p-value" in _metrics(doc))
+                end
+            end
+
+            @testset "influence / recursive-residuals — per-observation tables" begin
+                doc = _doc(["influence", reg, "--dep", "y"])
+                @test doc.status == "ok"
+                tbl = _tbl(doc, "hat")
+                @test Set(["observation", "hat", "student_internal", "student_external",
+                           "dffits", "cooksd"]) ⊆ Set(String.(tbl.columns))
+                @test Set(["sigma", "high-leverage count", "influential count"]) ⊆ _metrics(doc)
+
+                rr = _doc(["recursive-residuals", reg, "--dep", "y"])
+                @test rr.status == "ok"
+                rt = _tbl(rr, "recursive_residual")
+                @test Set(["step", "observation", "recursive_residual"]) ⊆ Set(String.(rt.columns))
+                @test Set(["count", "mean", "regressors (k)"]) ⊆ _metrics(rr)
+            end
+
+            @testset "C067 remainder — bad input → typed CliError" begin
+                # --break-at is required (and is NOT spelled --break: `break` is a Julia
+                # reserved word and cannot be a handler kwarg)
+                e = _errcode(["chow", reg, "--dep", "y"])
+                @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "junk"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "30", "--level", "1.5"])
+                @test e isa CliError && e.code == "usage/invalid"
+                e = _errcode(["cusum", reg, "--dep", "y", "--level", "0"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # enum values are parser-rejected
+                e = _errcode(["chow", reg, "--dep", "y", "--break-at", "30", "--type", "bogus"])
+                @test e isa ParseError || (e isa CliError && exit_class(e) == 2)
+                # unknown --dep → typed loader error on every leaf, never exit 1
+                for leaf in ("white", "glejser", "harvey", "cusum", "cusumsq",
+                             "influence", "recursive-residuals")
+                    e = _errcode([leaf, reg, "--dep", "nope"])
+                    @test e isa CliError && e.code == "data/column-range"
+                end
             end
 
             @testset "C069 remainder — bad input → typed CliError" begin
@@ -4569,7 +4646,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 69  # 67 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 77  # 75 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5995,7 +6072,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 69  # 67 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 77  # 75 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin

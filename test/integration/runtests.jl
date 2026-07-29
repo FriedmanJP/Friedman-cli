@@ -1624,6 +1624,91 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ci; force=true); rm(nc; force=true)
         end
 
+        # ── C067 remainder (#72): cross-section OLS diagnostics. Each case asserts the
+        # DISCRIMINATING DIRECTION on a DGP built for that null.
+
+        @testset "white/glejser/harvey — homoskedastic vs heteroskedastic" begin
+            hom = dgp_reg_diag(; n=300, hetero=false, seed=201)
+            het = dgp_reg_diag(; n=300, hetero=true, seed=203)
+            for leaf in ("white", "glejser", "harvey")
+                r0 = run_json(["test", leaf, hom, "--dep", "y"])
+                assert_envelope_ok(r0; label="$leaf homoskedastic")
+                p0 = Float64(scan_metric(r0.doc, "p-value"))
+                @test p0 > 0.05                     # H0 homoskedasticity holds
+
+                r1 = run_json(["test", leaf, het, "--dep", "y"])
+                assert_envelope_ok(r1; label="$leaf heteroskedastic")
+                p1 = Float64(scan_metric(r1.doc, "p-value"))
+                @test p1 < 0.05                     # reject homoskedasticity
+            end
+            @test run_json(["test", "white", hom, "--dep", "y", "--no-cross-terms"]).code == 0
+            rm(hom; force=true); rm(het; force=true)
+        end
+
+        @testset "chow — stable sample vs a slope break" begin
+            stable = dgp_reg_diag(; n=200, seed=205)
+            brk = dgp_reg_diag(; n=200, break_at=100, seed=207)
+            r0 = run_json(["test", "chow", stable, "--dep", "y", "--break-at", "100"])
+            assert_envelope_ok(r0; label="chow stable")
+            @test Float64(scan_metric(r0.doc, "p-value")) > 0.05
+
+            r1 = run_json(["test", "chow", brk, "--dep", "y", "--break-at", "100"])
+            assert_envelope_ok(r1; label="chow break")
+            @test Float64(scan_metric(r1.doc, "p-value")) < 0.05
+            @test run_json(["test", "chow", brk, "--dep", "y", "--break-at", "60,120"]).code == 0
+            rm(stable; force=true); rm(brk; force=true)
+        end
+
+        @testset "cusum/cusumsq — band path, no p-value" begin
+            brk = dgp_reg_diag(; n=200, break_at=100, seed=209)
+            for (leaf, col) in (("cusum", "cusum"), ("cusumsq", "cusumsq"))
+                r = run_json(["test", leaf, brk, "--dep", "y"])
+                assert_envelope_ok(r; label=leaf)
+                t = coltable(r.doc, col)
+                @test t !== nothing
+                @test Set(["observation", col, "lower", "upper"]) ⊆ Set(String.(table_cols(t)))
+                @test length(table_rows(t)) > 0
+                # StabilityResult has a band, NOT a p-value — the crossing IS the verdict
+                @test scan_metric(r.doc, "p-value") === nothing
+                @test scan_metric(r.doc, "crossed band") !== nothing
+            end
+            rm(brk; force=true)
+        end
+
+        @testset "influence / recursive-residuals — per-observation output" begin
+            csv = dgp_reg_diag(; n=150, seed=211)
+            ri = run_json(["test", "influence", csv, "--dep", "y"])
+            assert_envelope_ok(ri; label="influence")
+            t = coltable(ri.doc, "hat")
+            @test t !== nothing && length(table_rows(t)) == 150      # one row per observation
+            @test Set(["hat", "student_internal", "student_external", "dffits", "cooksd"]) ⊆
+                  Set(String.(table_cols(t)))
+            # Leverages sum to k (a standard identity) — checks we read the right field.
+            # Tolerance is loose because the CLI rounds `hat` to 6 dp, so summing n rows
+            # accumulates up to n*5e-7 of rounding (1e-6 fails at n=150).
+            hs = [Float64(collect(r)[col_index(t, "hat")]) for r in table_rows(t)]
+            @test isapprox(sum(hs), 3.0; atol=1e-3)                  # k = const + x1 + x2
+
+            rr = run_json(["test", "recursive-residuals", csv, "--dep", "y"])
+            assert_envelope_ok(rr; label="recursive-residuals")
+            rt = coltable(rr.doc, "recursive_residual")
+            @test rt !== nothing && length(table_rows(rt)) == 150 - 3   # n - k
+            rm(csv; force=true)
+        end
+
+        @testset "C067 remainder — bad input stays typed" begin
+            csv = dgp_reg_diag(; n=120, seed=213)
+            @test run_json(["test", "chow", csv, "--dep", "y"]).code == 2            # --break-at required
+            @test run_json(["test", "chow", csv, "--dep", "y", "--break-at", "junk"]).code == 2
+            @test run_json(["test", "chow", csv, "--dep", "y", "--break-at", "0"]).code == 2
+            # an out-of-range break reaches MEMs' ArgumentError → typed data/invalid, not exit 1
+            @test run_json(["test", "chow", csv, "--dep", "y", "--break-at", "500"]).code == 3
+            @test run_json(["test", "cusum", csv, "--dep", "y", "--level", "0"]).code == 2
+            @test run_json(["test", "white", csv, "--dep", "nope"]).code == 3
+            @test run_json(["test", "influence", csv, "--dep", "nope"]).code == 3
+            rm(csv; force=true)
+        end
+
         @testset "C069 remainder — bad input stays typed" begin
             uni = dgp_iid(; T=200, seed=145)
             reg = dgp_coint(; T=200, seed=147)
