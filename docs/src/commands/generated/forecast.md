@@ -3,7 +3,37 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 22
+**Leaves:** 28
+
+### `friedman forecast aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
+| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `forecast_aparch` (Path to CSV data file)
+
+---
 
 ### `friedman forecast arch`
 
@@ -91,6 +121,32 @@ Path to CSV data file
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `forecast_bvar` (Path to CSV data file)
+
+---
+
+### `friedman forecast cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `forecast_cgarch` (Path to CSV data file)
 
 ---
 
@@ -309,6 +365,68 @@ Path to CSV data file
 
 ---
 
+### `friedman forecast fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `forecast_fiegarch` (Path to CSV data file)
+
+---
+
+### `friedman forecast figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `forecast_figarch` (Path to CSV data file)
+
+---
+
 ### `friedman forecast garch`
 
 Path to CSV data file
@@ -333,6 +451,37 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `forecast_garch` (Path to CSV data file)
+
+---
+
+### `friedman forecast garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `forecast_garch_midas` (Path to CSV data file)
 
 ---
 
@@ -386,6 +535,34 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `forecast_gjr_garch` (Path to CSV data file)
+
+---
+
+### `friedman forecast igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `forecast_igarch` (Path to CSV data file)
 
 ---
 

@@ -2838,65 +2838,111 @@ export forecast_evaluate, diebold_mariano, clark_west, mincer_zarnowitz,
 # order mirror real; estimate_* compute plausible finite values from the series.
 struct IGARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; alpha::Vector{T}; beta::Vector{T}
+    conditional_variance::Vector{T}; residuals::Vector{T}
     loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct CGARCHModel{T<:Real}
     mu::T; omega::T; rho::T; phi::T; alpha::T; beta::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct APARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; alpha::Vector{T}; gamma::Vector{T}; beta::Vector{T}; delta::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     n_params::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct FIGARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; phi::Vector{T}; beta::Vector{T}; d::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     truncation::Int; n_neg_lambda::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct FIEGARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; theta::T; gamma::T; phi::Vector{T}; beta::Vector{T}; d::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     truncation::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct GarchMidasModel{T<:Real}
     mu::T; alpha::T; beta::T; m_const::T; theta::T; w::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     variance_ratio::T; K::Int; m_freq::Int; n_blocks::Int; rv::Symbol; span::Symbol
     loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 
+"""Plausible conditional-variance / residual paths for the C064a variant mocks — real
+carries both, and the #69 forecast/predict/residuals verbs consume them."""
+_mock_vol_paths(y, v) = (fill(Float64(v), length(y)),
+                         Float64.(collect(y)) .- mean(Float64.(collect(y))))
+
 function estimate_igarch(y, p::Int=1, q::Int=1; method::Symbol=:mle)
     v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
     a = fill(0.1 / q, q); b = fill(0.9 / p, p)     # Σα+Σβ = 1 by construction
-    IGARCHModel{Float64}(p, q, mean(y), 0.02 * v, a, b, -150.0, 306.0, 320.0, true, 45)
+    cv, rs = _mock_vol_paths(y, v)
+    IGARCHModel{Float64}(p, q, mean(y), 0.02 * v, a, b, cv, rs, -150.0, 306.0, 320.0, true, 45)
 end
 function estimate_cgarch(y; method::Symbol=:mle)
     v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
-    CGARCHModel{Float64}(mean(y), v, 0.99, 0.05, 0.05, 0.85, -148.0, 308.0, 324.0, true, 60)
+    cv, rs = _mock_vol_paths(y, v)
+    CGARCHModel{Float64}(mean(y), v, 0.99, 0.05, 0.05, 0.85, cv, rs, -148.0, 308.0, 324.0, true, 60)
 end
 function estimate_aparch(y, p::Int=1, q::Int=1; fix_delta=nothing, fix_gamma=nothing, method::Symbol=:mle)
     v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
     a = fill(0.05, q); g = fill(0.1, q); b = fill(0.85 / p, p); delta = 1.5
     nfree = (3 + 2q + p) - (fix_delta === nothing ? 0 : 1) - (fix_gamma === nothing ? 0 : q)
+    cv, rs = _mock_vol_paths(y, v)
     APARCHModel{Float64}(p, q, mean(y), (v^(delta / 2)) * 0.05, a, g, b, delta,
-                         nfree, -147.0, 310.0, 330.0, true, 70)
+                         cv, rs, nfree, -147.0, 310.0, 330.0, true, 70)
 end
 function estimate_figarch(r; p::Int=1, q::Int=1, d0::Real=0.4, truncation::Int=1000, dist::Symbol=:normal)
     v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
     K = min(truncation, length(r) - 1)
+    cv, rs = _mock_vol_paths(r, v)
     FIGARCHModel{Float64}(p, q, mean(r), 0.02 * v, fill(0.3 / q, q), fill(0.5 / p, p),
-                          Float64(d0), K, 0, -149.0, 306.0, 322.0, true, 55)
+                          Float64(d0), cv, rs, K, 0, -149.0, 306.0, 322.0, true, 55)
 end
 function estimate_fiegarch(r; p::Int=1, q::Int=1, d0::Real=0.4, truncation::Int=1000, dist::Symbol=:normal)
     v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
     K = min(truncation, length(r) - 1)
+    cv, rs = _mock_vol_paths(r, v)
     FIEGARCHModel{Float64}(p, q, mean(r), log(max(v, 1e-8)), -0.05, 0.1,
-                           fill(0.3 / q, q), fill(0.5 / p, p), Float64(d0), K,
+                           fill(0.3 / q, q), fill(0.5 / p, p), Float64(d0), cv, rs, K,
                            -146.0, 308.0, 328.0, true, 65)
 end
 function estimate_garch_midas(r, x_lf=Float64[]; K::Int=12, m_freq::Int, rv::Symbol=:realized, span::Symbol=:fixed)
     v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
     nblk = fld(length(r), max(m_freq, 1))
+    cv, rs = _mock_vol_paths(r, v)
     GarchMidasModel{Float64}(mean(r), 0.05, 0.85, log(max(v, 1e-8)), 0.1, 3.0,
-                             0.4, K, m_freq, nblk, rv, span, -145.0, 302.0, 320.0, true, 80)
+                             cv, rs, 0.4, K, m_freq, nblk, rv, span, -145.0, 302.0, 320.0, true, 80)
 end
+
+
+# #69 verbs. forecast returns a VolatilityForecast for five variants but a NamedTuple
+# (total, long_run, short_run, horizon) for GarchMidasModel — exactly as real does.
+const _MOCK_VOL_VARIANTS = Union{IGARCHModel,CGARCHModel,APARCHModel,FIGARCHModel,FIEGARCHModel}
+
+function forecast(m::_MOCK_VOL_VARIANTS, h::Int; conf_level::Real=0.95, n_sim::Int=10000)
+    h >= 1 || throw(ArgumentError("Forecast horizon must be ≥ 1"))
+    base = m.conditional_variance[end]
+    f = fill(Float64(base), h)
+    VolatilityForecast{Float64}(f, f .* 0.8, f .* 1.2, f .* 0.1, h, Float64(conf_level), :variant)
+end
+
+function forecast(m::GarchMidasModel, h::Int)
+    h < 1 && throw(ArgumentError("Forecast horizon must be ≥ 1"))
+    tot = fill(Float64(m.conditional_variance[end]), h)
+    (total=tot, long_run=fill(1.05, h), short_run=tot ./ 1.05, horizon=h)
+end
+
+# predict(m) is the in-sample conditional variance — real defines it for igarch/cgarch/
+# aparch/garch-midas but NOT figarch/fiegarch, so the mock omits those two as well and
+# the handler falls back to the .conditional_variance field (mock ⊆ real).
+predict(m::IGARCHModel) = m.conditional_variance
+predict(m::CGARCHModel) = m.conditional_variance
+predict(m::APARCHModel) = m.conditional_variance
+predict(m::GarchMidasModel) = m.conditional_variance
+
+residuals(m::_MOCK_VOL_VARIANTS) = m.residuals
+residuals(m::GarchMidasModel) = m.residuals
 
 coef(m::IGARCHModel) = vcat(m.mu, m.omega, m.alpha, m.beta)
 coef(m::CGARCHModel) = [m.mu, m.omega, m.rho, m.phi, m.alpha, m.beta]

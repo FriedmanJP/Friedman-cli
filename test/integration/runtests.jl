@@ -1624,6 +1624,57 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ci; force=true); rm(nc; force=true)
         end
 
+        @testset "GARCH-variant forecast/predict/residuals (C064 #69)" begin
+            csv = dgp_garch(; T=500, seed=401)
+            for v in ("igarch", "cgarch", "aparch", "figarch", "fiegarch")
+                rf = run_json(["forecast", v, csv, "--horizons", "5"])
+                assert_envelope_ok(rf; label="forecast $v")
+                t = first_table(rf.doc)[2]
+                @test t !== nothing && length(table_rows(t)) == 5
+
+                rp = run_json(["predict", v, csv])
+                assert_envelope_ok(rp; label="predict $v")
+                pt = coltable(rp.doc, "variance")
+                @test pt !== nothing && length(table_rows(pt)) > 0
+                @test Set(["t", "variance", "volatility"]) ⊆ Set(String.(table_cols(pt)))
+
+                rr = run_json(["residuals", v, csv])
+                assert_envelope_ok(rr; label="residuals $v")
+                rt = coltable(rr.doc, "residual")
+                @test rt !== nothing && length(table_rows(rt)) > 0
+            end
+
+            # garch-midas: forecast returns the long-run/short-run decomposition, not a
+            # VolatilityForecast, and takes NO --conf-level.
+            gm = ["--m-freq", "20", "--k", "6"]
+            rg = run_json(vcat(["forecast", "garch-midas", csv], gm, ["--horizons", "4"]))
+            assert_envelope_ok(rg; label="forecast garch-midas")
+            gt = coltable(rg.doc, "long_run")
+            @test gt !== nothing && length(table_rows(gt)) == 4
+            @test Set(["horizon", "total_variance", "long_run", "short_run",
+                       "volatility"]) ⊆ Set(String.(table_cols(gt)))
+            # total = long_run * short_run, by construction
+            row = first(table_rows(gt))
+            tot = Float64(collect(row)[col_index(gt, "total_variance")])
+            lr = Float64(collect(row)[col_index(gt, "long_run")])
+            sr = Float64(collect(row)[col_index(gt, "short_run")])
+            @test isapprox(tot, lr * sr; rtol=1e-4)
+
+            @test run_json(vcat(["predict", "garch-midas", csv], gm)).code == 0
+            @test run_json(vcat(["residuals", "garch-midas", csv], gm)).code == 0
+
+            # MEMs ships no plot_result for that NamedTuple, so --plot must NOT exist
+            @test run_json(vcat(["forecast", "garch-midas", csv], gm, ["--plot"])).code == 2
+            # the other five DO plot, so --plot-save is a String option there
+            @test run_json(["forecast", "igarch", csv, "--horizons", "3"]).code == 0
+
+            @test run_json(["forecast", "igarch", csv, "--horizons", "0"]).code == 2
+            @test run_json(["forecast", "igarch", csv, "--conf-level", "1.5"]).code == 2
+            @test run_json(["predict", "igarch", csv, "--column", "9"]).code == 3
+            @test run_json(["forecast", "garch-midas", csv]).code == 2   # --m-freq required
+            rm(csv; force=true)
+        end
+
         @testset "llc/ips/breitung — unit-root vs stationary panel" begin
             # H0 for all three is that EVERY unit has a unit root — the OPPOSITE of hadri.
             i1 = dgp_panel_matrix(; N=10, T=80, unit_root=true, seed=301)

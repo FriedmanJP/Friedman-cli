@@ -3,7 +3,30 @@
 
 Generated reference for `friedman predict` and its subcommands.
 
-**Leaves:** 23
+**Leaves:** 29
+
+### `friedman predict aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
+| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `predict_aparch` (Path to CSV data file)
+
+---
 
 ### `friedman predict arch`
 
@@ -71,6 +94,25 @@ In-sample fitted values (bvar)
 
 ---
 
+### `friedman predict cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `predict_cgarch` (Path to CSV data file)
+
+---
+
 ### `friedman predict dynamic`
 
 In-sample fitted values (dynamic)
@@ -131,6 +173,54 @@ In-sample fitted values (favar)
 
 ---
 
+### `friedman predict fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `predict_fiegarch` (Path to CSV data file)
+
+---
+
+### `friedman predict figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `predict_figarch` (Path to CSV data file)
+
+---
+
 ### `friedman predict garch`
 
 In-sample fitted values (garch)
@@ -147,6 +237,36 @@ In-sample fitted values (garch)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_garch` (In-sample fitted values)
+
+---
+
+### `friedman predict garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `predict_garch_midas` (Path to CSV data file)
 
 ---
 
@@ -186,6 +306,27 @@ In-sample fitted values (gjr-garch)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_gjr_garch` (In-sample fitted values)
+
+---
+
+### `friedman predict igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `predict_igarch` (Path to CSV data file)
 
 ---
 

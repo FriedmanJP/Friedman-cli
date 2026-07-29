@@ -3,7 +3,30 @@
 
 Generated reference for `friedman residuals` and its subcommands.
 
-**Leaves:** 23
+**Leaves:** 29
+
+### `friedman residuals aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
+| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_aparch` (Path to CSV data file)
+
+---
 
 ### `friedman residuals arch`
 
@@ -71,6 +94,25 @@ Model residuals (bvar)
 
 ---
 
+### `friedman residuals cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_cgarch` (Path to CSV data file)
+
+---
+
 ### `friedman residuals dynamic`
 
 Model residuals (dynamic)
@@ -131,6 +173,54 @@ Model residuals (favar)
 
 ---
 
+### `friedman residuals fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_fiegarch` (Path to CSV data file)
+
+---
+
+### `friedman residuals figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_figarch` (Path to CSV data file)
+
+---
+
 ### `friedman residuals garch`
 
 Model residuals (garch)
@@ -147,6 +237,36 @@ Model residuals (garch)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_garch` (Model residuals)
+
+---
+
+### `friedman residuals garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `residuals_garch_midas` (Path to CSV data file)
 
 ---
 
@@ -186,6 +306,27 @@ Model residuals (gjr-garch)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_gjr_garch` (Model residuals)
+
+---
+
+### `friedman residuals igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_igarch` (Path to CSV data file)
 
 ---
 
