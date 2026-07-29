@@ -5498,6 +5498,86 @@ end  # Predict handlers
 # Residuals handlers (residuals.jl)
 # ═══════════════════════════════════════════════════════════════
 
+@testset "dsge bayes posterior-mode / prior-predictive (C073 #78)" begin
+    mktempdir() do dir
+        model = joinpath(dir, "m.toml")
+        write(model, """
+        [model]
+        parameters = { rho = 0.9, sigma = 0.01 }
+        endogenous = ["Y", "C"]
+        exogenous = ["e"]
+        [[model.equations]]
+        expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
+        [[model.equations]]
+        expr = "C[t] = Y[t]"
+        """)
+        priors = joinpath(dir, "p.toml")
+        write(priors, """
+        [priors]
+        [priors.rho]
+        dist = "beta"
+        a = 0.5
+        b = 0.2
+        [priors.sigma]
+        dist = "inv_gamma"
+        a = 2.0
+        b = 0.1
+        """)
+        data = joinpath(dir, "d.csv")
+        open(data, "w") do io
+            println(io, "Y"); y = 0.0
+            for _ in 1:40; y = 0.9y + 0.01randn(); println(io, y); end
+        end
+
+        @testset "posterior-mode — mode table + Laplace diagnostics" begin
+            out = _capture() do
+                _dsge_bayes_posterior_mode(; model=model, data=data, params="rho,sigma",
+                    priors=priors, observables="Y", format="table", output="")
+            end
+            @test contains(out, "mode") && contains(out, "std_error")
+            @test contains(out, "Laplace log ML") && contains(out, "converged")
+        end
+
+        @testset "prior-predictive — needs NO --data" begin
+            out = _capture() do
+                _dsge_bayes_prior_predictive(; model=model, params="rho,sigma",
+                    priors=priors, observables="Y", n_draws=20, periods=50,
+                    format="table", output="")
+            end
+            @test contains(out, "statistic") && contains(out, "median")
+            @test contains(out, "draws that solved")
+        end
+
+        @testset "bad input → typed CliError" begin
+            err(f) = try; _capture() do; f(); end; nothing; catch e; e end
+            # posterior-mode requires data/params/priors (shared _dsge_bayes_inputs)
+            e = err(() -> _dsge_bayes_posterior_mode(; model=model, params="rho",
+                        priors=priors, format="table", output=""))
+            @test e isa CliError && e.code == "usage/missing"
+            e = err(() -> _dsge_bayes_posterior_mode(; model=model, data=data,
+                        priors=priors, format="table", output=""))
+            @test e isa CliError && e.code == "usage/missing"
+            e = err(() -> _dsge_bayes_posterior_mode(; model=model, data=data,
+                        params="rho", format="table", output=""))
+            @test e isa CliError && e.code == "usage/missing"
+            e = err(() -> _dsge_bayes_posterior_mode(; model=model, data=data,
+                        params="rho,sigma", priors=priors, max_iter=0,
+                        format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+            # prior-predictive must NOT demand --data, but still needs params/priors
+            e = err(() -> _dsge_bayes_prior_predictive(; model=model, priors=priors,
+                        format="table", output=""))
+            @test e isa CliError && e.code == "usage/missing"
+            e = err(() -> _dsge_bayes_prior_predictive(; model=model, params="rho,sigma",
+                        priors=priors, n_draws=0, format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _dsge_bayes_prior_predictive(; model=model, params="rho,sigma",
+                        priors=priors, periods=0, format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+end
+
 @testset "GARCH-variant forecast/predict/residuals (C064 #69)" begin
     # The six C064a variants are NOT in VOL_MODELS (their option sets differ), so these
     # verbs are hand-written per variant; each mirrors its `estimate` sibling's options.

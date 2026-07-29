@@ -400,6 +400,40 @@ function dsge_specs()::Vector{CommandSpec}
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_marginal_lik),
         ),
+        # C073 remainder (#78). NOTE: BAYES_OPTIONS is NOT splatted here — it carries
+        # sampler/n-smc/n-particles/burnin/ess-target, which neither handler accepts, and
+        # declaring an option a handler cannot take MethodErrors on every use (#85).
+        # select_options picks exactly the ones each signature has.
+        CommandSpec(
+            path=["dsge", "bayes", "posterior-mode"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                select_options(BAYES_OPTIONS, "data", "params", "priors", "observables",
+                               "solver", "order", "constraint-solver", "output", "format")...,
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations (≥ 1)"),
+                OptionSpec(name="f-reltol", type=Float64, default=1e-8, description="Relative function tolerance (> 0)"),
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:bayes_posterior_mode, description="Posterior mode with Laplace standard errors")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_posterior_mode),
+        ),
+        CommandSpec(
+            path=["dsge", "bayes", "prior-predictive"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                # no --data: prior_predictive draws from the PRIOR and needs none
+                select_options(BAYES_OPTIONS, "params", "priors", "observables", "solver",
+                               "order", "constraint-solver", "n-draws", "output", "format")...,
+                OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:bayes_prior_predictive, description="Prior predictive distribution of summary statistics")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_bayes_prior_predictive),
+        ),
         # ── HA-DSGE node (C040 / MEMs 0.6.7) ──
         # estimate un-deferred (C048): MEMs#228 fixed in 0.6.7 — observation matrix Z is
         # now built from the reduction C rows, so HA Bayesian estimation is meaningful.
@@ -1094,13 +1128,18 @@ function _dsge_priors_distributions(priors_config::Dict)
                 for (name, spec) in raw)
 end
 
-"""Shared helper: run Bayesian DSGE estimation and return the result."""
-function _dsge_bayes_run_estimation(; model::String, data::String, params::String,
-        priors::String, sampler::String, n_smc::Int, n_particles::Int,
-        n_draws::Int, burnin::Int, ess_target::Float64, observables::String,
-        solver::String, order::Int, delayed_acceptance::Bool,
-        constraint_solver::String="")
-    isempty(data) && throw(CliError("usage/missing", "--data is required (path to CSV data file)"))
+"""Gather the shared inputs for every Bayesian DSGE leaf: the spec, the data matrix,
+`theta0` as a name→value Dict, the bridged priors, observables and solver kwargs. Split
+out of `_dsge_bayes_run_estimation` so `dsge bayes posterior-mode`/`prior-predictive`
+(#78) get IDENTICAL input handling rather than a second, drifting copy.
+
+`require_data=false` serves `prior-predictive`, which needs no data at all — it draws
+from the prior, so demanding `--data` would be a false requirement."""
+function _dsge_bayes_inputs(; model::String, data::String, params::String,
+        priors::String, observables::String, solver::String, order::Int,
+        constraint_solver::String="", require_data::Bool=true)
+    require_data && isempty(data) &&
+        throw(CliError("usage/missing", "--data is required (path to CSV data file)"))
     isempty(params) && throw(CliError("usage/missing", "--params is required (comma-separated parameter names)"))
     isempty(priors) && throw(CliError("usage/missing", "--priors is required (path to priors TOML)"))
 
@@ -1111,8 +1150,7 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
 
     spec = _load_dsge_model(model)
 
-    df = load_data(data)
-    Y = df_to_matrix(df)
+    Y = isempty(data) ? zeros(0, 0) : df_to_matrix(load_data(data))
 
     param_names = [strip(p) for p in split(params, ",")]
     # theta0 as a name→value Dict (MEMs #136 / C054): the by-name path resolves
@@ -1129,6 +1167,22 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     obs_syms = isempty(observables) ? Symbol[] : Symbol.(strip.(split(observables, ",")))
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
+
+    return (spec=spec, Y=Y, theta0=theta0, priors_dict=priors_dict,
+            obs_syms=obs_syms, solver_kwargs=solver_kwargs, param_names=param_names)
+end
+
+"""Shared helper: run Bayesian DSGE estimation and return the result."""
+function _dsge_bayes_run_estimation(; model::String, data::String, params::String,
+        priors::String, sampler::String, n_smc::Int, n_particles::Int,
+        n_draws::Int, burnin::Int, ess_target::Float64, observables::String,
+        solver::String, order::Int, delayed_acceptance::Bool,
+        constraint_solver::String="")
+    inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
+                             constraint_solver)
+    spec, Y, theta0 = inp.spec, inp.Y, inp.theta0
+    priors_dict, obs_syms, solver_kwargs = inp.priors_dict, inp.obs_syms, inp.solver_kwargs
+    param_names = inp.param_names
 
     _status("Bayesian DSGE Estimation:")
     _status("  Sampler: $sampler")
@@ -1710,6 +1764,101 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
         "threshold" => threshold,
     ]; format=format, title="Overlap Summary")
     return nothing
+end
+
+# C073 remainder (#78): posterior mode + prior predictive.
+#
+# Both go through the shared `_dsge_bayes_inputs`, so they see the same theta0-as-Dict,
+# priors bridging and observable handling as the sampler leaves. Both evaluate the
+# runtime-loaded @dsge spec's residual fns, so both route through `_dsge_call` (the
+# world-age barrier).
+#
+# NOTE `posterior_mode` reports the LAPLACE log marginal likelihood as a field
+# (`laplace_log_ml`). There is deliberately no `--ml bridge` here: bridge sampling needs
+# posterior DRAWS, which a mode-finder does not produce — `dsge bayes marginal-lik` is
+# the leaf for that.
+function _dsge_bayes_posterior_mode(; model::String, data::String="", params::String="",
+        priors::String="", observables::String="", solver::String="gensys", order::Int=1,
+        max_iter::Int=500, f_reltol::Float64=1e-8, constraint_solver::String="",
+        output::String="", format::String="table")
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "dsge bayes posterior-mode: --max-iter must be ≥ 1 (got $max_iter)"))
+    f_reltol > 0 || throw(CliError("usage/invalid",
+        "dsge bayes posterior-mode: --f-reltol must be > 0 (got $f_reltol)"))
+    inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
+                             constraint_solver)
+    _status("Bayesian DSGE Posterior Mode:")
+    _status("  Parameters: $(join(inp.param_names, ", "))")
+    _status("  Data: $(size(inp.Y, 1)) obs × $(size(inp.Y, 2)) vars")
+    _status()
+    res = try
+        _dsge_call(posterior_mode, inp.spec, inp.Y, inp.theta0;
+            priors=inp.priors_dict, observables=inp.obs_syms,
+            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs,
+            f_reltol=f_reltol, max_iter=max_iter)
+    catch e
+        throw(_identification_error(e))
+    end
+    # Mode + the Laplace standard errors implied by the inverse Hessian.
+    md = Float64.(collect(res.mode))
+    se = [sqrt(abs(Float64(res.inv_hessian[i, i]))) for i in 1:length(md)]
+    output_result(DataFrame(
+            parameter = String.(res.param_names),
+            mode = round.(md; digits=6),
+            std_error = round.(se; digits=6));
+        format=Symbol(format), output=output, title="Posterior Mode")
+    output_kv(Pair{String,Any}[
+        "log posterior" => round(Float64(res.log_posterior); digits=6),
+        "log likelihood" => round(Float64(res.log_likelihood); digits=6),
+        "Laplace log ML" => round(Float64(res.laplace_log_ml); digits=6),
+        "converged" => res.converged,
+        "iterations" => res.n_iterations];
+        format=format, title="Posterior Mode Diagnostics")
+    res.converged || _status_styled("-> optimizer did NOT converge — treat the mode and its Laplace ML with caution\n"; color=:yellow)
+    return res
+end
+
+# prior_predictive draws from the PRIOR, so it needs NO data — requiring --data would be
+# a false requirement (hence require_data=false).
+function _dsge_bayes_prior_predictive(; model::String, params::String="",
+        priors::String="", observables::String="", solver::String="gensys", order::Int=1,
+        n_draws::Int=500, periods::Int=200, constraint_solver::String="",
+        output::String="", format::String="table")
+    n_draws >= 1 || throw(CliError("usage/invalid",
+        "dsge bayes prior-predictive: --n-draws must be ≥ 1 (got $n_draws)"))
+    periods >= 1 || throw(CliError("usage/invalid",
+        "dsge bayes prior-predictive: --periods must be ≥ 1 (got $periods)"))
+    inp = _dsge_bayes_inputs(; model, data="", params, priors, observables, solver, order,
+                             constraint_solver, require_data=false)
+    _status("Bayesian DSGE Prior Predictive: draws=$n_draws, periods=$periods")
+    _status()
+    res = try
+        _dsge_call(prior_predictive, inp.spec, inp.priors_dict;
+            n_draws=n_draws, T_periods=periods, observables=inp.obs_syms,
+            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs)
+    catch e
+        throw(_identification_error(e))
+    end
+    # `stats` is (n_effective × n_stats): summarise each statistic across the draws that
+    # actually solved, which is the point of a prior predictive check.
+    S = Float64.(res.stats)
+    nstat = size(S, 2)
+    output_result(DataFrame(
+            statistic = String.(res.stat_names),
+            mean = [round(mean(view(S, :, j)); digits=6) for j in 1:nstat],
+            std = [round(sqrt(var(view(S, :, j))); digits=6) for j in 1:nstat],
+            q05 = [round(quantile(view(S, :, j), 0.05); digits=6) for j in 1:nstat],
+            median = [round(median(view(S, :, j)); digits=6) for j in 1:nstat],
+            q95 = [round(quantile(view(S, :, j), 0.95); digits=6) for j in 1:nstat]);
+        format=Symbol(format), output=output, title="Prior Predictive Distribution")
+    output_kv(Pair{String,Any}[
+        "draws requested" => res.n_draws,
+        "draws that solved" => res.n_effective,
+        "periods simulated" => res.T_periods];
+        format=format, title="Prior Predictive Summary")
+    res.n_effective < res.n_draws && _status_styled(
+        "-> $(res.n_draws - res.n_effective) prior draw(s) failed to solve and were dropped\n"; color=:yellow)
+    return res
 end
 
 function _dsge_bayes_marginal_lik(; model::String, data::String="", params::String="",

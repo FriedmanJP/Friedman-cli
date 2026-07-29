@@ -3758,7 +3758,7 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     # bayes is a NodeCommand with 13 sub-leaves (8 core + 5 diagnostics, C073)
     bayes_node = dsge_node.subcmds["bayes"]
     @test bayes_node isa NodeCommand
-    @test length(bayes_node.subcmds) == 13
+    @test length(bayes_node.subcmds) == 15
     @test haskey(bayes_node.subcmds, "estimate")
     @test haskey(bayes_node.subcmds, "irf")
     @test haskey(bayes_node.subcmds, "fevd")

@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 34
+**Leaves:** 36
 
 ### `friedman dsge bayes compare`
 
@@ -355,6 +355,32 @@ Path to DSGE model file (.toml or .jl)
 
 ---
 
+### `friedman dsge bayes posterior-mode`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--params` | — | `String` | `""` | — | Comma-separated parameter names |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--solver` | — | `String` | `gensys` | — | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations (≥ 1) |
+| `--f-reltol` | — | `Float64` | `1.0e-8` | — | Relative function tolerance (> 0) |
+
+**Output tables:** `bayes_posterior_mode` (Posterior mode with Laplace standard errors)
+
+---
+
 ### `friedman dsge bayes predictive`
 
 Path to DSGE model file (.toml or .jl)
@@ -390,6 +416,31 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `bayes_predictive` (Path to DSGE model file (.toml or .jl))
+
+---
+
+### `friedman dsge bayes prior-predictive`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--params` | — | `String` | `""` | — | Comma-separated parameter names |
+| `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--solver` | — | `String` | `gensys` | — | gensys|klein|perturbation |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path |
+| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--periods` | — | `Int64` | `200` | — | Periods to simulate per draw (≥ 1) |
+
+**Output tables:** `bayes_prior_predictive` (Prior predictive distribution of summary statistics)
 
 ---
 

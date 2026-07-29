@@ -2727,6 +2727,79 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test tbl !== nothing
         end
 
+        @testset "dsge bayes posterior-mode / prior-predictive (C073 #78)" begin
+            pri = joinpath(dir, "priors_pm.toml")
+            write(pri, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+            dat = joinpath(dir, "data_pm.csv")
+            open(dat, "w") do io
+                println(io, "Y"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, y); end
+            end
+
+            # local helpers: coltable/scan_metric elsewhere in this file are closures
+            # scoped to other testsets, not globals
+            find_tbl(doc, col) = begin
+                hit = nothing
+                for t in values(doc.data)
+                    if t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)
+                        hit = t; break
+                    end
+                end
+                hit
+            end
+            metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
+                               if (t isa JSON3.Object && haskey(t, :columns) &&
+                                   "metric" in String.(t.columns)) for r in t.rows)
+
+            r = run_json(["dsge", "bayes", "posterior-mode", model_toml,
+                          "--data", dat, "--params", "rho,sigma",
+                          "--priors", pri, "--observables", "Y"])
+            assert_envelope_ok(r; label="dsge bayes posterior-mode")
+            t = find_tbl(r.doc, "mode")
+            @test t !== nothing && length(table_rows(t)) == 2      # rho, sigma
+            @test Set(["parameter", "mode", "std_error"]) ⊆ Set(String.(table_cols(t)))
+            @test Set(["log posterior", "log likelihood", "Laplace log ML",
+                       "converged"]) ⊆ metrics(r.doc)
+
+            # prior-predictive needs NO --data: it draws from the prior. Passing --data
+            # would be a false requirement, so the leaf does not accept it.
+            rp = run_json(["dsge", "bayes", "prior-predictive", model_toml,
+                           "--params", "rho,sigma", "--priors", pri,
+                           "--observables", "Y", "--n-draws", "40", "--periods", "80"])
+            assert_envelope_ok(rp; label="dsge bayes prior-predictive")
+            pt = find_tbl(rp.doc, "statistic")
+            @test pt !== nothing && length(table_rows(pt)) >= 1
+            @test Set(["statistic", "mean", "std", "q05", "median", "q95"]) ⊆
+                  Set(String.(table_cols(pt)))
+            @test Set(["draws requested", "draws that solved",
+                       "periods simulated"]) ⊆ metrics(rp.doc)
+            @test run_json(["dsge", "bayes", "prior-predictive", model_toml,
+                            "--params", "rho,sigma", "--priors", pri,
+                            "--data", dat]).code == 2      # --data is not an option here
+
+            # every option guarded up front → usage errors, never exit 1
+            @test run_json(["dsge", "bayes", "posterior-mode", model_toml,
+                            "--data", dat, "--priors", pri]).code == 2      # --params
+            @test run_json(["dsge", "bayes", "posterior-mode", model_toml,
+                            "--params", "rho,sigma", "--priors", pri]).code == 2  # --data
+            @test run_json(["dsge", "bayes", "posterior-mode", model_toml, "--data", dat,
+                            "--params", "rho,sigma", "--priors", pri,
+                            "--max-iter", "0"]).code == 2
+            @test run_json(["dsge", "bayes", "prior-predictive", model_toml,
+                            "--params", "rho,sigma", "--priors", pri,
+                            "--n-draws", "0"]).code == 2
+        end
+
         @testset "dsge bayes compare (C061; log-BF semantics)" begin
             priors = joinpath(dir, "priors.toml")
             write(priors, """
