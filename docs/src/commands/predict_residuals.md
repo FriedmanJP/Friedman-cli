@@ -188,12 +188,20 @@ friedman residuals statespace y.csv --standardized
 ## Nonlinear time series: `residuals setar | star | ms-ar | ms`
 
 These four have a `residuals` leaf but **no `predict` counterpart**, and that asymmetry is
-deliberate. MacroEconometricModels defines `residuals` for `ThresholdModel`, `STARModel` and
-`MSRegModel`, but defines no `predict`/`fitted` for any of them — and for a Markov-switching fit
-a single fitted series is not even well defined without weighting the regimes by their
-probabilities, which is what
-[`estimate ms`'s regime-probability table](estimate.md#regime-probabilities) is for. Adding a
-`predict` leaf would mean inventing a quantity the library does not define.
+upstream, not a design choice here. MacroEconometricModels defines `residuals` for
+`ThresholdModel`, `STARModel` and `MSRegModel`, but exposes no `predict`/`fitted` for any of
+them.
+
+For the Markov-switching models the fitted series is perfectly well defined — it is the
+regime-probability-weighted conditional mean `ŷₜ = Σₖ Pr(sₜ=k) · E[yₜ | sₜ=k]` — and the library
+already computes it internally to form the residuals it returns; it simply does not store it.
+Adding a `predict` leaf here would mean recomputing a quantity upstream already has, and risking
+divergence from whatever definition it eventually publishes (smoothed- vs filtered-weighted).
+Tracked as
+[MacroEconometricModels.jl#510](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/510),
+which also covers the absence of a `forecast` method for Markov-switching models — the only
+nonlinear time-series family in the package that cannot forecast. The leaves will be added once
+it ships.
 
 Each leaf mirrors its `estimate` sibling's options so any fit that changes the residuals can be
 reproduced. Options that affect **only** the attached inference are omitted: `estimate setar`'s

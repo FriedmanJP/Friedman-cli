@@ -5468,10 +5468,12 @@ end
 # ── #70 remainder: `residuals` for the nonlinear time-series models ──────────
 # `StatsAPI.residuals` EXISTS upstream for all three nonlinear types (nonlinear/types.jl:256
 # ThresholdModel, :450 STARModel, :618 MSRegModel), which is why these four leaves are in
-# scope. There is deliberately NO matching `predict`: none of the three defines
-# `predict`/`fitted`, and for a Markov-switching fit a single fitted series is not even well
-# defined without weighting the regimes by their probabilities — `estimate ms` emits the
-# regime-probability table for exactly that reason.
+# scope. There is deliberately NO matching `predict`: none of the three EXPOSES
+# `predict`/`fitted`. Note this is an availability gap, NOT an ill-defined quantity — for the MS
+# models the fitted series is the regime-probability-weighted conditional mean, which MEMs
+# already computes internally (markov_switching.jl:387, :617) to build these very residuals and
+# then discards. Filed upstream as MEMs#510 (which also covers the missing MS `forecast`);
+# recomputing it here would risk diverging from whatever definition upstream publishes.
 #
 # Each handler mirrors its `estimate` sibling's option set so any fit that changes the
 # residuals can be reproduced (the #73 lesson: a verb that cannot express `--p` silently pins

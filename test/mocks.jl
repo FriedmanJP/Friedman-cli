@@ -4338,6 +4338,8 @@ end
 # a method signature resolves its types immediately, so a forward reference is an include-time
 # UndefVarError. Deliberately NO `predict`/`fitted` for any of them — real has none either, and
 # teaching the mock a method real lacks is the #84 defect class that shipped 19 broken commands.
+# (MS fitted values ARE well defined and already computed upstream — see MEMs#510 — but until
+# real exposes them the mock must not either, or the CLI would be written against a phantom.)
 residuals(m::ThresholdModel) = m.residuals
 residuals(m::STARModel) = m.residuals
 residuals(m::MSRegModel) = m.residuals

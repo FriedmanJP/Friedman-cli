@@ -1457,8 +1457,11 @@ end
 function residuals_specs()::Vector{CommandSpec}
     return vcat(_specs_for_verb(:residuals, "Model residuals"), CommandSpec[
         # #70 remainder: the nonlinear-TS models all define StatsAPI.residuals upstream
-        # (ThresholdModel/STARModel/MSRegModel). NO matching `predict` — none of them defines
-        # predict/fitted, and an MS fit has no single fitted series without regime weighting.
+        # (ThresholdModel/STARModel/MSRegModel). NO matching `predict` — none of them EXPOSES
+        # predict/fitted. For the MS models the fitted series is well defined (the
+        # regime-probability-weighted conditional mean) and MEMs already computes it internally
+        # to form these very residuals — it just doesn't store it. Filed as MEMs#510; adding a
+        # leaf that recomputes it risks diverging from the definition upstream publishes.
         # Options mirror the `estimate` sibling MINUS the ones that drive only the attached
         # inference (SETAR's --reps/--ci-level/--het feed the Hansen bootstrap and threshold
         # CI, never the residuals); the refit passes linearity=false to skip that bootstrap.
