@@ -1270,6 +1270,27 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
+        # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
+        CommandSpec(
+            path=["predict", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_arfima, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_arfima),
+        ),
         CommandSpec(
             path=["predict", "igarch"],
             summary="Path to CSV data file",
@@ -1380,6 +1401,27 @@ end
 
 function residuals_specs()::Vector{CommandSpec}
     return vcat(_specs_for_verb(:residuals, "Model residuals"), CommandSpec[
+        # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
+        # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
+        CommandSpec(
+            path=["residuals", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_arfima, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_arfima),
+        ),
         CommandSpec(
             path=["residuals", "igarch"],
             summary="Path to CSV data file",

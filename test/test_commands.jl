@@ -4218,7 +4218,7 @@ end  # HD handlers
         @test node isa NodeCommand
         @test node.name == "forecast"
         # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
-        @test length(node.subcmds) == 24
+        @test length(node.subcmds) == 25
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -4778,7 +4778,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 24  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69)
+        @test length(node.subcmds) == 25  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69)
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -5093,7 +5093,7 @@ end  # VECM handlers
         @test node isa NodeCommand
         @test node.name == "predict"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 30
+        @test length(node.subcmds) == 31
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -5578,6 +5578,48 @@ end  # Predict handlers
     end
 end
 
+@testset "arfima forecast/predict/residuals (#73)" begin
+    mktempdir() do dir
+        csv = _make_csv(dir; T=200, n=2, colnames=["x", "other"])
+
+        @testset "forecast — ARIMAForecast with ci_lower/ci_upper" begin
+            out = _capture() do
+                _forecast_arfima(; data=csv, column=1, p=1, q=0, horizons=6,
+                                   format="table", output="")
+            end
+            # the result type is ARIMAForecast: its interval fields are ci_lower/ci_upper,
+            # NOT lower/upper (an early draft used the latter and FieldError'd)
+            @test contains(out, "forecast") && contains(out, "lower") && contains(out, "upper")
+        end
+
+        @testset "predict / residuals — read the model's fields" begin
+            out = _capture() do
+                _predict_arfima(; data=csv, column=1, p=1, q=0, format="table", output="")
+            end
+            @test contains(out, "fitted")
+            out = _capture() do
+                _residuals_arfima(; data=csv, column=1, p=1, q=0, format="table", output="")
+            end
+            @test contains(out, "residual")
+        end
+
+        @testset "bad input → typed CliError" begin
+            err(f) = try; _capture() do; f(); end; nothing; catch e; e end
+            e = err(() -> _forecast_arfima(; data=csv, column=1, horizons=0,
+                                             format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+            e = err(() -> _forecast_arfima(; data=csv, column=1, confidence=1.5,
+                                             format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _forecast_arfima(; data=csv, column=1, trunc_lag=0,
+                                             format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _predict_arfima(; data=csv, column=9, format="table", output=""))
+            @test e isa CliError && e.code == "data/column-range"
+        end
+    end
+end
+
 @testset "GARCH-variant forecast/predict/residuals (C064 #69)" begin
     # The six C064a variants are NOT in VOL_MODELS (their option sets differ), so these
     # verbs are hand-written per variant; each mirrors its `estimate` sibling's options.
@@ -5652,7 +5694,7 @@ end
         @test node isa NodeCommand
         @test node.name == "residuals"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 30
+        @test length(node.subcmds) == 31
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",

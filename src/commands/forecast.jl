@@ -19,6 +19,32 @@
 
 function forecast_specs()::Vector{CommandSpec}
     return [
+        # #73: ARFIMA gains the downstream verbs. forecast(::ARFIMAModel, h) returns an
+        # ARIMAForecast (a real plot recipe exists for it, so plot flags are legitimate);
+        # --trunc-lag is ARFIMA-specific and has no arima equivalent.
+        CommandSpec(
+            path=["forecast", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="horizons", short="H", type=Int, default=12, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Interval level in (0,1)"),
+                OptionSpec(name="trunc-lag", type=Int, default=200, description="AR(inf) truncation lag for the fractional filter (≥ 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_arfima, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_arfima),
+        ),
         # C064 remainder (#69): the six C064a GARCH variants gain this verb.
         # garch-midas has NO --conf-level: forecast(::GarchMidasModel, h) takes none.
         CommandSpec(
@@ -191,9 +217,10 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
-            flags=FlagSpec[],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
             tables=[TableSpec(name=:forecast_bvar, description="Path to CSV data file")],
             category="forecast",
             handler=wrap_legacy(_forecast_bvar),
@@ -423,8 +450,12 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=1)"),
                 OptionSpec(name="seasonal-period", type=Int, default=1, description="Seasonal lag for MASE naive-forecast scaling"),
+                # #95: ForecastEvaluation has a real plot_result recipe (a bar chart of
+                # the chosen metric); the other five `evaluate` leaves return types that
+                # have none, so only this one gains plot flags.
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file"),
             ], OUTPUT_OPTIONS),
-            flags=FlagSpec[],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
             tables=[TableSpec(name=:forecast_accuracy_metrics, description="Point accuracy metrics, one row per forecast")],
             category="forecast",
             handler=wrap_legacy(_forecast_eval_metrics),
@@ -574,6 +605,7 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
                          draws::Int=2000, sampler::String="direct",
                          config::String="",
                          output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="",
                          model=nothing)
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
@@ -593,6 +625,9 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
     # mean + credible bands) and render its tidy long_table (horizon|variable|value|lower|
     # upper), replacing the hand-rolled per-draw simulation and quantile computation.
     fc = forecast(post, horizons; conf_level=0.68)
+    # #95: BVARForecast has a real plot_result recipe upstream — this leaf simply never
+    # advertised it.
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)")
 end
@@ -997,7 +1032,8 @@ function _fceval_error(e, what::String)
 end
 
 function _forecast_eval_metrics(; data::String, actual::String="", forecasts::String="",
-                                 seasonal_period::Int=1, output::String="", format::String="table")
+                                 seasonal_period::Int=1, output::String="", format::String="table",
+                                 plot::Bool=false, plot_save::String="")
     y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="metrics")
     _status("Forecast evaluation: $(length(fnames)) forecast(s), n=$(length(y)), seasonal_period=$seasonal_period")
     _status()
@@ -1019,6 +1055,11 @@ function _forecast_eval_metrics(; data::String, actual::String="", forecasts::St
                     variance = round.(ev.decomp[:, 2]; digits=6),
                     covariance = round.(ev.decomp[:, 3]; digits=6))
     output_result(dec; format=Symbol(format), output=output, title="Theil MSE Decomposition")
+    # #95: ForecastEvaluation has a real recipe (bar chart of the chosen metric). The
+    # other five `evaluate` leaves return DMTestResult / MincerZarnowitzResult /
+    # ForecastEncompassingResult / ForecastCombination, none of which have one — so they
+    # correctly stay flagless.
+    _maybe_plot(ev; plot=plot, plot_save=plot_save)
     return ev
 end
 
