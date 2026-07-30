@@ -3,7 +3,7 @@
 
 Generated reference for `friedman predict` and its subcommands.
 
-**Leaves:** 32
+**Leaves:** 33
 
 ### `friedman predict 3sls`
 
@@ -614,6 +614,29 @@ In-sample fitted values (reg)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_reg` (In-sample fitted values)
+
+---
+
+### `friedman predict statespace`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--kind` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | State-space model |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Diffuse initialisation |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
+| `--state` | — | `String` | `both` | `filtered`, `smoothed`, `both` | Which state path to emit |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `predict_statespace` (Path to CSV data file)
 
 ---
 

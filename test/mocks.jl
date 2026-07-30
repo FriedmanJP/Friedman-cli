@@ -3404,7 +3404,12 @@ export CointRegModel, PanelCointRegModel, estimate_cointreg, estimate_xtcointreg
 struct StateSpaceModel{T<:AbstractFloat}
     theta::Vector{T}
     param_names::Vector{String}
+    # #71 consumes these; all exist in real (statespace/types.jl):
+    #   filtered_state a_t|t, smoothed_state a_t|T, innovations v_t, std_residuals v_t/√F_t
+    filtered_state::Matrix{T}
     smoothed_state::Matrix{T}
+    innovations::Matrix{T}
+    std_residuals::Matrix{T}
     loglik::T
     converged::Bool
     method::Symbol
@@ -3463,8 +3468,12 @@ function local_level(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     n >= 2 || throw(ArgumentError("local_level requires at least 2 observations"))
     v0 = max(var(yv), 1.0)
     smoothed = reshape(yv, :, 1)                     # level ≈ observations (n_state=1)
+    filtered = reshape(vcat(yv[1], yv[1:end-1]), :, 1)   # a_t|t lags a_t|T by construction
+    innov = reshape(yv .- vec(filtered), :, 1)           # v_t = y_t - a_t|t-1
+    stdres = innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n)))   # F_t varies over t, as in real
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}([v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], smoothed, ll, true, :mle, 1, 1, n)
+    StateSpaceModel{Float64}([v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], filtered, smoothed,
+                             innov, stdres, ll, true, :mle, 1, 1, n)
 end
 
 function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
@@ -3474,9 +3483,12 @@ function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     v0 = max(var(yv), 1.0)
     slope = vcat(diff(yv), yv[end] - yv[end-1])
     smoothed = hcat(yv, slope)                       # state = [μ, β] (n_state=2)
+    filtered = hcat(vcat(yv[1], yv[1:end-1]), slope)
+    innov = reshape(yv .- filtered[:, 1], :, 1)
+    stdres = innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n)))   # F_t varies over t, as in real
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
     StateSpaceModel{Float64}([v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
-                             smoothed, ll, true, :mle, 2, 1, n)
+                             filtered, smoothed, innov, stdres, ll, true, :mle, 2, 1, n)
 end
 
 function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
@@ -3495,7 +3507,10 @@ function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
     theta = vcat(v0, fill(v0 / (100 * k), k))
     names = vcat("σ²_ε", ["σ²_η[$j]" for j in 1:k])
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}(theta, names, smoothed, ll, true, :mle, k, 1, n)
+    fitted = Xf * beta
+    innov = reshape(yv .- fitted, :, 1)
+    StateSpaceModel{Float64}(theta, names, smoothed, smoothed, innov,
+                             innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n))), ll, true, :mle, k, 1, n)
 end
 
 function kernel_density(y::AbstractVector; kernel::Symbol=:gaussian,
@@ -3780,6 +3795,55 @@ function hansen_linearity_test(y::AbstractVector, X::AbstractMatrix, q::Abstract
     HansenLinearityTest{Float64}(sup_lm, 1.1 * sup_lm, pv, pv, g, reps, Float64(trim), ngrid)
 end
 
+# The GENERAL two-regime threshold regression (#70): y on X, split by a SEPARATE variable q.
+# Kwargs mirror real EXACTLY (including xnames/qname/p/d/is_setar, which the SETAR wrapper sets
+# upstream). Validation reproduces real's guards and — critically — their EXCEPTION CLASSES:
+# DimensionMismatch on a length mismatch, ArgumentError on trim/ci_level/too-small-sample and on
+# the "Empty threshold grid" a (near-)constant q produces. That keeps the CLI's `_nonlinear_error`
+# exit classes identical at T1/T2 and T3 (the standing mock-fidelity lesson).
+function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVector;
+                            trim::Real=0.15, linearity::Bool=true, reps::Int=1000,
+                            ci_level::Real=0.95, het::Bool=false,
+                            rng::Random.AbstractRNG=Random.default_rng(),
+                            xnames::Union{Nothing,Vector{String}}=nothing,
+                            qname::String="q", p::Int=0, d::Int=0, is_setar::Bool=false)
+    yv = Vector{Float64}(collect(Float64, y))
+    Xm = Matrix{Float64}(X)
+    qv = Vector{Float64}(collect(Float64, q))
+    n, k = size(Xm)
+    (length(yv) == n == length(qv)) ||
+        throw(DimensionMismatch("y, X rows and q must have matching length."))
+    (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
+    (ci_level ≈ 0.90 || ci_level ≈ 0.95 || ci_level ≈ 0.99) ||
+        throw(ArgumentError("Hansen (2000) critical values are tabulated only for " *
+                            "ci_level ∈ {0.90, 0.95, 0.99}; got $ci_level."))
+    (n >= 2 * (k + 1)) || throw(ArgumentError(
+        "Sample too small: need at least $(2 * (k + 1)) observations for two $(k)-regressor regimes."))
+    qlo, qhi = extrema(qv)
+    qlo < qhi || throw(ArgumentError(
+        "Empty threshold grid — increase the sample size or decrease `trim`."))
+    gamma = quantile(qv, 0.5)
+    reg = qv .<= gamma
+    (count(reg) >= k + 1 && count(.!reg) >= k + 1) || throw(ArgumentError(
+        "No admissible threshold split (every candidate leaves a rank-deficient regime)."))
+    b1, se1, ssr1 = _mock_ols_regime(Xm[reg, :], yv[reg])
+    b2, se2, ssr2 = _mock_ols_regime(Xm[.!reg, :], yv[.!reg])
+    resid = similar(yv)
+    resid[reg]   .= yv[reg]   .- Xm[reg, :]   * b1
+    resid[.!reg] .= yv[.!reg] .- Xm[.!reg, :] * b2
+    ssr = ssr1 + ssr2
+    sigma2 = ssr / n
+    npar = 2k + 1
+    loglik = -n / 2 * (log(2π) + log(sigma2 + eps()) + 1)
+    aic = -2 * loglik + 2 * npar
+    bic = -2 * loglik + log(n) * npar
+    xn = xnames === nothing ? String["x$i" for i in 1:k] : xnames
+    lt = linearity ? hansen_linearity_test(yv, Xm, qv; trim=trim, reps=reps, rng=rng) : nothing
+    ThresholdModel{Float64}(yv, Xm, qv, gamma, (gamma - 0.5, gamma + 0.5), Float64(ci_level),
+        b1, b2, se1, se2, reg, ssr1, ssr2, ssr, sigma2, resid, n, k, count(reg), count(.!reg),
+        p, d, is_setar, aic, bic, xn, qname, Float64(trim), lt)
+end
+
 function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, linearity::Bool=true,
                         reps::Int=1000, ci_level::Real=0.95, het::Bool=false,
                         rng::Random.AbstractRNG=Random.default_rng())
@@ -3877,7 +3941,7 @@ end
 long_table(f::ThresholdForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 
 export ThresholdModel, ThresholdForecast, HansenLinearityTest
-export estimate_setar, hansen_linearity_test
+export estimate_setar, estimate_threshold, hansen_linearity_test
 
 # ─── C065b: STAR (smooth-transition) nonlinear-TS mocks ──────
 # Mirror the real MEMs 0.7.0 STAR types (src/nonlinear/{types,star}.jl), fields a subset in real

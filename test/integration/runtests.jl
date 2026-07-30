@@ -334,6 +334,42 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(tslscfg; force=true)
         end
 
+        @testset "statespace predict & residuals (#71)" begin
+            ss = tempname() * ".csv"
+            rng = MersenneTwister(701); nT = 150
+            lvl = cumsum(randn(rng, nT) .* 0.3)
+            open(ss, "w") do io
+                println(io, "y")
+                for t in 1:nT; println(io, lvl[t] + 0.5 * randn(rng)); end
+            end
+
+            rp = run_json(["predict", "statespace", ss])
+            assert_envelope_ok(rp; label="predict statespace")
+            t = coltable_sys(rp.doc, "filtered")
+            @test t !== nothing
+            @test Set(["period", "state", "filtered", "smoothed"]) ⊆ Set(String.(table_cols(t)))
+            @test length(table_rows(t)) == nT              # local-level: ONE state
+            # local-linear-trend has TWO states -> the long table grows, columns unchanged
+            rp2 = run_json(["predict", "statespace", ss, "--kind", "local-linear-trend"])
+            assert_envelope_ok(rp2; label="predict statespace llt")
+            @test length(table_rows(coltable_sys(rp2.doc, "filtered"))) == 2 * nT
+
+            rr = run_json(["residuals", "statespace", ss])
+            assert_envelope_ok(rr; label="residuals statespace")
+            tr = coltable_sys(rr.doc, "residual")
+            @test tr !== nothing && length(table_rows(tr)) == nT
+            # innovations are one-step prediction errors: near mean-zero on a correct fit
+            vals = [Float64(collect(r)[col_index(tr, "residual")]) for r in table_rows(tr)]
+            @test abs(sum(vals) / length(vals)) < 0.5
+
+            @test run_json(["residuals", "statespace", ss, "--standardized"]).code == 0
+            @test run_json(["predict", "statespace", ss, "--state", "filtered"]).code == 0
+            @test run_json(["predict", "statespace", ss, "--kind", "bogus"]).code == 2
+            @test run_json(["predict", "statespace", ss, "--state", "bogus"]).code == 2
+            @test run_json(["residuals", "statespace", ss, "--column", "9"]).code == 3
+            rm(ss; force=true)
+        end
+
         @testset "sur/3sls predict & residuals — one long per-equation table (#68)" begin
             # The result carries PER-EQUATION fitted/residuals; the CLI renders ONE tidy
             # long table (equation|t|value) rather than N tables, so the envelope key set
@@ -806,6 +842,116 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "4", "--k", "6"]).code == 3            # HF shorter than m×LF (240 < 4*80=320) → data/shape
             rm(lf; force=true); rm(hf; force=true)
         end
+    end
+
+    @testset "estimate threshold — general two-regime threshold regression (#70)" begin
+        # UNLIKE the rest of the nonlinear-TS family, the teeth here are TIGHT: the threshold
+        # is a grid search over an EXTERNAL z whose true split point is 0, and the regime
+        # coefficients are ordinary per-regime OLS, so both are recoverable to a few percent.
+        # A shape-only assertion would not distinguish this leaf from `estimate setar`.
+        Random.seed!(70070)
+        _diag(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) && return v
+            end
+            nothing
+        end
+        mv(doc, name) = (d = _diag(doc); d === nothing ? nothing : metric_value(d, name))
+        _coef(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "regime" in table_cols(v) && return v
+            end
+            nothing
+        end
+        # estimate for (regime-label substring, term) out of the hand-built coef table
+        _est(tbl, regime_sub, term) = begin
+            ri = col_index(tbl, "regime"); ti = col_index(tbl, "term"); ei = col_index(tbl, "estimate")
+            for row in table_rows(tbl)
+                r = collect(row)
+                occursin(regime_sub, string(r[ri])) && string(r[ti]) == term && return Float64(r[ei])
+            end
+            nothing
+        end
+
+        csv = dgp_threshold(; n=400, seed=7001)
+
+        @testset "recovers the true threshold and both regime slopes" begin
+            r = run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "z", "--reps", "199"])
+            assert_envelope_ok(r; label="estimate threshold")
+            ct = _coef(r.doc)
+            @test ct !== nothing
+            @test Set(["regime", "term", "estimate", "std_error", "z_stat", "p_value"]) ⊆ Set(table_cols(ct))
+            # X = {x1, x2}: z is the splitting variable and must NOT be a regressor
+            terms = Set(string(collect(row)[col_index(ct, "term")]) for row in table_rows(ct))
+            @test terms == Set(["x1", "x2"])
+            @test length(table_rows(ct)) == 4          # 2 terms × 2 regimes
+
+            # TRUE γ = 0. NOTE what can and cannot be asserted here. The grid is the ORDER
+            # STATISTICS of z, so γ̂ ∈ {zᵢ} and the true 0 is generally not attainable; and the
+            # Hansen (2000) CI is the set of γ NOT rejected by the LR statistic, which with a
+            # signal this strong (β jumps +2 → −2 against σ = 0.2) legitimately COLLAPSES to the
+            # single point γ̂. So "0 ∈ [γl, γu]" is the wrong claim — assert instead that γ̂ and
+            # the whole non-rejected set sit in a small neighbourhood of the truth.
+            γ  = Float64(mv(r.doc, "gamma"))
+            γl = Float64(mv(r.doc, "gamma_ci_lower")); γu = Float64(mv(r.doc, "gamma_ci_upper"))
+            @test abs(γ) < 0.25
+            @test γl <= γ <= γu
+            @test -0.5 < γl && γu < 0.5
+
+            # β(x1) = +2 below the threshold, −2 above; β(x2) = 0.5 in BOTH regimes
+            @test isapprox(_est(ct, "≤", "x1"),  2.0; atol=0.15)
+            @test isapprox(_est(ct, ">", "x1"), -2.0; atol=0.15)
+            @test isapprox(_est(ct, "≤", "x2"),  0.5; atol=0.15)
+            @test isapprox(_est(ct, ">", "x2"),  0.5; atol=0.15)
+
+            @test string(mv(r.doc, "threshold_var")) == "z"
+            @test string(mv(r.doc, "is_setar")) == "false"   # this is NOT the self-exciting case
+            @test Int(mv(r.doc, "n")) == 400
+            @test Int(mv(r.doc, "n1")) + Int(mv(r.doc, "n2")) == 400
+            @test Int(mv(r.doc, "n1")) > 0 && Int(mv(r.doc, "n2")) > 0
+            @test isfinite(Float64(mv(r.doc, "aic"))) && isfinite(Float64(mv(r.doc, "bic")))
+            # the attached Hansen (1996) test rejects linearity on this genuinely nonlinear DGP
+            @test Float64(mv(r.doc, "pvalue_lm")) < 0.10
+        end
+
+        @testset "--no-linearity, --het, --ci-level, --dep default" begin
+            d = _diag(run_json(["estimate", "threshold", csv, "--dep", "y",
+                                "--threshold-col", "z", "--no-linearity"]).doc)
+            keys_ = Set(string(collect(row)[1]) for row in table_rows(d))
+            @test "gamma" in keys_ && !("sup_lm" in keys_)
+            @test run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "z",
+                            "--het", "--reps", "99"]).code == 0
+            r90 = run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "z",
+                            "--ci-level", "0.90", "--no-linearity"])
+            @test r90.code == 0
+            @test Float64(mv(r90.doc, "gamma_ci_level")) == 0.90
+            # y is the first numeric column, so --dep may be omitted
+            @test run_json(["estimate", "threshold", csv, "--threshold-col", "z", "--no-linearity"]).code == 0
+        end
+
+        @testset "typed errors — never an internal exit 1" begin
+            @test run_json(["estimate", "threshold", csv, "--dep", "y"]).code == 2               # --threshold-col required
+            @test run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "z",
+                            "--trim", "0.6"]).code == 2
+            @test run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "z",
+                            "--ci-level", "0.8"]).code == 2                                      # not a Hansen-tabulated level
+            @test run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "y"]).code == 2
+            @test run_json(["estimate", "threshold", csv, "--dep", "y", "--threshold-col", "nope"]).code == 3
+            @test run_json(["estimate", "threshold", csv, "--dep", "nope", "--threshold-col", "z"]).code == 3
+            # a CONSTANT splitting variable admits no admissible split → real MEMs raises
+            # ArgumentError("Empty threshold grid") → data/invalid (3), NEVER exit 1
+            constz = write_csv(DataFrame(y=randn(80), x1=randn(80), z=fill(1.0, 80)); prefix="thr_constz")
+            @test run_json(["estimate", "threshold", constz, "--dep", "y", "--threshold-col", "z"]).code == 3
+            # Too few observations for two k-regressor regimes → data/invalid, not exit 1.
+            # k = 2 (x1, x2), so real requires n ≥ 2(k+1) = 6; n = 4 trips it.
+            tiny = write_csv(DataFrame(y=randn(4), x1=randn(4), x2=randn(4), z=randn(4)); prefix="thr_tiny")
+            @test run_json(["estimate", "threshold", tiny, "--dep", "y", "--threshold-col", "z"]).code == 3
+            rm(constz; force=true); rm(tiny; force=true)
+        end
+
+        rm(csv; force=true)
     end
 
     @testset "estimate setar + test hansen-linearity + forecast setar — nonlinear TS (C065a, M5c)" begin

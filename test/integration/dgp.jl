@@ -372,6 +372,21 @@ function dgp_midas(; Tlf::Int=120, m::Int=3, K::Int=6, a::Float64=1.0, b::Float6
     return lf, hf, b
 end
 
+"""Genuine two-regime THRESHOLD REGRESSION with an EXTERNAL splitting variable (#70):
+yᵢ = β(zᵢ)·x1ᵢ + 0.5·x2ᵢ + εᵢ, with β = +2 when zᵢ ≤ 0 and β = −2 when zᵢ > 0, and z drawn
+independently of the regressors. The sign flip at the TRUE threshold γ = 0 is what makes
+this a real recovery test rather than a shape smoke test: `estimate threshold` must land γ̂
+near 0 (with 0 inside the Hansen 2000 CI), report ≈ +2 / −2 for x1 in the two regimes, and
+≈ 0.5 for the regime-invariant x2. Columns: y, x1, x2, z."""
+function dgp_threshold(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    z  = randn(rng, n)
+    x1 = randn(rng, n)
+    x2 = randn(rng, n)
+    y  = [(z[i] <= 0 ? 2.0 : -2.0) * x1[i] + 0.5 * x2[i] + 0.2 * randn(rng) for i in 1:n]
+    return write_csv(DataFrame(y=y, x1=x1, x2=x2, z=z); prefix="threshold")
+end
+
 """Genuine two-regime SETAR: yₜ = 0.6 yₜ₋₁ + εₜ if yₜ₋₁ ≤ 0, else -0.5 yₜ₋₁ + εₜ. The
 sign flip of the AR coefficient at the threshold 0 makes this self-exciting series clearly
 nonlinear → both regimes are populated, γ̂ lands near 0, and the Hansen (1996) linearity

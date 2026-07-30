@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 66
+**Leaves:** 67
 
 ### `friedman estimate 3sls`
 
@@ -1481,6 +1481,36 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_sv` (Path to CSV data file)
+
+---
+
+### `friedman estimate threshold`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--threshold-col` | — | `String` | `""` | — | Required: the variable that splits the sample (excluded from the regressors) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--het` | — | Heteroskedasticity-robust bootstrap for the linearity test |
+| `--no-linearity` | — | Skip the Hansen (1996) linearity test |
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `estimate_threshold` (Path to CSV data file)
 
 ---
 
