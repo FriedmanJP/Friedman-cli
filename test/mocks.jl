@@ -4243,10 +4243,17 @@ function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
     switching_variance || (sig2 .= mean(sig2))
     se_sig2 = Float64[0.1 * s for s in sig2]
     P = _mock_ms_P(K)
-    filt = zeros(Float64, n, K)
+    # Real MEMs' SMOOTHED probabilities are SHARPER than the FILTERED ones (they condition on
+    # the whole sample, not just y_1..t). Make the mock reproduce that ordering: smoothed is the
+    # hard regime assignment, filtered is a softened version of it. Both still sum to 1 across
+    # regimes. If the two were identical (an earlier `smoothed = copy(filtered)`) any test
+    # asserting the two paths differ would pass vacuously — the same defect class as the
+    # state-space std_residuals divisor.
+    smooth = zeros(Float64, n, K)
     for t in 1:n
-        filt[t, assign[t]] = 1.0
+        smooth[t, assign[t]] = 1.0
     end
+    filt = 0.85 .* smooth .+ (0.15 / K)
     loglik = _mock_ms_loglik(resid, assign, sig2)
     n_params = K * kx + nσ + K * (K - 1)
     aic = -2 * loglik + 2 * n_params
@@ -4254,7 +4261,7 @@ function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
     xnms = xnames === nothing ? String["x$i" for i in 1:kx] : collect(String, xnames)
     MSRegModel{Float64}(:regression, yv, Xm, K, 0, means, B, seB, Float64[], Float64[],
         sig2, se_sig2, P, _mock_ms_ergodic(P),
-        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, copy(filt), resid,
+        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
         loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y")
 end
 
@@ -4303,10 +4310,17 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
     coefs = reshape(copy(mu), 1, K)
     se_coefs = reshape(copy(se_mu), 1, K)
     P = _mock_ms_P(K)
-    filt = zeros(Float64, n, K)
+    # Real MEMs' SMOOTHED probabilities are SHARPER than the FILTERED ones (they condition on
+    # the whole sample, not just y_1..t). Make the mock reproduce that ordering: smoothed is the
+    # hard regime assignment, filtered is a softened version of it. Both still sum to 1 across
+    # regimes. If the two were identical (an earlier `smoothed = copy(filtered)`) any test
+    # asserting the two paths differ would pass vacuously — the same defect class as the
+    # state-space std_residuals divisor.
+    smooth = zeros(Float64, n, K)
     for t in 1:n
-        filt[t, assign[t]] = 1.0
+        smooth[t, assign[t]] = 1.0
     end
+    filt = 0.85 .* smooth .+ (0.15 / K)
     loglik = _mock_ms_loglik(resid, assign, sig2)
     n_params = K + p + nσ + K * (K - 1)
     aic = -2 * loglik + 2 * n_params
@@ -4314,9 +4328,19 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
     xnms = vcat("const", String["y[t-$i]" for i in 1:p])
     MSRegModel{Float64}(:ms_ar, ylin, Xlin, K, p, mu, coefs, se_coefs, phi, se_phi,
         sig2, se_sig2, P, _mock_ms_ergodic(P),
-        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, copy(filt), resid,
+        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
         loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname)
 end
+
+# Real MEMs defines StatsAPI.residuals for all three nonlinear types (nonlinear/types.jl:256,
+# :450, :618) — these mirror it so `residuals setar|star|ms-ar|ms` are exercised at T1/T2.
+# Defined HERE, after all three structs: the mock is one flat module included top-to-bottom and
+# a method signature resolves its types immediately, so a forward reference is an include-time
+# UndefVarError. Deliberately NO `predict`/`fitted` for any of them — real has none either, and
+# teaching the mock a method real lacks is the #84 defect class that shipped 19 broken commands.
+residuals(m::ThresholdModel) = m.residuals
+residuals(m::STARModel) = m.residuals
+residuals(m::MSRegModel) = m.residuals
 
 export MSRegModel, estimate_ms, estimate_ms_ar
 

@@ -185,6 +185,34 @@ friedman predict statespace y.csv --state smoothed
 friedman residuals statespace y.csv --standardized
 ```
 
+## Nonlinear time series: `residuals setar | star | ms-ar | ms`
+
+These four have a `residuals` leaf but **no `predict` counterpart**, and that asymmetry is
+deliberate. MacroEconometricModels defines `residuals` for `ThresholdModel`, `STARModel` and
+`MSRegModel`, but defines no `predict`/`fitted` for any of them — and for a Markov-switching fit
+a single fitted series is not even well defined without weighting the regimes by their
+probabilities, which is what
+[`estimate ms`'s regime-probability table](estimate.md#regime-probabilities) is for. Adding a
+`predict` leaf would mean inventing a quantity the library does not define.
+
+Each leaf mirrors its `estimate` sibling's options so any fit that changes the residuals can be
+reproduced. Options that affect **only** the attached inference are omitted: `estimate setar`'s
+`--reps`, `--ci-level` and `--het` drive the Hansen bootstrap and the threshold confidence
+interval, neither of which touches the residuals, so `residuals setar` does not accept them and
+skips that bootstrap entirely.
+
+Output is one tidy `period | residual` table. **`period` is the effective-sample index**, not
+calendar time: SETAR, STAR and MS-AR all drop leading observations to build their lag matrices,
+so `residuals setar --p 3` returns three fewer rows than the input. The MS *regression* is fit on
+levels and drops nothing.
+
+```bash
+friedman residuals setar y.csv --p 1 --d auto
+friedman residuals star  y.csv --p 1 --type lstr1
+friedman residuals ms-ar y.csv --p 1 --k-regimes 3
+friedman residuals ms    data.csv --dep y
+```
+
 ## Systems: `predict sur | 3sls`, `residuals sur | 3sls`
 
 SUR and 3SLS carry **per-equation** fitted values and residuals. Both verbs render them as

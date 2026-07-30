@@ -5281,9 +5281,40 @@ function _ms_transition_df(P::AbstractMatrix)
     return df
 end
 
+"""Per-period regime probabilities as ONE tidy LONG table
+(`period | regime | filtered | smoothed`).
+
+`MSRegModel` carries both `filtered_prob` (P(Sₜ=k | y₁..ₜ), real time) and `smoothed_prob`
+(P(Sₜ=k | y₁..ₙ), full sample) as `n × K` matrices. This is the headline output of a
+Markov-switching fit — "which regime were we in at time t" — so it is emitted alongside the
+parameters rather than hidden behind a flag.
+
+LONG rather than one column per regime, for the same reason `predict statespace` is long:
+K comes from `--k-regimes`, so a wide table would make the COLUMN SET depend on the user's
+option and every consumer would have to discover K before reading. Long keeps the columns
+fixed and grows the ROW COUNT instead. Row order matches the state-space renderer
+(regime-major, then period)."""
+function _ms_prob_table(model)
+    K = model.k_regimes
+    fp = Float64.(model.filtered_prob)
+    sp = Float64.(model.smoothed_prob)
+    n = size(sp, 1)
+    periods = Int[]; regimes = String[]; filt = Float64[]; smoo = Float64[]
+    for k in 1:K, t in 1:n
+        push!(periods, t); push!(regimes, "regime$k")
+        # filtered_prob can be shorter/empty on a degenerate fit — fall back to the smoothed
+        # path rather than indexing out of bounds (an uncaught BoundsError would be exit 1).
+        push!(filt, (size(fp, 1) >= t && size(fp, 2) >= k) ? fp[t, k] : sp[t, k])
+        push!(smoo, sp[t, k])
+    end
+    DataFrame("period" => periods, "regime" => regimes,
+              "filtered" => round.(filt; digits=6), "smoothed" => round.(smoo; digits=6))
+end
+
 """Shared renderer for a Markov-switching fit (`estimate ms-ar` / `estimate ms`). Emits, in
 order: a tidy per-regime coefficient table, a per-regime variance table, the WIDE K×K
-transition matrix, and a diagnostics kv. Branches on `model.model_type`:
+transition matrix, the tidy LONG per-period regime-probability table, and a diagnostics kv.
+Branches on `model.model_type`:
 
 - `:ms_ar` (Hamilton mean-switching) — one switching-`mu` row per regime (from `model.mu` /
   `model.se_coefs[1,k]`) PLUS a single `common-AR` block for the shared AR coefficients φ
@@ -5329,6 +5360,9 @@ function _ms_render(model, format::String, output::String)
     output_result(_ms_transition_df(model.P); format=Symbol(format),
                   output=_per_var_output_path(output, "transition"),
                   title="$label Transition Matrix")
+    output_result(_ms_prob_table(model); format=Symbol(format),
+                  output=_per_var_output_path(output, "probabilities"),
+                  title="$label Regime Probabilities")
     diag = Pair{String,Any}[
         "loglik"   => round(Float64(model.loglik); digits=4),
         "n_params" => model.n_params,
@@ -5382,6 +5416,31 @@ end
 # dispatch `estimate_ms(y; …)` (X === nothing). Every option guarded up-front → usage/invalid;
 # the estimator is try-wrapped → typed CliError. `switching_variance` default TRUE — the
 # `--no-switching-variance` flag turns it off.
+"""Load `(y, X, xcols, intercept_only)` for the Markov-switching REGRESSION leaves.
+
+Routes to the single-argument intercept-only `estimate_ms(y; …)` when the dependent variable
+is the only numeric column. The catch is deliberately NARROW — only `_load_reg_data`'s
+`data/invalid` "no regressor columns" is converted; every other class rethrows, so a dep-only
+CSV with a missing cell still surfaces as `data/missing-values` and an all-non-numeric CSV
+still surfaces as `data/invalid`. Shared by `estimate ms` and `residuals ms` so the two cannot
+drift into fitting different models from the same arguments."""
+function _ms_load_data(data::String, dep::String)
+    try
+        y, X, xcols = _load_reg_data(data, dep)
+        return y, X, xcols, false
+    catch e
+        (e isa CliError && e.code == "data/invalid" &&
+            occursin("no regressor columns", e.message)) || rethrow(e)
+        df = load_data(data)
+        numcols = variable_names(df)
+        dep_col = isempty(dep) ? numcols[1] : dep
+        idx = findfirst(==(dep_col), numcols)
+        idx === nothing && rethrow(e)
+        y, _ = load_univariate_series(data, idx)
+        return y, nothing, String["const"], true
+    end
+end
+
 function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
                        no_switching_variance::Bool=false, max_iter::Int=500,
                        tol::Float64=1e-8, output::String="", format::String="table")
@@ -5391,22 +5450,7 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
         "estimate ms: --max-iter must be ≥ 1 (got $max_iter)"))
     tol > 0 || throw(CliError("usage/invalid", "estimate ms: --tol must be > 0 (got $tol)"))
     sv = !no_switching_variance
-    y = Float64[]; X = nothing; xcols = String[]; intercept_only = false
-    try
-        y, X, xcols = _load_reg_data(data, dep)
-    catch e
-        if e isa CliError && e.code == "data/invalid" && occursin("no regressor columns", e.message)
-            df = load_data(data)
-            numcols = variable_names(df)
-            dep_col = isempty(dep) ? numcols[1] : dep
-            idx = findfirst(==(dep_col), numcols)
-            idx === nothing && rethrow(e)
-            y, _ = load_univariate_series(data, idx)
-            X = nothing; xcols = String["const"]; intercept_only = true
-        else
-            rethrow(e)
-        end
-    end
+    y, X, xcols, intercept_only = _ms_load_data(data, dep)
     _status("Estimating MS regression [$k_regimes regimes]: obs=$(length(y)), " *
             (intercept_only ? "intercept-only" : "regressors=$(length(xcols))") *
             (sv ? ", switching variance" : ", common variance")); _status()
@@ -5419,4 +5463,152 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
         throw(_nonlinear_error(e, "MS regression"))
     end
     return _ms_render(model, format, output)
+end
+
+# ── #70 remainder: `residuals` for the nonlinear time-series models ──────────
+# `StatsAPI.residuals` EXISTS upstream for all three nonlinear types (nonlinear/types.jl:256
+# ThresholdModel, :450 STARModel, :618 MSRegModel), which is why these four leaves are in
+# scope. There is deliberately NO matching `predict`: none of the three defines
+# `predict`/`fitted`, and for a Markov-switching fit a single fitted series is not even well
+# defined without weighting the regimes by their probabilities — `estimate ms` emits the
+# regime-probability table for exactly that reason.
+#
+# Each handler mirrors its `estimate` sibling's option set so any fit that changes the
+# residuals can be reproduced (the #73 lesson: a verb that cannot express `--p` silently pins
+# a different model). Options that affect ONLY the attached inference — SETAR's `--reps`,
+# `--ci-level`, `--het` drive the Hansen bootstrap and threshold CI, never the residuals — are
+# omitted, and the refit passes `linearity=false` to skip the bootstrap entirely.
+
+"""One tidy `period | residual` table for a nonlinear-TS fit.
+
+`period` is the EFFECTIVE-sample index (1..n_eff): SETAR/STAR/MS-AR all drop the first `p`
+(or `max(p,d)`) observations to build their lag matrix, so residual `t` is not calendar `t`."""
+function _nonlinear_resid_output(resid, label::String, vname::String,
+                                 format::String, output::String)
+    r = Float64.(collect(resid))
+    output_result(DataFrame("period" => collect(1:length(r)),
+                            "residual" => round.(r; digits=6));
+        format=Symbol(format), output=output,
+        title="$label Residuals ($vname)")
+    return r
+end
+
+"""Refit a SETAR for `residuals setar`, mirroring `_estimate_setar`'s guards and load path.
+`linearity=false`: the Hansen (1996) bootstrap does not affect the residuals and is the
+single most expensive part of the fit."""
+function _setar_refit(data::String, column::Int, p::Int, d::String, trim::Float64)
+    p >= 1 || throw(CliError("usage/invalid", "residuals setar: --p must be ≥ 1 (got $p)"))
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "residuals setar: --trim must be in (0, 0.5) (got $trim)"))
+    d_arg = _parse_setar_delay(d)
+    y, vname = load_univariate_series(data, column)
+    model = try
+        estimate_setar(y, p, d_arg; trim=trim, linearity=false)
+    catch e
+        throw(_nonlinear_error(e, "SETAR"))
+    end
+    return model, vname
+end
+
+function _residuals_setar(; data::String="", column::Int=1, p::Int=1, d::String="1",
+        trim::Float64=0.15, output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ? _setar_refit(data, column, p, d, trim) : (model, "model")
+    _status("SETAR(2;$p,$p) residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "SETAR(2;$p,$p)", vname, format, output)
+end
+
+"""Refit a STAR for `residuals star`, mirroring `_estimate_star` exactly (including the
+external-transition-variable path and its length/constant guards)."""
+function _star_refit(data::String, column::Int, p::Int, d::Int, type::String,
+                     n_gamma::Int, n_c::Int, transition_col::Int)
+    p >= 1 || throw(CliError("usage/invalid", "residuals star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "residuals star: --d must be ≥ 1 (got $d)"))
+    n_gamma >= 2 || throw(CliError("usage/invalid", "residuals star: --n-gamma must be ≥ 2 (got $n_gamma)"))
+    n_c >= 2 || throw(CliError("usage/invalid", "residuals star: --n-c must be ≥ 2 (got $n_c)"))
+    ttype = Symbol(type)
+    ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
+        "residuals star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+    y, vname = load_univariate_series(data, column)
+    s = nothing
+    if transition_col > 0
+        s, _ = load_univariate_series(data, transition_col)
+        length(s) == length(y) || throw(CliError("data/shape",
+            "residuals star: transition variable (column $transition_col) has length $(length(s)), " *
+            "but the series has length $(length(y))"))
+        std(s) > 0 || throw(CliError("data/invalid",
+            "residuals star: transition variable (column $transition_col) is constant; cannot scale γ"))
+    end
+    model = try
+        estimate_star(y, p; s=s, d=d, type=ttype, n_gamma=n_gamma, n_c=n_c)
+    catch e
+        throw(_nonlinear_error(e, "STAR"))
+    end
+    return model, vname
+end
+
+function _residuals_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
+        type::String="auto", n_gamma::Int=15, n_c::Int=15, transition_col::Int=0,
+        output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ?
+        _star_refit(data, column, p, d, type, n_gamma, n_c, transition_col) : (model, "model")
+    _status("STAR($p) residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "STAR($p)", vname, format, output)
+end
+
+"""Refit an MS-AR for `residuals ms-ar`, mirroring `_estimate_ms_ar`."""
+function _ms_ar_refit(data::String, column::Int, p::Int, k_regimes::Int,
+                      switching_variance::Bool, max_iter::Int)
+    p >= 1 || throw(CliError("usage/invalid", "residuals ms-ar: --p must be ≥ 1 (got $p)"))
+    k_regimes >= 2 || throw(CliError("usage/invalid",
+        "residuals ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "residuals ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
+    y, vname = load_univariate_series(data, column)
+    model = try
+        estimate_ms_ar(y, p; k_regimes=k_regimes, switching_variance=switching_variance,
+                       max_iter=max_iter, yname=vname)
+    catch e
+        throw(_nonlinear_error(e, "MS-AR"))
+    end
+    return model, vname
+end
+
+function _residuals_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
+        switching_variance::Bool=false, max_iter::Int=1000,
+        output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ?
+        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+    _status("MS-AR($p) [$k_regimes regimes] residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "MS-AR($p)", vname, format, output)
+end
+
+"""Refit an MS regression for `residuals ms`, reusing `_ms_load_data` so the intercept-only
+dispatch matches `estimate ms` exactly."""
+function _ms_refit(data::String, dep::String, k_regimes::Int, sv::Bool,
+                   max_iter::Int, tol::Float64)
+    k_regimes >= 2 || throw(CliError("usage/invalid",
+        "residuals ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "residuals ms: --max-iter must be ≥ 1 (got $max_iter)"))
+    tol > 0 || throw(CliError("usage/invalid", "residuals ms: --tol must be > 0 (got $tol)"))
+    y, X, xcols, _ = _ms_load_data(data, dep)
+    model = try
+        X === nothing ?
+            estimate_ms(y; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter, tol=tol) :
+            estimate_ms(y, X; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter,
+                        tol=tol, xnames=xcols)
+    catch e
+        throw(_nonlinear_error(e, "MS regression"))
+    end
+    return model
+end
+
+function _residuals_ms(; data::String="", dep::String="", k_regimes::Int=2,
+        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        output::String="", format::String="table", model=nothing)
+    m = model === nothing ?
+        _ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol) : model
+    vname = model === nothing ? String(m.yname) : "model"
+    _status("MS regression [$k_regimes regimes] residuals: obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "MS Regression", vname, format, output)
 end
