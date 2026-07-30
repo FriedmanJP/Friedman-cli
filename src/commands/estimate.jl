@@ -4680,6 +4680,71 @@ function _midas_coef_table(model)
     end
 end
 
+# ── #67: `forecast midas` ────────────────────────────────────────────────────
+# This leaf is shaped UNLIKE every other `forecast` leaf, and deliberately so:
+#
+#   forecast(m::MidasModel, X_new; y_lags=nothing, level=0.95) -> MidasForecast
+#
+# takes a fresh high-frequency BLOCK, not a horizon. The horizon is fixed at
+# estimation time (`--horizon`, stored as `m.h`), so this leaf has **no --horizons** —
+# advertising one would be a lie. The result is a single direct h-step point forecast
+# with a Gaussian NLS prediction interval.
+#
+# CRITICAL: `X_new` must be **most-recent-first**. Passing the tail in chronological
+# order does not error — it silently applies the weight curve backwards and returns a
+# wrong number. Hence the explicit `reverse` below, and the T3 assertion that a
+# reversed input changes the answer.
+#
+# `y_lags` is left to upstream: with `p_ar > 0` it defaults to the most recent in-sample
+# target values, which is exactly what forecasting the next period means here.
+function _forecast_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
+        m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
+        poly_degree::Int=2, horizon::Int=1, max_iter::Int=500, level::Float64=0.95,
+        output::String="", format::String="table", model=nothing)
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "forecast midas: --level must be in (0, 1) (got $level)"))
+    poly_degree >= 0 || throw(CliError("usage/invalid",
+        "forecast midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
+    (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
+        "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
+    y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
+    mdl = model === nothing ?
+        (try
+            estimate_midas(y_lf, x_hf; m=m, K=k, weights=Symbol(weights), p_ar=p_ar,
+                           poly_degree=poly_degree, h=horizon, max_iter=max_iter)
+        catch e
+            throw(_midas_error(e, "MIDAS"))
+        end) : model
+    # The most recent K high-frequency observations, MOST-RECENT-FIRST.
+    length(x_hf) >= mdl.K || throw(CliError("data/shape",
+        "forecast midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
+    x_new = reverse(Float64.(x_hf[end - mdl.K + 1:end]))
+    _status("MIDAS Forecast: target=$ynm, indicator=$xnm, h=$(mdl.h) (fixed at estimation), K=$(mdl.K)")
+    _status()
+    fc = try
+        forecast(mdl, x_new; level=level)
+    catch e
+        throw(_midas_error(e, "MIDAS forecast"))
+    end
+    output_result(DataFrame(
+            horizon = [mdl.h],
+            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
+            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
+            upper = round.(Float64.(collect(fc.ci_upper)); digits=6),
+            se = round.(Float64.(collect(fc.se)); digits=6));
+        format=Symbol(format), output=output,
+        title="MIDAS Direct Forecast ($ynm)")
+    output_kv(Pair{String,Any}[
+        "horizon (h)" => mdl.h,
+        "K (HF lags)" => mdl.K,
+        "m (HF per LF)" => mdl.m,
+        "p_ar" => mdl.p_ar,
+        "weights" => String(mdl.weights_kind),
+        "level" => fc.conf_level];
+        format=format, title="MIDAS Forecast Summary")
+    return fc
+end
+
 function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
                           m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
                           poly_degree::Int=2, horizon::Int=1, max_iter::Int=500,

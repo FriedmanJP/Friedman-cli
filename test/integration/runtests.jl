@@ -1656,6 +1656,46 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true)
         end
 
+        @testset "forecast midas — direct h-step from a fresh HF block (#67)" begin
+            # y_t = 1 + 2*mean(last K high-frequency obs) + noise, so a correct forecast
+            # tracks the mean of the most recent block.
+            lf = tempname() * ".csv"; hf = tempname() * ".csv"
+            rng = MersenneTwister(601)
+            mfreq, K, Tlf = 3, 6, 150
+            xhf = randn(rng, Tlf * mfreq)
+            open(lf, "w") do io
+                println(io, "y")
+                for t in 1:Tlf
+                    hi = t * mfreq; lo = max(1, hi - K + 1)
+                    println(io, 1.0 + 2.0 * (sum(xhf[lo:hi]) / K) + 0.2 * randn(rng))
+                end
+            end
+            open(hf, "w") do io; println(io, "x"); for v in xhf; println(io, v); end; end
+
+            r = run_json(["forecast", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "6"])
+            assert_envelope_ok(r; label="forecast midas")
+            t = first_table(r.doc)[2]
+            @test t !== nothing && length(table_rows(t)) == 1      # ONE direct h-step point
+            @test Set(["horizon", "forecast", "lower", "upper", "se"]) ⊆ Set(String.(table_cols(t)))
+            row = first(table_rows(t))
+            f  = Float64(collect(row)[col_index(t, "forecast")])
+            lo = Float64(collect(row)[col_index(t, "lower")])
+            hi = Float64(collect(row)[col_index(t, "upper")])
+            @test isfinite(f) && lo <= f <= hi
+            # the DGP's conditional mean given the last K obs
+            expected = 1.0 + 2.0 * (sum(xhf[end - K + 1:end]) / K)
+            @test abs(f - expected) < 1.0
+
+            # there is deliberately NO --horizons: the horizon is fixed at estimation
+            @test run_json(["forecast", "midas", lf, "--hf-data", hf, "--m", "3",
+                            "--k", "6", "--horizons", "4"]).code == 2
+            @test run_json(["forecast", "midas", lf, "--hf-data", hf, "--m", "3",
+                            "--k", "6", "--level", "1.5"]).code == 2
+            @test run_json(["forecast", "midas", lf, "--hf-data", hf, "--m", "3",
+                            "--k", "1", "--weights", "beta2"]).code == 3
+            rm(lf; force=true); rm(hf; force=true)
+        end
+
         @testset "GARCH-variant forecast/predict/residuals (C064 #69)" begin
             csv = dgp_garch(; T=500, seed=401)
             for v in ("igarch", "cgarch", "aparch", "figarch", "fiegarch")

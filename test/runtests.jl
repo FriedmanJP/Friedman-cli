@@ -4032,7 +4032,7 @@ end
 
     # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 25
+    @test length(fc_node.subcmds) == 26
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
