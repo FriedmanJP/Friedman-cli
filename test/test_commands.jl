@@ -4218,7 +4218,7 @@ end  # HD handlers
         @test node isa NodeCommand
         @test node.name == "forecast"
         # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
-        @test length(node.subcmds) == 25
+        @test length(node.subcmds) == 26
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -4778,7 +4778,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 25  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69)
+        @test length(node.subcmds) == 26  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67)
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -5574,6 +5574,51 @@ end  # Predict handlers
             e = err(() -> _dsge_bayes_prior_predictive(; model=model, params="rho,sigma",
                         priors=priors, periods=0, format="table", output=""))
             @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+end
+
+@testset "forecast midas (#67)" begin
+    mktempdir() do dir
+        lf = joinpath(dir, "lf.csv"); hf = joinpath(dir, "hf.csv")
+        open(lf, "w") do io; println(io, "y"); for t in 1:60; println(io, 0.5t + 0.1); end; end
+        open(hf, "w") do io; println(io, "x"); for t in 1:180; println(io, Float64(t)); end; end
+
+        @testset "single direct forecast at the fixed horizon" begin
+            out = _capture() do
+                _forecast_midas(; data=lf, column=1, hf_data=hf, hf_column=1,
+                                  m=3, k=6, format="table", output="")
+            end
+            @test contains(out, "forecast") && contains(out, "lower") && contains(out, "upper")
+            # the horizon is fixed at estimation (m.h) — there is no --horizons here
+            @test contains(out, "horizon (h)")
+        end
+
+        @testset "X_new is passed MOST-RECENT-FIRST" begin
+            # The mock's forecast returns X_new[1] as the point forecast, pinning the
+            # orientation contract: the HF series runs 1.0…180.0, so the most recent
+            # observation is 180.0. Passing the block chronologically would yield 175.0
+            # (the oldest of the last K=6) and would NOT error — it would just be wrong,
+            # which is why the handler reverses explicitly.
+            out = _capture() do
+                _forecast_midas(; data=lf, column=1, hf_data=hf, hf_column=1,
+                                  m=3, k=6, format="table", output="")
+            end
+            @test contains(out, "180.0")
+            @test !contains(out, "175.0")
+        end
+
+        @testset "bad input → typed CliError" begin
+            err(f) = try; _capture() do; f(); end; nothing; catch e; e end
+            e = err(() -> _forecast_midas(; data=lf, hf_data=hf, m=3, k=6, level=1.5,
+                                            format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+            e = err(() -> _forecast_midas(; data=lf, hf_data=hf, m=3, k=6, poly_degree=-1,
+                                            format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _forecast_midas(; data=lf, hf_data=hf, m=3, k=1,
+                                            weights="beta2", format="table", output=""))
+            @test e isa CliError && e.code == "data/invalid"
         end
     end
 end

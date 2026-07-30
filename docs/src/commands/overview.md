@@ -15,7 +15,7 @@ friedman
 ├── estimate     3sls | aparch | arch | ardl | arfima | arima | bekk | bvar | ccc | cgarch | cointreg | dcc | dynamic | egarch | elastic-net | fastica | favar | fiegarch | figarch | garch | garch-midas | gdfm | gjr-garch | gmm | heckman | igarch | iv | kde | kernel-reg | lasso | logit | lowess | lp | midas | ml | mlogit | ms | ms-ar | nardl | ologit | oprobit | piv | plogit | pmg | pprobit | preg | probit | pvar | reg | ridge | robust | sdfm | select | setar | smm | star | statespace | static | sur | sv | tobit | truncreg | tvp | var | vecm | xtcointreg
 ├── fevd     bvar | favar | lp | pvar | sdfm | var | vecm
 ├── filter     bhp | bk | bn | hamilton | hp | x13
-├── forecast     aparch | arch | arfima | arima | bvar | cgarch | dynamic | egarch | evaluate clark-west | evaluate combine | evaluate dm | evaluate encompassing | evaluate metrics | evaluate mincer-zarnowitz | favar | fiegarch | figarch | garch | garch-midas | gdfm | gjr-garch | igarch | lp | setar | star | static | sv | var | vecm
+├── forecast     aparch | arch | arfima | arima | bvar | cgarch | dynamic | egarch | evaluate clark-west | evaluate combine | evaluate dm | evaluate encompassing | evaluate metrics | evaluate mincer-zarnowitz | favar | fiegarch | figarch | garch | garch-midas | gdfm | gjr-garch | igarch | lp | midas | setar | star | static | sv | var | vecm
 ├── hd     bvar | favar | lp | var | vecm
 ├── io     baqaee-farhi | download | extract | footprint | ghosh | key-sectors | leontief | linkages | load | multipliers | sda | sources
 ├── irf     bvar | favar | lp | pvar | sdfm | var | vecm
@@ -27,7 +27,7 @@ friedman
 ├── spectral     acf | cross | density | periodogram | transfer
 └── test     adf | adf-2break | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breitung | breusch-pagan | chow | cips | cusum | cusumsq | dfgls | dh-causality | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fisher-johansen | fourier-adf | fourier-kpss | glejser | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | harvey | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | influence | ips | johansen | kao | kpss | ljung-box | llc | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | recursive-residuals | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | white | wooldridge-ar | za
 
-Total: 18 top-level commands, 349 leaves (from registry).
+Total: 18 top-level commands, 350 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -41,7 +41,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`estimate`](generated/estimate.md) — 66 leaves
 - [`fevd`](generated/fevd.md) — 7 leaves
 - [`filter`](generated/filter.md) — 6 leaves
-- [`forecast`](generated/forecast.md) — 29 leaves
+- [`forecast`](generated/forecast.md) — 30 leaves
 - [`hd`](generated/hd.md) — 5 leaves
 - [`io`](generated/io.md) — 12 leaves
 - [`irf`](generated/irf.md) — 7 leaves

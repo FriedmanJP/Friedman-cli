@@ -8171,6 +8171,38 @@ function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
                   varnames, true)
 end
 
+# #67: MidasForecast + forecast(::MidasModel, X_new). Fields mirror real
+# (midas/types.jl:144): forecast/ci_lower/ci_upper/se/horizon/conf_level.
+#
+# The mock encodes `X_new[1]` into the point forecast on purpose, so a test can pin the
+# MOST-RECENT-FIRST contract: real applies the decaying weight curve to X_new in that
+# order, and passing the block chronologically does not error — it silently returns a
+# wrong number.
+struct MidasForecast{T<:AbstractFloat}
+    forecast::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    se::Vector{T}
+    horizon::Int
+    conf_level::T
+end
+
+function forecast(m::MidasModel, X_new::AbstractVector; y_lags=nothing, level::Real=0.95)
+    xn = Float64.(collect(X_new))
+    length(xn) >= m.K || throw(ArgumentError(
+        "X_new needs ≥ K=$(m.K) high-frequency observations (got $(length(xn)))"))
+    if m.p_ar > 0 && y_lags !== nothing
+        length(collect(y_lags)) >= m.p_ar ||
+            throw(ArgumentError("y_lags needs ≥ p_ar=$(m.p_ar) values"))
+    end
+    point = xn[1]                      # ← first element = most recent, by contract
+    se = 0.25
+    MidasForecast{Float64}([point], [point - 1.96se], [point + 1.96se], [se],
+                           m.h, Float64(level))
+end
+
+export MidasForecast
+
 export MidasModel, estimate_midas, midas_weights
 
 end # module

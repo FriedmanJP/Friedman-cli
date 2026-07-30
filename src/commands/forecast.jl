@@ -45,6 +45,35 @@ function forecast_specs()::Vector{CommandSpec}
             category="forecast",
             handler=wrap_legacy(_forecast_arfima),
         ),
+        # #67: MIDAS. NOTE there is deliberately NO --horizons: forecast(::MidasModel,
+        # X_new) takes a high-frequency block, and the horizon is fixed at estimation
+        # time via --horizon (stored as m.h). Advertising --horizons would be a lie.
+        # Also no plot flags: MEMs has a plot_result(::MidasModel) recipe (the weight
+        # curve) but none for MidasForecast.
+        CommandSpec(
+            path=["forecast", "midas"],
+            summary="Path to low-frequency target CSV",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to low-frequency target CSV")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Target column index (1-based)"),
+                OptionSpec(name="hf-data", type=String, default="", description="Path to the high-frequency indicator CSV (required)"),
+                OptionSpec(name="hf-column", type=Int, default=1, description="High-frequency column index (1-based)"),
+                OptionSpec(name="m", type=Int, default=0, description="High-frequency observations per low-frequency period (required, ≥ 1)"),
+                OptionSpec(name="k", type=Int, default=0, description="Number of high-frequency lags K (required, ≥ 1)"),
+                OptionSpec(name="weights", type=String, default="expalmon", description="MIDAS weight family", choices=["expalmon","beta2","beta3","almon","umidas"]),
+                OptionSpec(name="p-ar", type=Int, default=0, description="Autoregressive lags of the target (ADL-MIDAS)"),
+                OptionSpec(name="poly-degree", type=Int, default=2, description="Almon polynomial degree (≥ 0)"),
+                OptionSpec(name="horizon", type=Int, default=1, description="Direct forecast horizon, fixed at estimation"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Prediction-interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_midas, description="Path to low-frequency target CSV")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_midas),
+        ),
         # C064 remainder (#69): the six C064a GARCH variants gain this verb.
         # garch-midas has NO --conf-level: forecast(::GarchMidasModel, h) takes none.
         CommandSpec(

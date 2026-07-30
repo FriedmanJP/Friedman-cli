@@ -3,7 +3,7 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 29
+**Leaves:** 30
 
 ### `friedman forecast aparch`
 
@@ -633,6 +633,35 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `forecast_lp` (Path to CSV data file)
+
+---
+
+### `friedman forecast midas`
+
+Path to low-frequency target CSV
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to low-frequency target CSV |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Target column index (1-based) |
+| `--hf-data` | — | `String` | `""` | — | Path to the high-frequency indicator CSV (required) |
+| `--hf-column` | — | `Int64` | `1` | — | High-frequency column index (1-based) |
+| `--m` | — | `Int64` | `0` | — | High-frequency observations per low-frequency period (required, ≥ 1) |
+| `--k` | — | `Int64` | `0` | — | Number of high-frequency lags K (required, ≥ 1) |
+| `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | MIDAS weight family |
+| `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS) |
+| `--poly-degree` | — | `Int64` | `2` | — | Almon polynomial degree (≥ 0) |
+| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `forecast_midas` (Path to low-frequency target CSV)
 
 ---
 
