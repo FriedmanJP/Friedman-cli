@@ -3,7 +3,34 @@
 
 Generated reference for `friedman predict` and its subcommands.
 
-**Leaves:** 30
+**Leaves:** 32
+
+### `friedman predict 3sls`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML with [[equations]] and instruments (required) |
+| `--instruments` | — | `String` | `common` | `common`, `perequation` | Instrument mode |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-intercept` | — | Do not add an intercept to each equation |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `predict_3sls` (Path to CSV data file)
+
+---
 
 ### `friedman predict aparch`
 
@@ -607,6 +634,33 @@ In-sample fitted values (static)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_static` (In-sample fitted values)
+
+---
+
+### `friedman predict sur`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML with [[equations]] blocks (required) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--iterate` | — | Iterate the SUR feasible-GLS step to convergence |
+| `--no-intercept` | — | Do not add an intercept to each equation |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `predict_sur` (Path to CSV data file)
 
 ---
 

@@ -2684,6 +2684,116 @@ function _system_estimation_error(e, what::String)
         hint="near-singular system — drop collinear regressors or add observations")
 end
 
+# ── #68: sur / 3sls downstream verbs ─────────────────────────────────────────
+# `SURModel` and `ThreeSLSModel` carry PER-EQUATION `fitted::Vector{Vector{T}}` and
+# `residuals::Vector{Vector{T}}` as fields (system/types.jl) alongside `eqnames`. There
+# are no StatsAPI predict/residuals methods for them, so these read the fields.
+#
+# OUTPUT SHAPE: one tidy LONG table `equation | t | fitted` (resp. `residual`) rather
+# than N separate tables — it matches the C051 convention and `_heckman_coef_table`'s
+# handling of a multi-equation model, and keeps one table per leaf so an agent does not
+# have to discover a variable number of envelope keys.
+#
+# Both verbs mirror `estimate sur`/`estimate 3sls`'s options because the equation system
+# lives in the --config TOML: without it the model cannot be refit at all.
+
+"""Long per-equation table from a system model's `fitted`/`residuals` field."""
+function _system_long_table(model, field::Symbol, valuecol::String)
+    blocks = getfield(model, field)
+    eqs = String[]; ts = Int[]; vals = Float64[]
+    for (i, b) in enumerate(blocks)
+        v = Float64.(collect(b))
+        append!(eqs, fill(model.eqnames[i], length(v)))
+        append!(ts, 1:length(v))
+        append!(vals, v)
+    end
+    return DataFrame("equation" => eqs, "t" => ts, valuecol => round.(vals; digits=6))
+end
+
+"""Refit the SUR system for the downstream verbs, mirroring `_estimate_sur` exactly."""
+function _sur_refit(data, config, iterate, no_intercept)
+    isempty(config) && throw(CliError("config/missing",
+        "requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    spec = get_system(load_config(config))
+    intercept = !no_intercept
+    eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    eqnames = String[eq["name"] for eq in spec["equations"]]
+    return try
+        estimate_sur(eqs; iterate=iterate, eqnames=eqnames)
+    catch e
+        throw(_system_estimation_error(e, "SUR"))
+    end
+end
+
+"""Refit the 3SLS system, mirroring `_estimate_3sls` exactly (including the
+common-vs-per-equation instrument construction)."""
+function _3sls_refit(data, config, instruments, no_intercept)
+    isempty(config) && throw(CliError("config/missing",
+        "requires --config <toml> with [[equations]] and instruments"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    spec = get_system(load_config(config))
+    intercept = !no_intercept
+    imode = Symbol(instruments)
+    eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    eqnames = String[eq["name"] for eq in spec["equations"]]
+    Z = if imode == :common
+        spec["common_instruments"] === nothing && throw(CliError("config/missing",
+            "instruments=common requires an [instruments] section with a `common` list"))
+        for c in spec["common_instruments"]
+            c in numcols || throw(CliError("config/bad-column",
+                "instrument '$c' not found in numeric columns: $(join(numcols, ", "))"))
+        end
+        Zcols = [Vector{Float64}(df[!, c]) for c in spec["common_instruments"]]
+        intercept ? hcat(ones(Float64, size(df, 1)), Zcols...) : hcat(Zcols...)
+    else
+        [_system_instr_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    end
+    return try
+        estimate_3sls(eqs, Z; instruments=imode, eqnames=eqnames)
+    catch e
+        throw(_system_estimation_error(e, "3SLS"))
+    end
+end
+
+function _predict_sur(; data::String, config::String="", iterate::Bool=false,
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _sur_refit(data, config, iterate, no_intercept) : model
+    _status("SUR fitted values: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :fitted, "fitted"); format=Symbol(format),
+                  output=output, title="SUR Fitted Values (per equation)")
+    return m.fitted
+end
+
+function _residuals_sur(; data::String, config::String="", iterate::Bool=false,
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _sur_refit(data, config, iterate, no_intercept) : model
+    _status("SUR residuals: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :residuals, "residual"); format=Symbol(format),
+                  output=output, title="SUR Residuals (per equation)")
+    return m.residuals
+end
+
+function _predict_3sls(; data::String, config::String="", instruments::String="common",
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _3sls_refit(data, config, instruments, no_intercept) : model
+    _status("3SLS fitted values: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :fitted, "fitted"); format=Symbol(format),
+                  output=output, title="3SLS Fitted Values (per equation)")
+    return m.fitted
+end
+
+function _residuals_3sls(; data::String, config::String="", instruments::String="common",
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _3sls_refit(data, config, instruments, no_intercept) : model
+    _status("3SLS residuals: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :residuals, "residual"); format=Symbol(format),
+                  output=output, title="3SLS Residuals (per equation)")
+    return m.residuals
+end
+
 function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
                         no_intercept::Bool=false, output::String="", format::String="table")
     isempty(config) && throw(CliError("config/missing",

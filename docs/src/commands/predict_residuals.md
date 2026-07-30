@@ -148,3 +148,19 @@ for them. Use `predict` for the per-category probabilities instead.
 This is tracked upstream as
 [MacroEconometricModels.jl#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507);
 the leaves will be enabled once it ships.
+
+## Systems: `predict sur | 3sls`, `residuals sur | 3sls`
+
+SUR and 3SLS carry **per-equation** fitted values and residuals. Both verbs render them as
+**one tidy long table** — `equation | t | fitted` (resp. `residual`) — rather than one
+table per equation, so the envelope key set does not change with the number of equations
+in your config.
+
+The equation system lives in the `--config` TOML, so **`--config` is required**: without it
+there is nothing to refit. The other options mirror the matching `estimate` leaf
+(`--iterate`/`--no-intercept` for SUR, `--instruments`/`--no-intercept` for 3SLS).
+
+```bash
+friedman predict sur data.csv --config system.toml
+friedman residuals 3sls data.csv --config system.toml --instruments=common
+```

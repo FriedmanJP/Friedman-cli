@@ -5093,7 +5093,7 @@ end  # VECM handlers
         @test node isa NodeCommand
         @test node.name == "predict"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 31
+        @test length(node.subcmds) == 33
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -5623,6 +5623,55 @@ end
     end
 end
 
+@testset "sur/3sls predict & residuals (#68)" begin
+    mktempdir() do dir
+        csv = _make_csv(dir; T=80, n=5, colnames=["y1", "y2", "x1", "x2", "z1"])
+        cfg = joinpath(dir, "sys.toml")
+        write(cfg, """
+        [[equations]]
+        name = "eq1"
+        dep = "y1"
+        indep = ["x1"]
+        [[equations]]
+        name = "eq2"
+        dep = "y2"
+        indep = ["x2"]
+        [instruments]
+        common = ["x1", "x2", "z1"]
+        """)
+
+        @testset "one tidy LONG table, not N tables" begin
+            for (fn, col) in ((_predict_sur, "fitted"), (_residuals_sur, "residual"))
+                out = _capture() do
+                    fn(; data=csv, config=cfg, format="csv", output="")
+                end
+                @test contains(out, "equation") && contains(out, col)
+                # 2 equations x 80 obs + header — ONE table, not one per equation, so the
+                # envelope key set does not vary with the config file
+                @test count(==('\n'), out) == 2 * 80 + 1
+                @test contains(out, "eq1") && contains(out, "eq2")
+            end
+        end
+
+        @testset "3sls verbs" begin
+            for (fn, col) in ((_predict_3sls, "fitted"), (_residuals_3sls, "residual"))
+                out = _capture() do
+                    fn(; data=csv, config=cfg, format="csv", output="")
+                end
+                @test contains(out, "equation") && contains(out, col)
+            end
+        end
+
+        @testset "--config is required (the system lives there)" begin
+            err(f) = try; _capture() do; f(); end; nothing; catch e; e end
+            for fn in (_predict_sur, _residuals_sur, _predict_3sls, _residuals_3sls)
+                e = err(() -> fn(; data=csv, config="", format="table", output=""))
+                @test e isa CliError && e.code == "config/missing"
+            end
+        end
+    end
+end
+
 @testset "arfima forecast/predict/residuals (#73)" begin
     mktempdir() do dir
         csv = _make_csv(dir; T=200, n=2, colnames=["x", "other"])
@@ -5739,7 +5788,7 @@ end
         @test node isa NodeCommand
         @test node.name == "residuals"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 31
+        @test length(node.subcmds) == 33
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
