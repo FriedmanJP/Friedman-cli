@@ -1183,6 +1183,17 @@ function estimate_arfima(y, p, q; method=:css, d0=nothing, trunc=200, max_iter=5
     ARFIMAModel(v, p, d, q, 0.0, phi, theta, 0.5, 0.05, res, fit,
                 -50.0, -100.0, -95.0, method, true, 10)
 end
+
+# #73: forecast(::ARFIMAModel, h; conf_level, trunc_lag) -> ARIMAForecast, mirroring real
+# (arima/forecast.jl:321). Real's interval fields are ci_lower/ci_upper, NOT lower/upper.
+function forecast(m::ARFIMAModel, h::Int; conf_level::Real=0.95, trunc_lag::Int=200)
+    h >= 1 || throw(ArgumentError("horizon must be ≥ 1"))
+    trunc_lag >= 1 || throw(ArgumentError("trunc_lag must be ≥ 1"))
+    base = isempty(m.y) ? 0.0 : Float64(m.y[end])
+    f = fill(base, h)
+    se = [sqrt(Float64(m.sigma2)) * sqrt(Float64(k)) for k in 1:h]   # widens with h
+    ARIMAForecast{Float64}(f, f .- 1.96 .* se, f .+ 1.96 .* se, se, h, Float64(conf_level))
+end
 function gph_test(y; m=:default, trim=0)
     n = length(vec(y))
     n < 8 && throw(ArgumentError("Series too short for GPH (n=$n)."))

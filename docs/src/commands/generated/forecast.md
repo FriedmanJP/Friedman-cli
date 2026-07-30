@@ -3,7 +3,7 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 28
+**Leaves:** 29
 
 ### `friedman forecast aparch`
 
@@ -61,6 +61,38 @@ Path to CSV data file
 
 ---
 
+### `friedman forecast arfima`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `0` | — | AR order |
+| `--q` | — | `Int64` | `0` | — | MA order |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css|mle (fractional-integration estimator) |
+| `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) |
+| `--confidence` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
+| `--trunc-lag` | — | `Int64` | `200` | — | AR(inf) truncation lag for the fractional filter (≥ 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `forecast_arfima` (Path to CSV data file)
+
+---
+
 ### `friedman forecast arima`
 
 Path to CSV data file
@@ -112,12 +144,14 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `forecast_bvar` (Path to CSV data file)
@@ -309,8 +343,13 @@ Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil deco
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=1) |
 | `--seasonal-period` | — | `Int64` | `1` | — | Seasonal lag for MASE naive-forecast scaling |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
 
 **Output tables:** `forecast_accuracy_metrics` (Point accuracy metrics, one row per forecast)
 

@@ -4032,7 +4032,7 @@ end
 
     # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 24
+    @test length(fc_node.subcmds) == 25
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
@@ -4045,7 +4045,7 @@ end
 
     # Predict: 23 primary + gjr_garch alias (C044)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 30
+    @test length(pred_node.subcmds) == 31
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
@@ -4054,7 +4054,7 @@ end
 
     # Residuals: 23 primary + gjr_garch alias (C044)
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 30
+    @test length(res_node.subcmds) == 31
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 

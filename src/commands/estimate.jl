@@ -1675,6 +1675,81 @@ end
 
 # ── ARFIMA (fractional integration / long memory) ──────────
 
+# ── #73: arfima downstream verbs ─────────────────────────────────────────────
+# `forecast(::ARFIMAModel, h; conf_level, trunc_lag)` returns an ARIMAForecast — the
+# same type `forecast arima` renders — so the forecast leaf reuses that path. There are
+# no StatsAPI predict/residuals methods for ARFIMAModel, but `fitted` and `residuals`
+# are real FIELDS (arima/types.jl), so predict/residuals read them directly.
+#
+# All three mirror `estimate arfima`'s option set (--column/--p/--q/--method/--max-iter,
+# plus --d0) so a non-default fit can be reproduced; the `:arima` kind in
+# FITTED_MODEL_KINDS only supplies --column, which would silently pin p=q=0.
+
+"""Refit an ARFIMA for the downstream verbs, mirroring `_estimate_arfima` exactly."""
+function _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    model === nothing || return model, "model"
+    y, vname = load_univariate_series(data, column)
+    d0v = isnothing(d0) ? nothing : Float64(d0)
+    m = try
+        estimate_arfima(y, p, q; method=Symbol(method), d0=d0v, max_iter=max_iter)
+    catch e
+        throw(_long_memory_error(e, "ARFIMA"))
+    end
+    return m, vname
+end
+
+function _forecast_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+        method::String="css", d0=nothing, max_iter::Int=500,
+        horizons::Int=12, confidence::Float64=0.95, trunc_lag::Int=200,
+        output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="", model=nothing)
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast arfima: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < confidence < 1.0) || throw(CliError("usage/invalid",
+        "forecast arfima: --confidence must be in (0, 1) (got $confidence)"))
+    trunc_lag >= 1 || throw(CliError("usage/invalid",
+        "forecast arfima: --trunc-lag must be ≥ 1 (got $trunc_lag)"))
+    m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    _status("ARFIMA($p,d,$q) Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=confidence, trunc_lag=trunc_lag)
+    catch e
+        throw(_long_memory_error(e, "ARFIMA forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    output_result(DataFrame(
+            horizon = collect(1:horizons),
+            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
+            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
+            upper = round.(Float64.(collect(fc.ci_upper)); digits=6));
+        format=Symbol(format), output=output,
+        title="ARFIMA($p,d,$q) Forecast for $vname")
+    return fc
+end
+
+function _predict_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+        method::String="css", d0=nothing, max_iter::Int=500,
+        output::String="", format::String="table", model=nothing)
+    m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    _status("ARFIMA($p,d,$q) in-sample fitted values: variable=$vname"); _status()
+    f = Float64.(collect(m.fitted))
+    output_result(DataFrame(t=1:length(f), fitted=round.(f; digits=6));
+        format=Symbol(format), output=output,
+        title="ARFIMA($p,d,$q) In-Sample Predictions for $vname")
+    return m.fitted
+end
+
+function _residuals_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+        method::String="css", d0=nothing, max_iter::Int=500,
+        output::String="", format::String="table", model=nothing)
+    m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    _status("ARFIMA($p,d,$q) residuals: variable=$vname"); _status()
+    r = Float64.(collect(m.residuals))
+    output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
+        format=Symbol(format), output=output,
+        title="ARFIMA($p,d,$q) Residuals for $vname")
+    return m.residuals
+end
+
 function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
                            method::String="css", d0=nothing, max_iter::Int=500,
                            format::String="table", output::String="")

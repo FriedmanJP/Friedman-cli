@@ -1624,6 +1624,38 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ci; force=true); rm(nc; force=true)
         end
 
+        @testset "arfima forecast/predict/residuals (#73)" begin
+            csv = dgp_ar1(; T=300, φ=0.6, seed=501)
+            rf = run_json(["forecast", "arfima", csv, "--p", "1", "--q", "0",
+                           "--horizons", "6"])
+            assert_envelope_ok(rf; label="forecast arfima")
+            t = first_table(rf.doc)[2]
+            @test t !== nothing && length(table_rows(t)) == 6
+            @test Set(["horizon", "forecast", "lower", "upper"]) ⊆ Set(String.(table_cols(t)))
+            # intervals must bracket the point forecast and widen with the horizon
+            lo1 = Float64(collect(first(table_rows(t)))[col_index(t, "lower")])
+            hi1 = Float64(collect(first(table_rows(t)))[col_index(t, "upper")])
+            f1  = Float64(collect(first(table_rows(t)))[col_index(t, "forecast")])
+            @test lo1 <= f1 <= hi1
+            last_row = collect(table_rows(t))[end]
+            @test (Float64(collect(last_row)[col_index(t, "upper")]) -
+                   Float64(collect(last_row)[col_index(t, "lower")])) >= (hi1 - lo1)
+
+            rp = run_json(["predict", "arfima", csv, "--p", "1", "--q", "0"])
+            assert_envelope_ok(rp; label="predict arfima")
+            @test first_table(rp.doc)[2] !== nothing
+
+            rr = run_json(["residuals", "arfima", csv, "--p", "1", "--q", "0"])
+            assert_envelope_ok(rr; label="residuals arfima")
+            @test first_table(rr.doc)[2] !== nothing
+
+            @test run_json(["forecast", "arfima", csv, "--horizons", "0"]).code == 2
+            @test run_json(["forecast", "arfima", csv, "--confidence", "1.5"]).code == 2
+            @test run_json(["forecast", "arfima", csv, "--trunc-lag", "0"]).code == 2
+            @test run_json(["predict", "arfima", csv, "--column", "9"]).code == 3
+            rm(csv; force=true)
+        end
+
         @testset "GARCH-variant forecast/predict/residuals (C064 #69)" begin
             csv = dgp_garch(; T=500, seed=401)
             for v in ("igarch", "cgarch", "aparch", "figarch", "fiegarch")
