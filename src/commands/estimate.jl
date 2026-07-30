@@ -804,6 +804,29 @@ function estimate_specs()::Vector{CommandSpec}
         # (ThresholdModel is NOT in MEMs `_COEF_TABLE_TYPES`). `--d` is a `Int|:auto`
         # sentinel; `--ci-level` MUST be exactly 0.90/0.95/0.99 (Hansen 2000 tabulation).
         CommandSpec(
+            path=["estimate", "threshold"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="threshold-col", type=String, default="", description="Required: the variable that splits the sample (excluded from the regressors)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap replications for the linearity test (≥ 1)"),
+                # Hansen (2000) CVs are tabulated only at 0.90/0.95/0.99. `choices` is
+                # Vector{String} even for a Float64 option — same as `estimate setar`.
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="het", description="Heteroskedasticity-robust bootstrap for the linearity test"),
+                   FlagSpec(name="no-linearity", description="Skip the Hansen (1996) linearity test"),
+                   FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:estimate_threshold, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_threshold),
+        ),
+        CommandSpec(
             path=["estimate", "setar"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -4176,6 +4199,81 @@ function _tvp_path_table(model, coefnames::Vector{String})
 end
 
 # estimate statespace — structural univariate state-space (local level / local linear trend)
+# ── #71: statespace downstream verbs ─────────────────────────────────────────
+# `StateSpaceModel` carries the filtered and smoothed state paths and the one-step
+# prediction errors as FIELDS (statespace/types.jl):
+#   filtered_state :: T_obs x n_state   (a_t|t)
+#   smoothed_state :: T_obs x n_state   (a_t|T)
+#   innovations    :: T_obs x n_obs     (v_t, the one-step prediction errors)
+#   std_residuals  :: T_obs x n_obs     (v_t / sqrt(F_t))
+# There are no StatsAPI predict/residuals methods, so these read the fields.
+#
+# `predict` renders a tidy LONG table `period | state | filtered | smoothed` rather than
+# one column per state — the state count is model-dependent (1 for local-level, 2 for
+# local-linear-trend), so a wide table would change shape with --kind. `--state` narrows
+# it to one path when only that is wanted. This mirrors `estimate tvp`, which already
+# emits its coefficient path long.
+
+"""Refit the state-space model for the downstream verbs, mirroring `_estimate_statespace`."""
+function _statespace_refit(data, column, model, init_mode, kappa)
+    model in ("local-level", "local-linear-trend") || throw(CliError("usage/invalid",
+        "--model must be local-level or local-linear-trend, got '$model'"))
+    init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
+        "--init-mode must be kappa or diffuse, got '$init_mode'"))
+    y, vname = load_univariate_series(data, column)
+    im = Symbol(init_mode)
+    ssm = try
+        model == "local-level" ? local_level(y; init_mode=im, kappa=kappa) :
+                                 local_linear_trend(y; init_mode=im, kappa=kappa)
+    catch e
+        throw(_garch_variant_error(e, "State-space estimation"))
+    end
+    return ssm, vname
+end
+
+function _predict_statespace(; data::String="", column::Int=1, kind::String="local-level",
+        init_mode::String="kappa", kappa::Float64=1e6, state::String="both",
+        output::String="", format::String="table", model=nothing)
+    state in ("filtered", "smoothed", "both") || throw(CliError("usage/invalid",
+        "predict statespace: --state must be filtered|smoothed|both, got '$state'"))
+    ssm, vname = model === nothing ?
+        _statespace_refit(data, column, kind, init_mode, kappa) : (model, "model")
+    fs = Float64.(ssm.filtered_state); sm = Float64.(ssm.smoothed_state)
+    nT, nS = size(fs)
+    periods = Int[]; states = String[]; filt = Float64[]; smoo = Float64[]
+    for j in 1:nS, t in 1:nT
+        push!(periods, t); push!(states, "state$j")
+        push!(filt, fs[t, j]); push!(smoo, sm[t, j])
+    end
+    _status("State-space $kind states: variable=$vname, T=$nT, states=$nS"); _status()
+    df = DataFrame("period" => periods, "state" => states)
+    state in ("filtered", "both") && (df[!, "filtered"] = round.(filt; digits=6))
+    state in ("smoothed", "both") && (df[!, "smoothed"] = round.(smoo; digits=6))
+    output_result(df; format=Symbol(format), output=output,
+                  title="State-Space State Paths ($kind, $vname)")
+    return ssm
+end
+
+function _residuals_statespace(; data::String="", column::Int=1, kind::String="local-level",
+        init_mode::String="kappa", kappa::Float64=1e6, standardized::Bool=false,
+        output::String="", format::String="table", model=nothing)
+    ssm, vname = model === nothing ?
+        _statespace_refit(data, column, kind, init_mode, kappa) : (model, "model")
+    # innovations are the one-step prediction errors v_t; --standardized gives v_t/sqrt(F_t)
+    M = Float64.(standardized ? ssm.std_residuals : ssm.innovations)
+    nT, nO = size(M)
+    periods = Int[]; series = String[]; vals = Float64[]
+    for j in 1:nO, t in 1:nT
+        push!(periods, t); push!(series, nO == 1 ? vname : "obs$j"); push!(vals, M[t, j])
+    end
+    _status("State-space $kind $(standardized ? "standardized " : "")innovations: variable=$vname, T=$nT"); _status()
+    output_result(DataFrame("period" => periods, "series" => series,
+                            "residual" => round.(vals; digits=6));
+        format=Symbol(format), output=output,
+        title="State-Space $(standardized ? "Standardized " : "")Innovations ($kind, $vname)")
+    return M
+end
+
 function _estimate_statespace(; data::String, column::Int=1, model::String="local-level",
                                init_mode::String="kappa", kappa::Float64=1e6,
                                output::String="", format::String="table")
@@ -4914,6 +5012,109 @@ end
 # estimator is try-wrapped → typed CliError via `_nonlinear_error` (never exit-1). The
 # two regime blocks render via the shared `_threshold_coef_table`; the Hansen (1996)
 # linearity test, attached iff `linearity`, folds into the diagnostics kv.
+# ── #70: `estimate threshold` — the GENERAL threshold regression ─────────────
+# `estimate_threshold(y, X, q; …)` regresses y on X and splits the sample by a SEPARATE
+# threshold variable q. That is genuinely distinct from `estimate setar`, which is the
+# self-exciting special case where q = y[t-d] and X is the lag matrix — both return the
+# same `ThresholdModel`, so the rendering helpers are shared.
+#
+# COLUMN PARTITION (a third shape, alongside _load_reg_data and _load_iv_data):
+#   y = --dep, q = --threshold-col, X = every OTHER numeric column.
+# q MUST be excluded from X — leaving it in makes the regressors collinear with the
+# splitting variable, which is a different (and wrong) model, not an error.
+
+"""Load `(y, X, q)` for `estimate threshold`. `--threshold-col` is required and is
+EXCLUDED from the regressor matrix; every other numeric column becomes a regressor. No
+intercept is prepended (include a `const` column), matching `estimate reg`."""
+function _load_threshold_data(data::String, dep::String, threshold_col::String)
+    isempty(threshold_col) && throw(CliError("usage/missing",
+        "estimate threshold: --threshold-col is required";
+        hint="name the variable that splits the sample, e.g. --threshold-col z"))
+    df = load_data(data)
+    numcols = _numeric_column_names(df)
+    isempty(numcols) && throw(CliError("data/invalid",
+        "no numeric columns found in $data"))
+    depc = isempty(dep) ? numcols[1] : dep
+    depc in numcols || throw(CliError("data/column-range",
+        "estimate threshold: --dep '$depc' is not a numeric column";
+        hint="available: $(join(numcols, ", "))"))
+    threshold_col in numcols || throw(CliError("data/column-range",
+        "estimate threshold: --threshold-col '$threshold_col' is not a numeric column";
+        hint="available: $(join(numcols, ", "))"))
+    threshold_col == depc && throw(CliError("usage/invalid",
+        "estimate threshold: --threshold-col must differ from --dep (both '$depc')"))
+    xcols = [c for c in numcols if c != depc && c != threshold_col]
+    isempty(xcols) && throw(CliError("data/invalid",
+        "estimate threshold: no regressor columns left after removing --dep and --threshold-col";
+        hint="the CSV needs at least one column besides those two"))
+    for c in vcat(depc, threshold_col, xcols)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' has missing values"; hint="clean them with `friedman data dropna`"))
+    end
+    y = Vector{Float64}(df[!, depc])
+    q = Vector{Float64}(df[!, threshold_col])
+    X = Matrix{Float64}(df[!, xcols])
+    return y, X, q, depc, xcols
+end
+
+function _estimate_threshold(; data::String, dep::String="", threshold_col::String="",
+        trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
+        het::Bool=false, no_linearity::Bool=false,
+        output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "estimate threshold: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "estimate threshold: --reps must be ≥ 1 (got $reps)"))
+    # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
+    # else makes `_hansen2000_crit` throw an uncaught ArgumentError (same as setar).
+    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
+        "estimate threshold: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    y, X, q, depc, xcols = _load_threshold_data(data, dep, threshold_col)
+    _status("Estimating threshold regression: $depc ~ $(join(xcols, " + ")), split by $threshold_col, n=$(length(y)), ci=$ci_level" *
+            (het ? ", het bootstrap" : "") * (no_linearity ? ", linearity test skipped" : ""))
+    _status()
+    model = try
+        estimate_threshold(y, X, q; trim=trim, linearity=!no_linearity, reps=reps,
+                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col)
+    catch e
+        throw(_nonlinear_error(e, "threshold regression"))
+    end
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    coef = vcat(
+        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 ($threshold_col≤γ)"),
+        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 ($threshold_col>γ)"),
+    )
+    output_result(coef; format=Symbol(format), output=output,
+                  title="Threshold Regression Coefficients ($depc)")
+    diag = Pair{String,Any}[
+        "threshold_var"  => threshold_col,
+        "gamma"          => round(Float64(model.gamma); digits=6),
+        "gamma_ci_lower" => round(Float64(model.gamma_ci[1]); digits=6),
+        "gamma_ci_upper" => round(Float64(model.gamma_ci[2]); digits=6),
+        "gamma_ci_level" => Float64(model.gamma_ci_level),
+        "n"              => model.n,
+        "n1"             => model.n1,
+        "n2"             => model.n2,
+        "ssr"            => round(Float64(model.ssr); digits=6),
+        "sigma2"         => round(Float64(model.sigma2); digits=6),
+        "aic"            => round(Float64(model.aic); digits=4),
+        "bic"            => round(Float64(model.bic); digits=4),
+        "is_setar"       => model.is_setar,
+    ]
+    if model.linearity !== nothing
+        lt = model.linearity
+        append!(diag, Pair{String,Any}[
+            "sup_lm"      => round(Float64(lt.sup_lm); digits=4),
+            "pvalue_lm"   => round(Float64(lt.pvalue_lm); digits=4),
+            "sup_wald"    => round(Float64(lt.sup_wald); digits=4),
+            "pvalue_wald" => round(Float64(lt.pvalue_wald); digits=4),
+            "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
+        ])
+    end
+    output_kv(diag; format=format, title="Threshold Regression Diagnostics")
+    return model
+end
+
 function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
                           trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
                           het::Bool=false, no_linearity::Bool=false,

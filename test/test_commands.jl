@@ -427,7 +427,7 @@ end  # Shared utilities
         @test node isa NodeCommand
         @test node.name == "estimate"
         # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-        @test length(node.subcmds) == 67
+        @test length(node.subcmds) == 68
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -1818,6 +1818,124 @@ end  # Shared utilities
                 @test doc.status == "ok"
                 @test _has_tbl(doc, "lag", "weight")
                 @test _has_tbl(doc, "term", "estimate")
+            end
+        end
+    end
+
+    @testset "estimate threshold (#70)" begin
+        # The GENERAL threshold regression: y on X, split by a SEPARATE --threshold-col. Shares
+        # ThresholdModel (and therefore `_threshold_coef_table`) with `estimate setar`, but the
+        # COLUMN PARTITION is its own third shape — q is EXCLUDED from the regressors, which is a
+        # correctness requirement, not a convenience: leaving q in X makes the regressors
+        # collinear with the splitting variable and silently fits a different model.
+        _doc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["estimate", "threshold"], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
+        _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
+        _metrics(doc) = Set(String(collect(r)[1]) for r in
+                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _err(args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "threshold"], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+        # y, x1, x2, z — z is the splitting variable and must never appear as a regressor.
+        _write(dir; n=120, name="thr.csv") = begin
+            path = joinpath(dir, name)
+            open(path, "w") do io
+                println(io, "y,x1,x2,z")
+                for i in 1:n
+                    z = (i % 2 == 0 ? 1.0 : -1.0) * (0.3 + 0.01 * i)
+                    x1 = 0.5 + 0.02 * i
+                    x2 = sin(0.3 * i)
+                    y = (z <= 0 ? 2.0 : -2.0) * x1 + 0.5 * x2 + 0.05 * cos(1.7 * i)
+                    println(io, "$y,$x1,$x2,$z")
+                end
+            end
+            path
+        end
+
+        mktempdir() do dir
+            csv = _write(dir)
+
+            @testset "two regime blocks + diagnostics" begin
+                doc = _doc([csv, "--dep", "y", "--threshold-col", "z", "--reps", "10"])
+                @test doc.status == "ok"
+                coef = _tbl_with(doc, "regime", "term", "estimate", "std_error")
+                rows = collect(coef.rows)
+                # X = {x1, x2} (z EXCLUDED, y is --dep) ⇒ 2 terms × 2 regimes = 4 rows
+                @test length(rows) == 4
+                terms = Set(String(collect(r)[2]) for r in rows)
+                @test terms == Set(["x1", "x2"])
+                @test !("z" in terms)          # the splitting variable is NOT a regressor
+                @test length(Set(String(collect(r)[1]) for r in rows)) == 2
+                m = _metrics(doc)
+                for key in ["threshold_var", "gamma", "gamma_ci_lower", "gamma_ci_upper",
+                            "gamma_ci_level", "n", "n1", "n2", "ssr", "sigma2", "aic", "bic",
+                            "is_setar", "sup_lm", "pvalue_lm"]
+                    @test key in m
+                end
+            end
+
+            @testset "--no-linearity drops the Hansen block" begin
+                m = _metrics(_doc([csv, "--dep", "y", "--threshold-col", "z", "--no-linearity"]))
+                @test "gamma" in m
+                @test !("sup_lm" in m) && !("pvalue_lm" in m)
+            end
+
+            @testset "--dep defaults to the first numeric column" begin
+                doc = _doc([csv, "--threshold-col", "z", "--reps", "10"])
+                @test doc.status == "ok"
+                @test Set(String(collect(r)[2]) for r in
+                          collect(_tbl_with(doc, "regime", "term").rows)) == Set(["x1", "x2"])
+            end
+
+            @testset "usage guards" begin
+                # --threshold-col is REQUIRED: without it there is no model to fit
+                e = _err([csv, "--dep", "y"])
+                @test e isa CliError && e.code == "usage/missing" && exit_class(e) == 2
+                for bad in (["--trim", "0.5"], ["--trim", "0.0"], ["--reps", "0"])
+                    eb = _err(vcat([csv, "--dep", "y", "--threshold-col", "z"], bad))
+                    @test eb isa CliError && eb.code == "usage/invalid" && exit_class(eb) == 2
+                end
+                # Hansen (2000) CVs exist only at 0.90/0.95/0.99 — blocked at parse (choices)
+                # or by the in-handler exact-float guard.
+                eci = _err([csv, "--dep", "y", "--threshold-col", "z", "--ci-level", "0.8"])
+                @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
+                # q == dep is degenerate (the sample would split on the outcome itself)
+                ed = _err([csv, "--dep", "y", "--threshold-col", "y"])
+                @test ed isa CliError && ed.code == "usage/invalid" && exit_class(ed) == 2
+            end
+
+            @testset "data guards" begin
+                for (col, code) in (("nope", "data/column-range"),)
+                    e = _err([csv, "--dep", "y", "--threshold-col", col])
+                    @test e isa CliError && e.code == code && exit_class(e) == 3
+                end
+                e2 = _err([csv, "--dep", "nope", "--threshold-col", "z"])
+                @test e2 isa CliError && e2.code == "data/column-range" && exit_class(e2) == 3
+                # dep + threshold-col consume both columns → no regressors left
+                two = joinpath(dir, "two.csv")
+                write(two, "y,z\n" * join(["$(0.1 * i),$(0.2 * i)" for i in 1:40], "\n") * "\n")
+                e3 = _err([two, "--dep", "y", "--threshold-col", "z"])
+                @test e3 isa CliError && e3.code == "data/invalid" && exit_class(e3) == 3
+                # a missing cell is caught BEFORE the Matrix{Float64} conversion (exit 3, not 1)
+                miss = joinpath(dir, "miss.csv")
+                write(miss, "y,x1,z\n" * join([i == 5 ? "0.5,,0.3" : "$(0.1 * i),$(0.2 * i),$(0.3 * i)"
+                                               for i in 1:40], "\n") * "\n")
+                e4 = _err([miss, "--dep", "y", "--threshold-col", "z"])
+                @test e4 isa CliError && e4.code == "data/missing-values" && exit_class(e4) == 3
+                # A constant q admits no admissible split → real raises ArgumentError("Empty
+                # threshold grid") → data/invalid (exit 3), NEVER an internal exit 1. The mock
+                # mirrors that exception class so this assertion tracks real behaviour.
+                constq = joinpath(dir, "constq.csv")
+                write(constq, "y,x1,z\n" * join(["$(0.1 * i),$(0.2 * i),1.0" for i in 1:40], "\n") * "\n")
+                e5 = _err([constq, "--dep", "y", "--threshold-col", "z"])
+                @test e5 isa CliError && e5.code == "data/invalid" && exit_class(e5) == 3
             end
         end
     end
@@ -4753,7 +4871,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 67  # 66 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select)
+        @test length(node.subcmds) == 68  # 67 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -5093,7 +5211,7 @@ end  # VECM handlers
         @test node isa NodeCommand
         @test node.name == "predict"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 33
+        @test length(node.subcmds) == 34
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -5623,6 +5741,70 @@ end
     end
 end
 
+@testset "statespace predict & residuals (#71)" begin
+    mktempdir() do dir
+        csv = _make_csv(dir; T=120, n=2, colnames=["y", "other"])
+
+        @testset "state paths — long table, shape follows --kind" begin
+            out = _capture() do
+                _predict_statespace(; data=csv, column=1, format="csv", output="")
+            end
+            @test contains(out, "period") && contains(out, "state")
+            @test contains(out, "filtered") && contains(out, "smoothed")
+            # local-level has ONE state -> T rows + header
+            @test count(==('\n'), out) == 120 + 1
+            # local-linear-trend has TWO -> the long table GROWS; the columns do not change
+            out2 = _capture() do
+                _predict_statespace(; data=csv, column=1, kind="local-linear-trend",
+                                      format="csv", output="")
+            end
+            @test count(==('\n'), out2) == 2 * 120 + 1
+        end
+
+        @testset "--state narrows the emitted path" begin
+            f = _capture() do
+                _predict_statespace(; data=csv, column=1, state="filtered",
+                                      format="csv", output="")
+            end
+            @test contains(f, "filtered") && !contains(f, "smoothed")
+            sm = _capture() do
+                _predict_statespace(; data=csv, column=1, state="smoothed",
+                                      format="csv", output="")
+            end
+            @test contains(sm, "smoothed") && !contains(sm, "filtered")
+        end
+
+        @testset "residuals — innovations, raw and standardized" begin
+            raw = _capture() do
+                _residuals_statespace(; data=csv, column=1, format="csv", output="")
+            end
+            @test contains(raw, "residual")
+            std = _capture() do
+                _residuals_statespace(; data=csv, column=1, standardized=true,
+                                        format="csv", output="")
+            end
+            @test contains(std, "residual")
+            @test raw != std          # v_t vs v_t/sqrt(F_t) are different series
+        end
+
+        @testset "bad input → typed CliError" begin
+            err(f) = try; _capture() do; f(); end; nothing; catch e; e end
+            e = err(() -> _predict_statespace(; data=csv, kind="bogus",
+                                                format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+            e = err(() -> _predict_statespace(; data=csv, init_mode="bogus",
+                                                format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _predict_statespace(; data=csv, state="bogus",
+                                                format="table", output=""))
+            @test e isa CliError && e.code == "usage/invalid"
+            e = err(() -> _residuals_statespace(; data=csv, column=9,
+                                                  format="table", output=""))
+            @test e isa CliError && e.code == "data/column-range"
+        end
+    end
+end
+
 @testset "sur/3sls predict & residuals (#68)" begin
     mktempdir() do dir
         csv = _make_csv(dir; T=80, n=5, colnames=["y1", "y2", "x1", "x2", "z1"])
@@ -5788,7 +5970,7 @@ end
         @test node isa NodeCommand
         @test node.name == "residuals"
         # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 33
+        @test length(node.subcmds) == 34
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -6462,7 +6644,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 67  # 66 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select)
+        @test length(node.subcmds) == 68  # 67 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
     end
 
     @testset "register_irf_commands! includes pvar" begin

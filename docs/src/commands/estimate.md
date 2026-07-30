@@ -1097,6 +1097,38 @@ friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umida
 
 **Output:** a headline **weight-curve table** (`lag|weight`, length `K`, most-recent-first; for `umidas` these are the raw lag coefficients) + a coefficient table (`term|estimate|std_error|stat|p_value` over `[β; θ]`, normal-approximation p-values) + diagnostics (`weights_kind`, `m`, `K`, `p_ar`, `poly_degree`, `h`, `nobs`, `r2`, `adj_r2`, `ssr`, `sigma2`, `aic`, `bic`, `loglik`, `converged`). `MidasModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). The restricted NLS is noisy on short samples; a "failed to converge from any start" is surfaced as `model/convergence`. `forecast midas` is deferred to a later release. **Frequency-alignment note:** the loader requires `length(HF) ≥ m × length(LF)` and drops the leading ragged edge (reported on stderr); the estimator then drops any remaining incomplete `K`-block internally.
 
+## estimate threshold
+
+**Two-regime threshold regression** (Hansen 1996, 2000) — the general case, where the sample is split by a **separate** threshold variable rather than by a lag of the dependent variable. The model is `yᵢ = xᵢ'β₁·1{qᵢ ≤ γ} + xᵢ'β₂·1{qᵢ > γ} + uᵢ`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; each regime is then fit by OLS and `γ`'s confidence interval inverts the Hansen (2000) likelihood-ratio statistic. [`estimate setar`](#estimate-setar) is the self-exciting special case of this command (`q = y_{t−d}`, `X` the lag matrix) and returns the same model type.
+
+**Column partition:** `--dep` is the dependent variable, **`--threshold-col` is required** and names the splitting variable, and **every other numeric column becomes a regressor**. The threshold variable is deliberately *excluded* from the regressor matrix — including it would make the regressors collinear with the split and silently fit a different model rather than raise an error. No intercept is prepended: add a `const` column if you want one (the same convention as [`estimate reg`](#estimate-reg)).
+
+As with `estimate setar`, a **Hansen (1996) sup-LM / sup-Wald linearity test** is fitted alongside by default and folded into the diagnostics (`--no-linearity` skips it; `--het` uses a heteroskedastic White bootstrap). `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` — the Hansen (2000) critical values are tabulated only at those levels.
+
+```bash
+# Split the sample on z; x1 and x2 are the regressors, y the outcome
+friedman estimate threshold data.csv --dep y --threshold-col z
+
+# 90% threshold CI, heteroskedastic bootstrap, skip the linearity test
+friedman estimate threshold data.csv --dep y --threshold-col z --ci-level 0.90 --het --no-linearity
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | first numeric | Dependent variable column |
+| `--threshold-col` | | String | | **Required** — the variable that splits the sample (excluded from the regressors) |
+| `--trim` | | Float | `0.15` | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | | Int | `1000` | Bootstrap replications for the linearity test (≥ 1) |
+| `--ci-level` | | Float | `0.95` | Threshold CI level: `0.90`, `0.95`, or `0.99` (exact) |
+| `--het` | | Flag | off | Heteroskedasticity-robust bootstrap |
+| `--no-linearity` | | Flag | off | Skip the Hansen (1996) linearity test |
+| `--plot` | | Flag | off | Display an interactive plot |
+| `--plot-save` | | String | | Save the plot to an HTML file |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the blocks `regime1 (<q>≤γ)` / `regime2 (<q>>γ)` stacked and labelled with the actual threshold-variable name, normal-approximation z/p) + a diagnostics block (`threshold_var`, `gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `is_setar`, and — unless `--no-linearity` — `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant threshold variable, a sample too small for two regimes, or any other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+
 ## estimate setar
 
 **Self-exciting threshold autoregression (SETAR)** (Tong 1990; Hansen 2000) — a two-regime autoregression whose regime is switched by a lagged value of the series itself. The model is `yₜ = X_t'β₁·1{qₜ ≤ γ} + X_t'β₂·1{qₜ > γ} + uₜ`, with `qₜ = y_{t−d}` the self-exciting threshold variable and `X_t = [1, y_{t−1}, …, y_{t−p}]`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; its confidence interval inverts the Hansen (2000) likelihood-ratio statistic (tabulated only for the three levels below).
@@ -1124,7 +1156,7 @@ friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
+**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`estimate threshold`](#estimate-threshold) (the general case, split by a separate variable), [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
 
 ## estimate star
 

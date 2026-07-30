@@ -1270,6 +1270,28 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # #71: state-space state paths / innovations, read from the model's fields.
+        CommandSpec(
+            path=["predict", "statespace"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                # `--model` is reserved for the model HANDLE on predict/residuals (injected
+                # by with_model_option, which does NOT dedupe), so the model TYPE is --kind
+                # here — same value set as `estimate statespace --model`.
+                OptionSpec(name="kind", type=String, default="local-level", description="State-space model", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Diffuse initialisation", choices=["kappa","diffuse"]),
+                OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-kappa diffuse prior variance"),
+                OptionSpec(name="state", type=String, default="both", description="Which state path to emit", choices=["filtered","smoothed","both"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_statespace, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_statespace),
+        ),
         # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
         # `estimate` sibling's options because the equation system lives in --config —
         # without it the model cannot be refit.
@@ -1434,6 +1456,27 @@ end
 
 function residuals_specs()::Vector{CommandSpec}
     return vcat(_specs_for_verb(:residuals, "Model residuals"), CommandSpec[
+        # #71: state-space state paths / innovations, read from the model's fields.
+        CommandSpec(
+            path=["residuals", "statespace"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                # `--model` is reserved for the model HANDLE on predict/residuals (injected
+                # by with_model_option, which does NOT dedupe), so the model TYPE is --kind
+                # here — same value set as `estimate statespace --model`.
+                OptionSpec(name="kind", type=String, default="local-level", description="State-space model", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Diffuse initialisation", choices=["kappa","diffuse"]),
+                OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-kappa diffuse prior variance"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="standardized", description="Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t")],
+            tables=[TableSpec(name=:residuals_statespace, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_statespace),
+        ),
         # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
         # `estimate` sibling's options because the equation system lives in --config —
         # without it the model cannot be refit.

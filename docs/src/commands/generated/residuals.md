@@ -3,7 +3,7 @@
 
 Generated reference for `friedman residuals` and its subcommands.
 
-**Leaves:** 32
+**Leaves:** 33
 
 ### `friedman residuals 3sls`
 
@@ -601,6 +601,32 @@ Model residuals (reg)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_reg` (Model residuals)
+
+---
+
+### `friedman residuals statespace`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--kind` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | State-space model |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Diffuse initialisation |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--standardized` | — | Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t |
+
+**Output tables:** `residuals_statespace` (Path to CSV data file)
 
 ---
 
