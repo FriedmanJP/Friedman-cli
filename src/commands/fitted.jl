@@ -1270,6 +1270,39 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
+        # `estimate` sibling's options because the equation system lives in --config —
+        # without it the model cannot be refit.
+        CommandSpec(
+            path=["predict", "sur"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] blocks (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="iterate", description="Iterate the SUR feasible-GLS step to convergence"),
+                   FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:predict_sur, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_sur),
+        ),
+        CommandSpec(
+            path=["predict", "3sls"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] and instruments (required)"),
+                OptionSpec(name="instruments", type=String, default="common", description="Instrument mode", choices=["common","perequation"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:predict_3sls, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_3sls),
+        ),
         # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
         # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
         CommandSpec(
@@ -1401,6 +1434,39 @@ end
 
 function residuals_specs()::Vector{CommandSpec}
     return vcat(_specs_for_verb(:residuals, "Model residuals"), CommandSpec[
+        # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
+        # `estimate` sibling's options because the equation system lives in --config —
+        # without it the model cannot be refit.
+        CommandSpec(
+            path=["residuals", "sur"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] blocks (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="iterate", description="Iterate the SUR feasible-GLS step to convergence"),
+                   FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:residuals_sur, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_sur),
+        ),
+        CommandSpec(
+            path=["residuals", "3sls"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] and instruments (required)"),
+                OptionSpec(name="instruments", type=String, default="common", description="Instrument mode", choices=["common","perequation"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:residuals_3sls, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_3sls),
+        ),
         # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
         # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
         CommandSpec(

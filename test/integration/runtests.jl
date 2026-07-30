@@ -289,6 +289,15 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             nothing
         end
 
+        coltable_sys(doc, col) = begin
+            hit = nothing
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                if col in String.(table_cols(v)); hit = v; break; end
+            end
+            hit
+        end
+
         @testset "sur tidy coef + slope recovery" begin
             r = run_json(["estimate", "sur", csv, "--config", surcfg])
             assert_envelope_ok(r; label="estimate sur")
@@ -324,6 +333,32 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test coef !== nothing && length(table_rows(coef)) == 6
             rm(tslscfg; force=true)
         end
+
+        @testset "sur/3sls predict & residuals — one long per-equation table (#68)" begin
+            # The result carries PER-EQUATION fitted/residuals; the CLI renders ONE tidy
+            # long table (equation|t|value) rather than N tables, so the envelope key set
+            # does not vary with the config file.
+            for (verb, col) in (("predict", "fitted"), ("residuals", "residual"))
+                r = run_json([verb, "sur", csv, "--config", surcfg])
+                assert_envelope_ok(r; label="$verb sur")
+                t = coltable_sys(r.doc, col)
+                @test t !== nothing
+                @test Set(["equation", "t", col]) ⊆ Set(String.(table_cols(t)))
+                @test length(table_rows(t)) == 2 * Tn           # 2 equations x T
+                eqs = Set(String(collect(row)[col_index(t, "equation")]) for row in table_rows(t))
+                @test eqs == Set(["consumption", "investment"])
+            end
+            # residuals must be (near) mean-zero per equation — a real fit, not a stub
+            rr = run_json(["residuals", "sur", csv, "--config", surcfg])
+            tr = coltable_sys(rr.doc, "residual")
+            vals = [Float64(collect(row)[col_index(tr, "residual")]) for row in table_rows(tr)]
+            @test abs(sum(vals) / length(vals)) < 0.1
+
+            # --config carries the equation system: without it the model cannot be refit
+            @test run_json(["predict", "sur", csv]).code == 4
+            @test run_json(["residuals", "3sls", csv]).code == 4
+        end
+
         rm(csv; force=true); rm(surcfg; force=true)
     end
 

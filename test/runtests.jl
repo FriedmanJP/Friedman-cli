@@ -4045,7 +4045,7 @@ end
 
     # Predict: 23 primary + gjr_garch alias (C044)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 31
+    @test length(pred_node.subcmds) == 33
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
@@ -4054,7 +4054,7 @@ end
 
     # Residuals: 23 primary + gjr_garch alias (C044)
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 31
+    @test length(res_node.subcmds) == 33
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
