@@ -18,7 +18,7 @@ Example shape (fields abbreviated):
   "command": "friedman estimate var",
   "status": "ok",
   "meta": {
-    "cli_version": "0.8.0",
+    "cli_version": "0.9.0",
     "mems_version": "0.7.0",
     "julia": "1.12.x",
     "seed": null,
