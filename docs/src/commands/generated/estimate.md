@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 65
+**Leaves:** 67
 
 ### `friedman estimate 3sls`
 
@@ -650,6 +650,9 @@ Path to CSV data file
 | `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
 | `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
 | `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
+| `--method` | — | `String` | `tsls` | `tsls`, `liml`, `fuller`, `kclass` | k-class estimator |
+| `--k` | — | `String` | `""` | — | k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS) |
+| `--fuller-a` | — | `Float64` | `1.0` | — | Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
@@ -1106,10 +1109,12 @@ Path to CSV panel data file
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay`, `pcse` | ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs) |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--ar1` | — | `String` | `none` | `none`, `common`, `panel-specific` | Prais-Winsten AR(1) correction |
+| `--pcse-unbalanced` | — | `String` | `casewise` | `casewise`, `pairwise` | Unbalanced-panel handling for --cov-type pcse |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
@@ -1274,6 +1279,30 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate select`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | — | `String` | `bidirectional` | `forward`, `backward`, `bidirectional`, `best-subset`, `gets` | Search strategy |
+| `--criterion` | — | `String` | `pvalue` | `pvalue`, `aic`, `bic` | Selection criterion |
+| `--p-enter` | — | `Float64` | `0.05` | — | p-value to enter a regressor (0,1) |
+| `--p-remove` | — | `Float64` | `0.1` | — | p-value to remove a regressor (0,1); must be ≥ --p-enter for bidirectional pvalue |
+| `--keep` | — | `String` | `""` | — | Comma-separated regressor names always retained |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `estimate_select` (Path to CSV data file)
+
+---
+
 ### `friedman estimate setar`
 
 Path to CSV data file
@@ -1367,12 +1396,19 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column to model |
-| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level | local-linear-trend |
-| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse |
+| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level | local-linear-trend (ignored with --config) |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse (--config uses [statespace] init_mode) |
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
+| `--config` | — | `String` | `""` | — | TOML with [statespace] Z/H/T/Q (+ d, c, R, a1, P1, init_mode) for a general system |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_statespace` (Path to CSV data file)
 
@@ -1452,6 +1488,36 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_sv` (Path to CSV data file)
+
+---
+
+### `friedman estimate threshold`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--threshold-col` | — | `String` | `""` | — | Required: the variable that splits the sample (excluded from the regressors) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90|0.95|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--het` | — | Heteroskedasticity-robust bootstrap for the linearity test |
+| `--no-linearity` | — | Skip the Hansen (1996) linearity test |
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `estimate_threshold` (Path to CSV data file)
 
 ---
 

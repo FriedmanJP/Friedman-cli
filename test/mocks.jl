@@ -1183,6 +1183,17 @@ function estimate_arfima(y, p, q; method=:css, d0=nothing, trunc=200, max_iter=5
     ARFIMAModel(v, p, d, q, 0.0, phi, theta, 0.5, 0.05, res, fit,
                 -50.0, -100.0, -95.0, method, true, 10)
 end
+
+# #73: forecast(::ARFIMAModel, h; conf_level, trunc_lag) -> ARIMAForecast, mirroring real
+# (arima/forecast.jl:321). Real's interval fields are ci_lower/ci_upper, NOT lower/upper.
+function forecast(m::ARFIMAModel, h::Int; conf_level::Real=0.95, trunc_lag::Int=200)
+    h >= 1 || throw(ArgumentError("horizon must be ≥ 1"))
+    trunc_lag >= 1 || throw(ArgumentError("trunc_lag must be ≥ 1"))
+    base = isempty(m.y) ? 0.0 : Float64(m.y[end])
+    f = fill(base, h)
+    se = [sqrt(Float64(m.sigma2)) * sqrt(Float64(k)) for k in 1:h]   # widens with h
+    ARIMAForecast{Float64}(f, f .- 1.96 .* se, f .+ 1.96 .* se, se, h, Float64(conf_level))
+end
 function gph_test(y; m=:default, trim=0)
     n = length(vec(y))
     n < 8 && throw(ArgumentError("Series too short for GPH (n=$n)."))
@@ -2838,65 +2849,111 @@ export forecast_evaluate, diebold_mariano, clark_west, mincer_zarnowitz,
 # order mirror real; estimate_* compute plausible finite values from the series.
 struct IGARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; alpha::Vector{T}; beta::Vector{T}
+    conditional_variance::Vector{T}; residuals::Vector{T}
     loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct CGARCHModel{T<:Real}
     mu::T; omega::T; rho::T; phi::T; alpha::T; beta::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct APARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; alpha::Vector{T}; gamma::Vector{T}; beta::Vector{T}; delta::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     n_params::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct FIGARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; phi::Vector{T}; beta::Vector{T}; d::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     truncation::Int; n_neg_lambda::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct FIEGARCHModel{T<:Real}
     p::Int; q::Int; mu::T; omega::T; theta::T; gamma::T; phi::Vector{T}; beta::Vector{T}; d::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     truncation::Int; loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 struct GarchMidasModel{T<:Real}
     mu::T; alpha::T; beta::T; m_const::T; theta::T; w::T
+    conditional_variance::Vector{T}; residuals::Vector{T}
     variance_ratio::T; K::Int; m_freq::Int; n_blocks::Int; rv::Symbol; span::Symbol
     loglik::T; aic::T; bic::T; converged::Bool; iterations::Int
 end
 
+"""Plausible conditional-variance / residual paths for the C064a variant mocks — real
+carries both, and the #69 forecast/predict/residuals verbs consume them."""
+_mock_vol_paths(y, v) = (fill(Float64(v), length(y)),
+                         Float64.(collect(y)) .- mean(Float64.(collect(y))))
+
 function estimate_igarch(y, p::Int=1, q::Int=1; method::Symbol=:mle)
     v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
     a = fill(0.1 / q, q); b = fill(0.9 / p, p)     # Σα+Σβ = 1 by construction
-    IGARCHModel{Float64}(p, q, mean(y), 0.02 * v, a, b, -150.0, 306.0, 320.0, true, 45)
+    cv, rs = _mock_vol_paths(y, v)
+    IGARCHModel{Float64}(p, q, mean(y), 0.02 * v, a, b, cv, rs, -150.0, 306.0, 320.0, true, 45)
 end
 function estimate_cgarch(y; method::Symbol=:mle)
     v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
-    CGARCHModel{Float64}(mean(y), v, 0.99, 0.05, 0.05, 0.85, -148.0, 308.0, 324.0, true, 60)
+    cv, rs = _mock_vol_paths(y, v)
+    CGARCHModel{Float64}(mean(y), v, 0.99, 0.05, 0.05, 0.85, cv, rs, -148.0, 308.0, 324.0, true, 60)
 end
 function estimate_aparch(y, p::Int=1, q::Int=1; fix_delta=nothing, fix_gamma=nothing, method::Symbol=:mle)
     v = length(y) > 1 ? _mock_var0(Float64.(y)) : 1.0
     a = fill(0.05, q); g = fill(0.1, q); b = fill(0.85 / p, p); delta = 1.5
     nfree = (3 + 2q + p) - (fix_delta === nothing ? 0 : 1) - (fix_gamma === nothing ? 0 : q)
+    cv, rs = _mock_vol_paths(y, v)
     APARCHModel{Float64}(p, q, mean(y), (v^(delta / 2)) * 0.05, a, g, b, delta,
-                         nfree, -147.0, 310.0, 330.0, true, 70)
+                         cv, rs, nfree, -147.0, 310.0, 330.0, true, 70)
 end
 function estimate_figarch(r; p::Int=1, q::Int=1, d0::Real=0.4, truncation::Int=1000, dist::Symbol=:normal)
     v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
     K = min(truncation, length(r) - 1)
+    cv, rs = _mock_vol_paths(r, v)
     FIGARCHModel{Float64}(p, q, mean(r), 0.02 * v, fill(0.3 / q, q), fill(0.5 / p, p),
-                          Float64(d0), K, 0, -149.0, 306.0, 322.0, true, 55)
+                          Float64(d0), cv, rs, K, 0, -149.0, 306.0, 322.0, true, 55)
 end
 function estimate_fiegarch(r; p::Int=1, q::Int=1, d0::Real=0.4, truncation::Int=1000, dist::Symbol=:normal)
     v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
     K = min(truncation, length(r) - 1)
+    cv, rs = _mock_vol_paths(r, v)
     FIEGARCHModel{Float64}(p, q, mean(r), log(max(v, 1e-8)), -0.05, 0.1,
-                           fill(0.3 / q, q), fill(0.5 / p, p), Float64(d0), K,
+                           fill(0.3 / q, q), fill(0.5 / p, p), Float64(d0), cv, rs, K,
                            -146.0, 308.0, 328.0, true, 65)
 end
 function estimate_garch_midas(r, x_lf=Float64[]; K::Int=12, m_freq::Int, rv::Symbol=:realized, span::Symbol=:fixed)
     v = length(r) > 1 ? _mock_var0(Float64.(r)) : 1.0
     nblk = fld(length(r), max(m_freq, 1))
+    cv, rs = _mock_vol_paths(r, v)
     GarchMidasModel{Float64}(mean(r), 0.05, 0.85, log(max(v, 1e-8)), 0.1, 3.0,
-                             0.4, K, m_freq, nblk, rv, span, -145.0, 302.0, 320.0, true, 80)
+                             cv, rs, 0.4, K, m_freq, nblk, rv, span, -145.0, 302.0, 320.0, true, 80)
 end
+
+
+# #69 verbs. forecast returns a VolatilityForecast for five variants but a NamedTuple
+# (total, long_run, short_run, horizon) for GarchMidasModel — exactly as real does.
+const _MOCK_VOL_VARIANTS = Union{IGARCHModel,CGARCHModel,APARCHModel,FIGARCHModel,FIEGARCHModel}
+
+function forecast(m::_MOCK_VOL_VARIANTS, h::Int; conf_level::Real=0.95, n_sim::Int=10000)
+    h >= 1 || throw(ArgumentError("Forecast horizon must be ≥ 1"))
+    base = m.conditional_variance[end]
+    f = fill(Float64(base), h)
+    VolatilityForecast{Float64}(f, f .* 0.8, f .* 1.2, f .* 0.1, h, Float64(conf_level), :variant)
+end
+
+function forecast(m::GarchMidasModel, h::Int)
+    h < 1 && throw(ArgumentError("Forecast horizon must be ≥ 1"))
+    tot = fill(Float64(m.conditional_variance[end]), h)
+    (total=tot, long_run=fill(1.05, h), short_run=tot ./ 1.05, horizon=h)
+end
+
+# predict(m) is the in-sample conditional variance — real defines it for igarch/cgarch/
+# aparch/garch-midas but NOT figarch/fiegarch, so the mock omits those two as well and
+# the handler falls back to the .conditional_variance field (mock ⊆ real).
+predict(m::IGARCHModel) = m.conditional_variance
+predict(m::CGARCHModel) = m.conditional_variance
+predict(m::APARCHModel) = m.conditional_variance
+predict(m::GarchMidasModel) = m.conditional_variance
+
+residuals(m::_MOCK_VOL_VARIANTS) = m.residuals
+residuals(m::GarchMidasModel) = m.residuals
 
 coef(m::IGARCHModel) = vcat(m.mu, m.omega, m.alpha, m.beta)
 coef(m::CGARCHModel) = [m.mu, m.omega, m.rho, m.phi, m.alpha, m.beta]
@@ -3342,18 +3399,90 @@ export CointRegModel, PanelCointRegModel, estimate_cointreg, estimate_xtcointreg
 # Estimators are genuine-ish fits that VALIDATE like the real ones (n bounds, kernel/method/bw
 # enums, length matches) so T1/T2 exercise the error mapping and table shapes.
 
-# Subset of real StateSpaceModel fields (real order: ..., loglik, theta, param_names, ...,
-# converged, method, n_obs, n_state, T_obs). We keep only what the CLI renders.
+# Subset of real StateSpaceModel fields (check_mock_surface is mock ⊆ real by NAME, not order).
+# We keep what the CLI renders: the system matrices (#71 --config general path), the state
+# paths (#71 predict/residuals), and the fit summary.
 struct StateSpaceModel{T<:AbstractFloat}
+    # System matrices — the general fixed-matrix form y = Z α + d + ε, α' = T α + c + R η.
+    # NOTE the field is `Tt`, not `T`: `T` is the struct's type parameter. Real has the same
+    # constraint, which is why the TOML key (`T`), the constructor keyword (`T_mat`) and the
+    # field (`Tt`) are three different spellings of one matrix.
+    Z::Matrix{T}
+    H::Matrix{T}
+    Tt::Matrix{T}
+    Q::Matrix{T}
+    d::Vector{T}
+    c::Vector{T}
+    R::Matrix{T}
+    init_mode::Symbol
     theta::Vector{T}
     param_names::Vector{String}
+    # #71 consumes these; all exist in real (statespace/types.jl):
+    #   filtered_state a_t|t, smoothed_state a_t|T, innovations v_t, std_residuals v_t/√F_t
+    filtered_state::Matrix{T}
     smoothed_state::Matrix{T}
+    innovations::Matrix{T}
+    std_residuals::Matrix{T}
     loglik::T
     converged::Bool
     method::Symbol
     n_state::Int
     n_obs::Int
     T_obs::Int
+end
+
+"""Fixed-matrix outer constructor, mirroring real's signature and — critically — its
+VALIDATION and DEFAULTS: `R` defaults to `I(n_state, size(Q,1))`, `d`/`c` to zeros, and
+supplying `a1` AND `P1` switches init_mode to `:explicit`. Dimension violations raise the same
+`ArgumentError` real does, so the CLI's mapping is exercised identically at both tiers."""
+function StateSpaceModel(Z::AbstractMatrix, H::AbstractMatrix,
+                         T_mat::AbstractMatrix, Q::AbstractMatrix;
+                         d=nothing, c=nothing, R=nothing, a1=nothing, P1=nothing,
+                         init_mode::Symbol=:kappa, kappa::Real=1e6)
+    Zm = Matrix{Float64}(Z); Hm = Matrix{Float64}(H)
+    Tm = Matrix{Float64}(T_mat); Qm = Matrix{Float64}(Q)
+    n_obs, n_state = size(Zm)
+    size(Hm) == (n_obs, n_obs) ||
+        throw(ArgumentError("H must be n_obs×n_obs = $((n_obs, n_obs)), got $(size(Hm))"))
+    size(Tm) == (n_state, n_state) ||
+        throw(ArgumentError("T must be n_state×n_state = $((n_state, n_state)), got $(size(Tm))"))
+    Rm = R === nothing ? Matrix{Float64}(I, n_state, size(Qm, 1)) : Matrix{Float64}(R)
+    size(Rm, 1) == n_state ||
+        throw(ArgumentError("R must have n_state=$n_state rows, got $(size(Rm, 1))"))
+    size(Qm) == (size(Rm, 2), size(Rm, 2)) ||
+        throw(ArgumentError("Q must be r×r with r=size(R,2)=$(size(Rm, 2)), got $(size(Qm))"))
+    dv = d === nothing ? zeros(Float64, n_obs) : Vector{Float64}(d)
+    cv = c === nothing ? zeros(Float64, n_state) : Vector{Float64}(c)
+    length(dv) == n_obs || throw(ArgumentError("d must have length n_obs=$n_obs"))
+    length(cv) == n_state || throw(ArgumentError("c must have length n_state=$n_state"))
+    mode = (a1 !== nothing && P1 !== nothing) ? :explicit : init_mode
+    mode in (:kappa, :diffuse, :stationary, :explicit) ||
+        throw(ArgumentError("Unknown Kalman init mode :$mode"))
+    StateSpaceModel{Float64}(Zm, Hm, Tm, Qm, dv, cv, Rm, mode, Float64[], String[],
+        Matrix{Float64}(undef, 0, n_state), Matrix{Float64}(undef, 0, n_state),
+        Matrix{Float64}(undef, 0, n_obs), Matrix{Float64}(undef, 0, n_obs),
+        NaN, false, :spec, n_state, n_obs, 0)
+end
+
+"""Filter a FIXED-matrix system: no optimisation, so `theta`/`param_names` stay EMPTY and
+`method` is `:filter`, exactly as real. A mock that returned a populated `theta` here would
+hide the empty-parameter-table case the CLI has to render around."""
+function estimate_statespace(ss::StateSpaceModel, y)
+    Y = y isa AbstractMatrix ? Matrix{Float64}(y) : reshape(Vector{Float64}(y), :, 1)
+    n = size(Y, 1)
+    size(Y, 2) == ss.n_obs || throw(DimensionMismatch(
+        "data has $(size(Y, 2)) series but Z implies n_obs=$(ss.n_obs)"))
+    n >= 1 || throw(ArgumentError("need at least one observation"))
+    # A crude but genuine Gaussian prediction-error decomposition against a static state at 0,
+    # enough to give a finite, data-dependent loglik and correctly-shaped paths.
+    state = zeros(n, ss.n_state)
+    innov = Y .- (state * ss.Tt' * ss.Z')[:, 1:ss.n_obs]
+    F = [max(ss.H[j, j] + ss.Z[j, :]' * ss.Q * ss.Z[j, :], 1e-8) for j in 1:ss.n_obs]
+    stdres = innov ./ sqrt.(reshape(F, 1, :))
+    ll = -0.5 * sum(log(2π * F[j]) * n + sum(abs2, innov[:, j]) / F[j] for j in 1:ss.n_obs)
+    StateSpaceModel{Float64}(ss.Z, ss.H, ss.Tt, ss.Q, ss.d, ss.c, ss.R, ss.init_mode,
+        Float64[], String[], state, state, innov, stdres,
+        ll, true, :filter, ss.n_state, ss.n_obs, n)
 end
 
 struct KernelDensity{T<:AbstractFloat}
@@ -3406,8 +3535,17 @@ function local_level(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     n >= 2 || throw(ArgumentError("local_level requires at least 2 observations"))
     v0 = max(var(yv), 1.0)
     smoothed = reshape(yv, :, 1)                     # level ≈ observations (n_state=1)
+    filtered = reshape(vcat(yv[1], yv[1:end-1]), :, 1)   # a_t|t lags a_t|T by construction
+    innov = reshape(yv .- vec(filtered), :, 1)           # v_t = y_t - a_t|t-1
+    stdres = innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n)))   # F_t varies over t, as in real
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}([v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], smoothed, ll, true, :mle, 1, 1, n)
+    # System matrices for the canned local level, so the struct is fully populated whichever
+    # path built it: y = μ + ε, μ' = μ + η.
+    StateSpaceModel{Float64}(reshape([1.0], 1, 1), reshape([v0 / 2], 1, 1),
+                             reshape([1.0], 1, 1), reshape([v0 / 2], 1, 1),
+                             [0.0], [0.0], reshape([1.0], 1, 1), init_mode,
+                             [v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], filtered, smoothed,
+                             innov, stdres, ll, true, :mle, 1, 1, n)
 end
 
 function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
@@ -3417,9 +3555,16 @@ function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     v0 = max(var(yv), 1.0)
     slope = vcat(diff(yv), yv[end] - yv[end-1])
     smoothed = hcat(yv, slope)                       # state = [μ, β] (n_state=2)
+    filtered = hcat(vcat(yv[1], yv[1:end-1]), slope)
+    innov = reshape(yv .- filtered[:, 1], :, 1)
+    stdres = innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n)))   # F_t varies over t, as in real
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}([v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
-                             smoothed, ll, true, :mle, 2, 1, n)
+    # y = μ + ε; [μ, β]' = [1 1; 0 1] [μ, β] + η  (the canonical local linear trend)
+    StateSpaceModel{Float64}([1.0 0.0], reshape([v0 / 2], 1, 1),
+                             [1.0 1.0; 0.0 1.0], [v0/10 0.0; 0.0 v0/100],
+                             [0.0], [0.0, 0.0], Matrix{Float64}(I, 2, 2), init_mode,
+                             [v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
+                             filtered, smoothed, innov, stdres, ll, true, :mle, 2, 1, n)
 end
 
 function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
@@ -3438,7 +3583,16 @@ function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
     theta = vcat(v0, fill(v0 / (100 * k), k))
     names = vcat("σ²_ε", ["σ²_η[$j]" for j in 1:k])
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}(theta, names, smoothed, ll, true, :mle, k, 1, n)
+    fitted = Xf * beta
+    innov = reshape(yv .- fitted, :, 1)
+    # TVP regression in state-space form: the state IS the coefficient vector β_t, so Z is the
+    # regressor row (time-varying in truth; the mock holds the sample mean as a stand-in).
+    StateSpaceModel{Float64}(reshape(vec(mean(Xf, dims=1)), 1, k), reshape([v0], 1, 1),
+                             Matrix{Float64}(I, k, k),
+                             Matrix{Float64}(v0 / (100 * k) * I, k, k),
+                             [0.0], zeros(k), Matrix{Float64}(I, k, k), :kappa,
+                             theta, names, smoothed, smoothed, innov,
+                             innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n))), ll, true, :mle, k, 1, n)
 end
 
 function kernel_density(y::AbstractVector; kernel::Symbol=:gaussian,
@@ -3498,7 +3652,7 @@ function lowess(y::AbstractVector, x::AbstractVector; f::Real=2//3, iter::Int=3,
 end
 
 export StateSpaceModel, KernelDensity, KernelRegression, LowessFit
-export local_level, local_linear_trend, estimate_tvp_reg
+export local_level, local_linear_trend, estimate_tvp_reg, estimate_statespace
 export kernel_density, kernel_reg, lowess
 
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
@@ -3723,6 +3877,55 @@ function hansen_linearity_test(y::AbstractVector, X::AbstractMatrix, q::Abstract
     HansenLinearityTest{Float64}(sup_lm, 1.1 * sup_lm, pv, pv, g, reps, Float64(trim), ngrid)
 end
 
+# The GENERAL two-regime threshold regression (#70): y on X, split by a SEPARATE variable q.
+# Kwargs mirror real EXACTLY (including xnames/qname/p/d/is_setar, which the SETAR wrapper sets
+# upstream). Validation reproduces real's guards and — critically — their EXCEPTION CLASSES:
+# DimensionMismatch on a length mismatch, ArgumentError on trim/ci_level/too-small-sample and on
+# the "Empty threshold grid" a (near-)constant q produces. That keeps the CLI's `_nonlinear_error`
+# exit classes identical at T1/T2 and T3 (the standing mock-fidelity lesson).
+function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVector;
+                            trim::Real=0.15, linearity::Bool=true, reps::Int=1000,
+                            ci_level::Real=0.95, het::Bool=false,
+                            rng::Random.AbstractRNG=Random.default_rng(),
+                            xnames::Union{Nothing,Vector{String}}=nothing,
+                            qname::String="q", p::Int=0, d::Int=0, is_setar::Bool=false)
+    yv = Vector{Float64}(collect(Float64, y))
+    Xm = Matrix{Float64}(X)
+    qv = Vector{Float64}(collect(Float64, q))
+    n, k = size(Xm)
+    (length(yv) == n == length(qv)) ||
+        throw(DimensionMismatch("y, X rows and q must have matching length."))
+    (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
+    (ci_level ≈ 0.90 || ci_level ≈ 0.95 || ci_level ≈ 0.99) ||
+        throw(ArgumentError("Hansen (2000) critical values are tabulated only for " *
+                            "ci_level ∈ {0.90, 0.95, 0.99}; got $ci_level."))
+    (n >= 2 * (k + 1)) || throw(ArgumentError(
+        "Sample too small: need at least $(2 * (k + 1)) observations for two $(k)-regressor regimes."))
+    qlo, qhi = extrema(qv)
+    qlo < qhi || throw(ArgumentError(
+        "Empty threshold grid — increase the sample size or decrease `trim`."))
+    gamma = quantile(qv, 0.5)
+    reg = qv .<= gamma
+    (count(reg) >= k + 1 && count(.!reg) >= k + 1) || throw(ArgumentError(
+        "No admissible threshold split (every candidate leaves a rank-deficient regime)."))
+    b1, se1, ssr1 = _mock_ols_regime(Xm[reg, :], yv[reg])
+    b2, se2, ssr2 = _mock_ols_regime(Xm[.!reg, :], yv[.!reg])
+    resid = similar(yv)
+    resid[reg]   .= yv[reg]   .- Xm[reg, :]   * b1
+    resid[.!reg] .= yv[.!reg] .- Xm[.!reg, :] * b2
+    ssr = ssr1 + ssr2
+    sigma2 = ssr / n
+    npar = 2k + 1
+    loglik = -n / 2 * (log(2π) + log(sigma2 + eps()) + 1)
+    aic = -2 * loglik + 2 * npar
+    bic = -2 * loglik + log(n) * npar
+    xn = xnames === nothing ? String["x$i" for i in 1:k] : xnames
+    lt = linearity ? hansen_linearity_test(yv, Xm, qv; trim=trim, reps=reps, rng=rng) : nothing
+    ThresholdModel{Float64}(yv, Xm, qv, gamma, (gamma - 0.5, gamma + 0.5), Float64(ci_level),
+        b1, b2, se1, se2, reg, ssr1, ssr2, ssr, sigma2, resid, n, k, count(reg), count(.!reg),
+        p, d, is_setar, aic, bic, xn, qname, Float64(trim), lt)
+end
+
 function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, linearity::Bool=true,
                         reps::Int=1000, ci_level::Real=0.95, het::Bool=false,
                         rng::Random.AbstractRNG=Random.default_rng())
@@ -3820,7 +4023,7 @@ end
 long_table(f::ThresholdForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
 
 export ThresholdModel, ThresholdForecast, HansenLinearityTest
-export estimate_setar, hansen_linearity_test
+export estimate_setar, estimate_threshold, hansen_linearity_test
 
 # ─── C065b: STAR (smooth-transition) nonlinear-TS mocks ──────
 # Mirror the real MEMs 0.7.0 STAR types (src/nonlinear/{types,star}.jl), fields a subset in real
@@ -4122,10 +4325,17 @@ function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
     switching_variance || (sig2 .= mean(sig2))
     se_sig2 = Float64[0.1 * s for s in sig2]
     P = _mock_ms_P(K)
-    filt = zeros(Float64, n, K)
+    # Real MEMs' SMOOTHED probabilities are SHARPER than the FILTERED ones (they condition on
+    # the whole sample, not just y_1..t). Make the mock reproduce that ordering: smoothed is the
+    # hard regime assignment, filtered is a softened version of it. Both still sum to 1 across
+    # regimes. If the two were identical (an earlier `smoothed = copy(filtered)`) any test
+    # asserting the two paths differ would pass vacuously — the same defect class as the
+    # state-space std_residuals divisor.
+    smooth = zeros(Float64, n, K)
     for t in 1:n
-        filt[t, assign[t]] = 1.0
+        smooth[t, assign[t]] = 1.0
     end
+    filt = 0.85 .* smooth .+ (0.15 / K)
     loglik = _mock_ms_loglik(resid, assign, sig2)
     n_params = K * kx + nσ + K * (K - 1)
     aic = -2 * loglik + 2 * n_params
@@ -4133,7 +4343,7 @@ function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
     xnms = xnames === nothing ? String["x$i" for i in 1:kx] : collect(String, xnames)
     MSRegModel{Float64}(:regression, yv, Xm, K, 0, means, B, seB, Float64[], Float64[],
         sig2, se_sig2, P, _mock_ms_ergodic(P),
-        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, copy(filt), resid,
+        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
         loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y")
 end
 
@@ -4182,10 +4392,17 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
     coefs = reshape(copy(mu), 1, K)
     se_coefs = reshape(copy(se_mu), 1, K)
     P = _mock_ms_P(K)
-    filt = zeros(Float64, n, K)
+    # Real MEMs' SMOOTHED probabilities are SHARPER than the FILTERED ones (they condition on
+    # the whole sample, not just y_1..t). Make the mock reproduce that ordering: smoothed is the
+    # hard regime assignment, filtered is a softened version of it. Both still sum to 1 across
+    # regimes. If the two were identical (an earlier `smoothed = copy(filtered)`) any test
+    # asserting the two paths differ would pass vacuously — the same defect class as the
+    # state-space std_residuals divisor.
+    smooth = zeros(Float64, n, K)
     for t in 1:n
-        filt[t, assign[t]] = 1.0
+        smooth[t, assign[t]] = 1.0
     end
+    filt = 0.85 .* smooth .+ (0.15 / K)
     loglik = _mock_ms_loglik(resid, assign, sig2)
     n_params = K + p + nσ + K * (K - 1)
     aic = -2 * loglik + 2 * n_params
@@ -4193,9 +4410,21 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
     xnms = vcat("const", String["y[t-$i]" for i in 1:p])
     MSRegModel{Float64}(:ms_ar, ylin, Xlin, K, p, mu, coefs, se_coefs, phi, se_phi,
         sig2, se_sig2, P, _mock_ms_ergodic(P),
-        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, copy(filt), resid,
+        Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
         loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname)
 end
+
+# Real MEMs defines StatsAPI.residuals for all three nonlinear types (nonlinear/types.jl:256,
+# :450, :618) — these mirror it so `residuals setar|star|ms-ar|ms` are exercised at T1/T2.
+# Defined HERE, after all three structs: the mock is one flat module included top-to-bottom and
+# a method signature resolves its types immediately, so a forward reference is an include-time
+# UndefVarError. Deliberately NO `predict`/`fitted` for any of them — real has none either, and
+# teaching the mock a method real lacks is the #84 defect class that shipped 19 broken commands.
+# (MS fitted values ARE well defined and already computed upstream — see MEMs#510 — but until
+# real exposes them the mock must not either, or the CLI would be written against a phantom.)
+residuals(m::ThresholdModel) = m.residuals
+residuals(m::STARModel) = m.residuals
+residuals(m::MSRegModel) = m.residuals
 
 export MSRegModel, estimate_ms, estimate_ms_ar
 
@@ -4670,6 +4899,55 @@ bridge_sampling_ml(result::BayesianDSGE{T}; proposal::Symbol=:normal, df=5,
         n_proposal::Int=0, max_iter::Int=1000, tol=1e-10, rng=nothing) where {T} =
     result.log_marginal_likelihood + T(0.1)
 
+# ─── C073 remainder (#78): posterior mode + prior predictive.
+# Field-order subsets of real (dsge/bayes_types.jl, bayes_estimation.jl).
+
+struct PosteriorMode{T<:AbstractFloat}
+    mode::Vector{T}
+    inv_hessian::Matrix{T}
+    hessian::Matrix{T}
+    log_posterior::T
+    log_likelihood::T
+    laplace_log_ml::T
+    param_names::Vector{Symbol}
+    converged::Bool
+    n_iterations::Int
+end
+
+struct PriorPredictiveResult{T<:AbstractFloat}
+    stat_names::Vector{String}
+    stats::Matrix{T}
+    n_draws::Int
+    n_effective::Int
+    T_periods::Int
+end
+
+function posterior_mode(spec, data::AbstractMatrix, theta0;
+                        priors, observables=Symbol[], measurement_error=nothing,
+                        solver::Symbol=:gensys, solver_kwargs=NamedTuple(),
+                        transform::Bool=true, optimizer=nothing,
+                        f_reltol::Real=1e-8, max_iter::Int=500)
+    names = sort(collect(keys(priors)))
+    d = length(names)
+    d >= 1 || throw(ArgumentError("priors must be non-empty"))
+    PosteriorMode{Float64}(fill(0.5, d), Matrix{Float64}(I(d)) .* 0.01,
+        Matrix{Float64}(I(d)) .* 100.0, -120.5, -118.0, -125.0, names, true, 12)
+end
+
+function prior_predictive(spec, priors; n_draws::Int=500, T_periods::Int=200,
+                          observables=Symbol[], stats=nothing, solver::Symbol=:gensys,
+                          solver_kwargs=NamedTuple(), rng=Random.default_rng())
+    n_draws >= 1 || throw(ArgumentError("n_draws must be ≥ 1"))
+    T_periods >= 1 || throw(ArgumentError("T_periods must be ≥ 1"))
+    obs = isempty(observables) ? [:Y] : observables
+    names = vcat(["mean_$(o)" for o in obs], ["var_$(o)" for o in obs])
+    neff = max(1, n_draws - 1)          # one draw fails to solve, like real can
+    PriorPredictiveResult{Float64}(names, randn(neff, length(names)) .* 0.1 .+ 0.05,
+        n_draws, neff, T_periods)
+end
+
+export PosteriorMode, PriorPredictiveResult, posterior_mode, prior_predictive
+
 export MCMCDiagnostics, IdentificationDiagnostics, LearningRateCheck, PriorPosteriorOverlap
 export mcmc_diagnostics, identification_diagnostics, learning_rate_check
 export prior_posterior_overlap, bridge_sampling_ml
@@ -4890,8 +5168,314 @@ function westerlund_test(pd::PanelData, y::Symbol, xs::Symbol...; trend=:constan
             n_units=m.n_units, n_regressors=m.n_regressors, nobs=m.nobs)
 end
 
+# ─── C070 remainder (#75): first-gen panel unit-root + Fisher-Johansen + DH causality.
+# Structs are field-order subsets of real; validation mirrors upstream.
+
+struct LLCResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; t_unadjusted::T; delta::T; S_N::T
+    mu_star::T; sigma_star::T; T_tilde::T
+    lags::Vector{Int}; deterministic::Symbol; nobs::Int; n_units::Int
+end
+
+struct IPSResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; tbar::T; individual_t::Vector{T}
+    E_mean::T; V_mean::T
+    lags::Vector{Int}; deterministic::Symbol; nobs::Int; n_units::Int
+end
+
+struct BreitungPanelResult{T<:AbstractFloat}
+    statistic::T; pvalue::T; lags::Int; deterministic::Symbol; nobs::Int; n_units::Int
+end
+
+struct FisherJohansenResult{T<:AbstractFloat}
+    ranks::Vector{Int}
+    trace_statistics::Vector{T}; trace_pvalues::Vector{T}
+    max_statistics::Vector{T}; max_pvalues::Vector{T}
+    individual_trace_pvalues::Matrix{T}; individual_max_pvalues::Matrix{T}
+    combine::Symbol; deterministic::Symbol; lags::Int; rank::Int; n_units::Int
+end
+
+struct DumitrescuHurlinResult{T<:AbstractFloat}
+    Wbar::T; Zbar::T; Zbar_pvalue::T; Ztilde::T; Ztilde_pvalue::T
+    W_i::Vector{T}; p::Int; N::Int; nobs::Int; n_skipped::Int
+    bootstrap::Int; seed::Int; bootstrap_pvalue::T
+    cause::Symbol; effect::Symbol
+end
+
+_mock_panel_det(d) = d in (:none, :constant, :trend) ? d :
+    throw(ArgumentError("deterministic must be :none, :constant, or :trend, got :$d"))
+
+function llc_test(X::AbstractMatrix; deterministic::Symbol=:constant, lags=:auto,
+                  max_lags=nothing, criterion::Symbol=:aic, cs_demean::Bool=false)
+    _mock_panel_det(deterministic)
+    n, N = size(X)
+    n > 5 || throw(ArgumentError("need more observations, got $n"))
+    LLCResult{Float64}(-1.9, 0.03, -3.2, -0.04, 1.0, -0.5, 0.8, Float64(n),
+        fill(lags isa Symbol ? 1 : Int(lags), N), deterministic, n, N)
+end
+
+function ips_test(X::AbstractMatrix; deterministic::Symbol=:constant, lags=:auto,
+                  max_lags=nothing, criterion::Symbol=:aic, cs_demean::Bool=false)
+    _mock_panel_det(deterministic)
+    n, N = size(X)
+    n > 5 || throw(ArgumentError("need more observations, got $n"))
+    IPSResult{Float64}(-2.1, 0.02, -1.8, fill(-1.8, N), -1.5, 0.9,
+        fill(lags isa Symbol ? 1 : Int(lags), N), deterministic, n, N)
+end
+
+function breitung_panel_test(X::AbstractMatrix; deterministic::Symbol=:constant,
+                             lags::Int=0, cs_demean::Bool=false)
+    _mock_panel_det(deterministic)
+    lags >= 0 || throw(ArgumentError("lags must be ≥ 0, got $lags"))
+    n, N = size(X)
+    BreitungPanelResult{Float64}(-1.7, 0.045, lags, deterministic, n, N)
+end
+
+function fisher_johansen_test(pd, ys::Symbol...; deterministic::Symbol=:constant,
+                              lags::Int=2, combine::Symbol=:mw)
+    length(ys) >= 2 || throw(ArgumentError("fisher_johansen_test needs at least 2 series, got $(length(ys))"))
+    combine in (:mw, :choi) || throw(ArgumentError("combine must be :mw or :choi; got :$combine"))
+    lags >= 1 || throw(ArgumentError("lags must be ≥ 1, got $lags"))
+    k = length(ys)
+    nun = pd.n_groups
+    FisherJohansenResult{Float64}(collect(0:(k - 1)),
+        fill(25.0, k), fill(0.03, k), fill(18.0, k), fill(0.04, k),
+        fill(0.03, nun, k), fill(0.04, nun, k),
+        combine, deterministic, lags, 1, nun)
+end
+
+function dh_causality_test(pd, x::Symbol, y::Symbol; p::Int=1, bootstrap::Int=0, seed::Int=1234)
+    p >= 1 || throw(ArgumentError("lag order p must be ≥ 1, got $p"))
+    bootstrap >= 0 || throw(ArgumentError("bootstrap must be ≥ 0, got $bootstrap"))
+    nun = pd.n_groups
+    DumitrescuHurlinResult{Float64}(2.1, 3.4, 0.0007, 2.9, 0.0037, fill(2.1, nun),
+        p, nun, size(pd.data, 1), 0, bootstrap, seed,
+        bootstrap > 0 ? 0.01 : NaN, x, y)
+end
+
+export LLCResult, IPSResult, BreitungPanelResult, FisherJohansenResult, DumitrescuHurlinResult
+export llc_test, ips_test, breitung_panel_test, fisher_johansen_test, dh_causality_test
+
 export variance_ratio_test, bds_test, hadri_test
 export pedroni_test, kao_test, westerlund_test
+
+# ─── C069 (remainder): seasonal / point-optimal / bubble / EDF + residual
+# cointegration. Every struct is a field-order subset of real, and every mock
+# estimator reproduces the REAL argument validation — a mock looser than real
+# turns a guaranteed MEMs failure into a green suite (#84).
+
+struct HEGYResult{T<:AbstractFloat}
+    frequency::Int
+    deterministic::Symbol
+    lags::Int
+    pi_coefs::Vector{T}
+    t_zero::T
+    t_nyquist::T
+    t_zero_cv::Dict{Int,T}
+    t_nyquist_cv::Dict{Int,T}
+    pair_freqs::Vector{T}
+    pair_F::Vector{T}
+    pair_F_cv::Dict{Int,T}
+    F_seasonal::T
+    F_all::T
+    nobs::Int
+end
+
+struct ERSResult{T<:AbstractFloat}
+    P_T::T
+    pvalue::T
+    regression::Symbol
+    critical_values::Dict{Int,T}
+    nobs::Int
+end
+
+struct BubbleResult{T<:AbstractFloat}
+    kind::Symbol
+    statistic::T
+    pvalue::T
+    critical_values::Dict{Int,T}
+    bsadf::Vector{T}
+    cv_seq::Vector{T}
+    r2_index::Vector{Int}
+    episodes::Vector{Tuple{Int,Int}}
+    r0::T
+    adflag::Int
+    cv_method::Symbol
+    mc_reps::Int
+    nobs::Int
+end
+
+struct EDFTestResult{T<:AbstractFloat}
+    test::Symbol
+    dist::Symbol
+    params::Symbol
+    statistic::T
+    raw_statistic::T
+    pvalue::T
+    nobs::Int
+    theta::Vector{T}
+    critical_values::Dict{Int,T}
+    case::String
+end
+
+struct EngleGrangerResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    lags::Int
+    regression::Symbol
+    k::Int
+    N::Int
+    nobs::Int
+end
+
+struct PhillipsOuliarisResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    z_alpha::T
+    z_alpha_pvalue::T
+    regression::Symbol
+    kernel::Symbol
+    bandwidth::T
+    k::Int
+    N::Int
+    nobs::Int
+end
+
+struct HansenInstabilityResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    regression::Symbol
+    trend::Symbol
+    nparam::Int
+    k::Int
+    nobs::Int
+end
+
+struct ParkAddedResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    q_add::Int
+    base_order::Int
+    regression::Symbol
+    trend::Symbol
+    k::Int
+    nobs::Int
+end
+
+function hegy_test(y::AbstractVector; frequency::Int=4,
+                   deterministic::Symbol=:const_trend_seas, lags=:auto)
+    frequency ∈ (4, 12) ||
+        throw(ArgumentError("frequency must be 4 (quarterly) or 12 (monthly), got $frequency"))
+    deterministic ∈ (:none, :const, :const_seas, :const_trend, :const_trend_seas) ||
+        throw(ArgumentError("invalid deterministic :$deterministic"))
+    n = length(y)
+    n > 2 * frequency + 8 || throw(ArgumentError("Need more observations, got $n"))
+    npair = frequency == 4 ? 1 : 5
+    lg = lags === :auto ? 1 : Int(lags)
+    return HEGYResult{Float64}(frequency, deterministic, lg, fill(-0.3, 1 + npair),
+        -2.4, -2.9, Dict(1 => -3.7, 5 => -3.1, 10 => -2.8), Dict(1 => -3.6, 5 => -3.0, 10 => -2.7),
+        [Float64(i) * pi / 2 for i in 1:npair], fill(6.2, npair),
+        Dict(1 => 8.5, 5 => 6.5, 10 => 5.5), 7.1, 6.8, n - lg - 1)
+end
+
+function ers_test(y::AbstractVector; trend::Bool=false)
+    n = length(y)
+    n < 30 && throw(ArgumentError("Need at least 30 observations, got $n"))
+    return ERSResult{Float64}(3.2, 0.04, trend ? :trend : :constant,
+        Dict(1 => 1.9, 5 => 3.1, 10 => 4.5), n)
+end
+
+function _mock_bubble(y, kind::Symbol; r0=:auto, adflag::Int=0, mc_reps::Int=999,
+                      cv::Symbol=:asymptotic, seed::Int=20240716)
+    cv ∈ (:asymptotic, :wildboot) ||
+        throw(ArgumentError("cv must be :asymptotic or :wildboot; got :$cv"))
+    n = length(y)
+    r0f = r0 === :auto ? 0.01 + 1.8 / sqrt(n) : Float64(r0)
+    (0.0 < r0f < 1.0) || throw(ArgumentError("r0 must lie in (0,1), got $r0f"))
+    floor(Int, r0f * n) >= adflag + 3 || throw(ArgumentError("window too small for adflag=$adflag"))
+    nseq = max(1, n - floor(Int, r0f * n))
+    return BubbleResult{Float64}(kind, 1.85, 0.03, Dict(1 => 2.1, 5 => 1.5, 10 => 1.2),
+        fill(0.8, nseq), fill(1.5, nseq), collect(1:nseq),
+        [(max(1, n - 20), max(2, n - 10))], r0f, adflag, cv, mc_reps, n)
+end
+
+# Explicit kwargs, NOT `; kwargs...` — the bare absorber form is budgeted by
+# check_mock_surface (it hides signature drift), and each one-liner would spend two.
+sadf_test(y::AbstractVector; r0=:auto, adflag::Int=0, mc_reps::Int=999,
+          cv::Symbol=:asymptotic, seed::Int=20240716) =
+    _mock_bubble(y, :sadf; r0=r0, adflag=adflag, mc_reps=mc_reps, cv=cv, seed=seed)
+
+gsadf_test(y::AbstractVector; r0=:auto, adflag::Int=0, mc_reps::Int=999,
+           cv::Symbol=:asymptotic, seed::Int=20240716) =
+    _mock_bubble(y, :gsadf; r0=r0, adflag=adflag, mc_reps=mc_reps, cv=cv, seed=seed)
+
+const _MOCK_EDF_DISTS = (:normal, :exponential, :logistic, :gumbel, :gamma, :weibull, :chisq)
+const _MOCK_EDF_TESTS = (:ks, :lilliefors, :cvm, :ad, :watson)
+
+function edf_test(y::AbstractVector; dist::Symbol=:normal, test::Symbol=:ad,
+                  params::Symbol=:estimate, theta=nothing)
+    dist ∈ _MOCK_EDF_DISTS || throw(ArgumentError("dist must be one of $(_MOCK_EDF_DISTS); got :$dist"))
+    test ∈ _MOCK_EDF_TESTS || throw(ArgumentError("test must be one of $(_MOCK_EDF_TESTS); got :$test"))
+    params ∈ (:estimate, :specified) ||
+        throw(ArgumentError("params must be :estimate or :specified; got :$params"))
+    params === :specified && theta === nothing &&
+        throw(ArgumentError("params=:specified requires theta"))
+    n = length(y)
+    n >= 5 || throw(ArgumentError("Need at least 5 observations, got $n"))
+    th = theta === nothing ? Float64[mean(y), std(y)] : Float64.(collect(theta))
+    return EDFTestResult{Float64}(test, dist, params, 0.62, 0.58, 0.11, n, th,
+        Dict(1 => 1.03, 5 => 0.75, 10 => 0.63), "case 3")
+end
+
+function engle_granger_test(y::AbstractVector, X::AbstractMatrix;
+                            trend::Symbol=:constant, lags=:aic, max_lags=nothing)
+    trend ∈ (:none, :constant, :trend) ||
+        throw(ArgumentError("trend must be :none, :constant, or :trend; got :$trend"))
+    n = length(y)
+    size(X, 1) == n ||
+        throw(DimensionMismatch("length(y)=$n must equal size(X,1)=$(size(X,1))"))
+    k = size(X, 2)
+    k >= 1 || throw(ArgumentError("need at least one regressor column"))
+    n > 3 * k + 12 || throw(ArgumentError("too few observations ($n) for $k regressor(s)"))
+    lg = lags isa Symbol ? 1 : Int(lags)
+    return EngleGrangerResult{Float64}(-3.85, 0.03, lg, trend, k, k + 1, n - lg - 1)
+end
+
+function phillips_ouliaris_test(y::AbstractVector, X::AbstractMatrix;
+                                trend::Symbol=:constant, kernel::Symbol=:bartlett,
+                                bandwidth=:nw)
+    trend ∈ (:none, :constant, :trend) ||
+        throw(ArgumentError("trend must be :none, :constant, or :trend; got :$trend"))
+    kernel ∈ (:bartlett, :parzen, :qs, :quadratic_spectral, :tukey_hanning) ||
+        throw(ArgumentError("invalid kernel :$kernel"))
+    n = length(y)
+    size(X, 1) == n ||
+        throw(DimensionMismatch("length(y)=$n must equal size(X,1)=$(size(X,1))"))
+    k = size(X, 2)
+    k >= 1 || throw(ArgumentError("need at least one regressor column"))
+    n > 3 * k + 12 || throw(ArgumentError("too few observations ($n) for $k regressor(s)"))
+    bw = bandwidth isa Symbol ? floor(Int, 4 * ((n - 1) / 100)^0.25) : Float64(bandwidth)
+    return PhillipsOuliarisResult{Float64}(-3.6, 0.04, -21.5, 0.05, trend, kernel,
+        Float64(bw), k, k + 1, n - 1)
+end
+
+function hansen_instability_test(m)
+    return HansenInstabilityResult{Float64}(0.42, 0.12, :constant, m.trend,
+        m.k + 1, m.k, m.nobs)
+end
+
+function park_added_test(m; q_add::Int=2, kernel::Symbol=:bartlett, bandwidth=:nw)
+    q_add >= 1 || throw(ArgumentError("q_add must be ≥ 1; got $q_add"))
+    kernel ∈ (:bartlett, :parzen, :qs, :quadratic_spectral, :tukey_hanning) ||
+        throw(ArgumentError("invalid kernel :$kernel"))
+    return ParkAddedResult{Float64}(3.1, 0.21, q_add, m.trend === :linear ? 1 : 0,
+        :constant, m.trend, m.k, m.nobs)
+end
+
+export HEGYResult, ERSResult, BubbleResult, EDFTestResult
+export EngleGrangerResult, PhillipsOuliarisResult, HansenInstabilityResult, ParkAddedResult
+export hegy_test, ers_test, sadf_test, gsadf_test, edf_test
+export engle_granger_test, phillips_ouliaris_test, hansen_instability_test, park_added_test
 
 # ─── Cross-Sectional Regression Types & Functions ──────────────────
 
@@ -4923,6 +5507,8 @@ struct RegModel{T<:Real}
     cragg_donald_f::Union{T,Nothing}
     kleibergen_paap_f::Union{T,Nothing}
     stock_yogo_10pct::Union{T,Nothing}
+    kclass_k::Union{T,Nothing}          # k-class scalar actually used (IV k-class only)
+    kappa_hat::Union{T,Nothing}         # LIML minimum eigenvalue (liml/fuller only)
 end
 
 struct LogitModel{T<:Real}
@@ -5029,33 +5615,48 @@ function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
     RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
                 vnames, :ols, cov_type, weights, nothing, nothing,
-                nothing, nothing, nothing, nothing, nothing, nothing)
+                nothing, nothing, nothing, nothing, nothing, nothing,
+                nothing, nothing)
 end
 
 function estimate_iv(y::AbstractVector{T}, X::AbstractMatrix{T}, Z::AbstractMatrix{T};
-                     endogenous=Int[], cov_type=:hc1, varnames=nothing) where T
-    n, k = size(X)
-    beta = ones(T, k) * T(0.5)
-    vcov_mat = Matrix{T}(I(k)) * T(0.01)
+                     endogenous=Int[], cov_type=:hc1, varnames=nothing,
+                     method::Symbol=:tsls, k=nothing, fuller_a::Real=1.0) where T
+    # Mirror real's validation (reg/iv.jl): the k-class family and the k requirement.
+    method in (:tsls, Symbol("2sls"), :liml, :fuller, :kclass) ||
+        throw(ArgumentError("method must be :tsls, :liml, :fuller, or :kclass; got :$method"))
+    method === :kclass && k === nothing &&
+        throw(ArgumentError("k is required for method=:kclass"))
+    isempty(endogenous) && throw(ArgumentError("endogenous must be non-empty for IV estimation"))
+    # `k` is the k-class SCALAR kwarg here, so the regressor count must not reuse that
+    # name — real calls it k_reg for the same reason.
+    n, k_reg = size(X)
+    beta = ones(T, k_reg) * T(0.5)
+    vcov_mat = Matrix{T}(I(k_reg)) * T(0.01)
     fitted_vals = X * beta
     resids = y .- fitted_vals
     ssr = sum(resids .^ 2)
     tss = sum((y .- mean(y)) .^ 2)
     r2_val = one(T) - ssr / tss
-    adj_r2_val = one(T) - (one(T) - r2_val) * (n - 1) / (n - k)
+    adj_r2_val = one(T) - (one(T) - r2_val) * (n - 1) / (n - k_reg)
     f_val = T(20.0)
     f_p = T(0.002)
     ll = T(-105.0)
     aic_val = T(220.0)
     bic_val = T(230.0)
-    vnames = varnames === nothing ? ["x$i" for i in 1:k] : varnames
+    vnames = varnames === nothing ? ["x$i" for i in 1:k_reg] : varnames
     first_f = T(15.0)
     sargan_s = T(2.5)
     sargan_p = T(0.30)
+    # Only the k-class methods populate these, exactly as real does.
+    kk = method === :kclass ? T(k) :
+         method === :liml   ? T(1.05) :
+         method === :fuller ? T(1.05) - T(fuller_a) / T(n - size(Z, 2)) : nothing
+    kap = method in (:liml, :fuller) ? T(1.05) : nothing
     RegModel{T}(y, X, beta, vcov_mat, resids, fitted_vals, ssr, tss,
                 r2_val, adj_r2_val, f_val, f_p, ll, aic_val, bic_val,
                 vnames, :iv, cov_type, nothing, Z, endogenous,
-                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0))
+                first_f, sargan_s, sargan_p, T(15.0), T(14.0), T(7.0), kk, kap)
 end
 
 function _build_logit_probit(::Type{M}, y::AbstractVector{T}, X::AbstractMatrix{T};
@@ -5146,6 +5747,187 @@ function classification_table(m::Union{LogitModel,ProbitModel}; threshold=0.5)
         "threshold"   => threshold,
     )
 end
+
+# ─── C067 remainder (#72): cross-section OLS diagnostics. Structs are field-order
+# subsets of real; every estimator reproduces the REAL argument validation, because a
+# mock looser than real turns a guaranteed MEMs failure into a green suite (#84).
+# PLACEMENT: this must come AFTER `struct RegModel` — mocks.jl is one flat module
+# included top-to-bottom, so a method dispatching on ::RegModel defined earlier is an
+# UndefVarError at include time, not a MethodError at call time.
+
+struct RegDiagnosticResult{T<:AbstractFloat}
+    test_name::String
+    h0::String
+    statistic::T
+    pvalue::T
+    df::Union{Int,Tuple{Int,Int}}
+    f_stat::Union{Nothing,T}
+    f_pvalue::Union{Nothing,T}
+    f_df::Union{Nothing,Tuple{Int,Int}}
+    aux_r2::T
+    n::Int
+end
+
+struct StabilityResult{T<:AbstractFloat}
+    kind::Symbol
+    tindex::Vector{Int}
+    stat_path::Vector{T}
+    upper::Vector{T}
+    lower::Vector{T}
+    crossed::Bool
+    first_crossing::Union{Nothing,Int}
+    level::T
+    recursive_resid::Vector{T}
+    n::Int
+    k::Int
+end
+
+struct InfluenceStats{T<:AbstractFloat}
+    hat::Vector{T}
+    student_internal::Vector{T}
+    student_external::Vector{T}
+    dffits::Vector{T}
+    cooksd::Vector{T}
+    dfbetas::Matrix{T}
+    sigma::T
+    high_leverage::Vector{Int}
+    influential::Vector{Int}
+    varnames::Vector{String}
+    n::Int
+    k::Int
+end
+
+# White/Glejser/Harvey all take (resid, X) with a RegModel convenience method, and all
+# three return RegDiagnosticResult — exactly like real.
+function white_test(resid::AbstractVector, X::AbstractMatrix; cross_terms::Bool=true)
+    n = length(resid)
+    size(X, 1) == n || throw(DimensionMismatch("length(resid)=$n must equal size(X,1)=$(size(X,1))"))
+    df = cross_terms ? max(1, size(X, 2)) : max(1, size(X, 2) - 1)
+    RegDiagnosticResult{Float64}("White test" * (cross_terms ? "" : " (no cross-terms)"),
+        "Homoskedasticity (error variance unrelated to regressors)",
+        7.4, 0.06, df, nothing, nothing, nothing, 0.12, n)
+end
+white_test(m::RegModel; cross_terms::Bool=true) =
+    white_test(m.residuals, m.X; cross_terms=cross_terms)
+
+function glejser_test(resid::AbstractVector, X::AbstractMatrix)
+    n = length(resid)
+    size(X, 1) == n || throw(DimensionMismatch("length(resid)=$n must equal size(X,1)=$(size(X,1))"))
+    RegDiagnosticResult{Float64}("Glejser test",
+        "Homoskedasticity (error variance unrelated to regressors)",
+        5.1, 0.08, max(1, size(X, 2) - 1), 2.4, 0.09, (2, n - 3), 0.07, n)
+end
+glejser_test(m::RegModel) = glejser_test(m.residuals, m.X)
+
+function harvey_test(resid::AbstractVector, X::AbstractMatrix)
+    n = length(resid)
+    size(X, 1) == n || throw(DimensionMismatch("length(resid)=$n must equal size(X,1)=$(size(X,1))"))
+    RegDiagnosticResult{Float64}("Harvey test",
+        "Homoskedasticity (multiplicative form)",
+        4.2, 0.12, max(1, size(X, 2) - 1), nothing, nothing, nothing, 0.05, n)
+end
+harvey_test(m::RegModel) = harvey_test(m.residuals, m.X)
+
+function chow_test(m::RegModel, break_index::Union{Integer,AbstractVector{<:Integer}};
+                   type::Symbol=:breakpoint, level::Real=0.05)
+    type ∈ (:breakpoint, :forecast) ||
+        throw(ArgumentError("type must be :breakpoint or :forecast; got :$type"))
+    n, k = size(m.X)
+    breaks = sort(collect(Int, break_index isa Integer ? [break_index] : break_index))
+    all(b -> 1 <= b < n, breaks) ||
+        throw(ArgumentError("break index/indices must lie in 1:$(n-1) (got $breaks)"))
+    if type === :breakpoint
+        edges = vcat(0, breaks, n)
+        for s in 1:(length(edges) - 1)
+            (edges[s+1] - edges[s]) >= k ||
+                throw(ArgumentError("segment $s has $(edges[s+1]-edges[s]) < k=$k observations; use type=:forecast"))
+        end
+    end
+    df1 = k * length(breaks)
+    RegDiagnosticResult{Float64}("Chow test ($(type))",
+        "No structural break (coefficients constant across segments)",
+        3.3, 0.04, (df1, n - k - df1), 3.3, 0.04, (df1, n - k - df1), 0.0, n)
+end
+
+function _mock_stability(m::RegModel, kind::Symbol, level::Real)
+    (0 < level < 1) || throw(ArgumentError("level must lie in (0,1); got $level"))
+    n, k = size(m.X)
+    n > k + 2 || throw(ArgumentError("need more than k+2=$(k+2) observations, got $n"))
+    idx = collect((k + 1):n)
+    npath = length(idx)
+    path = kind === :cusumsq ? collect(range(0.0, 1.0; length=npath)) : fill(0.3, npath)
+    up = kind === :cusumsq ? [ (t - k) / (n - k) + 0.3 for t in idx ] : fill(1.2, npath)
+    lo = kind === :cusumsq ? [ (t - k) / (n - k) - 0.3 for t in idx ] : fill(-1.2, npath)
+    StabilityResult{Float64}(kind, idx, path, up, lo, false, nothing, Float64(level),
+        fill(0.1, npath), n, k)
+end
+
+cusum_test(m::RegModel; level::Real=0.05) = _mock_stability(m, :cusum, level)
+cusumsq_test(m::RegModel; level::Real=0.05) = _mock_stability(m, :cusumsq, level)
+
+function recursive_residuals(m::RegModel)
+    n, k = size(m.X)
+    n > k || throw(ArgumentError("need n > k, got n=$n, k=$k"))
+    return fill(0.1, n - k)
+end
+
+function influence_stats(m::RegModel)
+    n, k = size(m.X)
+    n > k || throw(ArgumentError("need n > k, got n=$n, k=$k"))
+    InfluenceStats{Float64}(fill(Float64(k) / n, n), fill(0.2, n), fill(0.21, n),
+        fill(0.05, n), fill(0.01, n), fill(0.02, n, k), 1.05,
+        Int[], Int[], copy(m.varnames), n, k)
+end
+
+export RegDiagnosticResult, StabilityResult, InfluenceStats
+export white_test, glejser_test, harvey_test, chow_test
+export cusum_test, cusumsq_test, recursive_residuals, influence_stats
+
+# ─── C067 (#72): variable selection. Field-order subset of real; validation mirrors
+# reg/selection.jl so a bad --method/--criterion/p-threshold fails the same way.
+
+struct SelectionResult{T<:AbstractFloat}
+    method::Symbol
+    criterion::Symbol
+    selected::Vector{Int}
+    keep::Vector{Int}
+    varnames::Vector{String}
+    path::Vector{Tuple{Symbol,Int,T}}
+    terminal_models::Vector{Vector{Int}}
+    encompassing_f::Union{Nothing,T}
+    encompassing_pval::Union{Nothing,T}
+    encompassing_df::Union{Nothing,Tuple{Int,Int}}
+    final::RegModel{T}
+    n_gum::Int
+end
+
+function select_variables(y::AbstractVector{T}, X::AbstractMatrix{T};
+                          method::Symbol=:bidirectional, criterion::Symbol=:pvalue,
+                          p_enter::Real=0.05, p_remove::Real=0.10, p_gets::Real=0.05,
+                          diag_level::Real=0.05, bg_lags::Int=1,
+                          keep=nothing, varnames=nothing) where T
+    n, k = size(X)
+    length(y) == n || throw(ArgumentError("X must have $(length(y)) rows (got $n)"))
+    method ∈ (:forward, :backward, :bidirectional, :best_subset, :gets) ||
+        throw(ArgumentError("method must be :forward, :backward, :bidirectional, :best_subset, or :gets; got :$method"))
+    criterion ∈ (:pvalue, :aic, :bic) ||
+        throw(ArgumentError("criterion must be :pvalue, :aic, or :bic; got :$criterion"))
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : varnames
+    length(vn) == k || throw(ArgumentError("varnames must have length $k"))
+    kp = keep === nothing ? Int[] : collect(Int, keep)
+    all(c -> 1 <= c <= k, kp) || throw(ArgumentError("keep indices must be in 1:$k"))
+    method === :bidirectional && criterion === :pvalue && p_remove < p_enter &&
+        throw(ArgumentError("bidirectional :pvalue search requires p_remove ≥ p_enter"))
+    # Keep the first regressor plus anything forced; enough structure to exercise the
+    # renderer without pretending to reproduce a real search.
+    sel = sort(unique(vcat(kp, [1])))
+    final = estimate_reg(y, X[:, sel]; varnames=vn[sel])
+    path = Tuple{Symbol,Int,T}[(:enter, i, T(0.01)) for i in sel]
+    SelectionResult{T}(method, criterion, sel, kp, vn, path, [sel],
+                       T(1.5), T(0.22), (1, n - length(sel)), final, k)
+end
+
+export SelectionResult, select_variables
 
 export RegModel, LogitModel, ProbitModel, MarginalEffects
 export estimate_reg, estimate_iv, estimate_logit, estimate_probit
@@ -5810,7 +6592,14 @@ confint(m::PanelProbitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m
 
 function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         model=:fe, twoway=false, fe=:twoway, cov_type=:cluster, clusters=nothing,
-        varnames=nothing) where T
+        varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise) where T
+    # Mirror real's validation (preg/estimation.jl) for the #75 additions.
+    cov_type in (:ols, :cluster, :twoway, :driscoll_kraay, :pcse) ||
+        throw(ArgumentError("cov_type must be :ols, :cluster, :twoway, :driscoll_kraay, or :pcse; got :$cov_type"))
+    pcse_unbalanced in (:casewise, :pairwise) ||
+        throw(ArgumentError("pcse_unbalanced must be :casewise or :pairwise; got :$pcse_unbalanced"))
+    ar1 in (:none, :common, :panel_specific) ||
+        throw(ArgumentError("ar1 must be :none, :common, or :panel_specific; got :$ar1"))
     n, k = pd.T_obs, length(covariates) + 1
     beta = ones(T, k) * T(0.5)
     vcov_mat = Matrix{T}(I(k)) * T(0.01)
@@ -7553,6 +8342,38 @@ function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
                   poly_degree, h, w, fitted, resid, ssr, sigma2, r2, adj_r2, loglik, aic, bic,
                   varnames, true)
 end
+
+# #67: MidasForecast + forecast(::MidasModel, X_new). Fields mirror real
+# (midas/types.jl:144): forecast/ci_lower/ci_upper/se/horizon/conf_level.
+#
+# The mock encodes `X_new[1]` into the point forecast on purpose, so a test can pin the
+# MOST-RECENT-FIRST contract: real applies the decaying weight curve to X_new in that
+# order, and passing the block chronologically does not error — it silently returns a
+# wrong number.
+struct MidasForecast{T<:AbstractFloat}
+    forecast::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    se::Vector{T}
+    horizon::Int
+    conf_level::T
+end
+
+function forecast(m::MidasModel, X_new::AbstractVector; y_lags=nothing, level::Real=0.95)
+    xn = Float64.(collect(X_new))
+    length(xn) >= m.K || throw(ArgumentError(
+        "X_new needs ≥ K=$(m.K) high-frequency observations (got $(length(xn)))"))
+    if m.p_ar > 0 && y_lags !== nothing
+        length(collect(y_lags)) >= m.p_ar ||
+            throw(ArgumentError("y_lags needs ≥ p_ar=$(m.p_ar) values"))
+    end
+    point = xn[1]                      # ← first element = most recent, by contract
+    se = 0.25
+    MidasForecast{Float64}([point], [point - 1.96se], [point + 1.96se], [se],
+                           m.h, Float64(level))
+end
+
+export MidasForecast
 
 export MidasModel, estimate_midas, midas_weights
 

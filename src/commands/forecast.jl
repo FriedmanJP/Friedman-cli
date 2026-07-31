@@ -19,6 +19,202 @@
 
 function forecast_specs()::Vector{CommandSpec}
     return [
+        # #73: ARFIMA gains the downstream verbs. forecast(::ARFIMAModel, h) returns an
+        # ARIMAForecast (a real plot recipe exists for it, so plot flags are legitimate);
+        # --trunc-lag is ARFIMA-specific and has no arima equivalent.
+        CommandSpec(
+            path=["forecast", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="horizons", short="H", type=Int, default=12, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Interval level in (0,1)"),
+                OptionSpec(name="trunc-lag", type=Int, default=200, description="AR(inf) truncation lag for the fractional filter (≥ 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_arfima, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_arfima),
+        ),
+        # #67: MIDAS. NOTE there is deliberately NO --horizons: forecast(::MidasModel,
+        # X_new) takes a high-frequency block, and the horizon is fixed at estimation
+        # time via --horizon (stored as m.h). Advertising --horizons would be a lie.
+        # Also no plot flags: MEMs has a plot_result(::MidasModel) recipe (the weight
+        # curve) but none for MidasForecast.
+        CommandSpec(
+            path=["forecast", "midas"],
+            summary="Path to low-frequency target CSV",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to low-frequency target CSV")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Target column index (1-based)"),
+                OptionSpec(name="hf-data", type=String, default="", description="Path to the high-frequency indicator CSV (required)"),
+                OptionSpec(name="hf-column", type=Int, default=1, description="High-frequency column index (1-based)"),
+                OptionSpec(name="m", type=Int, default=0, description="High-frequency observations per low-frequency period (required, ≥ 1)"),
+                OptionSpec(name="k", type=Int, default=0, description="Number of high-frequency lags K (required, ≥ 1)"),
+                OptionSpec(name="weights", type=String, default="expalmon", description="MIDAS weight family", choices=["expalmon","beta2","beta3","almon","umidas"]),
+                OptionSpec(name="p-ar", type=Int, default=0, description="Autoregressive lags of the target (ADL-MIDAS)"),
+                OptionSpec(name="poly-degree", type=Int, default=2, description="Almon polynomial degree (≥ 0)"),
+                OptionSpec(name="horizon", type=Int, default=1, description="Direct forecast horizon, fixed at estimation"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Prediction-interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_midas, description="Path to low-frequency target CSV")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_midas),
+        ),
+        # C064 remainder (#69): the six C064a GARCH variants gain this verb.
+        # garch-midas has NO --conf-level: forecast(::GarchMidasModel, h) takes none.
+        CommandSpec(
+            path=["forecast", "igarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
+                # binds Bool to the handler's plot_save::String and TypeErrors on every
+                # invocation (the #85 declared-vs-handler mismatch).
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_igarch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_igarch),
+        ),
+        CommandSpec(
+            path=["forecast", "cgarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
+                # binds Bool to the handler's plot_save::String and TypeErrors on every
+                # invocation (the #85 declared-vs-handler mismatch).
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_cgarch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_cgarch),
+        ),
+        CommandSpec(
+            path=["forecast", "aparch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="fix-delta", type=Float64, default=nothing, description="Fix the power parameter delta"),
+                OptionSpec(name="fix-gamma", type=Float64, default=nothing, description="Fix the asymmetry parameter gamma"),
+                OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
+                # binds Bool to the handler's plot_save::String and TypeErrors on every
+                # invocation (the #85 declared-vs-handler mismatch).
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_aparch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_aparch),
+        ),
+        CommandSpec(
+            path=["forecast", "figarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
+                # binds Bool to the handler's plot_save::String and TypeErrors on every
+                # invocation (the #85 declared-vs-handler mismatch).
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_figarch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_figarch),
+        ),
+        CommandSpec(
+            path=["forecast", "fiegarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
+                # binds Bool to the handler's plot_save::String and TypeErrors on every
+                # invocation (the #85 declared-vs-handler mismatch).
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:forecast_fiegarch, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_fiegarch),
+        ),
+        CommandSpec(
+            path=["forecast", "garch-midas"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="m-freq", type=Int, default=0, description="High-frequency observations per low-frequency block (required, ≥ 1)"),
+                OptionSpec(name="k", type=Int, default=12, description="Number of MIDAS lags"),
+                OptionSpec(name="rv", type=String, default="realized", description="Long-run driver", choices=["realized","macro"]),
+                OptionSpec(name="span", type=String, default="fixed", description="Span", choices=["fixed","rolling"]),
+                OptionSpec(name="config", type=String, default="", description="TOML with [garch_midas] x_lf (required for --rv macro)"),
+                OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            # NO plot flags: MEMs ships no plot_result for the NamedTuple that
+            # forecast(::GarchMidasModel, h) returns, and advertising --plot would be an
+            # uncaught MethodError (the C065a rule).
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:forecast_garch_midas, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_garch_midas),
+        ),
         CommandSpec(
             path=["forecast", "var"],
             summary="Path to CSV data file",
@@ -50,9 +246,10 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
-            flags=FlagSpec[],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
             tables=[TableSpec(name=:forecast_bvar, description="Path to CSV data file")],
             category="forecast",
             handler=wrap_legacy(_forecast_bvar),
@@ -282,8 +479,12 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=1)"),
                 OptionSpec(name="seasonal-period", type=Int, default=1, description="Seasonal lag for MASE naive-forecast scaling"),
+                # #95: ForecastEvaluation has a real plot_result recipe (a bar chart of
+                # the chosen metric); the other five `evaluate` leaves return types that
+                # have none, so only this one gains plot flags.
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file"),
             ], OUTPUT_OPTIONS),
-            flags=FlagSpec[],
+            flags=[FlagSpec(name="plot", description="Display an interactive plot")],
             tables=[TableSpec(name=:forecast_accuracy_metrics, description="Point accuracy metrics, one row per forecast")],
             category="forecast",
             handler=wrap_legacy(_forecast_eval_metrics),
@@ -433,6 +634,7 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
                          draws::Int=2000, sampler::String="direct",
                          config::String="",
                          output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="",
                          model=nothing)
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
@@ -452,6 +654,9 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
     # mean + credible bands) and render its tidy long_table (horizon|variable|value|lower|
     # upper), replacing the hand-rolled per-draw simulation and quantile computation.
     fc = forecast(post, horizons; conf_level=0.68)
+    # #95: BVARForecast has a real plot_result recipe upstream — this leaf simply never
+    # advertised it.
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)")
 end
@@ -856,7 +1061,8 @@ function _fceval_error(e, what::String)
 end
 
 function _forecast_eval_metrics(; data::String, actual::String="", forecasts::String="",
-                                 seasonal_period::Int=1, output::String="", format::String="table")
+                                 seasonal_period::Int=1, output::String="", format::String="table",
+                                 plot::Bool=false, plot_save::String="")
     y, fnames, fcols = _fceval_load(data, actual, forecasts; leaf="metrics")
     _status("Forecast evaluation: $(length(fnames)) forecast(s), n=$(length(y)), seasonal_period=$seasonal_period")
     _status()
@@ -878,6 +1084,11 @@ function _forecast_eval_metrics(; data::String, actual::String="", forecasts::St
                     variance = round.(ev.decomp[:, 2]; digits=6),
                     covariance = round.(ev.decomp[:, 3]; digits=6))
     output_result(dec; format=Symbol(format), output=output, title="Theil MSE Decomposition")
+    # #95: ForecastEvaluation has a real recipe (bar chart of the chosen metric). The
+    # other five `evaluate` leaves return DMTestResult / MincerZarnowitzResult /
+    # ForecastEncompassingResult / ForecastCombination, none of which have one — so they
+    # correctly stay flagless.
+    _maybe_plot(ev; plot=plot, plot_save=plot_save)
     return ev
 end
 

@@ -3315,6 +3315,91 @@ using TOML
         @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [["a"], ["b"]])), "H")      # config/type (non-numeric)
     end
 
+    @testset "get_statespace (general state-space system, #71)" begin
+        # Minimal valid local level written out by hand
+        # Dict{String,Any} on purpose: a bare Dict of matrices infers
+        # Dict{String,Vector{Vector{Float64}}}, and assigning a FLAT vector (a1/d/c) or a
+        # scalar into it then fails to convert before the parser is ever reached.
+        base = Dict{String,Any}("statespace" => Dict{String,Any}(
+            "Z" => [[1.0]], "H" => [[2.0]], "T" => [[1.0]], "Q" => [[3.0]]))
+        s = get_statespace(base)
+        @test s.n_obs == 1 && s.n_state == 1
+        @test s.Z == reshape([1.0], 1, 1) && s.Q == reshape([3.0], 1, 1)
+        @test s.init_mode == :kappa            # default
+        @test s.R === nothing && s.d === nothing && s.c === nothing
+        @test s.a1 === nothing && s.P1 === nothing
+
+        # Multivariate: Z is n_obs × n_state, so 2 series loading on 1 state
+        biv = Dict{String,Any}("statespace" => Dict{String,Any}(
+            "Z" => [[1.0], [0.7]], "H" => [[1.0, 0.0], [0.0, 2.0]],
+            "T" => [[0.95]], "Q" => [[0.5]], "d" => [0.0, 0.0], "c" => [0.0],
+            "init_mode" => "diffuse"))
+        b = get_statespace(biv)
+        @test b.n_obs == 2 && b.n_state == 1
+        @test b.init_mode == :diffuse
+        @test b.d == [0.0, 0.0] && b.c == [0.0]
+
+        # Explicit initialisation: a1 AND P1 together
+        ex = deepcopy(base)
+        ex["statespace"]["a1"] = [0.0]; ex["statespace"]["P1"] = [[10.0]]
+        e = get_statespace(ex)
+        @test e.a1 == [0.0] && e.P1 == reshape([10.0], 1, 1)
+
+        # Explicit R with r ≠ n_state
+        rr = Dict{String,Any}("statespace" => Dict{String,Any}(
+            "Z" => [[1.0, 0.0]], "H" => [[1.0]], "T" => [[1.0, 0.0], [0.0, 1.0]],
+            "Q" => [[1.0]], "R" => [[1.0], [0.0]]))
+        r = get_statespace(rr)
+        @test r.n_state == 2 && size(r.R) == (2, 1) && size(r.Q) == (1, 1)
+
+        _code(f) = try; f(); nothing; catch e; e isa CliError ? e.code : rethrow(); end
+        # missing section / missing required key
+        @test _code(() -> get_statespace(Dict())) == "config/missing"
+        @test _code(() -> get_statespace(Dict{String,Any}("statespace" => Dict{String,Any}("Z" => [[1.0]])))) == "config/missing-key"
+        # Dimensional consistency is checked HERE (config/shape, exit 4) rather than left to the
+        # MEMs constructor, so the error names the file the user wrote instead of surfacing as
+        # an untyped ArgumentError.
+        badH = deepcopy(base); badH["statespace"]["H"] = [[1.0, 0.0], [0.0, 1.0]]
+        @test _code(() -> get_statespace(badH)) == "config/shape"
+        badT = deepcopy(base); badT["statespace"]["T"] = [[1.0, 0.0], [0.0, 1.0]]
+        @test _code(() -> get_statespace(badT)) == "config/shape"
+        badd = deepcopy(base); badd["statespace"]["d"] = [0.0, 0.0]
+        @test _code(() -> get_statespace(badd)) == "config/shape"
+        badc = deepcopy(base); badc["statespace"]["c"] = [0.0, 0.0]
+        @test _code(() -> get_statespace(badc)) == "config/shape"
+        badR = deepcopy(base); badR["statespace"]["R"] = [[1.0, 0.0]]   # 1×2: Q must then be 2×2
+        @test _code(() -> get_statespace(badR)) == "config/shape"
+        # Q larger than the state with no explicit R — MEMs' default R = I(n_state, size(Q,1))
+        # would be malformed, so reject it here rather than let the constructor throw.
+        bigQ = deepcopy(base); bigQ["statespace"]["Q"] = [[1.0, 0.0], [0.0, 1.0]]
+        @test _code(() -> get_statespace(bigQ)) == "config/shape"
+        # a1 without P1 is SILENTLY IGNORED by MEMs (it switches to :explicit only when both are
+        # present), so a user supplying one would think it applied. Reject the half-specification.
+        half = deepcopy(base); half["statespace"]["a1"] = [0.0]
+        @test _code(() -> get_statespace(half)) == "config/shape"
+        halfP = deepcopy(base); halfP["statespace"]["P1"] = [[1.0]]
+        @test _code(() -> get_statespace(halfP)) == "config/shape"
+        wrongA1 = deepcopy(base); wrongA1["statespace"]["a1"] = [0.0, 0.0]
+        wrongA1["statespace"]["P1"] = [[1.0]]
+        @test _code(() -> get_statespace(wrongA1)) == "config/shape"
+        # bad init_mode / types
+        badmode = deepcopy(base); badmode["statespace"]["init_mode"] = "bogus"
+        @test _code(() -> get_statespace(badmode)) == "config/invalid"
+        @test get_statespace(deepcopy(base)).init_mode == :kappa
+        for m in ("kappa", "diffuse", "stationary")
+            ok = deepcopy(base); ok["statespace"]["init_mode"] = m
+            @test get_statespace(ok).init_mode == Symbol(m)
+        end
+        ragged = deepcopy(base); ragged["statespace"]["Z"] = [[1.0], [1.0, 2.0]]
+        @test _code(() -> get_statespace(ragged)) == "config/shape"
+        nonnum = deepcopy(base); nonnum["statespace"]["Z"] = [["a"]]
+        @test _code(() -> get_statespace(nonnum)) == "config/type"
+        notarr = deepcopy(base); notarr["statespace"]["Z"] = 3.0
+        @test _code(() -> get_statespace(notarr)) == "config/type"
+        badvec = deepcopy(base); badvec["statespace"]["d"] = "nope"
+        @test _code(() -> get_statespace(badvec)) == "config/type"
+    end
+
     @testset "_parse_matrix" begin
         # Valid 2x3 → correct Matrix{Float64}
         mat = _parse_matrix([[1, 2, 3], [4, 5, 6]])
@@ -3758,7 +3843,7 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     # bayes is a NodeCommand with 13 sub-leaves (8 core + 5 diagnostics, C073)
     bayes_node = dsge_node.subcmds["bayes"]
     @test bayes_node isa NodeCommand
-    @test length(bayes_node.subcmds) == 13
+    @test length(bayes_node.subcmds) == 15
     @test haskey(bayes_node.subcmds, "estimate")
     @test haskey(bayes_node.subcmds, "irf")
     @test haskey(bayes_node.subcmds, "fevd")
@@ -3870,7 +3955,7 @@ end
     @test "config" in opt_names
 
     # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 66
+    @test length(est_node.subcmds) == 68
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4032,7 +4117,7 @@ end
 
     # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 18
+    @test length(fc_node.subcmds) == 26
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
@@ -4045,16 +4130,16 @@ end
 
     # Predict: 23 primary + gjr_garch alias (C044)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 24
+    @test length(pred_node.subcmds) == 34
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
     pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
-    # Residuals: 23 primary + gjr_garch alias (C044)
+    # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 24
+    @test length(res_node.subcmds) == 38
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
@@ -4065,8 +4150,15 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 58 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
-    @test length(test_node.subcmds) == 60
+    # 80 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+    @test length(test_node.subcmds) == 82
+    for leaf in ("hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
+                 "phillips-ouliaris", "hansen-instability", "park-added",
+                 "white", "glejser", "harvey", "chow", "cusum", "cusumsq",
+                 "recursive-residuals", "influence",
+                 "llc", "ips", "breitung", "fisher-johansen", "dh-causality")
+        @test haskey(test_node.subcmds, leaf)
+    end
     @test haskey(test_node.subcmds, "gph")
     @test haskey(test_node.subcmds, "local-whittle")
     # C071: nested VECM restriction-test node

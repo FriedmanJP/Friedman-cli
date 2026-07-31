@@ -372,6 +372,21 @@ function dgp_midas(; Tlf::Int=120, m::Int=3, K::Int=6, a::Float64=1.0, b::Float6
     return lf, hf, b
 end
 
+"""Genuine two-regime THRESHOLD REGRESSION with an EXTERNAL splitting variable (#70):
+yᵢ = β(zᵢ)·x1ᵢ + 0.5·x2ᵢ + εᵢ, with β = +2 when zᵢ ≤ 0 and β = −2 when zᵢ > 0, and z drawn
+independently of the regressors. The sign flip at the TRUE threshold γ = 0 is what makes
+this a real recovery test rather than a shape smoke test: `estimate threshold` must land γ̂
+near 0 (with 0 inside the Hansen 2000 CI), report ≈ +2 / −2 for x1 in the two regimes, and
+≈ 0.5 for the regime-invariant x2. Columns: y, x1, x2, z."""
+function dgp_threshold(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    z  = randn(rng, n)
+    x1 = randn(rng, n)
+    x2 = randn(rng, n)
+    y  = [(z[i] <= 0 ? 2.0 : -2.0) * x1[i] + 0.5 * x2[i] + 0.2 * randn(rng) for i in 1:n]
+    return write_csv(DataFrame(y=y, x1=x1, x2=x2, z=z); prefix="threshold")
+end
+
 """Genuine two-regime SETAR: yₜ = 0.6 yₜ₋₁ + εₜ if yₜ₋₁ ≤ 0, else -0.5 yₜ₋₁ + εₜ. The
 sign flip of the AR coefficient at the threshold 0 makes this self-exciting series clearly
 nonlinear → both regimes are populated, γ̂ lands near 0, and the Hansen (1996) linearity
@@ -421,4 +436,84 @@ function dgp_msar(; n::Int=500, seed::Int=42)
         prev_mu = mu
     end
     return write_csv(DataFrame(y=y); prefix="msar")
+end
+
+# ── C069 (remainder): seasonal / bubble / non-cointegrated DGPs ──────────────
+
+"""Quarterly series with a SEASONAL UNIT ROOT: the seasonal differences accumulate
+(`y_t = y_{t-4} + ε_t`), so HEGY should fail to reject a unit root at the seasonal
+frequencies. `deterministic=true` instead gives fixed quarterly dummies around a
+stationary AR(1), where the seasonal roots ARE rejected."""
+function dgp_seasonal(; T::Int=240, deterministic::Bool=false, seed::Int=42)
+    rng = MersenneTwister(seed)
+    y = zeros(T)
+    if deterministic
+        dummies = [2.0, -1.0, 0.5, -1.5]
+        for t in 2:T
+            y[t] = 0.4 * y[t-1] + dummies[mod1(t, 4)] + randn(rng)
+        end
+    else
+        for t in 5:T
+            y[t] = y[t-4] + randn(rng)      # seasonal random walk
+        end
+    end
+    return write_csv(DataFrame(y=y); prefix="seasonal")
+end
+
+"""Series with an explosive episode in the middle: a random walk that switches to
+`y_t = 1.06 y_{t-1} + ε_t` for a stretch, then reverts. SADF/GSADF should reject the
+unit-root null; a pure random walk (`dgp_random_walk`) should not."""
+function dgp_bubble(; T::Int=300, start::Int=150, stop::Int=210, δ::Float64=1.06,
+                    seed::Int=42)
+    rng = MersenneTwister(seed)
+    y = zeros(T)
+    for t in 2:T
+        y[t] = (start <= t <= stop ? δ * y[t-1] : y[t-1]) + randn(rng)
+    end
+    return write_csv(DataFrame(y=y); prefix="bubble")
+end
+
+"""Two INDEPENDENT random walks — the residual-cointegration H0 (no cointegration).
+The mirror of `dgp_coint`, which is genuinely cointegrated."""
+function dgp_no_coint(; T::Int=250, seed::Int=42)
+    rng = MersenneTwister(seed)
+    return write_csv(DataFrame(x=cumsum(randn(rng, T)), y=cumsum(randn(rng, T)));
+                     prefix="nocoint")
+end
+
+# ── C067 remainder (#72): cross-section OLS diagnostic DGPs ──────────────────
+
+"""Cross-section OLS design with an explicit `const` column (the CLI prepends no
+intercept — same convention as `estimate reg`). `hetero=true` gives the error the
+multiplicative form `sigma_i = exp(gamma*x1_i)` — MONOTONE in `x1`, which is what
+Glejser (|resid| on X) and Harvey (log resid^2 on X) can actually detect; a variance
+even in `x1` (e.g. scaling by |x1|) leaves both with a ~zero slope and they do not
+reject. `break_at` shifts the slope partway
+through so Chow/CUSUM see a structural break. Columns are STRING-keyed because
+`const` is a Julia reserved word and cannot be a `DataFrame` keyword."""
+function dgp_reg_diag(; n::Int=200, hetero::Bool=false, break_at::Union{Nothing,Int}=nothing,
+                      seed::Int=42)
+    rng = MersenneTwister(seed)
+    x1 = randn(rng, n)
+    x2 = randn(rng, n)
+    e = randn(rng, n)
+    hetero && (e .*= exp.(0.8 .* x1))
+    beta1 = fill(2.0, n)
+    if break_at !== nothing
+        beta1[(break_at + 1):end] .= -2.0        # slope flips at the break
+    end
+    y = 1.0 .+ beta1 .* x1 .- 0.5 .* x2 .+ e
+    return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2);
+                     prefix="regdiag")
+end
+
+"""Selection DGP (C067/#72): `y = 1 + 2*x1 - 1.5*x2 + e`, with `x3`/`x4` pure noise, so
+a working search keeps x1/x2 and drops x3/x4. String-keyed columns because `const` is a
+Julia reserved word."""
+function dgp_select(; n::Int=400, seed::Int=42)
+    rng = MersenneTwister(seed)
+    x1 = randn(rng, n); x2 = randn(rng, n); x3 = randn(rng, n); x4 = randn(rng, n)
+    y = 1.0 .+ 2.0 .* x1 .- 1.5 .* x2 .+ randn(rng, n)
+    return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2,
+                               "x3" => x3, "x4" => x4); prefix="select")
 end

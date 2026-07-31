@@ -1109,24 +1109,6 @@ function _fitted_data_arg()
     return [ArgSpec(name="data", description="Path to CSV data file")]
 end
 
-function _fitted_base_options(; include_lags=true, include_column=false, include_reg=false, include_preg=false)
-    opts = OptionSpec[]
-    if include_reg
-        append!(opts, REG_OPTIONS)
-    elseif include_preg
-        append!(opts, PREG_OPTIONS)
-    else
-        if include_lags
-            push!(opts, OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order"))
-        end
-        if include_column
-            push!(opts, OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"))
-        end
-        append!(opts, OUTPUT_OPTIONS)
-    end
-    return opts
-end
-
 # Extra option sets for discrete choice / special leaves
 # The handlers take `marginal_effects`/`odds_ratio`/`classification_table` as `Bool`,
 # so these MUST be flags. Declaring them as String options made the default `""`
@@ -1267,11 +1249,458 @@ function _specs_for_verb(verb::Symbol, title_prefix::String)
 end
 
 function predict_specs()::Vector{CommandSpec}
-    return _specs_for_verb(:predict, "In-sample fitted values")
+    # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
+    # _specs_for_verb cannot generate them — append their hand-written specs (#69).
+    return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # #71: state-space state paths / innovations, read from the model's fields.
+        CommandSpec(
+            path=["predict", "statespace"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                # `--model` is reserved for the model HANDLE on predict/residuals (injected
+                # by with_model_option, which does NOT dedupe), so the model TYPE is --kind
+                # here — same value set as `estimate statespace --model`.
+                OptionSpec(name="kind", type=String, default="local-level", description="State-space model", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Diffuse initialisation", choices=["kappa","diffuse"]),
+                OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-kappa diffuse prior variance"),
+                OptionSpec(name="state", type=String, default="both", description="Which state path to emit", choices=["filtered","smoothed","both"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_statespace, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_statespace),
+        ),
+        # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
+        # `estimate` sibling's options because the equation system lives in --config —
+        # without it the model cannot be refit.
+        CommandSpec(
+            path=["predict", "sur"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] blocks (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="iterate", description="Iterate the SUR feasible-GLS step to convergence"),
+                   FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:predict_sur, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_sur),
+        ),
+        CommandSpec(
+            path=["predict", "3sls"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] and instruments (required)"),
+                OptionSpec(name="instruments", type=String, default="common", description="Instrument mode", choices=["common","perequation"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:predict_3sls, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_3sls),
+        ),
+        # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
+        # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
+        CommandSpec(
+            path=["predict", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_arfima, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_arfima),
+        ),
+        CommandSpec(
+            path=["predict", "igarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_igarch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_igarch),
+        ),
+        CommandSpec(
+            path=["predict", "cgarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_cgarch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_cgarch),
+        ),
+        CommandSpec(
+            path=["predict", "aparch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="fix-delta", type=Float64, default=nothing, description="Fix the power parameter delta"),
+                OptionSpec(name="fix-gamma", type=Float64, default=nothing, description="Fix the asymmetry parameter gamma"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_aparch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_aparch),
+        ),
+        CommandSpec(
+            path=["predict", "figarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_figarch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_figarch),
+        ),
+        CommandSpec(
+            path=["predict", "fiegarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_fiegarch, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_fiegarch),
+        ),
+        CommandSpec(
+            path=["predict", "garch-midas"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="m-freq", type=Int, default=0, description="High-frequency observations per low-frequency block (required, ≥ 1)"),
+                OptionSpec(name="k", type=Int, default=12, description="Number of MIDAS lags"),
+                OptionSpec(name="rv", type=String, default="realized", description="Long-run driver", choices=["realized","macro"]),
+                OptionSpec(name="span", type=String, default="fixed", description="Span", choices=["fixed","rolling"]),
+                OptionSpec(name="config", type=String, default="", description="TOML with [garch_midas] x_lf (required for --rv macro)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_garch_midas, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_garch_midas),
+        ),
+    ])
 end
 
 function residuals_specs()::Vector{CommandSpec}
-    return _specs_for_verb(:residuals, "Model residuals")
+    return vcat(_specs_for_verb(:residuals, "Model residuals"), CommandSpec[
+        # #70 remainder: the nonlinear-TS models all define StatsAPI.residuals upstream
+        # (ThresholdModel/STARModel/MSRegModel). NO matching `predict` — none of them EXPOSES
+        # predict/fitted. For the MS models the fitted series is well defined (the
+        # regime-probability-weighted conditional mean) and MEMs already computes it internally
+        # to form these very residuals — it just doesn't store it. Filed as MEMs#510; adding a
+        # leaf that recomputes it risks diverging from the definition upstream publishes.
+        # Options mirror the `estimate` sibling MINUS the ones that drive only the attached
+        # inference (SETAR's --reps/--ci-level/--het feed the Hansen bootstrap and threshold
+        # CI, never the residuals); the refit passes linearity=false to skip that bootstrap.
+        CommandSpec(
+            path=["residuals", "setar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_setar, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_setar),
+        ),
+        CommandSpec(
+            path=["residuals", "star"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1","lstr2","estr","auto"]),
+                OptionSpec(name="n-gamma", type=Int, default=15, description="Grid points for the γ start values (≥ 2)"),
+                OptionSpec(name="n-c", type=Int, default=15, description="Grid points for the c start values (≥ 2)"),
+                OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_star, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_star),
+        ),
+        CommandSpec(
+            path=["residuals", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            # NOTE the OPPOSITE default from `residuals ms` below — ms-ar's switching_variance
+            # is FALSE upstream (Hamilton form), ms regression's is TRUE. Do not unify them.
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:residuals_ms_ar, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_ms_ar),
+        ),
+        CommandSpec(
+            path=["residuals", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:residuals_ms, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_ms),
+        ),
+        # #71: state-space state paths / innovations, read from the model's fields.
+        CommandSpec(
+            path=["residuals", "statespace"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                # `--model` is reserved for the model HANDLE on predict/residuals (injected
+                # by with_model_option, which does NOT dedupe), so the model TYPE is --kind
+                # here — same value set as `estimate statespace --model`.
+                OptionSpec(name="kind", type=String, default="local-level", description="State-space model", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Diffuse initialisation", choices=["kappa","diffuse"]),
+                OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-kappa diffuse prior variance"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="standardized", description="Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t")],
+            tables=[TableSpec(name=:residuals_statespace, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_statespace),
+        ),
+        # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
+        # `estimate` sibling's options because the equation system lives in --config —
+        # without it the model cannot be refit.
+        CommandSpec(
+            path=["residuals", "sur"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] blocks (required)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="iterate", description="Iterate the SUR feasible-GLS step to convergence"),
+                   FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:residuals_sur, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_sur),
+        ),
+        CommandSpec(
+            path=["residuals", "3sls"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] and instruments (required)"),
+                OptionSpec(name="instruments", type=String, default="common", description="Instrument mode", choices=["common","perequation"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
+            tables=[TableSpec(name=:residuals_3sls, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_3sls),
+        ),
+        # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
+        # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
+        CommandSpec(
+            path=["residuals", "arfima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=0, description="AR order"),
+                OptionSpec(name="q", type=Int, default=0, description="MA order"),
+                OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
+                OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_arfima, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_arfima),
+        ),
+        CommandSpec(
+            path=["residuals", "igarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_igarch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_igarch),
+        ),
+        CommandSpec(
+            path=["residuals", "cgarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_cgarch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_cgarch),
+        ),
+        CommandSpec(
+            path=["residuals", "aparch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="fix-delta", type=Float64, default=nothing, description="Fix the power parameter delta"),
+                OptionSpec(name="fix-gamma", type=Float64, default=nothing, description="Fix the asymmetry parameter gamma"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_aparch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_aparch),
+        ),
+        CommandSpec(
+            path=["residuals", "figarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_figarch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_figarch),
+        ),
+        CommandSpec(
+            path=["residuals", "fiegarch"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
+                OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
+                OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_fiegarch, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_fiegarch),
+        ),
+        CommandSpec(
+            path=["residuals", "garch-midas"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="m-freq", type=Int, default=0, description="High-frequency observations per low-frequency block (required, ≥ 1)"),
+                OptionSpec(name="k", type=Int, default=12, description="Number of MIDAS lags"),
+                OptionSpec(name="rv", type=String, default="realized", description="Long-run driver", choices=["realized","macro"]),
+                OptionSpec(name="span", type=String, default="fixed", description="Span", choices=["fixed","rolling"]),
+                OptionSpec(name="config", type=String, default="", description="TOML with [garch_midas] x_lf (required for --rv macro)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_garch_midas, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_garch_midas),
+        ),
+    ])
 end
 
 function register_predict_commands!()

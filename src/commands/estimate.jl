@@ -552,9 +552,12 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column to model"),
-                OptionSpec(name="model", type=String, default="local-level", description="local-level | local-linear-trend", choices=["local-level","local-linear-trend"]),
-                OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse", choices=["kappa","diffuse"]),
+                OptionSpec(name="model", type=String, default="local-level", description="local-level | local-linear-trend (ignored with --config)", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse (--config uses [statespace] init_mode)", choices=["kappa","diffuse"]),
                 OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-variance diffuse-init constant (init-mode=kappa)"),
+                # A [statespace] section switches to the GENERAL (multivariate, fixed-matrix)
+                # system and supersedes --model/--init-mode/--column.
+                OptionSpec(name="config", type=String, default="", description="TOML with [statespace] Z/H/T/Q (+ d, c, R, a1, P1, init_mode) for a general system"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -804,6 +807,29 @@ function estimate_specs()::Vector{CommandSpec}
         # (ThresholdModel is NOT in MEMs `_COEF_TABLE_TYPES`). `--d` is a `Int|:auto`
         # sentinel; `--ci-level` MUST be exactly 0.90/0.95/0.99 (Hansen 2000 tabulation).
         CommandSpec(
+            path=["estimate", "threshold"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="threshold-col", type=String, default="", description="Required: the variable that splits the sample (excluded from the regressors)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap replications for the linearity test (≥ 1)"),
+                # Hansen (2000) CVs are tabulated only at 0.90/0.95/0.99. `choices` is
+                # Vector{String} even for a Float64 option — same as `estimate setar`.
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
+            ],
+            flags=[FlagSpec(name="het", description="Heteroskedasticity-robust bootstrap for the linearity test"),
+                   FlagSpec(name="no-linearity", description="Skip the Hansen (1996) linearity test"),
+                   FlagSpec(name="plot", description="Display an interactive plot")],
+            tables=[TableSpec(name=:estimate_threshold, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_threshold),
+        ),
+        CommandSpec(
             path=["estimate", "setar"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1051,6 +1077,25 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_reg),
         ),
         CommandSpec(
+            path=["estimate", "select"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="method", type=String, default="bidirectional", description="Search strategy", choices=["forward","backward","bidirectional","best-subset","gets"]),
+                OptionSpec(name="criterion", type=String, default="pvalue", description="Selection criterion", choices=["pvalue","aic","bic"]),
+                OptionSpec(name="p-enter", type=Float64, default=0.05, description="p-value to enter a regressor (0,1)"),
+                OptionSpec(name="p-remove", type=Float64, default=0.10, description="p-value to remove a regressor (0,1); must be ≥ --p-enter for bidirectional pvalue"),
+                OptionSpec(name="keep", type=String, default="", description="Comma-separated regressor names always retained"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:estimate_select, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_select),
+        ),
+        CommandSpec(
             path=["estimate", "iv"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1059,6 +1104,9 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
                 OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
                 OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="method", type=String, default="tsls", description="k-class estimator", choices=["tsls","liml","fuller","kclass"]),
+                OptionSpec(name="k", type=String, default="", description="k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS)"),
+                OptionSpec(name="fuller-a", type=Float64, default=1.0, description="Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1134,7 +1182,19 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Path to CSV panel data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                PREG_OPTIONS...
+                # cov-type is WIDENED to include pcse for THIS leaf only, and the two new
+                # options are appended HERE rather than to PREG_OPTIONS: that const is
+                # shared with piv/plogit/pprobit, predict/residuals and several `test`
+                # leaves whose estimators take no :pcse and whose handlers accept no
+                # ar1/pcse_unbalanced kwarg (declaring an option a handler cannot take is
+                # an exit-1 MethodError on every invocation — see #85).
+                map(o -> o.name == "cov-type" ?
+                        OptionSpec(name="cov-type", type=String, default="cluster",
+                                   choices=["ols","cluster","twoway","driscoll-kraay","pcse"],
+                                   description="ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs)") : o,
+                    PREG_OPTIONS)...;
+                OptionSpec(name="ar1", type=String, default="none", description="Prais-Winsten AR(1) correction", choices=["none","common","panel-specific"]);
+                OptionSpec(name="pcse-unbalanced", type=String, default="casewise", description="Unbalanced-panel handling for --cov-type pcse", choices=["casewise","pairwise"])
             ],
             flags=[
                 FlagSpec(name="twoway", description="Include time fixed effects")
@@ -1640,6 +1700,81 @@ function _arima_coef_table(model; format::String="table", output::String="", tit
 end
 
 # ── ARFIMA (fractional integration / long memory) ──────────
+
+# ── #73: arfima downstream verbs ─────────────────────────────────────────────
+# `forecast(::ARFIMAModel, h; conf_level, trunc_lag)` returns an ARIMAForecast — the
+# same type `forecast arima` renders — so the forecast leaf reuses that path. There are
+# no StatsAPI predict/residuals methods for ARFIMAModel, but `fitted` and `residuals`
+# are real FIELDS (arima/types.jl), so predict/residuals read them directly.
+#
+# All three mirror `estimate arfima`'s option set (--column/--p/--q/--method/--max-iter,
+# plus --d0) so a non-default fit can be reproduced; the `:arima` kind in
+# FITTED_MODEL_KINDS only supplies --column, which would silently pin p=q=0.
+
+"""Refit an ARFIMA for the downstream verbs, mirroring `_estimate_arfima` exactly."""
+function _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    model === nothing || return model, "model"
+    y, vname = load_univariate_series(data, column)
+    d0v = isnothing(d0) ? nothing : Float64(d0)
+    m = try
+        estimate_arfima(y, p, q; method=Symbol(method), d0=d0v, max_iter=max_iter)
+    catch e
+        throw(_long_memory_error(e, "ARFIMA"))
+    end
+    return m, vname
+end
+
+function _forecast_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+        method::String="css", d0=nothing, max_iter::Int=500,
+        horizons::Int=12, confidence::Float64=0.95, trunc_lag::Int=200,
+        output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="", model=nothing)
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast arfima: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < confidence < 1.0) || throw(CliError("usage/invalid",
+        "forecast arfima: --confidence must be in (0, 1) (got $confidence)"))
+    trunc_lag >= 1 || throw(CliError("usage/invalid",
+        "forecast arfima: --trunc-lag must be ≥ 1 (got $trunc_lag)"))
+    m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    _status("ARFIMA($p,d,$q) Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=confidence, trunc_lag=trunc_lag)
+    catch e
+        throw(_long_memory_error(e, "ARFIMA forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    output_result(DataFrame(
+            horizon = collect(1:horizons),
+            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
+            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
+            upper = round.(Float64.(collect(fc.ci_upper)); digits=6));
+        format=Symbol(format), output=output,
+        title="ARFIMA($p,d,$q) Forecast for $vname")
+    return fc
+end
+
+function _predict_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+        method::String="css", d0=nothing, max_iter::Int=500,
+        output::String="", format::String="table", model=nothing)
+    m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    _status("ARFIMA($p,d,$q) in-sample fitted values: variable=$vname"); _status()
+    f = Float64.(collect(m.fitted))
+    output_result(DataFrame(t=1:length(f), fitted=round.(f; digits=6));
+        format=Symbol(format), output=output,
+        title="ARFIMA($p,d,$q) In-Sample Predictions for $vname")
+    return m.fitted
+end
+
+function _residuals_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+        method::String="css", d0=nothing, max_iter::Int=500,
+        output::String="", format::String="table", model=nothing)
+    m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
+    _status("ARFIMA($p,d,$q) residuals: variable=$vname"); _status()
+    r = Float64.(collect(m.residuals))
+    output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
+        format=Symbol(format), output=output,
+        title="ARFIMA($p,d,$q) Residuals for $vname")
+    return m.residuals
+end
 
 function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
                            method::String="css", d0=nothing, max_iter::Int=500,
@@ -2374,35 +2509,136 @@ end
 
 # ── IV (2SLS) Regression ──────────────────────────────
 
+# C067 (#72): general-to-specific / stepwise variable selection. A DEDICATED LEAF
+# rather than an `estimate reg --select` flag, so `estimate reg`'s envelope tables stay
+# fixed — a leaf whose table set changes with a flag forces every agent consuming it to
+# branch. `select_variables` returns a SelectionResult that CARRIES the refitted
+# `final::RegModel`, so this renders the same coefficient table as `estimate reg` plus
+# the selection path.
+function _estimate_select(; data::String, dep::String="", method::String="bidirectional",
+                           criterion::String="pvalue", p_enter::Float64=0.05,
+                           p_remove::Float64=0.10, keep::String="",
+                           output::String="", format::String="table")
+    (0.0 < p_enter < 1.0) || throw(CliError("usage/invalid",
+        "estimate select: --p-enter must be in (0, 1) (got $p_enter)"))
+    (0.0 < p_remove < 1.0) || throw(CliError("usage/invalid",
+        "estimate select: --p-remove must be in (0, 1) (got $p_remove)"))
+    # Upstream requires p_remove >= p_enter for the bidirectional p-value search; guard
+    # it here so the common mistake is a usage error, not a bare ArgumentError.
+    (method != "bidirectional" || criterion != "pvalue" || p_remove >= p_enter) ||
+        throw(CliError("usage/invalid",
+            "estimate select: bidirectional pvalue search needs --p-remove ≥ --p-enter (got $p_remove < $p_enter)"))
+    y, X, xcols = _load_reg_data(data, dep)
+    keep_idx = nothing
+    if !isempty(keep)
+        names = [strip(t) for t in split(keep, ",") if !isempty(strip(t))]
+        isempty(names) && throw(CliError("usage/invalid", "estimate select: --keep is empty"))
+        keep_idx = Int[]
+        for nm in names
+            i = findfirst(==(String(nm)), xcols)
+            i === nothing && throw(CliError("data/column-range",
+                "estimate select: --keep column '$nm' is not a regressor";
+                hint="available: $(join(xcols, ", "))"))
+            push!(keep_idx, i)
+        end
+    end
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Variable Selection ($method/$criterion): $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        select_variables(y, X; method=Symbol(replace(method, '-' => '_')),
+                         criterion=Symbol(criterion), p_enter=p_enter,
+                         p_remove=p_remove, keep=keep_idx, varnames=xcols)
+    catch e
+        throw(_garch_variant_error(e, "variable selection"))
+    end
+    # The refitted final model renders exactly like `estimate reg`.
+    output_result(_reg_coef_table(res.final, res.varnames[res.selected]);
+        format=Symbol(format), output=output,
+        title="Selected Model Coefficients ($dep_name)")
+    # The search path is the audit trail: each step is (action, column, statistic).
+    if !isempty(res.path)
+        output_result(DataFrame(
+                step = collect(1:length(res.path)),
+                action = [String(p[1]) for p in res.path],
+                variable = [res.varnames[p[2]] for p in res.path],
+                statistic = [round(Float64(p[3]); digits=6) for p in res.path]);
+            format=Symbol(format), output=_per_var_output_path(output, "path"),
+            title="Selection Path ($dep_name)")
+    end
+    pairs = Pair{String,Any}[
+        "method" => String(res.method),
+        "criterion" => String(res.criterion),
+        "selected" => isempty(res.selected) ? "none" : join(res.varnames[res.selected], ", "),
+        "n selected" => length(res.selected),
+        "kept (forced)" => isempty(res.keep) ? "none" : join(res.varnames[res.keep], ", "),
+        "candidates (GUM)" => res.n_gum,
+        "terminal models" => length(res.terminal_models),
+    ]
+    res.encompassing_f === nothing || push!(pairs, "encompassing F" => _finite_or_str_reg(Float64(res.encompassing_f)))
+    res.encompassing_pval === nothing || push!(pairs, "encompassing p-value" => _finite_or_str_reg(Float64(res.encompassing_pval)))
+    output_kv(pairs; format=format, title="Selection Summary")
+    return res
+end
+
+"""Round for display but render a non-finite value as a string (legacy JSON writer)."""
+_finite_or_str_reg(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
+
 function _estimate_iv(; data::String, dep::String="", endogenous::String="",
                        instruments::String="", cov_type::String="hc1",
+                       method::String="tsls", k::String="", fuller_a::Float64=1.0,
                        output::String="", format::String="table")
     # C067b: typed shared loader (`_load_iv_data`) replaces the old bare `error()` sites
     # (untyped exit-1) — a missing/unknown column is user input, not a CLI bug. Shared with
     # `test weak-instrument` so the two never drift.
+    # k-class family (#72): :tsls | :liml | :fuller | :kclass. `k` is REQUIRED for
+    # kclass and meaningless otherwise; guard both up front so a bad combination is a
+    # usage error rather than a bare upstream ArgumentError.
+    kval = nothing
+    if method == "kclass"
+        isempty(k) && throw(CliError("usage/missing",
+            "estimate iv: --method kclass requires --k";
+            hint="give the k-class scalar, e.g. --k 1 (k=0 is OLS, k=1 is 2SLS)"))
+        kv = tryparse(Float64, k)
+        (kv === nothing || !isfinite(kv)) && throw(CliError("usage/invalid",
+            "estimate iv: --k must be a finite number, got '$k'"))
+        kval = kv
+    elseif !isempty(k)
+        throw(CliError("usage/invalid",
+            "estimate iv: --k applies only to --method kclass (got --method $method)"))
+    end
+    method == "fuller" || fuller_a == 1.0 || throw(CliError("usage/invalid",
+        "estimate iv: --fuller-a applies only to --method fuller (got --method $method)"))
+    method != "fuller" || fuller_a > 0 || throw(CliError("usage/invalid",
+        "estimate iv: --fuller-a must be > 0 (got $fuller_a)"))
+
     d = _load_iv_data(data, dep, endogenous, instruments)
     y, X, Z, xcols, endog_idx = d.y, d.X, d.Z, d.xcols, d.endog_idx
 
-    _status("IV (2SLS) Regression: $(d.dep_col) ~ $(join(xcols, " + "))")
+    label = uppercase(method == "tsls" ? "2SLS" : method)
+    _status("IV ($label) Regression: $(d.dep_col) ~ $(join(xcols, " + "))")
     _status("  Endogenous: $(join(d.endog_names, ", "))")
     _status("  Excluded instruments: $(join(d.inst_names, ", "))  (instrument set Z: $(join(d.zcols, ", ")))")
     _status("  Observations: $(length(y)), Cov type: $cov_type")
     _status()
 
     model = try
-        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type), varnames=xcols)
+        estimate_iv(y, X, Z; endogenous=endog_idx, cov_type=Symbol(cov_type),
+                    method=Symbol(method), k=kval, fuller_a=fuller_a, varnames=xcols)
     catch e
-        throw(_garch_variant_error(e, "IV (2SLS) estimation"))
+        throw(_garch_variant_error(e, "IV ($label) estimation"))
     end
 
     coef_df = _reg_coef_table(model, xcols)
-    output_result(coef_df; format=Symbol(format), output=output, title="IV (2SLS) Regression Coefficients")
+    output_result(coef_df; format=Symbol(format), output=output, title="IV ($label) Regression Coefficients")
 
     _status()
     pairs = Pair{String,Any}[
         "R²"              => round(r2(model); digits=6),
         "Adj. R²"         => round(model.adj_r2; digits=6),
     ]
+    push!(pairs, "method" => method)
+    isnothing(model.kclass_k)   || push!(pairs, "k-class k" => round(Float64(model.kclass_k); digits=6))
+    isnothing(model.kappa_hat)  || push!(pairs, "kappa_hat" => round(Float64(model.kappa_hat); digits=6))
     if !isnothing(model.first_stage_f)
         push!(pairs, "First-stage F" => round(model.first_stage_f; digits=4))
     end
@@ -2472,6 +2708,116 @@ function _system_estimation_error(e, what::String)
         hint="check equation specs: all equations need equal T, valid columns, and enough observations")
     return CliError("model/error", "$what estimation failed: $(sprint(showerror, e))";
         hint="near-singular system — drop collinear regressors or add observations")
+end
+
+# ── #68: sur / 3sls downstream verbs ─────────────────────────────────────────
+# `SURModel` and `ThreeSLSModel` carry PER-EQUATION `fitted::Vector{Vector{T}}` and
+# `residuals::Vector{Vector{T}}` as fields (system/types.jl) alongside `eqnames`. There
+# are no StatsAPI predict/residuals methods for them, so these read the fields.
+#
+# OUTPUT SHAPE: one tidy LONG table `equation | t | fitted` (resp. `residual`) rather
+# than N separate tables — it matches the C051 convention and `_heckman_coef_table`'s
+# handling of a multi-equation model, and keeps one table per leaf so an agent does not
+# have to discover a variable number of envelope keys.
+#
+# Both verbs mirror `estimate sur`/`estimate 3sls`'s options because the equation system
+# lives in the --config TOML: without it the model cannot be refit at all.
+
+"""Long per-equation table from a system model's `fitted`/`residuals` field."""
+function _system_long_table(model, field::Symbol, valuecol::String)
+    blocks = getfield(model, field)
+    eqs = String[]; ts = Int[]; vals = Float64[]
+    for (i, b) in enumerate(blocks)
+        v = Float64.(collect(b))
+        append!(eqs, fill(model.eqnames[i], length(v)))
+        append!(ts, 1:length(v))
+        append!(vals, v)
+    end
+    return DataFrame("equation" => eqs, "t" => ts, valuecol => round.(vals; digits=6))
+end
+
+"""Refit the SUR system for the downstream verbs, mirroring `_estimate_sur` exactly."""
+function _sur_refit(data, config, iterate, no_intercept)
+    isempty(config) && throw(CliError("config/missing",
+        "requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    spec = get_system(load_config(config))
+    intercept = !no_intercept
+    eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    eqnames = String[eq["name"] for eq in spec["equations"]]
+    return try
+        estimate_sur(eqs; iterate=iterate, eqnames=eqnames)
+    catch e
+        throw(_system_estimation_error(e, "SUR"))
+    end
+end
+
+"""Refit the 3SLS system, mirroring `_estimate_3sls` exactly (including the
+common-vs-per-equation instrument construction)."""
+function _3sls_refit(data, config, instruments, no_intercept)
+    isempty(config) && throw(CliError("config/missing",
+        "requires --config <toml> with [[equations]] and instruments"))
+    df = load_data(data)
+    numcols = variable_names(df)
+    spec = get_system(load_config(config))
+    intercept = !no_intercept
+    imode = Symbol(instruments)
+    eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    eqnames = String[eq["name"] for eq in spec["equations"]]
+    Z = if imode == :common
+        spec["common_instruments"] === nothing && throw(CliError("config/missing",
+            "instruments=common requires an [instruments] section with a `common` list"))
+        for c in spec["common_instruments"]
+            c in numcols || throw(CliError("config/bad-column",
+                "instrument '$c' not found in numeric columns: $(join(numcols, ", "))"))
+        end
+        Zcols = [Vector{Float64}(df[!, c]) for c in spec["common_instruments"]]
+        intercept ? hcat(ones(Float64, size(df, 1)), Zcols...) : hcat(Zcols...)
+    else
+        [_system_instr_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
+    end
+    return try
+        estimate_3sls(eqs, Z; instruments=imode, eqnames=eqnames)
+    catch e
+        throw(_system_estimation_error(e, "3SLS"))
+    end
+end
+
+function _predict_sur(; data::String, config::String="", iterate::Bool=false,
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _sur_refit(data, config, iterate, no_intercept) : model
+    _status("SUR fitted values: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :fitted, "fitted"); format=Symbol(format),
+                  output=output, title="SUR Fitted Values (per equation)")
+    return m.fitted
+end
+
+function _residuals_sur(; data::String, config::String="", iterate::Bool=false,
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _sur_refit(data, config, iterate, no_intercept) : model
+    _status("SUR residuals: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :residuals, "residual"); format=Symbol(format),
+                  output=output, title="SUR Residuals (per equation)")
+    return m.residuals
+end
+
+function _predict_3sls(; data::String, config::String="", instruments::String="common",
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _3sls_refit(data, config, instruments, no_intercept) : model
+    _status("3SLS fitted values: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :fitted, "fitted"); format=Symbol(format),
+                  output=output, title="3SLS Fitted Values (per equation)")
+    return m.fitted
+end
+
+function _residuals_3sls(; data::String, config::String="", instruments::String="common",
+        no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
+    m = model === nothing ? _3sls_refit(data, config, instruments, no_intercept) : model
+    _status("3SLS residuals: $(length(m.eqnames)) equations"); _status()
+    output_result(_system_long_table(m, :residuals, "residual"); format=Symbol(format),
+                  output=output, title="3SLS Residuals (per equation)")
+    return m.residuals
 end
 
 function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
@@ -2628,20 +2974,36 @@ end
 
 function _estimate_preg(; data::String, dep::String="", indep::String="",
                          method::String="fe", twoway::Bool=false,
-                         cov_type::String="cluster",
+                         cov_type::String="cluster", ar1::String="none",
+                         pcse_unbalanced::String="casewise",
                          id_col::String="", time_col::String="",
                          output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    # was a bare error() -> internal/error exit 1 for an ordinary usage mistake
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    # #75: Beck-Katz PCSE + Prais-Winsten AR(1). --pcse-unbalanced only affects the PCSE
+    # covariance, so a mismatch is a usage error rather than a silent no-op.
+    (cov_type == "pcse" || pcse_unbalanced == "casewise") || throw(CliError("usage/invalid",
+        "estimate preg: --pcse-unbalanced applies only to --cov-type pcse (got --cov-type $cov_type)"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
     model_sym = _to_sym(method)
     cov_sym = _to_sym(cov_type)
     _status("Panel Regression ($method): $dep ~ $(join(indep_syms, " + "))")
+    ar1 == "none" || _status("  Prais-Winsten AR(1): $ar1")
+    cov_type == "pcse" && _status("  PCSE unbalanced handling: $pcse_unbalanced")
     _status()
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
-        model=model_sym, twoway=twoway, cov_type=cov_sym)
+    # Previously unwrapped: an upstream ArgumentError surfaced as exit 1.
+    model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms;
+            model=model_sym, twoway=twoway, cov_type=cov_sym,
+            ar1=_to_sym(replace(ar1, '-' => '_')),
+            pcse_unbalanced=_to_sym(pcse_unbalanced))
+    catch e
+        throw(_garch_variant_error(e, "panel regression"))
+    end
 
     coef_df = _preg_coef_table(model, model.varnames)
     output_result(coef_df; format=Symbol(format), output=output,
@@ -2952,6 +3314,320 @@ function _parse_setar_delay(d::AbstractString)
         "--d must be 'auto' or a positive integer (got '$d')"))
     v >= 1 || throw(CliError("usage/invalid", "--d must be ≥ 1 (got $v)"))
     return v
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C064 remainder (#69): forecast / predict / residuals for the six univariate GARCH
+# variants added by C064a.
+#
+# DESIGN: these are per-variant handlers rather than entries in `VOL_MODELS`. That
+# factory (shared.jl) generates all four verbs from one descriptor, but its handler
+# signature is fixed at (data, column, p, q, draws) — it cannot express aparch's
+# --fix-delta/--fix-gamma, figarch/fiegarch's --d0/--truncation/--dist, or
+# garch-midas's --m-freq/--k/--rv/--span. Each verb handler therefore mirrors its
+# `estimate` sibling's option set, refits, and renders through the three shared
+# helpers below, so only the fit call is repeated (2 lines), never the rendering.
+#
+# UPSTREAM SHAPES verified against MEMs garch/{forecast,figarch,midas,types}.jl:
+#   * forecast(m, h; conf_level, n_sim) for igarch/cgarch/aparch/figarch/fiegarch
+#   * forecast(m, h) for GarchMidasModel — NOTE the type is `GarchMidasModel`, not
+#     `GARCHMIDASModel`, and it takes NO conf_level/n_sim, so it gets no --conf-level.
+#   * residuals(m) for all six.
+#   * predict(m) (in-sample conditional variance) exists for igarch/cgarch/aparch and
+#     garch-midas but NOT for figarch/fiegarch, whose only `predict` is the h-argument
+#     forecast form. Those two read the real `.conditional_variance` field instead.
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""In-sample conditional variance table, matching `_make_predict_vol`'s output shape
+so `predict garch` and `predict igarch` render identically."""
+function _vol_variant_predict_output(cond_var, vname::String, title::String;
+                                     format::String, output::String)
+    cv = Float64.(collect(cond_var))
+    output_result(DataFrame(t=1:length(cv), variance=round.(cv; digits=6),
+                            volatility=round.(sqrt.(abs.(cv)); digits=6));
+        format=Symbol(format), output=output, title="$title ($vname)")
+    return cond_var
+end
+
+"""Standardized-residual table, matching `_make_residuals_vol`'s output shape."""
+function _vol_variant_residuals_output(resid, vname::String, title::String;
+                                       format::String, output::String)
+    r = Float64.(collect(resid))
+    output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
+        format=Symbol(format), output=output, title="$title ($vname)")
+    return resid
+end
+
+"""Conditional variance for a fitted variant. figarch/fiegarch have no zero-argument
+`predict` upstream, so read the real `.conditional_variance` field for them."""
+_vol_variant_cond_var(m) = hasmethod(predict, Tuple{typeof(m)}) ? predict(m) :
+                                                                  m.conditional_variance
+
+
+# ── C064 remainder (#69): the 18 verb handlers. Each mirrors its `estimate`
+# sibling's option set so the model can be refit, then renders through the shared
+# helpers above.
+
+function _forecast_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast igarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast igarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    _status("IGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "IGARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "IGARCH($p,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    _status("IGARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "IGARCH($p,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    _status("IGARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "IGARCH($p,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_cgarch(; data::String, column::Int=1, horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast cgarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    _status("Component-GARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "Component-GARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "Component-GARCH(1,1)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    _status("Component-GARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "Component-GARCH(1,1)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    _status("Component-GARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "Component-GARCH(1,1)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast aparch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast aparch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    _status("APARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "APARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "APARCH($p,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    _status("APARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "APARCH($p,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    _status("APARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "APARCH($p,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast figarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast figarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    _status("FIGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "FIGARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "FIGARCH($p,d,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    _status("FIGARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "FIGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    _status("FIGARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "FIGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+function _forecast_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
+        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast fiegarch: --horizons must be ≥ 1 (got $horizons)"))
+    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
+        "forecast fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    _status("FIEGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons; conf_level=conf_level)
+    catch e
+        throw(_garch_variant_error(e, "FIEGARCH forecast"))
+    end
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _vol_forecast_output(fc, vname, "FIEGARCH($p,d,$q)", horizons; format=format, output=output)
+    return fc
+end
+
+function _predict_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    _status("FIEGARCH conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "FIEGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    y, vname = load_univariate_series(data, column)
+    m = model === nothing ?
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    _status("FIEGARCH standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "FIEGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output)
+end
+
+# garch-midas is the odd one out: forecast(m::GarchMidasModel, h) takes NO conf_level,
+# so this leaf deliberately has no --conf-level (advertising one would be a lie).
+function _garch_midas_refit(data, column, m_freq, k, rv, span, config, model=nothing)
+    # Mirrors `_estimate_garch_midas`'s validation and fit exactly, so the verbs
+    # describe the same model that leaf would produce.
+    m_freq >= 1 || throw(CliError("usage/missing-option",
+        "--m-freq ≥ 1 is required (high-frequency observations per low-frequency block)"))
+    rv_sym = Symbol(rv); span_sym = Symbol(span)
+    rv_sym in (:realized, :macro) || throw(CliError("usage/bad-value", "--rv must be realized|macro, got $rv"))
+    span_sym in (:fixed, :rolling) || throw(CliError("usage/bad-value", "--span must be fixed|rolling, got $span"))
+    y, vname = load_univariate_series(data, column)
+    x_lf = Float64[]
+    if rv_sym === :macro
+        isempty(config) && throw(CliError("config/missing",
+            "--rv macro requires --config <toml> with a [garch_midas] x_lf = [...] low-frequency driver"))
+        x_lf = get_garch_midas(load_config(config))
+    end
+    m = model === nothing ?
+        (try
+            estimate_garch_midas(y, x_lf; K=k, m_freq=m_freq, rv=rv_sym, span=span_sym)
+        catch e
+            throw(_garch_variant_error(e, "GARCH-MIDAS"))
+        end) : model
+    return m, vname
+end
+
+function _forecast_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+        rv::String="realized", span::String="fixed", config::String="", horizons::Int=10,
+        model=nothing, output::String="", format::String="table")
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "forecast garch-midas: --horizons must be ≥ 1 (got $horizons)"))
+    m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
+    _status("GARCH-MIDAS Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
+    fc = try
+        forecast(m, horizons)
+    catch e
+        throw(_garch_variant_error(e, "GARCH-MIDAS forecast"))
+    end
+    # forecast(::GarchMidasModel, h) returns a NamedTuple
+    # (total, long_run, short_run, horizon) — NOT a VolatilityForecast — so it needs its
+    # own renderer. The long-run/short-run split IS the point of GARCH-MIDAS, so surface
+    # all three rather than flattening to a single path.
+    tot = Float64.(collect(fc.total))
+    output_result(DataFrame(
+            horizon = collect(1:length(tot)),
+            total_variance = round.(tot; digits=6),
+            long_run = round.(Float64.(collect(fc.long_run)); digits=6),
+            short_run = round.(Float64.(collect(fc.short_run)); digits=6),
+            volatility = round.(sqrt.(abs.(tot)); digits=6));
+        format=Symbol(format), output=output,
+        title="GARCH-MIDAS Volatility Forecast ($vname)")
+    return fc
+end
+
+function _predict_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+        rv::String="realized", span::String="fixed", config::String="",
+        model=nothing, output::String="", format::String="table")
+    m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
+    _status("GARCH-MIDAS conditional variance: variable=$vname"); _status()
+    return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
+        "GARCH-MIDAS Conditional Variance"; format=format, output=output)
+end
+
+function _residuals_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+        rv::String="realized", span::String="fixed", config::String="",
+        model=nothing, output::String="", format::String="table")
+    m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
+    _status("GARCH-MIDAS standardized residuals: variable=$vname"); _status()
+    return _vol_variant_residuals_output(residuals(m), vname,
+        "GARCH-MIDAS Standardized Residuals"; format=format, output=output)
 end
 
 function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
@@ -3526,9 +4202,150 @@ function _tvp_path_table(model, coefnames::Vector{String})
 end
 
 # estimate statespace — structural univariate state-space (local level / local linear trend)
+# ── #71: statespace downstream verbs ─────────────────────────────────────────
+# `StateSpaceModel` carries the filtered and smoothed state paths and the one-step
+# prediction errors as FIELDS (statespace/types.jl):
+#   filtered_state :: T_obs x n_state   (a_t|t)
+#   smoothed_state :: T_obs x n_state   (a_t|T)
+#   innovations    :: T_obs x n_obs     (v_t, the one-step prediction errors)
+#   std_residuals  :: T_obs x n_obs     (v_t / sqrt(F_t))
+# There are no StatsAPI predict/residuals methods, so these read the fields.
+#
+# `predict` renders a tidy LONG table `period | state | filtered | smoothed` rather than
+# one column per state — the state count is model-dependent (1 for local-level, 2 for
+# local-linear-trend), so a wide table would change shape with --kind. `--state` narrows
+# it to one path when only that is wanted. This mirrors `estimate tvp`, which already
+# emits its coefficient path long.
+
+"""Refit the state-space model for the downstream verbs, mirroring `_estimate_statespace`."""
+function _statespace_refit(data, column, model, init_mode, kappa)
+    model in ("local-level", "local-linear-trend") || throw(CliError("usage/invalid",
+        "--model must be local-level or local-linear-trend, got '$model'"))
+    init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
+        "--init-mode must be kappa or diffuse, got '$init_mode'"))
+    y, vname = load_univariate_series(data, column)
+    im = Symbol(init_mode)
+    ssm = try
+        model == "local-level" ? local_level(y; init_mode=im, kappa=kappa) :
+                                 local_linear_trend(y; init_mode=im, kappa=kappa)
+    catch e
+        throw(_garch_variant_error(e, "State-space estimation"))
+    end
+    return ssm, vname
+end
+
+function _predict_statespace(; data::String="", column::Int=1, kind::String="local-level",
+        init_mode::String="kappa", kappa::Float64=1e6, state::String="both",
+        output::String="", format::String="table", model=nothing)
+    state in ("filtered", "smoothed", "both") || throw(CliError("usage/invalid",
+        "predict statespace: --state must be filtered|smoothed|both, got '$state'"))
+    ssm, vname = model === nothing ?
+        _statespace_refit(data, column, kind, init_mode, kappa) : (model, "model")
+    fs = Float64.(ssm.filtered_state); sm = Float64.(ssm.smoothed_state)
+    nT, nS = size(fs)
+    periods = Int[]; states = String[]; filt = Float64[]; smoo = Float64[]
+    for j in 1:nS, t in 1:nT
+        push!(periods, t); push!(states, "state$j")
+        push!(filt, fs[t, j]); push!(smoo, sm[t, j])
+    end
+    _status("State-space $kind states: variable=$vname, T=$nT, states=$nS"); _status()
+    df = DataFrame("period" => periods, "state" => states)
+    state in ("filtered", "both") && (df[!, "filtered"] = round.(filt; digits=6))
+    state in ("smoothed", "both") && (df[!, "smoothed"] = round.(smoo; digits=6))
+    output_result(df; format=Symbol(format), output=output,
+                  title="State-Space State Paths ($kind, $vname)")
+    return ssm
+end
+
+function _residuals_statespace(; data::String="", column::Int=1, kind::String="local-level",
+        init_mode::String="kappa", kappa::Float64=1e6, standardized::Bool=false,
+        output::String="", format::String="table", model=nothing)
+    ssm, vname = model === nothing ?
+        _statespace_refit(data, column, kind, init_mode, kappa) : (model, "model")
+    # innovations are the one-step prediction errors v_t; --standardized gives v_t/sqrt(F_t)
+    M = Float64.(standardized ? ssm.std_residuals : ssm.innovations)
+    nT, nO = size(M)
+    periods = Int[]; series = String[]; vals = Float64[]
+    for j in 1:nO, t in 1:nT
+        push!(periods, t); push!(series, nO == 1 ? vname : "obs$j"); push!(vals, M[t, j])
+    end
+    _status("State-space $kind $(standardized ? "standardized " : "")innovations: variable=$vname, T=$nT"); _status()
+    output_result(DataFrame("period" => periods, "series" => series,
+                            "residual" => round.(vals; digits=6));
+        format=Symbol(format), output=output,
+        title="State-Space $(standardized ? "Standardized " : "")Innovations ($kind, $vname)")
+    return M
+end
+
+"""System-matrix summary for the GENERAL `--config` path.
+
+A fixed-matrix system has NO estimated hyper-parameters: `estimate_statespace(ss, y)` returns
+`method = :filter` with `theta` and `param_names` EMPTY, so `_statespace_param_table` would
+render an empty table and silently look like a failed fit. This reports the system the user
+declared instead — dimensions plus the matrices actually in force after MEMs applied its
+defaults (R = I, d = c = 0), which is the part a user most often gets wrong."""
+function _statespace_system_table(ssm)
+    DataFrame(
+        "matrix" => String["Z", "H", "T", "Q", "R", "d", "c"],
+        "role" => String["observation", "obs. noise cov", "transition", "state noise cov",
+                         "state-noise loading", "obs. intercept", "state intercept"],
+        "rows" => Int[size(ssm.Z, 1), size(ssm.H, 1), size(ssm.Tt, 1), size(ssm.Q, 1),
+                      size(ssm.R, 1), length(ssm.d), length(ssm.c)],
+        "cols" => Int[size(ssm.Z, 2), size(ssm.H, 2), size(ssm.Tt, 2), size(ssm.Q, 2),
+                      size(ssm.R, 2), 1, 1],
+    )
+end
+
 function _estimate_statespace(; data::String, column::Int=1, model::String="local-level",
                                init_mode::String="kappa", kappa::Float64=1e6,
-                               output::String="", format::String="table")
+                               config::String="", output::String="", format::String="table")
+    # ── GENERAL system from [statespace] in --config ────────────────────────────────────
+    # This path is MULTIVARIATE (y is T_obs × n_obs), so it loads the whole numeric matrix
+    # via the hardened `load_multivariate_data` rather than the canned path's single column.
+    if !isempty(config)
+        cfg = get_statespace(load_config(config))
+        Y, vnames = load_multivariate_data(data)
+        size(Y, 2) == cfg.n_obs || throw(CliError("data/shape",
+            "estimate statespace: [statespace] Z implies n_obs=$(cfg.n_obs) observed series, " *
+            "but $data has $(size(Y, 2)) numeric columns";
+            hint="Z is n_obs×n_state — one ROW per observed series"))
+        _status("State-space (general system from $config): series=$(join(vnames, ", ")), " *
+                "T=$(size(Y, 1)), n_obs=$(cfg.n_obs), n_state=$(cfg.n_state), init_mode=$(cfg.init_mode)")
+        _status()
+        # The MEMs constructor re-checks dimensions and throws untyped ArgumentErrors;
+        # `get_statespace` has already checked them so a throw here is a genuine internal
+        # inconsistency, but map it anyway rather than let it escape as exit 1.
+        spec = try
+            StateSpaceModel(cfg.Z, cfg.H, cfg.T, cfg.Q; d=cfg.d, c=cfg.c, R=cfg.R,
+                            a1=cfg.a1, P1=cfg.P1, init_mode=cfg.init_mode, kappa=kappa)
+        catch e
+            e isa ArgumentError && throw(CliError("config/shape",
+                "estimate statespace: inconsistent [statespace] system — $(e.msg)"))
+            throw(_garch_variant_error(e, "State-space system"))
+        end
+        fitted_ss = try
+            estimate_statespace(spec, Y)
+        catch e
+            throw(_garch_variant_error(e, "State-space filtering"))
+        end
+        output_result(_statespace_system_table(fitted_ss); format=Symbol(format), output=output,
+                      title="State-Space System (general)")
+        output_kv(Pair{String,Any}[
+            "model"     => "general",
+            "loglik"    => isfinite(fitted_ss.loglik) ? round(Float64(fitted_ss.loglik); digits=4) :
+                           string(fitted_ss.loglik),
+            "init_mode" => string(fitted_ss.init_mode),
+            "n_obs_series" => fitted_ss.n_obs,
+            "n_state"   => fitted_ss.n_state,
+            "n_periods" => fitted_ss.T_obs,
+            # :filter, not :mle — a fixed-matrix system is filtered and log-likelihood
+            # evaluated, never optimized, so there is nothing to converge.
+            "method"    => string(fitted_ss.method),
+        ]; format=format, title="State-Space Diagnostics")
+        return fitted_ss
+    end
+
+    # ── Canned univariate systems ───────────────────────────────────────────────────────
     model in ("local-level", "local-linear-trend") || throw(CliError("usage/invalid",
         "estimate statespace: --model must be local-level or local-linear-trend, got '$model'"))
     init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
@@ -4140,6 +4957,71 @@ function _midas_coef_table(model)
     end
 end
 
+# ── #67: `forecast midas` ────────────────────────────────────────────────────
+# This leaf is shaped UNLIKE every other `forecast` leaf, and deliberately so:
+#
+#   forecast(m::MidasModel, X_new; y_lags=nothing, level=0.95) -> MidasForecast
+#
+# takes a fresh high-frequency BLOCK, not a horizon. The horizon is fixed at
+# estimation time (`--horizon`, stored as `m.h`), so this leaf has **no --horizons** —
+# advertising one would be a lie. The result is a single direct h-step point forecast
+# with a Gaussian NLS prediction interval.
+#
+# CRITICAL: `X_new` must be **most-recent-first**. Passing the tail in chronological
+# order does not error — it silently applies the weight curve backwards and returns a
+# wrong number. Hence the explicit `reverse` below, and the T3 assertion that a
+# reversed input changes the answer.
+#
+# `y_lags` is left to upstream: with `p_ar > 0` it defaults to the most recent in-sample
+# target values, which is exactly what forecasting the next period means here.
+function _forecast_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
+        m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
+        poly_degree::Int=2, horizon::Int=1, max_iter::Int=500, level::Float64=0.95,
+        output::String="", format::String="table", model=nothing)
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "forecast midas: --level must be in (0, 1) (got $level)"))
+    poly_degree >= 0 || throw(CliError("usage/invalid",
+        "forecast midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
+    (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
+        "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
+    y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
+    mdl = model === nothing ?
+        (try
+            estimate_midas(y_lf, x_hf; m=m, K=k, weights=Symbol(weights), p_ar=p_ar,
+                           poly_degree=poly_degree, h=horizon, max_iter=max_iter)
+        catch e
+            throw(_midas_error(e, "MIDAS"))
+        end) : model
+    # The most recent K high-frequency observations, MOST-RECENT-FIRST.
+    length(x_hf) >= mdl.K || throw(CliError("data/shape",
+        "forecast midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
+    x_new = reverse(Float64.(x_hf[end - mdl.K + 1:end]))
+    _status("MIDAS Forecast: target=$ynm, indicator=$xnm, h=$(mdl.h) (fixed at estimation), K=$(mdl.K)")
+    _status()
+    fc = try
+        forecast(mdl, x_new; level=level)
+    catch e
+        throw(_midas_error(e, "MIDAS forecast"))
+    end
+    output_result(DataFrame(
+            horizon = [mdl.h],
+            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
+            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
+            upper = round.(Float64.(collect(fc.ci_upper)); digits=6),
+            se = round.(Float64.(collect(fc.se)); digits=6));
+        format=Symbol(format), output=output,
+        title="MIDAS Direct Forecast ($ynm)")
+    output_kv(Pair{String,Any}[
+        "horizon (h)" => mdl.h,
+        "K (HF lags)" => mdl.K,
+        "m (HF per LF)" => mdl.m,
+        "p_ar" => mdl.p_ar,
+        "weights" => String(mdl.weights_kind),
+        "level" => fc.conf_level];
+        format=format, title="MIDAS Forecast Summary")
+    return fc
+end
+
 function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
                           m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
                           poly_degree::Int=2, horizon::Int=1, max_iter::Int=500,
@@ -4199,6 +5081,109 @@ end
 # estimator is try-wrapped → typed CliError via `_nonlinear_error` (never exit-1). The
 # two regime blocks render via the shared `_threshold_coef_table`; the Hansen (1996)
 # linearity test, attached iff `linearity`, folds into the diagnostics kv.
+# ── #70: `estimate threshold` — the GENERAL threshold regression ─────────────
+# `estimate_threshold(y, X, q; …)` regresses y on X and splits the sample by a SEPARATE
+# threshold variable q. That is genuinely distinct from `estimate setar`, which is the
+# self-exciting special case where q = y[t-d] and X is the lag matrix — both return the
+# same `ThresholdModel`, so the rendering helpers are shared.
+#
+# COLUMN PARTITION (a third shape, alongside _load_reg_data and _load_iv_data):
+#   y = --dep, q = --threshold-col, X = every OTHER numeric column.
+# q MUST be excluded from X — leaving it in makes the regressors collinear with the
+# splitting variable, which is a different (and wrong) model, not an error.
+
+"""Load `(y, X, q)` for `estimate threshold`. `--threshold-col` is required and is
+EXCLUDED from the regressor matrix; every other numeric column becomes a regressor. No
+intercept is prepended (include a `const` column), matching `estimate reg`."""
+function _load_threshold_data(data::String, dep::String, threshold_col::String)
+    isempty(threshold_col) && throw(CliError("usage/missing",
+        "estimate threshold: --threshold-col is required";
+        hint="name the variable that splits the sample, e.g. --threshold-col z"))
+    df = load_data(data)
+    numcols = _numeric_column_names(df)
+    isempty(numcols) && throw(CliError("data/invalid",
+        "no numeric columns found in $data"))
+    depc = isempty(dep) ? numcols[1] : dep
+    depc in numcols || throw(CliError("data/column-range",
+        "estimate threshold: --dep '$depc' is not a numeric column";
+        hint="available: $(join(numcols, ", "))"))
+    threshold_col in numcols || throw(CliError("data/column-range",
+        "estimate threshold: --threshold-col '$threshold_col' is not a numeric column";
+        hint="available: $(join(numcols, ", "))"))
+    threshold_col == depc && throw(CliError("usage/invalid",
+        "estimate threshold: --threshold-col must differ from --dep (both '$depc')"))
+    xcols = [c for c in numcols if c != depc && c != threshold_col]
+    isempty(xcols) && throw(CliError("data/invalid",
+        "estimate threshold: no regressor columns left after removing --dep and --threshold-col";
+        hint="the CSV needs at least one column besides those two"))
+    for c in vcat(depc, threshold_col, xcols)
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' has missing values"; hint="clean them with `friedman data dropna`"))
+    end
+    y = Vector{Float64}(df[!, depc])
+    q = Vector{Float64}(df[!, threshold_col])
+    X = Matrix{Float64}(df[!, xcols])
+    return y, X, q, depc, xcols
+end
+
+function _estimate_threshold(; data::String, dep::String="", threshold_col::String="",
+        trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
+        het::Bool=false, no_linearity::Bool=false,
+        output::String="", format::String="table",
+        plot::Bool=false, plot_save::String="")
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "estimate threshold: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "estimate threshold: --reps must be ≥ 1 (got $reps)"))
+    # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
+    # else makes `_hansen2000_crit` throw an uncaught ArgumentError (same as setar).
+    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
+        "estimate threshold: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    y, X, q, depc, xcols = _load_threshold_data(data, dep, threshold_col)
+    _status("Estimating threshold regression: $depc ~ $(join(xcols, " + ")), split by $threshold_col, n=$(length(y)), ci=$ci_level" *
+            (het ? ", het bootstrap" : "") * (no_linearity ? ", linearity test skipped" : ""))
+    _status()
+    model = try
+        estimate_threshold(y, X, q; trim=trim, linearity=!no_linearity, reps=reps,
+                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col)
+    catch e
+        throw(_nonlinear_error(e, "threshold regression"))
+    end
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    coef = vcat(
+        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 ($threshold_col≤γ)"),
+        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 ($threshold_col>γ)"),
+    )
+    output_result(coef; format=Symbol(format), output=output,
+                  title="Threshold Regression Coefficients ($depc)")
+    diag = Pair{String,Any}[
+        "threshold_var"  => threshold_col,
+        "gamma"          => round(Float64(model.gamma); digits=6),
+        "gamma_ci_lower" => round(Float64(model.gamma_ci[1]); digits=6),
+        "gamma_ci_upper" => round(Float64(model.gamma_ci[2]); digits=6),
+        "gamma_ci_level" => Float64(model.gamma_ci_level),
+        "n"              => model.n,
+        "n1"             => model.n1,
+        "n2"             => model.n2,
+        "ssr"            => round(Float64(model.ssr); digits=6),
+        "sigma2"         => round(Float64(model.sigma2); digits=6),
+        "aic"            => round(Float64(model.aic); digits=4),
+        "bic"            => round(Float64(model.bic); digits=4),
+        "is_setar"       => model.is_setar,
+    ]
+    if model.linearity !== nothing
+        lt = model.linearity
+        append!(diag, Pair{String,Any}[
+            "sup_lm"      => round(Float64(lt.sup_lm); digits=4),
+            "pvalue_lm"   => round(Float64(lt.pvalue_lm); digits=4),
+            "sup_wald"    => round(Float64(lt.sup_wald); digits=4),
+            "pvalue_wald" => round(Float64(lt.pvalue_wald); digits=4),
+            "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
+        ])
+    end
+    output_kv(diag; format=format, title="Threshold Regression Diagnostics")
+    return model
+end
+
 function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
                           trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
                           het::Bool=false, no_linearity::Bool=false,
@@ -4365,9 +5350,40 @@ function _ms_transition_df(P::AbstractMatrix)
     return df
 end
 
+"""Per-period regime probabilities as ONE tidy LONG table
+(`period | regime | filtered | smoothed`).
+
+`MSRegModel` carries both `filtered_prob` (P(Sₜ=k | y₁..ₜ), real time) and `smoothed_prob`
+(P(Sₜ=k | y₁..ₙ), full sample) as `n × K` matrices. This is the headline output of a
+Markov-switching fit — "which regime were we in at time t" — so it is emitted alongside the
+parameters rather than hidden behind a flag.
+
+LONG rather than one column per regime, for the same reason `predict statespace` is long:
+K comes from `--k-regimes`, so a wide table would make the COLUMN SET depend on the user's
+option and every consumer would have to discover K before reading. Long keeps the columns
+fixed and grows the ROW COUNT instead. Row order matches the state-space renderer
+(regime-major, then period)."""
+function _ms_prob_table(model)
+    K = model.k_regimes
+    fp = Float64.(model.filtered_prob)
+    sp = Float64.(model.smoothed_prob)
+    n = size(sp, 1)
+    periods = Int[]; regimes = String[]; filt = Float64[]; smoo = Float64[]
+    for k in 1:K, t in 1:n
+        push!(periods, t); push!(regimes, "regime$k")
+        # filtered_prob can be shorter/empty on a degenerate fit — fall back to the smoothed
+        # path rather than indexing out of bounds (an uncaught BoundsError would be exit 1).
+        push!(filt, (size(fp, 1) >= t && size(fp, 2) >= k) ? fp[t, k] : sp[t, k])
+        push!(smoo, sp[t, k])
+    end
+    DataFrame("period" => periods, "regime" => regimes,
+              "filtered" => round.(filt; digits=6), "smoothed" => round.(smoo; digits=6))
+end
+
 """Shared renderer for a Markov-switching fit (`estimate ms-ar` / `estimate ms`). Emits, in
 order: a tidy per-regime coefficient table, a per-regime variance table, the WIDE K×K
-transition matrix, and a diagnostics kv. Branches on `model.model_type`:
+transition matrix, the tidy LONG per-period regime-probability table, and a diagnostics kv.
+Branches on `model.model_type`:
 
 - `:ms_ar` (Hamilton mean-switching) — one switching-`mu` row per regime (from `model.mu` /
   `model.se_coefs[1,k]`) PLUS a single `common-AR` block for the shared AR coefficients φ
@@ -4413,6 +5429,9 @@ function _ms_render(model, format::String, output::String)
     output_result(_ms_transition_df(model.P); format=Symbol(format),
                   output=_per_var_output_path(output, "transition"),
                   title="$label Transition Matrix")
+    output_result(_ms_prob_table(model); format=Symbol(format),
+                  output=_per_var_output_path(output, "probabilities"),
+                  title="$label Regime Probabilities")
     diag = Pair{String,Any}[
         "loglik"   => round(Float64(model.loglik); digits=4),
         "n_params" => model.n_params,
@@ -4466,6 +5485,31 @@ end
 # dispatch `estimate_ms(y; …)` (X === nothing). Every option guarded up-front → usage/invalid;
 # the estimator is try-wrapped → typed CliError. `switching_variance` default TRUE — the
 # `--no-switching-variance` flag turns it off.
+"""Load `(y, X, xcols, intercept_only)` for the Markov-switching REGRESSION leaves.
+
+Routes to the single-argument intercept-only `estimate_ms(y; …)` when the dependent variable
+is the only numeric column. The catch is deliberately NARROW — only `_load_reg_data`'s
+`data/invalid` "no regressor columns" is converted; every other class rethrows, so a dep-only
+CSV with a missing cell still surfaces as `data/missing-values` and an all-non-numeric CSV
+still surfaces as `data/invalid`. Shared by `estimate ms` and `residuals ms` so the two cannot
+drift into fitting different models from the same arguments."""
+function _ms_load_data(data::String, dep::String)
+    try
+        y, X, xcols = _load_reg_data(data, dep)
+        return y, X, xcols, false
+    catch e
+        (e isa CliError && e.code == "data/invalid" &&
+            occursin("no regressor columns", e.message)) || rethrow(e)
+        df = load_data(data)
+        numcols = variable_names(df)
+        dep_col = isempty(dep) ? numcols[1] : dep
+        idx = findfirst(==(dep_col), numcols)
+        idx === nothing && rethrow(e)
+        y, _ = load_univariate_series(data, idx)
+        return y, nothing, String["const"], true
+    end
+end
+
 function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
                        no_switching_variance::Bool=false, max_iter::Int=500,
                        tol::Float64=1e-8, output::String="", format::String="table")
@@ -4475,22 +5519,7 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
         "estimate ms: --max-iter must be ≥ 1 (got $max_iter)"))
     tol > 0 || throw(CliError("usage/invalid", "estimate ms: --tol must be > 0 (got $tol)"))
     sv = !no_switching_variance
-    y = Float64[]; X = nothing; xcols = String[]; intercept_only = false
-    try
-        y, X, xcols = _load_reg_data(data, dep)
-    catch e
-        if e isa CliError && e.code == "data/invalid" && occursin("no regressor columns", e.message)
-            df = load_data(data)
-            numcols = variable_names(df)
-            dep_col = isempty(dep) ? numcols[1] : dep
-            idx = findfirst(==(dep_col), numcols)
-            idx === nothing && rethrow(e)
-            y, _ = load_univariate_series(data, idx)
-            X = nothing; xcols = String["const"]; intercept_only = true
-        else
-            rethrow(e)
-        end
-    end
+    y, X, xcols, intercept_only = _ms_load_data(data, dep)
     _status("Estimating MS regression [$k_regimes regimes]: obs=$(length(y)), " *
             (intercept_only ? "intercept-only" : "regressors=$(length(xcols))") *
             (sv ? ", switching variance" : ", common variance")); _status()
@@ -4503,4 +5532,154 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
         throw(_nonlinear_error(e, "MS regression"))
     end
     return _ms_render(model, format, output)
+end
+
+# ── #70 remainder: `residuals` for the nonlinear time-series models ──────────
+# `StatsAPI.residuals` EXISTS upstream for all three nonlinear types (nonlinear/types.jl:256
+# ThresholdModel, :450 STARModel, :618 MSRegModel), which is why these four leaves are in
+# scope. There is deliberately NO matching `predict`: none of the three EXPOSES
+# `predict`/`fitted`. Note this is an availability gap, NOT an ill-defined quantity — for the MS
+# models the fitted series is the regime-probability-weighted conditional mean, which MEMs
+# already computes internally (markov_switching.jl:387, :617) to build these very residuals and
+# then discards. Filed upstream as MEMs#510 (which also covers the missing MS `forecast`);
+# recomputing it here would risk diverging from whatever definition upstream publishes.
+#
+# Each handler mirrors its `estimate` sibling's option set so any fit that changes the
+# residuals can be reproduced (the #73 lesson: a verb that cannot express `--p` silently pins
+# a different model). Options that affect ONLY the attached inference — SETAR's `--reps`,
+# `--ci-level`, `--het` drive the Hansen bootstrap and threshold CI, never the residuals — are
+# omitted, and the refit passes `linearity=false` to skip the bootstrap entirely.
+
+"""One tidy `period | residual` table for a nonlinear-TS fit.
+
+`period` is the EFFECTIVE-sample index (1..n_eff): SETAR/STAR/MS-AR all drop the first `p`
+(or `max(p,d)`) observations to build their lag matrix, so residual `t` is not calendar `t`."""
+function _nonlinear_resid_output(resid, label::String, vname::String,
+                                 format::String, output::String)
+    r = Float64.(collect(resid))
+    output_result(DataFrame("period" => collect(1:length(r)),
+                            "residual" => round.(r; digits=6));
+        format=Symbol(format), output=output,
+        title="$label Residuals ($vname)")
+    return r
+end
+
+"""Refit a SETAR for `residuals setar`, mirroring `_estimate_setar`'s guards and load path.
+`linearity=false`: the Hansen (1996) bootstrap does not affect the residuals and is the
+single most expensive part of the fit."""
+function _setar_refit(data::String, column::Int, p::Int, d::String, trim::Float64)
+    p >= 1 || throw(CliError("usage/invalid", "residuals setar: --p must be ≥ 1 (got $p)"))
+    (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
+        "residuals setar: --trim must be in (0, 0.5) (got $trim)"))
+    d_arg = _parse_setar_delay(d)
+    y, vname = load_univariate_series(data, column)
+    model = try
+        estimate_setar(y, p, d_arg; trim=trim, linearity=false)
+    catch e
+        throw(_nonlinear_error(e, "SETAR"))
+    end
+    return model, vname
+end
+
+function _residuals_setar(; data::String="", column::Int=1, p::Int=1, d::String="1",
+        trim::Float64=0.15, output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ? _setar_refit(data, column, p, d, trim) : (model, "model")
+    _status("SETAR(2;$p,$p) residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "SETAR(2;$p,$p)", vname, format, output)
+end
+
+"""Refit a STAR for `residuals star`, mirroring `_estimate_star` exactly (including the
+external-transition-variable path and its length/constant guards)."""
+function _star_refit(data::String, column::Int, p::Int, d::Int, type::String,
+                     n_gamma::Int, n_c::Int, transition_col::Int)
+    p >= 1 || throw(CliError("usage/invalid", "residuals star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "residuals star: --d must be ≥ 1 (got $d)"))
+    n_gamma >= 2 || throw(CliError("usage/invalid", "residuals star: --n-gamma must be ≥ 2 (got $n_gamma)"))
+    n_c >= 2 || throw(CliError("usage/invalid", "residuals star: --n-c must be ≥ 2 (got $n_c)"))
+    ttype = Symbol(type)
+    ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
+        "residuals star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+    y, vname = load_univariate_series(data, column)
+    s = nothing
+    if transition_col > 0
+        s, _ = load_univariate_series(data, transition_col)
+        length(s) == length(y) || throw(CliError("data/shape",
+            "residuals star: transition variable (column $transition_col) has length $(length(s)), " *
+            "but the series has length $(length(y))"))
+        std(s) > 0 || throw(CliError("data/invalid",
+            "residuals star: transition variable (column $transition_col) is constant; cannot scale γ"))
+    end
+    model = try
+        estimate_star(y, p; s=s, d=d, type=ttype, n_gamma=n_gamma, n_c=n_c)
+    catch e
+        throw(_nonlinear_error(e, "STAR"))
+    end
+    return model, vname
+end
+
+function _residuals_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
+        type::String="auto", n_gamma::Int=15, n_c::Int=15, transition_col::Int=0,
+        output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ?
+        _star_refit(data, column, p, d, type, n_gamma, n_c, transition_col) : (model, "model")
+    _status("STAR($p) residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "STAR($p)", vname, format, output)
+end
+
+"""Refit an MS-AR for `residuals ms-ar`, mirroring `_estimate_ms_ar`."""
+function _ms_ar_refit(data::String, column::Int, p::Int, k_regimes::Int,
+                      switching_variance::Bool, max_iter::Int)
+    p >= 1 || throw(CliError("usage/invalid", "residuals ms-ar: --p must be ≥ 1 (got $p)"))
+    k_regimes >= 2 || throw(CliError("usage/invalid",
+        "residuals ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "residuals ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
+    y, vname = load_univariate_series(data, column)
+    model = try
+        estimate_ms_ar(y, p; k_regimes=k_regimes, switching_variance=switching_variance,
+                       max_iter=max_iter, yname=vname)
+    catch e
+        throw(_nonlinear_error(e, "MS-AR"))
+    end
+    return model, vname
+end
+
+function _residuals_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
+        switching_variance::Bool=false, max_iter::Int=1000,
+        output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ?
+        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+    _status("MS-AR($p) [$k_regimes regimes] residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "MS-AR($p)", vname, format, output)
+end
+
+"""Refit an MS regression for `residuals ms`, reusing `_ms_load_data` so the intercept-only
+dispatch matches `estimate ms` exactly."""
+function _ms_refit(data::String, dep::String, k_regimes::Int, sv::Bool,
+                   max_iter::Int, tol::Float64)
+    k_regimes >= 2 || throw(CliError("usage/invalid",
+        "residuals ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "residuals ms: --max-iter must be ≥ 1 (got $max_iter)"))
+    tol > 0 || throw(CliError("usage/invalid", "residuals ms: --tol must be > 0 (got $tol)"))
+    y, X, xcols, _ = _ms_load_data(data, dep)
+    model = try
+        X === nothing ?
+            estimate_ms(y; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter, tol=tol) :
+            estimate_ms(y, X; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter,
+                        tol=tol, xnames=xcols)
+    catch e
+        throw(_nonlinear_error(e, "MS regression"))
+    end
+    return model
+end
+
+function _residuals_ms(; data::String="", dep::String="", k_regimes::Int=2,
+        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        output::String="", format::String="table", model=nothing)
+    m = model === nothing ?
+        _ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol) : model
+    vname = model === nothing ? String(m.yname) : "model"
+    _status("MS regression [$k_regimes regimes] residuals: obs=$(length(m.residuals))"); _status()
+    return _nonlinear_resid_output(residuals(m), "MS Regression", vname, format, output)
 end

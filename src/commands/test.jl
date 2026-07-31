@@ -296,6 +296,393 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_bds),
         ),
+        # C069 (remainder). Trend vocabularies differ per family and are NOT shared:
+        # engle-granger/phillips-ouliaris use none|constant|trend; hansen-instability/
+        # park-added consume a CointRegModel and use cointreg's none|const|linear.
+        CommandSpec(
+            path=["test", "hegy"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="frequency", type=Int, default=4, description="Seasonal frequency: 4 (quarterly) or 12 (monthly)"),
+                OptionSpec(name="deterministic", type=String, default="const-trend-seas", description="Deterministic terms", choices=["none","const","const-seas","const-trend","const-trend-seas"]),
+                OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:hegy, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_hegy),
+        ),
+        CommandSpec(
+            path=["test", "ers"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="trend", description="Include a linear trend (default: constant only)")],
+            tables=[TableSpec(name=:ers, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_ers),
+        ),
+        CommandSpec(
+            path=["test", "sadf"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="r0", type=String, default="auto", description="Minimum window fraction: auto or a number in (0,1)"),
+                OptionSpec(name="adflag", type=Int, default=0, description="ADF augmentation lags (≥ 0)"),
+                OptionSpec(name="mc-reps", type=Int, default=999, description="Monte-Carlo replications for critical values (≥ 1)"),
+                OptionSpec(name="cv", type=String, default="asymptotic", description="Critical-value method", choices=["asymptotic","wildboot"]),
+                OptionSpec(name="seed", type=Int, default=20240716, description="RNG seed for the critical-value simulation"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:sadf, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_sadf),
+        ),
+        CommandSpec(
+            path=["test", "gsadf"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="r0", type=String, default="auto", description="Minimum window fraction: auto or a number in (0,1)"),
+                OptionSpec(name="adflag", type=Int, default=0, description="ADF augmentation lags (≥ 0)"),
+                OptionSpec(name="mc-reps", type=Int, default=999, description="Monte-Carlo replications for critical values (≥ 1)"),
+                OptionSpec(name="cv", type=String, default="asymptotic", description="Critical-value method", choices=["asymptotic","wildboot"]),
+                OptionSpec(name="seed", type=Int, default=20240716, description="RNG seed for the critical-value simulation"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:gsadf, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_gsadf),
+        ),
+        CommandSpec(
+            path=["test", "edf"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
+                OptionSpec(name="dist", type=String, default="normal", description="Null distribution", choices=["normal","exponential","logistic","gumbel","gamma","weibull","chisq"]),
+                OptionSpec(name="test", type=String, default="ad", description="EDF statistic", choices=["ks","lilliefors","cvm","ad","watson"]),
+                OptionSpec(name="params", type=String, default="estimate", description="Parameters ML-fitted from the data, or supplied via --theta", choices=["estimate","specified"]),
+                OptionSpec(name="theta", type=String, default="", description="Comma-separated parameters (required with --params specified)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:edf, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_edf),
+        ),
+        CommandSpec(
+            path=["test", "engle-granger"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="trend", type=String, default="constant", description="Deterministic terms in the cointegrating regression", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=String, default="aic", description="ADF lags on the residuals: aic|bic|tstat or a non-negative integer"),
+                OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:engle_granger, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_engle_granger),
+        ),
+        CommandSpec(
+            path=["test", "phillips-ouliaris"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="trend", type=String, default="constant", description="Deterministic terms in the cointegrating regression", choices=["none","constant","trend"]),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="HAC kernel for the residual long-run variance", choices=["bartlett","parzen","qs","tukey-hanning"]),
+                OptionSpec(name="bandwidth", type=String, default="nw", description="HAC bandwidth: nw|andrews|nw94 or a non-negative number"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:phillips_ouliaris, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_phillips_ouliaris),
+        ),
+        CommandSpec(
+            path=["test", "hansen-instability"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="method", type=String, default="fmols", description="Cointegrating-regression estimator", choices=["fmols","ccr","dols"]),
+                OptionSpec(name="trend", type=String, default="const", description="Deterministic terms (cointreg vocabulary)", choices=["none","const","linear"]),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="HAC kernel for the fit", choices=["bartlett","parzen","qs","tukey-hanning"]),
+                OptionSpec(name="bandwidth", type=String, default="andrews", description="Fit bandwidth: andrews|nw94 or a non-negative number"),
+                OptionSpec(name="leads", type=String, default="auto", description="DOLS leads: auto or a non-negative integer"),
+                OptionSpec(name="lags", type=String, default="auto", description="DOLS lags: auto or a non-negative integer"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:hansen_instability, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_hansen_instability),
+        ),
+        CommandSpec(
+            path=["test", "park-added"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="method", type=String, default="fmols", description="Cointegrating-regression estimator", choices=["fmols","ccr","dols"]),
+                OptionSpec(name="trend", type=String, default="const", description="Deterministic terms (cointreg vocabulary)", choices=["none","const","linear"]),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="HAC kernel for the fit", choices=["bartlett","parzen","qs","tukey-hanning"]),
+                OptionSpec(name="bandwidth", type=String, default="andrews", description="Fit bandwidth: andrews|nw94 or a non-negative number"),
+                OptionSpec(name="leads", type=String, default="auto", description="DOLS leads: auto or a non-negative integer"),
+                OptionSpec(name="lags", type=String, default="auto", description="DOLS lags: auto or a non-negative integer"),
+                OptionSpec(name="q-add", type=Int, default=2, description="Number of superfluous trends added (≥ 1; the test df)"),
+                OptionSpec(name="hac-kernel", type=String, default="bartlett", description="HAC kernel for the test statistic", choices=["bartlett","parzen","qs","tukey-hanning"]),
+                OptionSpec(name="hac-bandwidth", type=String, default="nw", description="HAC bandwidth for the test: nw|andrews|nw94 or a non-negative number"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:park_added, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_park_added),
+        ),
+        # C067 remainder (#72): cross-section OLS diagnostics. All fit via
+        # _load_reg_data + estimate_reg — NOT the panel loader that the existing
+        # `test breusch-pagan` (panel RE variant) uses.
+        # C070 remainder (#75). LLC/IPS/Breitung take a T×N MATRIX (columns = units, like
+        # `test hadri`); Fisher-Johansen and DH-causality take a PanelData + variable names.
+        # H0 flips: these three test "ALL units have a unit root" (the OPPOSITE of hadri).
+        CommandSpec(
+            path=["test", "llc"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
+                OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
+                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion", choices=["aic","bic","tstat"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t (mitigates cross-sectional dependence)")],
+            tables=[TableSpec(name=:llc, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_llc),
+        ),
+        CommandSpec(
+            path=["test", "ips"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
+                OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
+                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion", choices=["aic","bic","tstat"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t")],
+            tables=[TableSpec(name=:ips, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_ips),
+        ),
+        CommandSpec(
+            path=["test", "breitung"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
+            options=[
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=Int, default=0, description="Augmentation lags (≥ 0)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t")],
+            tables=[TableSpec(name=:breitung, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_breitung),
+        ),
+        CommandSpec(
+            path=["test", "fisher-johansen"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to long-format panel CSV")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="vars", type=String, default="", description="Comma-separated series (≥ 2; default: every panel variable)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="lags", type=Int, default=2, description="VECM lag order (≥ 1)"),
+                OptionSpec(name="combine", type=String, default="mw", description="Fisher combination", choices=["mw","choi"]),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:fisher_johansen, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_fisher_johansen),
+        ),
+        CommandSpec(
+            path=["test", "dh-causality"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to long-format panel CSV")],
+            options=[
+                OptionSpec(name="id-col", type=String, default="", description="Panel id column (default: first column)"),
+                OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
+                OptionSpec(name="cause", type=String, default="", description="Required: candidate causal variable"),
+                OptionSpec(name="effect", type=String, default="", description="Required: dependent variable"),
+                OptionSpec(name="p", type=Int, default=1, description="Lag order (≥ 1)"),
+                OptionSpec(name="bootstrap", type=Int, default=0, description="Bootstrap replications for the p-value (0 = asymptotic only)"),
+                OptionSpec(name="seed", type=Int, default=1234, description="RNG seed for the bootstrap"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:dh_causality, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_dh_causality),
+        ),
+        CommandSpec(
+            path=["test", "white"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[FlagSpec(name="no-cross-terms", description="Omit the cross-product terms from the auxiliary regression")],
+            tables=[TableSpec(name=:white, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_white),
+        ),
+        CommandSpec(
+            path=["test", "glejser"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:glejser, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_glejser),
+        ),
+        CommandSpec(
+            path=["test", "harvey"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:harvey, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_harvey),
+        ),
+        CommandSpec(
+            path=["test", "chow"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                # --break-at, not --break: `break` is a Julia reserved word and cannot be a kwarg.
+                OptionSpec(name="break-at", type=String, default="", description="Required: 1-based break index, or a comma-separated list for a multi-break test"),
+                OptionSpec(name="type", type=String, default="breakpoint", description="Chow variant", choices=["breakpoint","forecast"]),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Significance level in (0,1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:chow, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_chow),
+        ),
+        CommandSpec(
+            path=["test", "cusum"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Band significance level in (0,1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:cusum, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_cusum),
+        ),
+        CommandSpec(
+            path=["test", "cusumsq"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="level", type=Float64, default=0.05, description="Band significance level in (0,1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:cusumsq, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_cusumsq),
+        ),
+        CommandSpec(
+            path=["test", "recursive-residuals"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:recursive_residuals, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_recursive_residuals),
+        ),
+        CommandSpec(
+            path=["test", "influence"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator for the OLS fit"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:influence, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_influence),
+        ),
         # C065a: Hansen (1996) sup-LM / sup-Wald test of linearity vs a two-regime SETAR
         # threshold, with fixed-regressor-bootstrap p-values. Reads `.linearity` off a
         # `estimate_setar(...; linearity=true)` fit (identical numbers, no design rebuild).
@@ -2001,6 +2388,657 @@ function _test_bds(; data::String, column::Int=1, max_dim::Int=6, eps_frac::Floa
     return res
 end
 
+# ─────────────────────────────────────────────────────────────────────────────
+# C069 (remainder): seasonal / point-optimal / bubble / distributional tests and
+# the residual-based cointegration battery. Nine flat `test` leaves over MEMs
+# `teststat/{hegy,dfgls,bubble,edf,engle_granger,phillips_ouliaris,
+# hansen_instability,park_added}.jl`.
+#
+# Three input shapes, mirroring the upstream signatures exactly:
+#   * univariate `(y)`            — hegy, ers, sadf, gsadf, edf
+#   * `(y, X)`                    — engle-granger, phillips-ouliaris
+#   * a FITTED `CointRegModel`    — hansen-instability, park-added
+#
+# TREND VOCABULARY TRAP: engle-granger / phillips-ouliaris take
+# `:none|:constant|:trend` — NOT cointreg's `none|const|linear` and NOT ARDL's
+# `none|const|trend`. hansen-instability / park-added consume a CointRegModel and
+# therefore use the COINTREG spelling. Do not share a trend OptionSpec between them.
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""Parse a `--lags` that upstream types as `Union{Int,Symbol}`: a named rule
+(`auto`/`aic`/`bic`/`tstat`) or a non-negative integer. Junk → typed usage/invalid.
+Zero is valid, so this must NOT route through `_parse_bandwidth` (which rejects 0)."""
+function _parse_test_lags(s::AbstractString, flag::String, rules::NTuple{N,String}) where {N}
+    s in rules && return Symbol(s)
+    v = tryparse(Int, s)
+    (v === nothing || v < 0) && throw(CliError("usage/invalid",
+        "$flag must be one of $(join(rules, "|")) or a non-negative integer, got '$s'"))
+    return v
+end
+
+"""Parse the HAC `--bandwidth` shared by phillips-ouliaris / park-added: the
+Phillips–Ouliaris rule of thumb `nw`, the `lrvar` rules `andrews`/`nw94`, or a
+non-negative number. Distinct from `_parse_cointreg_bandwidth`, which has no `nw`."""
+function _parse_hac_bandwidth(s::AbstractString)
+    s in ("nw", "andrews", "nw94") && return Symbol(s)
+    v = tryparse(Float64, s)
+    (v === nothing || !isfinite(v) || v < 0) && throw(CliError("usage/invalid",
+        "--bandwidth must be nw|andrews|nw94 or a non-negative number, got '$s'"))
+    return v
+end
+
+"""Render a `Dict{Int,<:Real}` of critical values as sorted `"CV 1%" => x` pairs."""
+_cv_pairs(cv) = Pair{String,Any}[
+    "CV $(k)%" => round(Float64(cv[k]); digits=4) for k in sort(collect(keys(cv)))]
+
+# HEGY (1990) seasonal unit roots. Rejection is per-frequency, so the headline is a
+# frequency-by-frequency table (zero / Nyquist / harmonic pairs), not one p-value.
+function _test_hegy(; data::String, column::Int=1, frequency::Int=4,
+        deterministic::String="const-trend-seas", lags::String="auto",
+        format::String="table", output::String="")
+    frequency in (4, 12) || throw(CliError("usage/invalid",
+        "test hegy: --frequency must be 4 (quarterly) or 12 (monthly), got $frequency"))
+    lg = _parse_test_lags(lags, "--lags", ("auto",))
+    y, vname = load_univariate_series(data, column)
+    _status("HEGY Seasonal Unit-Root Test: variable=$vname, observations=$(length(y)), frequency=$frequency"); _status()
+    res = try
+        hegy_test(y; frequency=frequency,
+                  deterministic=Symbol(replace(deterministic, '-' => '_')), lags=lg)
+    catch e
+        throw(_teststat_error(e, "HEGY test"))
+    end
+    # One row per tested frequency: the zero and Nyquist t-ratios, then the joint F for
+    # each complex harmonic pair. HEGY has NO single p-value — rejection is per-frequency
+    # against that frequency's own critical values — so render a decision per row and do
+    # NOT feed interpret_test_result (same rule as the ARDL bounds test). The t-ratios are
+    # left-tailed (reject when t < CV); the pair F statistics are right-tailed.
+    cv5(d, fallback) = haskey(d, 5) ? Float64(d[5]) : fallback
+    tz_cv, tn_cv, pf_cv = cv5(res.t_zero_cv, NaN), cv5(res.t_nyquist_cv, NaN), cv5(res.pair_F_cv, NaN)
+    labels = ["zero (pi_1)", "Nyquist (pi_2)"]
+    stats  = Float64[Float64(res.t_zero), Float64(res.t_nyquist)]
+    kinds  = ["t", "t"]
+    cvs    = Float64[tz_cv, tn_cv]
+    decs   = String[_hegy_decision(Float64(res.t_zero), tz_cv, :left),
+                    _hegy_decision(Float64(res.t_nyquist), tn_cv, :left)]
+    for (i, f) in enumerate(res.pair_freqs)
+        push!(labels, "pair at freq $(round(Float64(f); digits=4))")
+        push!(stats, Float64(res.pair_F[i]))
+        push!(kinds, "F")
+        push!(cvs, pf_cv)
+        push!(decs, _hegy_decision(Float64(res.pair_F[i]), pf_cv, :right))
+    end
+    output_result(DataFrame(frequency=labels, kind=kinds,
+                            statistic=round.(stats; digits=4),
+                            cv_5pct=[isfinite(c) ? round(c; digits=4) : "n/a" for c in cvs],
+                            decision=decs);
+                  format=Symbol(format), output=output,
+                  title="HEGY Seasonal Unit-Root Test: $vname")
+    output_kv(Pair{String,Any}[
+        "F (seasonal, joint)" => round(Float64(res.F_seasonal); digits=4),
+        "F (all roots)" => round(Float64(res.F_all); digits=4),
+        "deterministic" => String(res.deterministic),
+        "lags" => res.lags,
+        "observations" => res.nobs];
+        format=format, title="HEGY Summary")
+    _status_styled("H0 at each frequency is a unit root; 'reject' means no unit root there.\n";
+                   color=:cyan)
+    return res
+end
+
+"""Decision label for one HEGY frequency at the 5% level. `:left` for the t-ratios
+(reject when statistic < CV), `:right` for the pair F statistics. A missing CV renders
+`n/a` rather than a bogus verdict."""
+function _hegy_decision(stat::Float64, cv::Float64, tail::Symbol)
+    isfinite(cv) && isfinite(stat) || return "n/a"
+    rejected = tail === :left ? stat < cv : stat > cv
+    return rejected ? "reject (no unit root)" : "cannot reject (unit root)"
+end
+
+# Elliott-Rothenberg-Stock (1996) feasible point-optimal P_T. SMALL P_T rejects, so
+# the decision is read off the reported p-value, not the statistic's sign.
+function _test_ers(; data::String, column::Int=1, trend::Bool=false,
+        format::String="table", output::String="")
+    y, vname = load_univariate_series(data, column)
+    _status("ERS Point-Optimal Test: variable=$vname, observations=$(length(y)), regression=$(trend ? "trend" : "constant")"); _status()
+    res = try
+        ers_test(y; trend=trend)
+    catch e
+        throw(_teststat_error(e, "ERS point-optimal test"))
+    end
+    pairs = Pair{String,Any}[
+        "P_T statistic" => round(Float64(res.P_T); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "regression" => String(res.regression),
+        "observations" => res.nobs,
+    ]
+    append!(pairs, _cv_pairs(res.critical_values))
+    output_kv(pairs; format=format, output=output, title="ERS Point-Optimal Test: $vname")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (unit root) at 5% -- series is stationary",
+        "Cannot reject H0 (unit root) at 5%")
+    return res
+end
+
+"""Shared body for the PSY bubble pair (`sadf`/`gsadf`) — identical options and
+rendering, only the upstream entry point and the label differ."""
+function _bubble_leaf(fn, label::String; data::String, column::Int, r0::String,
+        adflag::Int, mc_reps::Int, cv::String, seed::Int, format::String, output::String)
+    adflag >= 0 || throw(CliError("usage/invalid", "test $label: --adflag must be ≥ 0 (got $adflag)"))
+    mc_reps >= 1 || throw(CliError("usage/invalid", "test $label: --mc-reps must be ≥ 1 (got $mc_reps)"))
+    r0v = if r0 == "auto"
+        :auto
+    else
+        v = tryparse(Float64, r0)
+        (v === nothing || !(0.0 < v < 1.0)) && throw(CliError("usage/invalid",
+            "test $label: --r0 must be 'auto' or a number in (0,1), got '$r0'"))
+        v
+    end
+    y, vname = load_univariate_series(data, column)
+    _status("$(uppercase(label)) Bubble Test: variable=$vname, observations=$(length(y)), cv=$cv"); _status()
+    res = try
+        fn(y; r0=r0v, adflag=adflag, mc_reps=mc_reps, cv=Symbol(cv), seed=seed)
+    catch e
+        throw(_teststat_error(e, "$label test"))
+    end
+    # Date-stamped explosive episodes are the actionable output; empty is a valid answer.
+    eps_df = isempty(res.episodes) ?
+        DataFrame(episode=Int[], start_index=Int[], end_index=Int[]) :
+        DataFrame(episode=collect(1:length(res.episodes)),
+                  start_index=[e[1] for e in res.episodes],
+                  end_index=[e[2] for e in res.episodes])
+    output_result(eps_df; format=Symbol(format), output=output,
+                  title="Explosive Episodes ($(uppercase(label))): $vname")
+    pairs = Pair{String,Any}[
+        "statistic" => round(Float64(res.statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "kind" => String(res.kind),
+        "r0" => round(Float64(res.r0); digits=4),
+        "adflag" => res.adflag,
+        "cv method" => String(res.cv_method),
+        "mc reps" => res.mc_reps,
+        "episodes" => length(res.episodes),
+        "observations" => res.nobs,
+    ]
+    append!(pairs, _cv_pairs(res.critical_values))
+    output_kv(pairs; format=format, title="$(uppercase(label)) Summary")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (unit root) at 5% -- explosive/bubble behaviour detected",
+        "Cannot reject H0 (unit root) at 5% -- no evidence of explosive behaviour")
+    return res
+end
+
+function _test_sadf(; data::String, column::Int=1, r0::String="auto", adflag::Int=0,
+        mc_reps::Int=999, cv::String="asymptotic", seed::Int=20240716,
+        format::String="table", output::String="")
+    return _bubble_leaf(sadf_test, "sadf"; data=data, column=column, r0=r0, adflag=adflag,
+        mc_reps=mc_reps, cv=cv, seed=seed, format=format, output=output)
+end
+
+function _test_gsadf(; data::String, column::Int=1, r0::String="auto", adflag::Int=0,
+        mc_reps::Int=999, cv::String="asymptotic", seed::Int=20240716,
+        format::String="table", output::String="")
+    return _bubble_leaf(gsadf_test, "gsadf"; data=data, column=column, r0=r0, adflag=adflag,
+        mc_reps=mc_reps, cv=cv, seed=seed, format=format, output=output)
+end
+
+# Empirical-distribution-function goodness of fit (KS / Lilliefors / Cramer-von Mises /
+# Anderson-Darling / Watson). H0 is that the series follows `--dist`.
+function _test_edf(; data::String, column::Int=1, dist::String="normal", test::String="ad",
+        params::String="estimate", theta::String="", format::String="table", output::String="")
+    th = nothing
+    if !isempty(theta)
+        toks = [strip(t) for t in split(theta, ",") if !isempty(strip(t))]
+        isempty(toks) && throw(CliError("usage/invalid", "test edf: --theta is empty"))
+        vals = Float64[]
+        for t in toks
+            v = tryparse(Float64, t)
+            (v === nothing || !isfinite(v)) && throw(CliError("usage/invalid",
+                "test edf: invalid number '$t' in --theta"))
+            push!(vals, v)
+        end
+        th = vals
+    end
+    # Upstream spells the supplied-parameter case :specified (NOT :known) — mismatching
+    # it reached MEMs as a bare ArgumentError mapped to data/invalid on a valid request.
+    params == "specified" && th === nothing && throw(CliError("usage/missing",
+        "test edf: --params specified requires --theta"; hint="give the parameters, e.g. --theta 0,1"))
+    y, vname = load_univariate_series(data, column)
+    _status("EDF Goodness-of-Fit Test: variable=$vname, observations=$(length(y)), dist=$dist, test=$test"); _status()
+    res = try
+        edf_test(y; dist=Symbol(dist), test=Symbol(test), params=Symbol(params), theta=th)
+    catch e
+        throw(_teststat_error(e, "EDF test"))
+    end
+    pairs = Pair{String,Any}[
+        "statistic" => round(Float64(res.statistic); digits=4),
+        "raw statistic" => round(Float64(res.raw_statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "test" => String(res.test),
+        "distribution" => String(res.dist),
+        "parameters" => String(res.params),
+        "case" => res.case,
+        "theta" => join(round.(Float64.(res.theta); digits=4), ", "),
+        "observations" => res.nobs,
+    ]
+    append!(pairs, _cv_pairs(res.critical_values))
+    output_kv(pairs; format=format, output=output, title="EDF Test: $vname")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 at 5% -- the series does not follow the $dist distribution",
+        "Cannot reject H0 at 5% -- consistent with the $dist distribution")
+    return res
+end
+
+# Engle-Granger (1987) residual-based cointegration. H0: NO cointegration, so a LOW
+# p-value is evidence FOR a cointegrating relationship — the opposite reading from a
+# unit-root test on a single series.
+function _test_engle_granger(; data::String, dep::String="", trend::String="constant",
+        lags::String="aic", max_lags::String="", format::String="table", output::String="")
+    lg = _parse_test_lags(lags, "--lags", ("aic", "bic", "tstat"))
+    ml = isempty(max_lags) ? nothing : begin
+        v = tryparse(Int, max_lags)
+        (v === nothing || v < 0) && throw(CliError("usage/invalid",
+            "test engle-granger: --max-lags must be a non-negative integer, got '$max_lags'"))
+        v
+    end
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Engle-Granger Cointegration Test: $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
+    res = try
+        engle_granger_test(y, X; trend=Symbol(trend), lags=lg, max_lags=ml)
+    catch e
+        throw(_teststat_error(e, "Engle-Granger test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => round(Float64(res.statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "lags" => res.lags,
+        "regression" => String(res.regression),
+        "regressors (k)" => res.k,
+        "I(1) series (N)" => res.N,
+        "observations" => res.nobs];
+        format=format, output=output, title="Engle-Granger Test: $dep_name")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (no cointegration) at 5% -- the series are cointegrated",
+        "Cannot reject H0 (no cointegration) at 5%")
+    return res
+end
+
+# Phillips-Ouliaris (1990). Same H0 as Engle-Granger but semiparametric: reports both
+# the studentized Z_t and the normalized-bias Z_alpha, each with its own p-value.
+function _test_phillips_ouliaris(; data::String, dep::String="", trend::String="constant",
+        kernel::String="bartlett", bandwidth::String="nw",
+        format::String="table", output::String="")
+    bw = _parse_hac_bandwidth(bandwidth)
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Phillips-Ouliaris Cointegration Test: $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
+    res = try
+        phillips_ouliaris_test(y, X; trend=Symbol(trend),
+                               kernel=Symbol(replace(kernel, '-' => '_')), bandwidth=bw)
+    catch e
+        throw(_teststat_error(e, "Phillips-Ouliaris test"))
+    end
+    output_result(DataFrame(
+            statistic=["Z_t", "Z_alpha"],
+            value=round.(Float64[res.statistic, res.z_alpha]; digits=4),
+            p_value=round.(Float64[res.pvalue, res.z_alpha_pvalue]; digits=4));
+        format=Symbol(format), output=output,
+        title="Phillips-Ouliaris Test: $dep_name")
+    output_kv(Pair{String,Any}[
+        "regression" => String(res.regression),
+        "kernel" => String(res.kernel),
+        "bandwidth" => round(Float64(res.bandwidth); digits=4),
+        "regressors (k)" => res.k,
+        "I(1) series (N)" => res.N,
+        "observations" => res.nobs];
+        format=format, title="Phillips-Ouliaris Summary")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (no cointegration) at 5% -- the series are cointegrated",
+        "Cannot reject H0 (no cointegration) at 5%")
+    return res
+end
+
+"""Fit the `CointRegModel` that `hansen_instability_test`/`park_added_test` consume.
+Mirrors `_estimate_cointreg`'s call exactly (same COINTREG trend vocabulary
+`none|const|linear`), so the two diagnostics describe the same regression the user
+would get from `estimate cointreg`."""
+function _cointreg_for_test(data::String, dep::String, method::String, trend::String,
+                            kernel::String, bandwidth::String, leads::String, lags::String,
+                            label::String)
+    y, X, xcols = _load_reg_data(data, dep)
+    bw = _parse_cointreg_bandwidth(bandwidth)
+    model = try
+        estimate_cointreg(y, X; method=Symbol(method), trend=Symbol(trend),
+            kernel=Symbol(replace(kernel, '-' => '_')), bandwidth=bw,
+            leads=_parse_cointreg_leadlag(leads, "--leads"),
+            lags=_parse_cointreg_leadlag(lags, "--lags"))
+    catch e
+        throw(_teststat_error(e, "$label (cointegrating regression fit)"))
+    end
+    return model, xcols
+end
+
+# Hansen (1992) L_c parameter-instability test. H0 here is COINTEGRATION WITH STABLE
+# coefficients, so a large L_c / low p-value rejects stability — note this is the
+# reverse of the Engle-Granger/Phillips-Ouliaris null.
+function _test_hansen_instability(; data::String, dep::String="", method::String="fmols",
+        trend::String="const", kernel::String="bartlett", bandwidth::String="andrews",
+        leads::String="auto", lags::String="auto", format::String="table", output::String="")
+    model, xcols = _cointreg_for_test(data, dep, method, trend, kernel, bandwidth,
+                                      leads, lags, "hansen-instability")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Hansen (1992) Instability Test: $dep_name ~ $(join(xcols, " + ")), method=$method"); _status()
+    res = try
+        hansen_instability_test(model)
+    catch e
+        throw(_teststat_error(e, "Hansen instability test"))
+    end
+    output_kv(Pair{String,Any}[
+        "L_c statistic" => round(Float64(res.statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "regression" => String(res.regression),
+        "trend" => String(res.trend),
+        "parameters" => res.nparam,
+        "regressors (k)" => res.k,
+        "observations" => res.nobs];
+        format=format, output=output, title="Hansen Instability Test: $dep_name")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (stable cointegration) at 5% -- parameter instability / no stable cointegrating vector",
+        "Cannot reject H0 (stable cointegration) at 5%")
+    return res
+end
+
+# Park (1990) H(p,q) added-superfluous-trends test. H0: genuine cointegration; a large
+# Wald statistic rejects in favour of a spurious regression.
+function _test_park_added(; data::String, dep::String="", method::String="fmols",
+        trend::String="const", kernel::String="bartlett", bandwidth::String="andrews",
+        leads::String="auto", lags::String="auto", q_add::Int=2,
+        hac_kernel::String="bartlett", hac_bandwidth::String="nw",
+        format::String="table", output::String="")
+    q_add >= 1 || throw(CliError("usage/invalid", "test park-added: --q-add must be ≥ 1 (got $q_add)"))
+    hac_bw = _parse_hac_bandwidth(hac_bandwidth)
+    model, xcols = _cointreg_for_test(data, dep, method, trend, kernel, bandwidth,
+                                      leads, lags, "park-added")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Park (1990) Added-Variables Test: $dep_name ~ $(join(xcols, " + ")), q_add=$q_add"); _status()
+    res = try
+        park_added_test(model; q_add=q_add,
+                        kernel=Symbol(replace(hac_kernel, '-' => '_')), bandwidth=hac_bw)
+    catch e
+        throw(_teststat_error(e, "Park added-variables test"))
+    end
+    output_kv(Pair{String,Any}[
+        "H(p,q) statistic" => round(Float64(res.statistic); digits=4),
+        "p-value" => round(Float64(res.pvalue); digits=4),
+        "q_add (df)" => res.q_add,
+        "base trend order (p)" => res.base_order,
+        "regression" => String(res.regression),
+        "trend" => String(res.trend),
+        "regressors (k)" => res.k,
+        "observations" => res.nobs];
+        format=format, output=output, title="Park Added-Variables Test: $dep_name")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (genuine cointegration) at 5% -- evidence of a spurious regression",
+        "Cannot reject H0 (genuine cointegration) at 5%")
+    return res
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C067 (remainder, #72): OLS regression diagnostics — heteroskedasticity,
+# parameter stability and influence. Eight flat `test` leaves over MEMs
+# `reg/{diagnostics,stability}.jl`.
+#
+# All eight fit a cross-section OLS via `_load_reg_data` + `estimate_reg` (X =
+# every numeric column except --dep, NO intercept prepended — include a `const`
+# column, exactly like `estimate reg`), then run the diagnostic on the fitted
+# RegModel. NOTE the existing `test breusch-pagan` is the PANEL random-effects LM
+# test (`_load_panel_for_preg` + estimate_xtreg); these are the CROSS-SECTION
+# diagnostics and deliberately do NOT share its loader.
+#
+# Three result shapes:
+#   * RegDiagnosticResult — white, glejser, harvey, chow  (statistic + p-value)
+#   * StabilityResult     — cusum, cusumsq  (a BAND PATH with NO p-value)
+#   * InfluenceStats / Vector — influence, recursive-residuals (per-observation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""Round for display, but render a non-finite value as a string — the legacy
+`FRIEDMAN_LEGACY_OUTPUT=1 -f json` writer historically choked on raw Inf/NaN, and a
+string is honest either way. (`_test_weak_instrument` has its own local `_fnum`.)"""
+_finite_or_str(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
+
+"""Fit the cross-section OLS that the `reg` diagnostics consume. Mirrors
+`estimate reg` (same `_load_reg_data` partition and `--cov-type`), so the diagnostic
+describes the regression the user would get from that command."""
+function _reg_for_diagnostic(data::String, dep::String, cov_type::String, label::String)
+    y, X, xcols = _load_reg_data(data, dep)
+    model = try
+        estimate_reg(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    catch e
+        throw(_teststat_error(e, "$label (OLS fit)"))
+    end
+    return model, xcols
+end
+
+"""Render a `RegDiagnosticResult` as a kv block. `df` is an Int or an (Int,Int)
+tuple depending on the test, and the F-form fields are `nothing` for the chi-square-
+only tests — both are handled here so each leaf stays a few lines."""
+function _reg_diagnostic_kv(res, title::String, format::String, output::String)
+    pairs = Pair{String,Any}[
+        "test" => res.test_name,
+        "H0" => res.h0,
+        "statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "df" => res.df isa Tuple ? join(res.df, ", ") : res.df,
+    ]
+    if res.f_stat !== nothing
+        push!(pairs, "F statistic" => _finite_or_str(Float64(res.f_stat)))
+        res.f_pvalue === nothing || push!(pairs, "F p-value" => _finite_or_str(Float64(res.f_pvalue)))
+        res.f_df === nothing || push!(pairs, "F df" => join(res.f_df, ", "))
+    end
+    push!(pairs, "auxiliary R2" => _finite_or_str(Float64(res.aux_r2)))
+    push!(pairs, "observations" => res.n)
+    output_kv(pairs; format=format, output=output, title=title)
+    return nothing
+end
+
+function _test_white(; data::String, dep::String="", cov_type::String="hc1",
+        no_cross_terms::Bool=false, format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "white")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("White Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        white_test(model; cross_terms=!no_cross_terms)
+    catch e
+        throw(_teststat_error(e, "White test"))
+    end
+    _reg_diagnostic_kv(res, "White Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (homoskedasticity) at 5% -- errors are heteroskedastic (use a robust --cov-type)",
+        "Cannot reject H0 (homoskedasticity) at 5%")
+    return res
+end
+
+function _test_glejser(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "glejser")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Glejser Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        glejser_test(model)
+    catch e
+        throw(_teststat_error(e, "Glejser test"))
+    end
+    _reg_diagnostic_kv(res, "Glejser Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (homoskedasticity) at 5% -- errors are heteroskedastic",
+        "Cannot reject H0 (homoskedasticity) at 5%")
+    return res
+end
+
+function _test_harvey(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "harvey")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Harvey Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        harvey_test(model)
+    catch e
+        throw(_teststat_error(e, "Harvey test"))
+    end
+    _reg_diagnostic_kv(res, "Harvey Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (homoskedasticity) at 5% -- multiplicative heteroskedasticity detected",
+        "Cannot reject H0 (homoskedasticity) at 5%")
+    return res
+end
+
+# Chow (1960). `--break` is REQUIRED (a comma-separated list gives a multi-break
+# test); upstream needs every index in 1:n-1 and, for :breakpoint, each segment to
+# hold at least k observations — :forecast is the fallback for a short segment.
+function _test_chow(; data::String, dep::String="", cov_type::String="hc1",
+        break_at::String="", type::String="breakpoint", level::Float64=0.05,
+        format::String="table", output::String="")
+    # NOTE the option is --break-at, not --break: `break` is a Julia reserved word and
+    # cannot be a handler kwarg (the registry binds --multi-word to multi_word).
+    isempty(break_at) && throw(CliError("usage/missing",
+        "test chow: --break-at is required";
+        hint="give the 1-based observation index of the break, e.g. --break-at 50"))
+    breaks = _parse_int_list(break_at)
+    all(b -> b >= 1, breaks) || throw(CliError("usage/invalid",
+        "test chow: every --break-at index must be ≥ 1 (got $breaks)"))
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "test chow: --level must be in (0, 1) (got $level)"))
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "chow")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Chow Structural-Break Test: $dep_name ~ $(join(xcols, " + ")), breaks=$(join(breaks, ","))"); _status()
+    res = try
+        chow_test(model, breaks; type=Symbol(type), level=level)
+    catch e
+        throw(_teststat_error(e, "Chow test"))
+    end
+    _reg_diagnostic_kv(res, "Chow Test: $dep_name", format, output)
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (no structural break) at 5% -- coefficients differ across the break",
+        "Cannot reject H0 (no structural break) at 5%")
+    return res
+end
+
+"""Shared body for the CUSUM pair. `StabilityResult` carries a PATH and a
+significance band, NOT a p-value — the verdict is whether the path crosses the band,
+so these leaves render a decision and never call `interpret_test_result` (same rule
+as the ARDL bounds test and HEGY)."""
+function _cusum_leaf(fn, label::String, statcol::String; data::String, dep::String,
+        cov_type::String, level::Float64, format::String, output::String)
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "test $label: --level must be in (0, 1) (got $level)"))
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, label)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("$(uppercase(label)) Stability Test: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        fn(model; level=level)
+    catch e
+        throw(_teststat_error(e, "$label test"))
+    end
+    # ALL-Pair construction: the statistic column name is dynamic, and DataFrame does
+    # not accept a Pair alongside keyword columns (that combination is an exit-1
+    # MethodError, not a nice error).
+    output_result(DataFrame(
+            "observation" => res.tindex,
+            statcol => round.(Float64.(res.stat_path); digits=6),
+            "lower" => round.(Float64.(res.lower); digits=6),
+            "upper" => round.(Float64.(res.upper); digits=6));
+        format=Symbol(format), output=output,
+        title="$(uppercase(label)) Path: $dep_name")
+    output_kv(Pair{String,Any}[
+        "kind" => String(res.kind),
+        "crossed band" => res.crossed,
+        "first crossing" => res.first_crossing === nothing ? "none" : res.first_crossing,
+        "level" => res.level,
+        "observations" => res.n,
+        "regressors (k)" => res.k];
+        format=format, title="$(uppercase(label)) Summary")
+    # H0 is parameter stability; there is no p-value, so the band crossing IS the verdict.
+    if res.crossed
+        _status_styled("-> Path leaves the $(round(Int, 100*(1-res.level)))% band at observation $(res.first_crossing) -- parameter instability\n"; color=:yellow)
+    else
+        _status_styled("-> Path stays inside the $(round(Int, 100*(1-res.level)))% band -- no evidence of instability\n"; color=:green)
+    end
+    return res
+end
+
+function _test_cusum(; data::String, dep::String="", cov_type::String="hc1",
+        level::Float64=0.05, format::String="table", output::String="")
+    return _cusum_leaf(cusum_test, "cusum", "cusum"; data=data, dep=dep,
+        cov_type=cov_type, level=level, format=format, output=output)
+end
+
+function _test_cusumsq(; data::String, dep::String="", cov_type::String="hc1",
+        level::Float64=0.05, format::String="table", output::String="")
+    return _cusum_leaf(cusumsq_test, "cusumsq", "cusumsq"; data=data, dep=dep,
+        cov_type=cov_type, level=level, format=format, output=output)
+end
+
+# Brown-Durbin-Evans recursive least-squares residuals — a plain Vector, one value
+# per recursive step (the first k observations initialise the recursion).
+function _test_recursive_residuals(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "recursive-residuals")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Recursive Residuals: $dep_name ~ $(join(xcols, " + "))"); _status()
+    w = try
+        recursive_residuals(model)
+    catch e
+        throw(_teststat_error(e, "recursive residuals"))
+    end
+    wv = Float64.(collect(w))
+    k = size(model.X, 2)
+    output_result(DataFrame(step=collect(1:length(wv)),
+                            observation=collect((k + 1):(k + length(wv))),
+                            recursive_residual=round.(wv; digits=6));
+        format=Symbol(format), output=output,
+        title="Recursive Residuals: $dep_name")
+    output_kv(Pair{String,Any}[
+        "count" => length(wv),
+        "mean" => _finite_or_str(isempty(wv) ? NaN : sum(wv) / length(wv)),
+        "regressors (k)" => k];
+        format=format, title="Recursive Residuals Summary")
+    return w
+end
+
+# Per-observation influence diagnostics. `dfbetas` is an n×k MATRIX and is
+# deliberately omitted from the tidy per-observation table (it would need one column
+# per regressor); the flagged index lists are the actionable output.
+function _test_influence(; data::String, dep::String="", cov_type::String="hc1",
+        format::String="table", output::String="")
+    model, xcols = _reg_for_diagnostic(data, dep, cov_type, "influence")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Influence Diagnostics: $dep_name ~ $(join(xcols, " + "))"); _status()
+    res = try
+        influence_stats(model)
+    catch e
+        throw(_teststat_error(e, "influence statistics"))
+    end
+    output_result(DataFrame(
+            observation = collect(1:res.n),
+            hat = round.(Float64.(res.hat); digits=6),
+            student_internal = round.(Float64.(res.student_internal); digits=6),
+            student_external = round.(Float64.(res.student_external); digits=6),
+            dffits = round.(Float64.(res.dffits); digits=6),
+            cooksd = round.(Float64.(res.cooksd); digits=6));
+        format=Symbol(format), output=output,
+        title="Influence Diagnostics: $dep_name")
+    output_kv(Pair{String,Any}[
+        "sigma" => _finite_or_str(Float64(res.sigma)),
+        "high-leverage count" => length(res.high_leverage),
+        "high-leverage obs" => isempty(res.high_leverage) ? "none" : join(res.high_leverage, ", "),
+        "influential count" => length(res.influential),
+        "influential obs" => isempty(res.influential) ? "none" : join(res.influential, ", "),
+        "observations" => res.n,
+        "regressors (k)" => res.k];
+        format=format, title="Influence Summary")
+    return res
+end
+
 # C065a: Hansen (1996) linearity test. Per the locked design decision, DO NOT rebuild the
 # SETAR design in-handler — fit `estimate_setar(y, p, d; linearity=true, ...)` and read the
 # attached `HansenLinearityTest` (`.linearity`); identical numbers, far less code. Every
@@ -2075,6 +3113,224 @@ function _test_star_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (linearity) at 5% -- evidence of smooth-transition nonlinearity",
         "Cannot reject H0 (linearity) at 5%")
+    return res
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C070 remainder (#75): first-generation panel unit-root tests + Fisher-Johansen
+# panel cointegration + Dumitrescu-Hurlin panel causality.
+#
+# TWO input shapes, matching the upstream signatures:
+#   * a T×N MATRIX (columns = units) — llc, ips, breitung, like `test hadri`
+#   * a PanelData + variable symbols  — fisher-johansen, dh-causality
+#
+# NOTE the H0 direction flips between families: LLC/IPS/Breitung test H0 = ALL
+# units have a unit root (low p ⇒ stationary), which is the OPPOSITE of `test
+# hadri` (H0 = all stationary). The interpretation strings spell each one out.
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""Load a panel and resolve `--vars` (comma-separated) to `Symbol`s, defaulting to every
+non-id numeric column. Shared by the two PanelData-input leaves in this block. Every
+failure is typed — unknown names are usage/invalid, and `load_panel_data` already maps a
+bad id/time column and a duplicate (id,time) pair to typed data errors."""
+function _panel_symbols(data::String, id_col::String, time_col::String, vars::String,
+                        label::String)
+    cols = names(load_data(data))
+    length(cols) >= 3 || throw(CliError("usage/invalid",
+        "test $label needs id, time, and variable column(s) (found $(length(cols)))"))
+    id = isempty(id_col) ? cols[1] : id_col
+    tc = isempty(time_col) ? cols[2] : time_col
+    pd = load_panel_data(data, id, tc)
+    available = pd.varnames
+    chosen = isempty(vars) ? available : _parse_varlist(vars)
+    isempty(chosen) && throw(CliError("usage/invalid", "test $label: --vars is empty"))
+    for v in chosen
+        v in available || throw(CliError("usage/invalid",
+            "test $label: '$v' is not a panel variable (have: $(join(available, ", ")))"))
+    end
+    return pd, Symbol.(unique(chosen))
+end
+
+"""Shared option handling for the three matrix-input panel unit-root tests."""
+function _panel_ur_inputs(data::String, deterministic::String, label::String)
+    deterministic in ("none", "constant", "trend") || throw(CliError("usage/invalid",
+        "test $label: --deterministic must be none|constant|trend (got '$deterministic')"))
+    Y, _ = load_multivariate_data(data)
+    return Y
+end
+
+function _test_llc(; data::String, deterministic::String="constant", lags::String="auto",
+        max_lags::String="", criterion::String="aic", cs_demean::Bool=false,
+        format::String="table", output::String="")
+    Y = _panel_ur_inputs(data, deterministic, "llc")
+    lg = _parse_test_lags(lags, "--lags", ("auto",))
+    ml = isempty(max_lags) ? nothing : begin
+        v = tryparse(Int, max_lags)
+        (v === nothing || v < 0) && throw(CliError("usage/invalid",
+            "test llc: --max-lags must be a non-negative integer, got '$max_lags'"))
+        v
+    end
+    _status("Levin-Lin-Chu Panel Unit-Root Test: units=$(size(Y,2)), observations=$(size(Y,1))"); _status()
+    res = try
+        llc_test(Y; deterministic=Symbol(deterministic), lags=lg, max_lags=ml,
+                 criterion=Symbol(criterion), cs_demean=cs_demean)
+    catch e
+        throw(_teststat_error(e, "LLC test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "t (unadjusted)" => _finite_or_str(Float64(res.t_unadjusted)),
+        "delta" => _finite_or_str(Float64(res.delta)),
+        "deterministic" => String(res.deterministic),
+        "lags (per unit)" => join(res.lags, ", "),
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, output=output, title="Levin-Lin-Chu Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all units have a unit root) at 5% -- the panel is stationary",
+        "Cannot reject H0 (all units have a unit root) at 5%")
+    return res
+end
+
+function _test_ips(; data::String, deterministic::String="constant", lags::String="auto",
+        max_lags::String="", criterion::String="aic", cs_demean::Bool=false,
+        format::String="table", output::String="")
+    Y = _panel_ur_inputs(data, deterministic, "ips")
+    lg = _parse_test_lags(lags, "--lags", ("auto",))
+    ml = isempty(max_lags) ? nothing : begin
+        v = tryparse(Int, max_lags)
+        (v === nothing || v < 0) && throw(CliError("usage/invalid",
+            "test ips: --max-lags must be a non-negative integer, got '$max_lags'"))
+        v
+    end
+    _status("Im-Pesaran-Shin Panel Unit-Root Test: units=$(size(Y,2)), observations=$(size(Y,1))"); _status()
+    res = try
+        ips_test(Y; deterministic=Symbol(deterministic), lags=lg, max_lags=ml,
+                 criterion=Symbol(criterion), cs_demean=cs_demean)
+    catch e
+        throw(_teststat_error(e, "IPS test"))
+    end
+    # IPS is a MEAN-GROUP test: the per-unit ADF t-statistics are the interesting detail.
+    output_result(DataFrame(unit=collect(1:length(res.individual_t)),
+                            t_statistic=round.(Float64.(res.individual_t); digits=4),
+                            lags=res.lags);
+        format=Symbol(format), output=output, title="IPS Per-Unit ADF Statistics")
+    output_kv(Pair{String,Any}[
+        "W[t-bar] statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "t-bar" => _finite_or_str(Float64(res.tbar)),
+        "deterministic" => String(res.deterministic),
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, title="Im-Pesaran-Shin Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all units have a unit root) at 5% -- some units are stationary",
+        "Cannot reject H0 (all units have a unit root) at 5%")
+    return res
+end
+
+function _test_breitung(; data::String, deterministic::String="constant", lags::Int=0,
+        cs_demean::Bool=false, format::String="table", output::String="")
+    Y = _panel_ur_inputs(data, deterministic, "breitung")
+    lags >= 0 || throw(CliError("usage/invalid", "test breitung: --lags must be ≥ 0 (got $lags)"))
+    _status("Breitung Panel Unit-Root Test: units=$(size(Y,2)), observations=$(size(Y,1))"); _status()
+    res = try
+        breitung_panel_test(Y; deterministic=Symbol(deterministic), lags=lags,
+                            cs_demean=cs_demean)
+    catch e
+        throw(_teststat_error(e, "Breitung test"))
+    end
+    output_kv(Pair{String,Any}[
+        "statistic" => _finite_or_str(Float64(res.statistic)),
+        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "deterministic" => String(res.deterministic),
+        "lags" => res.lags,
+        "n_units" => res.n_units,
+        "observations" => res.nobs];
+        format=format, output=output, title="Breitung Panel Unit-Root Test")
+    interpret_test_result(Float64(res.pvalue),
+        "Reject H0 (all units have a unit root) at 5% -- the panel is stationary",
+        "Cannot reject H0 (all units have a unit root) at 5%")
+    return res
+end
+
+# Fisher-type combination of per-unit Johansen tests. Needs >= 2 series, which come
+# from the panel's variable columns (--vars, else every non-id numeric column).
+function _test_fisher_johansen(; data::String, id_col::String="", time_col::String="",
+        vars::String="", deterministic::String="constant", lags::Int=2,
+        combine::String="mw", format::String="table", output::String="")
+    lags >= 1 || throw(CliError("usage/invalid", "test fisher-johansen: --lags must be ≥ 1 (got $lags)"))
+    pd, varsyms = _panel_symbols(data, id_col, time_col, vars, "fisher-johansen")
+    length(varsyms) >= 2 || throw(CliError("usage/invalid",
+        "test fisher-johansen needs at least 2 series (got $(length(varsyms)))";
+        hint="name them with --vars, e.g. --vars y,x"))
+    _status("Fisher-Johansen Panel Cointegration Test: series=$(join(String.(varsyms), ", ")), combine=$combine"); _status()
+    res = try
+        fisher_johansen_test(pd, varsyms...; deterministic=Symbol(deterministic),
+                             lags=lags, combine=Symbol(combine))
+    catch e
+        throw(_teststat_error(e, "Fisher-Johansen test"))
+    end
+    output_result(DataFrame(
+            rank = res.ranks,
+            trace_statistic = round.(Float64.(res.trace_statistics); digits=4),
+            trace_p_value = round.(Float64.(res.trace_pvalues); digits=4),
+            max_statistic = round.(Float64.(res.max_statistics); digits=4),
+            max_p_value = round.(Float64.(res.max_pvalues); digits=4));
+        format=Symbol(format), output=output,
+        title="Fisher-Johansen Panel Cointegration Test")
+    output_kv(Pair{String,Any}[
+        "selected rank" => res.rank,
+        "combine" => String(res.combine),
+        "deterministic" => String(res.deterministic),
+        "lags" => res.lags,
+        "n_units" => res.n_units];
+        format=format, title="Fisher-Johansen Summary")
+    _status_styled("H0 at each row is rank <= r; the selected rank is the first not rejected.\n"; color=:cyan)
+    return res
+end
+
+# Dumitrescu-Hurlin (2012) panel Granger non-causality. Direction matters: this tests
+# whether --cause Granger-causes --effect, so the two are NOT interchangeable.
+function _test_dh_causality(; data::String, id_col::String="", time_col::String="",
+        cause::String="", effect::String="", p::Int=1, bootstrap::Int=0, seed::Int=1234,
+        format::String="table", output::String="")
+    p >= 1 || throw(CliError("usage/invalid", "test dh-causality: --p must be ≥ 1 (got $p)"))
+    bootstrap >= 0 || throw(CliError("usage/invalid",
+        "test dh-causality: --bootstrap must be ≥ 0 (got $bootstrap)"))
+    isempty(cause) && throw(CliError("usage/missing", "test dh-causality: --cause is required";
+        hint="name the candidate causal variable, e.g. --cause x"))
+    isempty(effect) && throw(CliError("usage/missing", "test dh-causality: --effect is required";
+        hint="name the dependent variable, e.g. --effect y"))
+    pd, varsyms = _panel_symbols(data, id_col, time_col, "$cause,$effect", "dh-causality")
+    length(varsyms) == 2 || throw(CliError("usage/invalid",
+        "test dh-causality: --cause and --effect must name two distinct columns"))
+    _status("Dumitrescu-Hurlin Panel Causality: $cause -> $effect, p=$p"); _status()
+    res = try
+        dh_causality_test(pd, varsyms[1], varsyms[2]; p=p, bootstrap=bootstrap, seed=seed)
+    catch e
+        throw(_teststat_error(e, "Dumitrescu-Hurlin test"))
+    end
+    pairs = Pair{String,Any}[
+        "cause" => String(res.cause),
+        "effect" => String(res.effect),
+        "W-bar" => _finite_or_str(Float64(res.Wbar)),
+        "Z-bar" => _finite_or_str(Float64(res.Zbar)),
+        "Z-bar p-value" => _finite_or_str(Float64(res.Zbar_pvalue)),
+        "Z-tilde" => _finite_or_str(Float64(res.Ztilde)),
+        "Z-tilde p-value" => _finite_or_str(Float64(res.Ztilde_pvalue)),
+        "lags (p)" => res.p,
+        "n_units" => res.N,
+        "units skipped" => res.n_skipped,
+        "observations" => res.nobs,
+    ]
+    res.bootstrap > 0 && push!(pairs, "bootstrap p-value" => _finite_or_str(Float64(res.bootstrap_pvalue)))
+    output_kv(pairs; format=format, output=output, title="Dumitrescu-Hurlin Panel Causality")
+    # Z-tilde is the small-T-corrected statistic and is the one to read by default.
+    interpret_test_result(Float64(res.Ztilde_pvalue),
+        "Reject H0 (no causality for any unit) at 5% -- $cause Granger-causes $effect for some units",
+        "Cannot reject H0 (no causality for any unit) at 5%")
     return res
 end
 
@@ -3152,7 +4408,8 @@ end
 function _test_hausman(; data::String, dep::String="", indep::String="",
                         id_col::String="", time_col::String="",
                         output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3175,7 +4432,8 @@ end
 function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
                               id_col::String="", time_col::String="",
                               output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3197,7 +4455,8 @@ end
 function _test_f_fe(; data::String, dep::String="", indep::String="",
                      id_col::String="", time_col::String="",
                      output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3219,7 +4478,8 @@ end
 function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
                            id_col::String="", time_col::String="",
                            output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3240,7 +4500,8 @@ end
 function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
                               id_col::String="", time_col::String="",
                               output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3262,7 +4523,8 @@ end
 function _test_modified_wald(; data::String, dep::String="", indep::String="",
                               id_col::String="", time_col::String="",
                               output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3399,7 +4661,8 @@ function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    isnothing(omit_category) && error("--omit-category is required")
+    isnothing(omit_category) && throw(CliError("usage/missing", "--omit-category is required";
+        hint="name the alternative to drop, e.g. --omit-category 2"))
 
     model = estimate_mlogit(y, X; cov_type=:ols, varnames=xcols)
 

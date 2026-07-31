@@ -817,13 +817,52 @@ friedman estimate statespace gdp.csv --column=2 --model=local-linear-trend --ini
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--column` | `-c` | Int | 1 | 1-based numeric column to model |
-| `--model` | | String | `local-level` | `local-level` or `local-linear-trend` |
+| `--model` | | String | `local-level` | `local-level` or `local-linear-trend` (ignored with `--config`) |
 | `--init-mode` | | String | `kappa` | Kalman initialization: `kappa` or `diffuse` |
 | `--kappa` | | Float | 1e6 | Large-variance diffuse-init constant (`init-mode=kappa`) |
+| `--config` | | String | | TOML with a `[statespace]` section — switches to a **general** system (below) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** hyper-parameter table (`parameter|estimate` — the estimated natural-scale variances σ̂², e.g. `σ²_ε`, `σ²_η`) + diagnostics (`model`, `loglik`, `converged`, `n_state`, `n_obs`, `method`). `StateSpaceModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+### General systems: `--config`
+
+A `[statespace]` section specifies an arbitrary linear-Gaussian system directly, in the standard single-block form
+
+```
+yₜ   = Z αₜ + d + εₜ,     εₜ ~ N(0, H)
+αₜ₊₁ = T αₜ + c + R ηₜ,   ηₜ ~ N(0, Q)
+```
+
+**This path is multivariate**: `Z` is `n_obs × n_state`, and the data file must have exactly `n_obs` numeric columns (`--column` does not apply). It is also **fixed-matrix**: nothing is optimized. The system is filtered and its log-likelihood evaluated, so `method` comes back as `filter` rather than `mle` and there are no hyper-parameters to report — the output is a **system table** (`matrix|role|rows|cols`) instead of `parameter|estimate`, showing the matrices in force *after* defaults are applied.
+
+```toml
+[statespace]
+# Two observed series loading on one common AR(1) state
+Z = [[1.0], [0.7]]              # n_obs × n_state       (required)
+H = [[1.0, 0.0], [0.0, 2.0]]    # n_obs × n_obs         (required)
+T = [[0.95]]                    # n_state × n_state     (required)
+Q = [[0.5]]                     # r × r                 (required)
+# optional:
+d = [0.0, 0.0]                  # n_obs      observation intercept (default 0)
+c = [0.0]                       # n_state    state intercept       (default 0)
+R = [[1.0]]                     # n_state × r  noise loading        (default I)
+a1 = [0.0]                      # n_state    explicit initial state mean
+P1 = [[10.0]]                   # n_state × n_state  explicit initial covariance
+init_mode = "kappa"             # kappa | diffuse | stationary
+```
+
+```bash
+friedman estimate statespace two_series.csv --config system.toml
+```
+
+Notes:
+
+- **`T` in the TOML is the transition matrix.** The Julia field is `Tt` and the upstream constructor keyword is `T_mat`, because `T` is the type parameter — three spellings of one matrix, unavoidable.
+- **`a1` and `P1` must be given together or not at all.** Supplying only one is rejected rather than silently ignored: upstream switches to explicit initialization only when both are present, so a lone `a1` would quietly have no effect.
+- Matrices are row-major arrays of arrays; `d`, `c`, `a1` are flat arrays.
+- Every dimensional inconsistency is caught while parsing, so it surfaces as `config/shape` (exit 4) naming the file you wrote, rather than as an error from deep inside the library. A mismatch between `Z`'s implied `n_obs` and the CSV's column count is `data/shape` (exit 3), since that is a property of the data rather than the config.
 
 ## estimate tvp
 
@@ -1097,6 +1136,38 @@ friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umida
 
 **Output:** a headline **weight-curve table** (`lag|weight`, length `K`, most-recent-first; for `umidas` these are the raw lag coefficients) + a coefficient table (`term|estimate|std_error|stat|p_value` over `[β; θ]`, normal-approximation p-values) + diagnostics (`weights_kind`, `m`, `K`, `p_ar`, `poly_degree`, `h`, `nobs`, `r2`, `adj_r2`, `ssr`, `sigma2`, `aic`, `bic`, `loglik`, `converged`). `MidasModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). The restricted NLS is noisy on short samples; a "failed to converge from any start" is surfaced as `model/convergence`. `forecast midas` is deferred to a later release. **Frequency-alignment note:** the loader requires `length(HF) ≥ m × length(LF)` and drops the leading ragged edge (reported on stderr); the estimator then drops any remaining incomplete `K`-block internally.
 
+## estimate threshold
+
+**Two-regime threshold regression** (Hansen 1996, 2000) — the general case, where the sample is split by a **separate** threshold variable rather than by a lag of the dependent variable. The model is `yᵢ = xᵢ'β₁·1{qᵢ ≤ γ} + xᵢ'β₂·1{qᵢ > γ} + uᵢ`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; each regime is then fit by OLS and `γ`'s confidence interval inverts the Hansen (2000) likelihood-ratio statistic. [`estimate setar`](#estimate-setar) is the self-exciting special case of this command (`q = y_{t−d}`, `X` the lag matrix) and returns the same model type.
+
+**Column partition:** `--dep` is the dependent variable, **`--threshold-col` is required** and names the splitting variable, and **every other numeric column becomes a regressor**. The threshold variable is deliberately *excluded* from the regressor matrix — including it would make the regressors collinear with the split and silently fit a different model rather than raise an error. No intercept is prepended: add a `const` column if you want one (the same convention as [`estimate reg`](#estimate-reg)).
+
+As with `estimate setar`, a **Hansen (1996) sup-LM / sup-Wald linearity test** is fitted alongside by default and folded into the diagnostics (`--no-linearity` skips it; `--het` uses a heteroskedastic White bootstrap). `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` — the Hansen (2000) critical values are tabulated only at those levels.
+
+```bash
+# Split the sample on z; x1 and x2 are the regressors, y the outcome
+friedman estimate threshold data.csv --dep y --threshold-col z
+
+# 90% threshold CI, heteroskedastic bootstrap, skip the linearity test
+friedman estimate threshold data.csv --dep y --threshold-col z --ci-level 0.90 --het --no-linearity
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | first numeric | Dependent variable column |
+| `--threshold-col` | | String | | **Required** — the variable that splits the sample (excluded from the regressors) |
+| `--trim` | | Float | `0.15` | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--reps` | | Int | `1000` | Bootstrap replications for the linearity test (≥ 1) |
+| `--ci-level` | | Float | `0.95` | Threshold CI level: `0.90`, `0.95`, or `0.99` (exact) |
+| `--het` | | Flag | off | Heteroskedasticity-robust bootstrap |
+| `--no-linearity` | | Flag | off | Skip the Hansen (1996) linearity test |
+| `--plot` | | Flag | off | Display an interactive plot |
+| `--plot-save` | | String | | Save the plot to an HTML file |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the blocks `regime1 (<q>≤γ)` / `regime2 (<q>>γ)` stacked and labelled with the actual threshold-variable name, normal-approximation z/p) + a diagnostics block (`threshold_var`, `gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `is_setar`, and — unless `--no-linearity` — `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant threshold variable, a sample too small for two regimes, or any other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+
 ## estimate setar
 
 **Self-exciting threshold autoregression (SETAR)** (Tong 1990; Hansen 2000) — a two-regime autoregression whose regime is switched by a lagged value of the series itself. The model is `yₜ = X_t'β₁·1{qₜ ≤ γ} + X_t'β₂·1{qₜ > γ} + uₜ`, with `qₜ = y_{t−d}` the self-exciting threshold variable and `X_t = [1, y_{t−1}, …, y_{t−p}]`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; its confidence interval inverts the Hansen (2000) likelihood-ratio statistic (tabulated only for the three levels below).
@@ -1124,7 +1195,7 @@ friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
+**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`estimate threshold`](#estimate-threshold) (the general case, split by a separate variable), [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
 
 ## estimate star
 
@@ -1178,7 +1249,30 @@ friedman estimate ms-ar y.csv --p 2 --k-regimes 3 --switching-variance
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** three hand-built tables plus diagnostics — a **per-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`: one switching `mu` row per regime, then a single `common-AR` block for the shared φ₁…φₚ, normal-approximation z/p), a **per-regime variance table** (`regime|sigma2|std_error`), and the **wide K×K transition matrix** (`from_regime|to_regime1|…|to_regimeK`, `P[i,j] = Pr(sₜ=j | s_{t−1}=i)`, rows sum to 1) — the transition matrix renders **wide** (regime×regime), a documented [C051](#coefficient-table-format-c051) exception parallel to the MGARCH conditional-correlation matrix; then a diagnostics block (`loglik`, `n_params`, `aic`, `bic`, per-regime `ergodic_k` and `expected_duration_k`, `switching_var`, `switching_ar`, `converged`, `iterations`). `MSRegModel` is not Tables.jl-registered, so all tables are hand-built. Every option is validated up-front (`usage/invalid`); a too-short series or EM failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+**Output:** four hand-built tables plus diagnostics — a **per-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`: one switching `mu` row per regime, then a single `common-AR` block for the shared φ₁…φₚ, normal-approximation z/p), a **per-regime variance table** (`regime|sigma2|std_error`), the **wide K×K transition matrix** (`from_regime|to_regime1|…|to_regimeK`, `P[i,j] = Pr(sₜ=j | s_{t−1}=i)`, rows sum to 1) — the transition matrix renders **wide** (regime×regime), a documented [C051](#coefficient-table-format-c051) exception parallel to the MGARCH conditional-correlation matrix — and the **regime-probability table** described below; then a diagnostics block (`loglik`, `n_params`, `aic`, `bic`, per-regime `ergodic_k` and `expected_duration_k`, `switching_var`, `switching_ar`, `converged`, `iterations`). `MSRegModel` is not Tables.jl-registered, so all tables are hand-built. Every option is validated up-front (`usage/invalid`); a too-short series or EM failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+
+### Regime probabilities
+
+Both `estimate ms-ar` and `estimate ms` emit a **regime-probability table** — for most applied
+work the point of fitting a Markov-switching model at all, since it answers "which regime were
+we in at time *t*":
+
+```
+period | regime  | filtered | smoothed
+```
+
+`filtered` is `Pr(sₜ = k | y₁…yₜ)` (real time, using only information available at `t`) and
+`smoothed` is `Pr(sₜ = k | y₁…y_n)` (full sample). The smoothed path is the sharper of the two
+and is what you normally want for dating regimes historically; the filtered path is what a
+real-time observer would have seen.
+
+The table is **long**, not one column per regime: `K` comes from `--k-regimes`, so a wide layout
+would make the *column set* depend on a user option and every consumer would have to discover
+`K` before reading the table. Long keeps the columns fixed and grows the row count (`n × K`)
+instead — the same reasoning as
+[`predict statespace`](predict_residuals.md#state-space-predict-statespace-residuals-statespace).
+With `--output <file>` it is written to a `…_probabilities` path so it does not overwrite the
+coefficient table.
 
 ## estimate ms
 
@@ -1204,7 +1298,7 @@ friedman estimate ms y.csv --no-switching-variance
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** the same three hand-built tables as [`estimate ms-ar`](#estimate-ms-ar) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
+**Output:** the same four hand-built tables as [`estimate ms-ar`](#estimate-ms-ar) (including the [regime-probability table](#regime-probabilities)) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
 
 ## estimate iv
 
@@ -1226,6 +1320,55 @@ friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instrumen
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test). See also [`test weak-instrument`](test.md) for the full Stock-Yogo weak-instrument battery.
+
+**k-class family (#72).** `--method` selects the estimator:
+
+| `--method` | k used | Notes |
+|---|---|---|
+| `tsls` (default) | 1 | Two-stage least squares |
+| `liml` | κ̂ | Limited-information maximum likelihood |
+| `fuller` | κ̂ − a/(n−m) | Fuller (1977); `--fuller-a` (default 1) is approximately unbiased |
+| `kclass` | your `--k` | Generic k-class: `--k 0` is OLS, `--k 1` is exactly 2SLS |
+
+`--k` is **required** with `--method kclass` and rejected with any other method;
+`--fuller-a` applies only to `--method fuller`. Both are usage errors (exit 2) rather
+than upstream failures. The diagnostics block reports the `k-class k` actually used and,
+for LIML/Fuller, `kappa_hat`.
+
+```bash
+friedman estimate iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=liml
+friedman estimate iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=kclass --k=1
+```
+
+## estimate select
+
+General-to-specific and stepwise variable selection. This is a **dedicated leaf rather
+than an `estimate reg --select` flag**, so `estimate reg`'s envelope tables stay fixed —
+a leaf whose table set changes with a flag forces every consumer to branch on it.
+
+Regressors are every numeric column except `--dep`, and no intercept is prepended, so
+include a `const` column if you want one. The result carries the refitted final model,
+so the coefficient table is exactly what `estimate reg` would print for the selected
+subset.
+
+```bash
+friedman estimate select data.csv --dep=y
+friedman estimate select data.csv --dep=y --method=gets --criterion=bic
+friedman estimate select data.csv --dep=y --keep=const,x1
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--dep` | String | first numeric | Dependent variable column |
+| `--method` | String | `bidirectional` | `forward`, `backward`, `bidirectional`, `best-subset`, `gets` |
+| `--criterion` | String | `pvalue` | `pvalue`, `aic`, `bic` |
+| `--p-enter` | Float64 | 0.05 | p-value to enter a regressor |
+| `--p-remove` | Float64 | 0.10 | p-value to remove; must be ≥ `--p-enter` for bidirectional + pvalue |
+| `--keep` | String | | Comma-separated regressor names always retained |
+
+**Output:** the selected model's coefficient table, a `step | action | variable |
+statistic` **selection path** (the audit trail), and a summary kv with the selected set,
+forced-in variables, candidate count and the encompassing F-test where available.
 
 ## estimate sur
 

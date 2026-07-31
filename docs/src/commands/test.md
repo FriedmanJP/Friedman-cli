@@ -86,6 +86,96 @@ friedman test np data.csv --column=1 --trend=constant
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
+## Seasonal, Point-Optimal & Explosive-Bubble Tests
+
+### test hegy
+
+HEGY (Hylleberg-Engle-Granger-Yoo) test for **seasonal** unit roots. Rejection is
+per-frequency, so there is **no single p-value**: the output is one row per tested
+frequency — the zero-frequency and Nyquist t-ratios (left-tailed: reject when the
+statistic is *below* the critical value) and a joint F for each complex harmonic pair
+(right-tailed) — each with its own 5% critical value and decision.
+
+```bash
+friedman test hegy data.csv --frequency=4 --deterministic=const-trend-seas
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--frequency` | | Int | 4 | `4` (quarterly) or `12` (monthly) |
+| `--deterministic` | | String | `const-trend-seas` | `none`, `const`, `const-seas`, `const-trend`, `const-trend-seas` |
+| `--lags` | | String | `auto` | `auto` or a non-negative integer |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `frequency | kind | statistic | cv_5pct | decision` plus a summary kv
+(joint seasonal F, F over all roots, deterministic spec, lags). H0 at each frequency
+is a unit root, so `reject` means *no* unit root there.
+
+### test ers
+
+Elliott-Rothenberg-Stock feasible point-optimal `P_T` test. H0 is a unit root, and a
+**small** `P_T` rejects — read the decision off the reported p-value, not the sign.
+Requires at least 30 observations.
+
+```bash
+friedman test ers data.csv --trend
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--trend` | | Flag | off | Include a linear trend (default: constant only) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+### test sadf / test gsadf
+
+Phillips-Shi-Yu supremum ADF (`sadf`) and generalized supremum ADF (`gsadf`) tests for
+**explosive / bubble** behaviour. Both report the headline statistic against simulated
+critical values and a table of dated explosive **episodes** (an empty table is a valid
+answer — no bubble detected).
+
+```bash
+friedman test gsadf prices.csv --r0=auto --mc-reps=999 --cv=asymptotic
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--r0` | | String | `auto` | Minimum window fraction: `auto` or a number in (0,1) |
+| `--adflag` | | Int | 0 | ADF augmentation lags (≥ 0) |
+| `--mc-reps` | | Int | 999 | Monte-Carlo replications (≥ 1) |
+| `--cv` | | String | `asymptotic` | `asymptotic`, `wildboot` |
+| `--seed` | | Int | 20240716 | RNG seed for the critical-value simulation |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** `episode | start_index | end_index` plus a summary kv (statistic, p-value,
+`r0`, adflag, CV method, replications, episode count) and simulated critical values.
+
+### test edf
+
+Empirical-distribution-function goodness-of-fit tests. H0 is that the series follows
+`--dist`. Use `--params estimate` (default, ML-fitted parameters) or `--params
+specified` together with `--theta`.
+
+```bash
+friedman test edf resid.csv --dist=normal --test=ad
+friedman test edf resid.csv --dist=normal --params=specified --theta=0,1
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index |
+| `--dist` | | String | `normal` | `normal`, `exponential`, `logistic`, `gumbel`, `gamma`, `weibull`, `chisq` |
+| `--test` | | String | `ad` | `ks`, `lilliefors`, `cvm`, `ad`, `watson` |
+| `--params` | | String | `estimate` | `estimate` (ML fit) or `specified` (supply `--theta`) |
+| `--theta` | | String | | Comma-separated parameters; required with `--params specified` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
 ## Long-Memory (Fractional Integration)
 
 Semiparametric estimators of the fractional integration order `d`. Both test
@@ -279,6 +369,216 @@ friedman test vecm joint data.csv --config restr.toml
 ```
 
 Common options (all 5 leaves): `--lags`/`-p` (Int, 2), `--rank`/`-r` (String, `auto`), `--deterministic` (`none`|`constant`|`trend`), `--method` (`johansen`|`engle_granger`), `--significance` (Float64, 0.05), `--format`/`-f`, `--output`/`-o`. The four matrix-based leaves take `--config`; `weak-exog` takes `--vars` (comma-separated indices or names) instead.
+
+### Residual-Based Cointegration Tests
+
+`test engle-granger` and `test phillips-ouliaris` test a single cointegrating
+relationship between a dependent series (`--dep`, default the first numeric column) and
+every other numeric column. **Note the null flips relative to a unit-root test:** H0 is
+**no cointegration**, so a *low* p-value is evidence *for* a cointegrating relationship.
+
+Their `--trend` takes `none | constant | trend` — this is **not** the same vocabulary as
+`estimate cointreg` (`none | const | linear`) or `estimate ardl` (`none | const | trend`);
+passing the wrong spelling is a usage error, not a silent reinterpretation.
+
+```bash
+friedman test engle-granger data.csv --dep=y --lags=aic
+friedman test phillips-ouliaris data.csv --dep=y --kernel=bartlett --bandwidth=nw
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--dep` | String | first numeric | Dependent variable column |
+| `--trend` | String | `constant` | `none`, `constant`, `trend` |
+| `--lags` (engle-granger) | String | `aic` | `aic`, `bic`, `tstat` or a non-negative integer |
+| `--max-lags` (engle-granger) | String | | Upper bound for automatic lag selection |
+| `--kernel` (phillips-ouliaris) | String | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` |
+| `--bandwidth` (phillips-ouliaris) | String | `nw` | `nw`, `andrews`, `nw94` or a non-negative number |
+
+`phillips-ouliaris` reports **both** the studentized `Z_t` and the normalized-bias
+`Z_alpha`, each with its own p-value.
+
+`test hansen-instability` and `test park-added` are diagnostics *on a fitted
+cointegrating regression*: both first estimate a `CointRegModel` (the same options and
+`none|const|linear` trend vocabulary as `estimate cointreg` — `--method`, `--trend`,
+`--kernel`, `--bandwidth`, `--leads`, `--lags`) and then test it. **Their nulls differ
+again:**
+
+- `hansen-instability` — H0 is **cointegration with stable coefficients**; a large `L_c`
+  rejects stability.
+- `park-added` — H0 is **genuine cointegration**; a large `H(p,q)` (χ² with `--q-add`
+  degrees of freedom) rejects in favour of a spurious regression.
+
+```bash
+friedman test hansen-instability data.csv --dep=y --method=fmols
+friedman test park-added data.csv --dep=y --q-add=2 --hac-bandwidth=nw
+```
+
+`park-added` additionally takes `--q-add` (number of superfluous trends, ≥ 1, the test's
+degrees of freedom) and its own `--hac-kernel` / `--hac-bandwidth` for the test
+statistic, kept separate from the `--kernel` / `--bandwidth` used to fit the regression.
+
+## OLS Regression Diagnostics
+
+Cross-section diagnostics on an OLS fit. All eight fit the regression the same way
+`estimate reg` does — `--dep` picks the dependent column, every other numeric column
+is a regressor, and **no intercept is prepended**, so include a `const` column if you
+want one. `--cov-type` is forwarded to the fit.
+
+Note `test breusch-pagan` is a *different* test: it is the panel random-effects LM
+test, not a cross-section heteroskedasticity test.
+
+### test white / test glejser / test harvey
+
+Heteroskedasticity tests. H₀ in each case is homoskedasticity, so a **low p-value
+means the errors are heteroskedastic** and you should prefer a robust `--cov-type`.
+
+```bash
+friedman test white data.csv --dep=y
+friedman test white data.csv --dep=y --no-cross-terms
+friedman test glejser data.csv --dep=y
+friedman test harvey data.csv --dep=y
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--dep` | String | first numeric | Dependent variable column |
+| `--cov-type` | String | `hc1` | Covariance estimator for the OLS fit |
+| `--no-cross-terms` (white only) | Flag | off | Omit cross-products from the auxiliary regression |
+
+**Output:** a kv block — test name, H₀, statistic, p-value, degrees of freedom, the
+F-form where the test reports one, auxiliary R², and the observation count.
+
+### test chow
+
+Chow structural-break test. **`--break-at` is required** (note the name: `--break`
+is not usable, since `break` is a reserved word). Pass a comma-separated list for a
+multi-break test. H₀ is that coefficients are constant across the segments.
+
+```bash
+friedman test chow data.csv --dep=y --break-at=100
+friedman test chow data.csv --dep=y --break-at=60,120
+friedman test chow data.csv --dep=y --break-at=190 --type=forecast
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--break-at` | String | **required** | 1-based break index, or a comma-separated list |
+| `--type` | String | `breakpoint` | `breakpoint`, `forecast` |
+| `--level` | Float64 | 0.05 | Significance level in (0,1) |
+
+`type=breakpoint` needs every segment to hold at least `k` observations; use
+`forecast` when a segment is shorter than that.
+
+### test cusum / test cusumsq
+
+Brown-Durbin-Evans recursive-residual stability tests. These report a **path and a
+significance band, not a p-value** — the verdict is whether the path leaves the band,
+so the output carries a `crossed band` flag and the first crossing index instead of a
+significance level to compare. `cusum` is sensitive to drift in the coefficients;
+`cusumsq` to a one-off variance shift.
+
+```bash
+friedman test cusum data.csv --dep=y --level=0.05
+friedman test cusumsq data.csv --dep=y
+```
+
+**Output:** `observation | cusum (or cusumsq) | lower | upper` plus a summary kv
+(`kind`, `crossed band`, `first crossing`, `level`, observations, regressors).
+
+### test recursive-residuals
+
+The Brown-Durbin-Evans recursive least-squares residuals themselves, one per
+recursive step (the first `k` observations initialise the recursion).
+
+**Output:** `step | observation | recursive_residual` plus count and mean.
+
+### test influence
+
+Per-observation influence diagnostics: leverage (`hat`), internally and externally
+studentised residuals, DFFITS and Cook's distance, plus the indices MEMs flags as
+high-leverage or influential.
+
+```bash
+friedman test influence data.csv --dep=y
+```
+
+**Output:** `observation | hat | student_internal | student_external | dffits |
+cooksd` plus a summary kv with `sigma` and the flagged index lists. The `dfbetas`
+matrix is deliberately not in the tidy table (it would need one column per
+regressor).
+
+## Panel Unit Root, Cointegration & Causality (first generation)
+
+### test llc / test ips / test breitung
+
+First-generation panel unit-root tests on a **T×N matrix** — one column per unit,
+exactly like `test hadri`. **Note the null is the opposite of Hadri's:** H₀ here is
+that *every* unit has a unit root, so a **low p-value means the panel is stationary**.
+
+- `llc` — Levin-Lin-Chu, a *common* autoregressive root.
+- `ips` — Im-Pesaran-Shin, a *heterogeneous* root (mean-group `W[t-bar]`), and it also
+  reports the per-unit ADF statistics.
+- `breitung` — Breitung's bias-free pooled statistic.
+
+```bash
+friedman test llc panel_wide.csv --deterministic=trend
+friedman test ips panel_wide.csv --lags=2
+friedman test breitung panel_wide.csv --cs-demean
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--deterministic` | String | `constant` | `none`, `constant`, `trend` |
+| `--lags` (llc/ips) | String | `auto` | `auto` or a non-negative integer |
+| `--max-lags` (llc/ips) | String | | Upper bound for automatic selection |
+| `--criterion` (llc/ips) | String | `aic` | `aic`, `bic`, `tstat` |
+| `--lags` (breitung) | Int | 0 | Augmentation lags (≥ 0) |
+| `--cs-demean` | Flag | off | Subtract the cross-sectional mean at each `t` (mitigates cross-sectional dependence) |
+
+### test fisher-johansen
+
+Fisher-type combination of per-unit Johansen cointegration tests, on a **long-format
+panel**. Needs at least two series. Each row is a rank hypothesis (H₀: rank ≤ r), and
+the selected rank is the first not rejected.
+
+```bash
+friedman test fisher-johansen panel.csv --vars=y,x --lags=2 --combine=mw
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--id-col` / `--time-col` | String | first / second column | Panel identifiers |
+| `--vars` | String | every panel variable | Comma-separated series (≥ 2) |
+| `--deterministic` | String | `constant` | `none`, `constant`, `trend` |
+| `--lags` | Int | 2 | VECM lag order (≥ 1) |
+| `--combine` | String | `mw` | `mw` (Maddala-Wu), `choi` |
+
+**Output:** `rank | trace_statistic | trace_p_value | max_statistic | max_p_value` plus
+a summary kv with the selected rank.
+
+### test dh-causality
+
+Dumitrescu-Hurlin (2012) panel Granger non-causality. **Direction matters:** this tests
+whether `--cause` Granger-causes `--effect`, so the two are not interchangeable and both
+are required. H₀ is no causality for any unit.
+
+```bash
+friedman test dh-causality panel.csv --cause=x --effect=y --p=2
+friedman test dh-causality panel.csv --cause=x --effect=y --bootstrap=500
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--cause` | String | **required** | Candidate causal variable |
+| `--effect` | String | **required** | Dependent variable |
+| `--p` | Int | 1 | Lag order (≥ 1) |
+| `--bootstrap` | Int | 0 | Bootstrap replications (0 = asymptotic only) |
+| `--seed` | Int | 1234 | RNG seed for the bootstrap |
+
+**Output:** a kv block with `W-bar`, `Z-bar` and the small-T-corrected **`Z-tilde`**
+(the one to read by default) with their p-values, plus the bootstrap p-value when
+`--bootstrap > 0`.
 
 ## VAR Diagnostics
 
