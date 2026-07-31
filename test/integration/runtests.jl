@@ -3431,6 +3431,82 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true)
         end
 
+        @testset "statespace --config — general system, EQUIVALENT to the canned one (#71)" begin
+            # THE assertion that makes this more than a shape test: writing the local level out
+            # by hand with the variances the canned MLE found must reproduce the canned
+            # log-likelihood EXACTLY. If the config were being mis-transcribed into the system
+            # matrices (Z/T swapped, H and Q crossed, a dropped intercept) the two would differ.
+            csv = dgp_ar1(; T=200, φ=0.6, seed=131)
+            canned = run_json(["estimate", "statespace", csv, "--model", "local-level"])
+            assert_envelope_ok(canned; label="statespace canned")
+            pt = cols_table(canned.doc, ["parameter", "estimate"])
+            ei = findfirst(==("estimate"), table_cols(pt))
+            th = [Float64(collect(row)[ei]) for row in table_rows(pt)]      # [σ²_ε, σ²_η]
+            ll_canned = Float64(metric_value(metrics_table(canned.doc), "loglik"))
+
+            cfg = tempname() * ".toml"
+            open(cfg, "w") do io
+                println(io, "[statespace]")
+                println(io, "Z = [[1.0]]")
+                println(io, "H = [[", th[1], "]]")
+                println(io, "T = [[1.0]]")
+                println(io, "Q = [[", th[2], "]]")
+            end
+            gen = run_json(["estimate", "statespace", csv, "--config", cfg])
+            assert_envelope_ok(gen; label="statespace general")
+            ll_gen = Float64(metric_value(metrics_table(gen.doc), "loglik"))
+            @test isapprox(ll_canned, ll_gen; rtol=1e-6)
+
+            # a fixed-matrix system is FILTERED, never optimized: no hyper-parameters, so the
+            # system table stands in for the parameter table (which would render empty)
+            st = cols_table(gen.doc, ["matrix", "role", "rows", "cols"])
+            @test st !== nothing
+            @test Set(string(collect(row)[1]) for row in table_rows(st)) ==
+                  Set(["Z", "H", "T", "Q", "R", "d", "c"])
+            @test cols_table(gen.doc, ["parameter", "estimate"]) === nothing
+            @test string(metric_value(metrics_table(gen.doc), "method")) == "filter"
+            @test string(metric_value(metrics_table(gen.doc), "model")) == "general"
+            @test Int(metric_value(metrics_table(gen.doc), "n_periods")) == 200
+
+            # multivariate: two series on one common state
+            bicsv = write_csv(DataFrame(y1=randn(120), y2=randn(120)); prefix="ss_bi")
+            bicfg = tempname() * ".toml"
+            open(bicfg, "w") do io
+                println(io, "[statespace]")
+                println(io, "Z = [[1.0], [0.7]]")
+                println(io, "H = [[1.0, 0.0], [0.0, 2.0]]")
+                println(io, "T = [[0.95]]")
+                println(io, "Q = [[0.5]]")
+            end
+            rb = run_json(["estimate", "statespace", bicsv, "--config", bicfg])
+            assert_envelope_ok(rb; label="statespace general bivariate")
+            @test Int(metric_value(metrics_table(rb.doc), "n_obs_series")) == 2
+            @test Int(metric_value(metrics_table(rb.doc), "n_state")) == 1
+
+            # n_obs implied by Z vs the CSV's column count → data/shape (3), not exit 1
+            @test run_json(["estimate", "statespace", csv, "--config", bicfg]).code == 3
+            # a malformed system is a CONFIG error (4), naming the file the user wrote
+            badcfg = tempname() * ".toml"
+            open(badcfg, "w") do io
+                println(io, "[statespace]")
+                println(io, "Z = [[1.0]]")
+                println(io, "H = [[1.0, 0.0], [0.0, 1.0]]")
+                println(io, "T = [[1.0]]")
+                println(io, "Q = [[1.0]]")
+            end
+            @test run_json(["estimate", "statespace", csv, "--config", badcfg]).code == 4
+            # a1 without P1 would be SILENTLY IGNORED upstream → rejected here
+            halfcfg = tempname() * ".toml"
+            open(halfcfg, "w") do io
+                println(io, "[statespace]")
+                println(io, "Z = [[1.0]]"); println(io, "H = [[1.0]]")
+                println(io, "T = [[1.0]]"); println(io, "Q = [[1.0]]")
+                println(io, "a1 = [0.0]")
+            end
+            @test run_json(["estimate", "statespace", csv, "--config", halfcfg]).code == 4
+            for f in (cfg, bicfg, badcfg, halfcfg, bicsv, csv); rm(f; force=true); end
+        end
+
         @testset "statespace local-linear-trend — 3 hyper-params" begin
             csv = dgp_trend_cycle(; T=200, seed=32)
             r = run_json(["estimate", "statespace", csv, "--model", "local-linear-trend"])

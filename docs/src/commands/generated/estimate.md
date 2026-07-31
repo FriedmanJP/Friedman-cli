@@ -1396,12 +1396,19 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column to model |
-| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level | local-linear-trend |
-| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse |
+| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level | local-linear-trend (ignored with --config) |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa | diffuse (--config uses [statespace] init_mode) |
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
+| `--config` | — | `String` | `""` | — | TOML with [statespace] Z/H/T/Q (+ d, c, R, a1, P1, init_mode) for a general system |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `estimate_statespace` (Path to CSV data file)
 

@@ -2431,6 +2431,16 @@ end  # Shared utilities
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
         _metrics(doc) = Set(String(collect(r)[1]) for r in
                             first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        # Local on purpose: `_mval` in the MS testset is a testset-SCOPED closure, not a
+        # global, so reaching for it from here would be an UndefVarError at run time.
+        _mv(doc, name) = begin
+            kv = first(t for t in _tables(doc) if "metric" in String.(t.columns))
+            v = nothing
+            for r in kv.rows
+                rr = collect(r); String(rr[1]) == name && (v = rr[2])
+            end
+            v
+        end
         _eerr(args) = begin
             e = nothing
             try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
@@ -2463,6 +2473,67 @@ end  # Shared utilities
                 @test length(collect(pt.rows)) == 2               # σ²_ε, σ²_η
                 m = _metrics(doc)
                 @test Set(["model", "loglik", "converged", "n_state"]) ⊆ m
+            end
+
+            @testset "statespace --config — general fixed-matrix system (#71)" begin
+                # A general system is MULTIVARIATE and has NO estimated hyper-parameters, so it
+                # renders a SYSTEM table (matrix|role|rows|cols) instead of parameter|estimate —
+                # `theta`/`param_names` come back empty and the parameter table would otherwise
+                # be silently blank.
+                bi = joinpath(dir, "bi.csv")
+                open(bi, "w") do io
+                    println(io, "y1,y2")
+                    for t in 1:60
+                        f = 10.0 + 0.1*t
+                        println(io, "$(f + 0.1*sin(t)),$(0.7*f + 0.1*cos(t))")
+                    end
+                end
+                cfg = joinpath(dir, "ss.toml")
+                write(cfg, """
+                [statespace]
+                Z = [[1.0], [0.7]]
+                H = [[1.0, 0.0], [0.0, 2.0]]
+                T = [[0.95]]
+                Q = [[0.5]]
+                """)
+                doc = _edoc(["statespace", bi, "--config", cfg])
+                @test doc.status == "ok"
+                st = _tbl_with(doc, "matrix", "role", "rows", "cols")
+                rows = collect(st.rows)
+                @test Set(String(collect(r)[1]) for r in rows) == Set(["Z","H","T","Q","R","d","c"])
+                dims = Dict(String(collect(r)[1]) => (Int(collect(r)[3]), Int(collect(r)[4])) for r in rows)
+                @test dims["Z"] == (2, 1)          # n_obs × n_state
+                @test dims["H"] == (2, 2)
+                @test dims["T"] == (1, 1)
+                @test dims["R"] == (1, 1)          # defaulted to I by MEMs
+                m = _metrics(doc)
+                @test Set(["model", "loglik", "init_mode", "n_obs_series", "n_state",
+                           "n_periods", "method"]) ⊆ m
+                # a fixed-matrix system is filtered, never optimized
+                @test String(_mv(doc, "method")) == "filter"
+                @test String(_mv(doc, "model")) == "general"
+                @test Int(_mv(doc, "n_obs_series")) == 2
+                @test Int(_mv(doc, "n_state")) == 1
+                @test Int(_mv(doc, "n_periods")) == 60
+                # --config supersedes --model; the canned parameter table must NOT appear
+                @test isempty([t for t in _tables(doc) if "parameter" in String.(t.columns)])
+
+                # n_obs implied by Z must match the CSV's numeric column count → data/shape (3)
+                e = _eerr(["statespace", uni, "--config", cfg])
+                @test e isa CliError && e.code == "data/shape" && exit_class(e) == 3
+                # a malformed system is a CONFIG error (exit 4), naming the file the user wrote
+                badcfg = joinpath(dir, "bad.toml")
+                write(badcfg, """
+                [statespace]
+                Z = [[1.0]]
+                H = [[1.0, 0.0], [0.0, 1.0]]
+                T = [[1.0]]
+                Q = [[1.0]]
+                """)
+                eb = _eerr(["statespace", uni, "--config", badcfg])
+                @test eb isa CliError && exit_class(eb) == 4
+                # ...and the canned path is unaffected by all of this
+                @test _edoc(["statespace", uni, "--model", "local-level"]).status == "ok"
             end
 
             @testset "statespace local-linear-trend — 3 hyper-params" begin

@@ -3315,6 +3315,91 @@ using TOML
         @test_throws CliError get_vecm_restriction(Dict("vecm_restriction" => Dict("H" => [["a"], ["b"]])), "H")      # config/type (non-numeric)
     end
 
+    @testset "get_statespace (general state-space system, #71)" begin
+        # Minimal valid local level written out by hand
+        # Dict{String,Any} on purpose: a bare Dict of matrices infers
+        # Dict{String,Vector{Vector{Float64}}}, and assigning a FLAT vector (a1/d/c) or a
+        # scalar into it then fails to convert before the parser is ever reached.
+        base = Dict{String,Any}("statespace" => Dict{String,Any}(
+            "Z" => [[1.0]], "H" => [[2.0]], "T" => [[1.0]], "Q" => [[3.0]]))
+        s = get_statespace(base)
+        @test s.n_obs == 1 && s.n_state == 1
+        @test s.Z == reshape([1.0], 1, 1) && s.Q == reshape([3.0], 1, 1)
+        @test s.init_mode == :kappa            # default
+        @test s.R === nothing && s.d === nothing && s.c === nothing
+        @test s.a1 === nothing && s.P1 === nothing
+
+        # Multivariate: Z is n_obs × n_state, so 2 series loading on 1 state
+        biv = Dict{String,Any}("statespace" => Dict{String,Any}(
+            "Z" => [[1.0], [0.7]], "H" => [[1.0, 0.0], [0.0, 2.0]],
+            "T" => [[0.95]], "Q" => [[0.5]], "d" => [0.0, 0.0], "c" => [0.0],
+            "init_mode" => "diffuse"))
+        b = get_statespace(biv)
+        @test b.n_obs == 2 && b.n_state == 1
+        @test b.init_mode == :diffuse
+        @test b.d == [0.0, 0.0] && b.c == [0.0]
+
+        # Explicit initialisation: a1 AND P1 together
+        ex = deepcopy(base)
+        ex["statespace"]["a1"] = [0.0]; ex["statespace"]["P1"] = [[10.0]]
+        e = get_statespace(ex)
+        @test e.a1 == [0.0] && e.P1 == reshape([10.0], 1, 1)
+
+        # Explicit R with r ≠ n_state
+        rr = Dict{String,Any}("statespace" => Dict{String,Any}(
+            "Z" => [[1.0, 0.0]], "H" => [[1.0]], "T" => [[1.0, 0.0], [0.0, 1.0]],
+            "Q" => [[1.0]], "R" => [[1.0], [0.0]]))
+        r = get_statespace(rr)
+        @test r.n_state == 2 && size(r.R) == (2, 1) && size(r.Q) == (1, 1)
+
+        _code(f) = try; f(); nothing; catch e; e isa CliError ? e.code : rethrow(); end
+        # missing section / missing required key
+        @test _code(() -> get_statespace(Dict())) == "config/missing"
+        @test _code(() -> get_statespace(Dict{String,Any}("statespace" => Dict{String,Any}("Z" => [[1.0]])))) == "config/missing-key"
+        # Dimensional consistency is checked HERE (config/shape, exit 4) rather than left to the
+        # MEMs constructor, so the error names the file the user wrote instead of surfacing as
+        # an untyped ArgumentError.
+        badH = deepcopy(base); badH["statespace"]["H"] = [[1.0, 0.0], [0.0, 1.0]]
+        @test _code(() -> get_statespace(badH)) == "config/shape"
+        badT = deepcopy(base); badT["statespace"]["T"] = [[1.0, 0.0], [0.0, 1.0]]
+        @test _code(() -> get_statespace(badT)) == "config/shape"
+        badd = deepcopy(base); badd["statespace"]["d"] = [0.0, 0.0]
+        @test _code(() -> get_statespace(badd)) == "config/shape"
+        badc = deepcopy(base); badc["statespace"]["c"] = [0.0, 0.0]
+        @test _code(() -> get_statespace(badc)) == "config/shape"
+        badR = deepcopy(base); badR["statespace"]["R"] = [[1.0, 0.0]]   # 1×2: Q must then be 2×2
+        @test _code(() -> get_statespace(badR)) == "config/shape"
+        # Q larger than the state with no explicit R — MEMs' default R = I(n_state, size(Q,1))
+        # would be malformed, so reject it here rather than let the constructor throw.
+        bigQ = deepcopy(base); bigQ["statespace"]["Q"] = [[1.0, 0.0], [0.0, 1.0]]
+        @test _code(() -> get_statespace(bigQ)) == "config/shape"
+        # a1 without P1 is SILENTLY IGNORED by MEMs (it switches to :explicit only when both are
+        # present), so a user supplying one would think it applied. Reject the half-specification.
+        half = deepcopy(base); half["statespace"]["a1"] = [0.0]
+        @test _code(() -> get_statespace(half)) == "config/shape"
+        halfP = deepcopy(base); halfP["statespace"]["P1"] = [[1.0]]
+        @test _code(() -> get_statespace(halfP)) == "config/shape"
+        wrongA1 = deepcopy(base); wrongA1["statespace"]["a1"] = [0.0, 0.0]
+        wrongA1["statespace"]["P1"] = [[1.0]]
+        @test _code(() -> get_statespace(wrongA1)) == "config/shape"
+        # bad init_mode / types
+        badmode = deepcopy(base); badmode["statespace"]["init_mode"] = "bogus"
+        @test _code(() -> get_statespace(badmode)) == "config/invalid"
+        @test get_statespace(deepcopy(base)).init_mode == :kappa
+        for m in ("kappa", "diffuse", "stationary")
+            ok = deepcopy(base); ok["statespace"]["init_mode"] = m
+            @test get_statespace(ok).init_mode == Symbol(m)
+        end
+        ragged = deepcopy(base); ragged["statespace"]["Z"] = [[1.0], [1.0, 2.0]]
+        @test _code(() -> get_statespace(ragged)) == "config/shape"
+        nonnum = deepcopy(base); nonnum["statespace"]["Z"] = [["a"]]
+        @test _code(() -> get_statespace(nonnum)) == "config/type"
+        notarr = deepcopy(base); notarr["statespace"]["Z"] = 3.0
+        @test _code(() -> get_statespace(notarr)) == "config/type"
+        badvec = deepcopy(base); badvec["statespace"]["d"] = "nope"
+        @test _code(() -> get_statespace(badvec)) == "config/type"
+    end
+
     @testset "_parse_matrix" begin
         # Valid 2x3 → correct Matrix{Float64}
         mat = _parse_matrix([[1, 2, 3], [4, 5, 6]])

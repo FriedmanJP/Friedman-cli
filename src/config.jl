@@ -641,3 +641,106 @@ function _parse_matrix(rows::Vector)
     end
     return mat
 end
+
+"""
+    get_statespace(config) -> NamedTuple
+
+Parse a `[statespace]` section describing a GENERAL linear-Gaussian state-space system, for
+`estimate statespace --config`. The system is the standard single-block form
+
+    yₜ   = Z αₜ + d + εₜ,     εₜ ~ N(0, H)
+    αₜ₊₁ = T αₜ + c + R ηₜ,   ηₜ ~ N(0, Q)
+
+Required keys: `Z` (n_obs × n_state), `H` (n_obs × n_obs), `T` (n_state × n_state), `Q` (r × r).
+Optional: `d` (n_obs), `c` (n_state), `R` (n_state × r), `a1`/`P1` (explicit initialisation,
+BOTH or NEITHER), `init_mode` (`kappa`|`diffuse`|`stationary`).
+
+Matrices are row-major arrays of arrays; vectors are flat arrays. Note the TOML key is `T`
+(standard notation) while the MEMs field is `Tt` and the constructor keyword is `T_mat` — `T` is
+the type parameter in Julia, so the three names cannot be unified.
+
+Dimensional consistency is checked HERE rather than left to the MEMs constructor, so a bad
+config surfaces as `config/shape` (exit 4, pointing at the file the user wrote) instead of an
+untyped `ArgumentError`.
+"""
+function get_statespace(config::Dict)
+    sec = get(config, "statespace", nothing)
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "estimate statespace --config requires a [statespace] section with Z, H, T and Q"))
+
+    _mat(key) = begin
+        haskey(sec, key) || throw(CliError("config/missing-key",
+            "[statespace] must define $key = [[...],[...]] (row-major matrix)"))
+        rows = sec[key]
+        (rows isa AbstractVector && !isempty(rows) && all(r -> r isa AbstractVector, rows)) ||
+            throw(CliError("config/type",
+                "[statespace] $key must be a non-empty array of equal-length numeric rows"))
+        ncol = length(first(rows))
+        (ncol >= 1 && all(r -> length(r) == ncol, rows)) ||
+            throw(CliError("config/shape",
+                "[statespace] $key rows must all have the same length ≥ 1"))
+        try
+            [Float64(rows[i][j]) for i in 1:length(rows), j in 1:ncol]
+        catch
+            throw(CliError("config/type", "[statespace] $key must contain only numbers"))
+        end
+    end
+    _optmat(key) = haskey(sec, key) ? _mat(key) : nothing
+    _optvec(key) = begin
+        haskey(sec, key) || return nothing
+        v = sec[key]
+        (v isa AbstractVector && !isempty(v) && all(x -> x isa Real, v)) ||
+            throw(CliError("config/type", "[statespace] $key must be a non-empty flat array of numbers"))
+        Float64[Float64(x) for x in v]
+    end
+
+    Z = _mat("Z"); H = _mat("H"); Tm = _mat("T"); Q = _mat("Q")
+    n_obs, n_state = size(Z)
+    size(H) == (n_obs, n_obs) || throw(CliError("config/shape",
+        "[statespace] H must be n_obs×n_obs = ($n_obs, $n_obs) to match Z, got $(size(H))"))
+    size(Tm) == (n_state, n_state) || throw(CliError("config/shape",
+        "[statespace] T must be n_state×n_state = ($n_state, $n_state) to match Z, got $(size(Tm))"))
+
+    R = _optmat("R")
+    if R === nothing
+        # MEMs defaults R to I(n_state, size(Q,1)); Q must then be r×r with r = size(Q,1),
+        # and r cannot exceed n_state or the implied loading matrix is not well formed.
+        size(Q, 1) == size(Q, 2) || throw(CliError("config/shape",
+            "[statespace] Q must be square, got $(size(Q))"))
+        size(Q, 1) <= n_state || throw(CliError("config/shape",
+            "[statespace] Q is $(size(Q,1))×$(size(Q,1)) but the state has dimension $n_state; " *
+            "supply R (n_state × r) explicitly for r > n_state"))
+    else
+        size(R, 1) == n_state || throw(CliError("config/shape",
+            "[statespace] R must have n_state=$n_state rows to match Z, got $(size(R, 1))"))
+        size(Q) == (size(R, 2), size(R, 2)) || throw(CliError("config/shape",
+            "[statespace] Q must be r×r with r = size(R,2) = $(size(R, 2)), got $(size(Q))"))
+    end
+
+    d = _optvec("d"); c = _optvec("c")
+    d === nothing || length(d) == n_obs || throw(CliError("config/shape",
+        "[statespace] d must have length n_obs=$n_obs, got $(length(d))"))
+    c === nothing || length(c) == n_state || throw(CliError("config/shape",
+        "[statespace] c must have length n_state=$n_state, got $(length(c))"))
+
+    a1 = _optvec("a1"); P1 = _optmat("P1")
+    # MEMs switches to init_mode=:explicit only when BOTH are supplied; supplying one alone
+    # would be silently ignored, so reject it here rather than let the user think it applied.
+    ((a1 === nothing) == (P1 === nothing)) || throw(CliError("config/shape",
+        "[statespace] a1 and P1 must be supplied together (explicit initialisation) or not at all"))
+    if a1 !== nothing
+        length(a1) == n_state || throw(CliError("config/shape",
+            "[statespace] a1 must have length n_state=$n_state, got $(length(a1))"))
+        size(P1) == (n_state, n_state) || throw(CliError("config/shape",
+            "[statespace] P1 must be n_state×n_state = ($n_state, $n_state), got $(size(P1))"))
+    end
+
+    im = get(sec, "init_mode", "kappa")
+    im isa AbstractString || throw(CliError("config/type",
+        "[statespace] init_mode must be a string (kappa|diffuse|stationary)"))
+    String(im) in ("kappa", "diffuse", "stationary") || throw(CliError("config/invalid",
+        "[statespace] init_mode must be kappa|diffuse|stationary, got '$im'"))
+
+    return (Z=Z, H=H, T=Tm, Q=Q, R=R, d=d, c=c, a1=a1, P1=P1,
+            init_mode=Symbol(String(im)), n_obs=n_obs, n_state=n_state)
+end

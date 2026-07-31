@@ -817,13 +817,52 @@ friedman estimate statespace gdp.csv --column=2 --model=local-linear-trend --ini
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--column` | `-c` | Int | 1 | 1-based numeric column to model |
-| `--model` | | String | `local-level` | `local-level` or `local-linear-trend` |
+| `--model` | | String | `local-level` | `local-level` or `local-linear-trend` (ignored with `--config`) |
 | `--init-mode` | | String | `kappa` | Kalman initialization: `kappa` or `diffuse` |
 | `--kappa` | | Float | 1e6 | Large-variance diffuse-init constant (`init-mode=kappa`) |
+| `--config` | | String | | TOML with a `[statespace]` section — switches to a **general** system (below) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** hyper-parameter table (`parameter|estimate` — the estimated natural-scale variances σ̂², e.g. `σ²_ε`, `σ²_η`) + diagnostics (`model`, `loglik`, `converged`, `n_state`, `n_obs`, `method`). `StateSpaceModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
+
+### General systems: `--config`
+
+A `[statespace]` section specifies an arbitrary linear-Gaussian system directly, in the standard single-block form
+
+```
+yₜ   = Z αₜ + d + εₜ,     εₜ ~ N(0, H)
+αₜ₊₁ = T αₜ + c + R ηₜ,   ηₜ ~ N(0, Q)
+```
+
+**This path is multivariate**: `Z` is `n_obs × n_state`, and the data file must have exactly `n_obs` numeric columns (`--column` does not apply). It is also **fixed-matrix**: nothing is optimized. The system is filtered and its log-likelihood evaluated, so `method` comes back as `filter` rather than `mle` and there are no hyper-parameters to report — the output is a **system table** (`matrix|role|rows|cols`) instead of `parameter|estimate`, showing the matrices in force *after* defaults are applied.
+
+```toml
+[statespace]
+# Two observed series loading on one common AR(1) state
+Z = [[1.0], [0.7]]              # n_obs × n_state       (required)
+H = [[1.0, 0.0], [0.0, 2.0]]    # n_obs × n_obs         (required)
+T = [[0.95]]                    # n_state × n_state     (required)
+Q = [[0.5]]                     # r × r                 (required)
+# optional:
+d = [0.0, 0.0]                  # n_obs      observation intercept (default 0)
+c = [0.0]                       # n_state    state intercept       (default 0)
+R = [[1.0]]                     # n_state × r  noise loading        (default I)
+a1 = [0.0]                      # n_state    explicit initial state mean
+P1 = [[10.0]]                   # n_state × n_state  explicit initial covariance
+init_mode = "kappa"             # kappa | diffuse | stationary
+```
+
+```bash
+friedman estimate statespace two_series.csv --config system.toml
+```
+
+Notes:
+
+- **`T` in the TOML is the transition matrix.** The Julia field is `Tt` and the upstream constructor keyword is `T_mat`, because `T` is the type parameter — three spellings of one matrix, unavoidable.
+- **`a1` and `P1` must be given together or not at all.** Supplying only one is rejected rather than silently ignored: upstream switches to explicit initialization only when both are present, so a lone `a1` would quietly have no effect.
+- Matrices are row-major arrays of arrays; `d`, `c`, `a1` are flat arrays.
+- Every dimensional inconsistency is caught while parsing, so it surfaces as `config/shape` (exit 4) naming the file you wrote, rather than as an error from deep inside the library. A mismatch between `Z`'s implied `n_obs` and the CSV's column count is `data/shape` (exit 3), since that is a property of the data rather than the config.
 
 ## estimate tvp
 
