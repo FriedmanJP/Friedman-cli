@@ -3399,9 +3399,22 @@ export CointRegModel, PanelCointRegModel, estimate_cointreg, estimate_xtcointreg
 # Estimators are genuine-ish fits that VALIDATE like the real ones (n bounds, kernel/method/bw
 # enums, length matches) so T1/T2 exercise the error mapping and table shapes.
 
-# Subset of real StateSpaceModel fields (real order: ..., loglik, theta, param_names, ...,
-# converged, method, n_obs, n_state, T_obs). We keep only what the CLI renders.
+# Subset of real StateSpaceModel fields (check_mock_surface is mock ⊆ real by NAME, not order).
+# We keep what the CLI renders: the system matrices (#71 --config general path), the state
+# paths (#71 predict/residuals), and the fit summary.
 struct StateSpaceModel{T<:AbstractFloat}
+    # System matrices — the general fixed-matrix form y = Z α + d + ε, α' = T α + c + R η.
+    # NOTE the field is `Tt`, not `T`: `T` is the struct's type parameter. Real has the same
+    # constraint, which is why the TOML key (`T`), the constructor keyword (`T_mat`) and the
+    # field (`Tt`) are three different spellings of one matrix.
+    Z::Matrix{T}
+    H::Matrix{T}
+    Tt::Matrix{T}
+    Q::Matrix{T}
+    d::Vector{T}
+    c::Vector{T}
+    R::Matrix{T}
+    init_mode::Symbol
     theta::Vector{T}
     param_names::Vector{String}
     # #71 consumes these; all exist in real (statespace/types.jl):
@@ -3416,6 +3429,60 @@ struct StateSpaceModel{T<:AbstractFloat}
     n_state::Int
     n_obs::Int
     T_obs::Int
+end
+
+"""Fixed-matrix outer constructor, mirroring real's signature and — critically — its
+VALIDATION and DEFAULTS: `R` defaults to `I(n_state, size(Q,1))`, `d`/`c` to zeros, and
+supplying `a1` AND `P1` switches init_mode to `:explicit`. Dimension violations raise the same
+`ArgumentError` real does, so the CLI's mapping is exercised identically at both tiers."""
+function StateSpaceModel(Z::AbstractMatrix, H::AbstractMatrix,
+                         T_mat::AbstractMatrix, Q::AbstractMatrix;
+                         d=nothing, c=nothing, R=nothing, a1=nothing, P1=nothing,
+                         init_mode::Symbol=:kappa, kappa::Real=1e6)
+    Zm = Matrix{Float64}(Z); Hm = Matrix{Float64}(H)
+    Tm = Matrix{Float64}(T_mat); Qm = Matrix{Float64}(Q)
+    n_obs, n_state = size(Zm)
+    size(Hm) == (n_obs, n_obs) ||
+        throw(ArgumentError("H must be n_obs×n_obs = $((n_obs, n_obs)), got $(size(Hm))"))
+    size(Tm) == (n_state, n_state) ||
+        throw(ArgumentError("T must be n_state×n_state = $((n_state, n_state)), got $(size(Tm))"))
+    Rm = R === nothing ? Matrix{Float64}(I, n_state, size(Qm, 1)) : Matrix{Float64}(R)
+    size(Rm, 1) == n_state ||
+        throw(ArgumentError("R must have n_state=$n_state rows, got $(size(Rm, 1))"))
+    size(Qm) == (size(Rm, 2), size(Rm, 2)) ||
+        throw(ArgumentError("Q must be r×r with r=size(R,2)=$(size(Rm, 2)), got $(size(Qm))"))
+    dv = d === nothing ? zeros(Float64, n_obs) : Vector{Float64}(d)
+    cv = c === nothing ? zeros(Float64, n_state) : Vector{Float64}(c)
+    length(dv) == n_obs || throw(ArgumentError("d must have length n_obs=$n_obs"))
+    length(cv) == n_state || throw(ArgumentError("c must have length n_state=$n_state"))
+    mode = (a1 !== nothing && P1 !== nothing) ? :explicit : init_mode
+    mode in (:kappa, :diffuse, :stationary, :explicit) ||
+        throw(ArgumentError("Unknown Kalman init mode :$mode"))
+    StateSpaceModel{Float64}(Zm, Hm, Tm, Qm, dv, cv, Rm, mode, Float64[], String[],
+        Matrix{Float64}(undef, 0, n_state), Matrix{Float64}(undef, 0, n_state),
+        Matrix{Float64}(undef, 0, n_obs), Matrix{Float64}(undef, 0, n_obs),
+        NaN, false, :spec, n_state, n_obs, 0)
+end
+
+"""Filter a FIXED-matrix system: no optimisation, so `theta`/`param_names` stay EMPTY and
+`method` is `:filter`, exactly as real. A mock that returned a populated `theta` here would
+hide the empty-parameter-table case the CLI has to render around."""
+function estimate_statespace(ss::StateSpaceModel, y)
+    Y = y isa AbstractMatrix ? Matrix{Float64}(y) : reshape(Vector{Float64}(y), :, 1)
+    n = size(Y, 1)
+    size(Y, 2) == ss.n_obs || throw(DimensionMismatch(
+        "data has $(size(Y, 2)) series but Z implies n_obs=$(ss.n_obs)"))
+    n >= 1 || throw(ArgumentError("need at least one observation"))
+    # A crude but genuine Gaussian prediction-error decomposition against a static state at 0,
+    # enough to give a finite, data-dependent loglik and correctly-shaped paths.
+    state = zeros(n, ss.n_state)
+    innov = Y .- (state * ss.Tt' * ss.Z')[:, 1:ss.n_obs]
+    F = [max(ss.H[j, j] + ss.Z[j, :]' * ss.Q * ss.Z[j, :], 1e-8) for j in 1:ss.n_obs]
+    stdres = innov ./ sqrt.(reshape(F, 1, :))
+    ll = -0.5 * sum(log(2π * F[j]) * n + sum(abs2, innov[:, j]) / F[j] for j in 1:ss.n_obs)
+    StateSpaceModel{Float64}(ss.Z, ss.H, ss.Tt, ss.Q, ss.d, ss.c, ss.R, ss.init_mode,
+        Float64[], String[], state, state, innov, stdres,
+        ll, true, :filter, ss.n_state, ss.n_obs, n)
 end
 
 struct KernelDensity{T<:AbstractFloat}
@@ -3472,7 +3539,12 @@ function local_level(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     innov = reshape(yv .- vec(filtered), :, 1)           # v_t = y_t - a_t|t-1
     stdres = innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n)))   # F_t varies over t, as in real
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}([v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], filtered, smoothed,
+    # System matrices for the canned local level, so the struct is fully populated whichever
+    # path built it: y = μ + ε, μ' = μ + η.
+    StateSpaceModel{Float64}(reshape([1.0], 1, 1), reshape([v0 / 2], 1, 1),
+                             reshape([1.0], 1, 1), reshape([v0 / 2], 1, 1),
+                             [0.0], [0.0], reshape([1.0], 1, 1), init_mode,
+                             [v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], filtered, smoothed,
                              innov, stdres, ll, true, :mle, 1, 1, n)
 end
 
@@ -3487,7 +3559,11 @@ function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     innov = reshape(yv .- filtered[:, 1], :, 1)
     stdres = innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n)))   # F_t varies over t, as in real
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
-    StateSpaceModel{Float64}([v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
+    # y = μ + ε; [μ, β]' = [1 1; 0 1] [μ, β] + η  (the canonical local linear trend)
+    StateSpaceModel{Float64}([1.0 0.0], reshape([v0 / 2], 1, 1),
+                             [1.0 1.0; 0.0 1.0], [v0/10 0.0; 0.0 v0/100],
+                             [0.0], [0.0, 0.0], Matrix{Float64}(I, 2, 2), init_mode,
+                             [v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
                              filtered, smoothed, innov, stdres, ll, true, :mle, 2, 1, n)
 end
 
@@ -3509,7 +3585,13 @@ function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
     ll = -0.5 * n * (log(2π) + log(v0) + 1)
     fitted = Xf * beta
     innov = reshape(yv .- fitted, :, 1)
-    StateSpaceModel{Float64}(theta, names, smoothed, smoothed, innov,
+    # TVP regression in state-space form: the state IS the coefficient vector β_t, so Z is the
+    # regressor row (time-varying in truth; the mock holds the sample mean as a stand-in).
+    StateSpaceModel{Float64}(reshape(vec(mean(Xf, dims=1)), 1, k), reshape([v0], 1, 1),
+                             Matrix{Float64}(I, k, k),
+                             Matrix{Float64}(v0 / (100 * k) * I, k, k),
+                             [0.0], zeros(k), Matrix{Float64}(I, k, k), :kappa,
+                             theta, names, smoothed, smoothed, innov,
                              innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n))), ll, true, :mle, k, 1, n)
 end
 
@@ -3570,7 +3652,7 @@ function lowess(y::AbstractVector, x::AbstractVector; f::Real=2//3, iter::Int=3,
 end
 
 export StateSpaceModel, KernelDensity, KernelRegression, LowessFit
-export local_level, local_linear_trend, estimate_tvp_reg
+export local_level, local_linear_trend, estimate_tvp_reg, estimate_statespace
 export kernel_density, kernel_reg, lowess
 
 # ─── BVARForecast Type & Forecast Accessors ──────────────────

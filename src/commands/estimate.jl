@@ -552,9 +552,12 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column to model"),
-                OptionSpec(name="model", type=String, default="local-level", description="local-level | local-linear-trend", choices=["local-level","local-linear-trend"]),
-                OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse", choices=["kappa","diffuse"]),
+                OptionSpec(name="model", type=String, default="local-level", description="local-level | local-linear-trend (ignored with --config)", choices=["local-level","local-linear-trend"]),
+                OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse (--config uses [statespace] init_mode)", choices=["kappa","diffuse"]),
                 OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-variance diffuse-init constant (init-mode=kappa)"),
+                # A [statespace] section switches to the GENERAL (multivariate, fixed-matrix)
+                # system and supersedes --model/--init-mode/--column.
+                OptionSpec(name="config", type=String, default="", description="TOML with [statespace] Z/H/T/Q (+ d, c, R, a1, P1, init_mode) for a general system"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -4274,9 +4277,75 @@ function _residuals_statespace(; data::String="", column::Int=1, kind::String="l
     return M
 end
 
+"""System-matrix summary for the GENERAL `--config` path.
+
+A fixed-matrix system has NO estimated hyper-parameters: `estimate_statespace(ss, y)` returns
+`method = :filter` with `theta` and `param_names` EMPTY, so `_statespace_param_table` would
+render an empty table and silently look like a failed fit. This reports the system the user
+declared instead — dimensions plus the matrices actually in force after MEMs applied its
+defaults (R = I, d = c = 0), which is the part a user most often gets wrong."""
+function _statespace_system_table(ssm)
+    DataFrame(
+        "matrix" => String["Z", "H", "T", "Q", "R", "d", "c"],
+        "role" => String["observation", "obs. noise cov", "transition", "state noise cov",
+                         "state-noise loading", "obs. intercept", "state intercept"],
+        "rows" => Int[size(ssm.Z, 1), size(ssm.H, 1), size(ssm.Tt, 1), size(ssm.Q, 1),
+                      size(ssm.R, 1), length(ssm.d), length(ssm.c)],
+        "cols" => Int[size(ssm.Z, 2), size(ssm.H, 2), size(ssm.Tt, 2), size(ssm.Q, 2),
+                      size(ssm.R, 2), 1, 1],
+    )
+end
+
 function _estimate_statespace(; data::String, column::Int=1, model::String="local-level",
                                init_mode::String="kappa", kappa::Float64=1e6,
-                               output::String="", format::String="table")
+                               config::String="", output::String="", format::String="table")
+    # ── GENERAL system from [statespace] in --config ────────────────────────────────────
+    # This path is MULTIVARIATE (y is T_obs × n_obs), so it loads the whole numeric matrix
+    # via the hardened `load_multivariate_data` rather than the canned path's single column.
+    if !isempty(config)
+        cfg = get_statespace(load_config(config))
+        Y, vnames = load_multivariate_data(data)
+        size(Y, 2) == cfg.n_obs || throw(CliError("data/shape",
+            "estimate statespace: [statespace] Z implies n_obs=$(cfg.n_obs) observed series, " *
+            "but $data has $(size(Y, 2)) numeric columns";
+            hint="Z is n_obs×n_state — one ROW per observed series"))
+        _status("State-space (general system from $config): series=$(join(vnames, ", ")), " *
+                "T=$(size(Y, 1)), n_obs=$(cfg.n_obs), n_state=$(cfg.n_state), init_mode=$(cfg.init_mode)")
+        _status()
+        # The MEMs constructor re-checks dimensions and throws untyped ArgumentErrors;
+        # `get_statespace` has already checked them so a throw here is a genuine internal
+        # inconsistency, but map it anyway rather than let it escape as exit 1.
+        spec = try
+            StateSpaceModel(cfg.Z, cfg.H, cfg.T, cfg.Q; d=cfg.d, c=cfg.c, R=cfg.R,
+                            a1=cfg.a1, P1=cfg.P1, init_mode=cfg.init_mode, kappa=kappa)
+        catch e
+            e isa ArgumentError && throw(CliError("config/shape",
+                "estimate statespace: inconsistent [statespace] system — $(e.msg)"))
+            throw(_garch_variant_error(e, "State-space system"))
+        end
+        fitted_ss = try
+            estimate_statespace(spec, Y)
+        catch e
+            throw(_garch_variant_error(e, "State-space filtering"))
+        end
+        output_result(_statespace_system_table(fitted_ss); format=Symbol(format), output=output,
+                      title="State-Space System (general)")
+        output_kv(Pair{String,Any}[
+            "model"     => "general",
+            "loglik"    => isfinite(fitted_ss.loglik) ? round(Float64(fitted_ss.loglik); digits=4) :
+                           string(fitted_ss.loglik),
+            "init_mode" => string(fitted_ss.init_mode),
+            "n_obs_series" => fitted_ss.n_obs,
+            "n_state"   => fitted_ss.n_state,
+            "n_periods" => fitted_ss.T_obs,
+            # :filter, not :mle — a fixed-matrix system is filtered and log-likelihood
+            # evaluated, never optimized, so there is nothing to converge.
+            "method"    => string(fitted_ss.method),
+        ]; format=format, title="State-Space Diagnostics")
+        return fitted_ss
+    end
+
+    # ── Canned univariate systems ───────────────────────────────────────────────────────
     model in ("local-level", "local-linear-trend") || throw(CliError("usage/invalid",
         "estimate statespace: --model must be local-level or local-linear-trend, got '$model'"))
     init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
