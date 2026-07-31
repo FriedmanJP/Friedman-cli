@@ -2163,6 +2163,39 @@ end  # Shared utilities
                 @test string(_mval(d2, "switching_var")) == "true"
             end
 
+            @testset "estimate ms-ar/ms — regime-probability table (#70 remainder)" begin
+                # The headline output of a Markov-switching fit: P(S_t = k | data) per period.
+                # LONG (`period|regime|filtered|smoothed`) so the COLUMN SET does not depend on
+                # --k-regimes; the ROW COUNT does (n × K).
+                doc = _doc("ms-ar", [csv, "--column", "1", "--p", "1"])
+                pt = _tbl_with(doc, "period", "regime", "filtered", "smoothed")
+                rows = collect(pt.rows)
+                @test Set(String(collect(r)[2]) for r in rows) == Set(["regime1", "regime2"])
+                nper = length(Set(Int(collect(r)[1]) for r in rows))
+                @test length(rows) == 2 * nper                      # K × n_eff
+                # probabilities are genuine probabilities and sum to 1 across regimes per period
+                for col in 3:4
+                    vals = [Float64(collect(r)[col]) for r in rows]
+                    @test all(v -> -1e-6 <= v <= 1 + 1e-6, vals)
+                    # total over all (period, regime) cells == n, i.e. each period sums to 1
+                    @test isapprox(sum(vals), nper; atol=1e-3)
+                end
+                # filtered and smoothed are DIFFERENT paths — smoothed conditions on the whole
+                # sample and is sharper. (The mock deliberately reproduces that ordering; an
+                # earlier `smoothed = copy(filtered)` would make this assertion vacuous.)
+                filt = [Float64(collect(r)[3]) for r in rows]
+                smoo = [Float64(collect(r)[4]) for r in rows]
+                @test filt != smoo
+                @test sum(abs.(smoo .- 0.5)) > sum(abs.(filt .- 0.5))   # smoothed more extreme
+                # K = 3 widens the ROW count, not the column set
+                d3 = _doc("ms-ar", [csv, "--p", "1", "--k-regimes", "3"])
+                p3 = _tbl_with(d3, "period", "regime", "filtered", "smoothed")
+                @test Set(String.(p3.columns)) == Set(String.(pt.columns))
+                @test length(Set(String(collect(r)[2]) for r in collect(p3.rows))) == 3
+                # the MS regression leaf emits it too
+                @test _tbl_with(_doc("ms", [csv]), "period", "regime", "smoothed") !== nothing
+            end
+
             @testset "estimate ms-ar — bad input → typed usage/invalid" begin
                 @test _err("ms-ar", [csv, "--p", "0"]).code == "usage/invalid"
                 @test _err("ms-ar", [csv, "--k-regimes", "1"]).code == "usage/invalid"
@@ -5969,8 +6002,8 @@ end
         node = register_residuals_commands!()
         @test node isa NodeCommand
         @test node.name == "residuals"
-        # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 34
+        # 23 primary + 1 alias = 24 keys (C044); +#70 setar/star/ms-ar/ms => 38
+        @test length(node.subcmds) == 38
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -5978,6 +6011,87 @@ end
             @test haskey(node.subcmds, cmd)
         end
         @test haskey(node.subcmds, "gjr_garch")
+        # #70 remainder: the nonlinear-TS models define StatsAPI.residuals upstream
+        for cmd in ["setar", "star", "ms-ar", "ms"]
+            @test haskey(node.subcmds, cmd)
+        end
+        # ...but NOT predict — none of them defines predict/fitted, and an MS fit has no
+        # single fitted series without regime weighting. Advertising it would be a leaf that
+        # MethodErrors on every invocation (#85).
+        pnode = register_predict_commands!()
+        for cmd in ["setar", "star", "ms-ar", "ms"]
+            @test !haskey(pnode.subcmds, cmd)
+        end
+    end
+
+    @testset "residuals setar|star|ms-ar|ms (#70 remainder)" begin
+        # One tidy `period|residual` table per leaf. `period` is the EFFECTIVE-sample index:
+        # the AR-based fits drop lags, the MS regression does not — asserted below.
+        _rdoc(leaf, args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["residuals", leaf], collect(String, args), String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _rtbl(doc) = first(t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns)))
+        _rerr(leaf, args) = begin
+            e = nothing
+            try; _capture() do; _dispatch_via_app(vcat(String["residuals", leaf], collect(String, args))); end; catch ex; e=ex; end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=200, n=1, colnames=["y"])
+
+            @testset "each leaf emits period|residual" begin
+                for (leaf, args) in (("setar", [csv, "--p", "1"]), ("star", [csv, "--p", "1"]),
+                                     ("ms-ar", [csv, "--p", "1"]), ("ms", [csv]))
+                    doc = _rdoc(leaf, args)
+                    @test doc.status == "ok"
+                    t = _rtbl(doc)
+                    @test Set(["period", "residual"]) ⊆ Set(String.(t.columns))
+                    rows = collect(t.rows)
+                    @test !isempty(rows)
+                    @test all(r -> isa(Float64(collect(r)[2]), Float64), rows)
+                    # period is 1..n_eff, contiguous
+                    @test [Int(collect(r)[1]) for r in rows] == collect(1:length(rows))
+                end
+            end
+
+            @testset "AR-based leaves drop lags; the MS regression does not" begin
+                n_setar = length(collect(_rtbl(_rdoc("setar", [csv, "--p", "1"])).rows))
+                n_ms    = length(collect(_rtbl(_rdoc("ms", [csv])).rows))
+                @test n_setar < n_ms          # SETAR(p=1) loses one observation to the lag
+                # a larger p loses more
+                @test length(collect(_rtbl(_rdoc("setar", [csv, "--p", "3"])).rows)) < n_setar
+            end
+
+            @testset "options mirror the estimate sibling; guards are typed" begin
+                @test _rerr("setar", [csv, "--p", "0"]).code == "usage/invalid"
+                @test _rerr("setar", [csv, "--trim", "0.6"]).code == "usage/invalid"
+                @test _rerr("setar", [csv, "--column", "99"]).code == "data/column-range"
+                @test _rerr("star", [csv, "--n-gamma", "1"]).code == "usage/invalid"
+                @test _rerr("ms-ar", [csv, "--k-regimes", "1"]).code == "usage/invalid"
+                @test _rerr("ms-ar", [csv, "--max-iter", "0"]).code == "usage/invalid"
+                @test _rerr("ms", [csv, "--tol", "0"]).code == "usage/invalid"
+                @test _rerr("ms", [csv, "--k-regimes", "1"]).code == "usage/invalid"
+                # --type is parser-validated via choices (ParseError, exit 2)
+                et = _rerr("star", [csv, "--type", "bogus"])
+                @test et isa ParseError || (et isa CliError && exit_class(et) == 2)
+                # SETAR's inference-only options are deliberately NOT advertised here: they
+                # drive the Hansen bootstrap / threshold CI, never the residuals.
+                for opt in ("--reps", "--ci-level", "--het", "--no-linearity")
+                    er = _rerr("setar", [csv, opt, "1"])
+                    @test er isa ParseError || (er isa CliError && exit_class(er) == 2)
+                end
+            end
+
+            @testset "a delay/regime change actually changes the residuals" begin
+                r1 = [Float64(collect(r)[2]) for r in collect(_rtbl(_rdoc("ms-ar", [csv, "--p", "1"])).rows)]
+                r3 = [Float64(collect(r)[2]) for r in collect(_rtbl(_rdoc("ms-ar", [csv, "--p", "3"])).rows)]
+                @test length(r1) != length(r3) || r1 != r3
+            end
+        end
     end
 
     @testset "_residuals_var" begin

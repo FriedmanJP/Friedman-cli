@@ -1179,6 +1179,86 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["estimate", "ms", csv, "--tol", "0"]).code == 2
             rm(csv; force=true)
         end
+
+        @testset "regime-probability table — real filtered/smoothed paths (#70 remainder)" begin
+            # The headline MS output. Real `filtered_prob` and `smoothed_prob` are genuinely
+            # different objects (smoothed conditions on the whole sample), which is what makes
+            # this worth asserting on REAL MEMs rather than only against the mock.
+            csv = dgp_msar(; n=500, seed=673)
+            r = run_json(["estimate", "ms-ar", csv, "--column", "1", "--p", "1"])
+            assert_envelope_ok(r; label="estimate ms-ar probabilities")
+            pt = _find(r.doc, "period", "regime", "filtered", "smoothed")
+            @test pt !== nothing
+            pi_ = col_index(pt, "period"); ri = col_index(pt, "regime")
+            fi = col_index(pt, "filtered"); si = col_index(pt, "smoothed")
+            rows = [collect(row) for row in table_rows(pt)]
+            nper = length(Set(Int(row[pi_]) for row in rows))
+            @test Set(string(row[ri]) for row in rows) == Set(["regime1", "regime2"])
+            @test length(rows) == 2 * nper
+            # genuine probabilities: in [0,1] and summing to 1 across regimes each period.
+            # Aggregated into single assertions on purpose — a @test per row would add ~2000
+            # assertions for one property and make the suite count meaningless.
+            bysum = Dict{Int,Float64}(); bysum_s = Dict{Int,Float64}()
+            inrange = true
+            for row in rows
+                f = Float64(row[fi]); s = Float64(row[si])
+                inrange &= (-1e-6 <= f <= 1 + 1e-6) && (-1e-6 <= s <= 1 + 1e-6)
+                t = Int(row[pi_])
+                bysum[t]   = get(bysum, t, 0.0) + f
+                bysum_s[t] = get(bysum_s, t, 0.0) + s
+            end
+            @test inrange
+            @test all(v -> isapprox(v, 1.0; atol=1e-3), values(bysum))
+            @test all(v -> isapprox(v, 1.0; atol=1e-3), values(bysum_s))
+            # the two paths are DISTINCT on real MEMs, and the smoothed one is sharper
+            filt = [Float64(row[fi]) for row in rows]
+            smoo = [Float64(row[si]) for row in rows]
+            @test filt != smoo
+            @test sum(abs.(smoo .- 0.5)) > sum(abs.(filt .- 0.5))
+            # K = 3 grows the ROW count, never the column set
+            r3 = run_json(["estimate", "ms-ar", csv, "--p", "1", "--k-regimes", "3"])
+            if r3.code == 0
+                p3 = _find(r3.doc, "period", "regime", "filtered", "smoothed")
+                @test p3 !== nothing && Set(table_cols(p3)) == Set(table_cols(pt))
+            end
+            rm(csv; force=true)
+        end
+
+        @testset "residuals setar|star|ms-ar|ms — StatsAPI.residuals on real MEMs" begin
+            csv = dgp_msar(; n=300, seed=674)
+            scsv = dgp_setar(; n=300, seed=675)
+            for (leaf, path, args) in (("setar", scsv, ["--p", "1"]),
+                                       ("star",  scsv, ["--p", "1"]),
+                                       ("ms-ar", csv,  ["--p", "1"]),
+                                       ("ms",    csv,  String[]))
+                r = run_json(vcat(["residuals", leaf, path], args))
+                assert_envelope_ok(r; label="residuals $leaf")
+                t = _find(r.doc, "period", "residual")
+                @test t !== nothing
+                rows = [collect(row) for row in table_rows(t)]
+                @test !isempty(rows)
+                vals = [Float64(row[col_index(t, "residual")]) for row in rows]
+                @test all(isfinite, vals)
+                # residuals from a fitted model are approximately mean-zero
+                @test abs(sum(vals) / length(vals)) < 0.5
+                @test [Int(row[col_index(t, "period")]) for row in rows] == collect(1:length(rows))
+            end
+            # AR-based fits drop lags; the MS level regression keeps every observation
+            n_ms = length(table_rows(_find(run_json(["residuals", "ms", csv]).doc, "period", "residual")))
+            n_ar = length(table_rows(_find(run_json(["residuals", "ms-ar", csv, "--p", "2"]).doc,
+                                           "period", "residual")))
+            @test n_ar < n_ms
+            # typed errors, never internal exit-1
+            @test run_json(["residuals", "setar", scsv, "--p", "0"]).code == 2
+            @test run_json(["residuals", "setar", scsv, "--column", "99"]).code == 3
+            @test run_json(["residuals", "ms-ar", csv, "--k-regimes", "1"]).code == 2
+            @test run_json(["residuals", "ms", csv, "--tol", "0"]).code == 2
+            # inference-only SETAR options are NOT advertised on the residuals leaf
+            @test run_json(["residuals", "setar", scsv, "--reps", "99"]).code == 2
+            # ...and there is no `predict` for these models upstream
+            @test run_json(["predict", "ms-ar", csv, "--p", "1"]).code == 2
+            rm(csv; force=true); rm(scsv; force=true)
+        end
     end
 
     @testset "estimate iv/truncreg/heckman + test weak-instrument (C067b, M5c)" begin

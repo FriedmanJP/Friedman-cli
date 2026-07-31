@@ -1210,7 +1210,30 @@ friedman estimate ms-ar y.csv --p 2 --k-regimes 3 --switching-variance
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** three hand-built tables plus diagnostics — a **per-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`: one switching `mu` row per regime, then a single `common-AR` block for the shared φ₁…φₚ, normal-approximation z/p), a **per-regime variance table** (`regime|sigma2|std_error`), and the **wide K×K transition matrix** (`from_regime|to_regime1|…|to_regimeK`, `P[i,j] = Pr(sₜ=j | s_{t−1}=i)`, rows sum to 1) — the transition matrix renders **wide** (regime×regime), a documented [C051](#coefficient-table-format-c051) exception parallel to the MGARCH conditional-correlation matrix; then a diagnostics block (`loglik`, `n_params`, `aic`, `bic`, per-regime `ergodic_k` and `expected_duration_k`, `switching_var`, `switching_ar`, `converged`, `iterations`). `MSRegModel` is not Tables.jl-registered, so all tables are hand-built. Every option is validated up-front (`usage/invalid`); a too-short series or EM failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+**Output:** four hand-built tables plus diagnostics — a **per-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`: one switching `mu` row per regime, then a single `common-AR` block for the shared φ₁…φₚ, normal-approximation z/p), a **per-regime variance table** (`regime|sigma2|std_error`), the **wide K×K transition matrix** (`from_regime|to_regime1|…|to_regimeK`, `P[i,j] = Pr(sₜ=j | s_{t−1}=i)`, rows sum to 1) — the transition matrix renders **wide** (regime×regime), a documented [C051](#coefficient-table-format-c051) exception parallel to the MGARCH conditional-correlation matrix — and the **regime-probability table** described below; then a diagnostics block (`loglik`, `n_params`, `aic`, `bic`, per-regime `ergodic_k` and `expected_duration_k`, `switching_var`, `switching_ar`, `converged`, `iterations`). `MSRegModel` is not Tables.jl-registered, so all tables are hand-built. Every option is validated up-front (`usage/invalid`); a too-short series or EM failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
+
+### Regime probabilities
+
+Both `estimate ms-ar` and `estimate ms` emit a **regime-probability table** — for most applied
+work the point of fitting a Markov-switching model at all, since it answers "which regime were
+we in at time *t*":
+
+```
+period | regime  | filtered | smoothed
+```
+
+`filtered` is `Pr(sₜ = k | y₁…yₜ)` (real time, using only information available at `t`) and
+`smoothed` is `Pr(sₜ = k | y₁…y_n)` (full sample). The smoothed path is the sharper of the two
+and is what you normally want for dating regimes historically; the filtered path is what a
+real-time observer would have seen.
+
+The table is **long**, not one column per regime: `K` comes from `--k-regimes`, so a wide layout
+would make the *column set* depend on a user option and every consumer would have to discover
+`K` before reading the table. Long keeps the columns fixed and grows the row count (`n × K`)
+instead — the same reasoning as
+[`predict statespace`](predict_residuals.md#state-space-predict-statespace-residuals-statespace).
+With `--output <file>` it is written to a `…_probabilities` path so it does not overwrite the
+coefficient table.
 
 ## estimate ms
 
@@ -1236,7 +1259,7 @@ friedman estimate ms y.csv --no-switching-variance
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** the same three hand-built tables as [`estimate ms-ar`](#estimate-ms-ar) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
+**Output:** the same four hand-built tables as [`estimate ms-ar`](#estimate-ms-ar) (including the [regime-probability table](#regime-probabilities)) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
 
 ## estimate iv
 

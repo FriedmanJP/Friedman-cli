@@ -1456,6 +1456,88 @@ end
 
 function residuals_specs()::Vector{CommandSpec}
     return vcat(_specs_for_verb(:residuals, "Model residuals"), CommandSpec[
+        # #70 remainder: the nonlinear-TS models all define StatsAPI.residuals upstream
+        # (ThresholdModel/STARModel/MSRegModel). NO matching `predict` — none of them EXPOSES
+        # predict/fitted. For the MS models the fitted series is well defined (the
+        # regime-probability-weighted conditional mean) and MEMs already computes it internally
+        # to form these very residuals — it just doesn't store it. Filed as MEMs#510; adding a
+        # leaf that recomputes it risks diverging from the definition upstream publishes.
+        # Options mirror the `estimate` sibling MINUS the ones that drive only the attached
+        # inference (SETAR's --reps/--ci-level/--het feed the Hansen bootstrap and threshold
+        # CI, never the residuals); the refit passes linearity=false to skip that bootstrap.
+        CommandSpec(
+            path=["residuals", "setar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_setar, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_setar),
+        ),
+        CommandSpec(
+            path=["residuals", "star"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
+                OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1","lstr2","estr","auto"]),
+                OptionSpec(name="n-gamma", type=Int, default=15, description="Grid points for the γ start values (≥ 2)"),
+                OptionSpec(name="n-c", type=Int, default=15, description="Grid points for the c start values (≥ 2)"),
+                OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_star, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_star),
+        ),
+        CommandSpec(
+            path=["residuals", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            # NOTE the OPPOSITE default from `residuals ms` below — ms-ar's switching_variance
+            # is FALSE upstream (Hamilton form), ms regression's is TRUE. Do not unify them.
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:residuals_ms_ar, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_ms_ar),
+        ),
+        CommandSpec(
+            path=["residuals", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:residuals_ms, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_ms),
+        ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
             path=["residuals", "statespace"],

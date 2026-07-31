@@ -4052,9 +4052,9 @@ end
     pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
-    # Residuals: 23 primary + gjr_garch alias (C044)
+    # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 34
+    @test length(res_node.subcmds) == 38
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
