@@ -1109,24 +1109,6 @@ function _fitted_data_arg()
     return [ArgSpec(name="data", description="Path to CSV data file")]
 end
 
-function _fitted_base_options(; include_lags=true, include_column=false, include_reg=false, include_preg=false)
-    opts = OptionSpec[]
-    if include_reg
-        append!(opts, REG_OPTIONS)
-    elseif include_preg
-        append!(opts, PREG_OPTIONS)
-    else
-        if include_lags
-            push!(opts, OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order"))
-        end
-        if include_column
-            push!(opts, OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"))
-        end
-        append!(opts, OUTPUT_OPTIONS)
-    end
-    return opts
-end
-
 # Extra option sets for discrete choice / special leaves
 # The handlers take `marginal_effects`/`odds_ratio`/`classification_table` as `Bool`,
 # so these MUST be flags. Declaring them as String options made the default `""`

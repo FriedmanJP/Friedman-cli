@@ -129,7 +129,7 @@ const PLOT_FLAGS = [
     FlagSpec(name="plot", description="Open interactive plot in browser"),
 ]
 
-# Cross-sectional regression shared options (replaces _REG_COMMON_OPTIONS)
+# Cross-sectional regression shared options
 const REG_OPTIONS = [
     OptionSpec(name="dep", type=String, default="",
                description="Dependent variable column name (default: first numeric column)"),
@@ -144,7 +144,7 @@ const REG_OPTIONS = [
                choices=["table", "csv", "json"], description="table|csv|json"),
 ]
 
-# Panel regression shared options (replaces _PREG_COMMON_OPTIONS)
+# Panel regression shared options
 const PREG_OPTIONS = [
     OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
     OptionSpec(name="indep", type=String, default="", description="Independent variables (comma-separated)"),
@@ -222,7 +222,3 @@ function register!(specs::Vector{CommandSpec})
     return specs
 end
 
-function clear_registry!()
-    empty!(REGISTRY)
-    return nothing
-end
