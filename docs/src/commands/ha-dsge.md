@@ -65,7 +65,7 @@ friedman dsge ha steady-state huggett --format json
                 ],
                 [
                     "euler_error",
-                    -4.4699492
+                    -1.9362687
                 ],
                 [
                     "excess_demand",
@@ -97,6 +97,14 @@ friedman dsge ha steady-state huggett --format json
             "rows": [
                 [
                     "K_demand",
+                    0
+                ],
+                [
+                    "A_policy",
+                    -5.9135589e-9
+                ],
+                [
+                    "A_residual",
                     0
                 ],
                 [
@@ -190,7 +198,7 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
                 ],
                 [
                     "euler_error",
-                    -4.4699492
+                    -1.9362687
                 ],
                 [
                     "excess_demand",
@@ -222,6 +230,14 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
             "rows": [
                 [
                     "K_demand",
+                    0
+                ],
+                [
+                    "A_policy",
+                    -5.9135589e-9
+                ],
+                [
+                    "A_residual",
                     0
                 ],
                 [

@@ -58,6 +58,19 @@ friedman estimate bvar data.csv --sampler=gibbs --draws=5000
 
 See [Configuration](../configuration.md) for Minnesota prior TOML format.
 
+!!! note "Hyperparameter selection changed in CLI v0.9.1 (MEMs 0.7.2)"
+    `--prior minnesota` (the default) without a `--config` leaves the hyperparameters
+    to the library, which now runs the full **Giannone, Lenza & Primiceri (2015)**
+    joint optimization of the marginal likelihood over the overall, sum-of-coefficients
+    and dummy-initial-observation tightness. Through CLI v0.9.0 this was a `tau`-only
+    grid search, so **`estimate bvar` results change at this version** for runs that do
+    not pass `--config`. Supplying `--config` pins the hyperparameters explicitly and is
+    unaffected, as is `--prior normal`.
+
+    Only this leaf is affected. The derived BVAR commands (`irf`/`fevd`/`hd`/`forecast`/
+    `predict`/`residuals bvar`, `nowcast bvar`) default to the **normal** prior when no
+    `--config` is given, and hyperparameter selection is never reached under that prior.
+
 ## estimate lp
 
 Estimate local projections with 6 method variants.

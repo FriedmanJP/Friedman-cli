@@ -79,7 +79,14 @@ end
 function _strip_volatile_meta!(d::AbstractDict)
     if haskey(d, "meta") && d["meta"] isa AbstractDict
         meta = Dict{String,Any}(String(k) => v for (k, v) in pairs(d["meta"]))
-        for k in ("elapsed_ms", "argv", "julia", "cli_version", "mems_version", "seed")
+        # `manifest` (C052/#345) is a reproducibility record: wall-clock timestamp,
+        # machine triple, thread count, git sha and resolved dep versions. Writing it
+        # into a committed docs capture bakes one contributor's machine into the page
+        # and churns on every regen — and the structural compare drops `meta` wholesale,
+        # so no gate would ever flag it. Strip it here, exactly as the golden
+        # normalizer pins `meta.manifest="GOLDEN"` (test/support.jl).
+        for k in ("elapsed_ms", "argv", "julia", "cli_version", "mems_version", "seed",
+                  "manifest")
             delete!(meta, k)
         end
         d["meta"] = _sort_keys(meta)
