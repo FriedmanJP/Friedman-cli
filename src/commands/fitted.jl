@@ -72,6 +72,10 @@ function _predict_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q
                           method::String="css_mle", auto::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    # Bound BEFORE the branch: on the `--model <handle>` path there is no CSV to read a
+    # column name from, and the title below is emitted on BOTH paths. Leaving it to the
+    # branch made every `predict arima --model …` die with an UndefVarError (exit 1).
+    vname = "model"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
         method_sym = Symbol(method)
@@ -670,6 +674,9 @@ function _residuals_arima(; data::String="", column::Int=1, p=nothing, d::Int=0,
                             method::String="css_mle", auto::Bool=false,
                             output::String="", format::String="table",
                             model=nothing)
+    # See _predict_arima: bound before the branch so the shared title below cannot hit an
+    # UndefVarError on the `--model <handle>` path.
+    vname = "model"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
         method_sym = Symbol(method)

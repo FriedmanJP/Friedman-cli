@@ -805,11 +805,18 @@ friedman model info model.jld2                                    # inspect type
 Two on-disk formats, chosen by suffix + model type:
 
 - **`.jld2`** — native MacroEconometricModels.jl `save_model`/`load_model` (JLD2-backed,
-  versioned, portable across a package upgrade). Supports `VARModel`, `BVARPosterior`,
-  `RegModel`, `LogitModel`, `ProbitModel`, `LPModel`; a file whose format version is
-  incompatible refuses to load (exit 3) rather than mis-read. Saving an unsupported type to
-  `.jld2` is a clear error (exit 5).
-- **`.fmod`** — the interim `Serialization` handle, an automatic fallback for any other model type.
+  versioned, portable across a package upgrade). Covers the upstream serialization
+  registry — **56 types** at MacroEconometricModels 0.7.2, essentially every estimator the
+  CLI fits: the VAR/BVAR/VECM and cointegration models, panel and PVAR, regression and the
+  ordered/multinomial choice models, the local-projection variants, SUR/GMM/SMM, the whole
+  volatility family, factor/FAVAR/SDFM, the ARIMA→ARDL→MIDAS→state-space time-series types,
+  and the data containers (`TimeSeriesData`, `PanelData`, `CrossSectionData`, `IOData`). A
+  file whose format version is incompatible refuses to load (exit 3) rather than mis-read.
+- **`.fmod`** — the interim `Serialization` handle. Since CLI v0.9.1 this is a deliberate
+  **carve-out rather than a coverage gap**: DSGE and heterogeneous-agent *solutions* hold
+  compiled `@dsge` residual closures, which cannot round-trip through a portable format, so
+  upstream keeps them out of its registry and the CLI stores them here instead. Saving one
+  of those to `.jld2` is a clear error (exit 5) that points you at `.fmod`.
 
 Every `--format json` envelope carries a **reproducibility manifest** under `meta.manifest`
 (RNG seed, thread count, OS, Julia + package versions, dependency versions, git, timestamp) —

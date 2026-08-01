@@ -2870,17 +2870,20 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # model info reads the native handle
         r3 = run_json(["model", "info", jld])
         assert_envelope_ok(r3; label="model info native jld2")
-        # hybrid: an unsupported type on .jld2 errors clearly and writes nothing
+        # W1/#106: VECMModel joined the upstream registry (6 → 56 types), so what used to
+        # be the "unsupported on .jld2" case is now a NATIVE round-trip. This assertion is
+        # inverted on purpose — it is the behavioural change of the wave.
         vjld = tempname() * ".jld2"
         r4 = run_json(["estimate", "vecm", csv, "--save-model", vjld])
-        @test r4.doc !== nothing && String(r4.doc["status"]) == "error"
-        @test occursin("unsupported", String(r4.doc["error"]["code"]))
-        @test !isfile(vjld)
-        # hybrid: same unsupported type on .fmod falls back to the interim handle
+        assert_envelope_ok(r4; label="vecm native jld2 (W1)")
+        @test isfile(vjld)
+        @test run_json(["model", "info", vjld]).code == 0
+        # .fmod still works for any type — it is a format choice, not a fallback-only path
         vfmod = tempname() * ".fmod"
         r5 = run_json(["estimate", "vecm", csv, "--save-model", vfmod])
-        assert_envelope_ok(r5; label="vecm .fmod interim fallback")
+        assert_envelope_ok(r5; label="vecm .fmod interim handle")
         @test isfile(vfmod)
+        rm(vjld; force=true)
         # a non-JLD2 file handed to the native path is BAD INPUT, not a CLI bug:
         # must map to a data/* class (exit 3), never internal/error (exit 1)
         garbage = tempname() * ".jld2"
@@ -2889,6 +2892,51 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test r6.doc !== nothing && String(r6.doc["status"]) == "error"
         @test startswith(String(r6.doc["error"]["code"]), "data/")
         rm(csv; force=true); rm(jld; force=true); rm(vfmod; force=true); rm(garbage; force=true)
+    end
+
+    @testset "W1/#106 native save/load across the widened registry" begin
+        ar = dgp_ar1(; T=150, φ=0.5, seed=917)
+
+        # One save → load → re-render per family that only became native in W1. GARCH is
+        # called out by the issue: its deserialization (dist/shape ctor) was broken until
+        # the 0.7.2 CI round, so a green round-trip here is the thing that proves the fix.
+        for (leaf, verb) in (("arima", "residuals"), ("garch", "predict"),
+                             ("arfima", "residuals"), ("statespace", "predict"))
+            jld = tempname() * ".jld2"
+            rs = run_json(["estimate", leaf, ar, "--save-model", jld])
+            assert_envelope_ok(rs; label="estimate $leaf → native jld2")
+            @test isfile(jld)
+            rl = run_json([verb, leaf, "--model", jld])
+            assert_envelope_ok(rl; label="$verb $leaf from native handle")
+            @test first_table(rl.doc)[2] !== nothing
+            rm(jld; force=true)
+        end
+
+        # REGRESSION (found in W1, pre-existing since the handle path was added): `vname`
+        # was bound only inside the `isnothing(model)` branch of _predict_arima /
+        # _residuals_arima but interpolated into the title on BOTH paths, so EVERY
+        # `predict|residuals arima --model <handle>` died with an UndefVarError — an
+        # untyped internal/error (exit 1), on .fmod as well as .jld2.
+        for suffix in (".jld2", ".fmod")
+            h = tempname() * suffix
+            run_json(["estimate", "arima", ar, "--save-model", h])
+            @test isfile(h)
+            for verb in ("predict", "residuals")
+                r = run_json([verb, "arima", "--model", h])
+                @test r.code == 0            # was 1 (UndefVarError: vname)
+                assert_envelope_ok(r; label="$verb arima handle $suffix")
+            end
+            rm(h; force=true)
+        end
+
+        # A data CONTAINER is in the registry too, so `data`-family artifacts round-trip.
+        cjld = tempname() * ".jld2"
+        rc = run_json(["data", "load", ":fred_md", "--save-model", cjld])
+        if rc.code == 0 && isfile(cjld)
+            @test run_json(["model", "info", cjld]).code == 0
+        end
+        rm(cjld; force=true)
+        rm(ar; force=true)
     end
 
     @testset "C052 reproducibility manifest in envelope meta (#345)" begin

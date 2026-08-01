@@ -100,19 +100,18 @@ end
 capture_manifest(; seed::Union{Integer,Nothing}=nothing,
                    settings::AbstractDict=Dict{String,Any}()) =
     ReproManifest(seed === nothing ? nothing : Int(seed), Threads.nthreads(),
-                  string(VERSION), "0.7.0",
+                  string(VERSION), "0.7.2",
                   Dict("Distributions" => "0.25", "StatsAPI" => "1.7"),
                   string(Sys.KERNEL), string(Sys.MACHINE),
                   "2026-01-01T00:00:00Z", "unknown", false,
                   Dict{String,Any}(settings))
 
-const _MOCK_NATIVE_SAVE_TYPES = Set([
-    "VARModel", "BVARPosterior", "RegModel", "LogitModel", "ProbitModel", "LPModel",
-])
-
 function save_model(model, path::AbstractString)
     tname = string(nameof(typeof(model)))
-    tname in _MOCK_NATIVE_SAVE_TYPES || throw(SerializationError(
+    # `_SERIALIZABLE_TYPES` mirrors the real registry and is defined at the BOTTOM of this
+    # file — every type in it must already exist, and mocks.jl is one flat top-to-bottom
+    # module. A function body resolves at call time, so referring to it here is fine.
+    haskey(_SERIALIZABLE_TYPES, tname) || throw(SerializationError(
         "save_model does not support $(typeof(model))"))
     open(p -> Serialization.serialize(p,
         Dict{String,Any}("format_version" => SERIALIZATION_FORMAT_VERSION,
@@ -8376,5 +8375,36 @@ end
 export MidasForecast
 
 export MidasModel, estimate_midas, midas_weights
+
+# ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
+#
+# Deliberately LAST in the file: it maps names → Types, and mocks.jl is one flat module
+# included top-to-bottom, so every referenced type must already be defined (the same
+# forward-reference trap that broke the C051 `DataFrame(::Union{...})` dispatches).
+#
+# The names are upstream's 56 at MEMs 0.7.2, filtered to those this mock actually
+# defines. Filtering keeps the mock a SUBSET of real, which is the safe direction (#84):
+# a mock that accepted a type real rejects would turn a guaranteed production
+# `SerializationError` into a green suite. The DSGE/HA solution types are absent from
+# upstream's registry on purpose (compiled `@dsge` closures do not round-trip), so they
+# are absent here too and keep falling back to the CLI's `.fmod` handle.
+const _SERIALIZABLE_TYPE_NAMES = (
+    "APARCHModel", "ARCHModel", "ARDLModel", "ARFIMAModel", "ARIMAModel", "ARMAModel",
+    "ARModel", "BVARPosterior", "CGARCHModel", "CointRegModel", "CrossSectionData",
+    "DynamicFactorModel", "EGARCHModel", "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
+    "FactorModel", "GARCHModel", "GJRGARCHModel", "GMMModel", "GarchMidasModel",
+    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "LPIVModel", "LPModel",
+    "LogitModel", "MAModel", "MGARCHModel", "MidasModel", "MultinomialLogitModel",
+    "NARDLModel", "OrderedLogitModel", "OrderedProbitModel", "PMGModel", "PVARModel",
+    "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
+    "PanelProbitModel", "PanelRegModel", "ProbitModel", "PropensityLPModel", "RegModel",
+    "SMMModel", "SURModel", "SVModel", "SmoothLPModel", "StateLPModel", "StateSpaceModel",
+    "StructuralDFM", "ThresholdModel", "TimeSeriesData", "VARModel", "VECMModel",
+)
+
+const _SERIALIZABLE_TYPES = Dict{String,Type}(
+    n => getfield(@__MODULE__, Symbol(n))
+    for n in _SERIALIZABLE_TYPE_NAMES if isdefined(@__MODULE__, Symbol(n))
+)
 
 end # module
