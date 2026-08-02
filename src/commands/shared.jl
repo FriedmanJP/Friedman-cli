@@ -1129,7 +1129,24 @@ If `plot` is true, opens in browser. If `plot_save` is non-empty, saves to HTML 
 function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
     !plot && isempty(plot_save) && return
     _validate_output_path(plot_save)
-    p = plot_result(result; kwargs...)
+    # W5/#95 — defence in depth. The rule is still "only advertise --plot when a real
+    # plot_result(::that type) EXISTS" (grep the real plotting/ before adding the flags;
+    # the mock's generic fallback will not tell you). But an unguarded call here turns any
+    # gap — a leaf whose result type lost its recipe at a bump, a plot kwarg the recipe
+    # does not accept — into a raw MethodError, i.e. exit 1 "likely a bug", which blames
+    # the CLI for a missing upstream method. Map that ONE case to a typed refusal and let
+    # every other failure (save/display) propagate untouched so real bugs stay visible.
+    p = try
+        plot_result(result; kwargs...)
+    catch e
+        e isa MethodError && (e.f === plot_result) && throw(CliError(
+            "model/unsupported",
+            "no plot is defined for $(typeof(result))";
+            hint="this result type has no plot_result recipe in MacroEconometricModels " *
+                 "$(_mems_version_string()); drop --plot/--plot-save, or use --format json " *
+                 "and plot the tables yourself"))
+        rethrow()
+    end
     if !isempty(plot_save)
         save_plot(p, plot_save)
         _status_styled("  Plot saved: $plot_save\n"; color=:green)

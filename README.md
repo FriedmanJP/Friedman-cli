@@ -824,6 +824,25 @@ provenance enough to reproduce and audit a published result. `--seed N` (a leadi
 echoed at `meta.seed` and `meta.manifest.seed`, and is forwarded to the BVAR family and VAR/VECM
 IRF estimators so their draws — and the resulting posteriors/IRFs — reproduce bit-for-bit.
 
+## Plots
+
+Plot-capable leaves accept `--plot` (open in browser) and `--plot-save PATH` (write a
+self-contained HTML file). Both are inline flags — there is no separate `plot` command.
+
+**A leaf advertises them only when MacroEconometricModels defines a real plot recipe for that
+leaf's result type.** This is deliberate: the flags are not universal, and a leaf that offered
+them without an upstream recipe would fail at the point of plotting rather than refuse up front.
+As of CLI v0.9.1 (MacroEconometricModels 0.7.2) 88 of 372 leaves are plot-capable.
+
+Notable gaps, all upstream rather than CLI choices: `forecast setar` and `forecast star` have no
+recipe for their forecast result types (the models themselves plot fine via `estimate setar` /
+`estimate star`), and the same holds for Markov-switching forecasts — `estimate ms` / `estimate
+ms-ar` plot, `forecast ms` / `forecast ms-ar` do not.
+
+If a recipe is missing for whatever you asked to plot, the CLI now fails with a typed
+`model/unsupported` (exit 5) naming the type, rather than an internal error. Use `--format json`
+and plot the returned tables yourself in that case.
+
 ## TOML Configuration
 
 Complex model specs use TOML config files.

@@ -1262,6 +1262,29 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true); rm(scsv; force=true)
         end
 
+        # W5/#95 — plot flags are only advertised where a REAL plot_result recipe exists,
+        # and the only way to know is to invoke them: the mock's generic plot_result would
+        # report success for a type real cannot plot. Assert a non-trivial file lands.
+        @testset "plot flags on the nonlinear-TS estimate leaves (W5/#95)" begin
+            pcsv = dgp_msar(; n=250, seed=677)
+            for (leaf, args) in (("ms-ar", ["--p", "1"]), ("ms", String[]),
+                                 ("setar", ["--p", "1"]), ("star", ["--p", "1"]))
+                out = tempname() * ".html"
+                r = run_json(vcat(["estimate", leaf, pcsv], args, ["--plot-save", out]))
+                assert_envelope_ok(r; label="estimate $leaf --plot-save")
+                @test isfile(out)
+                @test filesize(out) > 1000
+                rm(out; force=true)
+            end
+            # ...and the FORECAST result types still have no recipe upstream, so those
+            # leaves must not accept the flag at all (usage error, not a silent no-op).
+            for leaf in ("setar", "star", "ms-ar")
+                @test run_json(["forecast", leaf, pcsv, "--plot-save",
+                                tempname() * ".html"]).code == 2
+            end
+            rm(pcsv; force=true)
+        end
+
         # W3/#101 — un-gated by MEMs#510.
         @testset "predict|forecast ms|ms-ar (W3/#101)" begin
             csv = dgp_msar(; n=300, seed=676)

@@ -889,11 +889,13 @@ Path to CSV data file
 | `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
+| `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_ms` (Path to CSV data file)
 
@@ -915,11 +917,13 @@ Path to CSV data file
 | `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
+| `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_ms_ar` (Path to CSV data file)
 
@@ -1379,12 +1383,14 @@ Path to CSV data file
 | `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--het` | — | Heteroskedastic (White) bootstrap for the linearity test / CI |
 | `--no-linearity` | — | Skip the attached Hansen (1996) linearity test |
+| `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_setar` (Path to CSV data file)
 
@@ -1437,7 +1443,12 @@ Path to CSV data file
 | `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `estimate_star` (Path to CSV data file)
 

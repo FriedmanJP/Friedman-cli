@@ -841,12 +841,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap reps for the Hansen test / threshold CI (≥ 1)"),
                 OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                PLOT_OPTIONS...
             ],
             flags=[
                 FlagSpec(name="het", description="Heteroskedastic (White) bootstrap for the linearity test / CI"),
                 FlagSpec(name="no-linearity", description="Skip the attached Hansen (1996) linearity test")
-            ],
+            , PLOT_FLAGS...],
             tables=[TableSpec(name=:estimate_setar, description="Path to CSV data file")],
             category="estimate",
             handler=wrap_legacy(_estimate_setar),
@@ -870,9 +871,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="n-c", type=Int, default=15, description="Grid points for the c start values (≥ 2)"),
                 OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                PLOT_OPTIONS...
             ],
-            flags=FlagSpec[],
+            flags=copy(PLOT_FLAGS),
             tables=[TableSpec(name=:estimate_star, description="Path to CSV data file")],
             category="estimate",
             handler=wrap_legacy(_estimate_star),
@@ -894,9 +896,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
                 OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                PLOT_OPTIONS...
             ],
-            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)"), PLOT_FLAGS...],
             tables=[TableSpec(name=:estimate_ms_ar, description="Path to CSV data file")],
             category="estimate",
             handler=wrap_legacy(_estimate_ms_ar),
@@ -919,9 +922,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                PLOT_OPTIONS...
             ],
-            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)"), PLOT_FLAGS...],
             tables=[TableSpec(name=:estimate_ms, description="Path to CSV data file")],
             category="estimate",
             handler=wrap_legacy(_estimate_ms),
@@ -5540,6 +5544,7 @@ end
 function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
                           trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
                           het::Bool=false, no_linearity::Bool=false,
+                          plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
     p >= 1 || throw(CliError("usage/invalid", "estimate setar: --p must be ≥ 1 (got $p)"))
     (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
@@ -5593,6 +5598,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
         ])
     end
     output_kv(diag; format=format, title="SETAR(2;$p,$p) Diagnostics")
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
 
@@ -5620,7 +5626,8 @@ end
 # Teräsvirta sequential-selection triple (only for `--type auto`) fold into the diagnostics kv.
 function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
                          type::String="auto", n_gamma::Int=15, n_c::Int=15,
-                         transition_col::Int=0, output::String="", format::String="table")
+                         transition_col::Int=0, plot::Bool=false, plot_save::String="",
+                         output::String="", format::String="table")
     p >= 1 || throw(CliError("usage/invalid", "estimate star: --p must be ≥ 1 (got $p)"))
     d >= 1 || throw(CliError("usage/invalid", "estimate star: --d must be ≥ 1 (got $d)"))
     n_gamma >= 2 || throw(CliError("usage/invalid", "estimate star: --n-gamma must be ≥ 2 (got $n_gamma)"))
@@ -5682,6 +5689,7 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
         ])
     end
     output_kv(diag; format=format, title="STAR($p) Diagnostics")
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
 
@@ -5813,6 +5821,7 @@ end
 # `switching_variance` default FALSE (Hamilton) — the `--switching-variance` flag turns it on.
 function _estimate_ms_ar(; data::String, column::Int=1, p::Int=1, k_regimes::Int=2,
                           switching_variance::Bool=false, max_iter::Int=1000,
+                          plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
     p >= 1 || throw(CliError("usage/invalid", "estimate ms-ar: --p must be ≥ 1 (got $p)"))
     k_regimes >= 2 || throw(CliError("usage/invalid",
@@ -5828,6 +5837,7 @@ function _estimate_ms_ar(; data::String, column::Int=1, p::Int=1, k_regimes::Int
     catch e
         throw(_nonlinear_error(e, "MS-AR"))
     end
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
     return _ms_render(model, format, output)
 end
 
@@ -5865,7 +5875,8 @@ end
 
 function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
                        no_switching_variance::Bool=false, max_iter::Int=500,
-                       tol::Float64=1e-8, output::String="", format::String="table")
+                       tol::Float64=1e-8, plot::Bool=false, plot_save::String="",
+                       output::String="", format::String="table")
     k_regimes >= 2 || throw(CliError("usage/invalid",
         "estimate ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
@@ -5884,6 +5895,7 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
     catch e
         throw(_nonlinear_error(e, "MS regression"))
     end
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
     return _ms_render(model, format, output)
 end
 
