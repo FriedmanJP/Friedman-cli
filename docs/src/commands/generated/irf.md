@@ -18,12 +18,12 @@ Compute Bayesian impulse response functions with credible intervals
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | direct|gibbs |
+| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -56,7 +56,7 @@ FAVAR impulse response functions
 | `--id` | — | `String` | `cholesky` | — | Identification method |
 | `--config` | — | `String` | `""` | — | TOML config for restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -87,14 +87,14 @@ Compute structural LP impulse response functions
 | `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun |
-| `--ci` | — | `String` | `none` | — | none|bootstrap |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--ci` | — | `String` | `none` | — | none\|bootstrap |
 | `--replications` | — | `Int64` | `200` | — | Bootstrap replications |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west|white|driscoll_kraay |
+| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--config` | — | `String` | `""` | — | TOML config for sign/narrative restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -124,11 +124,11 @@ Compute Panel VAR impulse response functions (OIRF/GIRF)
 | `--time-col` | — | `String` | `""` | — | Time period column |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--horizons` | `-h` | `Int64` | `10` | — | IRF horizon |
-| `--irf-type` | — | `String` | `oirf` | — | oirf|girf |
+| `--irf-type` | — | `String` | `oirf` | — | oirf\|girf |
 | `--boot-draws` | — | `Int64` | `500` | — | Bootstrap draws for CIs |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -151,12 +151,12 @@ Structural DFM impulse response functions (panel-wide)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--horizons` | `-h` | `Int64` | `40` | — | IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -184,12 +184,12 @@ Compute frequentist impulse response functions
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id |
-| `--ci` | — | `String` | `bootstrap` | — | none|bootstrap|theoretical |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id |
+| `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -218,16 +218,16 @@ Compute impulse response functions via VECM → VAR representation
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun |
-| `--ci` | — | `String` | `bootstrap` | — | none|bootstrap|theoretical |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |

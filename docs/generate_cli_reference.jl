@@ -60,6 +60,16 @@ end
 
 # ── Markdown emitters ─────────────────────────────────────────
 
+"""
+    _md_cell(s) -> String
+
+Escape a value destined for a markdown TABLE CELL. An unescaped `|` ends the cell, so any
+description carrying one silently splits into extra columns and the row renders corrupt.
+Command descriptions are full of them — `table|csv|json`, `cholesky|sign|narrative|…` —
+so every generated page had broken `--format` and `--id` rows before this was escaped.
+"""
+_md_cell(s) = replace(string(s), "|" => "\\|")
+
 function _leaf_md(spec::Friedman.CommandSpec)::String
     io = IOBuffer()
     path = join(spec.path, " ")
@@ -72,7 +82,7 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         println(io, "|----------|------|----------|---------|-------------|")
         for a in spec.args
             req = a.required ? "yes" : "no"
-            println(io, "| `$(a.name)` | `$(_type_name(a.type))` | $req | $(_fmt_default(a.default)) | $(a.description) |")
+            println(io, "| `$(a.name)` | `$(_type_name(a.type))` | $req | $(_fmt_default(a.default)) | $(_md_cell(a.description)) |")
         end
         println(io)
     end
@@ -81,7 +91,7 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         println(io, "|--------|-------|------|---------|---------|-------------|")
         for o in spec.options
             short = isempty(o.short) ? "—" : "`-$(o.short)`"
-            println(io, "| `--$(o.name)` | $short | `$(_type_name(o.type))` | $(_fmt_default(o.default)) | $(_fmt_choices(o.choices)) | $(o.description) |")
+            println(io, "| `--$(o.name)` | $short | `$(_type_name(o.type))` | $(_fmt_default(o.default)) | $(_fmt_choices(o.choices)) | $(_md_cell(o.description)) |")
         end
         println(io)
     end
@@ -90,7 +100,7 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         println(io, "|------|-------|-------------|")
         for f in spec.flags
             short = isempty(f.short) ? "—" : "`-$(f.short)`"
-            println(io, "| `--$(f.name)` | $short | $(f.description) |")
+            println(io, "| `--$(f.name)` | $short | $(_md_cell(f.description)) |")
         end
         println(io)
     end

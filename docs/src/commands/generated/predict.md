@@ -18,7 +18,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML with [[equations]] and instruments (required) |
 | `--instruments` | — | `String` | `common` | `common`, `perequation` | Instrument mode |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -48,7 +48,7 @@ Path to CSV data file
 | `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
 | `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_aparch` (Path to CSV data file)
@@ -87,11 +87,11 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `0` | — | AR order |
 | `--q` | — | `Int64` | `0` | — | MA order |
-| `--method` | `-m` | `String` | `css` | `css`, `mle` | css|mle (fractional-integration estimator) |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_arfima` (Path to CSV data file)
@@ -157,7 +157,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_cgarch` (Path to CSV data file)
@@ -241,7 +241,7 @@ Path to CSV data file
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
 | `--dist` | — | `String` | `normal` | — | Innovation distribution |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_fiegarch` (Path to CSV data file)
@@ -265,7 +265,7 @@ Path to CSV data file
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
 | `--dist` | — | `String` | `normal` | — | Innovation distribution |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_figarch` (Path to CSV data file)
@@ -308,7 +308,7 @@ Path to CSV data file
 | `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
 | `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -374,7 +374,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_igarch` (Path to CSV data file)
@@ -392,10 +392,10 @@ In-sample fitted values (logit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -420,10 +420,10 @@ In-sample fitted values (mlogit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_mlogit` (In-sample fitted values)
@@ -441,10 +441,10 @@ In-sample fitted values (ologit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_ologit` (In-sample fitted values)
@@ -462,10 +462,10 @@ In-sample fitted values (oprobit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_oprobit` (In-sample fitted values)
@@ -486,10 +486,10 @@ In-sample fitted values (piv)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_piv` (In-sample fitted values)
@@ -510,10 +510,10 @@ In-sample fitted values (plogit)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_plogit` (In-sample fitted values)
@@ -534,10 +534,10 @@ In-sample fitted values (pprobit)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_pprobit` (In-sample fitted values)
@@ -558,10 +558,10 @@ In-sample fitted values (preg)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_preg` (In-sample fitted values)
@@ -579,10 +579,10 @@ In-sample fitted values (probit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -606,10 +606,10 @@ In-sample fitted values (reg)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -633,7 +633,7 @@ Path to CSV data file
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
 | `--state` | — | `String` | `both` | `filtered`, `smoothed`, `both` | Which state path to emit |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `predict_statespace` (Path to CSV data file)
@@ -672,7 +672,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | TOML with [[equations]] blocks (required) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |

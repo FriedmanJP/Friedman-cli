@@ -3949,9 +3949,49 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     @test count(c -> startswith(c, "prob_"), cols) == 3
                 end
             end
-            @testset "residuals $leaf → model/unsupported (exit 5)" begin
-                @test run_json(["residuals", leaf, ord, "--dep", "y"]).code == 5
+            # W4/#87: un-gated by MEMs#507. These used to be a typed refusal (exit 5)
+            # because upstream defined no residuals for ordered/unordered choice models.
+            # 0.7.2 settled it: `residuals(m; kind=)` is an n x J matrix, one column per
+            # category, and the :response rows sum to zero by construction.
+            @testset "residuals $leaf — n x J per-category matrix (W4/#87)" begin
+                r = run_json(["residuals", leaf, ord, "--dep", "y"])
+                assert_envelope_ok(r; label="residuals $leaf")
+                _, tbl = first_table(r.doc)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    cols = table_cols(tbl)
+                    @test count(c -> startswith(c, "resid_"), cols) == 3
+                    # :response residuals sum to zero across categories by construction.
+                    # ONE assertion on the worst row, not one per row: a per-row loop adds
+                    # ~900 assertions per run for no extra coverage. Tolerance is set by
+                    # the RENDERER, not the estimator — _choice_resid_table rounds to 6
+                    # digits, so a J-term sum carries up to J*5e-7 of rounding (observed
+                    # 1.0000000000287557e-6, which is why atol=1e-6 was too tight).
+                    ridx = findall(c -> startswith(c, "resid_"), cols)
+                    worst = maximum(abs(sum(Float64.(collect(row)[ridx])))
+                                    for row in table_rows(tbl))
+                    @test worst < 5e-6
+                end
+                for k in ("response", "pearson", "deviance")
+                    @test run_json(["residuals", leaf, ord, "--dep", "y", "--kind", k]).code == 0
+                end
+                @test run_json(["residuals", leaf, ord, "--dep", "y", "--kind", "bogus"]).code == 2
             end
+        end
+
+        # `generalized_residuals` is ORDERED-ONLY upstream. The flag must therefore exist
+        # on ologit/oprobit and NOT on mlogit — a declared flag whose handler cannot honour
+        # it is the failure mode that shipped 19 broken leaves once already (#85).
+        @testset "residuals --generalized is ordered-only (W4/#87)" begin
+            for leaf in ("ologit", "oprobit")
+                r = run_json(["residuals", leaf, ord, "--dep", "y", "--generalized"])
+                assert_envelope_ok(r; label="residuals $leaf --generalized")
+                _, tbl = first_table(r.doc)
+                @test tbl !== nothing
+                @test "generalized_residual" in table_cols(tbl)
+            end
+            # usage error (2), not a crash and not a silently-ignored flag
+            @test run_json(["residuals", "mlogit", ord, "--dep", "y", "--generalized"]).code == 2
         end
 
         @testset "predict logit reports (flags, not string options)" begin

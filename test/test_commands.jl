@@ -10652,39 +10652,48 @@ end
             end
         end
 
-        @testset "_residuals_ologit — model/unsupported (no upstream residuals)" begin
+        # W4/#87: MEMs 0.7.2 (MEMs#507) defines residuals for these models, so the typed
+        # refusal these two testsets used to pin is gone. Real returns an n x J matrix; the
+        # mock now mirrors that shape exactly (it previously invented a length-n
+        # `y .- fitted[:, 1]` that real never had — the #84 trap).
+        @testset "_residuals_ologit — per-category matrix" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                e = try
-                    _capture() do
-                        _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
-                                           clusters="", output="", format="table")
-                    end
-                    nothing
-                catch err
-                    err
+                out = _capture() do
+                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                       clusters="", kind="response", generalized=false,
+                                       output="", format="csv")
                 end
-                # MEMs 0.7.0 defines no residuals for ordered models; refuse with a
-                # typed error rather than invent a definition (was exit 1).
-                @test e isa CliError
-                @test e.code == "model/unsupported"
+                @test occursin("resid_", out)
+                @test occursin("observation", out)
             end
         end
 
-        @testset "_residuals_mlogit — model/unsupported (no upstream residuals)" begin
+        @testset "_residuals_ologit — generalized is a length-n column" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                e = try
-                    _capture() do
-                        _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
-                                           output="", format="table")
-                    end
-                    nothing
-                catch err
-                    err
+                out = _capture() do
+                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                       clusters="", kind="response", generalized=true,
+                                       output="", format="csv")
                 end
-                @test e isa CliError
-                @test e.code == "model/unsupported"
+                @test occursin("generalized_residual", out)
+                @test !occursin("resid_", out)
+            end
+        end
+
+        @testset "_residuals_mlogit — per-category matrix, no generalized kwarg" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                       kind="response", output="", format="csv")
+                end
+                @test occursin("resid_", out)
+                # upstream has no generalized_residuals for mlogit, so the handler must not
+                # accept the kwarg either — declared surface and handler must agree
+                @test_throws MethodError _residuals_mlogit(; data=csv, dep="var1",
+                                                            generalized=true)
             end
         end
     end

@@ -34,11 +34,11 @@ Download an IO/MRIO table (network); respects --offline
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--source` | — | `String` | `""` | `oecd`, `wiod`, `exiobase3`, `eora26`, `gloria` | oecd|wiod|exiobase3|eora26|gloria |
+| `--source` | — | `String` | `""` | `oecd`, `wiod`, `exiobase3`, `eora26`, `gloria` | oecd\|wiod\|exiobase3\|eora26\|gloria |
 | `--storage` | — | `String` | `""` | — | Destination folder for downloaded archives (required) |
 | `--version` | — | `String` | `""` | — | Source version (e.g. OECD v2023) |
 | `--years` | — | `String` | `""` | — | Comma-separated year filter (default: all) |
-| `--system` | — | `String` | `pxp` | `pxp`, `ixi` | EXIOBASE product-by-product|industry-by-industry |
+| `--system` | — | `String` | `pxp` | `pxp`, `ixi` | EXIOBASE product-by-product\|industry-by-industry |
 | `--email` | — | `String` | `""` | — | Account email (EORA26 only) |
 | `--password` | — | `String` | `""` | — | Account password (EORA26 only) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -104,7 +104,7 @@ Ghosh (supply-driven) representation: B and inverse G
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--matrix` | — | `String` | `G` | `G`, `B`, `both` | G = Ghosh inverse | B = allocation coefficients | both |
+| `--matrix` | — | `String` | `G` | `G`, `B`, `both` | G = Ghosh inverse \| B = allocation coefficients \| both |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -122,7 +122,7 @@ Key-sector classification (Rasmussen quadrants)
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--forward` | — | `String` | `ghosh` | `ghosh`, `leontief` | Forward linkage basis: ghosh | leontief |
+| `--forward` | — | `String` | `ghosh` | `ghosh`, `leontief` | Forward linkage basis: ghosh \| leontief |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -140,7 +140,7 @@ Leontief (demand-driven) representation: A and inverse L
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--matrix` | — | `String` | `L` | `L`, `A`, `both` | L = Leontief inverse | A = technical coefficients | both |
+| `--matrix` | — | `String` | `L` | `L`, `A`, `both` | L = Leontief inverse \| A = technical coefficients \| both |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -158,7 +158,7 @@ Backward/forward linkages + Rasmussen dispersion indices
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--forward` | — | `String` | `ghosh` | `ghosh`, `leontief` | Forward linkage basis: ghosh (row sums of G) | leontief |
+| `--forward` | — | `String` | `ghosh` | `ghosh`, `leontief` | Forward linkage basis: ghosh (row sums of G) \| leontief |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -193,8 +193,8 @@ Sectoral output/income/employment multipliers (Type I & II)
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--kind` | — | `String` | `output` | `output`, `income`, `employment` | output|income|employment |
-| `--type` | — | `String` | `I` | `I`, `II` | Type I (open) | Type II (household-closed) |
+| `--kind` | — | `String` | `output` | `output`, `income`, `employment` | output\|income\|employment |
+| `--type` | — | `String` | `I` | `I`, `II` | Type I (open) \| Type II (household-closed) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -213,7 +213,7 @@ Structural decomposition of Δoutput between two periods
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--data2` | — | `String` | `""` | — | Second-period IO table (CSV path / :example; default: same as --data) |
-| `--method` | — | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) | multiplicative |
+| `--method` | — | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) \| multiplicative |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 

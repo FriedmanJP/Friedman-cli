@@ -17,8 +17,8 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto via AIC) |
-| `--trend` | — | `String` | `constant` | — | none|constant|trend|both |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | — | none\|constant\|trend\|both |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `adf` (Path to CSV data file)
@@ -36,11 +36,11 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--model` | — | `String` | `level` | — | level|trend|regime |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic|bic|N) |
+| `--model` | — | `String` | `level` | — | level\|trend\|regime |
+| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.1` | — | Trimming proportion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `adf_2break` (Path to CSV data file)
@@ -58,9 +58,9 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--response` | — | `Int64` | `1` | — | Response variable column index (1-based) |
-| `--test` | — | `String` | `supwald` | — | supwald|suplr|suplm|expwald|explr|explm|meanwald|meanlr|meanlm |
+| `--test` | — | `String` | `supwald` | — | supwald\|suplr\|suplm\|expwald\|explr\|explm\|meanwald\|meanlr\|meanlm |
 | `--trimming` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
@@ -84,7 +84,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags for ARCH-LM test |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `arch_lm` (Path to CSV data file)
@@ -106,12 +106,12 @@ Path to CSV data file
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated per-regressor list |
 | `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
-| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
-| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none|const|trend |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
+| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none\|const\|trend |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
-| `--level` | — | `Float64` | `0.05` | — | Decision level: one of 0.10|0.05|0.025|0.01 |
+| `--level` | — | `Float64` | `0.05` | — | Decision level: one of 0.10\|0.05\|0.025\|0.01 |
 | `--cv-source` | — | `String` | `pss` | `pss` | Critical-value source (only pss) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `ardl_bounds` (Path to CSV data file)
@@ -131,8 +131,8 @@ Path to CSV data file
 | `--response` | — | `Int64` | `1` | — | Response variable column index (1-based) |
 | `--max-breaks` | — | `Int64` | `5` | — | Maximum number of breaks |
 | `--trimming` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--criterion` | — | `String` | `bic` | — | bic|lwz |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--criterion` | — | `String` | `bic` | — | bic\|lwz |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
@@ -155,7 +155,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `bartlett_wn` (Path to CSV data file)
@@ -175,7 +175,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--max-dim` | — | `Int64` | `6` | — | Maximum embedding dimension (≥ 2; tests m=2..max) |
 | `--eps-frac` | — | `Float64` | `0.7` | — | Distance threshold as a fraction of the sample sd |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `bds` (Path to CSV data file)
@@ -194,7 +194,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--lags` | `-p` | `Int64` | `20` | — | Number of lags |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `box_pierce` (Path to CSV data file)
@@ -213,7 +213,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance type |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `brant` (Path to CSV data file)
@@ -232,7 +232,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
 | `--lags` | — | `Int64` | `0` | — | Augmentation lags (≥ 0) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 | Flag | Short | Description |
@@ -279,7 +279,7 @@ Path to CSV data file
 | `--break-at` | — | `String` | `""` | — | Required: 1-based break index, or a comma-separated list for a multi-break test |
 | `--type` | — | `String` | `breakpoint` | `breakpoint`, `forecast` | Chow variant |
 | `--level` | — | `Float64` | `0.05` | — | Significance level in (0,1) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `chow` (Path to CSV data file)
@@ -296,11 +296,11 @@ Path to CSV data file (rows=T, cols=N)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--lags` | — | `String` | `auto` | — | Lag order (auto|N) |
-| `--deterministic` | — | `String` | `constant` | — | constant|trend |
+| `--lags` | — | `String` | `auto` | — | Lag order (auto\|N) |
+| `--deterministic` | — | `String` | `constant` | — | constant\|trend |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
 | `--time-col` | — | `String` | `""` | — | Time column (optional) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `cips` (Path to CSV data file (rows=T, cols=N))
@@ -320,7 +320,7 @@ Path to CSV data file
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
 | `--level` | — | `Float64` | `0.05` | — | Band significance level in (0,1) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `cusum` (Path to CSV data file)
@@ -340,7 +340,7 @@ Path to CSV data file
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
 | `--level` | — | `Float64` | `0.05` | — | Band significance level in (0,1) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `cusumsq` (Path to CSV data file)
@@ -358,10 +358,10 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--regression` | — | `String` | `constant` | — | constant|trend |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic|bic|N) |
+| `--regression` | — | `String` | `constant` | — | constant\|trend |
+| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `dfgls` (Path to CSV data file)
@@ -385,7 +385,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | Lag order (≥ 1) |
 | `--bootstrap` | — | `Int64` | `0` | — | Bootstrap replications for the p-value (0 = asymptotic only) |
 | `--seed` | — | `Int64` | `1234` | — | RNG seed for the bootstrap |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `dh_causality` (Path to CSV data file)
@@ -403,7 +403,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `durbin_watson` (Path to CSV data file)
@@ -425,7 +425,7 @@ Path to CSV data file
 | `--test` | — | `String` | `ad` | `ks`, `lilliefors`, `cvm`, `ad`, `watson` | EDF statistic |
 | `--params` | — | `String` | `estimate` | `estimate`, `specified` | Parameters ML-fitted from the data, or supplied via --theta |
 | `--theta` | — | `String` | `""` | — | Comma-separated parameters (required with --params specified) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `edf` (Path to CSV data file)
@@ -444,9 +444,9 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
-| `--lags` | — | `String` | `aic` | — | ADF lags on the residuals: aic|bic|tstat or a non-negative integer |
+| `--lags` | — | `String` | `aic` | — | ADF lags on the residuals: aic\|bic\|tstat or a non-negative integer |
 | `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `engle_granger` (Path to CSV data file)
@@ -464,7 +464,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 | Flag | Short | Description |
@@ -507,10 +507,10 @@ Path to CSV data file (rows=T, cols=N)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | — | `Int64` | `2` | — | Number of factors |
-| `--method` | — | `String` | `breitung_eickmeier` | — | breitung_eickmeier|chen_dolado_gonzalo|han_inoue |
+| `--method` | — | `String` | `breitung_eickmeier` | — | breitung_eickmeier\|chen_dolado_gonzalo\|han_inoue |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
 | `--time-col` | — | `String` | `""` | — | Time column (optional) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `factor_break` (Path to CSV data file (rows=T, cols=N))
@@ -528,7 +528,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `fisher` (Path to CSV data file)
@@ -551,7 +551,7 @@ Path to CSV data file
 | `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
 | `--lags` | — | `Int64` | `2` | — | VECM lag order (≥ 1) |
 | `--combine` | — | `String` | `mw` | `mw`, `choi` | Fisher combination |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `fisher_johansen` (Path to CSV data file)
@@ -569,12 +569,12 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--regression` | — | `String` | `constant` | — | constant|trend |
+| `--regression` | — | `String` | `constant` | — | constant\|trend |
 | `--fmax` | — | `Int64` | `3` | — | Maximum Fourier frequency |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic|bic|N) |
+| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `fourier_adf` (Path to CSV data file)
@@ -592,10 +592,10 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--regression` | — | `String` | `constant` | — | constant|trend |
+| `--regression` | — | `String` | `constant` | — | constant\|trend |
 | `--fmax` | — | `Int64` | `3` | — | Maximum Fourier frequency |
 | `--bandwidth` | — | `Int64` | — | — | Bandwidth (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `fourier_kpss` (Path to CSV data file)
@@ -614,7 +614,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `glejser` (Path to CSV data file)
@@ -634,7 +634,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
 | `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
 | `--trim` | — | `Int64` | `0` | — | Trim the first N frequencies |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `gph` (Path to CSV data file)
@@ -654,10 +654,10 @@ Path to CSV data file
 | `--cause` | — | `Int64` | `1` | — | Cause variable index (1-based) |
 | `--effect` | — | `Int64` | `2` | — | Effect variable index (1-based) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
-| `--model` | — | `String` | `vecm` | — | var|vecm (model type for Granger test) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--model` | — | `String` | `vecm` | — | var\|vecm (model type for Granger test) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 | Flag | Short | Description |
@@ -678,11 +678,11 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `C` | — | C|C/T|C/S (level shift/trend/regime) |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic|bic|N) |
+| `--model` | — | `String` | `C` | — | C\|C/T\|C/S (level shift/trend/regime) |
+| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `gregory_hansen` (Path to CSV data file)
@@ -705,7 +705,7 @@ Path to CSV data file
 | `--mc-reps` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
 | `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
 | `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `gsadf` (Path to CSV data file)
@@ -722,8 +722,8 @@ Path to CSV data file (rows=T, cols=N units)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hadri` (Path to CSV data file (rows=T, cols=N units))
@@ -744,10 +744,10 @@ Path to CSV data file
 | `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
 | `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
-| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews|nw94 or a non-negative number |
+| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews\|nw94 or a non-negative number |
 | `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
 | `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hansen_instability` (Path to CSV data file)
@@ -769,7 +769,7 @@ Path to CSV data file
 | `--d` | — | `Int64` | `1` | — | Delay lag for the threshold variable q=y[t-d] (≥ 1) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
 | `--reps` | — | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `test_hansen_linearity` (Path to CSV data file)
@@ -788,7 +788,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `harvey` (Path to CSV data file)
@@ -828,7 +828,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable |
 | `--omit-category` | — | `Int64` | — | — | Category to omit for IIA test |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hausman_iia` (Path to CSV data file)
@@ -849,7 +849,7 @@ Path to CSV data file
 | `--frequency` | — | `Int64` | `4` | — | Seasonal frequency: 4 (quarterly) or 12 (monthly) |
 | `--deterministic` | — | `String` | `const-trend-seas` | `none`, `const`, `const-seas`, `const-trend`, `const-trend-seas` | Deterministic terms |
 | `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `hegy` (Path to CSV data file)
@@ -867,11 +867,11 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--method` | — | `String` | `markov` | — | markov|garch|smooth_transition|external |
+| `--method` | — | `String` | `markov` | — | markov\|garch\|smooth_transition\|external |
 | `--config` | — | `String` | `""` | — | TOML config (for transition/regime variables) |
 | `--regimes` | — | `Int64` | `2` | — | Number of regimes |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -894,11 +894,11 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--test` | `-t` | `String` | `all` | — | strength|gaussianity|independence|overidentification|all |
-| `--method` | — | `String` | `fastica` | — | fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests) |
-| `--contrast` | — | `String` | `logcosh` | — | logcosh|exp|kurtosis (for FastICA) |
+| `--test` | `-t` | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|all |
+| `--method` | — | `String` | `fastica` | — | fastica\|jade\|sobi\|dcov\|hsic (for gaussianity/independence/overidentification tests) |
+| `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `identifiability` (Path to CSV data file)
 
@@ -916,7 +916,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `influence` (Path to CSV data file)
@@ -937,7 +937,7 @@ Path to CSV data file
 | `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
 | `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
 | `--criterion` | — | `String` | `aic` | `aic`, `bic`, `tstat` | Lag-selection criterion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 | Flag | Short | Description |
@@ -959,8 +959,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order |
-| `--trend` | — | `String` | `constant` | — | none|constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `johansen` (Path to CSV data file)
@@ -981,7 +981,7 @@ Path to CSV panel data file
 | `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
 | `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
 | `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `kao` (Path to CSV panel data file)
@@ -999,8 +999,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `constant` | — | constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | — | constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `kpss` (Path to CSV data file)
@@ -1019,7 +1019,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--lags` | `-p` | `Int64` | `10` | — | Number of lags for Ljung-Box test |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `ljung_box` (Path to CSV data file)
@@ -1040,7 +1040,7 @@ Path to CSV data file
 | `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
 | `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
 | `--criterion` | — | `String` | `aic` | `aic`, `bic`, `tstat` | Lag-selection criterion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 | Flag | Short | Description |
@@ -1064,7 +1064,7 @@ Path to CSV data file for restricted model
 |--------|-------|------|---------|---------|-------------|
 | `--lags1` | — | `Int64` | — | — | Lag order for restricted model (default: auto) |
 | `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `lm` (Path to CSV data file for restricted model)
@@ -1082,12 +1082,12 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--breaks` | — | `Int64` | `0` | — | Number of structural breaks (0|1|2) |
-| `--regression` | — | `String` | `level` | — | level|trend |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic|bic|N) |
+| `--breaks` | — | `Int64` | `0` | — | Number of structural breaks (0\|1\|2) |
+| `--regression` | — | `String` | `level` | — | level\|trend |
+| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `lm_unitroot` (Path to CSV data file)
@@ -1106,7 +1106,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
 | `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `local-whittle` (Path to CSV data file)
@@ -1126,7 +1126,7 @@ Path to CSV data file for restricted model
 |--------|-------|------|---------|---------|-------------|
 | `--lags1` | — | `Int64` | — | — | Lag order for restricted model (default: auto) |
 | `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `lr` (Path to CSV data file for restricted model)
@@ -1164,10 +1164,10 @@ Path to CSV data file (rows=T, cols=N)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `String` | `auto` | — | Number of factors (auto|N) |
+| `--factors` | — | `String` | `auto` | — | Number of factors (auto\|N) |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
 | `--time-col` | — | `String` | `""` | — | Time column (optional) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `moon_perron` (Path to CSV data file (rows=T, cols=N))
@@ -1190,9 +1190,9 @@ Path to CSV data file
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated list |
 | `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
-| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `nardl_symmetry` (Path to CSV data file)
@@ -1211,7 +1211,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `normality` (Path to CSV data file)
 
@@ -1228,8 +1228,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `constant` | — | constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | — | constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `np` (Path to CSV data file)
@@ -1247,10 +1247,10 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
-| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch | egarch | gjr-garch |
+| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch \| egarch \| gjr-garch |
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `nyblom` (Path to CSV data file)
@@ -1267,11 +1267,11 @@ Path to CSV data file (rows=T, cols=N)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `String` | `auto` | — | Number of factors (auto|N) |
-| `--method` | — | `String` | `pooled` | — | pooled|individual |
+| `--factors` | — | `String` | `auto` | — | Number of factors (auto\|N) |
+| `--method` | — | `String` | `pooled` | — | pooled\|individual |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
 | `--time-col` | — | `String` | `""` | — | Time column (optional) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `panic` (Path to CSV data file (rows=T, cols=N))
@@ -1292,13 +1292,13 @@ Path to CSV data file
 | `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
 | `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
-| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews|nw94 or a non-negative number |
+| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews\|nw94 or a non-negative number |
 | `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
 | `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
 | `--q-add` | — | `Int64` | `2` | — | Number of superfluous trends added (≥ 1; the test df) |
 | `--hac-kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the test statistic |
-| `--hac-bandwidth` | — | `String` | `nw` | — | HAC bandwidth for the test: nw|andrews|nw94 or a non-negative number |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--hac-bandwidth` | — | `String` | `nw` | — | HAC bandwidth for the test: nw\|andrews\|nw94 or a non-negative number |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `park_added` (Path to CSV data file)
@@ -1319,8 +1319,8 @@ Path to CSV panel data file
 | `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
 | `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
 | `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pedroni` (Path to CSV panel data file)
@@ -1361,8 +1361,8 @@ Path to CSV data file
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the residual long-run variance |
-| `--bandwidth` | — | `String` | `nw` | — | HAC bandwidth: nw|andrews|nw94 or a non-negative number |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--bandwidth` | — | `String` | `nw` | — | HAC bandwidth: nw\|andrews\|nw94 or a non-negative number |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `phillips_ouliaris` (Path to CSV data file)
@@ -1383,13 +1383,13 @@ Path to CSV data file
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
 | `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
 | `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
-| `--efficient` | — | `String` | `pmg` | `pmg`, `dfe` | Estimator efficient under H0: pmg|dfe (consistent is always MG) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none|constant|trend |
+| `--efficient` | — | `String` | `pmg` | `pmg`, `dfe` | Estimator efficient under H0: pmg\|dfe (consistent is always MG) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
 | `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
 | `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
 | `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pmg_hausman` (Path to CSV data file)
@@ -1407,8 +1407,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `constant` | — | none|constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pp` (Path to CSV data file)
@@ -1428,7 +1428,7 @@ Path to CSV panel data file
 | `--id-col` | — | `String` | `""` | — | Panel group identifier column |
 | `--time-col` | — | `String` | `""` | — | Time period column |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pvar_hansen_j` (Path to CSV panel data file)
@@ -1448,8 +1448,8 @@ Path to CSV panel data file
 | `--id-col` | — | `String` | `""` | — | Panel group identifier column |
 | `--time-col` | — | `String` | `""` | — | Time period column |
 | `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `bic` | — | bic|aic|hqic |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--criterion` | — | `String` | `bic` | — | bic\|aic\|hqic |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pvar_lagselect` (Path to CSV panel data file)
@@ -1469,8 +1469,8 @@ Path to CSV panel data file
 | `--id-col` | — | `String` | `""` | — | Panel group identifier column |
 | `--time-col` | — | `String` | `""` | — | Time period column |
 | `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `bic` | — | bic|aic|hqic |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--criterion` | — | `String` | `bic` | — | bic\|aic\|hqic |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pvar_mmsc` (Path to CSV panel data file)
@@ -1490,7 +1490,7 @@ Path to CSV panel data file
 | `--id-col` | — | `String` | `""` | — | Panel group identifier column |
 | `--time-col` | — | `String` | `""` | — | Time period column |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `pvar_stability` (Path to CSV panel data file)
@@ -1509,7 +1509,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `recursive_residuals` (Path to CSV data file)
@@ -1532,7 +1532,7 @@ Path to CSV data file
 | `--mc-reps` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
 | `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
 | `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `sadf` (Path to CSV data file)
@@ -1550,10 +1550,10 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
-| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch | egarch | gjr-garch |
+| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch \| egarch \| gjr-garch |
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `sign_bias` (Path to CSV data file)
@@ -1574,7 +1574,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
 | `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `test_star_linearity` (Path to CSV data file)
@@ -1592,8 +1592,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--max-lags` | — | `Int64` | `12` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `aic` | — | aic|bic|hqc |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--criterion` | — | `String` | `aic` | — | aic\|bic\|hqc |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `var_lagselect` (Path to CSV data file)
@@ -1611,7 +1611,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `var_stability` (Path to CSV data file)
@@ -1631,7 +1631,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--horizons` | — | `String` | `2,4,8,16` | — | Comma-separated holding periods q (each ≥ 2) |
 | `--method` | — | `String` | `lomackinlay` | `lomackinlay` | Variance-ratio method |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `variance_ratio` (Path to CSV data file)
@@ -1650,11 +1650,11 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
-| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -1679,11 +1679,11 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
-| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -1708,11 +1708,11 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] both H and A matrices |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
-| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -1737,11 +1737,11 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
-| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -1766,11 +1766,11 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--vars` | — | `String` | `""` | — | Comma-separated variable indices or names to test for weak exogeneity |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
-| `--method` | — | `String` | `johansen` | — | johansen|engle_granger |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `test_vecm_weak_exog` (Path to CSV data file)
@@ -1788,8 +1788,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator (ols|hc0|hc1|hc2|hc3) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator (ols\|hc0\|hc1\|hc2\|hc3) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `vif` (Path to CSV data file)
@@ -1809,9 +1809,9 @@ Path to CSV data file
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
 | `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
-| `--cov-type` | — | `String` | `hc1` | — | ols|hc0|hc1|hc2|hc3 |
+| `--cov-type` | — | `String` | `hc1` | — | ols\|hc0\|hc1\|hc2\|hc3 |
 | `--threshold` | — | `Float64` | `10.0` | — | First-stage F rule-of-thumb (used if no Stock-Yogo CV) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `weak_instrument` (Path to CSV data file)
@@ -1832,8 +1832,8 @@ Path to CSV panel data file
 | `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
 | `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
 | `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant|trend |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `westerlund` (Path to CSV panel data file)
@@ -1852,7 +1852,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 | Flag | Short | Description |
@@ -1895,9 +1895,9 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `both` | — | intercept|trend|both |
+| `--trend` | — | `String` | `both` | — | intercept\|trend\|both |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `za` (Path to CSV data file)

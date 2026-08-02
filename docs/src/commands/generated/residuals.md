@@ -18,7 +18,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML with [[equations]] and instruments (required) |
 | `--instruments` | — | `String` | `common` | `common`, `perequation` | Instrument mode |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -48,7 +48,7 @@ Path to CSV data file
 | `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
 | `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_aparch` (Path to CSV data file)
@@ -87,11 +87,11 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `0` | — | AR order |
 | `--q` | — | `Int64` | `0` | — | MA order |
-| `--method` | `-m` | `String` | `css` | `css`, `mle` | css|mle (fractional-integration estimator) |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_arfima` (Path to CSV data file)
@@ -157,7 +157,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_cgarch` (Path to CSV data file)
@@ -241,7 +241,7 @@ Path to CSV data file
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
 | `--dist` | — | `String` | `normal` | — | Innovation distribution |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_fiegarch` (Path to CSV data file)
@@ -265,7 +265,7 @@ Path to CSV data file
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
 | `--dist` | — | `String` | `normal` | — | Innovation distribution |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_figarch` (Path to CSV data file)
@@ -308,7 +308,7 @@ Path to CSV data file
 | `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
 | `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -374,7 +374,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_igarch` (Path to CSV data file)
@@ -392,10 +392,10 @@ Model residuals (logit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_logit` (Model residuals)
@@ -413,10 +413,11 @@ Model residuals (mlogit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_mlogit` (Model residuals)
@@ -438,7 +439,7 @@ Path to CSV data file
 | `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
@@ -464,7 +465,7 @@ Path to CSV data file
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
 | `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
@@ -486,11 +487,16 @@ Model residuals (ologit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
 
 **Output tables:** `residuals_ologit` (Model residuals)
 
@@ -507,11 +513,16 @@ Model residuals (oprobit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
 
 **Output tables:** `residuals_oprobit` (Model residuals)
 
@@ -531,10 +542,10 @@ Model residuals (piv)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_piv` (Model residuals)
@@ -555,10 +566,10 @@ Model residuals (plogit)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_plogit` (Model residuals)
@@ -579,10 +590,10 @@ Model residuals (pprobit)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_pprobit` (Model residuals)
@@ -603,10 +614,10 @@ Model residuals (preg)
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols|cluster|twoway|driscoll-kraay |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_preg` (Model residuals)
@@ -624,10 +635,10 @@ Model residuals (probit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_probit` (Model residuals)
@@ -645,10 +656,10 @@ Model residuals (reg)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols|hc0|hc1|hc2|hc3|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -671,7 +682,7 @@ Path to CSV data file
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_setar` (Path to CSV data file)
@@ -691,12 +702,12 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
-| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1|lstr2|estr|auto |
+| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
 | `--n-gamma` | — | `Int64` | `15` | — | Grid points for the γ start values (≥ 2) |
 | `--n-c` | — | `Int64` | `15` | — | Grid points for the c start values (≥ 2) |
 | `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_star` (Path to CSV data file)
@@ -718,7 +729,7 @@ Path to CSV data file
 | `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Diffuse initialisation |
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 | Flag | Short | Description |
@@ -761,7 +772,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | TOML with [[equations]] blocks (required) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |

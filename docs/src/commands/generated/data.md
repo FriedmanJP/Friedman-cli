@@ -19,7 +19,7 @@ Path to CSV data file
 | `--factors` | `-r` | `Int64` | `3` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | Factor VAR lags |
 | `--output` | `-o` | `String` | `""` | — | Export file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `data_balance` (Path to CSV data file)
 
@@ -35,7 +35,7 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `data_describe` (Path to CSV data file)
@@ -52,7 +52,7 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `data_diagnose` (Path to CSV data file)
@@ -71,7 +71,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--vars` | — | `String` | `""` | — | Column names to check (comma-separated; default: all) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `data_dropna` (Path to CSV data file)
 
@@ -87,14 +87,14 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | `-m` | `String` | `hp` | — | hp|hamilton|bn|bk|bhp |
-| `--component` | — | `String` | `cycle` | — | cycle|trend |
+| `--method` | `-m` | `String` | `hp` | — | hp\|hamilton\|bn\|bk\|bhp |
+| `--component` | — | `String` | `cycle` | — | cycle\|trend |
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter (HP/BHP) |
 | `--horizon` | — | `Int64` | `8` | — | Forecast horizon (Hamilton) |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags (Hamilton/BN) |
 | `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `data_filter` (Path to CSV data file)
 
@@ -110,9 +110,9 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | `-m` | `String` | `listwise` | — | listwise|interpolate|mean |
+| `--method` | `-m` | `String` | `listwise` | — | listwise\|interpolate\|mean |
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `data_fix` (Path to CSV data file)
 
@@ -130,7 +130,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--rows` | — | `String` | `""` | — | Row indices (e.g. 1:100, 1,5,10) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `data_keeprows` (Path to CSV data file)
 
@@ -142,7 +142,7 @@ table|csv|json
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `data_list` (table|csv|json)
@@ -160,7 +160,7 @@ Example dataset name (see 'data list'), or omit and pass --path for a CSV
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--vars` | — | `String` | `""` | — | Comma-separated variable subset |
 | `--country` | — | `String` | `""` | — | Country filter (for PWT panel data) |
 | `--dates` | — | `String` | `""` | — | Column name for date labels |
@@ -186,7 +186,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--tcodes` | — | `String` | `""` | — | Comma-separated FRED transformation codes |
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `data_transform` (Path to CSV data file)
 
@@ -202,8 +202,8 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Model type (var|bvar|vecm|arima|garch|sv|lp|gmm|factor) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--model` | — | `String` | `""` | — | Model type (var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `data_validate` (Path to CSV data file)

@@ -17,19 +17,19 @@ Path to panel CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--method` | — | `String` | `twfe` | — | twfe|cs|sa|bjs|dcdh |
+| `--method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--leads` | — | `Int64` | `0` | — | Pre-treatment periods |
 | `--horizon` | — | `Int64` | `5` | — | Post-treatment periods |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
-| `--control-group` | — | `String` | `never_treated` | — | never_treated|not_yet_treated |
-| `--cluster` | — | `String` | `unit` | — | unit|time|twoway |
+| `--control-group` | — | `String` | `never_treated` | — | never_treated\|not_yet_treated |
+| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--n-boot` | — | `Int64` | `200` | — | Bootstrap replications (dcdh only) |
-| `--base-period` | — | `String` | `varying` | — | varying|universal (Callaway-Sant'Anna only) |
+| `--base-period` | — | `String` | `varying` | — | varying\|universal (Callaway-Sant'Anna only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -58,10 +58,10 @@ Path to panel CSV data file
 | `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
-| `--cluster` | — | `String` | `unit` | — | unit|time|twoway |
+| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -92,12 +92,12 @@ Path to panel CSV data file
 | `--ylags` | — | `Int64` | `0` | — | Outcome lags |
 | `--dylags` | — | `Int64` | `0` | — | Differenced outcome lags |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
-| `--cluster` | — | `String` | `unit` | — | unit|time|twoway |
+| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--pmd` | — | `String` | `""` | — | Pre-treatment matching: ccs|ipw|<integer> |
+| `--pmd` | — | `String` | `""` | — | Pre-treatment matching: ccs\|ipw\|<integer> |
 | `--nonabsorbing` | — | `String` | `""` | — | Non-absorbing treatment (integer periods) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -131,7 +131,7 @@ Path to panel CSV data file
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -160,12 +160,12 @@ Path to panel CSV data file
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
 | `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
-| `--cluster` | — | `String` | `unit` | — | unit|time|twoway |
+| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | — | did|event-study |
-| `--did-method` | — | `String` | `twfe` | — | twfe|cs|sa|bjs|dcdh (did method only) |
+| `--method` | — | `String` | `did` | — | did\|event-study |
+| `--did-method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -190,7 +190,7 @@ Path to panel CSV data file
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `test_negweight` (Path to panel CSV data file)
 
@@ -213,12 +213,12 @@ Path to panel CSV data file
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
 | `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
-| `--cluster` | — | `String` | `unit` | — | unit|time|twoway |
+| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | — | did|event-study |
-| `--did-method` | — | `String` | `twfe` | — | twfe|cs|sa|bjs|dcdh (did method only) |
+| `--method` | — | `String` | `did` | — | did\|event-study |
+| `--did-method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `test_pretrend` (Path to panel CSV data file)
 

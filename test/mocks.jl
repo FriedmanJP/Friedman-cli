@@ -6764,9 +6764,53 @@ coef(m::MultinomialLogitModel) = vec(m.beta)
 vcov(m::OrderedLogitModel) = m.vcov_mat
 vcov(m::OrderedProbitModel) = m.vcov_mat
 vcov(m::MultinomialLogitModel) = m.vcov_mat[:, :, 1]
-residuals(m::OrderedLogitModel) = m.y .- m.fitted[:, 1]
-residuals(m::OrderedProbitModel) = m.y .- m.fitted[:, 1]
-residuals(m::MultinomialLogitModel) = m.y .- m.fitted[:, 1]
+# W4/#87 — mirror real MEMs 0.7.2 (MEMs#507). These three used to return
+# `m.y .- m.fitted[:, 1]`, a length-n vector that real MEMs NEVER defined: the exact #84
+# trap, a mock method more permissive than real. Real returns an n x J matrix (one column
+# per category) and takes `kind`; the CLI renders it with _choice_resid_table, so the mock
+# MUST produce the same SHAPE or the renderer is only ever exercised in production.
+# Real MEMs recodes the response to integer category indices 1..J before storing it; the
+# mock keeps whatever the caller passed, and the shared T1/T2 fixture hands these
+# estimators CONTINUOUS columns, so `Int(y[i])` would throw InexactError. Rank the observed
+# values instead — that IS the category index for an ordered response — and clamp to the
+# fitted width so a fixture with more distinct values than columns still renders.
+function _cat_index(y, J::Int)
+    pos = Dict(c => i for (i, c) in enumerate(sort(unique(y))))
+    return [clamp(pos[v], 1, J) for v in y]
+end
+
+function _category_residuals(y, fitted::AbstractMatrix, kind::Symbol)
+    n, J = size(fitted)
+    D = zeros(Float64, n, J)
+    idx = _cat_index(y, J)
+    for i in 1:n
+        D[i, idx[i]] = 1.0
+    end
+    R = D .- fitted
+    kind === :response && return R
+    kind === :pearson && return R ./ sqrt.(max.(fitted .* (1 .- fitted), eps()))
+    kind === :deviance &&
+        return sign.(R) .* sqrt.(max.(-2 .* D .* log.(max.(fitted, eps())), 0.0))
+    throw(ArgumentError("residual kind must be :response, :pearson or :deviance, got :$kind"))
+end
+
+residuals(m::OrderedLogitModel; kind::Symbol=:response) =
+    _category_residuals(m.y, m.fitted, kind)
+residuals(m::OrderedProbitModel; kind::Symbol=:response) =
+    _category_residuals(m.y, m.fitted, kind)
+residuals(m::MultinomialLogitModel; kind::Symbol=:response) =
+    _category_residuals(m.y, m.fitted, kind)
+
+# Length-n score residual — ORDERED MODELS ONLY, matching real. Upstream deliberately
+# defines no generalized_residuals for MultinomialLogitModel (an unordered response has no
+# meaningful length-n scalar residual), so the mock must not define one either.
+_mock_gen_resid(m) = begin
+    n, J = size(m.fitted)
+    idx = _cat_index(m.y, J)
+    [1.0 - m.fitted[i, idx[i]] for i in 1:n]
+end
+generalized_residuals(m::OrderedLogitModel) = _mock_gen_resid(m)
+generalized_residuals(m::OrderedProbitModel) = _mock_gen_resid(m)
 predict(m::OrderedLogitModel) = m.fitted[:, 1]
 predict(m::OrderedProbitModel) = m.fitted[:, 1]
 predict(m::MultinomialLogitModel) = m.fitted[:, 1]
@@ -7660,6 +7704,7 @@ function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
 end
 
 export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
+export generalized_residuals   # MEMs#507: ordered-model score residual (W4/#87)
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
 

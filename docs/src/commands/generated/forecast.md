@@ -23,7 +23,7 @@ Path to CSV data file
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -49,7 +49,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -74,14 +74,14 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `0` | — | AR order |
 | `--q` | — | `Int64` | `0` | — | MA order |
-| `--method` | `-m` | `String` | `css` | `css`, `mle` | css|mle (fractional-integration estimator) |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) |
 | `--confidence` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
 | `--trunc-lag` | — | `Int64` | `200` | — | AR(inf) truncation lag for the fractional filter (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -110,12 +110,12 @@ Path to CSV data file
 | `--max-p` | — | `Int64` | `5` | — | Max AR order for auto selection |
 | `--max-d` | — | `Int64` | `2` | — | Max differencing order for auto selection |
 | `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
-| `--criterion` | — | `String` | `bic` | — | aic|bic |
+| `--criterion` | — | `String` | `bic` | — | aic\|bic |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | `-m` | `String` | `css_mle` | — | ols|css|mle|css_mle |
+| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -140,10 +140,10 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | direct|gibbs |
+| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -172,7 +172,7 @@ Path to CSV data file
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -197,9 +197,9 @@ Path to CSV data file
 | `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
-| `--method` | — | `String` | `twostep` | — | twostep|em |
+| `--method` | — | `String` | `twostep` | — | twostep\|em |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -226,7 +226,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -277,7 +277,7 @@ Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 fo
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--emit-series` | — | Also emit the combined forecast series (index|combined) |
+| `--emit-series` | — | Also emit the combined forecast series (index\|combined) |
 
 **Output tables:** `forecast_combination_weights` (model | weight | mse)
 
@@ -295,7 +295,7 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
-| `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) | ad (absolute) |
+| `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) \| ad (absolute) |
 | `--horizon` | `-h` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -391,7 +391,7 @@ Path to CSV data file
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -423,7 +423,7 @@ Path to CSV data file
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -454,7 +454,7 @@ Path to CSV data file
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -481,7 +481,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -511,7 +511,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
@@ -538,7 +538,7 @@ Path to CSV data file
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -565,7 +565,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -593,7 +593,7 @@ Path to CSV data file
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -619,12 +619,12 @@ Path to CSV data file
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Impulse shock size |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west|white|driscoll_kraay |
-| `--ci-method` | — | `String` | `analytical` | — | analytical|bootstrap|none |
+| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
+| `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap\|none |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--n-boot` | — | `Int64` | `500` | — | Bootstrap replications |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -658,7 +658,7 @@ Path to low-frequency target CSV
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `forecast_midas` (Path to low-frequency target CSV)
@@ -680,9 +680,9 @@ Path to CSV data file
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
 | `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90|0.95|0.99 |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `forecast_setar` (Path to CSV data file)
@@ -702,12 +702,12 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
-| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1|lstr2|estr|auto |
+| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
 | `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90|0.95|0.99 |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `forecast_star` (Path to CSV data file)
@@ -726,10 +726,10 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
-| `--ci-method` | — | `String` | `none` | — | none|bootstrap|parametric |
+| `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -755,7 +755,7 @@ Path to CSV data file
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -780,9 +780,9 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |
-| `--ci-method` | — | `String` | `analytical` | — | analytical|bootstrap |
+| `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -805,14 +805,14 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
-| `--ci-method` | — | `String` | `none` | — | none|bootstrap|parametric |
+| `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
 | `--replications` | — | `Int64` | `500` | — | Bootstrap replications |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 

@@ -143,14 +143,30 @@ For `piv`, also requires `--endog` and `--instruments`.
 `predict ologit`, `predict oprobit`, and `predict mlogit` return one predicted-probability
 column per category (`prob_<category>`), plus an `observation` index.
 
-`residuals ologit`, `residuals oprobit` and `residuals mlogit` exit with
-`model/unsupported` (exit 5): MacroEconometricModels 0.7.0 defines no `residuals` method
-for ordered or multinomial models, and there is no single standard residual definition
-for them. Use `predict` for the per-category probabilities instead.
+`residuals ologit`, `residuals oprobit` and `residuals mlogit` return one residual column
+per category (`resid_<category>`), plus an `observation` index — a `J`-category response
+has `J` residuals per observation, so there is no meaningful single `residual` column.
+`--kind` selects the definition:
 
-This is tracked upstream as
-[MacroEconometricModels.jl#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507);
-the leaves will be enabled once it ships.
+| `--kind` | Meaning |
+|---|---|
+| `response` (default) | `dᵢⱼ − P̂ᵢⱼ`; each row sums to zero |
+| `pearson` | `rᵢⱼ / sqrt(P̂ᵢⱼ(1−P̂ᵢⱼ))` |
+| `deviance` | signed contributions whose sum of squares is `−2·loglik` |
+
+For the **ordered** models only, `--generalized` replaces that matrix with the length-`n`
+generalized (score) residual of Chesher & Irish (1987) — `eᵢ = ∂ℓᵢ/∂(xᵢ'β)`, the quantity
+that makes outer-product-of-gradients LM specification tests work, and the direct analogue
+of the binary models' `yᵢ − p̂ᵢ`. The flag is deliberately **not** offered on `mlogit`:
+an unordered response has no meaningful length-`n` scalar residual, and its per-alternative
+`response` residuals already *are* its generalized residuals. Passing it there is a usage
+error (exit 2).
+
+!!! note "Enabled in CLI v0.9.1"
+    These three leaves previously exited `model/unsupported` (exit 5) because
+    MacroEconometricModels 0.7.0 defined no `residuals` method for ordered or multinomial
+    models. [MEMs#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507)
+    settled both the definition and the return shape in 0.7.2.
 
 ## State space: `predict statespace`, `residuals statespace`
 
