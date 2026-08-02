@@ -63,6 +63,14 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         if with_horizons
             push!(opts, OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"))
         end
+        # W11/#113: only the three estimators that actually take a conditional distribution
+        # upstream get --dist. arch/sv have no `dist` kwarg at all, so declaring it there
+        # would be an option no handler path can honour (the #85 rule).
+        if vol.supports_dist && (verb === :estimate || verb === :forecast)
+            push!(opts, OptionSpec(name="dist", type=String, default="normal",
+                                   choices=["normal", "student", "ged"],
+                                   description="Conditional distribution of the innovations"))
+        end
         append!(opts, out_opts)
         # predict/residuals historically omit p/q/draws from schema (defaults only)
         if verb === :predict || verb === :residuals

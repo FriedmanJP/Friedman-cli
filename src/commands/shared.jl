@@ -320,7 +320,9 @@ const VOL_MODELS = [
     (
         name = "arch",
         order = :q_only,
-        estimate = (y; p=1, q=1, draws=5000) -> estimate_arch(y, q),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_arch(y, q),
+        # W11/#113: estimate_arch takes NO `dist` kwarg upstream — Gaussian QMLE only.
+        supports_dist = false,
         param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]],
         label = (p, q) -> "ARCH($q)",
         post_est = :uc,
@@ -331,7 +333,8 @@ const VOL_MODELS = [
     (
         name = "garch",
         order = :pq,
-        estimate = (y; p=1, q=1, draws=5000) -> estimate_garch(y, p, q),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_garch(y, p, q; dist=dist),
+        supports_dist = true,
         param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]],
         label = (p, q) -> "GARCH($p,$q)",
         post_est = :halflife_uc,
@@ -342,7 +345,8 @@ const VOL_MODELS = [
     (
         name = "egarch",
         order = :pq,
-        estimate = (y; p=1, q=1, draws=5000) -> estimate_egarch(y, p, q),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_egarch(y, p, q; dist=dist),
+        supports_dist = true,
         param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]],
         label = (p, q) -> "EGARCH($p,$q)",
         post_est = :none,
@@ -353,7 +357,8 @@ const VOL_MODELS = [
     (
         name = "gjr_garch",
         order = :pq,
-        estimate = (y; p=1, q=1, draws=5000) -> estimate_gjr_garch(y, p, q),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_gjr_garch(y, p, q; dist=dist),
+        supports_dist = true,
         param_names = (p, q) -> String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]],
         label = (p, q) -> "GJR-GARCH($p,$q)",
         post_est = :halflife,
@@ -364,7 +369,9 @@ const VOL_MODELS = [
     (
         name = "sv",
         order = :sv,
-        estimate = (y; p=1, q=1, draws=5000) -> estimate_sv(y; n_samples=draws),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_sv(y; n_samples=draws),
+        # SV is a stochastic-volatility sampler, not a GARCH likelihood — no `dist`.
+        supports_dist = false,
         param_names = (p, q) -> String["mu", "phi", "sigma_eta"],
         label = (p, q) -> "SV",
         post_est = :none,
@@ -375,12 +382,28 @@ const VOL_MODELS = [
 ]
 
 function _vol_resolve_model(vol, data::String, column::Int; p::Int=1, q::Int=1,
-                             draws::Int=5000, model=nothing)
+                             draws::Int=5000, dist::Symbol=:normal, model=nothing)
     if !isnothing(model)
         return model, "series"
     end
     y, vname = load_univariate_series(data, column)
-    return vol.estimate(y; p=p, q=q, draws=draws), vname
+    return vol.estimate(y; p=p, q=q, draws=draws, dist=dist), vname
+end
+
+"""Validate `--dist` for a volatility leaf (W11/#113).
+
+Only garch/egarch/gjr-garch take a conditional distribution upstream; arch and sv do not,
+and figarch/fiegarch accept the kwarg but reject anything except `:normal`. The option is
+therefore declared ONLY where it can be honoured, and this is the matching runtime guard.
+"""
+function _vol_dist_symbol(vol, dist::String, leaf::String)
+    d = Symbol(dist)
+    d in (:normal, :student, :ged) || throw(CliError("usage/invalid",
+        "$leaf: --dist must be normal, student or ged (got '$dist')"))
+    (d === :normal || vol.supports_dist) || throw(CliError("usage/invalid",
+        "$leaf: $(vol.label(1, 1)) is Gaussian-QMLE only upstream — --dist $dist is not available";
+        hint="a conditional t/GED likelihood is available on garch, egarch and gjr-garch"))
+    return d
 end
 
 function _vol_post_status(model, kind::Symbol)
@@ -396,8 +419,9 @@ end
 
 function _make_estimate_vol(vol)
     return function (; data::String, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
-                      output::String="", format::String="table",
+                      dist::String="normal", output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
+        dsym = _vol_dist_symbol(vol, dist, "estimate $(vol.name)")
         y, vname = load_univariate_series(data, column)
         label = vol.label(p, q)
         if vol.order === :sv
@@ -406,9 +430,26 @@ function _make_estimate_vol(vol)
             _status("Estimating $label: variable=$vname, observations=$(length(y))")
         end
         _status()
-        model = vol.estimate(y; p=p, q=q, draws=draws)
+        model = try
+            vol.estimate(y; p=p, q=q, draws=draws, dist=dsym)
+        catch e
+            throw(_domain_or_data_error(e, "$label estimation"))
+        end
         _maybe_plot(model; plot=plot, plot_save=plot_save)
         _vol_estimate_output(model, vname, vol.param_names(p, q), label; format=format, output=output)
+        # W11/#113: the shape parameter (t degrees of freedom / GED shape) is estimated
+        # JOINTLY but lives in `model.shape`, outside `coef(model)` — so it never reached
+        # the coefficient table. Without this the user selects a fat-tailed likelihood and
+        # cannot see what was actually fitted. Distinct output path so `--output` cannot
+        # drop the coefficients above.
+        if dsym !== :normal
+            sh = hasproperty(model, :shape) ? Float64(model.shape) : NaN
+            output_result(DataFrame(parameter=["shape"], estimate=[round(sh; digits=6)],
+                                    distribution=[String(dsym)]);
+                          format=Symbol(format),
+                          output=_per_var_output_path(output, "shape"),
+                          title="Conditional Distribution ($(dsym === :student ? "Student-t degrees of freedom" : "GED shape"))")
+        end
         _vol_post_status(model, vol.post_est)
         return model
     end
@@ -416,9 +457,12 @@ end
 
 function _make_forecast_vol(vol)
     return function (; data::String="", column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
-                      horizons::Int=12, output::String="", format::String="table",
+                      dist::String="normal", horizons::Int=12,
+                      output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="", model=nothing)
-        m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws, model=model)
+        dsym = _vol_dist_symbol(vol, dist, "forecast $(vol.name)")
+        m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws,
+                                      dist=dsym, model=model)
         label = vol.label(p, q)
         if vol.order === :sv
             _status("Stochastic Volatility Forecast: variable=$vname, horizons=$horizons, draws=$draws")

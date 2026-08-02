@@ -374,10 +374,27 @@ friedman estimate garch data.csv --column=1 --p=1 --q=1
 | `--column` | `-c` | Int | 1 | Column index (1-based) |
 | `--p` | | Int | 1 | GARCH order |
 | `--q` | | Int | 1 | ARCH order |
+| `--dist` | | String | `normal` | Conditional distribution: `normal`, `student`, `ged` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Coefficients (mu, omega, alpha, beta), persistence, half-life, unconditional variance.
+
+### Conditional distributions (`--dist`)
+
+By default the innovations are Gaussian. `--dist student` (Student's *t*) or `--dist ged`
+(generalised error distribution) fits a fat-tailed conditional likelihood instead, estimating
+the shape parameter **jointly** with the volatility parameters.
+
+Because the shape sits outside the coefficient vector, it is reported in its own
+**Conditional Distribution** table — the *t* degrees of freedom, or the GED shape — rather
+than as another coefficient row. Nothing extra is emitted under the Gaussian default.
+
+**`--dist` is only offered where the library supports it: `garch`, `egarch` and `gjr-garch`.**
+It is deliberately absent from `arch`, `sv`, `igarch`, `cgarch` and `aparch`, which take no
+conditional-distribution argument at all, and from `figarch`/`fiegarch`, which accept the
+argument but implement Gaussian QMLE only. Passing `--dist` to any of those is a usage error
+rather than a silently ignored option.
 
 ## estimate egarch
 

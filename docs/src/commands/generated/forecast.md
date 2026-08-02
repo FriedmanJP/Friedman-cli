@@ -225,6 +225,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -480,6 +481,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -564,6 +566,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |

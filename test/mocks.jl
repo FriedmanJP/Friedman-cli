@@ -1311,10 +1311,20 @@ function forecast(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}, h::Int; conf_l
 end
 
 # Volatility model functions
+# W11/#113: garch/egarch/gjr-garch take a conditional distribution upstream; arch does NOT
+# (no `dist` kwarg at all), so it deliberately keeps the 3-positional signature here — a mock
+# that accepted `dist` on arch would hide a guaranteed real MethodError. The guard mirrors
+# upstream `_vol_dist_check` so the exit class matches.
+_mock_dist_check(dist::Symbol) = dist in (:normal, :student, :ged) || throw(ArgumentError(
+    "dist must be :normal, :student, or :ged; got :$dist"))
+
 estimate_arch(y, q) = ARCHModel(ones(q+2) * 0.1)
-estimate_garch(y, p, q) = GARCHModel(ones(p+q+2) * 0.1)
-estimate_egarch(y, p, q) = EGARCHModel(ones(2*q+p+2) * 0.1)
-estimate_gjr_garch(y, p, q) = GJRGARCHModel(ones(2*q+p+2) * 0.1)
+estimate_garch(y, p, q; dist::Symbol=:normal) =
+    (_mock_dist_check(dist); GARCHModel(ones(p+q+2) * 0.1))
+estimate_egarch(y, p, q; dist::Symbol=:normal) =
+    (_mock_dist_check(dist); EGARCHModel(ones(2*q+p+2) * 0.1))
+estimate_gjr_garch(y, p, q; dist::Symbol=:normal) =
+    (_mock_dist_check(dist); GJRGARCHModel(ones(2*q+p+2) * 0.1))
 estimate_sv(y; n_samples=5000) = SVModel(ones(3) * 0.1)
 coef(m::ARCHModel) = [m.mu, m.omega, m.alpha...]
 coef(m::GARCHModel) = [m.mu, m.omega, m.alpha..., m.beta...]

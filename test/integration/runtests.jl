@@ -2469,6 +2469,45 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    # W11/#113 — conditional distribution of the innovations.
+    @testset "GARCH --dist normal|student|ged (W11/#113)" begin
+        csv = dgp_garch(; T=500, seed=1113)
+        _tab(doc, cols...) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                all(c -> c in table_cols(v), cols) && return v
+            end
+            nothing
+        end
+        # The three estimators that take `dist` upstream.
+        for leaf in ("garch", "egarch", "gjr-garch")
+            base = run_json(["estimate", leaf, csv, "--p", "1", "--q", "1"])
+            assert_envelope_ok(base; label="estimate $leaf normal")
+            for d in ("student", "ged")
+                r = run_json(["estimate", leaf, csv, "--p", "1", "--q", "1", "--dist", d])
+                assert_envelope_ok(r; label="estimate $leaf $d")
+                # the shape parameter is estimated JOINTLY but lives OUTSIDE coef(model),
+                # so it needs its own table — assert it is actually surfaced
+                sh = _tab(r.doc, "parameter", "estimate", "distribution")
+                @test sh !== nothing
+                if sh !== nothing
+                    @test String(collect(first(table_rows(sh)))[col_index(sh, "distribution")]) == d
+                    @test isfinite(Float64(collect(first(table_rows(sh)))[col_index(sh, "estimate")]))
+                end
+            end
+            # ...and the Gaussian default must NOT emit that table
+            @test _tab(base.doc, "parameter", "estimate", "distribution") === nothing
+        end
+        @test run_json(["forecast", "garch", csv, "--dist", "student", "--horizons", "5"]).code == 0
+
+        # arch and sv have NO `dist` kwarg upstream, so the option must not exist on them
+        # (unknown option, exit 2) rather than be accepted and ignored.
+        @test run_json(["estimate", "arch", csv, "--q", "1", "--dist", "student"]).code == 2
+        @test run_json(["estimate", "sv", csv, "--dist", "student"]).code == 2
+        @test run_json(["estimate", "garch", csv, "--dist", "bogus"]).code == 2
+        rm(csv; force=true)
+    end
+
     @testset "estimate GARCH variants on real MEMs 0.7.0 (C064a)" begin
         # hand-built coef table (parameter|estimate) + diagnostics (metric|value)
         _coef_of(doc) = begin
