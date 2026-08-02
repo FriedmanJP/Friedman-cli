@@ -363,6 +363,54 @@ function forecast_specs()::Vector{CommandSpec}
             category="forecast",
             handler=wrap_legacy(_forecast_star),
         ),
+        # W3/#101: Markov-switching forecasts, un-gated by MEMs#510. The two dispatches are
+        # mutually exclusive upstream and each throws on the other's model type:
+        # `forecast(m, h)` requires :ms_ar, `forecast(m, X_new)` requires :regression with an
+        # h x k matrix of FUTURE regressors — hence `--x-future` on `forecast ms` only.
+        # NO `--plot`/`--plot-save` on either: MEMs 0.7.2 ships no `plot_result(::MSForecast)`
+        # recipe (verified on the tag, same gap as ThresholdForecast/STARForecast), so
+        # advertising them would drive `_maybe_plot` into an uncaught MethodError → exit 1.
+        CommandSpec(
+            path=["forecast", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (≥ 1)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:forecast_ms_ar, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_ms_ar),
+        ),
+        CommandSpec(
+            path=["forecast", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (intercept-only models; else use --x-future)"),
+                OptionSpec(name="x-future", type=String, default="", description="CSV of future regressors: h rows x k columns (required unless intercept-only)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:forecast_ms, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_ms),
+        ),
         CommandSpec(
             path=["forecast", "static"],
             summary="Path to CSV data file",

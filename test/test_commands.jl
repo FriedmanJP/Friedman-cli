@@ -4439,8 +4439,8 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
-        @test length(node.subcmds) == 26
+        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 28
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -5000,7 +5000,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 26  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67)
+        @test length(node.subcmds) == 28  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101)
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -5314,8 +5314,8 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 34
+        # 23 primary + 1 alias = 24 keys (C044; +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 36
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -6086,11 +6086,17 @@ end
         for cmd in ["setar", "star", "ms-ar", "ms"]
             @test haskey(node.subcmds, cmd)
         end
-        # ...but NOT predict — none of them defines predict/fitted, and an MS fit has no
-        # single fitted series without regime weighting. Advertising it would be a leaf that
-        # MethodErrors on every invocation (#85).
+        # W3/#101: MEMs#510 added predict/forecast for MSRegModel ONLY, so ms|ms-ar gained
+        # both verbs while SETAR/STAR still have neither upstream. Advertising a leaf whose
+        # upstream method does not exist is the #85 failure mode, so this split is asserted
+        # in both directions rather than assumed.
         pnode = register_predict_commands!()
-        for cmd in ["setar", "star", "ms-ar", "ms"]
+        fnode = register_forecast_commands!()
+        for cmd in ["ms-ar", "ms"]
+            @test haskey(pnode.subcmds, cmd)
+            @test haskey(fnode.subcmds, cmd)
+        end
+        for cmd in ["setar", "star"]
             @test !haskey(pnode.subcmds, cmd)
         end
     end

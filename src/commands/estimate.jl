@@ -5662,7 +5662,7 @@ function _ms_refit(data::String, dep::String, k_regimes::Int, sv::Bool,
     max_iter >= 1 || throw(CliError("usage/invalid",
         "residuals ms: --max-iter must be ≥ 1 (got $max_iter)"))
     tol > 0 || throw(CliError("usage/invalid", "residuals ms: --tol must be > 0 (got $tol)"))
-    y, X, xcols, _ = _ms_load_data(data, dep)
+    y, X, xcols, intercept_only = _ms_load_data(data, dep)
     model = try
         X === nothing ?
             estimate_ms(y; k_regimes=k_regimes, switching_variance=sv, max_iter=max_iter, tol=tol) :
@@ -5671,15 +5671,173 @@ function _ms_refit(data::String, dep::String, k_regimes::Int, sv::Bool,
     catch e
         throw(_nonlinear_error(e, "MS regression"))
     end
-    return model
+    # `intercept_only` is returned alongside the model because it CANNOT be recovered from
+    # the fit: a one-regressor design also has size(coefs, 1) == 1, so keying off the
+    # coefficient count would silently treat "one real regressor" as "intercept only" and
+    # let `forecast ms` invent a column of ones instead of demanding future values.
+    return model, intercept_only
 end
 
 function _residuals_ms(; data::String="", dep::String="", k_regimes::Int=2,
         no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
         output::String="", format::String="table", model=nothing)
     m = model === nothing ?
-        _ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol) : model
+        first(_ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)) : model
     vname = model === nothing ? String(m.yname) : "model"
     _status("MS regression [$k_regimes regimes] residuals: obs=$(length(m.residuals))"); _status()
     return _nonlinear_resid_output(residuals(m), "MS Regression", vname, format, output)
+end
+
+# ── W3/#101: MS predict + forecast (un-gated by MEMs#510) ────────────────────
+#
+# `predict(m; probs=:smoothed|:filtered)` returns the regime-weighted fitted mean.
+# Upstream warns that `y - predict(m; probs=:filtered)` is NOT `residuals(m)`: the
+# published residuals are smoothed-weighted, and the filtered mean uses strictly less
+# information. The two verbs are therefore genuinely different outputs, not aliases.
+
+"""Shared renderer for `predict ms|ms-ar` — regime-weighted fitted values."""
+function _ms_predict_output(m, probs::String, label::String, vname::String,
+                            format::String, output::String)
+    fitted = try
+        predict(m; probs=Symbol(probs))
+    catch e
+        throw(_nonlinear_error(e, "$label predict"))
+    end
+    df = DataFrame(t=1:length(fitted), fitted=round.(Float64.(fitted); digits=6))
+    return output_result(df; format=Symbol(format), output=output,
+                         title="$label Fitted Values ($probs) for $vname")
+end
+
+"""Shared renderer for `forecast ms|ms-ar`.
+
+Emits the tidy forecast path plus the `h x K` predicted regime probabilities. The second
+table MUST take a distinct `_per_var_output_path`, or `--output <file>` silently drops the
+first one. NO `_maybe_plot`: MEMs 0.7.2 ships no `plot_result(::MSForecast)` recipe — the
+same gap that keeps the flags off `forecast setar|star` — so the leaves declare no plot flags.
+"""
+function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
+                             ci_level::Float64, format::String, output::String)
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
+    K = size(fc.regime_prob, 2)
+    rp = DataFrame(horizon=1:size(fc.regime_prob, 1))
+    for k in 1:K
+        rp[!, "regime$k"] = round.(Float64.(fc.regime_prob[:, k]); digits=6)
+    end
+    return output_result(rp; format=Symbol(format),
+                         output=_per_var_output_path(output, "regime-probabilities"),
+                         title="$label Predicted Regime Probabilities")
+end
+
+function _predict_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
+        switching_variance::Bool=false, max_iter::Int=1000, probs::String="smoothed",
+        output::String="", format::String="table", model=nothing)
+    m, vname = model === nothing ?
+        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+    _status("MS-AR($p) [$k_regimes regimes] fitted ($probs): variable=$vname"); _status()
+    return _ms_predict_output(m, probs, "MS-AR($p)", vname, format, output)
+end
+
+function _predict_ms(; data::String="", dep::String="", k_regimes::Int=2,
+        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        probs::String="smoothed", output::String="", format::String="table", model=nothing)
+    m = model === nothing ?
+        first(_ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)) : model
+    vname = model === nothing ? String(m.yname) : "model"
+    _status("MS regression [$k_regimes regimes] fitted ($probs)"); _status()
+    return _ms_predict_output(m, probs, "MS Regression", vname, format, output)
+end
+
+function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
+        switching_variance::Bool=false, max_iter::Int=1000, horizons::Int=12,
+        reps::Int=1000, ci_level::Float64=0.90,
+        output::String="", format::String="table", model=nothing)
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "forecast ms-ar: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast ms-ar: --reps must be ≥ 1 (got $reps)"))
+    (0 < ci_level < 1) || throw(CliError("usage/invalid",
+        "forecast ms-ar: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    m, vname = model === nothing ?
+        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+    _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
+    fc = try
+        forecast(m, horizons; reps=reps, level=ci_level)
+    catch e
+        throw(_nonlinear_error(e, "MS-AR forecast"))
+    end
+    return _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, ci_level, format, output)
+end
+
+function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
+        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        horizons::Int=12, x_future::String="", reps::Int=1000, ci_level::Float64=0.90,
+        output::String="", format::String="table", model=nothing)
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "forecast ms: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast ms: --reps must be ≥ 1 (got $reps)"))
+    (0 < ci_level < 1) || throw(CliError("usage/invalid",
+        "forecast ms: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    m, intercept_only = if model === nothing
+        _ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)
+    else
+        # From a saved handle there is no CSV to re-inspect. `_ms_load_data` labels the
+        # intercept-only design "const" while the regressor path passes the real column
+        # names through, so that label is the only signal left.
+        (model, model.xnames == String["const"])
+    end
+    vname = model === nothing ? String(m.yname) : "model"
+
+    # A switching REGRESSION cannot project itself: upstream requires an h x k matrix of
+    # FUTURE regressors. The one case that needs no input is the intercept-only fit —
+    # `estimate_ms(y)` delegates to `estimate_ms(y, ones(n,1))` — where the future design
+    # is just a column of ones, so `--horizons` alone is enough there. NOTE this keys off
+    # `intercept_only`, NOT `size(coefs,1) == 1`: a single real regressor also has k == 1,
+    # and treating that as intercept-only would forecast against a fabricated ones-column.
+    k = size(m.coefs, 1)
+    X_new = if !isempty(x_future)
+        Xf, _ = _load_ms_future_x(x_future, k)
+        Xf
+    elseif intercept_only
+        ones(Float64, horizons, 1)
+    else
+        throw(CliError("usage/missing",
+            "forecast ms: this model has $k regressor$(k == 1 ? "" : "s"), so future values are required";
+            hint="pass --x-future <csv> with $horizons row$(horizons == 1 ? "" : "s") and " *
+                 "$k column$(k == 1 ? "" : "s") " *
+                 "(only an intercept-only model can be projected from --horizons alone)"))
+    end
+
+    _status("MS regression forecast (h=$(size(X_new,1))): ci=$ci_level"); _status()
+    fc = try
+        forecast(m, X_new; reps=reps, level=ci_level)
+    catch e
+        throw(_nonlinear_error(e, "MS regression forecast"))
+    end
+    return _ms_forecast_output(fc, "MS Regression", vname, size(X_new, 1), ci_level,
+                               format, output)
+end
+
+"""Load the future-regressor matrix for `forecast ms`.
+
+Every raw conversion is guarded BEFORE `Matrix{Float64}`: a shared loader that hands a
+missing cell straight to the converter is the recurring untyped-exit-1 site in this repo.
+"""
+function _load_ms_future_x(path::String, k::Int)
+    df = load_data(path)
+    ncol(df) == 0 && throw(CliError("data/empty", "forecast ms: --x-future has no columns: $path"))
+    nrow(df) == 0 && throw(CliError("data/empty", "forecast ms: --x-future has no rows: $path"))
+    for c in names(df), v in df[!, c]
+        (v === missing || (v isa Real && !isfinite(v))) && throw(CliError("data/missing-value",
+            "forecast ms: --x-future contains a missing or non-finite value in column '$c'"))
+    end
+    X = try
+        Matrix{Float64}(df)
+    catch e
+        throw(CliError("data/invalid",
+            "forecast ms: --x-future must be all-numeric"; hint=sprint(showerror, e)))
+    end
+    size(X, 2) == k || throw(CliError("data/shape",
+        "forecast ms: --x-future must have $k column$(k == 1 ? "" : "s") to match the fitted model, got $(size(X,2))";
+        hint=k == 1 ? "an intercept-only model expects a single column of ones" : ""))
+    return X, names(df)
 end

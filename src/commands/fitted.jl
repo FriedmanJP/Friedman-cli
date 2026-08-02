@@ -1326,6 +1326,47 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # W3/#101: MS fitted values, un-gated by MEMs#510. `--probs` picks the regime
+        # weighting; upstream warns `y - predict(m; probs=:filtered)` is NOT residuals(m)
+        # (those are smoothed-weighted and use strictly more information), so these leaves
+        # are not a restatement of `residuals ms|ms-ar`. Same OPPOSITE switching-variance
+        # defaults as the residuals leaves — ms-ar FALSE, ms TRUE. Do not unify them.
+        CommandSpec(
+            path=["predict", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="probs", type=String, default="smoothed", description="Regime weighting: smoothed or filtered", choices=["smoothed","filtered"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:predict_ms_ar, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_ms_ar),
+        ),
+        CommandSpec(
+            path=["predict", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="probs", type=String, default="smoothed", description="Regime weighting: smoothed or filtered", choices=["smoothed","filtered"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:predict_ms, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_ms),
+        ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
             path=["predict", "statespace"],

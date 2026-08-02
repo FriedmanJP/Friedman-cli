@@ -4245,6 +4245,28 @@ struct MSRegModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
     iterations::Int
     xnames::Vector{String}
     yname::String
+    # W3/#101 (MEMs#510): regime-probability-weighted conditional means. `fitted` uses the
+    # SMOOTHED probabilities so `y - fitted == residuals` holds exactly; `fitted_filtered`
+    # is the real-time analogue and does NOT satisfy that identity. Both are trailing
+    # KEYWORDS upstream so the 29-positional contract is unchanged — mirrored exactly here
+    # so the mock's existing construction sites keep compiling.
+    fitted::Vector{T}
+    fitted_filtered::Vector{T}
+
+    function MSRegModel{T}(model_type, y, X, k_regimes, p, mu, coefs, se_coefs, ar, se_ar,
+                           sigma2, se_sigma2, P, ergodic, expected_durations,
+                           filtered_prob, smoothed_prob, residuals, loglik, aic, bic,
+                           n, n_params, switching_var, switching_ar, converged,
+                           iterations, xnames, yname;
+                           fitted::Vector{T}=T[],
+                           fitted_filtered::Vector{T}=T[]) where {T<:AbstractFloat}
+        fit = isempty(fitted) ? Vector{T}(y) .- Vector{T}(residuals) : fitted
+        new{T}(model_type, y, X, k_regimes, p, mu, coefs, se_coefs, ar, se_ar,
+               sigma2, se_sigma2, P, ergodic, expected_durations,
+               filtered_prob, smoothed_prob, residuals, loglik, aic, bic,
+               n, n_params, switching_var, switching_ar, converged,
+               iterations, xnames, yname, fit, fitted_filtered)
+    end
 end
 
 # Ergodic (stationary) distribution of a row-stochastic P via power iteration (guarded, no inv).
@@ -4343,7 +4365,15 @@ function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
     MSRegModel{Float64}(:regression, yv, Xm, K, 0, means, B, seB, Float64[], Float64[],
         sig2, se_sig2, P, _mock_ms_ergodic(P),
         Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
-        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y")
+        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y";
+        # W3/#101: real estimate_ms populates BOTH means, so the mock must too — otherwise
+        # `--probs filtered` would throw here while working in production, and the T1/T2
+        # tier would never exercise the branch.
+        fitted=Vector{Float64}(yv) .- Vector{Float64}(resid),
+        # Deliberately NOT equal to `fitted`: upstream's filtered mean uses strictly less
+        # information, and `y - fitted_filtered != residuals`. Keeping them distinct is what
+        # lets a test tell the two --probs branches apart.
+        fitted_filtered=(Vector{Float64}(yv) .- Vector{Float64}(resid)) .* 0.99)
 end
 
 # Single-arg intercept-only dispatch (X = ones(n,1)); kwargs enumerated explicitly (NOT a
@@ -4410,22 +4440,94 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
     MSRegModel{Float64}(:ms_ar, ylin, Xlin, K, p, mu, coefs, se_coefs, phi, se_phi,
         sig2, se_sig2, P, _mock_ms_ergodic(P),
         Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
-        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname)
+        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname;
+        fitted=Vector{Float64}(ylin) .- Vector{Float64}(resid),
+        fitted_filtered=(Vector{Float64}(ylin) .- Vector{Float64}(resid)) .* 0.99)
 end
 
 # Real MEMs defines StatsAPI.residuals for all three nonlinear types (nonlinear/types.jl:256,
 # :450, :618) — these mirror it so `residuals setar|star|ms-ar|ms` are exercised at T1/T2.
 # Defined HERE, after all three structs: the mock is one flat module included top-to-bottom and
 # a method signature resolves its types immediately, so a forward reference is an include-time
-# UndefVarError. Deliberately NO `predict`/`fitted` for any of them — real has none either, and
+# UndefVarError. Still NO `predict` for ThresholdModel/STARModel — real has none for those, and
 # teaching the mock a method real lacks is the #84 defect class that shipped 19 broken commands.
-# (MS fitted values ARE well defined and already computed upstream — see MEMs#510 — but until
-# real exposes them the mock must not either, or the CLI would be written against a phantom.)
 residuals(m::ThresholdModel) = m.residuals
 residuals(m::STARModel) = m.residuals
 residuals(m::MSRegModel) = m.residuals
 
-export MSRegModel, estimate_ms, estimate_ms_ar
+# W3/#101: MEMs#510 shipped, so MSRegModel — and ONLY MSRegModel — now has predict/forecast.
+# Guards mirror real exactly, because their exit class is what the CLI is tested against.
+function predict(m::MSRegModel; probs::Symbol=:smoothed)
+    probs in (:smoothed, :filtered) ||
+        throw(ArgumentError("probs must be :smoothed or :filtered; got :$probs"))
+    probs === :smoothed && return m.fitted
+    isempty(m.fitted_filtered) && throw(ArgumentError(
+        "this MSRegModel carries no filtered fitted values (it was built without them)"))
+    return m.fitted_filtered
+end
+
+# Plain struct, matching the mock's ThresholdForecast/STARForecast: this mock module defines
+# no AbstractForecastResult hierarchy, and the CLI reaches MSForecast only through the
+# explicit `long_table(::MSForecast)` below, never through an abstract dispatch.
+struct MSForecast{T<:AbstractFloat}
+    forecast::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    se::Vector{T}
+    regime_prob::Matrix{T}
+    horizon::Int
+    conf_level::T
+    reps::Int
+end
+
+_mock_ms_regime_prob(m, h::Int) = begin
+    xi = copy(m.smoothed_prob[end, :])
+    out = zeros(Float64, h, m.k_regimes)
+    for i in 1:h
+        xi = vec(xi' * m.P)
+        out[i, :] = xi
+    end
+    out
+end
+
+# `forecast(m, h)` is :ms_ar-ONLY and `forecast(m, X_new)` is :regression-ONLY upstream —
+# each throws on the other's model type. The mock must reproduce that split or the CLI's
+# dispatch guard is never exercised until production.
+function forecast(m::MSRegModel, h::Int; reps::Int=1000, level::Real=0.90, kwargs...)
+    m.model_type === :ms_ar || throw(ArgumentError(
+        "forecast(m, h) is defined for :ms_ar models. A switching REGRESSION needs future " *
+        "regressors — call forecast(m, X_new) with an h x k matrix instead."))
+    h >= 1 || throw(ArgumentError("horizon h must be >= 1."))
+    (0 < level < 1) || throw(ArgumentError("level must satisfy 0 < level < 1."))
+    xi = _mock_ms_regime_prob(m, h)
+    fmean = [dot(view(xi, i, :), m.mu) for i in 1:h]
+    se = fill(sqrt(sum(m.sigma2) / m.k_regimes), h)
+    MSForecast{Float64}(fmean, fmean .- 1.96 .* se, fmean .+ 1.96 .* se, se, xi,
+                        h, Float64(level), reps)
+end
+
+function forecast(m::MSRegModel, X_new::AbstractMatrix; reps::Int=1000, level::Real=0.90,
+                  kwargs...)
+    m.model_type === :regression || throw(ArgumentError(
+        "forecast(m, X_new) is defined for switching REGRESSIONS. An :ms_ar model " *
+        "projects itself — call forecast(m, h)."))
+    size(X_new, 2) == size(m.coefs, 1) || throw(ArgumentError(
+        "X_new must have $(size(m.coefs, 1)) columns (got $(size(X_new, 2)))."))
+    h = size(X_new, 1)
+    h >= 1 || throw(ArgumentError("X_new must have at least one row."))
+    (0 < level < 1) || throw(ArgumentError("level must satisfy 0 < level < 1."))
+    xi = _mock_ms_regime_prob(m, h)
+    Xf = Matrix{Float64}(X_new)
+    fmean = [dot(view(xi, i, :), [dot(view(Xf, i, :), view(m.coefs, :, k))
+                                 for k in 1:m.k_regimes]) for i in 1:h]
+    se = fill(sqrt(sum(m.sigma2) / m.k_regimes), h)
+    MSForecast{Float64}(fmean, fmean .- 1.96 .* se, fmean .+ 1.96 .* se, se, xi,
+                        h, Float64(level), reps)
+end
+
+long_table(f::MSForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+
+export MSRegModel, estimate_ms, estimate_ms_ar, MSForecast
 
 # BVAR forecast dispatch — returns BVARForecast
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)

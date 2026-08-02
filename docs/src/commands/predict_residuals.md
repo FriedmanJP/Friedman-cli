@@ -201,23 +201,53 @@ friedman predict statespace y.csv --state smoothed
 friedman residuals statespace y.csv --standardized
 ```
 
-## Nonlinear time series: `residuals setar | star | ms-ar | ms`
+## Nonlinear time series: `residuals setar | star | ms-ar | ms`, `predict`/`forecast ms | ms-ar`
 
-These four have a `residuals` leaf but **no `predict` counterpart**, and that asymmetry is
-upstream, not a design choice here. MacroEconometricModels defines `residuals` for
-`ThresholdModel`, `STARModel` and `MSRegModel`, but exposes no `predict`/`fitted` for any of
-them.
+All four have a `residuals` leaf. **`predict` and `forecast` exist for the Markov-switching
+models only** (`ms`, `ms-ar`) — SETAR and STAR still have neither, and that asymmetry is
+upstream, not a design choice here: MacroEconometricModels defines `predict`/`forecast` for
+`MSRegModel` but not for `ThresholdModel` or `STARModel`.
 
-For the Markov-switching models the fitted series is perfectly well defined — it is the
-regime-probability-weighted conditional mean `ŷₜ = Σₖ Pr(sₜ=k) · E[yₜ | sₜ=k]` — and the library
-already computes it internally to form the residuals it returns; it simply does not store it.
-Adding a `predict` leaf here would mean recomputing a quantity upstream already has, and risking
-divergence from whatever definition it eventually publishes (smoothed- vs filtered-weighted).
-Tracked as
-[MacroEconometricModels.jl#510](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/510),
-which also covers the absence of a `forecast` method for Markov-switching models — the only
-nonlinear time-series family in the package that cannot forecast. The leaves will be added once
-it ships.
+!!! note "Added in CLI v0.9.1"
+    `predict ms|ms-ar` and `forecast ms|ms-ar` were previously absent because upstream stored
+    no fitted values and offered no Markov-switching forecast.
+    [MEMs#510](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/510) shipped both
+    in 0.7.2.
+
+### `predict ms | ms-ar`
+
+Emits the regime-probability-weighted conditional mean `ŷₜ = Σₖ Pr(sₜ=k) · E[yₜ | sₜ=k]` as a
+tidy `t | fitted` table. `--probs` chooses the weighting:
+
+| `--probs` | Meaning |
+|---|---|
+| `smoothed` (default) | uses the full sample; `y − fitted` reproduces `residuals` exactly |
+| `filtered` | the real-time analogue, using information up to `t` only |
+
+The two are genuinely different series, so `predict --probs filtered` is **not** a restatement
+of `residuals`: only the smoothed weighting satisfies the residual identity.
+
+### `forecast ms | ms-ar`
+
+`forecast ms-ar` projects the model itself over `--horizons`. The path is the exact analytic
+conditional mean; because the predictive density is a Gaussian *mixture* over regime paths, the
+bands come from simulating `--reps` regime paths at `--ci-level`. Two tables are emitted: the
+tidy forecast path, and the `h × K` **predicted regime probabilities** `ξ_{t+h|t} = (P')ʰ ξ_{t|t}`.
+
+`forecast ms` is a switching **regression**, which cannot project itself — it needs future
+regressors. Pass them with `--x-future <csv>` (`h` rows × `k` columns, matching the fitted
+design). The one exception is an intercept-only fit, where the future design is just a column of
+ones and `--horizons` alone is enough. A model with regressors and no `--x-future` is a usage
+error rather than a guess.
+
+Neither forecast leaf offers `--plot`/`--plot-save`: MacroEconometricModels 0.7.2 ships no
+`plot_result` recipe for `MSForecast` (the same gap as `ThresholdForecast`/`STARForecast`).
+
+```bash
+friedman predict  ms-ar y.csv --p 1 --probs filtered
+friedman forecast ms-ar y.csv --p 1 --horizons 8 --ci-level 0.90
+friedman forecast ms    data.csv --dep y --x-future future_x.csv
+```
 
 Each leaf mirrors its `estimate` sibling's options so any fit that changes the residuals can be
 reproduced. Options that affect **only** the attached inference are omitted: `estimate setar`'s

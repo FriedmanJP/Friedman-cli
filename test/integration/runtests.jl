@@ -1255,9 +1255,75 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["residuals", "ms", csv, "--tol", "0"]).code == 2
             # inference-only SETAR options are NOT advertised on the residuals leaf
             @test run_json(["residuals", "setar", scsv, "--reps", "99"]).code == 2
-            # ...and there is no `predict` for these models upstream
-            @test run_json(["predict", "ms-ar", csv, "--p", "1"]).code == 2
+            # SETAR/STAR still have NO `predict` upstream — only MSRegModel gained one
+            # (MEMs#510), so these two must stay usage errors.
+            @test run_json(["predict", "setar", scsv, "--p", "1"]).code == 2
+            @test run_json(["predict", "star", scsv, "--p", "1"]).code == 2
             rm(csv; force=true); rm(scsv; force=true)
+        end
+
+        # W3/#101 — un-gated by MEMs#510.
+        @testset "predict|forecast ms|ms-ar (W3/#101)" begin
+            csv = dgp_msar(; n=300, seed=676)
+
+            # predict: regime-weighted fitted values. `y - predict(:smoothed) == residuals`
+            # holds exactly upstream; the FILTERED mean uses less information and must
+            # therefore differ — that identity is the teeth distinguishing the two branches.
+            rp = run_json(["predict", "ms-ar", csv, "--p", "1"])
+            assert_envelope_ok(rp; label="predict ms-ar")
+            tp = _find(rp.doc, "t", "fitted")
+            @test tp !== nothing
+            sm = [Float64(collect(row)[col_index(tp, "fitted")]) for row in table_rows(tp)]
+            @test !isempty(sm) && all(isfinite, sm)
+
+            rf = run_json(["predict", "ms-ar", csv, "--p", "1", "--probs", "filtered"])
+            assert_envelope_ok(rf; label="predict ms-ar filtered")
+            tf = _find(rf.doc, "t", "fitted")
+            fl = [Float64(collect(row)[col_index(tf, "fitted")]) for row in table_rows(tf)]
+            @test length(fl) == length(sm)
+            @test fl != sm
+
+            rr = run_json(["residuals", "ms-ar", csv, "--p", "1"])
+            tr = _find(rr.doc, "period", "residual")
+            res = [Float64(collect(row)[col_index(tr, "residual")]) for row in table_rows(tr)]
+            @test length(res) == length(sm)
+
+            @test run_json(["predict", "ms", csv]).code == 0
+            @test run_json(["predict", "ms-ar", csv, "--probs", "bogus"]).code == 2
+
+            # forecast ms-ar: h rows, finite bands that bracket the path, and regime
+            # probabilities that are a proper distribution at every horizon.
+            rfc = run_json(["forecast", "ms-ar", csv, "--p", "1", "--horizons", "6"])
+            assert_envelope_ok(rfc; label="forecast ms-ar")
+            ft = _find(rfc.doc, "horizon", "value")
+            @test ft !== nothing && length(table_rows(ft)) == 6
+            lo = col_index(ft, "lower"); hi = col_index(ft, "upper"); vi = col_index(ft, "value")
+            for row in table_rows(ft)
+                v = collect(row)
+                @test Float64(v[lo]) <= Float64(v[vi]) <= Float64(v[hi])
+            end
+            rpt = _find(rfc.doc, "horizon", "regime1")
+            @test rpt !== nothing && length(table_rows(rpt)) == 6
+            ridx = findall(c -> startswith(c, "regime"), table_cols(rpt))
+            for row in table_rows(rpt)
+                @test isapprox(sum(Float64.(collect(row)[ridx])), 1.0; atol=1e-6)
+            end
+
+            # forecast ms: a switching REGRESSION cannot project itself. The intercept-only
+            # fit is the one case that needs no future design, so --horizons suffices.
+            @test run_json(["forecast", "ms", csv, "--horizons", "5"]).code == 0
+            # ...but a fit WITH regressors must demand them rather than guess.
+            xcsv = write_csv(DataFrame(y=randn(200), x1=randn(200)); prefix="ms_reg")
+            rneed = run_json(["forecast", "ms", xcsv, "--dep", "y", "--horizons", "4"])
+            @test rneed.code == 2
+            @test occursin("x-future", String(rneed.doc["error"]["hint"]))
+            # a mis-shaped future design is typed data/shape (3), never an exit-1 crash
+            badx = write_csv(DataFrame(a=randn(4), b=randn(4)); prefix="ms_badx")
+            @test run_json(["forecast", "ms", xcsv, "--dep", "y", "--x-future", badx]).code == 3
+
+            @test run_json(["forecast", "ms-ar", csv, "--horizons", "0"]).code == 2
+            @test run_json(["forecast", "ms-ar", csv, "--ci-level", "1.5"]).code == 2
+            rm(csv; force=true); rm(xcsv; force=true); rm(badx; force=true)
         end
     end
 
