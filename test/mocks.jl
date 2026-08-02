@@ -440,6 +440,37 @@ struct ARIMAForecast{T}
     forecast::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}; se::Vector{T}
     horizon::Int; conf_level::T
 end
+
+# W6/#108 — multiplicative seasonal ARIMA. Field names/order mirror real
+# `SARIMAModel <: AbstractARIMAModel` (mock ⊆ real). `phi_expanded`/`theta_expanded` are the
+# multiplied-out polynomials real carries; kept so the subset check stays honest.
+struct SARIMAModel{T}
+    y::Vector{T}
+    y_diff::Vector{T}
+    p::Int
+    d::Int
+    q::Int
+    P::Int
+    D::Int
+    Q::Int
+    s::Int
+    c::T
+    phi::Vector{T}
+    theta::Vector{T}
+    Phi::Vector{T}
+    Theta::Vector{T}
+    phi_expanded::Vector{T}
+    theta_expanded::Vector{T}
+    sigma2::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
+end
 # Convenience 5-arg constructor for backward compat
 ARIMAForecast(f::Vector{T}, cl, cu, se, h::Int) where T =
     ARIMAForecast(f, cl, cu, se, h, T(0.95))
@@ -1174,6 +1205,57 @@ end
 function auto_arima(y; max_p=5, max_q=5, max_d=2, criterion=:bic, method=:mle)
     estimate_arima(y, 1, 1, 1; method=method)
 end
+
+# W6/#108 — guards mirror real estimate_sarima/auto_sarima so the CLI's exit classes are
+# exercised at T1/T2 with the same classes real produces.
+function estimate_sarima(y, p::Int, d::Int, q::Int, P::Int, D::Int, Q::Int, s::Int;
+                         method::Symbol=:css_mle, include_intercept::Bool=true,
+                         max_iter::Int=500)
+    all(>=(0), (p, d, q, P, D, Q)) ||
+        throw(ArgumentError("orders p,d,q,P,D,Q must be non-negative"))
+    if P > 0 || D > 0 || Q > 0
+        s >= 2 || throw(ArgumentError(
+            "seasonal period s must be ≥ 2 when any seasonal order is positive, got $s"))
+    end
+    s >= 0 || throw(ArgumentError("seasonal period s must be non-negative, got $s"))
+    v, res, fit = _ar_like_y(y)
+    phi = p > 0 ? fill(0.3, p) : Float64[]
+    theta = q > 0 ? fill(0.2, q) : Float64[]
+    Phi = P > 0 ? fill(0.4, P) : Float64[]
+    Theta = Q > 0 ? fill(0.1, Q) : Float64[]
+    SARIMAModel(v, v, p, d, q, P, D, Q, s, include_intercept ? 0.05 : 0.0,
+                phi, theta, Phi, Theta, vcat(phi, Phi), vcat(theta, Theta),
+                0.5, res, fit, -50.0, -100.0, -95.0, method, true, 12)
+end
+
+function auto_sarima(y, s::Int; d=nothing, D=nothing, max_p::Int=2, max_q::Int=2,
+                     max_P::Int=1, max_Q::Int=1, criterion::Symbol=:aic,
+                     method::Symbol=:css_mle, include_intercept::Bool=true)
+    criterion in (:aic, :bic) ||
+        throw(ArgumentError("criterion must be :aic or :bic, got :$criterion"))
+    s >= 1 || throw(ArgumentError("seasonal period s must be ≥ 1, got $s"))
+    estimate_sarima(y, min(1, max_p), d === nothing ? 1 : d, min(1, max_q),
+                    min(1, max_P), D === nothing ? 1 : D, min(1, max_Q), s;
+                    method=method, include_intercept=include_intercept)
+end
+
+function forecast(m::SARIMAModel, h::Int; conf_level::Real=0.95)
+    h >= 1 || throw(ArgumentError("horizon must be ≥ 1"))
+    base = isempty(m.y) ? 0.0 : Float64(m.y[end])
+    f = fill(base, h)
+    se = [sqrt(Float64(m.sigma2)) * sqrt(Float64(k)) for k in 1:h]
+    ARIMAForecast{Float64}(f, f .- 1.96 .* se, f .+ 1.96 .* se, se, h, Float64(conf_level))
+end
+
+residuals(m::SARIMAModel) = m.residuals
+predict(m::SARIMAModel) = m.fitted
+fitted(m::SARIMAModel) = m.fitted
+aic(m::SARIMAModel) = m.aic
+bic(m::SARIMAModel) = m.bic
+loglikelihood(m::SARIMAModel) = m.loglik
+nobs(m::SARIMAModel) = length(m.y)
+
+export SARIMAModel, estimate_sarima, auto_sarima
 function estimate_arfima(y, p, q; method=:css, d0=nothing, trunc=200, max_iter=500)
     v, res, fit = _ar_like_y(y)
     d = isnothing(d0) ? 0.3 : Float64(d0)

@@ -363,6 +363,24 @@ function forecast_specs()::Vector{CommandSpec}
             category="forecast",
             handler=wrap_legacy(_forecast_star),
         ),
+        # W6/#108: SARIMA forecast. `forecast(::SARIMAModel, h)` returns an ARIMAForecast,
+        # which DOES have a plot_result recipe — unlike the threshold/STAR/MS forecast types
+        # — so this leaf legitimately carries the plot flags.
+        CommandSpec(
+            path=["forecast", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (>= 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                PLOT_OPTIONS...],
+            flags=[SARIMA_FLAGS..., PLOT_FLAGS...],
+            tables=[TableSpec(name=:forecast_sarima, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_sarima),
+        ),
         # W3/#101: Markov-switching forecasts, un-gated by MEMs#510. The two dispatches are
         # mutually exclusive upstream and each throws on the other's model type:
         # `forecast(m, h)` requires :ms_ar, `forecast(m, X_new)` requires :regression with an

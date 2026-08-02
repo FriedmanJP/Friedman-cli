@@ -145,6 +145,33 @@ const REG_OPTIONS = [
 ]
 
 # Panel regression shared options
+# W6/#108 multiplicative seasonal ARIMA. `--p` has NO default so that leaving it out means
+# "select automatically" (auto_sarima), matching how `estimate arima` distinguishes the two
+# modes; `--auto` forces selection even when orders are given.
+const SARIMA_OPTIONS = [
+    OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+    OptionSpec(name="p", type=Int, default=nothing, description="Non-seasonal AR order (omit to auto-select)"),
+    OptionSpec(name="d", type=Int, default=0, description="Non-seasonal differencing order"),
+    OptionSpec(name="q", type=Int, default=0, description="Non-seasonal MA order"),
+    OptionSpec(name="P", type=Int, default=0, description="Seasonal AR order"),
+    OptionSpec(name="D", type=Int, default=0, description="Seasonal differencing order"),
+    OptionSpec(name="Q", type=Int, default=0, description="Seasonal MA order"),
+    OptionSpec(name="s", type=Int, default=12, description="Seasonal period (12 monthly, 4 quarterly)"),
+    OptionSpec(name="max-p", type=Int, default=2, description="Auto search bound for p"),
+    OptionSpec(name="max-q", type=Int, default=2, description="Auto search bound for q"),
+    OptionSpec(name="max-P", type=Int, default=1, description="Auto search bound for seasonal P"),
+    OptionSpec(name="max-Q", type=Int, default=1, description="Auto search bound for seasonal Q"),
+    OptionSpec(name="criterion", type=String, default="aic", choices=["aic", "bic"],
+               description="Auto-selection criterion"),
+    OptionSpec(name="method", type=String, default="css_mle",
+               choices=["css_mle", "mle", "css"], description="Estimation method"),
+    OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimiser iterations"),
+]
+const SARIMA_FLAGS = [
+    FlagSpec(name="auto", description="Force automatic order selection (auto_sarima)"),
+    FlagSpec(name="no-intercept", description="Exclude the intercept term"),
+]
+
 # W2/#107 count-data regression. `--offset` and `--exposure` are mutually exclusive
 # (exposure is log-transformed into the offset) and the handler rejects the pair with a
 # typed usage/invalid. `--irr` is a FlagSpec because its handler kwarg is a Bool — a String

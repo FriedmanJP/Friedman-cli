@@ -163,6 +163,46 @@ friedman estimate arima data.csv --column=2 --p=2 --d=0 --q=1
 
 **Output:** AR/MA coefficients, AIC/BIC/log-likelihood.
 
+## estimate sarima
+
+Multiplicative seasonal ARIMA, `SARIMA(p,d,q)(P,D,Q)[s]`.
+
+```bash
+# monthly data with a seasonal AR term
+friedman estimate sarima y.csv --p 1 --q 0 --P 1 --Q 0 --s 12
+
+# let the library choose the orders (and d/D) for a quarterly series
+friedman estimate sarima y.csv --s 4
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | (auto) | Non-seasonal AR order — **omit to auto-select** |
+| `--d` / `--q` | | Int | 0 | Non-seasonal differencing / MA order |
+| `--P` / `--D` / `--Q` | | Int | 0 | Seasonal AR / differencing / MA order |
+| `--s` | | Int | 12 | Seasonal period (12 monthly, 4 quarterly) |
+| `--max-p`/`--max-q`/`--max-P`/`--max-Q` | | Int | 2/2/1/1 | Auto search bounds |
+| `--criterion` | | String | `aic` | `aic`, `bic` (auto selection) |
+| `--method` | | String | `css_mle` | `css_mle`, `mle`, `css` |
+| `--max-iter` | | Int | 500 | Maximum optimiser iterations |
+| `--auto` | | Flag | off | Force auto selection even when orders are given |
+| `--no-intercept` | | Flag | off | Exclude the intercept |
+| `--plot` / `--plot-save` | | Flag/String | | Plot the fitted model |
+
+**Omitting `--p` means "select automatically"** — the same convention as
+[`estimate arima`](#estimate-arima). In that mode the library also chooses `d` and `D` by
+seasonal/regular unit-root testing unless you pin them. `--auto` forces selection even when
+orders are supplied.
+
+`--s` must be ≥ 2 whenever any of `--P`/`--D`/`--Q` is positive; a seasonal order with `--s 1`
+is rejected as a data error rather than silently fitting a non-seasonal model.
+
+**Output:** coefficient table (`intercept`, `ar*`, `ma*`, `sar*`, `sma*`, `sigma2` — seasonal
+terms are labelled `sar`/`sma` to keep them distinct from their non-seasonal counterparts) and
+information criteria. `predict sarima` / `residuals sarima` give in-sample fitted values and
+residuals; [`forecast sarima`](forecast.md) forecasts through both differencing operators.
+
 ## estimate arfima
 
 Estimate ARFIMA(p,d,q) fractionally-integrated (long-memory) models. The fractional

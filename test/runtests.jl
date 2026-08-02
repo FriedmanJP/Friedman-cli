@@ -3955,7 +3955,7 @@ end
     @test "config" in opt_names
 
     # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 70
+    @test length(est_node.subcmds) == 71
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4117,7 +4117,7 @@ end
 
     # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 28
+    @test length(fc_node.subcmds) == 29
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
@@ -4130,7 +4130,7 @@ end
 
     # Predict: 23 primary + gjr_garch alias (C044; +ms/ms-ar W3 #101)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 38
+    @test length(pred_node.subcmds) == 39
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
@@ -4139,7 +4139,7 @@ end
 
     # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 40
+    @test length(res_node.subcmds) == 41
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 

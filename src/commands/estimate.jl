@@ -1154,6 +1154,22 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_3sls),
         ),
         CommandSpec(
+            # W6/#108: multiplicative seasonal ARIMA. SARIMAModel <: AbstractARIMAModel,
+            # which has a real plot_result recipe (an ABSTRACT dispatch — a by-name grep for
+            # plot_result(::SARIMAModel) finds nothing and would have wrongly ruled plots out).
+            path=["estimate", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                PLOT_OPTIONS...],
+            flags=[SARIMA_FLAGS..., PLOT_FLAGS...],
+            tables=[TableSpec(name=:estimate_sarima, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_sarima),
+        ),
+        CommandSpec(
             path=["estimate", "poisson"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1681,6 +1697,161 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
         "Log-likelihood" => round(loglikelihood(model); digits=4),
     ]; format=format, title="Information Criteria")
     return model
+end
+
+# ── W6/#108: multiplicative seasonal ARIMA ────────────────────────────────────
+#
+# MEMs#341. `SARIMAModel <: AbstractARIMAModel`, so residuals/predict come from the
+# abstract StatsAPI block and `plot_result(::AbstractARIMAModel)` covers it — an ABSTRACT
+# dispatch, which is exactly the case a by-name grep for `plot_result(::SARIMAModel)` would
+# have missed. `forecast(::SARIMAModel, h)` returns an ARIMAForecast, which has its own
+# recipe, so BOTH the estimate and forecast leaves are genuinely plot-capable.
+
+"""Shared SARIMA fit for the four leaves. `--p` unset (or `--auto`) routes to `auto_sarima`,
+which selects d/D itself unless they are pinned."""
+function _sarima_fit(data::String, column::Int, p, d::Int, q::Int, P::Int, D::Int, Q::Int,
+                     s::Int, auto::Bool, max_p::Int, max_q::Int, max_P::Int, max_Q::Int,
+                     criterion::String, method::String, max_iter::Int, no_intercept::Bool,
+                     leaf::String)
+    s >= 1 || throw(CliError("usage/invalid", "$leaf: --s must be ≥ 1 (got $s)"))
+    max_iter >= 1 || throw(CliError("usage/invalid", "$leaf: --max-iter must be ≥ 1 (got $max_iter)"))
+    for (nm, v) in (("d", d), ("q", q), ("P", P), ("D", D), ("Q", Q))
+        v >= 0 || throw(CliError("usage/invalid", "$leaf: --$nm must be ≥ 0 (got $v)"))
+    end
+    isnothing(p) || p >= 0 || throw(CliError("usage/invalid", "$leaf: --p must be ≥ 0 (got $p)"))
+    for (nm, v) in (("max-p", max_p), ("max-q", max_q), ("max-P", max_P), ("max-Q", max_Q))
+        v >= 0 || throw(CliError("usage/invalid", "$leaf: --$nm must be ≥ 0 (got $v)"))
+    end
+    crit = lowercase(criterion)
+    crit in ("aic", "bic") || throw(CliError("usage/invalid",
+        "$leaf: --criterion must be aic or bic (got '$criterion')"))
+    y, vname = load_univariate_series(data, column)
+    use_auto = auto || isnothing(p)
+    model = try
+        if use_auto
+            auto_sarima(y, s; max_p=max_p, max_q=max_q, max_P=max_P, max_Q=max_Q,
+                        criterion=Symbol(crit), method=Symbol(method),
+                        include_intercept=!no_intercept)
+        else
+            estimate_sarima(y, p, d, q, P, D, Q, s; method=Symbol(method),
+                            include_intercept=!no_intercept, max_iter=max_iter)
+        end
+    catch e
+        throw(_domain_or_data_error(e, "SARIMA estimation"))
+    end
+    return model, vname, use_auto
+end
+
+"""`SARIMA(p,d,q)(P,D,Q)[s]` label, the conventional Box-Jenkins notation."""
+_sarima_label(m) = "SARIMA($(m.p),$(m.d),$(m.q))($(m.P),$(m.D),$(m.Q))[$(m.s)]"
+
+function _sarima_coef_df(m)
+    names = String[]; vals = Float64[]
+    m.c != 0 && (push!(names, "intercept"); push!(vals, Float64(m.c)))
+    for (i, v) in enumerate(m.phi);   push!(names, "ar$i");    push!(vals, Float64(v)); end
+    for (i, v) in enumerate(m.theta); push!(names, "ma$i");    push!(vals, Float64(v)); end
+    for (i, v) in enumerate(m.Phi);   push!(names, "sar$i");   push!(vals, Float64(v)); end
+    for (i, v) in enumerate(m.Theta); push!(names, "sma$i");   push!(vals, Float64(v)); end
+    push!(names, "sigma2"); push!(vals, Float64(m.sigma2))
+    return DataFrame(parameter=names, estimate=round.(vals; digits=6))
+end
+
+function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q::Int=0,
+                           P::Int=0, D::Int=0, Q::Int=0, s::Int=12, auto::Bool=false,
+                           max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
+                           criterion::String="aic", method::String="css_mle",
+                           max_iter::Int=500, no_intercept::Bool=false,
+                           plot::Bool=false, plot_save::String="",
+                           output::String="", format::String="table")
+    model, vname, used_auto = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
+                                          max_p, max_q, max_P, max_Q, criterion, method,
+                                          max_iter, no_intercept, "estimate sarima")
+    lbl = _sarima_label(model)
+    _status(used_auto ? "Auto SARIMA (s=$s): variable=$vname → $lbl" :
+                        "Estimating $lbl: variable=$vname")
+    _status()
+    output_result(_sarima_coef_df(model); format=Symbol(format), output=output,
+                  title="$lbl Coefficients ($vname)")
+    _status()
+    output_kv(Pair{String,Any}[
+        "AIC"            => round(Float64(aic(model)); digits=4),
+        "BIC"            => round(Float64(bic(model)); digits=4),
+        "Log-likelihood" => round(Float64(loglikelihood(model)); digits=4),
+        "n_obs"          => length(model.y),
+        "n_effective"    => length(model.residuals),
+    ]; format=format, title="Information Criteria")
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    return model
+end
+
+function _forecast_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q::Int=0,
+                           P::Int=0, D::Int=0, Q::Int=0, s::Int=12, auto::Bool=false,
+                           max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
+                           criterion::String="aic", method::String="css_mle",
+                           max_iter::Int=500, no_intercept::Bool=false,
+                           horizons::Int=12, ci_level::Float64=0.95,
+                           plot::Bool=false, plot_save::String="",
+                           output::String="", format::String="table")
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "forecast sarima: --horizons must be ≥ 1 (got $horizons)"))
+    (0 < ci_level < 1) || throw(CliError("usage/invalid",
+        "forecast sarima: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    model, vname, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
+                                  max_p, max_q, max_P, max_Q, criterion, method,
+                                  max_iter, no_intercept, "forecast sarima")
+    lbl = _sarima_label(model)
+    _status("$lbl forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
+    fc = try
+        forecast(model, horizons; conf_level=ci_level)
+    catch e
+        throw(_domain_or_data_error(e, "SARIMA forecast"))
+    end
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    return fc
+end
+
+function _predict_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
+                          P::Int=0, D::Int=0, Q::Int=0, s::Int=12, auto::Bool=false,
+                          max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
+                          criterion::String="aic", method::String="css_mle",
+                          max_iter::Int=500, no_intercept::Bool=false,
+                          output::String="", format::String="table", model=nothing)
+    m, vname = if model === nothing
+        mm, vn, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto, max_p, max_q,
+                                max_P, max_Q, criterion, method, max_iter, no_intercept,
+                                "predict sarima")
+        (mm, vn)
+    else
+        (model, "model")
+    end
+    f = predict(m)
+    _status("$(_sarima_label(m)) fitted values: variable=$vname, n=$(length(f))"); _status()
+    return output_result(DataFrame(t=1:length(f), fitted=round.(Float64.(f); digits=6));
+                         format=Symbol(format), output=output,
+                         title="$(_sarima_label(m)) In-Sample Predictions for $vname")
+end
+
+function _residuals_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
+                            P::Int=0, D::Int=0, Q::Int=0, s::Int=12, auto::Bool=false,
+                            max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
+                            criterion::String="aic", method::String="css_mle",
+                            max_iter::Int=500, no_intercept::Bool=false,
+                            output::String="", format::String="table", model=nothing)
+    m, vname = if model === nothing
+        mm, vn, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto, max_p, max_q,
+                                max_P, max_Q, criterion, method, max_iter, no_intercept,
+                                "residuals sarima")
+        (mm, vn)
+    else
+        (model, "model")
+    end
+    r = residuals(m)
+    _status("$(_sarima_label(m)) residuals: variable=$vname, n=$(length(r))"); _status()
+    return output_result(DataFrame(t=1:length(r), residual=round.(Float64.(r); digits=6));
+                         format=Symbol(format), output=output,
+                         title="$(_sarima_label(m)) Residuals for $vname")
 end
 
 # ARIMA helpers (from old arima.jl)

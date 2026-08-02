@@ -1262,6 +1262,76 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true); rm(scsv; force=true)
         end
 
+        # W6/#108 — multiplicative seasonal ARIMA on real MEMs.
+        @testset "estimate|forecast|predict|residuals sarima (W6/#108)" begin
+            # Seasonal AR(1) x seasonal-AR(1) at s=12, so the seasonal term is real signal
+            # and the fitted Phi must be clearly positive.
+            sy = let n = 400, y = zeros(n)
+                Random.seed!(6108)
+                for t in 14:n
+                    y[t] = 0.5*y[t-1] + 0.6*y[t-12] - 0.3*y[t-13] + 0.4*randn()
+                end
+                y[14:end]
+            end
+            scsv = write_csv(DataFrame(y=sy); prefix="sarima")
+
+            r = run_json(["estimate", "sarima", scsv, "--p", "1", "--q", "0",
+                          "--P", "1", "--Q", "0", "--s", "12"])
+            assert_envelope_ok(r; label="estimate sarima")
+            t = _find(r.doc, "parameter", "estimate")
+            @test t !== nothing
+            pm = Dict(String(collect(rw)[col_index(t, "parameter")]) =>
+                      Float64(collect(rw)[col_index(t, "estimate")]) for rw in table_rows(t))
+            @test haskey(pm, "ar1") && haskey(pm, "sar1")
+            # teeth: both the regular and the SEASONAL AR term must be recovered positive
+            @test pm["ar1"] > 0.2
+            @test pm["sar1"] > 0.2
+            @test pm["sigma2"] > 0
+
+            # auto selection runs and yields a finite AIC
+            ra = run_json(["estimate", "sarima", scsv, "--s", "12"])
+            assert_envelope_ok(ra; label="auto sarima")
+            @test isfinite(Float64(metric_value(_find(ra.doc, "metric", "value"), "AIC")))
+
+            rf = run_json(["forecast", "sarima", scsv, "--p", "1", "--P", "1", "--s", "12",
+                           "--horizons", "8"])
+            assert_envelope_ok(rf; label="forecast sarima")
+            ft = _find(rf.doc, "horizon", "value", "lower", "upper")
+            @test ft !== nothing && length(table_rows(ft)) == 8
+            for rw in table_rows(ft)
+                v = collect(rw)
+                @test Float64(v[col_index(ft, "lower")]) <= Float64(v[col_index(ft, "value")]) <=
+                      Float64(v[col_index(ft, "upper")])
+            end
+
+            for verb in ("predict", "residuals")
+                rv = run_json([verb, "sarima", scsv, "--p", "1", "--P", "1", "--s", "12"])
+                assert_envelope_ok(rv; label="$verb sarima")
+                @test first_table(rv.doc)[2] !== nothing
+            end
+
+            # SARIMAModel <: AbstractARIMAModel, which HAS a plot recipe, and forecast
+            # returns an ARIMAForecast which has one too — so unlike the threshold/STAR/MS
+            # forecasts, BOTH leaves really plot. Assert a file lands rather than trusting
+            # the abstract dispatch.
+            for (leaf, extra) in (("estimate", String[]), ("forecast", ["--horizons", "4"]))
+                out = tempname() * ".html"
+                rp = run_json(vcat([leaf, "sarima", scsv, "--p", "1", "--P", "1", "--s", "12"],
+                                   extra, ["--plot-save", out]))
+                assert_envelope_ok(rp; label="$leaf sarima --plot-save")
+                @test isfile(out) && filesize(out) > 1000
+                rm(out; force=true)
+            end
+
+            # typed guards, never exit 1
+            @test run_json(["estimate", "sarima", scsv, "--p", "1", "--P", "1", "--s", "1"]).code == 3
+            @test run_json(["estimate", "sarima", scsv, "--s", "0"]).code == 2
+            @test run_json(["estimate", "sarima", scsv, "--p", "1", "--d", "-1"]).code == 2
+            @test run_json(["estimate", "sarima", scsv, "--criterion", "bogus"]).code == 2
+            @test run_json(["forecast", "sarima", scsv, "--horizons", "0"]).code == 2
+            rm(scsv; force=true)
+        end
+
         # W5/#95 — plot flags are only advertised where a REAL plot_result recipe exists,
         # and the only way to know is to invoke them: the mock's generic plot_result would
         # report success for a type real cannot plot. Assert a non-trivial file lands.

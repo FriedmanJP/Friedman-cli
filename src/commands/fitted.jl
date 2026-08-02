@@ -1326,6 +1326,19 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # W6/#108: SARIMA in-sample fitted values / residuals. Both come from the abstract
+        # AbstractARIMAModel StatsAPI block, so no SARIMA-specific method is needed.
+        CommandSpec(
+            path=["predict", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OUTPUT_OPTIONS...],
+            flags=copy(SARIMA_FLAGS),
+            tables=[TableSpec(name=:predict_sarima, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_sarima),
+        ),
         # W2/#107: count-data conditional means exp(x'b + offset). Upstream's 1-arg
         # `predict(m)` returns m.fitted; the (m, Xnew) out-of-sample form is out of scope
         # here, matching every other `predict` leaf. NO --plot: src/plotting/ has no
@@ -1668,6 +1681,18 @@ function residuals_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:residuals_ms, description="Path to CSV data file")],
             category="residuals",
             handler=wrap_legacy(_residuals_ms),
+        ),
+        # W6/#108: SARIMA residuals (abstract AbstractARIMAModel dispatch).
+        CommandSpec(
+            path=["residuals", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OUTPUT_OPTIONS...],
+            flags=copy(SARIMA_FLAGS),
+            tables=[TableSpec(name=:residuals_sarima, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_sarima),
         ),
         # W2/#107: count-data residuals. `residuals(m)` is a bare field accessor upstream
         # with NO `kind` kwarg, so no --kind is advertised here (a declared option the

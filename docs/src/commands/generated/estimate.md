@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 69
+**Leaves:** 70
 
 ### `friedman estimate 3sls`
 
@@ -1305,6 +1305,46 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_robust` (Path to CSV data file)
+
+---
+
+### `friedman estimate sarima`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | — | — | Non-seasonal AR order (omit to auto-select) |
+| `--d` | — | `Int64` | `0` | — | Non-seasonal differencing order |
+| `--q` | — | `Int64` | `0` | — | Non-seasonal MA order |
+| `--P` | — | `Int64` | `0` | — | Seasonal AR order |
+| `--D` | — | `Int64` | `0` | — | Seasonal differencing order |
+| `--Q` | — | `Int64` | `0` | — | Seasonal MA order |
+| `--s` | — | `Int64` | `12` | — | Seasonal period (12 monthly, 4 quarterly) |
+| `--max-p` | — | `Int64` | `2` | — | Auto search bound for p |
+| `--max-q` | — | `Int64` | `2` | — | Auto search bound for q |
+| `--max-P` | — | `Int64` | `1` | — | Auto search bound for seasonal P |
+| `--max-Q` | — | `Int64` | `1` | — | Auto search bound for seasonal Q |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion |
+| `--method` | — | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--auto` | — | Force automatic order selection (auto_sarima) |
+| `--no-intercept` | — | Exclude the intercept term |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `estimate_sarima` (Path to CSV data file)
 
 ---
 
