@@ -5815,6 +5815,146 @@ function odds_ratio(m::LogitModel{T}; conf_level=0.95) where T
     (or=or, se=se, ci_lower=ci_lo, ci_upper=ci_hi, varnames=m.varnames, conf_level=conf_level)
 end
 
+# ─── W2/#107: count-data regression (MEMs#427) ───────────────────────────────
+# Fields are the REAL names in real order (check_mock_surface: mock ⊆ real). Note
+# NegBinModel carries `alpha`/`alpha_se` that PoissonModel does not, and that its
+# `vcov_mat` is the joint (beta, log alpha) block — stderror slices beta out, exactly
+# as upstream does.
+struct PoissonModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    offset::Union{Nothing,Vector{T}}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    deviance::T
+    null_deviance::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
+end
+
+struct NegBinModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    alpha::T
+    vcov_mat::Matrix{T}
+    alpha_se::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    offset::Union{Nothing,Vector{T}}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    deviance::T
+    null_deviance::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+end
+
+struct DispersionTest{T<:AbstractFloat}
+    nb2::NamedTuple{(:alpha, :se, :t_stat, :p_value),NTuple{4,T}}
+    nb1::NamedTuple{(:alpha, :se, :t_stat, :p_value),NTuple{4,T}}
+    n::Int
+end
+
+# Mirror upstream's own validation so the CLI's exit classes are exercised at T1/T2 with
+# the SAME classes real produces (a looser mock turns a production failure green).
+function _count_check(y, X, offset, exposure)
+    length(y) == size(X, 1) ||
+        throw(ArgumentError("y and X must have the same number of rows"))
+    any(v -> v < 0, y) && throw(ArgumentError("count response must be non-negative"))
+    all(isinteger, y) || throw(ArgumentError("count response must be integer-valued"))
+    offset === nothing || exposure === nothing ||
+        throw(ArgumentError("supply at most one of `offset` and `exposure`"))
+    off = exposure !== nothing ? log.(Vector{Float64}(exposure)) :
+          offset !== nothing ? Vector{Float64}(offset) : zeros(Float64, length(y))
+    length(off) == length(y) ||
+        throw(ArgumentError("offset/exposure must have length $(length(y))"))
+    return off
+end
+
+function estimate_poisson(y::AbstractVector, X::AbstractMatrix;
+                          offset=nothing, exposure=nothing, cov_type::Symbol=:robust,
+                          varnames=nothing, clusters=nothing, maxiter::Int=100, tol=1e-10)
+    cov_type in (:robust, :mle, :hc0, :hc1, :hc2, :hc3, :cluster) || throw(ArgumentError(
+        "cov_type must be :robust, :mle, :hc0, :hc1, :hc2, :hc3, or :cluster; got :$cov_type"))
+    off = _count_check(y, X, offset, exposure)
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    n, k = size(Xm)
+    beta = fill(0.1, k)
+    mu = exp.(Xm * beta .+ off)
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : collect(String, varnames)
+    PoissonModel{Float64}(yv, Xm, beta, Matrix{Float64}(0.01I, k, k), yv .- mu, mu,
+                          offset === nothing && exposure === nothing ? nothing : off,
+                          -120.0, -150.0, 0.2, 90.0, 120.0, 250.0, 260.0, vn, true, 5,
+                          cov_type)
+end
+
+function estimate_nbreg(y::AbstractVector, X::AbstractMatrix;
+                        offset=nothing, exposure=nothing, varnames=nothing,
+                        maxiter::Int=1000, tol=1e-10)
+    off = _count_check(y, X, offset, exposure)
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    n, k = size(Xm)
+    beta = fill(0.1, k)
+    mu = exp.(Xm * beta .+ off)
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : collect(String, varnames)
+    # Joint (beta, log alpha) block: k+1 square, so stderror must slice.
+    NegBinModel{Float64}(yv, Xm, beta, 0.5, Matrix{Float64}(0.01I, k + 1, k + 1), 0.05,
+                         yv .- mu, mu,
+                         offset === nothing && exposure === nothing ? nothing : off,
+                         -110.0, -150.0, 0.27, 80.0, 120.0, 240.0, 252.0, vn, true, 8)
+end
+
+dispersion_test(m::PoissonModel) =
+    DispersionTest{Float64}((alpha=0.42, se=0.10, t_stat=4.2, p_value=0.00003),
+                            (alpha=0.31, se=0.09, t_stat=3.4, p_value=0.0007),
+                            length(m.y))
+
+function incidence_rate_ratio(m::Union{PoissonModel{T},NegBinModel{T}};
+                              conf_level=0.95) where T
+    irr = exp.(m.beta)
+    se = stderror(m)
+    (or=irr, se=irr .* se, ci_lower=exp.(m.beta .- 1.96 .* se),
+     ci_upper=exp.(m.beta .+ 1.96 .* se), varnames=m.varnames, conf_level=conf_level)
+end
+
+for M in (:PoissonModel, :NegBinModel)
+    @eval begin
+        coef(m::$M) = m.beta
+        residuals(m::$M) = m.residuals
+        predict(m::$M) = m.fitted
+        fitted(m::$M) = m.fitted
+        nobs(m::$M) = length(m.y)
+        loglikelihood(m::$M) = m.loglik
+        aic(m::$M) = m.aic
+        bic(m::$M) = m.bic
+        r2(m::$M) = m.pseudo_r2
+    end
+end
+vcov(m::PoissonModel) = m.vcov_mat
+stderror(m::PoissonModel) = sqrt.(max.(diag(m.vcov_mat), 0.0))
+dof_residual(m::PoissonModel) = length(m.y) - length(m.beta)
+# Slice beta out of the joint block, exactly as upstream does.
+vcov(m::NegBinModel) = m.vcov_mat[1:length(m.beta), 1:length(m.beta)]
+stderror(m::NegBinModel) = sqrt.(max.(diag(m.vcov_mat)[1:length(m.beta)], 0.0))
+dof_residual(m::NegBinModel) = length(m.y) - length(m.beta) - 1
+
+export PoissonModel, NegBinModel, DispersionTest
+export estimate_poisson, estimate_nbreg, dispersion_test, incidence_rate_ratio
+
 function vif(m::RegModel{T}) where T
     k = length(m.beta)
     # Return escalating VIF values so tests can trigger different warning branches

@@ -3955,7 +3955,7 @@ end
     @test "config" in opt_names
 
     # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 68
+    @test length(est_node.subcmds) == 70
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4130,7 +4130,7 @@ end
 
     # Predict: 23 primary + gjr_garch alias (C044; +ms/ms-ar W3 #101)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 36
+    @test length(pred_node.subcmds) == 38
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
@@ -4139,7 +4139,7 @@ end
 
     # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 38
+    @test length(res_node.subcmds) == 40
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
@@ -4151,7 +4151,7 @@ end
     test_node = register_test_commands!()
 
     # 80 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-    @test length(test_node.subcmds) == 82
+    @test length(test_node.subcmds) == 83
     for leaf in ("hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                  "phillips-ouliaris", "hansen-instability", "park-added",
                  "white", "glejser", "harvey", "chow", "cusum", "cusumsq",

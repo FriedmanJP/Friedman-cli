@@ -3,7 +3,7 @@
 
 Generated reference for `friedman residuals` and its subcommands.
 
-**Leaves:** 37
+**Leaves:** 39
 
 ### `friedman residuals 3sls`
 
@@ -476,6 +476,29 @@ Path to CSV data file
 
 ---
 
+### `friedman residuals nbreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--maxiter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_nbreg` (Path to CSV data file)
+
+---
+
 ### `friedman residuals ologit`
 
 Model residuals (ologit)
@@ -573,6 +596,31 @@ Model residuals (plogit)
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
 **Output tables:** `residuals_plogit` (Model residuals)
+
+---
+
+### `friedman residuals poisson`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+**Output tables:** `residuals_poisson` (Path to CSV data file)
 
 ---
 

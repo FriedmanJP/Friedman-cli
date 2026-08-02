@@ -4060,6 +4060,102 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["residuals", "mlogit", ord, "--dep", "y", "--generalized"]).code == 2
         end
 
+        # W2/#107 — count-data family on real MEMs.
+        @testset "count data: estimate/predict/residuals poisson|nbreg + test dispersion" begin
+            Random.seed!(4271)
+            # `cols_table` is a LOCAL helper of the io testset, not a suite-level one, so
+            # it is redefined here rather than reached across scopes.
+            cols_table(doc, cols) = begin
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    all(c -> c in table_cols(v), cols) && return v
+                end
+                return nothing
+            end
+            # Knuth sampler — the integration env has no direct Distributions dep, and a
+            # genuine Poisson draw is required here: rounding the mean instead produces
+            # UNDERdispersed counts, which is a different test.
+            _rand_pois(lam) = begin
+                L = exp(-lam); k = 0; p = 1.0
+                while true
+                    p *= rand()
+                    p <= L && return k
+                    k += 1
+                    k > 10_000 && return k
+                end
+            end
+            n = 400
+            cx1 = randn(n); cx2 = randn(n); cexpo = rand(n) .* 4 .+ 1
+            # True log-mean with a genuine Poisson draw, so the dispersion test sees real
+            # equidispersion rather than the artefact of a rounded mean.
+            cmu = exp.(0.3 .+ 0.5 .* cx1 .- 0.3 .* cx2 .+ log.(cexpo))
+            cy = [_rand_pois(m) for m in cmu]
+            ccsv = write_csv(DataFrame(y=cy, x1=cx1, x2=cx2, expo=cexpo); prefix="count")
+
+            # Teeth: the estimator must RECOVER the DGP, not merely run.
+            rp = run_json(["estimate", "poisson", ccsv, "--dep", "y", "--exposure", "expo"])
+            assert_envelope_ok(rp; label="estimate poisson")
+            tp = cols_table(rp.doc, ["term", "estimate"])
+            @test tp !== nothing
+            pc = Dict(String(collect(r)[col_index(tp, "term")]) =>
+                      Float64(collect(r)[col_index(tp, "estimate")]) for r in table_rows(tp))
+            @test isapprox(pc["x1"], 0.5; atol=0.12)
+            @test isapprox(pc["x2"], -0.3; atol=0.12)
+            # tidy C051 column set, hand-built because these types are NOT Tables.jl-registered
+            for c in ("std_error", "z_stat", "p_value", "ci_lower", "ci_upper")
+                @test c in table_cols(tp)
+            end
+
+            # --irr is a FLAG with handler support; exp(beta) must match the coefficients
+            rirr = run_json(["estimate", "poisson", ccsv, "--dep", "y", "--exposure", "expo", "--irr"])
+            assert_envelope_ok(rirr; label="estimate poisson --irr")
+            ti = cols_table(rirr.doc, ["term", "irr"])
+            @test ti !== nothing
+            irrmap = Dict(String(collect(r)[col_index(ti, "term")]) =>
+                          Float64(collect(r)[col_index(ti, "irr")]) for r in table_rows(ti))
+            @test isapprox(irrmap["x1"], exp(pc["x1"]); rtol=1e-4)
+
+            @test run_json(["estimate", "nbreg", ccsv, "--dep", "y", "--irr"]).code == 0
+            rnb = run_json(["estimate", "nbreg", ccsv, "--dep", "y"])
+            assert_envelope_ok(rnb; label="estimate nbreg")
+            # alpha rides its OWN table (upstream's vcov slice stops at beta)
+            ta = cols_table(rnb.doc, ["parameter", "estimate", "std_error"])
+            @test ta !== nothing
+            @test "alpha" in [String(collect(r)[col_index(ta, "parameter")]) for r in table_rows(ta)]
+
+            for leaf in ("poisson", "nbreg")
+                @test run_json(["predict", leaf, ccsv, "--dep", "y"]).code == 0
+                @test run_json(["residuals", leaf, ccsv, "--dep", "y"]).code == 0
+            end
+
+            # Genuinely Poisson data ⇒ equidispersion must NOT be rejected, and the summary
+            # must recommend poisson. This is the assertion that would have caught the
+            # directional bug (a two-sided reject was recommending nbreg on UNDERdispersion).
+            rd = run_json(["test", "dispersion", ccsv, "--dep", "y", "--exposure", "expo"])
+            assert_envelope_ok(rd; label="test dispersion")
+            td = cols_table(rd.doc, ["form", "alpha", "t_stat", "decision"])
+            @test td !== nothing
+            @test Set(String(collect(r)[col_index(td, "form")]) for r in table_rows(td)) ==
+                  Set(["NB2", "NB1"])
+            sumt = cols_table(rd.doc, ["metric", "value"])
+            @test occursin("poisson", String(metric_value(sumt, "preferred_model")))
+
+            # typed errors, never exit 1
+            badc = write_csv(DataFrame(y=randn(n), x1=cx1); prefix="count_bad")
+            @test run_json(["estimate", "poisson", badc, "--dep", "y"]).code == 3
+            negc = write_csv(DataFrame(y=vcat([-1], fill(2, n - 1)), x1=cx1); prefix="count_neg")
+            @test run_json(["estimate", "poisson", negc, "--dep", "y"]).code == 3
+            @test run_json(["estimate", "poisson", ccsv, "--dep", "y",
+                            "--offset", "expo", "--exposure", "expo"]).code == 2
+            @test run_json(["estimate", "poisson", ccsv, "--dep", "y", "--maxiter", "0"]).code == 2
+            @test run_json(["estimate", "poisson", ccsv, "--dep", "y", "--cov-type", "bogus"]).code == 2
+            @test run_json(["estimate", "poisson", ccsv, "--dep", "y", "--exposure", "nope"]).code == 3
+            # nbreg takes no --cov-type/--clusters (estimate_nbreg accepts neither)
+            @test run_json(["estimate", "nbreg", ccsv, "--dep", "y", "--cov-type", "mle"]).code == 2
+            rm(ccsv; force=true); rm(badc; force=true); rm(negc; force=true)
+        end
+
         @testset "predict logit reports (flags, not string options)" begin
             for flag in ("--odds-ratio", "--marginal-effects", "--classification-table")
                 r = run_json(["predict", "logit", logit, "--dep", "y", flag])

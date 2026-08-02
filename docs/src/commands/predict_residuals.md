@@ -267,6 +267,25 @@ friedman residuals ms-ar y.csv --p 1 --k-regimes 3
 friedman residuals ms    data.csv --dep y
 ```
 
+## Count models: `predict poisson | nbreg`, `residuals poisson | nbreg`
+
+`predict` returns the conditional mean `μ̂ᵢ = exp(xᵢ'β̂ + offsetᵢ)` as an `observation | fitted`
+table; `residuals` returns `yᵢ − μ̂ᵢ` as `observation | residual`.
+
+Both leaves mirror their `estimate` sibling's fit options so the refit matches
+([`estimate poisson`](estimate.md#estimate-poisson) /
+[`estimate nbreg`](estimate.md#estimate-nbreg)), including `--offset` / `--exposure`. The
+reporting-only options are omitted: `--irr` and `--conf-level` affect the incidence-rate-ratio
+table, which neither verb emits.
+
+There is **no `--kind`**: MacroEconometricModels exposes a single residual vector for these
+models, so offering a choice would be advertising something the library cannot honour.
+
+```bash
+friedman predict   poisson data.csv --dep claims --exposure policy_years
+friedman residuals nbreg   data.csv --dep claims
+```
+
 ## Systems: `predict sur | 3sls`, `residuals sur | 3sls`
 
 SUR and 3SLS carry **per-equation** fitted values and residuals. Both verbs render them as

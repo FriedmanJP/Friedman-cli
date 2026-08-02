@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 67
+**Leaves:** 69
 
 ### `friedman estimate 3sls`
 
@@ -951,6 +951,34 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate nbreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--maxiter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table, csv or json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--irr` | — | Also report incidence-rate ratios exp(beta) with delta-method SEs |
+
+**Output tables:** `estimate_nbreg` (Path to CSV data file)
+
+---
+
 ### `friedman estimate ologit`
 
 Path to CSV data file
@@ -1068,6 +1096,36 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_pmg` (Path to CSV data file)
+
+---
+
+### `friedman estimate poisson`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table, csv or json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--irr` | — | Also report incidence-rate ratios exp(beta) with delta-method SEs |
+
+**Output tables:** `estimate_poisson` (Path to CSV data file)
 
 ---
 

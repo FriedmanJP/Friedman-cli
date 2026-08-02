@@ -1150,6 +1150,42 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_3sls),
         ),
         CommandSpec(
+            path=["estimate", "poisson"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                # Upstream's own choice set and default: estimate_poisson defaults to the
+                # Gourieroux-Monfort-Trognon pseudo-ML sandwich, which stays consistent under
+                # any conditional-mean-correct misspecification. NOT the shared REG_OPTIONS
+                # cov-type, which has no `robust`/`mle` and defaults to hc1.
+                OptionSpec(name="cov-type", type=String, default="robust",
+                           choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                COUNT_IRR_OPTIONS...],
+            flags=[COUNT_IRR_FLAG],
+            tables=[TableSpec(name=:estimate_poisson, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_poisson),
+        ),
+        CommandSpec(
+            # NO --cov-type/--clusters: estimate_nbreg accepts neither (its vcov is the
+            # joint (beta, log alpha) information matrix).
+            path=["estimate", "nbreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                COUNT_IRR_OPTIONS...],
+            flags=[COUNT_IRR_FLAG],
+            tables=[TableSpec(name=:estimate_nbreg, description="Path to CSV data file")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_nbreg),
+        ),
+        CommandSpec(
             path=["estimate", "logit"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -3209,6 +3245,323 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
         "Categories" => size(model.fitted, 2)]
     output_kv(pairs; format=format, title="Fit Statistics")
     return model
+end
+
+# ── W2/#107: count-data regression (Poisson / NB2) ────────────────────────────
+#
+# MEMs#427. Deliberate surface decisions, each checked against the 0.7.2 source rather
+# than the issue text (which is wrong on two of them):
+#   * `estimate_nbreg` DOES accept `exposure` — the issue said offset-only.
+#   * `residuals(m)` is a bare field accessor with NO `kind` kwarg, so no `--kind` option
+#     is advertised (a declared option its handler cannot honour is the #85 failure mode).
+#   * `src/plotting/` has NO dispatch covering PoissonModel/NegBinModel, so neither leaf
+#     declares `--plot`/`--plot-save` — the mock's generic plot_result would hide that.
+#   * `--cov-type` on poisson defaults to `robust`, mirroring upstream's QMLE sandwich, and
+#     its choice set is upstream's own (robust|mle|hc0..hc3|cluster) — NOT the shared
+#     REG_OPTIONS set, which lacks `robust`/`mle` and defaults to hc1.
+#   * `estimate_nbreg` takes no cov_type/clusters at all, so neither is offered there.
+
+"""Load count data and guard the response BEFORE handing it to the estimator.
+
+Upstream rejects negative or non-integer `y`, but through a raw `ArgumentError`; catching it
+here keeps the class typed (`data/invalid`) instead of surfacing as internal/error (exit 1).
+"""
+function _load_count_data(data::String, dep::String, offset_col::String,
+                          exposure_col::String, clusters_col::String)
+    isempty(offset_col) || isempty(exposure_col) || throw(CliError("usage/invalid",
+        "--offset and --exposure are mutually exclusive (exposure is log-transformed into an offset)";
+        hint="pass --exposure for a population/time-at-risk column, --offset for an already-logged one"))
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters_col)
+    any(v -> v < 0, y) && throw(CliError("data/invalid",
+        "count regression requires a non-negative response, got a negative value";
+        hint="check --dep — Poisson/NB2 model counts, not levels or differences"))
+    all(v -> isinteger(v), y) || throw(CliError("data/invalid",
+        "count regression requires an integer-valued response";
+        hint="check --dep — Poisson/NB2 model event counts"))
+    off = isempty(offset_col) ? nothing : _load_count_vector(data, offset_col, "offset", y)
+    exp_ = isempty(exposure_col) ? nothing : _load_count_vector(data, exposure_col, "exposure", y)
+    exp_ === nothing || all(v -> v > 0, exp_) || throw(CliError("data/invalid",
+        "--exposure must be strictly positive (it is log-transformed into the offset)"))
+    return y, X, xcols, off, exp_
+end
+
+"""Read one auxiliary numeric column (offset/exposure), guarding every raw conversion."""
+function _load_count_vector(data::String, col::String, role::String, y::AbstractVector)
+    df = load_data(data)
+    col in names(df) || throw(CliError("data/missing-column",
+        "--$role column '$col' not found"; hint="available: $(join(names(df), ", "))"))
+    raw = df[!, col]
+    any(v -> v === missing, raw) && throw(CliError("data/missing-value",
+        "--$role column '$col' contains missing values"))
+    v = try
+        Vector{Float64}(raw)
+    catch e
+        throw(CliError("data/invalid", "--$role column '$col' must be numeric";
+                       hint=sprint(showerror, e)))
+    end
+    length(v) == length(y) || throw(CliError("data/shape",
+        "--$role column '$col' has $(length(v)) rows, expected $(length(y))"))
+    return v
+end
+
+"""Shared IRR table for `--irr`. `incidence_rate_ratio` returns an `OddsRatio`, whose
+point-estimate field is `or` (NOT `odds_ratio` — the #84 alias trap)."""
+function _irr_table(model, conf_level::Float64)
+    irr = incidence_rate_ratio(model; conf_level=conf_level)
+    return DataFrame(term=copy(irr.varnames),
+                     irr=round.(Float64.(irr.or); digits=6),
+                     std_error=round.(Float64.(irr.se); digits=6),
+                     ci_lower=round.(Float64.(irr.ci_lower); digits=6),
+                     ci_upper=round.(Float64.(irr.ci_upper); digits=6))
+end
+
+"""Tidy coefficient table for the count models.
+
+Hand-built on purpose: `_reg_coef_table` goes through `DataFrame(model)`, and MEMs 0.7.2
+does NOT register `PoissonModel`/`NegBinModel` with Tables.jl — routing them there raises
+"no default `Tables.columns` implementation" and exits 1. Column set matches the tidy C051
+convention the registered models produce, so the envelope shape stays uniform.
+"""
+function _count_coef_table(model, conf_level::Float64)
+    beta = Float64.(coef(model))
+    se = Float64.(stderror(model))
+    z = [s > 0 ? b / s : NaN for (b, s) in zip(beta, se)]
+    # Distributions is not a direct CLI dep — use the shared A&S normal helpers, same as
+    # the volatility renderers, rather than pulling `Normal()` in through MEMs.
+    zc = _normal_quantile(1 - (1 - conf_level) / 2)
+    return DataFrame(
+        term=copy(model.varnames),
+        estimate=round.(beta; digits=6),
+        std_error=round.(se; digits=6),
+        z_stat=round.(z; digits=4),
+        p_value=round.([isnan(v) ? NaN : 2 * (1 - _normal_cdf(abs(v))) for v in z]; digits=6),
+        ci_lower=round.(beta .- zc .* se; digits=6),
+        ci_upper=round.(beta .+ zc .* se; digits=6),
+    )
+end
+
+"""Fit statistics shared by the two count estimators."""
+function _count_fit_pairs(model)
+    return Pair{String,Any}[
+        "Pseudo R²"      => round(Float64(model.pseudo_r2); digits=6),
+        "Log-likelihood" => round(Float64(model.loglik); digits=4),
+        "Log-lik (null)" => round(Float64(model.loglik_null); digits=4),
+        "Deviance"       => round(Float64(model.deviance); digits=4),
+        "AIC"            => round(Float64(model.aic); digits=4),
+        "BIC"            => round(Float64(model.bic); digits=4),
+        "Converged"      => model.converged,
+        "Iterations"     => model.iterations,
+    ]
+end
+
+function _count_guards(maxiter::Int, tol::Float64, conf_level::Float64, leaf::String)
+    maxiter >= 1 || throw(CliError("usage/invalid", "$leaf: --maxiter must be ≥ 1 (got $maxiter)"))
+    tol > 0 || throw(CliError("usage/invalid", "$leaf: --tol must be > 0 (got $tol)"))
+    (0 < conf_level < 1) || throw(CliError("usage/invalid",
+        "$leaf: --conf-level must satisfy 0 < level < 1 (got $conf_level)"))
+end
+
+function _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
+    y, X, xcols, off, exp_ = _load_count_data(data, dep, offset, exposure, clusters)
+    cl = _load_clusters(data, clusters)
+    model = try
+        estimate_poisson(y, X; offset=off, exposure=exp_, cov_type=Symbol(cov_type),
+                         varnames=xcols, clusters=cl, maxiter=maxiter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "Poisson regression"))
+    end
+    return model, xcols
+end
+
+function _fit_nbreg(data, dep, offset, exposure, maxiter, tol)
+    y, X, xcols, off, exp_ = _load_count_data(data, dep, offset, exposure, "")
+    model = try
+        estimate_nbreg(y, X; offset=off, exposure=exp_, varnames=xcols,
+                       maxiter=maxiter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "Negative binomial regression"))
+    end
+    return model, xcols
+end
+
+"""Map a raw estimator exception to a typed class. An `ArgumentError` from these estimators
+is always a statement about the DATA (bad response, mismatched offset), so it maps to
+`data/invalid` rather than the generic model class; everything else defers to
+`_domain_error_class` via CliError so it can never surface as internal/error."""
+function _domain_or_data_error(e, label::String)
+    e isa CliError && return e
+    _has_supertype_named(typeof(e), :MacroModelError) && return e
+    e isa ArgumentError && return CliError("data/invalid",
+        "$label: $(sprint(showerror, e))")
+    return CliError("model/error", "$label failed"; hint=sprint(showerror, e))
+end
+
+function _estimate_poisson(; data::String, dep::String="", offset::String="",
+                            exposure::String="", cov_type::String="robust",
+                            clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
+                            conf_level::Float64=0.95, irr::Bool=false,
+                            output::String="", format::String="table")
+    _count_guards(maxiter, tol, conf_level, "estimate poisson")
+    model, xcols = _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Poisson Regression: $dep_name ~ $(join(xcols, " + "))")
+    _status("  Observations: $(length(model.y)), Regressors: $(length(xcols)), Cov type: $cov_type")
+    _status()
+    output_result(_count_coef_table(model, conf_level); format=Symbol(format), output=output,
+                  title="Poisson Regression Coefficients")
+    if irr
+        output_result(_irr_table(model, conf_level); format=Symbol(format),
+                      output=_per_var_output_path(output, "irr"),
+                      title="Incidence-Rate Ratios ($(Int(round(conf_level*100)))% CI)")
+    end
+    _status()
+    output_kv(_count_fit_pairs(model); format=format, title="Fit Statistics")
+    return model
+end
+
+function _estimate_nbreg(; data::String, dep::String="", offset::String="",
+                          exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
+                          conf_level::Float64=0.95, irr::Bool=false,
+                          output::String="", format::String="table")
+    _count_guards(maxiter, tol, conf_level, "estimate nbreg")
+    model, xcols = _fit_nbreg(data, dep, offset, exposure, maxiter, tol)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Negative Binomial (NB2) Regression: $dep_name ~ $(join(xcols, " + "))")
+    _status("  Observations: $(length(model.y)), Regressors: $(length(xcols))")
+    _status()
+    output_result(_count_coef_table(model, conf_level); format=Symbol(format), output=output,
+                  title="Negative Binomial Regression Coefficients")
+    # α and its delta-method SE are NOT in the coefficient table (upstream's vcov slice
+    # stops at β), so they get their own table — with a distinct output path, or --output
+    # would drop the coefficients above.
+    z = model.alpha_se > 0 ? model.alpha / model.alpha_se : NaN
+    output_result(DataFrame(parameter=["alpha"],
+                            estimate=[round(Float64(model.alpha); digits=6)],
+                            std_error=[round(Float64(model.alpha_se); digits=6)],
+                            z_stat=[round(Float64(z); digits=4)]);
+                  format=Symbol(format), output=_per_var_output_path(output, "alpha"),
+                  title="Overdispersion Parameter")
+    if irr
+        output_result(_irr_table(model, conf_level); format=Symbol(format),
+                      output=_per_var_output_path(output, "irr"),
+                      title="Incidence-Rate Ratios ($(Int(round(conf_level*100)))% CI)")
+    end
+    _status()
+    output_kv(_count_fit_pairs(model); format=format, title="Fit Statistics")
+    return model
+end
+
+function _predict_poisson(; data::String="", dep::String="", offset::String="",
+                           exposure::String="", cov_type::String="robust",
+                           clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
+                           output::String="", format::String="table", model=nothing)
+    _count_guards(maxiter, tol, 0.95, "predict poisson")
+    m = model === nothing ?
+        first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
+    _status("Poisson conditional means: n=$(length(predict(m)))"); _status()
+    mu = predict(m)   # 1-arg predict == m.fitted upstream; the (m, Xnew) form is out of scope
+    return output_result(DataFrame(observation=1:length(mu),
+                                   fitted=round.(Float64.(mu); digits=6));
+                         format=Symbol(format), output=output,
+                         title="Poisson Conditional Means")
+end
+
+function _predict_nbreg(; data::String="", dep::String="", offset::String="",
+                         exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
+                         output::String="", format::String="table", model=nothing)
+    _count_guards(maxiter, tol, 0.95, "predict nbreg")
+    m = model === nothing ? first(_fit_nbreg(data, dep, offset, exposure, maxiter, tol)) : model
+    mu = predict(m)
+    _status("Negative binomial conditional means: n=$(length(mu))"); _status()
+    return output_result(DataFrame(observation=1:length(mu),
+                                   fitted=round.(Float64.(mu); digits=6));
+                         format=Symbol(format), output=output,
+                         title="Negative Binomial Conditional Means")
+end
+
+function _residuals_poisson(; data::String="", dep::String="", offset::String="",
+                             exposure::String="", cov_type::String="robust",
+                             clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
+                             output::String="", format::String="table", model=nothing)
+    _count_guards(maxiter, tol, 0.95, "residuals poisson")
+    m = model === nothing ?
+        first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
+    r = residuals(m)
+    _status("Poisson residuals: n=$(length(r))"); _status()
+    return output_result(DataFrame(observation=1:length(r),
+                                   residual=round.(Float64.(r); digits=6));
+                         format=Symbol(format), output=output,
+                         title="Poisson Residuals")
+end
+
+function _residuals_nbreg(; data::String="", dep::String="", offset::String="",
+                           exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
+                           output::String="", format::String="table", model=nothing)
+    _count_guards(maxiter, tol, 0.95, "residuals nbreg")
+    m = model === nothing ? first(_fit_nbreg(data, dep, offset, exposure, maxiter, tol)) : model
+    r = residuals(m)
+    _status("Negative binomial residuals: n=$(length(r))"); _status()
+    return output_result(DataFrame(observation=1:length(r),
+                                   residual=round.(Float64.(r); digits=6));
+                         format=Symbol(format), output=output,
+                         title="Negative Binomial Residuals")
+end
+
+"""`test dispersion` — Cameron & Trivedi (1990) overdispersion test.
+
+`dispersion_test` takes a fitted POISSON model and returns both the NB1 and NB2 auxiliary
+regressions, each a NamedTuple of (alpha, se, t_stat, p_value). A significantly positive α
+means the Poisson equidispersion assumption fails and `estimate nbreg` is preferred.
+"""
+function _test_dispersion(; data::String="", dep::String="", offset::String="",
+                           exposure::String="", cov_type::String="robust",
+                           clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
+                           alpha::Float64=0.05, output::String="", format::String="table")
+    _count_guards(maxiter, tol, 0.95, "test dispersion")
+    (0 < alpha < 1) || throw(CliError("usage/invalid",
+        "test dispersion: --alpha must satisfy 0 < alpha < 1 (got $alpha)"))
+    m, _ = _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
+    dt = try
+        dispersion_test(m)
+    catch e
+        throw(_domain_or_data_error(e, "Dispersion test"))
+    end
+    rows = [(form="NB2", nt=dt.nb2), (form="NB1", nt=dt.nb1)]
+    df = DataFrame(
+        form=[r.form for r in rows],
+        alpha=[round(Float64(r.nt.alpha); digits=6) for r in rows],
+        std_error=[round(Float64(r.nt.se); digits=6) for r in rows],
+        t_stat=[round(Float64(r.nt.t_stat); digits=4) for r in rows],
+        p_value=[round(Float64(r.nt.p_value); digits=6) for r in rows],
+        # The p-value is two-sided, but the decision is DIRECTIONAL: alpha > 0 is
+        # overdispersion (Poisson understates the variance → prefer nbreg), alpha < 0 is
+        # UNDERdispersion, for which nbreg is not the remedy — NB2 cannot represent it.
+        # Collapsing both into "reject equidispersion ⇒ use nbreg" would recommend the
+        # wrong model on underdispersed counts.
+        decision=[Float64(r.nt.p_value) < alpha ?
+                  (Float64(r.nt.alpha) > 0 ? "overdispersed" : "underdispersed") :
+                  "equidispersion not rejected" for r in rows],
+    )
+    _status("Cameron-Trivedi dispersion test on a Poisson fit (n=$(dt.n))"); _status()
+    output_result(df; format=Symbol(format), output=output,
+                  title="Overdispersion Test (Cameron & Trivedi 1990)")
+    sig = Float64(dt.nb2.p_value) < alpha
+    a2 = Float64(dt.nb2.alpha)
+    preferred = if sig && a2 > 0
+        "nbreg (overdispersion: alpha > 0 and significant)"
+    elseif sig
+        "poisson (significant UNDERdispersion: alpha < 0 — nbreg does not model this; " *
+        "consider a generalised-Poisson or Conway-Maxwell-Poisson model)"
+    else
+        "poisson (equidispersion not rejected)"
+    end
+    output_kv(Pair{String,Any}[
+        "n"               => dt.n,
+        "alpha_level"     => alpha,
+        "nb2_alpha"       => round(a2; digits=6),
+        "preferred_model" => preferred,
+    ]; format=format, title="Dispersion Summary")
+    return dt
 end
 
 # ── C064a: univariate GARCH variants ─────────────────────────

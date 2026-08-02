@@ -1154,6 +1154,36 @@ friedman test gregory-hansen data.csv --model=C_T --lags=aic --trim=0.15
 
 **Output:** ADF\*, Zt\*, Za\* statistics with p-values and estimated break indices.
 
+## Count-Data Diagnostics
+
+### test dispersion
+
+Cameron & Trivedi (1990) overdispersion test. Fits a Poisson model on the data, then runs the
+auxiliary regression in both the NB2 and NB1 forms.
+
+```bash
+friedman test dispersion data.csv --dep=claims --exposure=policy_years
+```
+
+Fit options mirror [`estimate poisson`](estimate.md#estimate-poisson) (`--dep`, `--offset` /
+`--exposure`, `--cov-type`, `--clusters`, `--maxiter`, `--tol`), plus `--alpha` (default `0.05`)
+for the decision column.
+
+**Output:** one row per form (`NB2`, `NB1`) with `alpha`, its standard error, the t-statistic,
+the p-value, and a `decision`; then a summary reporting the preferred model.
+
+**The decision is directional, not just significant/not.** The reported p-value is two-sided, but
+`α > 0` and `α < 0` mean different things:
+
+| Outcome | Reading |
+|---|---|
+| `α > 0`, significant | **Overdispersion** — the Poisson variance is too small; prefer [`estimate nbreg`](estimate.md#estimate-nbreg) |
+| `α < 0`, significant | **Underdispersion** — NB2 *cannot* represent this; a generalised-Poisson or Conway–Maxwell–Poisson model is the right remedy, not `nbreg` |
+| not significant | Equidispersion not rejected; Poisson is adequate |
+
+Treating any rejection as "use nbreg" is a common error and would recommend the wrong model on
+underdispersed counts, so the summary distinguishes the two cases explicitly.
+
 ## Multicollinearity Diagnostics
 
 ### test vif

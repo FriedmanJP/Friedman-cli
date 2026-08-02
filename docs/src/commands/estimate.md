@@ -1447,6 +1447,62 @@ common = ["gov", "taxes", "lag_income"]
 
 When the instruments span every regressor, 3SLS collapses to SUR; when every equation is exactly identified it collapses to equation-by-equation 2SLS. **Output:** the same tidy coefficient table as `sur` + a system-statistics table (with instruments-per-equation).
 
+## estimate poisson
+
+Poisson regression for count outcomes, fitted by IRLS.
+
+```bash
+friedman estimate poisson data.csv --dep=claims --exposure=policy_years
+friedman estimate poisson data.csv --dep=visits --irr --conf-level=0.99
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent count column |
+| `--offset` | | String | | Offset column, already on the log scale |
+| `--exposure` | | String | | Exposure column, strictly positive; enters as `log(exposure)` |
+| `--cov-type` | | String | `robust` | `robust`, `mle`, `hc0`–`hc3`, `cluster` |
+| `--clusters` | | String | | Cluster variable column name |
+| `--maxiter` | | Int | 100 | Maximum IRLS iterations |
+| `--tol` | | Float64 | 1e-10 | Convergence tolerance |
+| `--conf-level` | | Float64 | 0.95 | Confidence level for the IRR interval |
+| `--irr` | | Flag | off | Also report incidence-rate ratios |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**`--cov-type` defaults to `robust`, not `hc1`.** That mirrors the library, which reports the
+Gourieroux–Monfort–Trognon pseudo-ML sandwich by default: Poisson QMLE stays consistent for the
+conditional mean even when the equidispersion assumption fails, but only the sandwich standard
+errors remain valid in that case. Use `--cov-type mle` for the (narrower) information-matrix
+errors when equidispersion is credible — see [`test dispersion`](test.md#test-dispersion).
+
+**`--offset` and `--exposure` are mutually exclusive** (exposure *is* an offset, log-transformed
+for you); passing both is a usage error. Use `--exposure` for time-at-risk or population
+denominators, `--offset` when your column is already logged.
+
+`--irr` adds a second table of `exp(β)` with delta-method standard errors and confidence
+intervals — the multiplicative reading of each coefficient.
+
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + optional IRR table
++ fit statistics (pseudo R², log-likelihood, deviance, AIC, BIC, convergence).
+
+## estimate nbreg
+
+Negative binomial (NB2) regression for overdispersed counts, estimating `(β, log α)` jointly.
+
+```bash
+friedman estimate nbreg data.csv --dep=claims --exposure=policy_years
+```
+
+Options are the same as [`estimate poisson`](#estimate-poisson) **except `--cov-type` and
+`--clusters`, which are not offered**: the library's NB2 estimator takes neither, reporting the
+joint information-matrix covariance instead. `--maxiter` defaults to 1000.
+
+**Output:** Tidy coefficient table, a separate **overdispersion table** carrying `α` and its
+delta-method standard error (the coefficient covariance block stops at `β`, so `α` cannot ride
+the same table), an optional IRR table, and fit statistics. Each table takes a distinct
+`--output` path suffix so nothing is overwritten.
+
 ## estimate logit
 
 Logit (logistic regression) for binary choice models.

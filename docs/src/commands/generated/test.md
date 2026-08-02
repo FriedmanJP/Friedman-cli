@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 88
+**Leaves:** 89
 
 ### `friedman test adf`
 
@@ -389,6 +389,31 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `dh_causality` (Path to CSV data file)
+
+---
+
+### `friedman test dispersion`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance estimator for the auxiliary Poisson fit |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--alpha` | — | `Float64` | `0.05` | — | Significance level for the decision column (0 < alpha < 1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+**Output tables:** `dispersion` (Path to CSV data file)
 
 ---
 

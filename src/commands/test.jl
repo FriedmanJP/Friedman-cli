@@ -1346,6 +1346,29 @@ function test_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_test_gregory_hansen),
         ),
         CommandSpec(
+            # W2/#107: Cameron & Trivedi (1990) overdispersion test. Refit-based like the
+            # other regression-diagnostic tests: it needs a fitted POISSON model, so the
+            # spec mirrors `estimate poisson`'s fit options.
+            path=["test", "dispersion"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="cov-type", type=String, default="robust",
+                           choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="Covariance estimator for the auxiliary Poisson fit"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OptionSpec(name="alpha", type=Float64, default=0.05, description="Significance level for the decision column (0 < alpha < 1)"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:dispersion, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_dispersion),
+        ),
+        CommandSpec(
             path=["test", "vif"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],

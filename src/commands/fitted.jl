@@ -1326,6 +1326,40 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # W2/#107: count-data conditional means exp(x'b + offset). Upstream's 1-arg
+        # `predict(m)` returns m.fitted; the (m, Xnew) out-of-sample form is out of scope
+        # here, matching every other `predict` leaf. NO --plot: src/plotting/ has no
+        # dispatch covering PoissonModel/NegBinModel on the 0.7.2 tag.
+        CommandSpec(
+            path=["predict", "poisson"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="cov-type", type=String, default="robust",
+                           choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_poisson, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_poisson),
+        ),
+        CommandSpec(
+            path=["predict", "nbreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_nbreg, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_nbreg),
+        ),
         # W3/#101: MS fitted values, un-gated by MEMs#510. `--probs` picks the regime
         # weighting; upstream warns `y - predict(m; probs=:filtered)` is NOT residuals(m)
         # (those are smoothed-weighted and use strictly more information), so these leaves
@@ -1634,6 +1668,39 @@ function residuals_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:residuals_ms, description="Path to CSV data file")],
             category="residuals",
             handler=wrap_legacy(_residuals_ms),
+        ),
+        # W2/#107: count-data residuals. `residuals(m)` is a bare field accessor upstream
+        # with NO `kind` kwarg, so no --kind is advertised here (a declared option the
+        # handler cannot honour fails on every call — #85).
+        CommandSpec(
+            path=["residuals", "poisson"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="cov-type", type=String, default="robust",
+                           choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_poisson, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_poisson),
+        ),
+        CommandSpec(
+            path=["residuals", "nbreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_nbreg, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_nbreg),
         ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
