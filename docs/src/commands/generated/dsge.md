@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 36
+**Leaves:** 37
 
 ### `friedman dsge bayes compare`
 
@@ -622,6 +622,34 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `fevd` (Path to DSGE model file (.toml or .jl))
+
+---
+
+### `friedman dsge ha accuracy`
+
+Den Haan (2010) accuracy for a Krusell-Smith solution
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Capital builtin (krusell-smith) or .jl HADSGESpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states |
+| `--t-sim` | — | `Int64` | `10000` | — | Simulation length (must exceed --t-burn by >= 10) |
+| `--t-burn` | — | `Int64` | `1000` | — | Burn-in discarded before scoring |
+| `--rho-z` | — | `Float64` | `0.95` | — | Aggregate shock persistence, \|rho\| < 1 |
+| `--sigma-z` | — | `Float64` | `0.007` | — | Aggregate shock s.d. (> 0) |
+| `--seed` | — | `Int64` | `98765` | — | Simulation seed |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `accuracy` (Den Haan accuracy metrics)
 
 ---
 

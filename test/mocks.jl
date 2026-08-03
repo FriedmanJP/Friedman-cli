@@ -7506,6 +7506,35 @@ struct KrusellSmithSolution{T<:AbstractFloat}
     iterations::Int
 end
 
+# W13/#115 — Den Haan (2010) accuracy. Field names/order mirror real DenHaanAccuracy.
+struct DenHaanAccuracy{T<:AbstractFloat}
+    aggregate::Symbol
+    dh_max::T
+    dh_mean::T
+    sigma_ref::T
+    sigma_plm::T
+    ref_path::Vector{T}
+    plm_path::Vector{T}
+    T_sim::Int
+    T_burn::Int
+    source::Symbol
+end
+
+# Guards mirror real: @assert on the horizon, and :huggett is unsupported because it has no
+# aggregate capital. The CLI pre-guards both, but the mock must still refuse so a regression
+# in that pre-guard cannot pass at T1/T2.
+function den_haan_test(ks::KrusellSmithSolution{T}; T_sim::Int=10000, T_burn::Int=1000,
+                       rho_z::Real=0.95, sigma_z::Real=0.007, seed::Int=98765) where T
+    T_sim > T_burn + 10 || throw(AssertionError("T_sim must exceed T_burn by at least 10"))
+    ks.spec.model === :huggett &&
+        error("den_haan_test is implemented for the capital models (:aiyagari/:ks)")
+    n = T_sim - T_burn
+    ref = T[T(1.0) + T(0.01) * sin(i / 10) for i in 1:n]
+    plm = ref .+ T(0.0005)
+    DenHaanAccuracy{T}(:K, T(0.08), T(0.03), T(0.005), T(0.005), ref, plm,
+                       T_sim, T_burn, :plm)
+end
+
 function _mock_ha_ss(spec::HADSGESpec{T}) where T
     HASteadyState{T}(
         Dict{Symbol,Any}(:savings => ones(T, 10, 2) * T(0.5)),
@@ -8043,6 +8072,7 @@ export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
 
 export HADSGESpec, HASteadyState, HADSGESolution, KrusellSmithSolution
+export DenHaanAccuracy, den_haan_test
 export CTAiyagari, CTSteadyState, CTTransition, CTTwoAsset, CTTwoAssetSolution, CTPoissonIncome
 export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
 export X13FilterResult, IOData

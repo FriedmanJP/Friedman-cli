@@ -23,6 +23,44 @@ Compute a stationary equilibrium for a small incomplete-markets economy, solve a
 
 Any of these tokens may be written with a leading colon (`:huggett`). A `.jl` file that evaluates to `HADSGESpec` is also accepted.
 
+### Custom models from a `.jl` file
+
+An HA spec file is an `@dsge begin … end` block carrying the three heterogeneous-agent
+declarations. The file needs no `using MacroEconometricModels` of its own — the loader
+evaluates it in a sandbox where the package's exports are already in scope:
+
+```julia
+# aiyagari.jl
+@dsge begin
+    parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
+    endogenous: Y, K, r, w, Z
+    exogenous: eps_Z
+
+    heterogeneous: a in [0.0, 400.0], n_grid = 60, utility = log, discount = beta_hh, borrowing = 0.0
+    idiosyncratic: e ~ Rouwenhorst(0.966, 0.5, 5)
+    aggregation: K = sum(a)
+
+    Y[t] = Z[t] * K[t-1]^alpha
+    r[t] = alpha * Z[t] * K[t-1]^(alpha-1) - delta
+    w[t] = (1 - alpha) * Z[t] * K[t-1]^alpha
+    Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
+end
+```
+
+```bash
+friedman dsge ha steady-state aiyagari.jl
+```
+
+Set `a in [0.0, a_max]` generously. If too much of the stationary distribution piles up at
+`a_max`, the asset market does not really clear and `excess_demand` cannot detect it,
+because it is measured on the clamped aggregate; MEMs warns about this on stderr, and the
+warning is worth acting on rather than ignoring.
+
+!!! note "Fixed in v0.9.1"
+    Before v0.9.1 this path did not work at all ([#80](https://github.com/FriedmanJP/Friedman-cli/issues/80)):
+    every `.jl` HA model failed with `UndefVarError: @dsge`, because the loader's sandbox
+    injected the package object but not its exports. Builtin names were unaffected.
+
 ---
 
 ## Method choice
@@ -135,6 +173,25 @@ friedman dsge ha steady-state huggett --format json
 ```
 
 **Interpretation.** Envelope `status` is `ok`. Tables under `data` report prices (`w`, `r`), aggregates (`Y`, `K`, …), and diagnostics (`converged`, `iterations`, `euler_error`, `excess_demand`). A near-zero excess demand and `converged = 1` indicate a successful fixed point.
+
+!!! note "Reading `euler_error`"
+    Three properties of this number surprise people, so read it carefully:
+
+    - **It is `log10` of the residual, not the residual.** `-1.44` means a maximum Euler
+      residual of about 3.6%, which is poor; `-4` means about 0.01%, which is good. More
+      negative is better.
+    - **It is a maximum over *unconstrained* grid points only.** Points where the borrowing
+      constraint binds are skipped — the Euler equation holds with inequality there, so a
+      residual would be meaningless. A model where most mass sits at the constraint is
+      therefore scored on comparatively few points.
+    - **It is `NaN` when no unconstrained point exists.** That is a legitimate result, not a
+      failure to compute; treat it as "no evidence" rather than "zero error".
+
+    The residual is evaluated at grid **nodes**. MEMs 0.7.2 exposes no
+    `euler_points = :nodes | :midpoints` choice — `HASteadyState` carries the single scalar
+    `euler_error` — so there is nothing for the CLI to surface as an option here. Should
+    upstream add the midpoint convention, note that node-evaluated errors are
+    optimistically biased for interpolated policies, and the two are not comparable.
 
 ---
 
@@ -737,6 +794,67 @@ friedman dsge ha estimate krusell-smith \
 ```
 
 Output is a posterior summary table (`mean`, `std`, `q05`, `median`, `q95` per parameter); the acceptance rate and effective draw count go to stderr. `--measurement-error auto` adds per-observable measurement error at 10% of each series' variance (needed when observables exceed structural shocks). `--method krusell-smith` is rejected — the Kalman filter needs a linear state space, so use `ssj` or `reiter`.
+
+---
+
+## Solution accuracy: `dsge ha accuracy`
+
+Den Haan (2010) accuracy for a Krusell–Smith solution. The perceived law of motion is only an
+approximation of the true aggregate dynamics, and this is the standard way to score how far
+the two drift apart: it simulates the economy twice from the same shocks — once tracking the
+full cross-sectional distribution (the *reference* path) and once letting the PLM forecast the
+aggregate on its own — and reports the percentage deviation between them.
+
+```bash
+friedman dsge ha accuracy krusell-smith --t-sim 10000 --t-burn 1000
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--n-reduced` | Int | 30 | Reduced distribution states for the solve |
+| `--t-sim` | Int | 10000 | Simulation length (must exceed `--t-burn` by ≥ 10) |
+| `--t-burn` | Int | 1000 | Burn-in discarded before scoring |
+| `--rho-z` / `--sigma-z` | Float64 | 0.95 / 0.007 | Aggregate shock persistence and s.d. |
+| `--seed` | Int | 98765 | Simulation seed |
+| `--plot` / `--plot-save` | Flag/String | | Reference vs PLM-only path |
+
+**Output:** `dh_max` and `dh_mean` (maximum and mean percentage deviation — smaller is
+better), the two simulation standard deviations `sigma_ref`/`sigma_plm`, the full reference
+and PLM-only aggregate paths as a second table, and the simulation settings.
+
+The method is forced to Krusell–Smith: the test scores a *perceived law of motion*, which only
+that solution produces. **It is undefined for `huggett`**, which has no aggregate capital, and
+the CLI refuses before running the (expensive) solve rather than after it.
+
+## Upstream feature coverage (Stage-14 audit)
+
+MacroEconometricModels 0.7.2 added a block of heterogeneous-agent / OLG / continuous-time
+features. Not all of them warrant CLI surface; this records where each stands, so the absence
+of a command is a decision rather than an oversight.
+
+| Upstream feature | Status in the CLI |
+|---|---|
+| Den Haan accuracy | **Exposed** as `dsge ha accuracy` (above) |
+| Winberry parametric distribution dynamics | Reachable via the existing `dsge ha` method surface; note the library's convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines |
+| SSJ DAG / second-order SSJ | **Deferred.** Block-composition types (`SimpleBlock`/`HetBlock`/`SSJModel`) are a model-*construction* API. Exposing them means a config schema for wiring blocks, which is a design task in its own right, not an option on an existing leaf |
+| DCEGM (discrete–continuous choice) | **Deferred.** Needs a builtin carrying a discrete choice; none of the shipped builtins has one, so a leaf would have nothing to run |
+| Life-cycle OLG (age-EGM) | **Deferred.** A distinct model class with its own steady state and distribution objects, not an option on the existing two-period `dsge olg` leaves |
+| Endogenous labour (GHH / separable) | **Deferred.** A property of a model spec, so it belongs in the builtin/config surface rather than a flag |
+| Adaptive Smolyak / adaptive grids | **No new surface.** Grid construction is internal to solving; the existing `--n-reduced` already governs the accuracy/cost trade-off users actually tune |
+| KMV two-asset GE + MIT transitions | **Deferred.** Substantial new surface (two-asset calibration, transition paths); the existing `dsge ct` leaves cover the one-asset case |
+
+Deferred rows are gated on a concrete use case rather than on upstream — the methods exist
+today and can be reached from Julia directly.
+
+Two related items settled with the same audit:
+
+- **Euler-error convention.** No CLI option was added, because at the 0.7.2 pin there is
+  nothing to choose: `euler_points = :nodes | :midpoints` does not exist anywhere in the
+  package, and `HASteadyState` carries one scalar `euler_error`. What the number actually
+  means is documented under [Steady state](#1.-Steady-state) instead.
+- **[#80](https://github.com/FriedmanJP/Friedman-cli/issues/80) — HA `.jl` loader.** Fixed
+  here rather than worked around, since `dsge ha accuracy` loads models through the same
+  helper. See [Custom models from a `.jl` file](#Custom-models-from-a-.jl-file).
 
 ---
 

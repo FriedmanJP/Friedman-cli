@@ -3177,6 +3177,110 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test length(table_rows(tbl)) >= 1
     end
 
+    # W13/#115 — Den Haan (2010) accuracy, the audit's adopt-now row.
+    @testset "dsge ha accuracy (W13/#115)" begin
+        # `cols_table` is a LOCAL helper of the io testset, not suite-level — define it here
+        # rather than reaching across scopes (this has bitten twice already).
+        #
+        # It also takes a row predicate: this leaf emits BOTH a `metric`/`value` DATA table
+        # and a `metric`/`value` settings kv, so the column set alone is ambiguous and
+        # `pairs(doc.data)` has no order guarantee (JSON3). Matching on columns only bound
+        # the all-String settings table roughly half the time. Distinctive CONTENT, not
+        # just distinctive columns — cf. the T3 harness lesson in CLAUDE.md.
+        cols_table(doc, cols; where=_ -> true) = begin
+            doc === nothing && return nothing
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                all(c -> c in table_cols(v), cols) || continue
+                where(v) && return v
+            end
+            return nothing
+        end
+        has_metric(t, m) = any(rw -> String(collect(rw)[col_index(t, "metric")]) == m,
+                               table_rows(t))
+        # Short simulation: this solves Krusell-Smith first, so keep the horizon small.
+        r = run_json(["dsge", "ha", "accuracy", "krusell-smith",
+                      "--t-sim", "1500", "--t-burn", "200", "--n-reduced", "8"])
+        assert_envelope_ok(r; label="dsge ha accuracy")
+        t = cols_table(r.doc, ["metric", "value"]; where=v -> has_metric(v, "dh_max"))
+        @test t !== nothing
+        # Values arrive as JSON numbers, but coerce defensively: an all-String row means
+        # the wrong table bound, and a bare `Float64(::String)` would ERROR the testset
+        # (aborting every assertion below) instead of failing one @test.
+        num(x) = x isa AbstractString ? parse(Float64, x) : Float64(x)
+        mv = Dict(String(collect(rw)[col_index(t, "metric")]) =>
+                  num(collect(rw)[col_index(t, "value")]) for rw in table_rows(t))
+        for k in ("dh_max", "dh_mean", "sigma_ref", "sigma_plm")
+            @test haskey(mv, k) && isfinite(mv[k])
+        end
+        # Den Haan statistics are percentage deviations: non-negative, and the max
+        # cannot be below the mean.
+        @test mv["dh_max"] >= 0 && mv["dh_mean"] >= 0
+        @test mv["dh_max"] >= mv["dh_mean"]
+        # the two simulated aggregate paths ride their own table
+        pt = cols_table(r.doc, ["t", "reference", "plm_only"])
+        @test pt !== nothing && !isempty(table_rows(pt))
+
+        # Undefined for huggett (no aggregate capital) — and the refusal must come BEFORE
+        # the expensive solve, so this returns promptly rather than after a full KS fit.
+        rh = run_json(["dsge", "ha", "accuracy", "huggett", "--t-sim", "1500", "--t-burn", "200"])
+        @test rh.code == 5
+        @test occursin("huggett", String(rh.doc["error"]["message"]))
+        # numeric guards are typed usage errors, never an untyped upstream @assert (exit 1)
+        @test run_json(["dsge", "ha", "accuracy", "krusell-smith",
+                        "--t-sim", "100", "--t-burn", "200"]).code == 2
+        @test run_json(["dsge", "ha", "accuracy", "krusell-smith", "--rho-z", "1.5"]).code == 2
+        @test run_json(["dsge", "ha", "accuracy", "krusell-smith", "--sigma-z", "0"]).code == 2
+    end
+
+    # W13/#115 pulled in the sibling standing bug #80: `dsge ha accuracy` calls
+    # `_load_ha_model`, and the issue says to fix #80 rather than work around it again.
+    # An HA spec file is an `@dsge` block, and the old sandbox injected only the
+    # MacroEconometricModels const — so the bare `@dsge` was `UndefVarError` and EVERY
+    # `.jl` HA model failed. Verified against the old sandbox before fixing; this is the
+    # first coverage the `.jl` HA path has ever had.
+    @testset "HA .jl @dsge loader (#80)" begin
+        spec = tempname() * ".jl"
+        write(spec, """
+        @dsge begin
+            parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
+            endogenous: Y, K, r, w, Z
+            exogenous: eps_Z
+
+            heterogeneous: a in [0.0, 400.0], n_grid = 40, utility = log, discount = beta_hh, borrowing = 0.0
+
+            idiosyncratic: e ~ Rouwenhorst(0.966, 0.5, 3)
+
+            aggregation: K = sum(a)
+
+            Y[t] = Z[t] * K[t-1]^alpha
+            r[t] = alpha * Z[t] * K[t-1]^(alpha-1) - delta
+            w[t] = (1 - alpha) * Z[t] * K[t-1]^alpha
+            Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
+        end
+        """)
+        r = run_json(["dsge", "ha", "steady-state", spec])
+        assert_envelope_ok(r; label="dsge ha steady-state (.jl spec)")
+        agg = nothing
+        for (_, v) in pairs(r.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            "name" in table_cols(v) &&
+                any(rw -> String(collect(rw)[1]) == "K", table_rows(v)) && (agg = v)
+        end
+        @test agg !== nothing
+
+        # A .jl file that does NOT evaluate to a spec is a typed config error, not exit 1.
+        bad = tempname() * ".jl"
+        write(bad, "42\n")
+        @test run_json(["dsge", "ha", "steady-state", bad]).code == 4
+        # A file that throws while evaluating is likewise typed, not an untyped crash.
+        broken = tempname() * ".jl"
+        write(broken, "@dsge begin\n    endogenous: Y\n    this is not valid\nend\n")
+        @test run_json(["dsge", "ha", "steady-state", broken]).code in (2, 4)
+
+        rm(spec; force=true); rm(bad; force=true); rm(broken; force=true)
+    end
+
     @testset "dsge ha solve reiter huggett" begin
         r = run_json(["dsge", "ha", "solve", "huggett",
                       "--method", "reiter", "--n-reduced", "8"])

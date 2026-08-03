@@ -1382,6 +1382,14 @@ end
 
 Load HA-DSGE model from a builtin name (`huggett`, `krusell-smith`, …) or a `.jl`
 file that evaluates to `HADSGESpec`.
+
+The `.jl` path goes through [`_dsge_sandbox`] (#80, fixed in W13): an HA spec file is an
+`@dsge begin … end` block carrying `heterogeneous:`/`idiosyncratic:`/`aggregation:`
+declarations, so the bare `@dsge` name has to resolve — a sandbox holding only the
+`MacroEconometricModels` const gave `UndefVarError` on every `.jl` HA model. This is the
+same defect the RA loader had; unlike the RA case there is no world-age barrier to add,
+because the HA solve paths never *invoke* the spec's compiled residual closures (they read
+`param_values`/`endog` and build throwaway specs — `heterogeneous/parser.jl`, `ssj.jl`).
 """
 function _load_ha_model(model::String)
     isempty(strip(model)) && throw(CliError("usage/missing-arg",
@@ -1402,9 +1410,16 @@ function _load_ha_model(model::String)
         "HA model file must be .jl (got '$ext'); builtins: " *
         join(first.( _HA_BUILTIN_MODELS), ", ")))
 
-    mod = Module()
-    Base.eval(mod, :(const MacroEconometricModels = $(MacroEconometricModels)))
-    result = Base.include(mod, model)
+    mod = _dsge_sandbox()
+    result = try
+        Base.include(mod, model)
+    catch e
+        e isa CliError && rethrow()
+        throw(CliError("config/invalid",
+            "could not evaluate the HA model file '$model': $(sprint(showerror, e))";
+            hint="the file should be an `@dsge begin … end` block with heterogeneous:, " *
+                 "idiosyncratic: and aggregation: declarations"))
+    end
     if result isa MacroEconometricModels.DSGESpec
         throw(CliError("usage/wrong-command",
             "this is a representative-agent DSGESpec — use `dsge solve|irf|…`, not `dsge ha`",
