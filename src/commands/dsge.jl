@@ -439,13 +439,18 @@ function dsge_specs()::Vector{CommandSpec}
         # now built from the reduction C rows, so HA Bayesian estimation is meaningful.
         CommandSpec(
             path=["dsge", "ha", "accuracy"],
-            summary="Den Haan (2010) accuracy for a Krusell-Smith solution",
+            summary="Den Haan (2010) accuracy of the aggregate law of motion",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Capital builtin (krusell-smith) or .jl HADSGESpec")],
+                          description="Capital builtin (krusell-smith|one-asset-hank) or .jl HADSGESpec")],
             options=[
+                OptionSpec(name="method", type=String, default="krusell-smith",
+                           description="Solution to score: krusell-smith|ssj|reiter",
+                           choices=["krusell-smith", "ssj", "reiter"]),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced distribution states"),
                 OptionSpec(name="t-sim", type=Int, default=10000, description="Simulation length (must exceed --t-burn by >= 10)"),
                 OptionSpec(name="t-burn", type=Int, default=1000, description="Burn-in discarded before scoring"),
+                OptionSpec(name="t-fit", type=Int, default=4000,
+                           description="Fitting length for the implied law (> 100; ssj|reiter only)"),
                 OptionSpec(name="rho-z", type=Float64, default=0.95, description="Aggregate shock persistence, |rho| < 1"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.007, description="Aggregate shock s.d. (> 0)"),
                 OptionSpec(name="seed", type=Int, default=98765, description="Simulation seed"),
@@ -491,6 +496,9 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
                           description="Builtin name or .jl HADSGESpec")],
             options=[
+                OptionSpec(name="euler-points", type=String, default="midpoints",
+                           description="Euler-error evaluation points: midpoints|nodes",
+                           choices=["midpoints", "nodes"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -500,6 +508,7 @@ function dsge_specs()::Vector{CommandSpec}
                 TableSpec(name=:aggregates, description="Steady-state aggregates"),
                 TableSpec(name=:prices, description="Steady-state prices"),
                 TableSpec(name=:diagnostics, description="Convergence diagnostics"),
+                TableSpec(name=:euler, description="Euler accuracy by convention"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_steady_state),
@@ -1946,36 +1955,75 @@ function _ha_ss_tables(ss; format::String, output::String, title_prefix::String=
     )
     output_result(agg_df; format=Symbol(format), output=output,
                   title="$title_prefix Steady-State Aggregates")
-    output_result(price_df; format=Symbol(format), output=output,
+    # Distinct paths for the 2nd+ table, or `--output f.csv` silently keeps only the last.
+    output_result(price_df; format=Symbol(format), output=_per_var_output_path(output, "prices"),
                   title="$title_prefix Steady-State Prices")
-    output_result(diag_df; format=Symbol(format), output=output,
+    output_result(diag_df; format=Symbol(format), output=_per_var_output_path(output, "diagnostics"),
                   title="$title_prefix Steady-State Diagnostics")
+
+    # Euler accuracy detail (MEMs#508). `ss.euler` carries BOTH conventions —
+    # `(midpoints=…, nodes=…)`, each `(points, max, mean, n_evaluated, n_constrained,
+    # n_offgrid)`. `euler_error` above is whichever one `--euler-points` selected, and the
+    # two differ by 2.5–3.8 log10 units, so reporting only the selected number invites a
+    # comparison against published figures measured the other way. `nothing` for steady
+    # states built by paths that do not measure accuracy — then this table is absent.
+    eu = hasproperty(ss, :euler) ? ss.euler : nothing
+    if eu !== nothing
+        rows = NamedTuple[]
+        for conv in (:midpoints, :nodes)
+            haskey(eu, conv) || continue
+            s = eu[conv]
+            push!(rows, (convention=String(conv),
+                         max=Float64(s.max), mean=Float64(s.mean),
+                         n_evaluated=Int(s.n_evaluated),
+                         n_constrained=Int(s.n_constrained),
+                         n_offgrid=Int(s.n_offgrid)))
+        end
+        if !isempty(rows)
+            output_result(DataFrame(rows);
+                          format=Symbol(format),
+                          output=_per_var_output_path(output, "euler"),
+                          title="$title_prefix Euler Accuracy (log10, by convention)")
+        end
+    end
     return (agg_df, price_df, diag_df)
 end
 
-function _dsge_ha_steady_state(; model::String,
+function _dsge_ha_steady_state(; model::String, euler_points::String="midpoints",
                                 output::String="", format::String="table")
+    ep = lowercase(strip(euler_points))
+    ep in ("midpoints", "nodes") || throw(CliError("usage/invalid-option",
+        "invalid --euler-points '$euler_points'; must be midpoints or nodes"))
     spec = _load_ha_model(model)
     _status("Computing HA steady state for model=$(spec.model)...")
-    ss = MacroEconometricModels.compute_steady_state(spec)
+    ss = MacroEconometricModels.compute_steady_state(spec; euler_points=Symbol(ep))
     _ha_ss_tables(ss; format=format, output=output)
     return ss
 end
 
 # ── W13/#115: Den Haan (2010) accuracy for a Krusell-Smith solution ───────────
 #
-# The audit's strongest row and the one it required resolved concretely. `den_haan_test`
-# takes a KrusellSmithSolution ONLY, so the leaf forces that method rather than offering a
-# --method the test cannot honour. Upstream's own guards are an `@assert` (T_sim/T_burn and
-# the z-augmented PLM) and a bare `error()` for :huggett — all UNTYPED, i.e. exit 1 — so each
-# is either pre-guarded here or mapped. `DenHaanAccuracy` has a real plot recipe
+# The audit's strongest row and the one it required resolved concretely.
+#
+# `den_haan_test` has TWO methods: `KrusellSmithSolution` (the fitted PLM) and
+# `HADSGESolution` for the linearized `:ssj`/`:reiter` solutions, which recover the implied
+# law by regression over `T_fit` periods. Both are exposed via --method; the linearized ones
+# additionally take --t-fit. The two are NOT comparable — upstream measures 0.07% for the
+# fitted KS PLM against 12.2% (ssj) and 5.5% (reiter) on the same model — so the renderer
+# labels which solution produced the number.
+#
+# Upstream's own guards are `@assert`s (T_sim/T_burn, T_fit, the z-augmented PLM) and bare
+# `error()`s (:huggett, wrong method) — all UNTYPED, i.e. exit 1 — so each is either
+# pre-guarded here or mapped. `DenHaanAccuracy` has a real plot recipe
 # (plotting/ha_dynamics.jl), so the plot flags are genuinely backed.
-function _dsge_ha_accuracy(; model::String, n_reduced::Int=30,
-                            t_sim::Int=10000, t_burn::Int=1000,
+function _dsge_ha_accuracy(; model::String, method::String="krusell-smith",
+                            n_reduced::Int=30,
+                            t_sim::Int=10000, t_burn::Int=1000, t_fit::Int=4000,
                             rho_z::Float64=0.95, sigma_z::Float64=0.007,
                             seed::Int=98765,
                             plot::Bool=false, plot_save::String="",
                             output::String="", format::String="table")
+    meth = _parse_ha_method(method)
     t_sim > t_burn + 10 || throw(CliError("usage/invalid",
         "dsge ha accuracy: --t-sim must exceed --t-burn by at least 10 " *
         "(got t_sim=$t_sim, t_burn=$t_burn)"))
@@ -1985,31 +2033,34 @@ function _dsge_ha_accuracy(; model::String, n_reduced::Int=30,
         "dsge ha accuracy: --sigma-z must be > 0 (got $sigma_z)"))
     abs(rho_z) < 1 || throw(CliError("usage/invalid",
         "dsge ha accuracy: --rho-z must satisfy |rho| < 1 (got $rho_z)"))
+    if meth !== :krusell_smith
+        t_fit > 100 || throw(CliError("usage/invalid",
+            "dsge ha accuracy: --t-fit must be > 100 to fit the implied law of motion " *
+            "(got $t_fit)"))
+    end
 
     spec = _load_ha_model(model)
-    # Refuse BEFORE the (expensive) Krusell-Smith solve. Upstream only errors once
-    # den_haan_test is reached, so without this a user asking for an undefined
-    # combination waits through a full solve just to be told no.
+    # Refuse BEFORE the (expensive) solve. Upstream only errors once den_haan_test is
+    # reached, so without this a user asking for an undefined combination waits through a
+    # full solve just to be told no.
     hasproperty(spec, :model) && spec.model === :huggett && throw(CliError(
         "model/unsupported",
         "Den Haan accuracy is undefined for :huggett — it scores the aggregate CAPITAL " *
-        "law of motion, and Huggett has no aggregate capital";
-        hint="use krusell-smith (or an :aiyagari-family .jl spec)"))
-    sol = _solve_ha(spec; method=:krusell_smith, n_reduced=n_reduced)
-    sol isa MacroEconometricModels.KrusellSmithSolution || throw(CliError(
-        "model/unsupported",
-        "dsge ha accuracy needs a Krusell-Smith solution, got $(typeof(sol))"))
+        "law of motion, and the Huggett clearing rate is driven by the wealth distribution " *
+        "rather than the aggregate shock alone";
+        hint="use krusell-smith or one-asset-hank (or an :aiyagari-family .jl spec)"))
+    sol = _solve_ha(spec; method=meth, n_reduced=n_reduced)
 
+    dh_kwargs = meth === :krusell_smith ?
+        (; T_sim=t_sim, T_burn=t_burn, rho_z=rho_z, sigma_z=sigma_z, seed=seed) :
+        (; T_sim=t_sim, T_burn=t_burn, T_fit=t_fit, rho_z=rho_z, sigma_z=sigma_z, seed=seed)
     acc = try
-        MacroEconometricModels.den_haan_test(sol; T_sim=t_sim, T_burn=t_burn,
-                                             rho_z=rho_z, sigma_z=sigma_z, seed=seed)
+        MacroEconometricModels.den_haan_test(sol; dh_kwargs...)
     catch e
         e isa CliError && rethrow()
-        # :huggett has no aggregate capital, so the test is undefined there — upstream says
-        # so with a bare error(); surface it as a typed refusal naming the supported models.
         throw(CliError("model/unsupported",
-            "Den Haan accuracy is defined for the capital models (krusell-smith / aiyagari), " *
-            "not for '$model'";
+            "Den Haan accuracy is not available for this model/solution combination " *
+            "(model='$model', method=$meth)";
             hint=sprint(showerror, e)))
     end
 
@@ -2019,7 +2070,7 @@ function _dsge_ha_accuracy(; model::String, n_reduced::Int=30,
         metric=["dh_max", "dh_mean", "sigma_ref", "sigma_plm"],
         value=round.(Float64[acc.dh_max, acc.dh_mean, acc.sigma_ref, acc.sigma_plm]; digits=6),
     ); format=Symbol(format), output=output,
-       title="Den Haan Accuracy (% deviation, $(acc.aggregate))")
+       title="Den Haan Accuracy (% deviation, $(acc.aggregate), $(meth))")
     # The two simulated aggregate paths, tidy and long, under a distinct output path.
     n = min(length(acc.ref_path), length(acc.plm_path))
     output_result(DataFrame(t=1:n,
@@ -2027,13 +2078,16 @@ function _dsge_ha_accuracy(; model::String, n_reduced::Int=30,
                             plm_only=round.(Float64.(acc.plm_path[1:n]); digits=6));
                   format=Symbol(format), output=_per_var_output_path(output, "paths"),
                   title="Reference vs PLM-only Aggregate Path")
-    output_kv(Pair{String,Any}[
+    settings = Pair{String,Any}[
+        "method"    => String(meth),
         "aggregate" => String(acc.aggregate),
         "source"    => String(acc.source),
         "T_sim"     => acc.T_sim,
         "T_burn"    => acc.T_burn,
         "seed"      => seed,
-    ]; format=format, title="Den Haan Simulation Settings")
+    ]
+    meth === :krusell_smith || push!(settings, "T_fit" => t_fit)
+    output_kv(settings; format=format, title="Den Haan Simulation Settings")
     _maybe_plot(acc; plot=plot, plot_save=plot_save)
     return acc
 end

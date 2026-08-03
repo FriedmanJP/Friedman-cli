@@ -627,17 +627,19 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge ha accuracy`
 
-Den Haan (2010) accuracy for a Krusell-Smith solution
+Den Haan (2010) accuracy of the aggregate law of motion
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Capital builtin (krusell-smith) or .jl HADSGESpec |
+| `model` | `String` | yes | — | Capital builtin (krusell-smith\|one-asset-hank) or .jl HADSGESpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `krusell-smith` | `krusell-smith`, `ssj`, `reiter` | Solution to score: krusell-smith\|ssj\|reiter |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states |
 | `--t-sim` | — | `Int64` | `10000` | — | Simulation length (must exceed --t-burn by >= 10) |
 | `--t-burn` | — | `Int64` | `1000` | — | Burn-in discarded before scoring |
+| `--t-fit` | — | `Int64` | `4000` | — | Fitting length for the implied law (> 100; ssj\|reiter only) |
 | `--rho-z` | — | `Float64` | `0.95` | — | Aggregate shock persistence, \|rho\| < 1 |
 | `--sigma-z` | — | `Float64` | `0.007` | — | Aggregate shock s.d. (> 0) |
 | `--seed` | — | `Int64` | `98765` | — | Simulation seed |
@@ -857,10 +859,11 @@ Compute HA-DSGE stationary equilibrium
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--euler-points` | — | `String` | `midpoints` | `midpoints`, `nodes` | Euler-error evaluation points: midpoints\|nodes |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `aggregates` (Steady-state aggregates); `prices` (Steady-state prices); `diagnostics` (Convergence diagnostics)
+**Output tables:** `aggregates` (Steady-state aggregates); `prices` (Steady-state prices); `diagnostics` (Convergence diagnostics); `euler` (Euler accuracy by convention)
 
 ---
 

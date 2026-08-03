@@ -3231,6 +3231,78 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                         "--t-sim", "100", "--t-burn", "200"]).code == 2
         @test run_json(["dsge", "ha", "accuracy", "krusell-smith", "--rho-z", "1.5"]).code == 2
         @test run_json(["dsge", "ha", "accuracy", "krusell-smith", "--sigma-z", "0"]).code == 2
+
+        # den_haan_test has a SECOND method for the linearized solutions, which recover the
+        # implied law by regression over --t-fit periods. Both must work, and --t-fit is
+        # guarded only on that branch (upstream asserts T_fit > 100 untyped).
+        for m in ("ssj", "reiter")
+            rm_ = run_json(["dsge", "ha", "accuracy", "krusell-smith", "--method", m,
+                            "--t-sim", "400", "--t-burn", "50", "--t-fit", "600",
+                            "--n-reduced", "6"])
+            assert_envelope_ok(rm_; label="dsge ha accuracy --method $m")
+            tm = cols_table(rm_.doc, ["metric", "value"]; where=v -> has_metric(v, "dh_max"))
+            @test tm !== nothing
+            # The settings table must record WHICH solution produced the number: the
+            # linearized statistic is not comparable with the fitted-PLM one.
+            st = cols_table(rm_.doc, ["metric", "value"]; where=v -> has_metric(v, "method"))
+            @test st !== nothing
+        end
+        @test run_json(["dsge", "ha", "accuracy", "krusell-smith", "--method", "ssj",
+                        "--t-fit", "50"]).code == 2
+        @test run_json(["dsge", "ha", "accuracy", "krusell-smith", "--method", "bogus"]).code == 2
+    end
+
+    # MEMs#508: `euler_points` selects WHERE the Euler residual is measured. EGM solves the
+    # Euler equation almost exactly at the nodes, so node evaluation flatters the solution by
+    # 2.5-3.8 log10 units; 0.7.2 made midpoints the default and keeps both in `ss.euler`.
+    @testset "dsge ha steady-state --euler-points (#508)" begin
+        sel(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "metric" in table_cols(v) || continue
+                for rw in table_rows(v)
+                    r = collect(rw)
+                    String(r[1]) == "euler_error" && return Float64(r[2])
+                end
+            end
+            return nothing
+        end
+        euler_tbl(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "convention" in table_cols(v) && return v
+            end
+            return nothing
+        end
+
+        rmid = run_json(["dsge", "ha", "steady-state", "huggett"])
+        rnod = run_json(["dsge", "ha", "steady-state", "huggett", "--euler-points", "nodes"])
+        assert_envelope_ok(rmid; label="ha steady-state midpoints")
+        assert_envelope_ok(rnod; label="ha steady-state nodes")
+
+        emid, enod = sel(rmid.doc), sel(rnod.doc)
+        @test emid !== nothing && enod !== nothing
+        # The whole point of the change: the two conventions must actually differ, and the
+        # node figure must be the optimistic one (more negative log10 = smaller residual).
+        @test enod < emid
+
+        # Both statistics are reported regardless of which one was selected, so a reader can
+        # always compare against a number measured the other way.
+        et = euler_tbl(rmid.doc)
+        @test et !== nothing
+        convs = [String(collect(rw)[col_index(et, "convention")]) for rw in table_rows(et)]
+        @test sort(convs) == ["midpoints", "nodes"]
+        # …and the selected scalar must equal the matching row, not be recomputed.
+        for rw in table_rows(et)
+            r = collect(rw)
+            String(r[col_index(et, "convention")]) == "midpoints" &&
+                (@test Float64(r[col_index(et, "max")]) ≈ emid atol=1e-9)
+            String(r[col_index(et, "convention")]) == "nodes" &&
+                (@test Float64(r[col_index(et, "max")]) ≈ enod atol=1e-9)
+        end
+
+        @test run_json(["dsge", "ha", "steady-state", "huggett",
+                        "--euler-points", "bogus"]).code == 2
     end
 
     # W13/#115 pulled in the sibling standing bug #80: `dsge ha accuracy` calls

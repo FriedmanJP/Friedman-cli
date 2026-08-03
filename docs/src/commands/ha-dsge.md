@@ -174,24 +174,41 @@ friedman dsge ha steady-state huggett --format json
 
 **Interpretation.** Envelope `status` is `ok`. Tables under `data` report prices (`w`, `r`), aggregates (`Y`, `K`, …), and diagnostics (`converged`, `iterations`, `euler_error`, `excess_demand`). A near-zero excess demand and `converged = 1` indicate a successful fixed point.
 
-!!! note "Reading `euler_error`"
-    Three properties of this number surprise people, so read it carefully:
+### Euler accuracy and `--euler-points`
 
-    - **It is `log10` of the residual, not the residual.** `-1.44` means a maximum Euler
-      residual of about 3.6%, which is poor; `-4` means about 0.01%, which is good. More
-      negative is better.
-    - **It is a maximum over *unconstrained* grid points only.** Points where the borrowing
-      constraint binds are skipped — the Euler equation holds with inequality there, so a
-      residual would be meaningless. A model where most mass sits at the constraint is
-      therefore scored on comparatively few points.
-    - **It is `NaN` when no unconstrained point exists.** That is a legitimate result, not a
-      failure to compute; treat it as "no evidence" rather than "zero error".
+`euler_error` is `log10` of the maximum Euler residual — `-2` means about 1%, `-4` about
+0.01%; more negative is better. It is a maximum over *unconstrained* points only, since the
+Euler equation holds with inequality where the borrowing constraint binds.
 
-    The residual is evaluated at grid **nodes**. MEMs 0.7.2 exposes no
-    `euler_points = :nodes | :midpoints` choice — `HASteadyState` carries the single scalar
-    `euler_error` — so there is nothing for the CLI to surface as an option here. Should
-    upstream add the midpoint convention, note that node-evaluated errors are
-    optimistically biased for interpolated policies, and the two are not comparable.
+**Where the residual is measured changes it by orders of magnitude.** EGM solves the Euler
+equation essentially exactly *at the grid nodes*, so evaluating there scores the solver
+rather than the approximation. Measuring off-node, at the cell midpoints, exposes the
+interpolation error that a user of the policy function actually incurs:
+
+```bash
+friedman dsge ha steady-state huggett                       # midpoints (default)
+friedman dsge ha steady-state huggett --euler-points nodes  # the older convention
+```
+
+On `huggett` the same steady state reports `-1.94` at midpoints and `-4.47` at nodes — a
+gap of 2.5 log₁₀ units, i.e. the node figure is optimistic by a factor of about 300.
+
+Because that gap is so wide, the `Euler Accuracy` table reports **both** conventions
+regardless of which one you select, with `n_evaluated` / `n_constrained` / `n_offgrid`
+alongside:
+
+| convention | max | mean | n_evaluated | n_constrained | n_offgrid |
+|---|---|---|---|---|---|
+| midpoints | -1.93627 | -4.53987 | 584 | 14 | 0 |
+| nodes | -4.46995 | -5.6558 | 585 | 15 | 0 |
+
+`--euler-points` selects only which of the two the scalar `euler_error` diagnostic reports.
+
+!!! warning "Comparing against published numbers"
+    Figures published for this package before MEMs 0.7.2 used the **node** convention, which
+    is now the non-default. Check which convention a number came from before comparing;
+    `midpoints` will look dramatically worse for the same solution without anything having
+    got worse. The table above exists so the comparison can always be made on like terms.
 
 ---
 
@@ -799,32 +816,55 @@ Output is a posterior summary table (`mean`, `std`, `q05`, `median`, `q95` per p
 
 ## Solution accuracy: `dsge ha accuracy`
 
-Den Haan (2010) accuracy for a Krusell–Smith solution. The perceived law of motion is only an
-approximation of the true aggregate dynamics, and this is the standard way to score how far
-the two drift apart: it simulates the economy twice from the same shocks — once tracking the
-full cross-sectional distribution (the *reference* path) and once letting the PLM forecast the
+Den Haan (2010) accuracy of the aggregate law of motion. The law is only an approximation of
+the true aggregate dynamics, and this is the standard way to score how far the two drift
+apart: it simulates the economy twice from the same shocks — once tracking the full
+cross-sectional distribution (the *reference* path) and once letting the law forecast the
 aggregate on its own — and reports the percentage deviation between them.
 
 ```bash
 friedman dsge ha accuracy krusell-smith --t-sim 10000 --t-burn 1000
+friedman dsge ha accuracy krusell-smith --method reiter --t-fit 4000
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--method` | String | `krusell-smith` | Solution to score: `krusell-smith`, `ssj`, `reiter` |
 | `--n-reduced` | Int | 30 | Reduced distribution states for the solve |
 | `--t-sim` | Int | 10000 | Simulation length (must exceed `--t-burn` by ≥ 10) |
 | `--t-burn` | Int | 1000 | Burn-in discarded before scoring |
+| `--t-fit` | Int | 4000 | Periods used to fit the implied law (> 100; `ssj`/`reiter` only) |
 | `--rho-z` / `--sigma-z` | Float64 | 0.95 / 0.007 | Aggregate shock persistence and s.d. |
 | `--seed` | Int | 98765 | Simulation seed |
-| `--plot` / `--plot-save` | Flag/String | | Reference vs PLM-only path |
+| `--plot` / `--plot-save` | Flag/String | | Reference vs law-only path |
 
 **Output:** `dh_max` and `dh_mean` (maximum and mean percentage deviation — smaller is
 better), the two simulation standard deviations `sigma_ref`/`sigma_plm`, the full reference
-and PLM-only aggregate paths as a second table, and the simulation settings.
+and law-only aggregate paths as a second table, and the simulation settings (which record
+the method that produced the number).
 
-The method is forced to Krusell–Smith: the test scores a *perceived law of motion*, which only
-that solution produces. **It is undefined for `huggett`**, which has no aggregate capital, and
-the CLI refuses before running the (expensive) solve rather than after it.
+Two different laws can be scored. Under `krusell-smith` it is the *fitted* perceived law of
+motion. Under `ssj`/`reiter` there is no PLM, so the implied law is **recovered by regression**
+from a `--t-fit`-period simulation of the linearized solution.
+
+!!! warning "Do not compare across methods"
+    The linearized statistic is much larger than the Krusell–Smith one and is
+    method-dependent. Upstream measures `dh_max` at 0.07% for the fitted Krusell–Smith PLM
+    against **12.2% for `ssj` and 5.5% for `reiter`** — two solutions of the *same* model
+    differing by more than a factor of two.
+
+    Three errors are superimposed and this statistic does not separate them: a two-state
+    aggregate law, linearization around the steady state, and a law recovered by regression
+    rather than fitted as a fixed point. Treat it as a **relative** diagnostic — same model,
+    same `sigma_z`, `--t-sim` and `--seed`, comparing a solution against itself under
+    different settings — not as an absolute accuracy certificate.
+
+    `sigma_ref` vs `sigma_plm` is the more interpretable output, and is the actual Den Haan
+    point: a high solution `R²` routinely hides a volatility miss.
+
+**Undefined for `huggett`.** Its clearing rate is driven by the wealth distribution rather
+than the aggregate shock alone, so a meaningful test there needs a distribution-augmented
+law. The CLI refuses before running the (expensive) solve rather than after it.
 
 ## Upstream feature coverage (Stage-14 audit)
 
@@ -834,7 +874,7 @@ of a command is a decision rather than an oversight.
 
 | Upstream feature | Status in the CLI |
 |---|---|
-| Den Haan accuracy | **Exposed** as `dsge ha accuracy` (above) |
+| Den Haan accuracy | **Exposed** as `dsge ha accuracy` (above), for all three solution methods |
 | Winberry parametric distribution dynamics | Reachable via the existing `dsge ha` method surface; note the library's convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines |
 | SSJ DAG / second-order SSJ | **Deferred.** Block-composition types (`SimpleBlock`/`HetBlock`/`SSJModel`) are a model-*construction* API. Exposing them means a config schema for wiring blocks, which is a design task in its own right, not an option on an existing leaf |
 | DCEGM (discrete–continuous choice) | **Deferred.** Needs a builtin carrying a discrete choice; none of the shipped builtins has one, so a leaf would have nothing to run |
@@ -848,10 +888,9 @@ today and can be reached from Julia directly.
 
 Two related items settled with the same audit:
 
-- **Euler-error convention.** No CLI option was added, because at the 0.7.2 pin there is
-  nothing to choose: `euler_points = :nodes | :midpoints` does not exist anywhere in the
-  package, and `HASteadyState` carries one scalar `euler_error`. What the number actually
-  means is documented under [Steady state](#1.-Steady-state) instead.
+- **Euler-error convention.** Surfaced as `--euler-points midpoints|nodes` on
+  `dsge ha steady-state`, and both statistics are reported unconditionally from
+  `HASteadyState.euler`. See [Euler accuracy](#Euler-accuracy-and---euler-points).
 - **[#80](https://github.com/FriedmanJP/Friedman-cli/issues/80) — HA `.jl` loader.** Fixed
   here rather than worked around, since `dsge ha accuracy` loads models through the same
   helper. See [Custom models from a `.jl` file](#Custom-models-from-a-.jl-file).

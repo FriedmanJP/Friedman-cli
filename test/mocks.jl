@@ -7320,6 +7320,10 @@ struct HASteadyState{T<:AbstractFloat}
     iterations::Int
     euler_error::T
     excess_demand::T
+    # MEMs#508: real 0.7.2 carries both Euler conventions alongside the selected scalar.
+    # Field names/order mirror real exactly — the mock must stay a strict subset.
+    parametric::Any
+    euler::Any
 end
 
 struct HADSGESolution{T<:AbstractFloat}
@@ -7535,6 +7539,28 @@ function den_haan_test(ks::KrusellSmithSolution{T}; T_sim::Int=10000, T_burn::In
                        T_sim, T_burn, :plm)
 end
 
+# Real 0.7.2 has a SECOND method for the linearized solutions, which recover the implied
+# law of motion by regression over T_fit periods. It rejects :krusell_smith (that case
+# takes the KrusellSmithSolution above) and, like the other method, refuses :huggett.
+function den_haan_test(sol::HADSGESolution{T}; T_sim::Int=2000, T_burn::Int=200,
+                       T_fit::Int=4000, rho_z::Real=0.95, sigma_z::Real=0.007,
+                       seed::Int=98765) where T
+    T_sim > T_burn + 10 || throw(AssertionError("T_sim must exceed T_burn by at least 10"))
+    T_fit > 100 || throw(AssertionError("T_fit must be > 100 to fit the implied law of motion"))
+    sol.spec.model === :huggett &&
+        error("den_haan_test is implemented for the capital models (:aiyagari/:ks)")
+    sol.method in (:ssj, :reiter) || error(
+        "den_haan_test(::HADSGESolution) supports the linearized methods :ssj and :reiter; " *
+        "got :$(sol.method). For a Krusell-Smith solution pass the KrusellSmithSolution.")
+    n = T_sim - T_burn
+    ref = T[T(1.0) + T(0.02) * sin(i / 8) for i in 1:n]
+    plm = ref .+ T(0.004)
+    # Deliberately worse than the fitted-PLM numbers above: upstream measures 12.2% (ssj)
+    # and 5.5% (reiter) against 0.07% for Krusell-Smith on the same model.
+    DenHaanAccuracy{T}(:K, T(0.122), T(0.061), T(0.011), T(0.005), ref, plm,
+                       T_sim, T_burn, :implied)
+end
+
 function _mock_ha_ss(spec::HADSGESpec{T}) where T
     HASteadyState{T}(
         Dict{Symbol,Any}(:savings => ones(T, 10, 2) * T(0.5)),
@@ -7542,13 +7568,29 @@ function _mock_ha_ss(spec::HADSGESpec{T}) where T
         ones(T, 10, 2),
         Dict{Symbol,T}(:r => T(0.01), :w => T(1.0)),
         Dict{Symbol,T}(:K => T(10.0), :Y => T(1.0), :excess_demand => T(0.0)),
-        nothing, nothing, true, 10, T(1e-6), T(0.0))
+        nothing, nothing, true, 10, T(1e-6), T(0.0),
+        nothing,
+        # Node evaluation understates the error (EGM solves the Euler equation exactly at
+        # the nodes), so the mock keeps midpoints strictly worse than nodes, as upstream does.
+        (midpoints=(points=:midpoints, max=T(-2.1), mean=T(-3.0),
+                    n_evaluated=18, n_constrained=2, n_offgrid=0),
+         nodes=(points=:nodes, max=T(-5.4), mean=T(-6.2),
+                n_evaluated=20, n_constrained=0, n_offgrid=0)))
 end
 
 function compute_steady_state(spec::HADSGESpec{T};
         K_init=nothing, r_bounds=nothing, max_iter::Int=100, tol=1e-8,
-        verbose::Bool=false, price_fn=nothing, clearing=nothing) where T
-    _mock_ha_ss(spec)
+        verbose::Bool=false, price_fn=nothing, clearing=nothing,
+        euler_points::Symbol=:midpoints) where T
+    euler_points in (:nodes, :midpoints) || throw(ArgumentError(
+        "_ha_steady_state: euler_points must be :nodes or :midpoints, got :$euler_points."))
+    ss = _mock_ha_ss(spec)
+    # `euler_error` is whichever convention was selected — mirror real, which picks from
+    # the same pair it stores in `euler` rather than recomputing.
+    sel = euler_points === :nodes ? ss.euler.nodes.max : ss.euler.midpoints.max
+    HASteadyState{T}(ss.policies, ss.distribution, ss.value_fn, ss.prices, ss.aggregates,
+                     ss.grid, ss.income, ss.converged, ss.iterations, T(sel),
+                     ss.excess_demand, ss.parametric, ss.euler)
 end
 
 function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
