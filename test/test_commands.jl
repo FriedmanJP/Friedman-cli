@@ -9170,7 +9170,9 @@ end
         @test haskey(node.subcmds, "ha")
         @test haskey(node.subcmds, "ct")
         @test haskey(node.subcmds, "olg")
-        @test length(node.subcmds) == 12
+        @test haskey(node.subcmds, "determinacy-map")   # W12/#114
+        @test haskey(node.subcmds, "moments")           # W12/#114
+        @test length(node.subcmds) == 14
         ha = node.subcmds["ha"]
         @test ha isa NodeCommand
         for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
@@ -11302,6 +11304,204 @@ end  # Diagnostic warning branches
     end
 
 end  # W10 micro inference riders
+
+# ═══════════════════════════════════════════════════════════════
+# W12/#114: DSGE determinacy map, moments, prefilter
+# ═══════════════════════════════════════════════════════════════
+
+@testset "W12 DSGE riders" begin
+
+    """Minimal @dsge model file + a [determinacy] config, written to `dir`."""
+    function _w12_model(dir)
+        path = joinpath(dir, "m.jl")
+        # NO `using MacroEconometricModels` line: `_dsge_sandbox()` already injects the
+        # in-scope module plus a RELATIVE `using .MacroEconometricModels`. An absolute
+        # `using` resolves through the load path instead, which in the mock context is a
+        # different module — `UndefVarError: @dsge not defined` with an ambiguity hint.
+        # A model file is a bare @dsge block; the T3 fixtures do the same.
+        write(path, """
+        @dsge begin
+            parameters: phi_pi = 1.5, rho = 0.8
+            variables: y, pi
+            shocks: eps
+            y[t] = rho * y[t-1] + eps[t]
+            pi[t] = phi_pi * y[t]
+        end
+        """)
+        return path
+    end
+
+    function _w12_cfg(dir; params="[\"phi_pi\"]", extra="")
+        path = joinpath(dir, "det.toml")
+        write(path, """
+        [determinacy]
+        params = $params
+        lower = [0.0]
+        upper = [2.0]
+        points = [9]
+        $extra
+        """)
+        return path
+    end
+
+    @testset "get_determinacy — parsing and guards" begin
+        mktempdir() do dir
+            cfg = _w12_cfg(dir)
+            d = get_determinacy(load_config(cfg))
+            @test d.params == ["phi_pi"]
+            @test length(d.grids) == 1
+            @test length(d.grids[1]) == 9
+            @test d.grids[1][1] == 0.0 && d.grids[1][end] == 2.0
+            @test d.method == :gensys
+
+            # two parameters, explicit grids, method alias
+            p2 = joinpath(dir, "d2.toml")
+            write(p2, """
+            [determinacy]
+            params = ["phi_pi", "rho"]
+            grids = [[0.0, 1.0, 2.0], [0.1, 0.5, 0.9]]
+            method = "blanchard-kahn"
+            div = 1.001
+            """)
+            d2 = get_determinacy(load_config(p2))
+            @test length(d2.params) == 2
+            @test d2.method == :blanchard_kahn
+            @test d2.div == 1.001
+
+            # a scalar params entry is accepted where a one-element list would do
+            p3 = joinpath(dir, "d3.toml")
+            write(p3, """
+            [determinacy]
+            params = "phi_pi"
+            lower = 0.0
+            upper = 2.0
+            points = 5
+            """)
+            @test length(get_determinacy(load_config(p3)).grids[1]) == 5
+
+            for (name, body) in (
+                ("missing section", ""),
+                ("no params", "[determinacy]\nlower = [0.0]\nupper = [1.0]\n"),
+                ("three params", "[determinacy]\nparams = [\"a\",\"b\",\"c\"]\nlower=[0,0,0]\nupper=[1,1,1]\n"),
+                ("duplicate params", "[determinacy]\nparams = [\"a\",\"a\"]\nlower=[0,0]\nupper=[1,1]\n"),
+                ("lower >= upper", "[determinacy]\nparams=[\"a\"]\nlower=[1.0]\nupper=[1.0]\n"),
+                ("points < 2", "[determinacy]\nparams=[\"a\"]\nlower=[0.0]\nupper=[1.0]\npoints=[1]\n"),
+                ("shape mismatch", "[determinacy]\nparams=[\"a\",\"b\"]\nlower=[0.0]\nupper=[1.0,2.0]\n"),
+                ("bad method", "[determinacy]\nparams=[\"a\"]\nlower=[0.0]\nupper=[1.0]\nmethod=\"nope\"\n"),
+                ("short grid", "[determinacy]\nparams=[\"a\"]\ngrids=[[0.5]]\n"),
+                ("no bounds", "[determinacy]\nparams=[\"a\"]\n"),
+            )
+                bad = joinpath(dir, "bad.toml")
+                write(bad, body)
+                @test_throws CliError get_determinacy(load_config(bad))
+            end
+        end
+    end
+
+    @testset "_dsge_determinacy_map" begin
+        mktempdir() do dir
+            m = _w12_model(dir)
+            cfg = _w12_cfg(dir)
+            out = _capture() do
+                _dsge_determinacy_map(; model=m, config=cfg, format="table", output="")
+            end
+            @test occursin("Determinacy", out)
+            # A one-parameter sweep also reports the boundary.
+            @test occursin("Boundary", out) || occursin("boundary", out)
+
+            # two-parameter sweep: no boundary table (the frontier is a curve)
+            c2 = joinpath(dir, "d2.toml")
+            write(c2, """
+            [determinacy]
+            params = ["phi_pi", "rho"]
+            grids = [[0.5, 1.5], [0.1, 0.9]]
+            """)
+            _capture() do
+                _dsge_determinacy_map(; model=m, config=c2, format="table", output="")
+            end
+
+            # guards
+            @test_throws CliError _capture() do
+                _dsge_determinacy_map(; model=m, config="", format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_determinacy_map(; model=m, config=cfg, rank_rtol=0.0, format="table")
+            end
+            # an unknown parameter name is config/invalid, not an internal error
+            cbad = joinpath(dir, "dbad.toml")
+            write(cbad, """
+            [determinacy]
+            params = ["not_a_param"]
+            lower = [0.0]
+            upper = [1.0]
+            points = [3]
+            """)
+            @test_throws CliError _capture() do
+                _dsge_determinacy_map(; model=m, config=cbad, format="table")
+            end
+        end
+    end
+
+    @testset "_dsge_moments — orders and guards" begin
+        mktempdir() do dir
+            m = _w12_model(dir)
+            for ord in (2, 3)
+                out = _capture() do
+                    _dsge_moments(; model=m, method="perturbation", order=ord,
+                                   lags=2, format="table", output="")
+                end
+                @test occursin("Moments", out) || occursin("moments", out)
+            end
+            # order 1 is REFUSED: upstream's order-1 analytical moments are wrong for
+            # control variables (verified against the closed form on a linear AR(1) model).
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, order=1, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, order=0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, order=4, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, lags=0, format="table")
+            end
+        end
+    end
+
+    @testset "dsge bayes --prefilter guards" begin
+        mktempdir() do dir
+            m = _w12_model(dir)
+            csv = _make_csv(dir; T=60, n=2, colnames=["y", "pi"])
+            pri = joinpath(dir, "priors.toml")
+            write(pri, """
+            [priors.rho]
+            dist = "beta"
+            a = 2.0
+            b = 2.0
+            """)
+            common = (; model=m, data=csv, params="rho", priors=pri,
+                       observables="y,pi", n_smc=8, n_draws=8, burnin=2)
+            # A valid prefilter runs.
+            _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="demean", format="table", output="")
+            end
+            # HP needs its lambda to be the one that is used, so a lambda without hp is a
+            # usage error rather than a silent no-op.
+            @test_throws CliError _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="demean", hp_lambda=100.0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="bogus", format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="hp", hp_lambda=0.0, format="table")
+            end
+        end
+    end
+
+end  # W12 DSGE riders
+
 
 
 # ═══════════════════════════════════════════════════════════════

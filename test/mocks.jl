@@ -2344,16 +2344,37 @@ struct DSGESpec{T<:Real}
     param_values::Dict{Symbol,T}; n_endog::Int; n_exog::Int; n_params::Int
     varnames::Vector{String}; steady_state::Vector{T}
     linear::Bool
+    # W12/#114: real's augmentation bookkeeping. `dsge moments` needs both to filter the
+    # moment labels down to the ORIGINAL variables the way upstream filters the matrices —
+    # a mislabelled moment table otherwise. Added because a handler consumes them, per the
+    # mock-surface rule (fields are added on demand, never eagerly).
+    augmented::Bool
+    original_endog::Vector{Symbol}
 end
-function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false, kwargs...)
-    endog = [Symbol("y$i") for i in 1:n_endog]
-    exog = [Symbol("e$i") for i in 1:n_exog]
-    params = [:alpha, :beta, :delta]
-    param_values = Dict{Symbol,Float64}(:alpha => 0.33, :beta => 0.99, :delta => 0.025)
-    varnames = ["y$i" for i in 1:n_endog]
+function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false,
+                   endog_names=nothing, exog_names=nothing,
+                   params=nothing, param_values=nothing,
+                   augmented::Bool=false, original_endog=nothing, kwargs...)
+    endog = endog_names === nothing ? [Symbol("y$i") for i in 1:n_endog] :
+            Symbol[Symbol(v) for v in endog_names]
+    exog = exog_names === nothing ? [Symbol("e$i") for i in 1:n_exog] :
+           Symbol[Symbol(v) for v in exog_names]
+    n_endog = length(endog)
+    n_exog = length(exog)
+    ps = params === nothing ? [:alpha, :beta, :delta] : Symbol[Symbol(p) for p in params]
+    pv = param_values === nothing ?
+        Dict{Symbol,Float64}(p => 0.5 for p in ps) :
+        Dict{Symbol,Float64}(Symbol(k) => Float64(v) for (k, v) in param_values)
+    # Keep the historical defaults when the block declared no parameters, so existing
+    # fixtures that rely on alpha/beta/delta are unaffected.
+    if params === nothing
+        pv = Dict{Symbol,Float64}(:alpha => 0.33, :beta => 0.99, :delta => 0.025)
+    end
+    varnames = String[String(v) for v in endog]
     ss = zeros(Float64, n_endog)
-    DSGESpec{Float64}(endog, exog, params, param_values, n_endog, n_exog, length(params),
-                      varnames, ss, linear)
+    orig = original_endog === nothing ? endog : Symbol[Symbol(v) for v in original_endog]
+    DSGESpec{Float64}(endog, exog, ps, pv, n_endog, n_exog, length(ps),
+                      varnames, ss, linear, augmented, orig)
 end
 
 # ── Mock @dsge macro (mirrors real MEMs' @dsge; C051/RA-DSGE loader) ────────
@@ -2383,13 +2404,66 @@ function _mock_dsge_extract(block, kw::Symbol)
     return Any[]
 end
 
+"""Parse a `parameters: a = 1.0, b = 2.0` declaration into (names, values).
+
+Real MEMs records the declared names on `spec.params`, and handlers validate user input
+against them (`dsge determinacy-map` rejects an unknown swept parameter). A mock that
+always reported `alpha, beta, delta` would make that guard untestable and would diverge
+from real on the one field the guard reads.
+
+`parameters: a = 1.0, b = 2.0` does NOT parse like the other declarations — `=` binds
+looser than `,` there, so Julia produces a nest like
+
+  Expr(:(=), :(parameters:a), quote (1.0, b) = 2.0 end)
+
+rather than a flat tuple. Rather than reverse-engineer that shape (which changes with the
+number of parameters), collect every Symbol in the subtree in source order, dropping the
+`parameters` keyword and the `:` operator. Values are not recovered — the mock only needs
+the NAMES, which is what handlers validate against.
+"""
+function _mock_dsge_collect_syms!(out::Vector{Symbol}, x)
+    if x isa Symbol
+        (x === :parameters || x === :(:)) || push!(out, x)
+    elseif x isa Expr
+        for a in x.args
+            _mock_dsge_collect_syms!(out, a)
+        end
+    end
+    return out
+end
+
+function _mock_dsge_params(block)
+    (block isa Expr && block.head === :block) || return Symbol[], Dict{Symbol,Float64}()
+    for arg in block.args
+        arg isa Expr || continue
+        syms = _mock_dsge_collect_syms!(Symbol[], arg)
+        # The `parameters` line is the one whose subtree mentions the keyword.
+        occursin("parameters", string(arg)) || continue
+        startswith(strip(string(arg)), "parameters") || continue
+        names = unique(syms)
+        isempty(names) && continue
+        return names, Dict{Symbol,Float64}(n => 0.5 for n in names)
+    end
+    return Symbol[], Dict{Symbol,Float64}()
+end
+
 macro dsge(block)
-    ne = max(length(_mock_dsge_extract(block, :endogenous)), 1)
-    nx = max(length(_mock_dsge_extract(block, :exogenous)), 1)
+    en = Symbol[v for v in _mock_dsge_extract(block, :endogenous) if v isa Symbol]
+    # Real accepts `variables:` as well as `endogenous:`.
+    isempty(en) && (en = Symbol[v for v in _mock_dsge_extract(block, :variables) if v isa Symbol])
+    xn = Symbol[v for v in _mock_dsge_extract(block, :exogenous) if v isa Symbol]
+    isempty(xn) && (xn = Symbol[v for v in _mock_dsge_extract(block, :shocks) if v isa Symbol])
+    ne = max(length(en), 1)
+    nx = max(length(xn), 1)
+    pnames, pvals = _mock_dsge_params(block)
     lin_names = _mock_dsge_extract(block, :linear)
     is_linear = !isempty(lin_names) && lin_names[1] === true
     # Splice the constructor object so the expansion needs nothing in the caller's scope.
-    return :($(DSGESpec)(; n_endog=$ne, n_exog=$nx, linear=$is_linear))
+    return :($(DSGESpec)(; n_endog=$ne, n_exog=$nx, linear=$is_linear,
+                          endog_names=$(isempty(en) ? nothing : en),
+                          exog_names=$(isempty(xn) ? nothing : xn),
+                          params=$(isempty(pnames) ? nothing : pnames),
+                          param_values=$(isempty(pvals) ? nothing : pvals)))
 end
 
 struct LinearDSGE{T<:Real}
@@ -5052,7 +5126,13 @@ function estimate_dsge_bayes(spec::DSGESpec{T},
         n_draws=10000, burnin=5000, ess_target=0.5,
         measurement_error=nothing, solver=:gensys,
         solver_kwargs=NamedTuple(), delayed_acceptance=false,
-        n_screen=200, rng=nothing, solver_obj=nothing) where T
+        n_screen=200, rng=nothing, solver_obj=nothing,
+        prefilter::Symbol=:none, hp_lambda::Real=1600,
+        observation_trends=nothing, warn_trends::Bool=true) where T
+    # W12/#114: mirror real's enum so a bad --prefilter throws the same class here.
+    prefilter in (:none, :demean, :first_difference, :linear_detrend, :hp) ||
+        throw(ArgumentError(
+            "prefilter must be one of (:none, :demean, :first_difference, :linear_detrend, :hp), got :$prefilter"))
     theta0v = theta0 isa AbstractDict ? collect(values(theta0)) :
               theta0 isa NamedTuple ? collect(theta0) : collect(theta0)
     np = length(theta0v)
@@ -7746,8 +7826,11 @@ function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
     n_red = n_reduced
     n_sys = max(n_red + 1, 2)
     endog = [Symbol("x_$i") for i in 1:n_sys]
+    # The two trailing fields are real's augmentation bookkeeping (W12/#114); a
+    # throwaway system spec is never augmented, so it is its own original variable set.
     dummy_dsge = DSGESpec{T}(endog, [:epsilon], Symbol[], Dict{Symbol,T}(),
-                             n_sys, 1, 0, string.(endog), zeros(T, n_sys), false)
+                             n_sys, 1, 0, string.(endog), zeros(T, n_sys), false,
+                             false, endog)
     G1 = Matrix{T}(I, n_sys, n_sys) * T(0.5)
     impact = ones(T, n_sys, 1) * T(0.1)
     lin = LinearDSGE{T}(Matrix{T}(I, n_sys, n_sys), G1, zeros(T, n_sys), impact,
@@ -9546,6 +9629,143 @@ report(b::LPIVARBand) = "LPIVARBand mock report"
 export AndersonRubinTest, AndersonRubinCI, anderson_rubin_test, anderson_rubin_ci,
        WildClusterBootstrap, wild_cluster_bootstrap,
        MontielOleaPfluegerF, montiel_olea_pflueger_f, LPIVARBand, lp_iv_ar_band
+
+# ─── W12/#114: determinacy mapping + closed-form moments ──────────────────────────────
+#
+# Field names and shapes mirror real MEMs 0.7.2 exactly. The verdict codes are real's
+# `DETERMINACY_CODES` values, and `determinacy_boundary` reproduces real's rule that a pair
+# involving a FAILED point is not a boundary crossing — a solve failure is missing
+# information, not a region, and inventing a frontier out of it would be a real bug the
+# mock must be able to expose.
+
+const DETERMINACY_CODES = (determinate=1, indeterminate=0, no_solution=-1, failed=-2)
+
+function determinacy_label(code::Integer)
+    code == DETERMINACY_CODES.determinate   && return "determinate"
+    code == DETERMINACY_CODES.indeterminate && return "indeterminate"
+    code == DETERMINACY_CODES.no_solution   && return "no solution"
+    code == DETERMINACY_CODES.failed        && return "failed"
+    return "unknown"
+end
+
+struct DeterminacyMap{T<:AbstractFloat}
+    params::Vector{Symbol}
+    axes::Vector{Vector{T}}
+    verdict::Matrix{Int}
+    eu::Array{Int,3}
+    failures::Dict{Tuple{Int,Int},String}
+    base_values::Dict{Symbol,T}
+    div::Float64
+    method::Symbol
+end
+
+function determinacy_region(spec::DSGESpec{T},
+                            theta_base::AbstractDict=spec.param_values;
+                            params, grids, div::Real=1.0 + 1e-8, rank_rtol::Real=1e-8,
+                            method::Symbol=:gensys, threaded::Bool=false,
+                            quiet::Bool=true) where {T}
+    pnames = params isa Symbol ? [params] : collect(Symbol.(params))
+    (1 <= length(pnames) <= 2) || throw(ArgumentError(
+        "determinacy_region sweeps 1 or 2 parameters, got $(length(pnames))"))
+    for p in pnames
+        p in spec.params || throw(ArgumentError(
+            "parameter :$p is not a parameter of this model (have $(spec.params))"))
+    end
+    length(unique(pnames)) == length(pnames) || throw(ArgumentError(
+        "the swept parameters must be distinct, got $pnames"))
+    method in (:gensys, :klein, :blanchard_kahn) || throw(ArgumentError(
+        "method must be :gensys, :klein, or :blanchard_kahn; got :$method"))
+    gaxes = if length(pnames) == 1 && !(grids isa Tuple) &&
+               !(grids isa AbstractVector{<:AbstractVector})
+        [collect(Float64, grids)]
+    else
+        [collect(Float64, g) for g in grids]
+    end
+    length(gaxes) == length(pnames) || throw(ArgumentError(
+        "got $(length(pnames)) parameter(s) but $(length(gaxes)) grid(s)"))
+    all(!isempty, gaxes) || throw(ArgumentError("grids must be non-empty"))
+
+    n1 = length(gaxes[1])
+    n2 = length(pnames) == 2 ? length(gaxes[2]) : 1
+    verdict = Matrix{Int}(undef, n1, n2)
+    eu = Array{Int,3}(undef, n1, n2, 2)
+    # A Taylor-principle-shaped boundary: determinate above 1.0 on the first axis, so a T3
+    # or T1/T2 case can assert region labels on BOTH sides of a known frontier.
+    for j in 1:n2, i in 1:n1
+        det = gaxes[1][i] > 1.0
+        verdict[i, j] = det ? DETERMINACY_CODES.determinate : DETERMINACY_CODES.indeterminate
+        eu[i, j, 1] = 1
+        eu[i, j, 2] = det ? 1 : 0
+    end
+    base = Dict{Symbol,Float64}(Symbol(k) => Float64(v) for (k, v) in theta_base)
+    return DeterminacyMap{Float64}(pnames, gaxes, verdict, eu,
+                                   Dict{Tuple{Int,Int},String}(), base,
+                                   Float64(div), method)
+end
+
+function determinacy_boundary(m::DeterminacyMap{T}) where {T}
+    length(m.params) == 1 || throw(ArgumentError(
+        "determinacy_boundary is defined for a one-parameter sweep; this map sweeps " *
+        "$(length(m.params)) parameters — read `verdict` directly."))
+    g = m.axes[1]
+    out = T[]
+    fail = DETERMINACY_CODES.failed
+    for i in 2:length(g)
+        a, b = m.verdict[i-1, 1], m.verdict[i, 1]
+        (a == fail || b == fail) && continue      # a hole is not a crossing
+        a == b && continue
+        push!(out, (g[i-1] + g[i]) / 2)
+    end
+    return out
+end
+
+"""
+Mock `analytical_moments`, packed EXACTLY as real packs it — the CLI unpacks by position,
+so a divergence here would hide a mislabelled-moment bug in production.
+
+`:covariance` → upper-triangle of Var_y, then diagonal autocov per lag.
+`:gmm`        → means, then upper-triangle PRODUCT moments (Var + E·E), then diagonal
+                autocov + E² per lag.
+"""
+function analytical_moments(sol::PerturbationSolution{T}; lags::Int=1,
+                            format::Symbol=:covariance) where {T}
+    format in (:covariance, :gmm) ||
+        throw(ArgumentError("format must be :covariance or :gmm; got $format"))
+    spec = sol.spec
+    idx = spec.augmented ? Int[findfirst(==(v), spec.endog) for v in spec.original_endog] :
+                           collect(1:spec.n_endog)
+    k = length(idx)
+    # Deterministic, order-dependent fixtures: the risk correction is zero at order 1 and
+    # non-zero above, which is the property the handler's `mean_minus_ss` column reports.
+    E = T[sol.order == 1 ? zero(T) : T(0.01 * i * (sol.order - 1)) for i in 1:k]
+    Var = zeros(T, k, k)
+    for i in 1:k, j in 1:k
+        Var[i, j] = i == j ? T(1.0 + 0.1 * i) : T(0.2 / (1 + abs(i - j)))
+    end
+    out = T[]
+    if format === :gmm
+        append!(out, E)
+        for i in 1:k, j in i:k
+            push!(out, Var[i, j] + E[i] * E[j])
+        end
+        for lag in 1:lags, i in 1:k
+            push!(out, T(0.7^lag) * Var[i, i] + E[i]^2)
+        end
+    else
+        for i in 1:k, j in i:k
+            push!(out, Var[i, j])
+        end
+        for lag in 1:lags, i in 1:k
+            push!(out, T(0.7^lag) * Var[i, i])
+        end
+    end
+    return out
+end
+
+report(m::DeterminacyMap) = "DeterminacyMap mock report"
+
+export DeterminacyMap, determinacy_region, determinacy_boundary, determinacy_label,
+       DETERMINACY_CODES, analytical_moments
 
 # ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
 #

@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 37
+**Leaves:** 39
 
 ### `friedman dsge bayes compare`
 
@@ -28,6 +28,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model2` | — | `String` | `""` | — | Path to second DSGE model file |
@@ -65,6 +67,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -99,6 +103,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--horizon` | `-h` | `Int64` | `40` | — | FEVD horizon |
@@ -136,6 +142,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--n-hd-draws` | — | `Int64` | `200` | — | Number of posterior draws for HD |
@@ -198,6 +206,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
@@ -235,6 +245,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--fractions` | — | `String` | `0.5,1.0` | — | Nested subsample fractions (comma-separated, in (0,1]) |
@@ -272,6 +284,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--proposal` | — | `String` | `normal` | `normal`, `t` | Bridge proposal family: normal\|t |
@@ -308,6 +322,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -342,6 +358,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.8` | — | Flag threshold on the prior/posterior overlap |
@@ -404,6 +422,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--n-sim` | — | `Int64` | `500` | — | Number of predictive simulations |
@@ -467,6 +487,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--periods` | — | `Int64` | `200` | — | Simulation periods |
@@ -504,6 +526,8 @@ Path to DSGE model file (.toml or .jl)
 | `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -569,6 +593,32 @@ MIT-shock perfect-foresight transition (ct_mit_shock)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `transition` (MIT-shock path (t, Z, K, r, w, C))
+
+---
+
+### `friedman dsge determinacy-map`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--config` | — | `String` | `""` | — | TOML with a [determinacy] section (params, lower/upper/points or grids); REQUIRED |
+| `--rank-rtol` | — | `Float64` | `1.0e-8` | — | Relative tolerance of the Sims rank tests |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--threaded` | — | Evaluate grid points on all available threads (results are identical to the serial sweep) |
+| `--verbose-solver` | — | Do NOT suppress per-grid-point solver warnings |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `determinacy_map` (Path to DSGE model file (.toml or .jl))
 
 ---
 
@@ -918,6 +968,26 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `irf` (Path to DSGE model file (.toml or .jl))
+
+---
+
+### `friedman dsge moments`
+
+Path to DSGE model file (.toml or .jl)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — |  |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `perturbation` | — | Solution method (moments need a PerturbationSolution) |
+| `--order` | — | `Int64` | `2` | — | Perturbation order: 2 or 3 (order 1 is disabled — upstream's order-1 moments are wrong for controls) |
+| `--lags` | — | `Int64` | `1` | — | Autocovariance lags to report (>= 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `moments` (Path to DSGE model file (.toml or .jl))
 
 ---
 

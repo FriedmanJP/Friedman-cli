@@ -105,6 +105,54 @@ function dsge_specs()::Vector{CommandSpec}
             category="dsge",
             handler=wrap_legacy(_dsge_simulate),
         ),
+        # W12/#114: determinacy-region mapping (MEMs#367). Config-driven because the sweep
+        # is two parameter names + two grids + a resolution — well past the "few flags"
+        # threshold. `plot_result(::DeterminacyMap)` EXISTS upstream
+        # (plotting/dsge_extra.jl:258), so --plot is honoured, not advertised on faith.
+        CommandSpec(
+            path=["dsge", "determinacy-map"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="config", type=String, default="",
+                           description="TOML with a [determinacy] section (params, lower/upper/points or grids); REQUIRED"),
+                OptionSpec(name="rank-rtol", type=Float64, default=1e-8,
+                           description="Relative tolerance of the Sims rank tests"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="threaded", description="Evaluate grid points on all available threads (results are identical to the serial sweep)"),
+                FlagSpec(name="verbose-solver", description="Do NOT suppress per-grid-point solver warnings"),
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:determinacy_map, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_determinacy_map),
+        ),
+        # W12/#114: closed-form (simulation-free) theoretical moments at perturbation order
+        # 1/2/3 (MEMs#368). NOTE there is deliberately no `--pruned` switch: upstream's
+        # `simulate(::PerturbationSolution)` is ALWAYS pruned (Kim et al. 2008) and exposes
+        # no unpruned path, so a flag would advertise a choice that does not exist.
+        CommandSpec(
+            path=["dsge", "moments"],
+            summary="Path to DSGE model file (.toml or .jl)",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            options=[
+                OptionSpec(name="method", type=String, default="perturbation",
+                           description="Solution method (moments need a PerturbationSolution)"),
+                OptionSpec(name="order", type=Int, default=2,
+                           description="Perturbation order: 2 or 3 (order 1 is disabled — upstream's order-1 moments are wrong for controls)"),
+                OptionSpec(name="lags", type=Int, default=1, description="Autocovariance lags to report (>= 1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:moments, description="Path to DSGE model file (.toml or .jl)")],
+            category="dsge",
+            handler=wrap_legacy(_dsge_moments),
+        ),
         CommandSpec(
             path=["dsge", "estimate"],
             summary="Path to DSGE model file (.toml or .jl)",
@@ -838,6 +886,27 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                           constraint_solver=constraint_solver)
     end
 
+    # W12/#114 item 4: the Sims [existence, uniqueness] verdict pair. Both DSGESolution and
+    # PerturbationSolution carry `eu::Vector{Int}`. Collapsing it to a single "determinate"
+    # boolean loses the distinction that matters: e=0 means NO stable solution exists, while
+    # e=1,u=0 means solutions exist but are not unique (sunspots) — different diagnoses with
+    # different fixes. Emitted for every solution type that carries the pair.
+    if hasproperty(sol, :eu) && sol.eu isa AbstractVector && length(sol.eu) >= 2
+        e_, u_ = Int(sol.eu[1]), Int(sol.eu[2])
+        verdict = e_ == 0 ? "no stable solution (existence fails)" :
+                  u_ == 1 ? "determinate (unique stable solution)" :
+                            "indeterminate (solutions exist but are not unique)"
+        output_kv(Pair{String,Any}[
+            "existence" => e_,
+            "uniqueness" => u_,
+            "verdict" => verdict,
+            "solver" => string(hasproperty(sol, :method) ? sol.method : method),
+        ]; format=format, output=_per_var_output_path(output, "determinacy"),
+           title="Determinacy Verdict")
+        e_ == 1 && u_ == 1 ||
+            _status_styled("  Determinacy: $verdict\n"; color=:yellow)
+    end
+
     # Standard solve output
     if sol isa MacroEconometricModels.DSGESolution
         n = spec.n_endog
@@ -874,6 +943,243 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
     end
     _status()
     return sol  # for --save-model (C029)
+end
+
+# ── W12/#114: determinacy region mapping ──────────────────────────────────
+# `determinacy_region` re-specs the model and calls `solve` at every grid point, i.e. it
+# EVALUATES the runtime-loaded spec's @dsge residual closures — so it goes through the
+# `_dsge_call` world-age barrier like every other spec-evaluating path (the RA loader
+# lesson). Failed grid points are recorded by upstream as code -2 and the sweep continues;
+# they are surfaced here rather than swallowed, because a solve failure is missing
+# information, not a fourth determinacy region.
+function _dsge_determinacy_map(; model::String, config::String="", rank_rtol::Float64=1e-8,
+                                threaded::Bool=false, verbose_solver::Bool=false,
+                                output::String="", format::String="table",
+                                plot::Bool=false, plot_save::String="")
+    isempty(config) && throw(CliError("usage/missing",
+        "dsge determinacy-map requires --config <toml> with a [determinacy] section";
+        hint="params = [\"phi_pi\"], lower = [0.0], upper = [3.0], points = [61]"))
+    rank_rtol > 0 || throw(CliError("usage/invalid",
+        "dsge determinacy-map: --rank-rtol must be > 0 (got $rank_rtol)"))
+
+    cfg = get_determinacy(load_config(config))
+    spec = _load_dsge_model(model)
+
+    # Reject unknown parameter names HERE: upstream raises a bare ArgumentError, and a typo
+    # in a config file is user input (exit 4), not a model failure.
+    known = Set(String.(spec.params))
+    for p in cfg.params
+        p in known || throw(CliError("config/invalid",
+            "[determinacy] parameter '$p' is not a parameter of this model " *
+            "(have $(join(sort(collect(known)), ", ")))"))
+    end
+
+    npts = prod(length.(cfg.grids))
+    _status("Determinacy map: sweeping $(join(cfg.params, " × ")) over $npts grid point(s)")
+    for (i, p) in enumerate(cfg.params)
+        g = cfg.grids[i]
+        _status("  $p: $(length(g)) points in [$(first(g)), $(last(g))]")
+    end
+    _status("  Solver: $(cfg.method), div=$(cfg.div), rank_rtol=$rank_rtol" *
+            (threaded ? ", threaded" : ""))
+    _status()
+
+    dmap = try
+        _dsge_call(determinacy_region, spec;
+            params=Symbol[Symbol(p) for p in cfg.params],
+            grids=cfg.grids, div=cfg.div, rank_rtol=rank_rtol,
+            method=cfg.method, threaded=threaded, quiet=!verbose_solver)
+    catch e
+        e isa CliError && rethrow()
+        e isa ArgumentError && throw(CliError("config/invalid",
+            "determinacy map: $(sprint(showerror, e))"))
+        throw(_domain_or_data_error(e, "determinacy region sweep"))
+    end
+
+    _maybe_plot(dmap; plot=plot, plot_save=plot_save)
+
+    # Tidy long table: one row per grid cell. The raw Sims [existence, uniqueness] pair
+    # rides along with the collapsed verdict — the pair is what distinguishes "no solution"
+    # (e=0) from "indeterminate" (e=1, u=0), and an agent should not have to re-derive it.
+    p1 = cfg.params[1]
+    p2 = length(cfg.params) == 2 ? cfg.params[2] : ""
+    n1, n2 = size(dmap.verdict)
+    rows = NamedTuple[]
+    for j in 1:n2, i in 1:n1
+        code = dmap.verdict[i, j]
+        push!(rows, (; Symbol(p1) => dmap.axes[1][i],
+                     (isempty(p2) ? (;) : (; Symbol(p2) => dmap.axes[2][j]))...,
+                     verdict = code,
+                     label = determinacy_label(code),
+                     existence = dmap.eu[i, j, 1],
+                     uniqueness = dmap.eu[i, j, 2]))
+    end
+    output_result(DataFrame(rows); format=Symbol(format), output=output,
+                  title="DSGE Determinacy Map ($(join(cfg.params, " × ")))")
+
+    # Region counts. A `failed` count > 0 is reported explicitly rather than folded into
+    # "indeterminate": it means the sweep has holes, not that the model is indeterminate there.
+    counts = Dict{Int,Int}()
+    for c in dmap.verdict
+        counts[c] = get(counts, c, 0) + 1
+    end
+    total = length(dmap.verdict)
+    pairs = Pair{String,Any}[
+        "n_grid_points" => total,
+        "n_determinate" => get(counts, DETERMINACY_CODES.determinate, 0),
+        "n_indeterminate" => get(counts, DETERMINACY_CODES.indeterminate, 0),
+        "n_no_solution" => get(counts, DETERMINACY_CODES.no_solution, 0),
+        "n_failed" => get(counts, DETERMINACY_CODES.failed, 0),
+        "method" => string(dmap.method),
+        "div" => dmap.div,
+    ]
+    _status()
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="Determinacy Region Summary")
+
+    n_failed = get(counts, DETERMINACY_CODES.failed, 0)
+    n_failed > 0 && _status_styled(
+        "  $n_failed of $total grid point(s) could not be solved and are recorded as " *
+        "'failed' — holes in the sweep, NOT an indeterminacy region\n"; color=:yellow)
+
+    # Boundary: one-parameter sweeps only (for two, the boundary is a curve — read the map).
+    if length(cfg.params) == 1
+        bnd = try
+            determinacy_boundary(dmap)
+        catch e
+            throw(_domain_or_data_error(e, "determinacy boundary"))
+        end
+        _status()
+        output_result(DataFrame(; boundary = collect(Float64.(bnd)));
+            format=Symbol(format), output=_per_var_output_path(output, "boundary"),
+            title="Determinacy Boundary ($p1)")
+        isempty(bnd) ?
+            _status("  Verdict is constant across the grid — no boundary crossing.") :
+            _status("  Boundary at $p1 ≈ $(join(round.(Float64.(bnd); digits=6), ", ")) " *
+                    "(resolution = the grid spacing; refine the grid to sharpen it)")
+    end
+    return dmap
+end
+
+# ── W12/#114: closed-form theoretical moments at order 1/2/3 ───────────────
+# Uses the exported `analytical_moments` with format=:gmm, which is a SUPERSET of the
+# :covariance packing: means, then upper-triangle PRODUCT moments E[yᵢyⱼ], then diagonal
+# E[yᵢ,ₜ·yᵢ,ₜ₋ₖ]. Central moments are recovered from it exactly, so one call yields means,
+# variances/covariances and autocovariances rather than two calls with different layouts.
+# The mean matters at order ≥ 2: the risk-adjusted mean differs from the steady state, and
+# that difference is the point of solving at higher order.
+function _dsge_moments(; model::String, method::String="perturbation", order::Int=2,
+                        lags::Int=1, output::String="", format::String="table")
+    (1 <= order <= 3) || throw(CliError("usage/invalid",
+        "dsge moments: --order must be 1, 2 or 3 (got $order)"))
+    # ── UPSTREAM DEFECT: the order-1 analytical-moments path is WRONG for controls ──
+    # `analytical_moments` at order 1 sets `Var_y[state, control] = Var_x * gx_state'`,
+    # which is Cov(z_{t-1}, y_t): it neither applies `hx` nor adds the contemporaneous
+    # `eta_x * eta_y'` term, so the true `Cov(z_t, y_t) = hx*Var(z)*gx' + eta_x*eta_y'` comes
+    # out short by a factor of rho. The same lagged map is then squared into the
+    # autocovariance recursion (`G1_equiv[control, state] = gx_state * hx_state`), so a
+    # control's autocorrelation at lag k is reported as rho^(k+2) instead of rho^k.
+    #
+    # Measured on y = 0.4*z with z an AR(1), rho = 0.7: corr(z, y) came out 0.7 instead of
+    # 1.0, and autocorr(y, k) as rho^(k+2). Variances and the whole state block are correct;
+    # only blocks involving CONTROLS are wrong — which in a typical DSGE is most of the
+    # variables anyone cares about. Orders 2 and 3 go through `_augmented_moments_2nd/3rd`
+    # and reproduce the closed form exactly, so the defect is confined to order 1. (Upstream
+    # fixed this same control-map time shift in the order-2/3 routine in MEMs#368 and left
+    # the order-1 branch alone.)
+    #
+    # Refusing is strictly better than emitting a wrong table: for a LINEAR model `--order 2`
+    # returns the first-order moments exactly (the second-order blocks are zero), so nothing
+    # is lost there. Re-enable order 1 once upstream is fixed — the handler needs no other
+    # change.
+    order >= 2 || throw(CliError("usage/invalid",
+        "dsge moments: --order 1 is disabled — MacroEconometricModels' order-1 analytical " *
+        "moments are wrong for control variables (the state↔control covariance omits the " *
+        "contemporaneous shock term, so correlations and control autocorrelations are off " *
+        "by powers of the persistence). Orders 2 and 3 are correct.";
+        hint="use --order 2: for a linear model it reproduces the first-order moments exactly"))
+    lags >= 1 || throw(CliError("usage/invalid",
+        "dsge moments: --lags must be ≥ 1 (got $lags)"))
+
+    spec = _load_dsge_model(model)
+    sol = _solve_dsge(spec; method=method, order=order)
+    sol isa MacroEconometricModels.PerturbationSolution || throw(CliError("usage/invalid",
+        "dsge moments needs a perturbation solution; --method $method produced a " *
+        "$(nameof(typeof(sol)))";
+        hint="use --method perturbation (the default), optionally with --order 2 or 3"))
+
+    # Augmented specs report moments over the ORIGINAL variables only, so the labels must be
+    # filtered the same way upstream filters the matrices — otherwise every moment is
+    # attributed to the wrong variable. Replicated from public fields rather than calling
+    # the private `_original_var_indices`.
+    idx = spec.augmented ? Int[findfirst(==(v), spec.endog) for v in spec.original_endog] :
+                           collect(1:spec.n_endog)
+    any(isnothing, idx) && throw(CliError("model/error",
+        "could not map the augmented model's original variables back to the solved set"))
+    names = String[spec.varnames[i] for i in idx]
+    k = length(names)
+
+    _status("DSGE theoretical moments: order=$order, $k variable(s), $lags autocovariance lag(s)")
+    order == 1 || _status("  Closed-form pruned-state-space moments (simulation-free)")
+    _status()
+
+    mv = try
+        analytical_moments(sol; lags=lags, format=:gmm)
+    catch e
+        throw(_domain_or_data_error(e, "theoretical moments"))
+    end
+    expected = k + div(k * (k + 1), 2) + k * lags
+    length(mv) == expected || throw(CliError("model/error",
+        "moment vector has $(length(mv)) entries but the $k-variable × $lags-lag layout " *
+        "implies $expected — the upstream packing changed"))
+
+    E = Float64[mv[i] for i in 1:k]
+    pos = k
+    Var = zeros(Float64, k, k)
+    for i in 1:k, j in i:k
+        pos += 1
+        # :gmm packs the PRODUCT moment E[yᵢyⱼ]; the central second moment is that minus E·E.
+        v = mv[pos] - E[i] * E[j]
+        Var[i, j] = v
+        Var[j, i] = v
+    end
+    ss = Float64.(sol.steady_state)[idx]
+
+    mean_df = DataFrame(
+        variable = names,
+        steady_state = round.(ss; digits=8),
+        mean = round.(E; digits=8),
+        # At order 1 this is identically zero; at order ≥ 2 it is the risk correction.
+        mean_minus_ss = round.(E .- ss; digits=8),
+        std_dev = round.(sqrt.(max.(diag(Var), 0.0)); digits=8),
+    )
+    output_result(mean_df; format=Symbol(format), output=output,
+                  title="DSGE Theoretical Moments (order=$order)")
+
+    cov_rows = NamedTuple[]
+    for i in 1:k, j in i:k
+        sd = sqrt(max(Var[i, i], 0.0)) * sqrt(max(Var[j, j], 0.0))
+        push!(cov_rows, (variable1 = names[i], variable2 = names[j],
+                         covariance = round(Var[i, j]; digits=8),
+                         correlation = sd > 0 ? round(Var[i, j] / sd; digits=8) : NaN))
+    end
+    output_result(DataFrame(cov_rows); format=Symbol(format),
+                  output=_per_var_output_path(output, "covariance"),
+                  title="Variance-Covariance (order=$order)")
+
+    ac_rows = NamedTuple[]
+    for lag in 1:lags, i in 1:k
+        pos += 1
+        # Diagonal autocovariance, again de-centred out of the :gmm product moment.
+        ac = mv[pos] - E[i]^2
+        push!(ac_rows, (variable = names[i], lag = lag,
+                        autocovariance = round(ac; digits=8),
+                        autocorrelation = Var[i, i] > 0 ? round(ac / Var[i, i]; digits=8) : NaN))
+    end
+    output_result(DataFrame(ac_rows); format=Symbol(format),
+                  output=_per_var_output_path(output, "autocovariance"),
+                  title="Autocovariances (order=$order)")
+    return sol
 end
 
 function _dsge_steady_state(; model::String, constraints::String="",
@@ -1208,7 +1514,8 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         priors::String, sampler::String, n_smc::Int, n_particles::Int,
         n_draws::Int, burnin::Int, ess_target::Float64, observables::String,
         solver::String, order::Int, delayed_acceptance::Bool,
-        constraint_solver::String="")
+        constraint_solver::String="",
+        prefilter::String="none", hp_lambda::Float64=1600.0)
     inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
                              constraint_solver)
     spec, Y, theta0 = inp.spec, inp.Y, inp.theta0
@@ -1222,6 +1529,24 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     _status("  Solver: $solver" * (order > 1 ? ", order=$order" : ""))
     _status()
 
+    # W12/#114 (MEMs#339): observables with trends. `estimate_dsge_bayes` is the ONLY
+    # upstream estimation entry point that takes `prefilter` — the frequentist
+    # `estimate_dsge` has no such kwarg, and `posterior_mode` takes `trends` but not
+    # `prefilter`, so the option is declared on the Bayesian leaves only (#85: never declare
+    # an option the handler cannot feed through). It rides on the SHARED runner because
+    # every `dsge bayes` leaf re-estimates from scratch — a prefilter that only worked on
+    # `bayes estimate` could not be carried into `bayes irf`/`fevd`/`hd`.
+    prefilter in ("none", "demean", "first-difference", "linear-detrend", "hp") ||
+        throw(CliError("usage/invalid",
+            "dsge bayes: --prefilter must be none|demean|first-difference|linear-detrend|hp, got '$prefilter'"))
+    (prefilter == "hp" || hp_lambda == 1600.0) || throw(CliError("usage/invalid",
+        "dsge bayes: --hp-lambda applies only to --prefilter hp (got --prefilter $prefilter)"))
+    hp_lambda > 0 || throw(CliError("usage/invalid",
+        "dsge bayes: --hp-lambda must be > 0 (got $hp_lambda)"))
+    pf = Symbol(replace(prefilter, '-' => '_'))
+    pf === :none || _status("  Prefilter: $prefilter" *
+        (pf === :hp ? " (lambda=$hp_lambda)" : ""))
+
     solver_obj_kw = isempty(constraint_solver) ? (;) : (; solver_obj=Symbol(constraint_solver))
     # World-age barrier: estimate_dsge_bayes re-solves the spec (evaluating its @dsge
     # residual fns) on every posterior draw — must run at the latest world age.
@@ -1231,7 +1556,8 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         n_smc=n_smc, n_particles=n_particles,
         n_draws=n_draws, burnin=burnin, ess_target=ess_target,
         solver=Symbol(solver), solver_kwargs=solver_kwargs,
-        delayed_acceptance=delayed_acceptance, solver_obj_kw...)
+        delayed_acceptance=delayed_acceptance,
+        prefilter=pf, hp_lambda=hp_lambda, solver_obj_kw...)
 
     return result
 end
@@ -1244,10 +1570,11 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
                                solver::String="gensys", order::Int=1,
                                constraint_solver::String="",
                                delayed_acceptance::Bool=false,
+                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     # Posterior summary table
     draws = result.theta_draws
@@ -1277,12 +1604,13 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
                           solver::String="gensys", order::Int=1,
                           constraint_solver::String="",
                           delayed_acceptance::Bool=false,
+                          prefilter::String="none", hp_lambda::Float64=1600.0,
                           horizon::Int=40,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1319,11 +1647,12 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
                            constraint_solver::String="",
                            delayed_acceptance::Bool=false,
                            horizon::Int=40,
+                           prefilter::String="none", hp_lambda::Float64=1600.0,
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1360,12 +1689,13 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
                                solver::String="gensys", order::Int=1,
                                constraint_solver::String="",
                                delayed_acceptance::Bool=false,
+                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                periods::Int=200,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1395,10 +1725,11 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
                               solver::String="gensys", order::Int=1,
                               constraint_solver::String="",
                               delayed_acceptance::Bool=false,
+                              prefilter::String="none", hp_lambda::Float64=1600.0,
                               output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     summary = posterior_summary(result)
     pp_table = prior_posterior_table(result)
@@ -1444,6 +1775,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
                               constraint_solver::String="",
                               delayed_acceptance::Bool=false,
                               model2::String="", params2::String="", priors2::String="",
+                              prefilter::String="none", hp_lambda::Float64=1600.0,
                               output::String="", format::String="table")
     isempty(model2) && error("--model2 is required for model comparison")
     isempty(params2) && error("--params2 is required for model comparison")
@@ -1452,7 +1784,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     _status("Estimating Model 1...")
     r1 = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     _status("Estimating Model 2...")
     r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
@@ -1495,11 +1827,12 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
                                  constraint_solver::String="",
                                  delayed_acceptance::Bool=false,
                                  n_sim::Int=500, periods::Int=100,
+                                 prefilter::String="none", hp_lambda::Float64=1600.0,
                                  output::String="", format::String="table",
                                  plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
@@ -1580,13 +1913,14 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          mode_only::Bool=false,
                          delayed_acceptance::Bool=false,
                          horizon::Int=40,
+                         prefilter::String="none", hp_lambda::Float64=1600.0,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
     isempty(observables) && error("--observables is required (comma-separated variable names)")
 
     bd = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     df = load_data(data)
     Y = df_to_matrix(df)
@@ -1625,10 +1959,11 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
                                 solver::String="gensys", order::Int=1,
                                 constraint_solver::String="",
                                 delayed_acceptance::Bool=false,
+                                prefilter::String="none", hp_lambda::Float64=1600.0,
                                 output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     _status("Computing MCMC convergence diagnostics (R-hat / ESS / Geweke)")
     # Pure post-processing of theta_draws, but wrapped for world-age consistency.
@@ -1732,6 +2067,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
                                     delayed_acceptance::Bool=false,
                                     fractions::String="0.5,1.0", threshold::Float64=0.2,
                                     refit_n_smc::Int=100,
+                                    prefilter::String="none", hp_lambda::Float64=1600.0,
                                     output::String="", format::String="table")
     frac_vec = try
         Float64[parse(Float64, strip(s)) for s in split(fractions, ",") if !isempty(strip(s))]
@@ -1744,7 +2080,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
 
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     _status("Koop-Pesaran-Smith learning-rate check (refit n_smc=$refit_n_smc)")
     # Re-runs SMC on nested subsamples (evaluates the spec) → world-age barrier.
@@ -1775,10 +2111,11 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
                               constraint_solver::String="",
                               delayed_acceptance::Bool=false,
                               threshold::Float64=0.8, n_grid::Int=0,
+                              prefilter::String="none", hp_lambda::Float64=1600.0,
                               output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     _status("Prior/posterior overlap (weak-identification signal)")
     ov = _dsge_call(prior_posterior_overlap, result; n_grid=n_grid, threshold=threshold)
@@ -1901,12 +2238,13 @@ function _dsge_bayes_marginal_lik(; model::String, data::String="", params::Stri
                                    constraint_solver::String="",
                                    delayed_acceptance::Bool=false,
                                    proposal::String="normal", df::Float64=5.0,
+                                   prefilter::String="none", hp_lambda::Float64=1600.0,
                                    output::String="", format::String="table")
     proposal in ("normal", "t") || throw(CliError("usage/invalid",
         "--proposal must be normal|t, got '$proposal'"))
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
 
     _status("Bridge-sampling marginal likelihood (proposal=$proposal)")
     # Re-evaluates the likelihood over the spec → world-age barrier. Returns a scalar

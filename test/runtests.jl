@@ -3796,7 +3796,9 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "ha")
     @test haskey(dsge_node.subcmds, "ct")
     @test haskey(dsge_node.subcmds, "olg")
-    @test length(dsge_node.subcmds) == 12
+    @test haskey(dsge_node.subcmds, "determinacy-map")   # W12/#114
+    @test haskey(dsge_node.subcmds, "moments")           # W12/#114
+    @test length(dsge_node.subcmds) == 14
 
     # Nested nodes: bayes, ha, ct, olg; remaining are leaves
     for (name, cmd) in dsge_node.subcmds

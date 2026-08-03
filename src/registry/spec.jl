@@ -225,6 +225,15 @@ const BAYES_OPTIONS = [
     OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
     OptionSpec(name="constraint-solver", type=String, default="",
                description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+    # W12/#114 (MEMs#339): trends in observables. Shared across the whole `dsge bayes`
+    # family because every leaf re-estimates from scratch — a prefilter available only on
+    # `bayes estimate` could not be carried into `bayes irf`/`fevd`/`hd`. NOT offered on the
+    # frequentist `dsge estimate`: `estimate_dsge` has no such kwarg upstream.
+    OptionSpec(name="prefilter", type=String, default="none",
+               choices=["none", "demean", "first-difference", "linear-detrend", "hp"],
+               description="Observable transform applied before estimation (Dynare `prefilter`)"),
+    OptionSpec(name="hp-lambda", type=Float64, default=1600.0,
+               description="HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual)"),
     OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
     OptionSpec(name="format", short="f", type=String, default="table",
                choices=["table", "csv", "json"], description="table|csv|json"),

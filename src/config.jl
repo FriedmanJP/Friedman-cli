@@ -744,3 +744,114 @@ function get_statespace(config::Dict)
     return (Z=Z, H=H, T=Tm, Q=Q, R=R, d=d, c=c, a1=a1, P1=P1,
             init_mode=Symbol(String(im)), n_obs=n_obs, n_state=n_state)
 end
+
+"""
+    get_determinacy(config) → NamedTuple
+
+Parse a `[determinacy]` section for `dsge determinacy-map` (W12/#114).
+
+`determinacy_region` sweeps ONE or TWO parameters over grids and records the Sims
+existence/uniqueness verdict at each point, so the section names the parameters and their
+grids:
+
+```toml
+[determinacy]
+params = ["phi_pi", "phi_y"]        # 1 or 2 parameter names
+lower  = [0.0, 0.0]                 # per-parameter grid start
+upper  = [3.0, 1.0]                 # per-parameter grid end
+points = [61, 41]                   # per-parameter grid resolution (>= 2)
+# optional
+method = "gensys"                   # gensys | klein | blanchard-kahn
+div    = 1.00000001                 # stable/unstable eigenvalue boundary
+```
+
+A scalar is accepted wherever a one-element list would do, and `points` may be a single
+integer applied to every parameter. `grids = [[...], [...]]` supplies explicit grid values
+instead of lower/upper/points.
+
+Every failure is a typed `config/*` CliError — a malformed sweep is user input, not a bug.
+"""
+function get_determinacy(config::Dict)
+    sec = get(config, "determinacy", Dict())
+    isempty(sec) && throw(CliError("config/missing-key",
+        "TOML must have a [determinacy] section naming the swept parameter(s) and their grids";
+        hint="params = [\"phi_pi\"], lower = [0.0], upper = [3.0], points = [61]"))
+
+    _aslist(x) = x isa AbstractVector ? collect(x) : [x]
+
+    praw = get(sec, "params", nothing)
+    praw === nothing && throw(CliError("config/missing-key",
+        "[determinacy] must set params (1 or 2 parameter names)"))
+    params = String[]
+    for p in _aslist(praw)
+        p isa AbstractString || throw(CliError("config/type",
+            "[determinacy] params entries must be strings, got $(typeof(p))"))
+        push!(params, String(p))
+    end
+    np = length(params)
+    (1 <= np <= 2) || throw(CliError("config/invalid",
+        "[determinacy] sweeps 1 or 2 parameters, got $np ($(join(params, ", ")))"))
+    length(unique(params)) == np || throw(CliError("config/invalid",
+        "[determinacy] the swept parameters must be distinct, got $(join(params, ", "))"))
+
+    grids = Vector{Vector{Float64}}()
+    if haskey(sec, "grids")
+        graw = sec["grids"]
+        graw isa AbstractVector || throw(CliError("config/type",
+            "[determinacy] grids must be a list of value lists, one per parameter"))
+        # A single flat list is the natural spelling for one parameter.
+        gl = (np == 1 && !(first(graw) isa AbstractVector)) ? [graw] : collect(graw)
+        length(gl) == np || throw(CliError("config/shape",
+            "[determinacy] grids has $(length(gl)) entry/entries but $np parameter(s)"))
+        for (i, g) in enumerate(gl)
+            g isa AbstractVector || throw(CliError("config/type",
+                "[determinacy] grids[$i] must be a list of numbers"))
+            vals = Float64[]
+            for v in g
+                v isa Real || throw(CliError("config/type",
+                    "[determinacy] grids[$i] must contain numbers, got $(typeof(v))"))
+                push!(vals, Float64(v))
+            end
+            length(vals) >= 2 || throw(CliError("config/invalid",
+                "[determinacy] grids[$i] needs at least 2 values (got $(length(vals)))"))
+            push!(grids, vals)
+        end
+    else
+        lo = _aslist(get(sec, "lower", nothing))
+        hi = _aslist(get(sec, "upper", nothing))
+        (lo == [nothing] || hi == [nothing]) && throw(CliError("config/missing-key",
+            "[determinacy] needs lower and upper (or an explicit grids list)"))
+        length(lo) == np || throw(CliError("config/shape",
+            "[determinacy] lower has $(length(lo)) entry/entries but $np parameter(s)"))
+        length(hi) == np || throw(CliError("config/shape",
+            "[determinacy] upper has $(length(hi)) entry/entries but $np parameter(s)"))
+        praw_n = get(sec, "points", 41)
+        pts = praw_n isa AbstractVector ? collect(praw_n) : fill(praw_n, np)
+        length(pts) == np || throw(CliError("config/shape",
+            "[determinacy] points has $(length(pts)) entry/entries but $np parameter(s)"))
+        for i in 1:np
+            (lo[i] isa Real && hi[i] isa Real) || throw(CliError("config/type",
+                "[determinacy] lower/upper entries must be numbers"))
+            pts[i] isa Integer || throw(CliError("config/type",
+                "[determinacy] points entries must be integers"))
+            Float64(lo[i]) < Float64(hi[i]) || throw(CliError("config/invalid",
+                "[determinacy] lower[$i] must be < upper[$i] (got $(lo[i]) ≥ $(hi[i]))"))
+            Int(pts[i]) >= 2 || throw(CliError("config/invalid",
+                "[determinacy] points[$i] must be ≥ 2 (got $(pts[i]))"))
+            push!(grids, collect(range(Float64(lo[i]), Float64(hi[i]); length=Int(pts[i]))))
+        end
+    end
+
+    meth = String(get(sec, "method", "gensys"))
+    meth in ("gensys", "klein", "blanchard-kahn", "blanchard_kahn") ||
+        throw(CliError("config/invalid",
+            "[determinacy] method must be gensys|klein|blanchard-kahn, got '$meth'"))
+
+    divv = get(sec, "div", 1.0 + 1e-8)
+    divv isa Real || throw(CliError("config/type", "[determinacy] div must be a number"))
+    Float64(divv) > 0 || throw(CliError("config/invalid",
+        "[determinacy] div must be > 0 (got $divv)"))
+
+    return (params=params, grids=grids, method=Symbol(replace(meth, '-' => '_')),
+            div=Float64(divv))
+end

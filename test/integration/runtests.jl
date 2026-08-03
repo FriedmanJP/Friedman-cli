@@ -117,6 +117,18 @@ function numv(x)
     return parse(Float64, s)
 end
 
+"""The `dsge solve` policy table, identified by its `variable` + `G1_*` columns rather than
+by position — `dsge solve` emits several tables and their envelope order is not stable."""
+function _dsge_policy_table(doc)
+    doc === nothing && return nothing
+    for (_, v) in pairs(doc.data)
+        v isa JSON3.Object && haskey(v, :columns) || continue
+        cols = String[string(c) for c in v.columns]
+        ("variable" in cols && any(startswith(c, "G1_") for c in cols)) && return v
+    end
+    return nothing
+end
+
 """A specific named table from envelope data (dict of tables), or nothing."""
 function named_table(doc, name::Symbol)
     doc === nothing && return nothing
@@ -3908,7 +3920,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "dsge solve from TOML (TOML→@dsge bridge)" begin
             r = run_json(["dsge", "solve", model_toml])
             assert_envelope_ok(r; label="dsge solve toml")
-            _, tbl = first_table(r.doc)
+            # NOT `first_table`: JSON3 does not preserve insertion order, and W12 added a
+            # Determinacy Verdict table to this leaf — so "the first table" silently became
+            # a different one. Select by a DISTINCTIVE COLUMN (the standing T3 lesson).
+            tbl = _dsge_policy_table(r.doc)
             @test tbl !== nothing
             @test length(table_rows(tbl)) == 2   # Y, C
         end
@@ -3916,7 +3931,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "dsge solve from .jl (auto-import + world-age)" begin
             r = run_json(["dsge", "solve", model_jl])
             assert_envelope_ok(r; label="dsge solve jl")
-            _, tbl = first_table(r.doc)
+            tbl = _dsge_policy_table(r.doc)
             @test tbl !== nothing
             @test length(table_rows(tbl)) == 2
         end
@@ -4927,6 +4942,307 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["predict", "probit", logit, "--dep", "y", "--odds-ratio"]).code == 2
         end
         rm(ord; force=true)
+    end
+
+    # ── W12/#114: determinacy map, closed-form moments, prefilter ───────────
+    @testset "dsge determinacy-map (W12/#114)" begin
+        # A textbook 3-equation New Keynesian block. Its determinacy frontier is the TAYLOR
+        # PRINCIPLE and is known in closed form: with a purely forward-looking Phillips
+        # curve and IS curve the equilibrium is determinate iff phi_pi > 1. Asserting the
+        # REGION LABELS on both sides is the right test — the exact boundary placement is
+        # only ever resolved to the grid spacing.
+        spec = tempname() * ".jl"
+        write(spec, """
+        @dsge begin
+            parameters: beta_d = 0.99, kappa = 0.3, sigma_i = 1.0, phi_pi = 1.5, rho_u = 0.5
+            endogenous: x, pi, i, u
+            exogenous: eps_u
+
+            x[t] = x[t+1] - sigma_i * (i[t] - pi[t+1])
+            pi[t] = beta_d * pi[t+1] + kappa * x[t] + u[t]
+            i[t] = phi_pi * pi[t]
+            u[t] = rho_u * u[t-1] + eps_u[t]
+        end
+        """)
+        cfg = tempname() * ".toml"
+        write(cfg, """
+        [determinacy]
+        params = ["phi_pi"]
+        lower = 0.0
+        upper = 2.0
+        points = 21
+        """)
+        r = run_json(["dsge", "determinacy-map", spec, "--config", cfg])
+        assert_envelope_ok(r; label="dsge determinacy-map 1-D")
+
+        tbl = named_table(r.doc, :dsge_determinacy_map_phi_pi)
+        if tbl === nothing
+            for (_, v) in pairs(r.doc.data)
+                if v isa JSON3.Object && haskey(v, :columns) &&
+                   "verdict" in String[string(c) for c in v.columns]
+                    tbl = v
+                    break
+                end
+            end
+        end
+        @test tbl !== nothing
+        if tbl !== nothing
+            rows = table_rows(tbl)
+            @test length(rows) == 21
+            pi_i = col_index(tbl, "phi_pi")
+            vi = col_index(tbl, "verdict")
+            li = col_index(tbl, "label")
+            ei = col_index(tbl, "existence")
+            ui = col_index(tbl, "uniqueness")
+            @test pi_i !== nothing && vi !== nothing && li !== nothing
+            lo_side = Int[]; hi_side = Int[]
+            for row in rows
+                rr = collect(row)
+                v = Int(rr[vi]); p = numv(rr[pi_i])
+                # The raw Sims pair must agree with the collapsed verdict, or the two are
+                # telling the reader different things.
+                if v == 1
+                    @test Int(rr[ei]) == 1 && Int(rr[ui]) == 1
+                    @test string(rr[li]) == "determinate"
+                elseif v == 0
+                    @test Int(rr[ei]) == 1 && Int(rr[ui]) == 0
+                    @test string(rr[li]) == "indeterminate"
+                end
+                # Stay clear of the knife edge itself; the grid straddles 1.0 exactly.
+                p < 0.9 && push!(lo_side, v)
+                p > 1.1 && push!(hi_side, v)
+            end
+            @test !isempty(lo_side) && !isempty(hi_side)
+            # THE acceptance criterion: labels on both sides of the analytic frontier.
+            @test all(!=(1), lo_side)          # phi_pi < 1 ⇒ never determinate
+            @test all(==(1), hi_side)          # phi_pi > 1 ⇒ always determinate
+        end
+
+        summ = named_table(r.doc, :determinacy_region_summary)
+        @test summ !== nothing
+        if summ !== nothing
+            @test Int(metric_value(summ, "n_grid_points")) == 21
+            nd = Int(metric_value(summ, "n_determinate"))
+            ni = Int(metric_value(summ, "n_indeterminate"))
+            nn = Int(metric_value(summ, "n_no_solution"))
+            nf = Int(metric_value(summ, "n_failed"))
+            @test nd + ni + nn + nf == 21
+            @test nd > 0 && (ni + nn) > 0      # the sweep genuinely crosses a frontier
+        end
+
+        # One-parameter sweeps also report the boundary, and it must sit near phi_pi = 1.
+        bnd = named_table(r.doc, :determinacy_boundary_phi_pi)
+        if bnd === nothing
+            for (_, v) in pairs(r.doc.data)
+                if v isa JSON3.Object && haskey(v, :columns) &&
+                   String[string(c) for c in v.columns] == ["boundary"]
+                    bnd = v
+                    break
+                end
+            end
+        end
+        @test bnd !== nothing
+        if bnd !== nothing
+            bs = [numv(collect(rw)[1]) for rw in table_rows(bnd)]
+            @test length(bs) >= 1
+            # Resolution is the grid spacing (0.1 here), so allow one cell either side.
+            @test any(b -> abs(b - 1.0) <= 0.15, bs)
+        end
+
+        # Two parameters: the frontier is a curve, so NO boundary table is emitted.
+        cfg2 = tempname() * ".toml"
+        write(cfg2, """
+        [determinacy]
+        params = ["phi_pi", "rho_u"]
+        grids = [[0.5, 1.5], [0.2, 0.8]]
+        """)
+        r2 = run_json(["dsge", "determinacy-map", spec, "--config", cfg2])
+        assert_envelope_ok(r2; label="dsge determinacy-map 2-D")
+        s2 = named_table(r2.doc, :determinacy_region_summary)
+        s2 === nothing || @test Int(metric_value(s2, "n_grid_points")) == 4
+        @test !any(v -> v isa JSON3.Object && haskey(v, :columns) &&
+                        String[string(c) for c in v.columns] == ["boundary"],
+                   values(r2.doc.data))
+
+        # --threaded must give an identical sweep (upstream writes disjoint indices).
+        rt = run_json(["dsge", "determinacy-map", spec, "--config", cfg, "--threaded"])
+        assert_envelope_ok(rt; label="dsge determinacy-map --threaded")
+        st = named_table(rt.doc, :determinacy_region_summary)
+        if st !== nothing && summ !== nothing
+            @test Int(metric_value(st, "n_determinate")) == Int(metric_value(summ, "n_determinate"))
+            @test Int(metric_value(st, "n_indeterminate")) == Int(metric_value(summ, "n_indeterminate"))
+        end
+
+        # Typed guards.
+        @test run_json(["dsge", "determinacy-map", spec]).code == 2          # no --config
+        @test run_json(["dsge", "determinacy-map", spec, "--config", cfg,
+                        "--rank-rtol", "0"]).code == 2
+        badp = tempname() * ".toml"
+        write(badp, "[determinacy]\nparams = [\"not_a_param\"]\nlower=[0.0]\nupper=[1.0]\npoints=[3]\n")
+        @test run_json(["dsge", "determinacy-map", spec, "--config", badp]).code == 4
+        empty_cfg = tempname() * ".toml"
+        write(empty_cfg, "[other]\nx = 1\n")
+        @test run_json(["dsge", "determinacy-map", spec, "--config", empty_cfg]).code == 4
+        rm(spec; force=true); rm(cfg; force=true); rm(cfg2; force=true)
+        rm(badp; force=true); rm(empty_cfg; force=true)
+    end
+
+    @testset "dsge moments (W12/#114)" begin
+        # An exactly linear AR(1)-driven block: the analytic variance of the driving state
+        # is sigma^2/(1-rho^2), which the closed-form moments must reproduce, and the
+        # autocorrelation at lag k must be rho^k. Both are checkable in closed form, which
+        # is the only way to know the packing was unpacked correctly.
+        rho, sig = 0.7, 0.02
+        spec = tempname() * ".jl"
+        write(spec, """
+        @dsge begin
+            parameters: rho_z = $rho, sigma_z = $sig, alpha = 0.4
+            endogenous: z, y
+            exogenous: eps_z
+
+            z[t] = rho_z * z[t-1] + sigma_z * eps_z[t]
+            y[t] = alpha * z[t]
+        end
+        """)
+        # ORDER 2, not 1: upstream's order-1 analytical moments are wrong for controls (the
+        # state↔control covariance drops the contemporaneous shock term), so `dsge moments`
+        # refuses order 1. For this EXACTLY LINEAR model order 2 reproduces the first-order
+        # moments precisely, which is what makes the closed-form checks below valid.
+        r = run_json(["dsge", "moments", spec, "--order", "2", "--lags", "3"])
+        assert_envelope_ok(r; label="dsge moments order 2")
+
+        mt = named_table(r.doc, :dsge_theoretical_moments_order_2)
+        if mt === nothing
+            for (_, v) in pairs(r.doc.data)
+                if v isa JSON3.Object && haskey(v, :columns) &&
+                   "mean_minus_ss" in String[string(c) for c in v.columns]
+                    mt = v
+                    break
+                end
+            end
+        end
+        @test mt !== nothing
+        var_z = sig^2 / (1 - rho^2)
+        if mt !== nothing
+            rows = table_rows(mt)
+            vi = col_index(mt, "variable"); si = col_index(mt, "std_dev")
+            mi = col_index(mt, "mean_minus_ss")
+            byvar = Dict(string(collect(rw)[vi]) => collect(rw) for rw in rows)
+            @test haskey(byvar, "z") && haskey(byvar, "y")
+            # sd(z) = sigma/sqrt(1-rho^2), and y = alpha*z ⇒ sd(y) = alpha*sd(z).
+            sd_z = numv(byvar["z"][si]); sd_y = numv(byvar["y"][si])
+            @test isapprox(sd_z, sqrt(var_z); rtol=1e-6)
+            @test isapprox(sd_y, 0.4 * sqrt(var_z); rtol=1e-6)
+            # At order 1 the mean IS the steady state — the risk correction is exactly zero.
+            for v in ("z", "y")
+                @test abs(numv(byvar[v][mi])) < 1e-10
+            end
+        end
+
+        ac = nothing
+        for (_, v) in pairs(r.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "autocorrelation" in String[string(c) for c in v.columns]
+                ac = v
+                break
+            end
+        end
+        @test ac !== nothing
+        if ac !== nothing
+            rows = table_rows(ac)
+            @test length(rows) == 2 * 3      # 2 variables × 3 lags
+            vi = col_index(ac, "variable"); li = col_index(ac, "lag")
+            ri = col_index(ac, "autocorrelation")
+            for rw in rows
+                r_ = collect(rw)
+                lag = Int(r_[li])
+                # AR(1): corr at lag k is rho^k, for BOTH variables (y is a scaling of z).
+                @test isapprox(numv(r_[ri]), rho^lag; atol=1e-6)
+            end
+        end
+
+        cv = nothing
+        for (_, v) in pairs(r.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "correlation" in String[string(c) for c in v.columns]
+                cv = v
+                break
+            end
+        end
+        @test cv !== nothing
+        if cv !== nothing
+            rows = table_rows(cv)
+            @test length(rows) == 3          # upper triangle of a 2×2
+            ci = col_index(cv, "correlation")
+            v1 = col_index(cv, "variable1"); v2 = col_index(cv, "variable2")
+            for rw in rows
+                r_ = collect(rw)
+                # y = alpha*z ⇒ every pair is perfectly correlated here.
+                string(r_[v1]) == string(r_[v2]) || @test isapprox(numv(r_[ci]), 1.0; atol=1e-6)
+            end
+        end
+
+        # Order 3 runs and stays finite (the closed-form pruned recursion).
+        for ord in ("3",)
+            ro = run_json(["dsge", "moments", spec, "--method", "perturbation",
+                           "--order", ord, "--lags", "2"])
+            assert_envelope_ok(ro; label="dsge moments order $ord")
+            mo = nothing
+            for (_, v) in pairs(ro.doc.data)
+                if v isa JSON3.Object && haskey(v, :columns) &&
+                   "mean_minus_ss" in String[string(c) for c in v.columns]
+                    mo = v
+                    break
+                end
+            end
+            @test mo !== nothing
+            if mo !== nothing
+                for rw in table_rows(mo)
+                    @test isfinite(numv(collect(rw)[col_index(mo, "std_dev")]))
+                    @test isfinite(numv(collect(rw)[col_index(mo, "mean_minus_ss")]))
+                end
+                # An exactly linear model has NO risk correction at any order — the
+                # higher-order blocks are zero. This is the check that the order-2/3 path
+                # is not quietly returning garbage.
+                for rw in table_rows(mo)
+                    @test abs(numv(collect(rw)[col_index(mo, "mean_minus_ss")])) < 1e-8
+                end
+            end
+        end
+
+        # Typed guards. --order 1 is a REFUSAL, not a silent wrong answer: upstream's
+        # order-1 path reports corr(z,y)=rho instead of 1.0 and autocorr(y,k)=rho^(k+2)
+        # instead of rho^k for control variables. Re-enable when upstream is fixed.
+        @test run_json(["dsge", "moments", spec, "--order", "1"]).code == 2
+        @test run_json(["dsge", "moments", spec, "--order", "0"]).code == 2
+        @test run_json(["dsge", "moments", spec, "--order", "4"]).code == 2
+        @test run_json(["dsge", "moments", spec, "--lags", "0"]).code == 2
+        rm(spec; force=true)
+    end
+
+    @testset "dsge solve — determinacy verdict (W12/#114)" begin
+        spec = tempname() * ".jl"
+        write(spec, """
+        @dsge begin
+            parameters: rho_z = 0.8, sigma_z = 0.01
+            endogenous: z
+            exogenous: eps_z
+            z[t] = rho_z * z[t-1] + sigma_z * eps_z[t]
+        end
+        """)
+        r = run_json(["dsge", "solve", spec])
+        assert_envelope_ok(r; label="dsge solve determinacy verdict")
+        dv = named_table(r.doc, :determinacy_verdict)
+        @test dv !== nothing
+        if dv !== nothing
+            e_ = metric_value(dv, "existence"); u_ = metric_value(dv, "uniqueness")
+            @test e_ !== nothing && u_ !== nothing
+            @test Int(e_) in (0, 1) && Int(u_) in (0, 1)
+            @test metric_value(dv, "verdict") !== nothing
+            # A stable AR(1) with no forward-looking equation is determinate.
+            @test Int(e_) == 1 && Int(u_) == 1
+        end
+        rm(spec; force=true)
     end
 
     # ── W10/#112: micro inference riders ────────────────────────────────────
