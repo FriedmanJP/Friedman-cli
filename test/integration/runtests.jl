@@ -3178,6 +3178,154 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     end
 
     # W13/#115 — Den Haan (2010) accuracy, the audit's adopt-now row.
+    # ── W7/#109: TVP-VAR-SV, MF-VAR, BVAR hyperopt ──────────────────────────
+    @testset "estimate tvpvar + irf tvpvar (W7/#109)" begin
+        csv = dgp_var2(; T=120, seed=21)
+        r = run_json(["estimate", "tvpvar", csv, "--lags", "1",
+                      "--draws", "60", "--burnin", "30"])
+        assert_envelope_ok(r; label="estimate tvpvar")
+        vol = nothing
+        for (_, v) in pairs(r.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["period", "variable", "mean"]) && (vol = v)
+        end
+        @test vol !== nothing
+        if vol !== nothing
+            # Tidy long form: one row per (period, variable), NOT a wide T x n block.
+            n_per = length(unique(String(collect(rw)[col_index(vol, "variable")])
+                                  for rw in table_rows(vol)))
+            @test n_per == 3          # dgp_var2 is a 3-variable system
+            @test length(table_rows(vol)) % n_per == 0
+            # volatility_path returns a STANDARD DEVIATION (exp(h/2)); the stored state is
+            # a log-variance, so a missing conversion would show up as non-positive values.
+            mvals = [Float64(collect(rw)[col_index(vol, "mean")]) for rw in table_rows(vol)]
+            @test all(>(0), mvals)
+            @test all(isfinite, mvals)
+        end
+
+        # --date is REQUIRED and must be rejected BEFORE the Gibbs sampler runs.
+        rmiss = run_json(["irf", "tvpvar", csv, "--lags", "1", "--draws", "60",
+                          "--burnin", "30"])
+        @test rmiss.code == 2
+        @test occursin("date", lowercase(String(rmiss.doc["error"]["message"])))
+
+        rirf = run_json(["irf", "tvpvar", csv, "--date", "40", "--horizons", "4",
+                         "--lags", "1", "--draws", "60", "--burnin", "30",
+                         "--irf-draws", "40"])
+        assert_envelope_ok(rirf; label="irf tvpvar")
+        it = nothing
+        for (_, v) in pairs(rirf.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["horizon", "variable", "shock", "value"]) && (it = v)
+        end
+        @test it !== nothing
+        @test it === nothing || length(table_rows(it)) == 4 * 3   # 4 horizons x 3 variables, one shock
+
+        # Out-of-range dates are typed usage errors, not an untyped upstream ArgumentError.
+        @test run_json(["irf", "tvpvar", csv, "--date", "0", "--lags", "1",
+                        "--draws", "60", "--burnin", "30"]).code == 2
+        @test run_json(["irf", "tvpvar", csv, "--date", "99999", "--lags", "1",
+                        "--draws", "60", "--burnin", "30"]).code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "estimate mfvar (W7/#109)" begin
+        # A mixed-frequency CSV: the low-frequency series is BLANK between observations.
+        # Those gaps must survive to the estimator as NaN -- the ordinary loader rejects
+        # missing cells, so this leaf has its own loader.
+        csv = tempname() * ".csv"
+        open(csv, "w") do io
+            println(io, "monthly,quarterly")
+            m = 0.0
+            for t in 1:96
+                m = 0.7m + 0.4 * sin(t / 3.0)
+                if t % 3 == 0
+                    println(io, "$m,$(m * 1.01)")
+                else
+                    println(io, "$m,")          # blank cell in a MULTI-column row
+                end
+            end
+        end
+        r = run_json(["estimate", "mfvar", csv, "--lags", "2", "--draws", "80",
+                      "--burnin", "40", "--freq-ratio", "3", "--aggregation", "average"])
+        assert_envelope_ok(r; label="estimate mfvar")
+        lat = nothing
+        for (_, v) in pairs(r.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["period", "variable", "mean"]) && (lat = v)
+        end
+        @test lat !== nothing
+        # The latent path is at the HIGH frequency for EVERY series, including the one
+        # observed only every third period -- that interpolation is the whole model.
+        @test lat === nothing || length(table_rows(lat)) == 96 * 2
+
+        # An all-complete CSV has no low-frequency series to infer.
+        plain = dgp_var2(; T=60, seed=3)
+        @test run_json(["estimate", "mfvar", plain, "--lags", "1", "--draws", "40"]).code == 2
+        @test run_json(["estimate", "mfvar", csv, "--aggregation", "bogus"]).code == 2
+        @test run_json(["estimate", "mfvar", csv, "--low-freq", "99"]).code == 2
+        @test run_json(["estimate", "mfvar", csv, "--freq-ratio", "0"]).code == 2
+        rm(csv; force=true); rm(plain; force=true)
+    end
+
+    @testset "estimate bvar --hyperopt (W7/#109)" begin
+        csv = dgp_var2(; T=140, seed=31)
+        hyper_tbl(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "parameter" in table_cols(v) || continue
+                any(rw -> String(collect(rw)[1]) == "tau", table_rows(v)) && return v
+            end
+            return nothing
+        end
+
+        rg = run_json(["estimate", "bvar", csv, "--lags", "2", "--draws", "200"])
+        assert_envelope_ok(rg; label="estimate bvar --hyperopt glp (default)")
+        tg = hyper_tbl(rg.doc)
+        @test tg !== nothing
+        if tg !== nothing
+            keys_g = [String(collect(rw)[1]) for rw in table_rows(tg)]
+            # GLP reports its diagnostics; the grid path has none to report.
+            @test "log_ml" in keys_g && "converged" in keys_g && "at_bound" in keys_g
+            vals = Dict(String(collect(rw)[1]) => Float64(collect(rw)[2])
+                        for rw in table_rows(tg))
+            # The optimizer must beat the default hyperparameters it starts from, else the
+            # whole GLP path is doing nothing useful.
+            @test vals["log_ml"] >= vals["log_ml_default"]
+            @test vals["tau"] > 0
+        end
+
+        rr = run_json(["estimate", "bvar", csv, "--lags", "2", "--draws", "200",
+                       "--hyperopt", "grid"])
+        assert_envelope_ok(rr; label="estimate bvar --hyperopt grid")
+        tr = hyper_tbl(rr.doc)
+        @test tr !== nothing
+        @test tr === nothing || !("log_ml" in [String(collect(rw)[1]) for rw in table_rows(tr)])
+
+        @test run_json(["estimate", "bvar", csv, "--hyperopt", "bogus"]).code == 2
+
+        # A [prior] config pins the hyperparameters. This used to pass a length-n VECTOR as
+        # `omega`, which real MEMs rejects outright (omega is a SCALAR weight) -- an untyped
+        # exit 1 on every --config minnesota run across the whole BVAR family, hidden by a
+        # mock whose omega was a Vector. There was no T3 coverage of the config path at all.
+        cfg = tempname() * ".toml"
+        write(cfg, """
+        [prior]
+        type = "minnesota"
+
+        [prior.hyperparameters]
+        lambda1 = 0.2
+        lambda2 = 0.5
+        lambda3 = 1.0
+        """)
+        rc = run_json(["estimate", "bvar", csv, "--lags", "2", "--draws", "200",
+                       "--config", cfg])
+        assert_envelope_ok(rc; label="estimate bvar --config minnesota")
+        # Config pins the values, so no selection table is emitted.
+        @test hyper_tbl(rc.doc) === nothing
+        rm(cfg; force=true); rm(csv; force=true)
+    end
+
     @testset "dsge ha accuracy (W13/#115)" begin
         # `cols_table` is a LOCAL helper of the io testset, not suite-level — define it here
         # rather than reaching across scopes (this has bitten twice already).

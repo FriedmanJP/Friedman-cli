@@ -3955,7 +3955,7 @@ end
     @test "config" in opt_names
 
     # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 71
+    @test length(est_node.subcmds) == 73
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4069,7 +4069,7 @@ end
 @testset "FAVAR/SDFM command structure across actions" begin
     # IRF: 7 subcommands (5 original + favar + sdfm)
     irf_node = register_irf_commands!()
-    @test length(irf_node.subcmds) == 7
+    @test length(irf_node.subcmds) == 8
     @test haskey(irf_node.subcmds, "favar")
     @test haskey(irf_node.subcmds, "sdfm")
     @test irf_node.subcmds["favar"] isa LeafCommand

@@ -657,20 +657,32 @@ Load data from CSV, build prior, and estimate a Bayesian VAR.
 Returns a BVARPosterior (which carries p, n, data internally).
 """
 function _load_and_estimate_bvar(data::String, lags::Int, config::String,
-                                  draws::Int, sampler::String)
+                                  draws::Int, sampler::String;
+                                  hyperopt::String="glp")
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
     p = lags
 
+    hopt = lowercase(strip(hyperopt))
+    hopt in ("glp", "grid") || throw(CliError("usage/invalid-option",
+        "invalid --hyperopt '$hyperopt'; must be glp or grid"))
+
     prior_obj = _build_prior(config, Y, p)
     prior_sym = isnothing(prior_obj) ? :normal : :minnesota
+
+    # --hyperopt only bites when the hyperparameters are NOT pinned: upstream ignores it
+    # entirely once `hyper` is supplied. Config therefore wins over the flag, and saying so
+    # on stderr beats letting a user believe a flag took effect when it could not.
+    if prior_obj !== nothing && hopt != "glp"
+        _status("--hyperopt=$hopt ignored: [prior] in the config pins the hyperparameters")
+    end
 
     # Forward --seed as the estimator's own seed (C052/#243): estimate_bvar seeds a
     # fresh MersenneTwister(seed) and records it in the BVARPosterior ReproManifest,
     # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj, seed=_SEED[])
+        prior=prior_sym, hyper=prior_obj, hyperopt=Symbol(hopt), seed=_SEED[])
 
     return post, Y, varnames, p, n
 end
@@ -692,22 +704,21 @@ function _build_prior(config_path::String, Y::AbstractMatrix, p::Int)
             _status("Optimizing Minnesota prior hyperparameters...")
             return optimize_hyperparameters(Y, p)
         else
-            sigma_ar = ones(size(Y, 2))
-            for i in 1:size(Y, 2)
-                y = Y[:, i]
-                if length(y) > 2
-                    X = y[1:end-1]
-                    y_dep = y[2:end]
-                    b = X \ y_dep
-                    resid = y_dep .- X .* b
-                    sigma_ar[i] = sqrt(sum(resid .^ 2) / (length(resid) - 1))
-                end
-            end
+            # `omega` is a SCALAR weight on the residual-covariance prior, not the
+            # per-variable AR scale. This used to pass a length-n Vector of AR residual
+            # standard deviations, which real MEMs rejects outright
+            # (`TypeError: in keyword argument omega, expected Real`) — an untyped exit 1 on
+            # EVERY `--config` minnesota run across the whole BVAR family. The mock's
+            # `omega::Vector{Float64}` accepted it, so T1/T2 stayed green; there was no T3
+            # coverage of the config path. Per-variable σᵢ scaling is MEMs' own job inside
+            # `gen_dummy_obs`, so there is nothing for the CLI to compute here.
+            #
+            # The config schema exposes only lambda1/2/3, so `mu` and `omega` keep upstream's
+            # defaults rather than being invented from the data.
             return MinnesotaHyperparameters(;
                 tau=prior_cfg["lambda1"],
                 decay=prior_cfg["lambda3"],
                 lambda=prior_cfg["lambda2"],
-                omega=sigma_ar
             )
         end
     end

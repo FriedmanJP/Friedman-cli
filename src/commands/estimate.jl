@@ -122,14 +122,62 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="method", type=String, default="mean", description="mean|median (posterior extraction)"),
+                OptionSpec(name="hyperopt", type=String, default="glp",
+                           description="Minnesota hyperparameter selection: glp|grid",
+                           choices=["glp", "grid"]),
                 OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_bvar, description="Path to CSV data file")],
+            tables=[TableSpec(name=:estimate_bvar, description="Path to CSV data file"),
+                    TableSpec(name=:hyper, description="Selected Minnesota hyperparameters")],
             category="estimate",
             handler=wrap_legacy(_estimate_bvar),
+        ),
+        CommandSpec(
+            path=["estimate", "tvpvar"],
+            summary="TVP-VAR with stochastic volatility (Primiceri 2005)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="Retained Gibbs draws"),
+                OptionSpec(name="burnin", type=Int, default=1000, description="Burn-in sweeps discarded"),
+                OptionSpec(name="thin", type=Int, default=1, description="Keep every k-th draw"),
+                OptionSpec(name="n-train", type=Int, default=0, description="Training sample used to calibrate priors"),
+                OptionSpec(name="k-q", type=Float64, default=0.01, description="Coefficient random-walk prior scale (> 0)"),
+                OptionSpec(name="k-s", type=Float64, default=0.1, description="Covariance random-walk prior scale (> 0)"),
+                OptionSpec(name="k-w", type=Float64, default=0.01, description="Log-volatility random-walk prior scale (> 0)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-tvp", description="Hold coefficients constant (drop the time variation)"),
+                   FlagSpec(name="no-sv", description="Hold volatilities constant (drop stochastic volatility)")],
+            tables=[TableSpec(name=:volatility, description="Stochastic volatility path"),
+                    TableSpec(name=:spec, description="TVP-VAR specification")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_tvpvar),
+        ),
+        CommandSpec(
+            path=["estimate", "mfvar"],
+            summary="Mixed-frequency VAR (Schorfheide-Song 2015)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="CSV at the HIGH frequency; low-frequency series blank between observations")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
+                OptionSpec(name="low-freq", type=String, default="", description="1-based indices of low-frequency columns (default: those with gaps)"),
+                OptionSpec(name="freq-ratio", type=Int, default=3, description="High- per low-frequency periods (3 = monthly/quarterly)"),
+                OptionSpec(name="aggregation", type=String, default="growth", description="stock|flow|average|growth (one, or one per low-freq series)"),
+                OptionSpec(name="draws", short="n", type=Int, default=1000, description="Retained Gibbs draws"),
+                OptionSpec(name="burnin", type=Int, default=500, description="Burn-in sweeps discarded"),
+                OptionSpec(name="prior", type=String, default="minnesota", description="minnesota|diffuse", choices=["minnesota","diffuse"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:latent, description="Latent high-frequency path"),
+                    TableSpec(name=:spec, description="MF-VAR specification")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_mfvar),
         ),
         CommandSpec(
             path=["estimate", "lp"],
@@ -1388,9 +1436,56 @@ end
 
 # ── BVAR ───────────────────────────────────────────────────
 
+"""
+    _bvar_select_hyper(Y, p, hyperopt) -> (hyper, table_or_nothing)
+
+Run the Minnesota hyperparameter selection the CLI is about to hand to `estimate_bvar`.
+
+Upstream does this internally and **discards the diagnostics** — `BVARPosterior` keeps only
+the draws, so once `estimate_bvar` returns there is no way to report which hyperparameters
+were chosen or whether the optimizer converged. Selecting here and passing `hyper=` gives
+identical numbers (upstream's `:glp` branch is exactly `optimize_hyperparameters_glp(Y, p).hyper`
+on the same un-lagged `Y`) while making the choice reportable. No extra work: supplying
+`hyper=` skips upstream's own optimization.
+"""
+function _bvar_select_hyper(Y::AbstractMatrix, p::Int, hyperopt::String)
+    if hyperopt == "glp"
+        _status("Optimizing Minnesota hyperparameters (GLP joint)...")
+        r = optimize_hyperparameters_glp(Y, p)
+        h = r.hyper
+        # at_bound matters more than converged: a hyperparameter pinned to its bound means
+        # the optimum is outside the admissible region, so the "optimized" value is an
+        # artefact of the box rather than a maximum.
+        r.at_bound && _status("  warning: a hyperparameter is AT ITS BOUND — the optimum " *
+                              "lies outside the search box, so treat these values with care")
+        tbl = DataFrame(
+            parameter = ["tau", "decay", "lambda", "mu", "omega",
+                         "log_ml", "log_ml_default", "log_posterior",
+                         "converged", "at_bound", "iterations"],
+            value = Float64[h.tau, h.decay, h.lambda, h.mu, h.omega,
+                            r.log_ml, r.log_ml_default, r.log_posterior,
+                            r.converged ? 1.0 : 0.0, r.at_bound ? 1.0 : 0.0, r.iterations],
+        )
+        return h, tbl
+    end
+    _status("Selecting Minnesota tau by grid search...")
+    h = optimize_hyperparameters(Y, p)
+    # The grid path optimizes tau ONLY and returns no diagnostics, so the table is just the
+    # resulting hyperparameters — deliberately the same columns, minus the GLP-only rows.
+    tbl = DataFrame(
+        parameter = ["tau", "decay", "lambda", "mu", "omega"],
+        value = Float64[h.tau, h.decay, h.lambda, h.mu, h.omega],
+    )
+    return h, tbl
+end
+
 function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
                          draws::Int=2000, sampler::String="direct", method::String="mean",
+                         hyperopt::String="glp",
                          config::String="", output::String="", format::String="table")
+    hopt = lowercase(strip(hyperopt))
+    hopt in ("glp", "grid") || throw(CliError("usage/invalid-option",
+        "invalid --hyperopt '$hyperopt'; must be glp or grid"))
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
     p = lags
@@ -1402,9 +1497,23 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
     prior_obj = _build_prior(config, Y, p)
     prior_sym = isnothing(prior_obj) ? Symbol(prior) : :minnesota
 
+    # Precedence: an explicit config [prior] pins the hyperparameters and upstream then
+    # ignores hyperopt entirely, so say so rather than letting the flag look effective.
+    hyper_tbl = nothing
+    if prior_obj !== nothing
+        hopt == "glp" || _status("--hyperopt=$hopt ignored: [prior] in the config pins " *
+                                 "the hyperparameters")
+    elseif prior_sym === :minnesota
+        prior_obj, hyper_tbl = _bvar_select_hyper(Y, p, hopt)
+    else
+        # :normal/:diffuse never consult Minnesota hyperparameters at all.
+        hopt == "glp" || _status("--hyperopt=$hopt ignored: it applies to the minnesota " *
+                                 "prior, not --prior $prior")
+    end
+
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj)
+        prior=prior_sym, hyper=prior_obj, seed=_SEED[])
 
     model = if method == "median"
         posterior_median_model(post)
@@ -1417,6 +1526,12 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
     coef_df = _build_var_coef_table(coef(model), varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
                   title="BVAR($p) Posterior $(titlecase(method)) Coefficients")
+
+    if hyper_tbl !== nothing
+        output_result(hyper_tbl; format=Symbol(format),
+                      output=_per_var_output_path(output, "hyper"),
+                      title="Minnesota Hyperparameters ($hopt)")
+    end
 
     _status()
     output_model_criteria(model; format=format, title="Information Criteria (Posterior $(titlecase(method)))")
@@ -6384,4 +6499,262 @@ function _load_ms_future_x(path::String, k::Int)
         "forecast ms: --x-future must have $k column$(k == 1 ? "" : "s") to match the fitted model, got $(size(X,2))";
         hint=k == 1 ? "an intercept-only model expects a single column of ones" : ""))
     return X, names(df)
+end
+
+# ── W7/#109: TVP-VAR-SV (Primiceri 2005) and MF-VAR (Schorfheide-Song 2015) ──
+#
+# Neither TVPVARPosterior nor MFVARPosterior has a plot_result recipe on the 0.7.2 tag
+# (checked against src/plotting/), so NEITHER leaf advertises --plot. Both estimators take
+# `rng`, not `seed`, so per-estimator seeding is unavailable; the global Random.seed! in
+# run_cli still makes runs reproducible, and the docs say so rather than implying a
+# manifest-recorded seed the result cannot carry.
+
+"""
+    _band_long_table(mu, qs, varnames, levels; index_name) -> DataFrame
+
+Tidy long form for the `(mean, quantiles)` pairs returned by `volatility_path`/`latent_path`:
+`mu` is `T × n` and `qs` is `T × n × n_q`, so one row per (period, variable) with a column
+per requested quantile. C051 tidy convention — never a wide T × n block.
+"""
+function _band_long_table(mu::AbstractMatrix, qs::AbstractArray{<:Real,3},
+                          varnames::Vector{String}, levels::Vector{Float64};
+                          index_name::Symbol=:period)
+    T_, n = size(mu)
+    rows = T_ * n
+    df = DataFrame(index_name => repeat(1:T_, outer=n),
+                   :variable => repeat(varnames; inner=T_),
+                   :mean => vec(Float64.(mu)))
+    for (q, lv) in enumerate(levels)
+        # `q16`/`q50`/`q84` — the level, not the index, so a reader can tell which band a
+        # column is without consulting the invocation.
+        df[!, Symbol("q", string(round(Int, lv * 100)))] = vec(Float64.(@view qs[:, :, q]))
+    end
+    return df
+end
+
+const _TVP_QUANTILES = [0.16, 0.5, 0.84]
+
+function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::Int,
+                                   thin::Int, n_train::Int, k_q::Float64, k_s::Float64,
+                                   k_w::Float64, no_tvp::Bool, no_sv::Bool)
+    lags >= 1 || throw(CliError("usage/invalid", "--lags must be ≥ 1 (got $lags)"))
+    draws >= 1 || throw(CliError("usage/invalid", "--draws must be ≥ 1 (got $draws)"))
+    burnin >= 0 || throw(CliError("usage/invalid", "--burnin must be ≥ 0 (got $burnin)"))
+    thin >= 1 || throw(CliError("usage/invalid", "--thin must be ≥ 1 (got $thin)"))
+    n_train >= 0 || throw(CliError("usage/invalid", "--n-train must be ≥ 0 (got $n_train)"))
+    for (nm, v) in (("--k-q", k_q), ("--k-s", k_s), ("--k-w", k_w))
+        v > 0 || throw(CliError("usage/invalid", "$nm must be > 0 (got $v)"))
+    end
+
+    Y, varnames = load_multivariate_data(data)
+    size(Y, 2) >= 2 || throw(CliError("data/shape",
+        "TVP-VAR requires at least 2 variables, got $(size(Y, 2))"))
+
+    _status("Estimating TVP-VAR($lags): $(size(Y,2)) variables, $draws draws " *
+            "($burnin burn-in, thin $thin)")
+    post = try
+        estimate_tvpvar(Y, lags; tvp=!no_tvp, sv=!no_sv, n_draws=draws, n_burn=burnin,
+                        thin=thin, n_train=n_train, k_Q=k_q, k_S=k_s, k_W=k_w,
+                        varnames=varnames)
+    catch e
+        e isa CliError && rethrow()
+        _domain_or_data_error(e, "estimate tvpvar")
+    end
+    return post, varnames
+end
+
+function _estimate_tvpvar(; data::String, lags::Int=2, draws::Int=2000, burnin::Int=1000,
+                           thin::Int=1, n_train::Int=0,
+                           k_q::Float64=0.01, k_s::Float64=0.1, k_w::Float64=0.01,
+                           no_tvp::Bool=false, no_sv::Bool=false,
+                           output::String="", format::String="table")
+    post, varnames = _load_and_estimate_tvpvar(data, lags, draws, burnin, thin, n_train,
+                                               k_q, k_s, k_w, no_tvp, no_sv)
+    _status_report(() -> report(post))
+
+    mu, qs = volatility_path(post; quantile_levels=_TVP_QUANTILES)
+    # σ_{i,t} = exp(h_{i,t}/2): volatility_path already converts the stored log-VARIANCE
+    # state to a standard deviation, so these are directly comparable with the data's units.
+    output_result(_band_long_table(mu, qs, varnames, _TVP_QUANTILES);
+                  format=Symbol(format), output=output,
+                  title="TVP-VAR Stochastic Volatility Path (posterior sd, 68% band)")
+
+    output_kv(Pair{String,Any}[
+        "lags"      => post.p,
+        "variables" => post.n,
+        "T_eff"     => post.T_eff,
+        "n_train"   => post.n_train,
+        "draws"     => size(post.B_draws, 1),
+        "tvp"       => post.tvp,
+        "sv"        => post.sv,
+    ]; format=format, title="TVP-VAR Specification")
+    return post
+end
+
+function _irf_tvpvar(; data::String, date::Int=0, horizons::Int=20, lags::Int=2,
+                      draws::Int=2000, burnin::Int=1000, thin::Int=1, n_train::Int=0,
+                      k_q::Float64=0.01, k_s::Float64=0.1, k_w::Float64=0.01,
+                      no_tvp::Bool=false, no_sv::Bool=false,
+                      irf_draws::Int=500, shock::Int=1, no_stationary_only::Bool=false,
+                      output::String="", format::String="table")
+    horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
+    irf_draws >= 1 || throw(CliError("usage/invalid", "--irf-draws must be ≥ 1 (got $irf_draws)"))
+    # The date-t IRF is the entire point of a TVP model, so --date is required rather than
+    # silently defaulting to the end of the sample. Check it BEFORE the Gibbs sampler runs —
+    # the upper bound needs T_eff and so cannot be known until after estimation, but a
+    # missing --date can, and making the user sit through a full MCMC to be told they forgot
+    # an argument is indefensible.
+    date == 0 && throw(CliError("usage/missing",
+        "irf tvpvar: --date is required — a TVP-VAR has a different IRF at every date";
+        hint="--date indexes the effective sample (1:T_eff, after lags and any training " *
+             "observations); run `estimate tvpvar` to see T_eff"))
+    date >= 1 || throw(CliError("usage/invalid",
+        "irf tvpvar: --date must be ≥ 1, got $date"))
+
+    post, varnames = _load_and_estimate_tvpvar(data, lags, draws, burnin, thin, n_train,
+                                               k_q, k_s, k_w, no_tvp, no_sv)
+
+    date <= post.T_eff || throw(CliError("usage/invalid",
+        "irf tvpvar: --date must be in 1:$(post.T_eff), got $date"))
+    1 <= shock <= post.n || throw(CliError("usage/invalid",
+        "irf tvpvar: --shock must be in 1:$(post.n), got $shock"))
+
+    _status("Computing TVP-VAR IRF at date $date (horizon $horizons)")
+    birf = try
+        irf(post, horizons; t=date, n_draws=irf_draws,
+            stationary_only=!no_stationary_only)
+    catch e
+        e isa CliError && rethrow()
+        # Every draw explosive at this date is a bare error() upstream. It is a real
+        # modelling outcome, not a bug, so name the escape hatch.
+        throw(CliError("model/error",
+            "TVP-VAR IRF failed at date $date: $(sprint(showerror, e))";
+            hint="all posterior draws were explosive at this date; try another --date, " *
+                 "or --no-stationary-only to include explosive draws"))
+    end
+
+    shock_name = birf.shocks[shock]
+    df = long_table(birf)
+    df = df[df.shock .== shock_name, :]
+    output_result(df; format=Symbol(format), output=output,
+                  title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)")
+    return birf
+end
+
+const _MF_AGGREGATIONS = ("stock", "flow", "average", "growth")
+
+"""
+    _load_mfvar_data(path) -> (Matrix{Float64}, varnames)
+
+Mixed-frequency loader. Unlike every other multivariate loader, MISSING CELLS ARE THE POINT:
+a low-frequency series is observed once per `--freq-ratio` high-frequency periods and blank
+in between, and `estimate_mfvar` expects those gaps as `NaN`. So this deliberately does NOT
+reject missing values the way `load_multivariate_data` does — it converts them.
+
+`estimate_mfvar` still requires the high-frequency columns to be complete, and validates that
+itself; the CLI maps the resulting ArgumentError to a typed data error.
+"""
+function _load_mfvar_data(path::String)
+    df = load_data(path)
+    isempty(names(df)) && throw(CliError("data/empty", "no columns in $path"))
+    numeric = [nm for nm in names(df) if eltype(df[!, nm]) <: Union{Missing,Real}]
+    isempty(numeric) && throw(CliError("data/invalid",
+        "no numeric columns in $path"))
+    m = Matrix{Float64}(undef, nrow(df), length(numeric))
+    for (j, nm) in enumerate(numeric)
+        col = df[!, nm]
+        for i in 1:nrow(df)
+            v = col[i]
+            m[i, j] = ismissing(v) ? NaN : Float64(v)
+        end
+    end
+    return m, String.(numeric)
+end
+
+function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
+                          freq_ratio::Int=3, aggregation::String="growth",
+                          draws::Int=1000, burnin::Int=500, prior::String="minnesota",
+                          output::String="", format::String="table")
+    lags >= 1 || throw(CliError("usage/invalid", "--lags must be ≥ 1 (got $lags)"))
+    draws >= 1 || throw(CliError("usage/invalid", "--draws must be ≥ 1 (got $draws)"))
+    burnin >= 0 || throw(CliError("usage/invalid", "--burnin must be ≥ 0 (got $burnin)"))
+    freq_ratio >= 1 || throw(CliError("usage/invalid",
+        "--freq-ratio must be ≥ 1 (got $freq_ratio)"))
+    pr = lowercase(strip(prior))
+    pr in ("minnesota", "diffuse") || throw(CliError("usage/invalid-option",
+        "invalid --prior '$prior'; must be minnesota or diffuse"))
+
+    Y, varnames = _load_mfvar_data(data)
+    n = size(Y, 2)
+
+    # --low-freq is 1-based column indices; default to every column that actually has gaps,
+    # which is what a mixed-frequency CSV looks like in practice.
+    lf = if isempty(strip(low_freq))
+        found = [j for j in 1:n if any(isnan, @view Y[:, j])]
+        isempty(found) && throw(CliError("usage/missing",
+            "no low-frequency series: --low-freq was not given and no column has gaps";
+            hint="a mixed-frequency CSV leaves the low-frequency series blank between " *
+                 "observations, or name the columns' indices with --low-freq 2,3"))
+        _status("--low-freq not given; inferred from gaps: $(join(found, ","))")
+        found
+    else
+        idx = Int[]
+        for tok in split(low_freq, ',')
+            s = strip(tok)
+            isempty(s) && continue
+            v = tryparse(Int, s)
+            v === nothing && throw(CliError("usage/invalid",
+                "--low-freq must be comma-separated column indices, got '$low_freq'"))
+            push!(idx, v)
+        end
+        isempty(idx) && throw(CliError("usage/invalid", "--low-freq is empty"))
+        all(1 .<= idx .<= n) || throw(CliError("usage/invalid",
+            "--low-freq indices must be in 1:$n, got $(idx)"))
+        length(unique(idx)) == length(idx) || throw(CliError("usage/invalid",
+            "--low-freq must not repeat an index"))
+        idx
+    end
+
+    aggs = String[]
+    for tok in split(aggregation, ',')
+        s = lowercase(strip(tok))
+        isempty(s) && continue
+        s in _MF_AGGREGATIONS || throw(CliError("usage/invalid-option",
+            "invalid --aggregation '$s'; must be one of $(join(_MF_AGGREGATIONS, "|"))"))
+        push!(aggs, s)
+    end
+    isempty(aggs) && throw(CliError("usage/invalid", "--aggregation is empty"))
+    length(aggs) == 1 || length(aggs) == length(lf) || throw(CliError("usage/invalid",
+        "--aggregation takes one value or one per --low-freq series " *
+        "($(length(lf)) expected, got $(length(aggs)))"))
+    agg_arg = length(aggs) == 1 ? Symbol(aggs[1]) : [Symbol(a) for a in aggs]
+
+    _status("Estimating MF-VAR($lags): $n series, low-frequency $(lf), " *
+            "ratio $freq_ratio, aggregation $(join(aggs, ","))")
+    post = try
+        estimate_mfvar(Y, lags; low_freq=lf, freq_ratio=freq_ratio, aggregation=agg_arg,
+                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames)
+    catch e
+        e isa CliError && rethrow()
+        _domain_or_data_error(e, "estimate mfvar")
+    end
+    _status_report(() -> report(post))
+
+    mu, qs = latent_path(post; quantile_levels=_TVP_QUANTILES)
+    # The latent path is at the HIGH frequency for every series, including the ones observed
+    # only every freq_ratio periods — interpolating them is what the model is for.
+    output_result(_band_long_table(mu, qs, varnames, _TVP_QUANTILES);
+                  format=Symbol(format), output=output,
+                  title="MF-VAR Latent High-Frequency Path (68% credible band)")
+
+    output_kv(Pair{String,Any}[
+        "lags"        => post.p,
+        "variables"   => post.n,
+        "T_hf"        => post.T_hf,
+        "low_freq"    => join(post.low_freq, ","),
+        "freq_ratio"  => post.freq_ratio,
+        "aggregation" => join(String.(post.aggregation), ","),
+        "draws"       => size(post.B_draws, 1),
+    ]; format=format, title="MF-VAR Specification")
+    return post
 end

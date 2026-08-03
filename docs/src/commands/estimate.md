@@ -50,6 +50,7 @@ friedman estimate bvar data.csv --sampler=gibbs --draws=5000
 | `--draws` | `-n` | Int | 2000 | MCMC draws |
 | `--sampler` | | String | `direct` | `direct`, `gibbs` |
 | `--method` | | String | `mean` | `mean`, `median` (posterior extraction) |
+| `--hyperopt` | | String | `glp` | Minnesota hyperparameter selection: `glp`, `grid` |
 | `--config` | | String | | TOML config for prior hyperparameters |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
@@ -70,6 +71,167 @@ See [Configuration](../configuration.md) for Minnesota prior TOML format.
     Only this leaf is affected. The derived BVAR commands (`irf`/`fevd`/`hd`/`forecast`/
     `predict`/`residuals bvar`, `nowcast bvar`) default to the **normal** prior when no
     `--config` is given, and hyperparameter selection is never reached under that prior.
+
+### Choosing and inspecting the hyperparameters
+
+`--hyperopt grid` restores the pre-0.9.1 `tau`-only grid search if you need to reproduce
+older numbers; `glp` (the default) runs the joint optimization.
+
+Either way the selected values are reported as their own table, which the library itself
+does not expose — `BVARPosterior` keeps only the draws, so without this there is no way to
+tell what prior the posterior was actually drawn under:
+
+```
+Minnesota Hyperparameters (glp)
+ tau             0.3517
+ decay           0.5
+ lambda          4.2
+ mu              2.0
+ omega           2.0
+ log_ml          -390.408
+ log_ml_default  -407.566
+ log_posterior   -392.168
+ converged       1.0
+ at_bound        0.0
+ iterations      82.0
+```
+
+Read `log_ml` against `log_ml_default`: that is the marginal-likelihood gain over the
+library's default hyperparameters, and it is the only direct evidence the optimization
+helped. **`at_bound = 1` deserves more attention than `converged = 0`** — it means a
+hyperparameter is pinned to the edge of the search box, so the "optimum" is an artefact of
+the box rather than a maximum, and the CLI warns on stderr when it happens.
+
+**Precedence:** an explicit `--config` `[prior]` pins the hyperparameters and the library
+then ignores hyperparameter selection entirely, so `--hyperopt` has no effect and no table
+is emitted; the CLI says so on stderr rather than letting the flag look effective. Under
+`--prior normal` the Minnesota hyperparameters are never consulted at all.
+
+!!! note "`--config` minnesota was broken before v0.9.1"
+    The config path passed a length-*n* vector of AR residual standard deviations as
+    `omega`, but `omega` is a **scalar** weight on the residual-covariance prior. Real MEMs
+    rejects it (`TypeError: in keyword argument omega, expected Real`), so **every**
+    `--config` run with a minnesota prior failed with an internal error across the whole
+    BVAR family. Per-variable σᵢ scaling is the library's own job; the config's
+    `lambda1`/`lambda2`/`lambda3` now map to `tau`/`lambda`/`decay` and `mu`/`omega` keep
+    the library defaults.
+
+## estimate tvpvar
+
+Time-varying-parameter VAR with stochastic volatility (Primiceri 2005): both the
+coefficients and the shock volatilities drift as random walks, estimated by Gibbs sampling.
+
+```bash
+friedman estimate tvpvar data.csv --lags=2 --draws=2000 --burnin=1000
+friedman estimate tvpvar data.csv --no-sv          # drifting coefficients, constant volatility
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--lags` | `-p` | Int | 2 | Lag order |
+| `--draws` | `-n` | Int | 2000 | Retained Gibbs draws |
+| `--burnin` | | Int | 1000 | Burn-in sweeps discarded |
+| `--thin` | | Int | 1 | Keep every k-th draw |
+| `--n-train` | | Int | 0 | Training sample used to calibrate priors |
+| `--k-q` / `--k-s` / `--k-w` | | Float64 | 0.01 / 0.1 / 0.01 | Random-walk prior scales (> 0) |
+| `--no-tvp` | | Flag | | Hold coefficients constant |
+| `--no-sv` | | Flag | | Hold volatilities constant |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** the stochastic-volatility path in tidy long form (`period`, `variable`, `mean`,
+`q16`, `q50`, `q84`) plus a specification summary.
+
+The volatility column is a **standard deviation**, σ*ᵢₜ* = exp(*hᵢₜ*/2). The sampler's state
+is a log-*variance*, so a number quoted straight off the state would be wrong by a square
+and a log; the CLI converts.
+
+Requires at least 2 variables. There is no `--plot`: MEMs 0.7.2 ships no plot recipe for
+`TVPVARPosterior`.
+
+## irf tvpvar
+
+The IRF of a TVP-VAR is **different at every date** — that time variation is the reason to
+fit one — so `--date` is required rather than quietly defaulting to the end of the sample.
+
+```bash
+friedman irf tvpvar data.csv --date=40 --horizons=20
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--date` | | Int | | **Required.** Date index in `1:T_eff` |
+| `--horizons` | `-h` | Int | 20 | IRF horizon |
+| `--shock` | | Int | 1 | Shock variable index (1-based) |
+| `--irf-draws` | | Int | 500 | Posterior draws used for the bands |
+| `--no-stationary-only` | | Flag | | Include explosive draws instead of discarding them |
+
+Estimation options (`--lags`, `--draws`, `--burnin`, `--thin`, `--n-train`, `--k-q`/`--k-s`/`--k-w`,
+`--no-tvp`, `--no-sv`) match `estimate tvpvar`.
+
+`--date` indexes the **effective** sample, after lags and any training observations — run
+`estimate tvpvar` first and read `T_eff` from the specification table. A missing `--date` is
+rejected before the sampler runs; an out-of-range one can only be caught afterwards, since
+`T_eff` is not known until then.
+
+By default explosive posterior draws are discarded. If *every* draw is explosive at the
+requested date the command fails with `model/error` naming `--no-stationary-only` as the
+escape hatch — that is a modelling outcome, not a bug.
+
+## estimate mfvar
+
+Mixed-frequency VAR (Schorfheide & Song 2015). Series observed at different frequencies are
+combined in a single high-frequency VAR, with the low-frequency series treated as a latent
+high-frequency process observed only periodically.
+
+```bash
+friedman estimate mfvar monthly_quarterly.csv --freq-ratio=3 --aggregation=average
+friedman estimate mfvar data.csv --low-freq=2,3 --aggregation=growth,flow
+```
+
+**Data layout.** One CSV at the **high** frequency. A low-frequency series occupies a normal
+column, blank in the periods where it is not observed:
+
+```csv
+monthly,quarterly
+0.31,
+0.28,
+0.44,0.34
+0.19,
+```
+
+Unlike every other loader this one *keeps* the gaps — they are the signal, not bad data. The
+blank must be a genuinely empty cell in a multi-column row; a blank line is an empty row that
+CSV parsing skips entirely, which would silently shorten the series instead.
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--lags` | `-p` | Int | 2 | Lag order |
+| `--low-freq` | | String | | 1-based indices of low-frequency columns (default: those with gaps) |
+| `--freq-ratio` | | Int | 3 | High- per low-frequency periods (3 = monthly/quarterly) |
+| `--aggregation` | | String | `growth` | `stock`, `flow`, `average`, `growth` — one, or one per low-frequency series |
+| `--draws` | `-n` | Int | 1000 | Retained Gibbs draws |
+| `--burnin` | | Int | 500 | Burn-in sweeps discarded |
+| `--prior` | | String | `minnesota` | `minnesota`, `diffuse` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+`--aggregation` states how the low-frequency observation relates to the latent
+high-frequency path: `stock` (end-of-period level), `flow` (sum), `average` (mean), or
+`growth` (the triangular weighting appropriate to log-differences). Getting this wrong
+misstates the observation equation, so it is worth being deliberate about.
+
+**Output:** the latent high-frequency path in tidy long form (`period`, `variable`, `mean`,
+`q16`, `q50`, `q84`) plus a specification summary. The path covers **every** series at the
+high frequency, including the interpolated ones — that interpolation is the point of the
+model. Fully-observed series come back with zero-width bands, which is a useful sanity check.
+
+No `--plot`: MEMs 0.7.2 ships no plot recipe for `MFVARPosterior`.
+
+!!! note "Seeding"
+    `estimate_tvpvar` and `estimate_mfvar` take an RNG rather than a seed, so `--seed`
+    cannot be recorded in the result's reproducibility manifest the way it is for
+    `estimate bvar`. Runs remain reproducible through the global seed the CLI sets.
 
 ## estimate lp
 

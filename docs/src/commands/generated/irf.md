@@ -3,7 +3,7 @@
 
 Generated reference for `friedman irf` and its subcommands.
 
-**Leaves:** 7
+**Leaves:** 8
 
 ### `friedman irf bvar`
 
@@ -168,6 +168,42 @@ Structural DFM impulse response functions (panel-wide)
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_sdfm` (Structural DFM impulse response functions (panel-wide))
+
+---
+
+### `friedman irf tvpvar`
+
+Date-specific IRF from a TVP-VAR-SV
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--date` | — | `Int64` | `0` | — | Date index in 1:T_eff to evaluate the IRF at (REQUIRED) |
+| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--draws` | `-n` | `Int64` | `2000` | — | Retained Gibbs draws |
+| `--burnin` | — | `Int64` | `1000` | — | Burn-in sweeps discarded |
+| `--thin` | — | `Int64` | `1` | — | Keep every k-th draw |
+| `--n-train` | — | `Int64` | `0` | — | Training sample used to calibrate priors |
+| `--k-q` | — | `Float64` | `0.01` | — | Coefficient random-walk prior scale (> 0) |
+| `--k-s` | — | `Float64` | `0.1` | — | Covariance random-walk prior scale (> 0) |
+| `--k-w` | — | `Float64` | `0.01` | — | Log-volatility random-walk prior scale (> 0) |
+| `--irf-draws` | — | `Int64` | `500` | — | Posterior draws used for the IRF bands |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-tvp` | — | Hold coefficients constant |
+| `--no-sv` | — | Hold volatilities constant |
+| `--no-stationary-only` | — | Include explosive draws instead of discarding them |
+
+**Output tables:** `irf` (Date-specific Bayesian IRF)
 
 ---
 

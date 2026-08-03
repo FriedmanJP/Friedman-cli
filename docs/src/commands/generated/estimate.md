@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 70
+**Leaves:** 72
 
 ### `friedman estimate 3sls`
 
@@ -191,6 +191,7 @@ Path to CSV data file
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--method` | — | `String` | `mean` | — | mean\|median (posterior extraction) |
+| `--hyperopt` | — | `String` | `glp` | `glp`, `grid` | Minnesota hyperparameter selection: glp\|grid |
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -202,7 +203,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_bvar` (Path to CSV data file)
+**Output tables:** `estimate_bvar` (Path to CSV data file); `hyper` (Selected Minnesota hyperparameters)
 
 ---
 
@@ -805,6 +806,31 @@ Path to CSV data file
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_lp` (Path to CSV data file)
+
+---
+
+### `friedman estimate mfvar`
+
+Mixed-frequency VAR (Schorfheide-Song 2015)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | CSV at the HIGH frequency; low-frequency series blank between observations |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--low-freq` | — | `String` | `""` | — | 1-based indices of low-frequency columns (default: those with gaps) |
+| `--freq-ratio` | — | `Int64` | `3` | — | High- per low-frequency periods (3 = monthly/quarterly) |
+| `--aggregation` | — | `String` | `growth` | — | stock\|flow\|average\|growth (one, or one per low-freq series) |
+| `--draws` | `-n` | `Int64` | `1000` | — | Retained Gibbs draws |
+| `--burnin` | — | `Int64` | `500` | — | Burn-in sweeps discarded |
+| `--prior` | — | `String` | `minnesota` | `minnesota`, `diffuse` | minnesota\|diffuse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `latent` (Latent high-frequency path); `spec` (MF-VAR specification)
 
 ---
 
@@ -1697,6 +1723,37 @@ Path to CSV data file
 | `--no-intercept` | — | Do NOT prepend a time-varying intercept coefficient |
 
 **Output tables:** `estimate_tvp` (Path to CSV data file)
+
+---
+
+### `friedman estimate tvpvar`
+
+TVP-VAR with stochastic volatility (Primiceri 2005)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--draws` | `-n` | `Int64` | `2000` | — | Retained Gibbs draws |
+| `--burnin` | — | `Int64` | `1000` | — | Burn-in sweeps discarded |
+| `--thin` | — | `Int64` | `1` | — | Keep every k-th draw |
+| `--n-train` | — | `Int64` | `0` | — | Training sample used to calibrate priors |
+| `--k-q` | — | `Float64` | `0.01` | — | Coefficient random-walk prior scale (> 0) |
+| `--k-s` | — | `Float64` | `0.1` | — | Covariance random-walk prior scale (> 0) |
+| `--k-w` | — | `Float64` | `0.01` | — | Log-volatility random-walk prior scale (> 0) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-tvp` | — | Hold coefficients constant (drop the time variation) |
+| `--no-sv` | — | Hold volatilities constant (drop stochastic volatility) |
+
+**Output tables:** `volatility` (Stochastic volatility path); `spec` (TVP-VAR specification)
 
 ---
 

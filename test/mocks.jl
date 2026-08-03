@@ -164,9 +164,15 @@ struct BVARPosterior{T}
 end
 
 struct MinnesotaHyperparameters
-    tau::Float64; decay::Float64; lambda::Float64; mu::Float64; omega::Vector{Float64}
+    # `omega` is a SCALAR weight on the residual-covariance prior in real MEMs. It used to
+    # be Vector{Float64} here, which let `_build_prior` pass a length-n vector of AR
+    # residual s.d.s — real raises `TypeError: in keyword argument omega, expected Real`,
+    # i.e. exit 1 on every `--config` minnesota run. Keep the keyword `::Real` so the mock
+    # rejects exactly what real rejects.
+    tau::Float64; decay::Float64; lambda::Float64; mu::Float64; omega::Float64
 end
-MinnesotaHyperparameters(; tau=0.2, decay=1.0, lambda=0.5, mu=1.0, omega=[1.0]) =
+MinnesotaHyperparameters(; tau::Real=3.0, decay::Real=0.5, lambda::Real=5.0,
+                           mu::Real=2.0, omega::Real=2.0) =
     MinnesotaHyperparameters(tau, decay, lambda, mu, omega)
 
 struct ImpulseResponse{T}
@@ -748,7 +754,8 @@ end
 select_lag_order(Y, max_p; criterion=:aic) = min(2, max(1, max_p))
 estimate_var(Y, p; check_stability=true) = _mock_var(Y, p)
 
-estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing, seed=nothing) =
+estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing,
+              hyperopt::Symbol=:glp, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
                   10, p, size(Y,2), Y)
 posterior_mean_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
@@ -758,7 +765,24 @@ posterior_mean_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
 posterior_median_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
-optimize_hyperparameters(Y, p) = MinnesotaHyperparameters(tau=0.2, decay=1.0, lambda=0.5, omega=ones(size(Y,2)))
+optimize_hyperparameters(Y, p) = MinnesotaHyperparameters(tau=0.2, decay=1.0, lambda=0.5, omega=2.0)
+
+# GLP joint optimization (real returns the hyperparameters PLUS diagnostics that
+# `estimate_bvar` discards, which is why the CLI selects here and passes `hyper=`).
+struct GLPHyperparameters
+    hyper::MinnesotaHyperparameters
+    log_ml::Float64
+    log_posterior::Float64
+    converged::Bool
+    at_bound::Bool
+    iterations::Int
+    log_ml_default::Float64
+end
+optimize_hyperparameters_glp(Y, p; decay::Real=0.5, omega::Real=2.0, starts::Int=4,
+                             max_iter::Int=500, f_reltol::Real=1e-8,
+                             verbose::Bool=true) = GLPHyperparameters(
+    MinnesotaHyperparameters(tau=0.35, decay=0.6, lambda=4.2, mu=1.8, omega=2.0),
+    -123.45, -130.2, true, false, 17, -140.7)
 
 # StatsAPI-like functions
 coef(m::VARModel) = m.B
@@ -1921,7 +1945,8 @@ export GrangerCausalityResult, LRTestResult, LMTestResult
 export HPFilterResult, HamiltonFilterResult, BeveridgeNelsonResult, BaxterKingResult, BoostedHPResult
 
 export select_lag_order, estimate_var, estimate_bvar, posterior_mean_model, posterior_median_model
-export optimize_hyperparameters, coef, loglikelihood, stderror, predict, residuals, report
+export optimize_hyperparameters, optimize_hyperparameters_glp, GLPHyperparameters
+export coef, loglikelihood, stderror, predict, residuals, report
 export is_stationary, companion_matrix, companion_matrix_factors, nvars
 export irf, fevd, historical_decomposition, verify_decomposition, contribution
 export cumulative_irf
@@ -8826,6 +8851,154 @@ end
 export MidasForecast
 
 export MidasModel, estimate_midas, midas_weights
+
+# ─── W7/#109: TVP-VAR-SV and MF-VAR ──────────────────────────────────────────
+# Field names and ARRAY LAYOUTS mirror real exactly. H_draws holds log-VARIANCES (the
+# Kim-Shephard-Chib state), so volatility_path must return exp(h/2) -- a mock that stored
+# standard deviations directly would hide a unit bug in the handler.
+
+struct TVPVARPosterior{T<:AbstractFloat}
+    B_draws::Array{T,3}       # n_draws x T_eff x k,  k = n(1+np)
+    A_draws::Array{T,3}       # n_draws x T_eff x n_a
+    H_draws::Array{T,3}       # n_draws x T_eff x n   (log variances)
+    Q_draws::Array{T,3}
+    S_draws::Array{T,3}
+    W_draws::Matrix{T}
+    Y::Matrix{T}
+    p::Int
+    n::Int
+    T_eff::Int
+    n_train::Int
+    tvp::Bool
+    sv::Bool
+    varnames::Vector{String}
+end
+
+function estimate_tvpvar(Y, p::Int; tvp::Bool=true, sv::Bool=true,
+                         n_draws::Int=2000, n_burn::Int=1000, thin::Int=1,
+                         n_train::Int=0, k_Q::Real=0.01, k_S::Real=0.1, k_W::Real=0.01,
+                         varnames::Vector{String}=String[], rng=nothing)
+    T_obs, n = size(Y)
+    n >= 2 || throw(ArgumentError("TVP-VAR requires at least 2 variables, got $n"))
+    p >= 1 || throw(ArgumentError("p must be at least 1, got $p"))
+    n_draws >= 1 || throw(ArgumentError("n_draws must be positive"))
+    vn = isempty(varnames) ? ["y$i" for i in 1:n] : copy(varnames)
+    T_eff = max(T_obs - p - n_train, 1)
+    k = n * (1 + n * p); n_a = n * (n - 1) ÷ 2
+    N = max(cld(n_draws, thin), 1)
+    B = zeros(Float64, N, T_eff, k)
+    for d in 1:N, t in 1:T_eff, j in 1:k
+        B[d, t, j] = 0.1 + 0.001 * d + 0.0001 * t
+    end
+    A = zeros(Float64, N, T_eff, max(n_a, 1))
+    H = fill(-0.5, N, T_eff, n)          # log variance -> sd = exp(-0.25) ≈ 0.7788
+    TVPVARPosterior{Float64}(B, A, H, zeros(Float64, N, k, k),
+                             zeros(Float64, N, max(n_a,1), max(n_a,1)),
+                             zeros(Float64, N, n), Matrix{Float64}(Y), p, n, T_eff,
+                             n_train, tvp, sv, vn)
+end
+
+function volatility_path(post::TVPVARPosterior; quantile_levels::Vector{<:Real}=[0.16,0.5,0.84])
+    vol = exp.(post.H_draws ./ 2)
+    mu = dropdims(sum(vol; dims=1) ./ size(vol,1); dims=1)
+    qs = Array{Float64,3}(undef, post.T_eff, post.n, length(quantile_levels))
+    for q in eachindex(quantile_levels), j in 1:post.n, t in 1:post.T_eff
+        qs[t, j, q] = mu[t, j]
+    end
+    return mu, qs
+end
+
+function irf(post::TVPVARPosterior, horizon::Int; t::Int=post.T_eff, n_draws::Int=500,
+             quantile_levels::Vector{<:Real}=[0.05,0.16,0.84,0.95],
+             stationary_only::Bool=true)
+    horizon >= 1 || throw(ArgumentError("horizon must be positive"))
+    1 <= t <= post.T_eff || throw(ArgumentError("t must be in 1:$(post.T_eff), got $t"))
+    n = post.n
+    point = zeros(Float64, horizon, n, n)
+    for h in 1:horizon, i in 1:n, j in 1:n
+        point[h, i, j] = (i == j ? 1.0 : 0.3) * 0.8^(h-1)
+    end
+    ql = Float64.(quantile_levels)
+    quant = Array{Float64,4}(undef, horizon, n, n, length(ql))
+    for q in eachindex(ql), j in 1:n, i in 1:n, h in 1:horizon
+        quant[h, i, j, q] = point[h, i, j] * (0.9 + 0.05 * q)
+    end
+    shocks = ["$(nm) shock" for nm in post.varnames]
+    BayesianImpulseResponse{Float64}(quant, point, horizon, copy(post.varnames), shocks,
+                                     ql, zeros(Float64, 1, horizon, n, n), n_draws, n_draws, 0)
+end
+
+struct MFVARPosterior{T<:AbstractFloat}
+    B_draws::Array{T,3}
+    Sigma_draws::Array{T,3}
+    Z_draws::Array{T,3}       # n_draws x T_hf x n
+    data::Matrix{T}
+    p::Int
+    n::Int
+    T_hf::Int
+    low_freq::Vector{Int}
+    freq_ratio::Int
+    aggregation::Vector{Symbol}
+    varnames::Vector{String}
+end
+
+function estimate_mfvar(data, p::Int; low_freq::Vector{Int}=Int[], freq_ratio::Int=3,
+                        aggregation=:growth, n_draws::Int=1000, n_burn::Int=500,
+                        prior::Symbol=:minnesota, hyper=nothing,
+                        varnames::Vector{String}=String[], rng=nothing)
+    p >= 1 || throw(ArgumentError("p must be at least 1, got $p"))
+    prior in (:minnesota, :diffuse) ||
+        throw(ArgumentError("prior must be :minnesota or :diffuse, got :$prior"))
+    freq_ratio >= 1 || throw(ArgumentError("freq_ratio must be ≥ 1, got $freq_ratio"))
+    T_hf, n = size(data)
+    all(1 .<= low_freq .<= n) ||
+        throw(ArgumentError("low_freq indices must be in 1:$n, got $low_freq"))
+    vn = isempty(varnames) ? ["y$i" for i in 1:n] : copy(varnames)
+    aggs = aggregation isa Symbol ? fill(aggregation, length(low_freq)) : copy(aggregation)
+    length(aggs) == length(low_freq) || throw(ArgumentError(
+        "aggregation must be a Symbol or one Symbol per low_freq series"))
+    for a in aggs
+        a in (:stock, :flow, :average, :growth) || throw(ArgumentError(
+            "aggregation must be :stock, :flow, :average or :growth, got :$a"))
+    end
+    # High-frequency columns must be complete; low-frequency ones need some data.
+    is_low = fill(false, n); for j in low_freq; is_low[j] = true; end
+    for i in 1:n
+        if is_low[i]
+            any(!isnan, @view data[:, i]) ||
+                throw(ArgumentError("low-frequency series $(vn[i]) has no observations"))
+        else
+            any(isnan, @view data[:, i]) && throw(ArgumentError(
+                "high-frequency series $(vn[i]) contains NaN; either list it in low_freq " *
+                "or supply a complete series"))
+        end
+    end
+    N = max(n_draws, 1)
+    Z = zeros(Float64, N, T_hf, n)
+    for d in 1:N, t in 1:T_hf, j in 1:n
+        v = data[t, j]
+        Z[d, t, j] = isnan(v) ? 0.5 + 0.001 * d : v
+    end
+    k = n * p + 1
+    MFVARPosterior{Float64}(zeros(Float64, N, k, n), zeros(Float64, N, n, n), Z,
+                            Matrix{Float64}(data), p, n, T_hf, copy(low_freq),
+                            freq_ratio, aggs, vn)
+end
+
+function latent_path(post::MFVARPosterior; quantile_levels::Vector{<:Real}=[0.16,0.5,0.84])
+    mu = dropdims(sum(post.Z_draws; dims=1) ./ size(post.Z_draws,1); dims=1)
+    qs = Array{Float64,3}(undef, post.T_hf, post.n, length(quantile_levels))
+    for q in eachindex(quantile_levels), j in 1:post.n, t in 1:post.T_hf
+        qs[t, j, q] = mu[t, j]
+    end
+    return mu, qs
+end
+
+report(p::TVPVARPosterior) = "TVP-VAR($(p.p)) mock report"
+report(p::MFVARPosterior) = "MF-VAR($(p.p)) mock report"
+
+export TVPVARPosterior, estimate_tvpvar, volatility_path
+export MFVARPosterior, estimate_mfvar, latent_path
 
 # ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
 #

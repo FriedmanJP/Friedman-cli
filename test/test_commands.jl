@@ -426,8 +426,9 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-        @test length(node.subcmds) == 71
+        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +poisson/nbreg W2, +sarima W6,
+        # +tvpvar/mfvar W7)
+        @test length(node.subcmds) == 73
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -3972,7 +3973,8 @@ end  # Test handlers
         node = register_irf_commands!()
         @test node isa NodeCommand
         @test node.name == "irf"
-        @test length(node.subcmds) == 7
+        # 7 + tvpvar (W7): the date-specific IRF is the point of a TVP-VAR
+        @test length(node.subcmds) == 8
         for cmd in ["var", "bvar", "lp", "vecm", "pvar", "favar", "sdfm"]
             @test haskey(node.subcmds, cmd)
         end
@@ -4975,14 +4977,14 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 71  # 69 primary (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 73  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
 
     @testset "register_irf_commands! includes vecm" begin
         node = register_irf_commands!()
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 8
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -6835,14 +6837,14 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 71  # 69 primary (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 73  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
     end
 
     @testset "register_irf_commands! includes pvar" begin
         node = register_irf_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 8
     end
 
     @testset "register_fevd_commands! includes pvar" begin
