@@ -801,9 +801,19 @@ Path to CSV data file
 | `--transition` | — | `String` | `logistic` | — | logistic\|exponential\|indicator (state only) |
 | `--treatment` | — | `Int64` | `1` | — | Treatment variable index (propensity/robust only) |
 | `--score-method` | — | `String` | `logit` | — | logit\|probit (propensity/robust only) |
+| `--mop-tau` | — | `Float64` | `0.1` | — | MOP worst-case relative-bias target: 0.05\|0.10\|0.20\|0.30 (iv, with --mop-f) |
+| `--mop-bandwidth` | — | `Int64` | `0` | — | HAC lag length for the MOP effective F; 0 = auto (iv, with --mop-f) |
+| `--ar-level` | — | `Float64` | `0.95` | — | Coverage for the AR bands (iv, with --ar-bands) |
+| `--ar-grid` | — | `Int64` | `401` | — | Grid points per horizon×response when inverting the AR test (iv, with --ar-bands) |
+| `--ar-span` | — | `Float64` | `20.0` | — | AR search half-width in 2SLS standard errors (iv, with --ar-bands) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--mop-f` | — | Report the Montiel Olea-Pflueger effective first-stage F (LP-IV) |
+| `--ar-bands` | — | Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV) |
 
 **Output tables:** `estimate_lp` (Path to CSV data file)
 
@@ -1206,6 +1216,9 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--ar1` | — | `String` | `none` | `none`, `common`, `panel-specific` | Prais-Winsten AR(1) correction |
 | `--pcse-unbalanced` | — | `String` | `casewise` | `casewise`, `pairwise` | Unbalanced-panel handling for --cov-type pcse |
+| `--absorb` | — | `String` | `""` | — | Comma-separated high-dimensional FE dimensions to absorb (entity, time, cohort, or a column name); --method fe only |
+| `--hdfe-tol` | — | `Float64` | `1.0e-8` | — | Absorption convergence tolerance |
+| `--hdfe-maxiter` | — | `Int64` | `1000` | — | Maximum alternating-projection iterations |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
@@ -1334,11 +1347,18 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `conley` | ols\|hc0\|hc1\|hc2\|hc3\|cluster\|conley (Conley spatial HAC; needs --lat/--lon/--dist-cutoff) |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weight column name (WLS) |
+| `--lat` | — | `String` | `""` | — | Latitude (or first coordinate) column — required for --cov-type conley |
+| `--lon` | — | `String` | `""` | — | Longitude (or second coordinate) column — required for --cov-type conley |
+| `--dist-cutoff` | — | `Float64` | `0.0` | — | Conley spatial cutoff: km for --conley-metric haversine, coordinate units for euclidean |
+| `--conley-kernel` | — | `String` | `bartlett` | `bartlett`, `uniform` | Conley spatial kernel: bartlett (tapered) or uniform |
+| `--conley-metric` | — | `String` | `euclidean` | `euclidean`, `haversine` | Distance metric: euclidean (projected coords) or haversine (degrees → km) |
+| `--time-col` | — | `String` | `""` | — | Time column for Conley spatial+serial correlation (needs --time-cutoff) |
+| `--time-cutoff` | — | `Int64` | `0` | — | Conley serial-correlation lag cutoff (0 = spatial only) |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 **Output tables:** `estimate_reg` (Path to CSV data file)

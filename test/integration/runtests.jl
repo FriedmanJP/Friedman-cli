@@ -106,6 +106,17 @@ function metric_value(tbl, metric_name::AbstractString)
     return nothing
 end
 
+"""Coerce an envelope cell to Float64, accepting the `"Inf"`/`"-Inf"`/`"NaN"` STRING form
+that `_json_safe` emits for non-finite floats (JSON has no infinity)."""
+function numv(x)
+    x isa Number && return Float64(x)
+    s = string(x)
+    s == "Inf" && return Inf
+    s == "-Inf" && return -Inf
+    s == "NaN" && return NaN
+    return parse(Float64, s)
+end
+
 """A specific named table from envelope data (dict of tables), or nothing."""
 function named_table(doc, name::Symbol)
     doc === nothing && return nothing
@@ -4907,6 +4918,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "predict logit reports (flags, not string options)" begin
+
             for flag in ("--odds-ratio", "--marginal-effects", "--classification-table")
                 r = run_json(["predict", "logit", logit, "--dep", "y", flag])
                 assert_envelope_ok(r; label="predict logit $flag")
@@ -4916,6 +4928,551 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
         rm(ord; force=true)
     end
+
+    # ── W10/#112: micro inference riders ────────────────────────────────────
+    @testset "estimate reg --cov-type conley (W10/#112)" begin
+        # Spatially correlated errors on a lat/lon grid: the true slope is 1.5 and the
+        # coordinates are ORDINARY NUMERIC COLUMNS, which is the whole trap — if the loader
+        # let them into X the point estimate would move.
+        rng = MersenneTwister(11)
+        n = 240
+        lat = 30.0 .+ 10.0 .* rand(rng, n)
+        lon = -100.0 .+ 10.0 .* rand(rng, n)
+        x = randn(rng, n)
+        # Errors correlated through a common regional shock → clustered/spatial dependence.
+        region = clamp.(round.(Int, (lat .- 30.0) ./ 2.5) .+ 1, 1, 5)
+        shock = randn(rng, 5)
+        yv = 0.5 .+ 1.5 .* x .+ shock[region] .+ 0.4 .* randn(rng, n)
+        csv = write_csv(DataFrame(y=yv, x=x, lat=lat, lon=lon); prefix="conley")
+
+        rc = run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "conley",
+                       "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
+                       "--dist-cutoff", "200"])
+        assert_envelope_ok(rc; label="estimate reg conley")
+        tblc = named_table(rc.doc, :ols_regression_coefficients)
+        @test tblc !== nothing
+        if tblc !== nothing
+            cols = table_cols(tblc)
+            rows = table_rows(tblc)
+            ti = col_index(tblc, "term"); ei = col_index(tblc, "estimate")
+            sei = col_index(tblc, "std_error")
+            terms = [string(collect(r)[ti]) for r in rows]
+            # THE core assertion: `lat`/`lon` must NOT be regressors. If `_load_reg_data`
+            # let them in, this is where a silently-wrong point estimate would show up.
+            @test "x" in terms
+            @test !("lat" in terms)
+            @test !("lon" in terms)
+            @test length(terms) == 1
+            bx = Float64(collect(rows[findfirst(==("x"), terms)])[ei])
+            @test isapprox(bx, 1.5; atol=0.15)
+            se_conley = Float64(collect(rows[findfirst(==("x"), terms)])[sei])
+            @test isfinite(se_conley) && se_conley > 0
+        end
+        # The settings table is emitted ONLY under conley and records what produced the SE.
+        setc = named_table(rc.doc, :conley_spatial_hac_settings)
+        @test setc !== nothing
+        if setc !== nothing
+            @test metric_value(setc, "metric") !== nothing || length(table_rows(setc)) >= 1
+        end
+
+        # Same fit, hc1: identical point estimates (only the covariance changes). This is
+        # the check that `--cov-type conley` is not quietly altering the estimator.
+        rh = run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "hc1"])
+        assert_envelope_ok(rh; label="estimate reg hc1 baseline")
+        tblh = named_table(rh.doc, :ols_regression_coefficients)
+        if tblh !== nothing && tblc !== nothing
+            th = [string(collect(r)[col_index(tblh, "term")]) for r in table_rows(tblh)]
+            # hc1 has NO --lat/--lon to exclude, so lat/lon ARE regressors here — that
+            # asymmetry is exactly why the conley path must exclude them.
+            @test "lat" in th
+            # ...and no settings table without conley.
+            @test named_table(rh.doc, :conley_spatial_hac_settings) === nothing
+        end
+
+        # Typed guards, both directions.
+        @test run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "conley"]).code == 2
+        @test run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "conley",
+                        "--lat", "lat", "--lon", "lon"]).code == 2            # cutoff = 0
+        @test run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "hc1",
+                        "--lat", "lat", "--lon", "lon"]).code == 2            # coords w/o conley
+        @test run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "conley",
+                        "--lat", "nope", "--lon", "lon", "--dist-cutoff", "50"]).code == 3
+        @test run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "conley",
+                        "--lat", "lat", "--lon", "lon", "--dist-cutoff", "50",
+                        "--time-cutoff", "3"]).code == 2                      # cutoff w/o column
+        # haversine with out-of-range degrees is caught, not silently wrong.
+        bad = write_csv(DataFrame(y=yv, x=x, lat=lat .+ 100.0, lon=lon); prefix="conleybad")
+        @test run_json(["estimate", "reg", bad, "--dep", "y", "--cov-type", "conley",
+                        "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
+                        "--dist-cutoff", "100"]).code == 3
+        # A euclidean fit on the same coordinates must still work (no degree range there).
+        re = run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "conley",
+                       "--lat", "lat", "--lon", "lon", "--dist-cutoff", "2.0"])
+        assert_envelope_ok(re; label="estimate reg conley euclidean")
+
+        # Spatial + serial Conley. The time column must be an INTEGRAL period index:
+        # upstream gives any non-integer `abs(t_i - t_j)` gap zero weight, so a fractional
+        # column would silently disable the serial correction rather than fail.
+        yr = Float64.(repeat(1:8, inner=cld(n, 8))[1:n])
+        tcsv = write_csv(DataFrame(y=yv, x=x, lat=lat, lon=lon, yr=yr); prefix="conleyt")
+        rt2 = run_json(["estimate", "reg", tcsv, "--dep", "y", "--cov-type", "conley",
+                        "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
+                        "--dist-cutoff", "200", "--time-col", "yr", "--time-cutoff", "2"])
+        assert_envelope_ok(rt2; label="estimate reg conley spatial+serial")
+        tt2 = named_table(rt2.doc, :ols_regression_coefficients)
+        if tt2 !== nothing
+            terms2 = [string(collect(r)[col_index(tt2, "term")]) for r in table_rows(tt2)]
+            @test !("yr" in terms2)     # the time column is excluded from X too
+            @test terms2 == ["x"]
+        end
+        fcsv = write_csv(DataFrame(y=yv, x=x, lat=lat, lon=lon, yr=yr .+ 0.5); prefix="conleyf")
+        @test run_json(["estimate", "reg", fcsv, "--dep", "y", "--cov-type", "conley",
+                        "--lat", "lat", "--lon", "lon", "--dist-cutoff", "2.0",
+                        "--time-col", "yr", "--time-cutoff", "2"]).code == 3
+        rm(csv; force=true); rm(bad; force=true); rm(tcsv; force=true); rm(fcsv; force=true)
+    end
+
+    @testset "estimate preg --absorb (W10/#112)" begin
+        # UNBALANCED panel — the case the issue calls out. Truth: y = 0.9*x + entity FE +
+        # time FE. `--absorb entity,time` must recover 0.9; the naive additive two-way
+        # transform does not hold here, which is why --twoway is refused in favour of it.
+        rng = MersenneTwister(23)
+        N, T = 25, 12
+        id = Int[]; tt = Int[]; xs = Float64[]; ys = Float64[]
+        afe = randn(rng, N); tfe = randn(rng, T)
+        for i in 1:N, t in 1:T
+            # Drop ~25% of cells, unevenly, so the panel is genuinely unbalanced.
+            (rand(rng) < 0.25) && continue
+            xv = afe[i] * 0.4 + tfe[t] * 0.3 + randn(rng)
+            push!(id, i); push!(tt, t); push!(xs, xv)
+            push!(ys, 0.9 * xv + afe[i] + tfe[t] + 0.3 * randn(rng))
+        end
+        csv = write_csv(DataFrame(id=id, time=tt, y=ys, x=xs); prefix="hdfe")
+
+        ra = run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                       "--absorb", "entity,time", "--id-col", "id", "--time-col", "time"])
+        assert_envelope_ok(ra; label="estimate preg --absorb entity,time")
+        tbl = named_table(ra.doc, :panel_regression_coefficients_fe)
+        @test tbl !== nothing
+        if tbl !== nothing
+            rows = table_rows(tbl)
+            ti = col_index(tbl, "term"); ei = col_index(tbl, "estimate")
+            terms = [string(collect(r)[ti]) for r in rows]
+            @test "x" in terms
+            bx = Float64(collect(rows[findfirst(==("x"), terms)])[ei])
+            # Agrees with the dummy-OLS truth on an UNBALANCED panel — the acceptance case.
+            @test isapprox(bx, 0.9; atol=0.10)
+        end
+        hd = named_table(ra.doc, :hdfe_absorption)
+        @test hd !== nothing
+        if hd !== nothing
+            @test metric_value(hd, "converged") !== nothing || length(table_rows(hd)) >= 1
+        end
+
+        # `--absorb entity` reproduces plain one-way FE, coefficient for coefficient.
+        r1 = run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                       "--absorb", "entity", "--id-col", "id", "--time-col", "time"])
+        r0 = run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                       "--id-col", "id", "--time-col", "time"])
+        assert_envelope_ok(r1; label="estimate preg --absorb entity")
+        assert_envelope_ok(r0; label="estimate preg plain fe")
+        t1 = named_table(r1.doc, :panel_regression_coefficients_fe)
+        t0 = named_table(r0.doc, :panel_regression_coefficients_fe)
+        if t1 !== nothing && t0 !== nothing
+            e1 = Float64(collect(table_rows(t1)[1])[col_index(t1, "estimate")])
+            e0 = Float64(collect(table_rows(t0)[1])[col_index(t0, "estimate")])
+            @test isapprox(e1, e0; atol=1e-6)
+            # ...and only the absorb run carries the diagnostics table.
+            @test named_table(r0.doc, :hdfe_absorption) === nothing
+        end
+
+        # Typed guards.
+        @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                        "--absorb", "entity,time", "--twoway",
+                        "--id-col", "id", "--time-col", "time"]).code == 2
+        @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                        "--absorb", "entity,entity",
+                        "--id-col", "id", "--time-col", "time"]).code == 2
+        @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                        "--absorb", "entity", "--method", "re",
+                        "--id-col", "id", "--time-col", "time"]).code == 2
+        @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                        "--hdfe-tol", "1e-6",
+                        "--id-col", "id", "--time-col", "time"]).code == 2   # tol w/o absorb
+        @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                        "--absorb", "nosuchcol",
+                        "--id-col", "id", "--time-col", "time"]).code in (2, 3)
+        rm(csv; force=true)
+    end
+
+    @testset "test wild-cluster (W10/#112)" begin
+        # FEW clusters — the regime the method exists for. G=8, a real treatment effect of
+        # 1.0 assigned at CLUSTER level (so the cluster-robust normal p over-rejects).
+        rng = MersenneTwister(31)
+        G, npg = 8, 30
+        cl = Int[]; xs = Float64[]; ys = Float64[]
+        ceff = randn(rng, G)
+        for g in 1:G, _ in 1:npg
+            xv = randn(rng)
+            push!(cl, g); push!(xs, xv)
+            push!(ys, 1.0 * xv + ceff[g] + 0.5 * randn(rng))
+        end
+        csv = write_csv(DataFrame(y=ys, x=xs, cl=Float64.(cl)); prefix="wcb")
+
+        r = run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                      "--coefficient", "x", "--boot-reps", "999"])
+        assert_envelope_ok(r; label="test wild-cluster")
+        tbl = first_table(r.doc)[2]
+        @test tbl !== nothing
+        if tbl !== nothing
+            pb = metric_value(tbl, "p_bootstrap_symmetric")
+            pa = metric_value(tbl, "p_cluster_robust_normal")
+            nc = metric_value(tbl, "n_clusters")
+            en = metric_value(tbl, "enumerated")
+            @test pb !== nothing && pa !== nothing
+            @test 0.0 <= Float64(pb) <= 1.0
+            @test 0.0 <= Float64(pa) <= 1.0
+            @test Int(nc) == G
+            # 2^8 = 256 <= 999 with Rademacher weights ⇒ upstream enumerates the whole sign
+            # space, so the p-value is EXACT. If this flips, `--boot-reps` stopped reaching
+            # the enumeration branch.
+            @test en == true || string(en) == "true"
+            # A strong true effect: the bootstrap should still reject.
+            @test Float64(pb) < 0.10
+            @test metric_value(tbl, "estimate") !== nothing
+            @test isapprox(Float64(metric_value(tbl, "estimate")), 1.0; atol=0.2)
+        end
+
+        # Webb weights and the WCU variant both run; --no-ci drops the interval.
+        rw = run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                       "--coefficient", "x", "--boot-weights", "webb", "--boot-reps", "199"])
+        assert_envelope_ok(rw; label="test wild-cluster webb")
+        ru = run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                       "--coefficient", "x", "--no-impose-null", "--no-ci"])
+        assert_envelope_ok(ru; label="test wild-cluster WCU --no-ci")
+        tu = first_table(ru.doc)[2]
+        if tu !== nothing
+            @test metric_value(tu, "ci_lower") === nothing      # --no-ci really drops it
+            @test metric_value(tu, "impose_null") in (false, "false")
+        end
+        # Forcing enumeration off must change `enumerated`.
+        rn = run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                       "--coefficient", "x", "--enumerate-signs", "no", "--boot-reps", "199"])
+        assert_envelope_ok(rn; label="test wild-cluster --enumerate-signs no")
+        tn = first_table(rn.doc)[2]
+        tn === nothing || @test metric_value(tn, "enumerated") in (false, "false")
+
+        # Typed guards.
+        @test run_json(["test", "wild-cluster", csv, "--dep", "y"]).code == 2   # no --clusters
+        @test run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                        "--coefficient", "nope"]).code == 3
+        @test run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "nope"]).code == 3
+        @test run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                        "--boot-reps", "0"]).code == 2
+        @test run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                        "--boot-weights", "normal"]).code == 2
+        # Forcing enumeration when it is impossible (webb weights) is refused upstream and
+        # must surface typed, not as an internal exit 1.
+        @test run_json(["test", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
+                        "--coefficient", "x", "--enumerate-signs", "yes",
+                        "--boot-weights", "webb"]).code == 3
+        # A STRING cluster column must work — `_load_clusters` dense-ranks rather than
+        # forcing Vector{Int} (which used to be an untyped exit 1 on exactly this input).
+        scsv = write_csv(DataFrame(y=ys, x=xs, cl=["g$(g)" for g in cl]); prefix="wcbs")
+        rs = run_json(["test", "wild-cluster", scsv, "--dep", "y", "--clusters", "cl",
+                       "--coefficient", "x"])
+        assert_envelope_ok(rs; label="test wild-cluster string clusters")
+        rm(csv; force=true); rm(scsv; force=true)
+    end
+
+    @testset "test anderson-rubin (W10/#112)" begin
+        # STRONG instruments: the AR set should be bounded and close to the Wald interval,
+        # and both should cover the truth (2.0).
+        strong = dgp_iv(; T=300, seed=5, inst_strength=0.9)
+        rs = run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                       "--endogenous", "x_endog", "--instruments", "z1,z2"])
+        assert_envelope_ok(rs; label="test anderson-rubin strong")
+        setb = named_table(rs.doc, :anderson_rubin_set_summary)
+        @test setb !== nothing
+        if setb !== nothing
+            @test string(metric_value(setb, "shape")) == "bounded"
+            @test metric_value(setb, "bounded") in (true, "true")
+            @test metric_value(setb, "is_empty") in (false, "false")
+            @test Int(metric_value(setb, "n_components")) == 1
+            est = Float64(metric_value(setb, "estimate_2sls"))
+            @test isapprox(est, 2.0; atol=0.2)
+        end
+        tblb = named_table(rs.doc, Symbol("anderson_rubin_confidence_set_95_x_endog"))
+        if tblb === nothing
+            # Title slugging may differ; fall back to any table carrying the component cols.
+            for (k, v) in pairs(rs.doc.data)
+                if v isa JSON3.Object && haskey(v, :columns) &&
+                   "component" in String[string(c) for c in v.columns]
+                    tblb = v
+                    break
+                end
+            end
+        end
+        @test tblb !== nothing
+        if tblb !== nothing
+            rows = table_rows(tblb)
+            @test length(rows) == 1
+            li = col_index(tblb, "lower"); ui = col_index(tblb, "upper")
+            lo = numv(collect(rows[1])[li]); hi = numv(collect(rows[1])[ui])
+            @test isfinite(lo) && isfinite(hi) && lo < hi
+            @test lo <= 2.0 <= hi           # correct coverage of the truth
+            @test collect(rows[1])[col_index(tblb, "lower_bounded")] in (true, "true")
+        end
+
+        # WEAK instruments — the case the whole leaf exists for. NOTE: `dgp_iv`'s
+        # `inst_strength` scales ONLY z1 (z2's 0.5 loading is hardcoded), so it cannot
+        # produce a weak instrument set; build one here instead.
+        rngw = MersenneTwister(77)
+        nw = 120
+        z1w = randn(rngw, nw); z2w = randn(rngw, nw); x2w = randn(rngw, nw)
+        uw = randn(rngw, nw)
+        # First stage is essentially irrelevant: both loadings ~0.02 against unit noise.
+        xw = 0.02 .* z1w .+ 0.02 .* z2w .+ 0.6 .* uw .+ randn(rngw, nw)
+        yw = 1.0 .+ 2.0 .* xw .+ 0.8 .* x2w .+ uw
+        weak = write_csv(DataFrame("y" => yw, "const" => fill(1.0, nw), "x2" => x2w,
+                                   "x_endog" => xw, "z1" => z1w, "z2" => z2w); prefix="ivweak")
+        rw = run_json(["test", "anderson-rubin", weak, "--dep", "y",
+                       "--endogenous", "x_endog", "--instruments", "z1,z2",
+                       "--span", "50"])
+        assert_envelope_ok(rw; label="test anderson-rubin weak")
+        setw = named_table(rw.doc, :anderson_rubin_set_summary)
+        @test setw !== nothing
+        if setw !== nothing
+            shape = string(metric_value(setw, "shape"))
+            @test shape in ("bounded", "unbounded", "whole-line", "disjoint", "empty")
+            wl = Float64(metric_value(setw, "wald_lower"))
+            wu = Float64(metric_value(setw, "wald_upper"))
+            @test wu > wl
+            # The teeth: with a first stage this weak the AR set must NOT be a tidy
+            # interval sitting inside the Wald band. Either it is unbounded / the whole
+            # line, or (if still bounded) it is materially WIDER than Wald — a weak-IV-
+            # robust set can never be tighter than the interval it exists to correct.
+            if shape in ("bounded", "disjoint")
+                tblw = nothing
+                for (k, v) in pairs(rw.doc.data)
+                    if v isa JSON3.Object && haskey(v, :columns) &&
+                       "component" in String[string(c) for c in v.columns]
+                        tblw = v
+                        break
+                    end
+                end
+                @test tblw !== nothing
+                if tblw !== nothing
+                    rws = table_rows(tblw)
+                    los = [numv(collect(r)[col_index(tblw, "lower")]) for r in rws]
+                    his = [numv(collect(r)[col_index(tblw, "upper")]) for r in rws]
+                    @test (maximum(his) - minimum(los)) > (wu - wl)
+                end
+            else
+                @test shape in ("unbounded", "whole-line", "empty")
+            end
+            if shape != "empty"
+                gl = Float64(metric_value(setw, "grid_lo"))
+                gh = Float64(metric_value(setw, "grid_hi"))
+                @test gh > gl
+            end
+        end
+
+        # The test itself at an explicit --beta0, and --no-ci.
+        rt = run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                       "--endogenous", "x_endog", "--instruments", "z1,z2",
+                       "--beta0", "2.0", "--no-ci"])
+        assert_envelope_ok(rt; label="test anderson-rubin --beta0 --no-ci")
+        tt = named_table(rt.doc, :anderson_rubin_test_y)
+        tt === nothing && (tt = first_table(rt.doc)[2])
+        if tt !== nothing
+            p = metric_value(tt, "p_value")
+            @test p !== nothing && 0.0 <= Float64(p) <= 1.0
+            # H0: beta = 2.0 IS the truth → should NOT be rejected.
+            @test Float64(p) > 0.05
+            @test metric_value(tt, "statistic") !== nothing
+            @test metric_value(tt, "wald_cov_type") !== nothing
+        end
+        # ...and a FALSE null is rejected. Both directions, or the test has no teeth.
+        rf = run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                       "--endogenous", "x_endog", "--instruments", "z1,z2",
+                       "--beta0", "-3.0", "--no-ci"])
+        assert_envelope_ok(rf; label="test anderson-rubin false null")
+        tf = named_table(rf.doc, :anderson_rubin_test_y)
+        tf === nothing && (tf = first_table(rf.doc)[2])
+        tf === nothing || @test Float64(metric_value(tf, "p_value")) < 0.05
+
+        # Clustered AR: the fit stays hc1 (no clustered IV fit exists upstream) and both
+        # covariances are recorded, so the contrast is never read as like-for-like.
+        dfw = DataFrame(CSV.File(strong))
+        dfw.cl = Float64.(repeat(1:10, inner=cld(nrow(dfw), 10))[1:nrow(dfw)])
+        ccsv = write_csv(dfw; prefix="ivcl")
+        rc = run_json(["test", "anderson-rubin", ccsv, "--dep", "y",
+                       "--endogenous", "x_endog", "--instruments", "z1,z2",
+                       "--cov-type", "cluster", "--clusters", "cl"])
+        assert_envelope_ok(rc; label="test anderson-rubin clustered")
+        tc = named_table(rc.doc, :anderson_rubin_test_y)
+        tc === nothing && (tc = first_table(rc.doc)[2])
+        if tc !== nothing
+            @test string(metric_value(tc, "ar_cov_type")) == "cluster"
+            @test string(metric_value(tc, "wald_cov_type")) == "hc1"
+        end
+        # The cluster column must NOT have leaked into X or Z.
+        setc2 = named_table(rc.doc, :anderson_rubin_set_summary)
+        @test setc2 !== nothing
+
+        # Typed guards.
+        @test run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                        "--endogenous", "x_endog"]).code == 2
+        @test run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                        "--endogenous", "x_endog", "--instruments", "z1,z2",
+                        "--cov-type", "cluster"]).code == 2               # no --clusters
+        @test run_json(["test", "anderson-rubin", ccsv, "--dep", "y",
+                        "--endogenous", "x_endog", "--instruments", "z1,z2",
+                        "--clusters", "cl"]).code == 2                    # clusters w/o cluster
+        @test run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                        "--endogenous", "x_endog", "--instruments", "z1,z2",
+                        "--beta0", "1,2"]).code == 2                      # length mismatch
+        @test run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                        "--endogenous", "x_endog", "--instruments", "z1,z2",
+                        "--beta0", "abc"]).code == 2
+        @test run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                        "--endogenous", "x_endog", "--instruments", "z1,z2",
+                        "--level", "1.5"]).code == 2
+        @test run_json(["test", "anderson-rubin", strong, "--dep", "y",
+                        "--endogenous", "nope", "--instruments", "z1,z2"]).code == 3
+        rm(strong; force=true); rm(weak; force=true); rm(ccsv; force=true)
+    end
+
+    @testset "estimate lp --method iv + MOP/AR (W10/#112)" begin
+        # THE LEAF WAS DEAD before this wave: `wi.F_stat` is a field real MEMs never had,
+        # so every invocation exited 1. `estimate lp` had T3 coverage only for --method
+        # standard — the recurring blind-spot class. A plain run is now the regression test.
+        rng = MersenneTwister(17)
+        Tn = 220
+        z = randn(rng, Tn)
+        shock = 0.8 .* z .+ 0.5 .* randn(rng, Tn)
+        y2 = zeros(Tn)
+        for t in 2:Tn
+            y2[t] = 0.5 * y2[t-1] + 0.7 * shock[t] + 0.4 * randn(rng)
+        end
+        ycsv = write_csv(DataFrame(x=shock, y=y2); prefix="lpiv")
+        zcsv = write_csv(DataFrame(z=z); prefix="lpivz")
+
+        r = run_json(["estimate", "lp", ycsv, "--method", "iv", "--shock", "1",
+                      "--horizons", "6", "--control-lags", "2", "--instruments", zcsv])
+        assert_envelope_ok(r; label="estimate lp --method iv")
+        sm = named_table(r.doc, :lp_iv_estimation_summary)
+        @test sm !== nothing
+        if sm !== nothing
+            # The per-horizon F is reported as a MINIMUM, and T_eff as endpoints — neither
+            # may be a nested vector in a scalar cell.
+            fmin = metric_value(sm, "First-stage F (min)")
+            @test fmin !== nothing
+            @test Float64(fmin) > 0
+            te = metric_value(sm, "Effective observations (h=0)")
+            @test te !== nothing && Int(te) > 0
+            @test Int(metric_value(sm, "Effective observations (min)")) <= Int(te)
+        end
+
+        # MOP effective F.
+        rm_ = run_json(["estimate", "lp", ycsv, "--method", "iv", "--shock", "1",
+                        "--horizons", "6", "--control-lags", "2", "--instruments", zcsv,
+                        "--mop-f", "--mop-tau", "0.10"])
+        assert_envelope_ok(rm_; label="estimate lp iv --mop-f")
+        mt = named_table(rm_.doc, :montiel_olea_pflueger_effective_f)
+        @test mt !== nothing
+        if mt !== nothing
+            fe = metric_value(mt, "f_effective")
+            cv = metric_value(mt, "critical_value")
+            @test fe !== nothing && cv !== nothing
+            @test isapprox(Float64(cv), 23.11; atol=1e-6)     # MOP simplified CV at tau=0.10
+            @test Float64(fe) > 0
+            # `weak` must agree with the comparison it claims to make.
+            @test (metric_value(mt, "weak") in (true, "true")) == (Float64(fe) < Float64(cv))
+            @test Int(metric_value(mt, "n_instruments")) == 1
+        end
+        # The critical value moves with tau, in the documented direction.
+        rm3 = run_json(["estimate", "lp", ycsv, "--method", "iv", "--shock", "1",
+                        "--horizons", "6", "--control-lags", "2", "--instruments", zcsv,
+                        "--mop-f", "--mop-tau", "0.30"])
+        assert_envelope_ok(rm3; label="estimate lp iv --mop-tau 0.30")
+        mt3 = named_table(rm3.doc, :montiel_olea_pflueger_effective_f)
+        mt3 === nothing || @test isapprox(Float64(metric_value(mt3, "critical_value")), 12.04; atol=1e-6)
+
+        # AR bands.
+        ra = run_json(["estimate", "lp", ycsv, "--method", "iv", "--shock", "1",
+                       "--horizons", "4", "--control-lags", "2", "--instruments", zcsv,
+                       "--ar-bands", "--ar-grid", "101", "--ar-level", "0.95"])
+        assert_envelope_ok(ra; label="estimate lp iv --ar-bands")
+        ab = named_table(ra.doc, :lp_iv_anderson_rubin_bands_95)
+        if ab === nothing
+            for (k, v) in pairs(ra.doc.data)
+                if v isa JSON3.Object && haskey(v, :columns) &&
+                   "ar_lower" in String[string(c) for c in v.columns]
+                    ab = v
+                    break
+                end
+            end
+        end
+        @test ab !== nothing
+        if ab !== nothing
+            rows = table_rows(ab)
+            nresp = 2
+            @test length(rows) == 5 * nresp          # (H+1) x responses
+            hi_ = col_index(ab, "horizon"); ri = col_index(ab, "response")
+            ali = col_index(ab, "ar_lower"); aui = col_index(ab, "ar_upper")
+            wli = col_index(ab, "wald_lower"); wui = col_index(ab, "wald_upper")
+            bi = col_index(ab, "bounded"); bwi = col_index(ab, "bandwidth")
+            @test Set(Int(collect(r)[hi_]) for r in rows) == Set(0:4)
+            ei_ = col_index(ab, "is_empty")
+            n_strict = 0
+            for row in rows
+                rr = collect(row)
+                wl_ = numv(rr[wli]); wu_ = numv(rr[wui])
+                # NOT `>`: the h=0 response of the SHOCK VARIABLE TO ITS OWN SHOCK is
+                # identically 1 with zero standard error, so both the Wald band and the AR
+                # set legitimately collapse to the single point {1}. That degenerate cell is
+                # correct output, and a strict inequality here failed on it (T3 caught it).
+                @test wu_ >= wl_
+                # The HAC bandwidth scales with the horizon (MA(h) residuals).
+                @test Int(rr[bwi]) >= Int(rr[hi_]) + 1
+                # An EMPTY cell carries NaN bounds upstream (and bounded=true), so every
+                # ordering/finiteness check below must skip it rather than compare to NaN.
+                (rr[ei_] in (true, "true")) && continue
+                # Unbounded sides come through as the STRING "Inf"/"-Inf" (JSON has no
+                # infinity), which is the documented envelope contract — not a number, and
+                # not silently truncated to the grid edge.
+                lo_f = numv(rr[ali]); hi_f = numv(rr[aui])
+                @test hi_f >= lo_f
+                # Teeth: wherever the cell is NOT degenerate, the AR set must have strictly
+                # positive width — a point set anywhere the Wald band is a real interval
+                # would mean the inversion collapsed.
+                if wu_ > wl_
+                    @test hi_f > lo_f
+                    n_strict += 1
+                end
+                bounded = rr[bi] in (true, "true")
+                @test bounded == (isfinite(lo_f) && isfinite(hi_f))
+            end
+            # ...and most cells must be non-degenerate, or the block above tested nothing.
+            @test n_strict >= length(rows) - nresp
+        end
+
+        # Guards: the riders are iv-only, and every numeric option is validated.
+        @test run_json(["estimate", "lp", ycsv, "--mop-f"]).code == 2
+        @test run_json(["estimate", "lp", ycsv, "--ar-bands"]).code == 2
+        @test run_json(["estimate", "lp", ycsv, "--method", "smooth", "--mop-tau", "0.05"]).code == 2
+        @test run_json(["estimate", "lp", ycsv, "--method", "iv", "--instruments", zcsv,
+                        "--mop-f", "--mop-tau", "0.15"]).code == 2
+        @test run_json(["estimate", "lp", ycsv, "--method", "iv", "--instruments", zcsv,
+                        "--ar-bands", "--ar-grid", "2"]).code == 2
+        @test run_json(["estimate", "lp", ycsv, "--method", "iv", "--instruments", zcsv,
+                        "--ar-bands", "--ar-level", "0"]).code == 2
+        @test run_json(["estimate", "lp", ycsv, "--method", "iv"]).code == 2   # no instruments
+        rm(ycsv; force=true); rm(zcsv; force=true)
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

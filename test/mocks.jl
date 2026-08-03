@@ -301,8 +301,13 @@ struct LPModel{T}
     Y::Matrix{T}; shock_var::Int; horizon::Int; lags::Int
     B::Matrix{T}; residuals::Matrix{T}; vcov::Matrix{T}; T_eff::Int
 end
+# W10/#112: `first_stage_F` and `T_eff` are per-horizon VECTORS in real MEMs (the first
+# stage is re-estimated at every h and the sample shrinks with h). The mock stored scalars,
+# which let the CLI read a `wi.F_stat` that real never had — exit 1 in production, green
+# suite. Mock array SHAPE must match real, not just the field names (#84, `fevd bvar`).
 struct LPIVModel{T}
-    Y::Matrix{T}; instruments::Matrix{T}; first_stage_F::T; horizon::Int; T_eff::Int
+    Y::Matrix{T}; instruments::Matrix{T}; first_stage_F::Vector{T}; horizon::Int
+    T_eff::Vector{Int}; shock_var::Int; response_vars::Vector{Int}; varnames::Vector{String}
 end
 struct SmoothLPModel{T}
     Y::Matrix{T}; lambda::T; horizon::Int
@@ -855,6 +860,10 @@ const _MOCK_FLAGS = Dict{Symbol,Any}(
     :verify_decomposition => true,
     :normality_all_pass => false,
     :lp_iv_weak => false,
+    # W10/#112: drives `anderson_rubin_ci`'s degenerate set shapes so T1/T2 can exercise
+    # the empty / unbounded / disjoint / whole-line rendering branches, which is where a
+    # `[lo, hi]` assumption in a renderer would break.
+    :ar_set_shape => :bounded,
 )
 
 function is_stationary(m::VARModel)
@@ -1070,17 +1079,33 @@ function lp_irf(model::LPModel; conf_level=0.95)
     vals = ones(h, n) * 0.1
     LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, abs.(ones(h, n)) * 0.1)
 end
-function estimate_lp_iv(Y, shock_var, Z, horizon; lags=4, cov_type=:newey_west)
+function estimate_lp_iv(Y, shock_var, Z, horizon; lags=4, cov_type=:newey_west,
+                       response_vars=collect(1:size(Y, 2)), bandwidth=0,
+                       varnames=["y$i" for i in 1:size(Y, 2)])
     T_obs = size(Y, 1)
     f_val = _MOCK_FLAGS[:lp_iv_weak] ? 5.0 : 15.0
-    LPIVModel(Y, Z, f_val, horizon, T_obs-4)
+    # F and T_eff both decay with the horizon, as they do upstream.
+    fs = [f_val - 0.1 * h for h in 0:horizon]
+    te = [T_obs - lags - h for h in 0:horizon]
+    LPIVModel(Y, Z, fs, horizon, te, shock_var, collect(response_vars), collect(varnames))
 end
 function lp_iv_irf(model::LPIVModel; conf_level=0.95)
-    n = size(model.Y, 2); h = model.horizon + 1
+    n = length(model.response_vars); h = model.horizon + 1
     vals = ones(h, n) * 0.1
     LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
 end
-weak_instrument_test(model::LPIVModel; threshold=10.0) = (F_stat=model.first_stage_F, is_weak=model.first_stage_F < threshold)
+# Real returns (F_stats, weak_horizons, min_F, passes_threshold, threshold) — there is NO
+# `F_stat`/`is_weak`. The old mock invented both, so `estimate lp --method iv` passed T1/T2
+# while exiting 1 on every real invocation (W10/#112). Mirror real's tuple exactly.
+function weak_instrument_test(model::LPIVModel; threshold=10.0)
+    F_stats = model.first_stage_F
+    weak_horizons = findall(F_stats .< threshold)
+    (F_stats=F_stats, weak_horizons=weak_horizons, min_F=minimum(F_stats),
+     passes_threshold=isempty(weak_horizons), threshold=threshold)
+end
+weak_instrument_test(F_stats::Vector; threshold=10.0) =
+    (F_stats=F_stats, weak_horizons=findall(F_stats .< threshold),
+     min_F=minimum(F_stats), passes_threshold=all(F_stats .>= threshold), threshold=threshold)
 function estimate_smooth_lp(Y, shock_var, horizon; n_knots=3, lambda=0.0, degree=3)
     SmoothLPModel(Y, lambda, horizon)
 end
@@ -5837,8 +5862,35 @@ confint(m::ProbitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m.beta
 
 function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
                       cov_type=:hc1, weights=nothing, varnames=nothing,
-                      clusters=nothing) where T
+                      clusters=nothing, coords=nothing, cutoff::Real=0.0,
+                      conley_kernel::Symbol=:bartlett, conley_metric::Symbol=:euclidean,
+                      time=nothing, time_cutoff::Int=0, conley_psd::Bool=true) where T
     n, k = size(X)
+    # W10/#112 — mirror real's validation EXACTLY so the mock throws the same exit class on
+    # degenerate input (standing rule). `:conley` joins the enum; coords are required for it
+    # and must have n rows; the kernel/metric enums are closed (the `--wild-dist` lesson).
+    cov_type in (:ols, :hc0, :hc1, :hc2, :hc3, :cluster, :conley) || throw(ArgumentError(
+        "cov_type must be :ols, :hc0, :hc1, :hc2, :hc3, :cluster, or :conley; got :$cov_type"))
+    if cov_type == :conley
+        coords === nothing && throw(ArgumentError("coords required for :conley cov_type"))
+        size(coords, 1) == n || throw(ArgumentError("coords must have $n rows"))
+        conley_kernel in (:bartlett, :uniform) || throw(ArgumentError(
+            "kernel must be :bartlett or :uniform; got :$conley_kernel"))
+        conley_metric in (:euclidean, :haversine) || throw(ArgumentError(
+            "metric must be :euclidean or :haversine; got :$conley_metric"))
+        conley_metric === :haversine && size(coords, 2) < 2 && throw(ArgumentError(
+            "metric = :haversine needs coords with 2 columns (latitude, longitude)"))
+        time_cutoff >= 0 || throw(ArgumentError("time_cutoff must be >= 0, got $time_cutoff"))
+        time === nothing || length(time) == n || throw(ArgumentError("time must have length $n"))
+    end
+    if cov_type == :cluster
+        clusters === nothing && throw(ArgumentError("clusters required for :cluster cov_type"))
+        length(clusters) == n || throw(ArgumentError("clusters must have length $n"))
+    end
+    if weights !== nothing
+        length(weights) == n || throw(ArgumentError("weights must have length $n"))
+        all(w -> w > zero(T), weights) || throw(ArgumentError("All weights must be positive"))
+    end
     beta = ones(T, k) * T(0.5)
     vcov_mat = Matrix{T}(I(k)) * T(0.01)
     fitted_vals = X * beta
@@ -6843,6 +6895,10 @@ struct PanelRegModel{T<:Real}
     group_effects::Union{Nothing,Vector{T}}
     data::PanelData{T}
     dynamic_diagnostics::Union{Nothing,NamedTuple}
+    # Real's tail (preg/types.jl): Prais-Winsten rho and the HDFE absorption diagnostics.
+    # `hdfe` is `nothing` unless `absorb=` was used (W10/#112).
+    ar1_rho::Union{Nothing,T,Vector{T}}
+    hdfe::Union{Nothing,NamedTuple}
 end
 
 struct PanelIVModel{T<:Real}
@@ -6973,8 +7029,32 @@ confint(m::PanelProbitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m
 
 function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         model=:fe, twoway=false, fe=:twoway, cov_type=:cluster, clusters=nothing,
-        varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise) where T
+        varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise,
+        absorb::Vector{Symbol}=Symbol[], hdfe_tol::Real=1e-8, hdfe_maxiter::Int=1000,
+        hdfe_accel::Bool=true) where T
     # Mirror real's validation (preg/estimation.jl) for the #75 additions.
+    # W10/#112 absorb guards, verbatim from real — including the twoway exclusivity whose
+    # error message points at `absorb=[:entity, :time]` (the correct route on an UNBALANCED
+    # panel, where the additive two-way identity does not hold).
+    if !isempty(absorb)
+        model === :fe || throw(ArgumentError(
+            "absorb= is supported only for model=:fe (the within estimator); got :$model"))
+        twoway && throw(ArgumentError(
+            "absorb= and twoway=true are mutually exclusive — pass absorb=[:entity, :time] " *
+            "to absorb entity and time fixed effects"))
+        length(unique(absorb)) == length(absorb) || throw(ArgumentError(
+            "absorb contains duplicate dimensions: $absorb"))
+        hdfe_maxiter >= 1 || throw(ArgumentError("maxiter must be >= 1, got $hdfe_maxiter"))
+        hdfe_tol > 0 || throw(ArgumentError("tol must be positive, got $hdfe_tol"))
+        # Real resolves each dimension against the panel: a matching variable column wins,
+        # else the reserved index aliases. An unknown name is an ArgumentError there too.
+        for d in absorb
+            (String(d) in pd.varnames ||
+             d in (:entity, :id, :unit, :group, :time, :period, :cohort)) || throw(ArgumentError(
+                "absorb dimension :$d not found in panel data. Available: $(pd.varnames) " *
+                "or the reserved indices :entity, :time, :cohort"))
+        end
+    end
     cov_type in (:ols, :cluster, :twoway, :driscoll_kraay, :pcse) ||
         throw(ArgumentError("cov_type must be :ols, :cluster, :twoway, :driscoll_kraay, or :pcse; got :$cov_type"))
     pcse_unbalanced in (:casewise, :pairwise) ||
@@ -6990,11 +7070,24 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
     resids = y .- fitted_vals
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
     meth = model isa Symbol ? model : :fe
+    hdfe_info = isempty(absorb) ? nothing :
+        (absorb = copy(absorb),
+         n_absorbed = sum(3 for _ in absorb) - length(absorb) + 1,
+         n_levels = [3 for _ in absorb],
+         n_components = 1,
+         marginal = [true for _ in absorb],
+         n_absorbed_cluster = 0,
+         converged = true,
+         iterations = 4,
+         sweeps = 8,
+         change = 1e-10,
+         tol = Float64(hdfe_tol),
+         accel = hdfe_accel)
     PanelRegModel{T}(beta, vcov_mat, resids, fitted_vals, y, X,
         T(0.35), T(0.25), T(0.30), T(0.5), T(1.0), T(0.2), T(0.5),
         T(20.0), T(0.001), T(-200.0), T(410.0), T(420.0),
         vnames, meth, Bool(twoway), cov_type, n, pd.n_groups, T(n / max(pd.n_groups, 1)),
-        nothing, pd, nothing)
+        nothing, pd, nothing, nothing, hdfe_info)
 end
 
 function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
@@ -9212,6 +9305,247 @@ report(m::QuantileRegModel) = "QuantileRegModel mock report"
 report(r::RDDResult) = "RDDResult mock report"
 
 export QuantileRegModel, estimate_qreg, RDDResult, estimate_rdd
+
+# ─── W10/#112: micro inference riders ────────────────────────────────────────────────
+#
+# Field names, types and ARRAY SHAPES mirror real MEMs 0.7.2 exactly. Nothing here invents
+# a name real lacks (#84) — the CIPS/`plot_result` lessons — and the AR/wild-bootstrap
+# results deliberately reproduce real's degenerate shapes (empty set, unbounded side,
+# enumerated sign space) so a handler that assumes `[lo, hi]` fails at T1/T2 rather than in
+# production.
+
+struct AndersonRubinTest{T<:AbstractFloat}
+    beta0::Vector{T}
+    statistic::T
+    p_value::T
+    df1::Int
+    df2::Int
+    distribution::Symbol
+    cov_type::Symbol
+    endog_names::Vector{String}
+end
+
+struct AndersonRubinCI{T<:AbstractFloat}
+    intervals::Vector{Tuple{T,T}}
+    is_empty::Bool
+    is_whole_line::Bool
+    bounded::Bool
+    level::T
+    critical_value::T
+    grid_lo::T
+    grid_hi::T
+    wald_lower::T
+    wald_upper::T
+    estimate::T
+    df1::Int
+    distribution::Symbol
+    endog_name::String
+end
+
+# Mirrors real's `_ar_unpack`: the model must carry Z and the endogenous indices, i.e. it
+# must have come from `estimate_iv`. Same ArgumentError, hence the same exit class.
+function _mock_ar_unpack(m::RegModel)
+    m.Z === nothing && throw(ArgumentError(
+        "the model was not estimated by IV — anderson_rubin_test requires a model from estimate_iv"))
+    m.endogenous === nothing && throw(ArgumentError("the model carries no endogenous indices"))
+    return m.endogenous
+end
+
+function anderson_rubin_test(model, beta0; cov_type=nothing, clusters=nothing)
+    endog = _mock_ar_unpack(model)
+    ct = cov_type === nothing ? model.cov_type : cov_type
+    ct in (:ols, :hc0, :hc1, :hc2, :hc3, :cluster) || throw(ArgumentError(
+        "cov_type must be :ols, :hc0, :hc1, :hc2, :hc3, or :cluster; got :$ct"))
+    ct === :cluster && clusters === nothing && throw(ArgumentError(
+        "clusters is required for cov_type=:cluster"))
+    b0 = beta0 isa Number ? Float64[Float64(beta0)] : Vector{Float64}(beta0)
+    length(b0) == length(endog) || throw(ArgumentError(
+        "beta0 has length $(length(b0)) but the model has $(length(endog)) endogenous regressors"))
+    q = size(model.Z, 2) - (size(model.X, 2) - length(endog))
+    q = max(q, 1)
+    dist = ct === :ols ? :F : :chisq
+    AndersonRubinTest{Float64}(b0, 2.5, 0.08, q, length(model.y) - size(model.Z, 2),
+                               dist, ct, model.varnames[endog])
+end
+
+# `_MOCK_FLAGS[:ar_set_shape]` drives the degenerate shapes so T1/T2 can exercise the
+# renderer's empty / unbounded / disjoint branches, which is where a `[lo, hi]` assumption
+# would break.
+function anderson_rubin_ci(model; level=0.95, n_grid=1001, span=20, grid=nothing,
+                           cov_type=nothing, clusters=nothing)
+    endog = _mock_ar_unpack(model)
+    length(endog) == 1 || throw(ArgumentError(
+        "anderson_rubin_ci inverts over a single endogenous coefficient; this model has " *
+        "$(length(endog)). Use anderson_rubin_test at specific vectors instead."))
+    (0 < level < 1) || throw(ArgumentError("level must be in (0, 1)"))
+    n_grid >= 5 || throw(ArgumentError("n_grid must be at least 5"))
+    ct = cov_type === nothing ? model.cov_type : cov_type
+    ct === :cluster && clusters === nothing && throw(ArgumentError(
+        "clusters is required for cov_type=:cluster"))
+    j = endog[1]
+    est = Float64(model.beta[j])
+    shape = get(_MOCK_FLAGS, :ar_set_shape, :bounded)
+    ivals, empt, whole, bnd = if shape === :empty
+        (Tuple{Float64,Float64}[], true, false, true)
+    elseif shape === :whole
+        ([(-Inf, Inf)], false, true, false)
+    elseif shape === :unbounded
+        ([(est - 0.4, Inf)], false, false, false)
+    elseif shape === :disjoint
+        ([(est - 1.2, est - 0.6), (est + 0.6, est + 1.2)], false, false, true)
+    else
+        ([(est - 0.5, est + 0.5)], false, false, true)
+    end
+    AndersonRubinCI{Float64}(ivals, empt, whole, bnd, Float64(level), 3.84,
+                             est - Float64(span) * 0.1, est + Float64(span) * 0.1,
+                             est - 0.3, est + 0.3, est, 1,
+                             ct === :ols ? :F : :chisq, model.varnames[j])
+end
+
+struct WildClusterBootstrap{T<:AbstractFloat}
+    coefname::String
+    coefindex::Int
+    estimate::T
+    null_value::T
+    t_stat::T
+    p_value::T
+    p_value_equaltail::T
+    p_value_asymptotic::T
+    ci_lower::T
+    ci_upper::T
+    level::T
+    t_boot::Vector{T}
+    n_boot::Int
+    n_clusters::Int
+    weighttype::Symbol
+    imposenull::Bool
+    enumerated::Bool
+end
+
+function wild_cluster_bootstrap(model::RegModel, coefficient, null_value::Real=0.0;
+                                clusters=nothing, n_boot::Int=999,
+                                weights::Symbol=:rademacher, imposenull::Bool=true,
+                                ci::Bool=true, level::Real=0.95, ci_gridpoints::Int=25,
+                                enumerate=nothing, rng=nothing)
+    # Mirror real's guards: clusters are REQUIRED for a RegModel, and the weight scheme is
+    # a closed two-member enum (the `--wild-dist` lesson — never infer enum members).
+    clusters === nothing && throw(ArgumentError(
+        "clusters is required for a RegModel — pass the same cluster vector used for the " *
+        "cluster-robust covariance"))
+    weights in (:rademacher, :webb) || throw(ArgumentError(
+        "weights must be :rademacher or :webb; got :$weights"))
+    # NOT `something(findfirst(...), throw(...))`: `something` is an ordinary function, so
+    # BOTH arguments are evaluated and the throw fires even on a successful lookup.
+    idx = if coefficient isa Integer
+        Int(coefficient)
+    else
+        hit = findfirst(==(string(coefficient)), model.varnames)
+        hit === nothing && throw(ArgumentError(
+            "coefficient $(coefficient) not found in $(model.varnames)"))
+        hit
+    end
+    (1 <= idx <= length(model.varnames)) || throw(ArgumentError(
+        "coefficient index $idx out of range 1:$(length(model.varnames))"))
+    G = length(unique(clusters))
+    G >= 2 || throw(ArgumentError("Need at least 2 clusters for the wild cluster bootstrap"))
+    # Real enumerates whenever 2^G <= n_boot and the weights are Rademacher; `enumerate`
+    # forces or forbids it — and FORCING it when it is impossible is an error upstream,
+    # so mirror that rather than silently obliging (a mock looser than real hides a real
+    # failure).
+    can_enum = weights === :rademacher && G <= 20 && 2^G <= n_boot
+    if enumerate === true && !can_enum
+        throw(ArgumentError(
+            "enumerate=true requires Rademacher weights, G ≤ 20 and 2^G ≤ n_boot " *
+            "(G=$G, n_boot=$n_boot, weights=:$weights)"))
+    end
+    enumerated = enumerate === nothing ? can_enum : (enumerate === true)
+    nb = enumerated ? 2^min(G, 20) : n_boot
+    est = Float64(model.beta[idx])
+    WildClusterBootstrap{Float64}(model.varnames[idx], idx, est, Float64(null_value),
+                                  2.1, 0.07, 0.065, 0.03,
+                                  ci ? est - 0.4 : NaN, ci ? est + 0.4 : NaN,
+                                  Float64(level), fill(0.5, min(nb, 16)), nb, G,
+                                  weights, imposenull, enumerated)
+end
+
+struct MontielOleaPfluegerF{T<:AbstractFloat}
+    f_effective::T
+    critical_value::T
+    tau::T
+    weak::Bool
+    n_instruments::Int
+    bandwidth::Int
+    f_naive::T
+end
+
+const _MOP_SIMPLIFIED_CV = Dict(0.05 => 37.42, 0.10 => 23.11, 0.20 => 15.06, 0.30 => 12.04)
+
+function montiel_olea_pflueger_f(model::LPIVModel; tau::Real=0.10, bandwidth::Int=0)
+    haskey(_MOP_SIMPLIFIED_CV, Float64(tau)) || throw(ArgumentError(
+        "tau must be one of $(sort(collect(keys(_MOP_SIMPLIFIED_CV)))), got $tau"))
+    crit = _MOP_SIMPLIFIED_CV[Float64(tau)]
+    f_naive = Float64(first(model.first_stage_F))
+    f_eff = f_naive * 0.9
+    MontielOleaPfluegerF{Float64}(f_eff, crit, Float64(tau), f_eff < crit,
+                                  size(model.instruments, 2), bandwidth, f_naive)
+end
+
+struct LPIVARBand{T<:AbstractFloat}
+    lower::Matrix{T}
+    upper::Matrix{T}
+    sets::Matrix{Vector{Tuple{T,T}}}
+    bounded::Matrix{Bool}
+    is_empty::Matrix{Bool}
+    wald_lower::Matrix{T}
+    wald_upper::Matrix{T}
+    point::Matrix{T}
+    bandwidths::Matrix{Int}
+    horizon::Int
+    level::T
+    critical_value::T
+    df1::Int
+    response_names::Vector{String}
+    shock_name::String
+end
+
+function lp_iv_ar_band(model::LPIVModel; level::Real=0.95, n_grid::Int=401,
+                       span::Real=20, bandwidth::Int=0, responses=nothing)
+    (0 < level < 1) || throw(ArgumentError("level must be in (0, 1)"))
+    n_grid >= 5 || throw(ArgumentError("n_grid must be at least 5"))
+    H = model.horizon
+    names = model.varnames[model.response_vars]
+    nr = length(names)
+    responses === nothing || (all(1 .<= responses .<= nr) || throw(ArgumentError(
+        "responses must index into 1:$nr")))
+    idx = responses === nothing ? collect(1:nr) : responses
+    nk = length(idx)
+    pt = fill(0.1, H + 1, nk)
+    lo = fill(-0.4, H + 1, nk)
+    hi = fill(0.6, H + 1, nk)
+    bnd = trues(H + 1, nk)
+    emp = falses(H + 1, nk)
+    # Real routinely returns unbounded cells at long horizons; make the LAST horizon
+    # unbounded so a renderer that assumes finite bounds fails at T1/T2, not in production.
+    lo[H + 1, :] .= -Inf
+    bnd[H + 1, :] .= false
+    sets = Matrix{Vector{Tuple{Float64,Float64}}}(undef, H + 1, nk)
+    for i in 1:(H + 1), j in 1:nk
+        sets[i, j] = [(lo[i, j], hi[i, j])]
+    end
+    LPIVARBand{Float64}(lo, hi, sets, bnd, emp, pt .- 0.3, pt .+ 0.3, pt,
+                        fill(max(bandwidth, 1), H + 1, nk), H, Float64(level), 3.84,
+                        size(model.instruments, 2), names[idx], "$(model.varnames[model.shock_var]) (IV)")
+end
+
+report(t::AndersonRubinTest) = "AndersonRubinTest mock report"
+report(c::AndersonRubinCI) = "AndersonRubinCI mock report"
+report(b::WildClusterBootstrap) = "WildClusterBootstrap mock report"
+report(m::MontielOleaPfluegerF) = "MontielOleaPfluegerF mock report"
+report(b::LPIVARBand) = "LPIVARBand mock report"
+
+export AndersonRubinTest, AndersonRubinCI, anderson_rubin_test, anderson_rubin_ci,
+       WildClusterBootstrap, wild_cluster_bootstrap,
+       MontielOleaPfluegerF, montiel_olea_pflueger_f, LPIVARBand, lp_iv_ar_band
 
 # ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
 #

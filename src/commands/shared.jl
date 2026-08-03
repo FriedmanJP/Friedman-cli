@@ -1572,12 +1572,19 @@ end
 # ── Regression Helpers ────────────────────────────────────
 
 """
-    _load_reg_data(data, dep; weights_col="", clusters_col="") → (y, X, varnames)
+    _load_reg_data(data, dep; weights_col="", clusters_col="", exclude_cols=String[])
+        → (y, X, varnames)
 
 Load CSV, split into dependent variable y and regressor matrix X.
 If dep is empty, uses first numeric column as y.
+
+`exclude_cols` drops further numeric columns from X without their having to be the
+weights/clusters column. W10/#112 needs it for the Conley coordinate and time columns:
+latitude/longitude are ordinary numeric CSV columns, so without this they would silently
+enter the design matrix as regressors — a wrong point estimate, not an error.
 """
-function _load_reg_data(data::String, dep::String; weights_col::String="", clusters_col::String="")
+function _load_reg_data(data::String, dep::String; weights_col::String="", clusters_col::String="",
+                        exclude_cols::Vector{String}=String[])
     df = load_data(data)
     numcols = variable_names(df)
     # Guard an all-non-numeric CSV before defaulting `--dep` to numcols[1] (else BoundsError →
@@ -1594,6 +1601,9 @@ function _load_reg_data(data::String, dep::String; weights_col::String="", clust
     exclude = Set([dep_col])
     !isempty(weights_col) && push!(exclude, weights_col)
     !isempty(clusters_col) && push!(exclude, clusters_col)
+    for c in exclude_cols
+        isempty(c) || push!(exclude, c)
+    end
     xcols = filter(c -> !(c in exclude), numcols)
     isempty(xcols) && throw(CliError("data/invalid",
         "no regressor columns remaining after excluding dep='$dep_col'"))
@@ -1636,7 +1646,8 @@ condition) or a degenerate regressor set → `data/invalid` (3); a missing cell 
 consumed column → `data/missing-values` (3), guarded BEFORE the `Matrix{Float64}`
 conversion that would otherwise throw an untyped `ArgumentError`.
 """
-function _load_iv_data(data::String, dep::String, endogenous::String, instruments::String)
+function _load_iv_data(data::String, dep::String, endogenous::String, instruments::String;
+                       clusters_col::String="")
     isempty(endogenous) && throw(CliError("usage/missing",
         "--endogenous is required (comma-separated endogenous regressor column names)"))
     isempty(instruments) && throw(CliError("usage/missing",
@@ -1676,12 +1687,26 @@ function _load_iv_data(data::String, dep::String, endogenous::String, instrument
     length(inst_names) >= length(endog_names) || throw(CliError("data/invalid",
         "under-identified: need at least as many excluded instruments ($(length(inst_names))) as endogenous regressors ($(length(endog_names)))"))
 
+    # W10/#112: the cluster column is an ordinary numeric CSV column, so it must be kept out
+    # of BOTH X and Z — otherwise a clustered AR test would silently regress on its own
+    # cluster ids. `_load_clusters` reads it separately.
+    if !isempty(clusters_col)
+        clusters_col in names(df) || throw(CliError("data/column-range",
+            "cluster column '$clusters_col' not found; available: $(join(names(df), ", "))"))
+        clusters_col == dep_col && throw(CliError("data/column-range",
+            "cluster column '$clusters_col' cannot be the dependent variable"))
+        clusters_col in endog_names && throw(CliError("data/column-range",
+            "cluster column '$clusters_col' cannot also be an endogenous regressor"))
+        clusters_col in inst_names && throw(CliError("data/column-range",
+            "cluster column '$clusters_col' cannot also be an excluded instrument"))
+    end
+    drop = c -> c == dep_col || (!isempty(clusters_col) && c == clusters_col)
     # X = exogenous + endogenous (exclude dep and the excluded instruments).
-    xcols = filter(c -> c != dep_col && !(c in inst_names), numcols)
+    xcols = filter(c -> !drop(c) && !(c in inst_names), numcols)
     isempty(xcols) && throw(CliError("data/invalid",
         "no regressor columns remaining after excluding dep='$dep_col' and the instruments"))
     # Z = exogenous + excluded instruments (exclude dep and the endogenous regressors).
-    zcols = filter(c -> c != dep_col && !(c in endog_names), numcols)
+    zcols = filter(c -> !drop(c) && !(c in endog_names), numcols)
 
     endog_idx = Int[]
     for nm in endog_names
@@ -1768,16 +1793,84 @@ end
 function _load_clusters(data::String, clusters_col::String)
     isempty(clusters_col) && return nothing
     df = load_data(data)
-    clusters_col in names(df) || error("cluster column '$clusters_col' not found")
-    return Vector{Int}(df[!, clusters_col])
+    clusters_col in names(df) || throw(CliError("data/column-range",
+        "cluster column '$clusters_col' not found; available: $(join(names(df), ", "))"))
+    col = df[!, clusters_col]
+    any(ismissing, col) && throw(CliError("data/missing-values",
+        "cluster column '$clusters_col' contains missing values; every observation must " *
+        "belong to a cluster"))
+    # DENSE-RANK to Int codes rather than `Vector{Int}(col)`. Cluster identity is all that
+    # is ever used downstream (MEMs' `_cluster_vcov`/`wild_cluster_bootstrap` only call
+    # `unique` and group by equality), so the partition — and hence every result — is
+    # identical; but the old conversion raised an untyped `MethodError`/`InexactError` on a
+    # String or non-integral Float cluster column, i.e. exit 1 on ordinary input like
+    # `state = "CA"` or `firm_id = 3.0`. Ninth site in the shared-loader hardening class.
+    levels = unique(col)
+    code = Dict(v => i for (i, v) in enumerate(levels))
+    length(levels) >= 2 || throw(CliError("data/invalid",
+        "cluster column '$clusters_col' has only $(length(levels)) distinct value(s); " *
+        "cluster-robust inference needs at least 2 clusters"))
+    return Int[code[v] for v in col]
 end
 
 """Load observation weights from a CSV column, or return nothing."""
 function _load_weights(data::String, weights_col::String)
     isempty(weights_col) && return nothing
     df = load_data(data)
-    weights_col in names(df) || error("weights column '$weights_col' not found")
-    return Vector{Float64}(df[!, weights_col])
+    weights_col in names(df) || throw(CliError("data/column-range",
+        "weights column '$weights_col' not found; available: $(join(names(df), ", "))"))
+    col = df[!, weights_col]
+    any(ismissing, col) && throw(CliError("data/missing-values",
+        "weights column '$weights_col' contains missing values"))
+    w = try
+        Vector{Float64}(col)
+    catch
+        throw(CliError("data/invalid", "weights column '$weights_col' is not numeric"))
+    end
+    # MEMs throws a bare `ArgumentError("All weights must be positive")`; catch it here so
+    # a non-positive weight is typed user input rather than an internal exit-1.
+    all(>(0.0), w) || throw(CliError("data/invalid",
+        "weights column '$weights_col' must be strictly positive (found $(count(<=(0.0), w)) non-positive value(s))"))
+    return w
+end
+
+"""
+    _load_coords(data, lat_col, lon_col) → Matrix{Float64} (n × 2)
+
+Conley (1999) spatial-HAC coordinate loader (W10/#112). Both columns are required and are
+loaded as an `n × 2` `[lat lon]` matrix in the order `conley_se`/`estimate_reg` expect
+(`metric=:haversine` reads column 1 as latitude, column 2 as longitude). Missing cells are
+rejected BEFORE the `Matrix{Float64}` conversion that would otherwise throw untyped, and
+out-of-range degrees are caught here because `:haversine` would silently return nonsense
+distances rather than fail.
+"""
+function _load_coords(data::String, lat_col::String, lon_col::String, metric::String)
+    df = load_data(data)
+    for (role, c) in (("--lat", lat_col), ("--lon", lon_col))
+        c in names(df) || throw(CliError("data/column-range",
+            "$role column '$c' not found; available: $(join(names(df), ", "))"))
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "$role column '$c' contains missing values; coordinates must be fully observed"))
+    end
+    lat = try
+        Vector{Float64}(df[!, lat_col])
+    catch
+        throw(CliError("data/invalid", "--lat column '$lat_col' is not numeric"))
+    end
+    lon = try
+        Vector{Float64}(df[!, lon_col])
+    catch
+        throw(CliError("data/invalid", "--lon column '$lon_col' is not numeric"))
+    end
+    all(isfinite, lat) && all(isfinite, lon) || throw(CliError("data/invalid",
+        "coordinate columns '$lat_col'/'$lon_col' contain non-finite values"))
+    if metric == "haversine"
+        all(v -> -90.0 <= v <= 90.0, lat) || throw(CliError("data/invalid",
+            "--conley-metric haversine needs --lat '$lat_col' in degrees within [-90, 90]"))
+        all(v -> -180.0 <= v <= 180.0, lon) || throw(CliError("data/invalid",
+            "--conley-metric haversine needs --lon '$lon_col' in degrees within [-180, 180]"))
+    end
+    return hcat(lat, lon)
 end
 
 """Build coefficient table DataFrame from a regression model."""

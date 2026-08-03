@@ -3,7 +3,7 @@
 
 Generated reference for `friedman test` and its subcommands.
 
-**Leaves:** 89
+**Leaves:** 91
 
 ### `friedman test adf`
 
@@ -44,6 +44,36 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Output tables:** `adf_2break` (Path to CSV data file)
+
+---
+
+### `friedman test anderson-rubin`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
+| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance weighting the AR statistic; cluster additionally needs --clusters |
+| `--clusters` | — | `String` | `""` | — | Cluster column name (required for --cov-type cluster) |
+| `--beta0` | — | `String` | `""` | — | Hypothesized coefficient value(s) on the endogenous regressors, comma-separated (default: 0 for each) |
+| `--level` | — | `Float64` | `0.95` | — | Nominal coverage of the confidence set |
+| `--n-grid` | — | `Int64` | `1001` | — | Grid points used to invert the AR test |
+| `--span` | — | `Float64` | `20.0` | — | Search half-width around the 2SLS estimate, in standard errors |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-ci` | — | Report only the AR test at --beta0, skipping the inverted confidence set |
+
+**Output tables:** `anderson_rubin` (Path to CSV data file)
 
 ---
 
@@ -1885,6 +1915,37 @@ Path to CSV data file
 | `--no-cross-terms` | — | Omit the cross-product terms from the auxiliary regression |
 
 **Output tables:** `white` (Path to CSV data file)
+
+---
+
+### `friedman test wild-cluster`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--clusters` | — | `String` | `""` | — | Cluster column name (required) |
+| `--coefficient` | — | `String` | `""` | — | Regressor to test, by name (default: the first regressor) |
+| `--null` | — | `Float64` | `0.0` | — | Hypothesized value r in H0: beta_j = r |
+| `--boot-reps` | — | `Int64` | `999` | — | Bootstrap replications (ignored when the 2^G sign space is enumerated) |
+| `--boot-weights` | — | `String` | `rademacher` | `rademacher`, `webb` | Bootstrap weights; webb (6-point) is preferred when the cluster count is very small |
+| `--level` | — | `Float64` | `0.95` | — | Coverage of the inverted-test confidence interval |
+| `--ci-gridpoints` | — | `Int64` | `25` | — | Grid used to bracket the CI crossings |
+| `--enumerate-signs` | — | `String` | `auto` | `auto`, `yes`, `no` | Exact enumeration of the 2^G Rademacher sign vectors: auto enumerates whenever possible |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-impose-null` | — | Use the unrestricted WCU variant instead of the default restricted WCR |
+| `--no-ci` | — | Skip the inverted-test confidence interval |
+
+**Output tables:** `wild_cluster` (Path to CSV data file)
 
 ---
 

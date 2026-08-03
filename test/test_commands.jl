@@ -2987,7 +2987,7 @@ end  # Estimate handlers
         @test node isa NodeCommand
         @test node.name == "test"
         # 80 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 83
+        @test length(node.subcmds) == 85
         for cmd in ["llc", "ips", "breitung", "fisher-johansen", "dh-causality",
                      "white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
                      "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
@@ -5008,7 +5008,7 @@ end  # Forecast handlers
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 83  # 81 primary (+dispersion W2 #107) + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -6868,7 +6868,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 83  # 81 primary (+dispersion W2 #107) + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin
@@ -11009,6 +11009,300 @@ end
     end
 
 end  # Diagnostic warning branches
+
+# ═══════════════════════════════════════════════════════════════
+# W10/#112: micro inference riders
+# ═══════════════════════════════════════════════════════════════
+
+@testset "W10 micro inference riders" begin
+
+    """Cross-section CSV with lat/lon coordinate columns and an optional cluster column."""
+    function _w10_csv(dir; T=120, with_coords=true, with_cluster=false, string_cluster=false)
+        rng = MersenneTwister(4)
+        d = DataFrame(y=randn(rng, T), x=randn(rng, T))
+        if with_coords
+            d.lat = 30.0 .+ 10.0 .* rand(rng, T)
+            d.lon = -100.0 .+ 10.0 .* rand(rng, T)
+        end
+        if with_cluster
+            g = repeat(1:6, inner=cld(T, 6))[1:T]
+            d.cl = string_cluster ? ["g$(v)" for v in g] : Float64.(g)
+        end
+        path = joinpath(dir, "w10_$(with_coords)_$(with_cluster)_$(string_cluster).csv")
+        CSV.write(path, d)
+        return path
+    end
+
+    @testset "_estimate_reg — conley euclidean + haversine" begin
+        mktempdir() do dir
+            csv = _w10_csv(dir)
+            for metric in ("euclidean", "haversine")
+                out = _capture() do
+                    _estimate_reg(; data=csv, dep="y", cov_type="conley",
+                                   lat="lat", lon="lon", dist_cutoff=100.0,
+                                   conley_metric=metric, format="table", output="")
+                end
+                @test occursin("Conley", out)
+            end
+        end
+    end
+
+    @testset "_estimate_reg — conley spatial+serial" begin
+        mktempdir() do dir
+            rng = MersenneTwister(5)
+            T = 100
+            d = DataFrame(y=randn(rng, T), x=randn(rng, T),
+                          lat=rand(rng, T), lon=rand(rng, T),
+                          yr=Float64.(repeat(1:10, inner=10)))
+            csv = joinpath(dir, "conley_time.csv"); CSV.write(csv, d)
+            out = _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley",
+                               lat="lat", lon="lon", dist_cutoff=0.5,
+                               time_col="yr", time_cutoff=2, format="table", output="")
+            end
+            @test occursin("Conley", out)
+        end
+    end
+
+    @testset "_estimate_reg — conley guards" begin
+        mktempdir() do dir
+            csv = _w10_csv(dir)
+            # conley without coordinates / without a cutoff
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley",
+                               lat="lat", lon="lon", format="table")
+            end
+            # coordinates supplied under another cov-type: a usage error, not a no-op
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="hc1",
+                               lat="lat", lon="lon", format="table")
+            end
+            # --time-cutoff without --time-col
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley", lat="lat",
+                               lon="lon", dist_cutoff=10.0, time_cutoff=2, format="table")
+            end
+            # unknown coordinate column
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley", lat="nope",
+                               lon="lon", dist_cutoff=10.0, format="table")
+            end
+            # cluster cov-type with no cluster column
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="cluster", format="table")
+            end
+        end
+    end
+
+    @testset "_estimate_preg — absorb + guards" begin
+        mktempdir() do dir
+            rng = MersenneTwister(6)
+            N, T = 8, 10
+            d = DataFrame(id=repeat(1:N, inner=T), time=repeat(1:T, N),
+                          y=randn(rng, N * T), x=randn(rng, N * T),
+                          region=Float64.(rand(rng, 1:3, N * T)))
+            csv = joinpath(dir, "hdfe.csv"); CSV.write(csv, d)
+            out = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,time",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test occursin("HDFE", out) || occursin("Absorb", out)
+            # a named panel-variable dimension resolves too
+            _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,region",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            # guards
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,time",
+                                twoway=true, id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,entity",
+                                id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity",
+                                method="re", id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", hdfe_tol=1e-5,
+                                id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity",
+                                hdfe_maxiter=0, id_col="id", time_col="time", format="table")
+            end
+        end
+    end
+
+    @testset "_test_wild_cluster — numeric and string clusters" begin
+        mktempdir() do dir
+            for sc in (false, true)
+                csv = _w10_csv(dir; with_coords=false, with_cluster=true, string_cluster=sc)
+                out = _capture() do
+                    _test_wild_cluster(; data=csv, dep="y", clusters="cl",
+                                        coefficient="x", format="table", output="")
+                end
+                @test occursin("Wild Cluster", out) || occursin("bootstrap", out)
+            end
+        end
+    end
+
+    @testset "_test_wild_cluster — variants and guards" begin
+        mktempdir() do dir
+            csv = _w10_csv(dir; with_coords=false, with_cluster=true)
+            _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", coefficient="x",
+                                    boot_weights="webb", no_impose_null=true, no_ci=true,
+                                    enumerate_signs="no", format="table", output="")
+            end
+            _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", coefficient="x",
+                                    enumerate_signs="yes", format="table", output="")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl",
+                                    coefficient="nope", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", boot_reps=0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", level=1.5, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="nope", format="table")
+            end
+        end
+    end
+
+    @testset "_test_anderson_rubin — set shapes" begin
+        mktempdir() do dir
+            rng = MersenneTwister(8)
+            T = 150
+            d = DataFrame("y" => randn(rng, T), "const" => fill(1.0, T),
+                          "x2" => randn(rng, T), "x_endog" => randn(rng, T),
+                          "z1" => randn(rng, T), "z2" => randn(rng, T))
+            csv = joinpath(dir, "ar.csv"); CSV.write(csv, d)
+            # Every degenerate set shape must render: the whole point of the leaf is that
+            # an AR set is not always `[lo, hi]`.
+            for shape in (:bounded, :unbounded, :disjoint, :whole, :empty)
+                _MOCK_FLAGS[:ar_set_shape] = shape
+                out = _capture() do
+                    _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                          instruments="z1,z2", format="table", output="")
+                end
+                @test occursin("Anderson", out)
+            end
+            _MOCK_FLAGS[:ar_set_shape] = :bounded
+
+            # --no-ci, explicit --beta0, and the clustered path
+            _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", beta0="0.5", no_ci=true,
+                                      format="table", output="")
+            end
+            dc = copy(d); dc.cl = Float64.(repeat(1:5, inner=cld(T, 5))[1:T])
+            ccsv = joinpath(dir, "arcl.csv"); CSV.write(ccsv, dc)
+            _capture() do
+                _test_anderson_rubin(; data=ccsv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", cov_type="cluster",
+                                      clusters="cl", format="table", output="")
+            end
+
+            # Two endogenous regressors: the TEST still runs, the confidence set is skipped
+            # (upstream inverts over a single coefficient only) — not an error.
+            out2 = _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog,x2",
+                                      instruments="z1,z2", format="table", output="")
+            end
+            @test occursin("Anderson", out2)
+
+            # guards
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", cov_type="cluster", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=ccsv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", clusters="cl", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", beta0="1,2", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", beta0="abc", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", level=0.0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", n_grid=2, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", span=0.0, format="table")
+            end
+        end
+    end
+
+    @testset "_estimate_lp — iv MOP + AR bands" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            zcsv = _make_instruments_csv(dir; T=120, n_inst=1)
+            _capture() do
+                _estimate_lp(; data=csv, method="iv", shock=1, horizons=5,
+                              control_lags=2, vcov="newey_west", instruments=zcsv,
+                              mop_f=true, format="table", output="")
+            end
+            _capture() do
+                _estimate_lp(; data=csv, method="iv", shock=1, horizons=4,
+                              control_lags=2, vcov="newey_west", instruments=zcsv,
+                              ar_bands=true, ar_grid=51, format="table", output="")
+            end
+            # riders are iv-only
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="standard", mop_f=true, format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="smooth", ar_span=5.0, format="table")
+            end
+            # tau is a closed four-member set; the grid/level are validated
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments=zcsv,
+                              mop_f=true, mop_tau=0.15, format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments=zcsv,
+                              ar_bands=true, ar_grid=2, format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments=zcsv,
+                              ar_bands=true, ar_level=1.0, format="table")
+            end
+            # missing --instruments is now a typed usage error, not a bare error()
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments="", format="table")
+            end
+        end
+    end
+
+end  # W10 micro inference riders
+
 
 # ═══════════════════════════════════════════════════════════════
 # Task 6: HD verify_decomposition failure + estimate diagnostics

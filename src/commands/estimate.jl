@@ -239,10 +239,27 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="transition", type=String, default="logistic", description="logistic|exponential|indicator (state only)"),
                 OptionSpec(name="treatment", type=Int, default=1, description="Treatment variable index (propensity/robust only)"),
                 OptionSpec(name="score-method", type=String, default="logit", description="logit|probit (propensity/robust only)"),
+                # W10/#112 weak-instrument-robust LP-IV (iv only). Both are OFF by default so
+                # the existing `estimate lp --method iv` envelope is unchanged; the AR band in
+                # particular inverts a test over a grid at every horizon × response and is far
+                # from free.
+                OptionSpec(name="mop-tau", type=Float64, default=0.10,
+                           description="MOP worst-case relative-bias target: 0.05|0.10|0.20|0.30 (iv, with --mop-f)"),
+                OptionSpec(name="mop-bandwidth", type=Int, default=0,
+                           description="HAC lag length for the MOP effective F; 0 = auto (iv, with --mop-f)"),
+                OptionSpec(name="ar-level", type=Float64, default=0.95,
+                           description="Coverage for the AR bands (iv, with --ar-bands)"),
+                OptionSpec(name="ar-grid", type=Int, default=401,
+                           description="Grid points per horizon×response when inverting the AR test (iv, with --ar-bands)"),
+                OptionSpec(name="ar-span", type=Float64, default=20.0,
+                           description="AR search half-width in 2SLS standard errors (iv, with --ar-bands)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="mop-f", description="Report the Montiel Olea-Pflueger effective first-stage F (LP-IV)"),
+                FlagSpec(name="ar-bands", description="Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV)")
+            ],
             tables=[TableSpec(name=:estimate_lp, description="Path to CSV data file")],
             category="estimate",
             handler=wrap_legacy(_estimate_lp),
@@ -1170,8 +1187,33 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                REG_OPTIONS...,
-                OptionSpec(name="weights", type=String, default="", description="Weight column name (WLS)")
+                # W10/#112: cov-type is WIDENED with `conley` for THIS leaf only. REG_OPTIONS
+                # is shared with logit/probit/ologit/oprobit/mlogit and the predict/residuals
+                # family, whose estimators take no :conley and whose handlers accept no
+                # coords/cutoff kwargs — declaring an option a handler cannot feed through is
+                # an exit-1 on every invocation (#85). Same pattern as `estimate preg`'s pcse.
+                map(o -> o.name == "cov-type" ?
+                        OptionSpec(name="cov-type", type=String, default="hc1",
+                                   choices=["ols", "hc0", "hc1", "hc2", "hc3", "cluster", "conley"],
+                                   description="ols|hc0|hc1|hc2|hc3|cluster|conley (Conley spatial HAC; needs --lat/--lon/--dist-cutoff)") : o,
+                    REG_OPTIONS)...,
+                OptionSpec(name="weights", type=String, default="", description="Weight column name (WLS)"),
+                OptionSpec(name="lat", type=String, default="",
+                           description="Latitude (or first coordinate) column — required for --cov-type conley"),
+                OptionSpec(name="lon", type=String, default="",
+                           description="Longitude (or second coordinate) column — required for --cov-type conley"),
+                OptionSpec(name="dist-cutoff", type=Float64, default=0.0,
+                           description="Conley spatial cutoff: km for --conley-metric haversine, coordinate units for euclidean"),
+                OptionSpec(name="conley-kernel", type=String, default="bartlett",
+                           choices=["bartlett", "uniform"],
+                           description="Conley spatial kernel: bartlett (tapered) or uniform"),
+                OptionSpec(name="conley-metric", type=String, default="euclidean",
+                           choices=["euclidean", "haversine"],
+                           description="Distance metric: euclidean (projected coords) or haversine (degrees → km)"),
+                OptionSpec(name="time-col", type=String, default="",
+                           description="Time column for Conley spatial+serial correlation (needs --time-cutoff)"),
+                OptionSpec(name="time-cutoff", type=Int, default=0,
+                           description="Conley serial-correlation lag cutoff (0 = spatial only)")
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:estimate_reg, description="Path to CSV data file")],
@@ -1348,7 +1390,16 @@ function estimate_specs()::Vector{CommandSpec}
                                    description="ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs)") : o,
                     PREG_OPTIONS)...;
                 OptionSpec(name="ar1", type=String, default="none", description="Prais-Winsten AR(1) correction", choices=["none","common","panel-specific"]);
-                OptionSpec(name="pcse-unbalanced", type=String, default="casewise", description="Unbalanced-panel handling for --cov-type pcse", choices=["casewise","pairwise"])
+                OptionSpec(name="pcse-unbalanced", type=String, default="casewise", description="Unbalanced-panel handling for --cov-type pcse", choices=["casewise","pairwise"]);
+                # W10/#112 reghdfe-style absorption. `entity`/`time`/`cohort` (and the
+                # aliases id/unit/group/period) resolve to the panel indices; anything else
+                # must name a panel variable column.
+                OptionSpec(name="absorb", type=String, default="",
+                           description="Comma-separated high-dimensional FE dimensions to absorb (entity, time, cohort, or a column name); --method fe only");
+                OptionSpec(name="hdfe-tol", type=Float64, default=1e-8,
+                           description="Absorption convergence tolerance");
+                OptionSpec(name="hdfe-maxiter", type=Int, default=1000,
+                           description="Maximum alternating-projection iterations")
             ],
             flags=[
                 FlagSpec(name="twoway", description="Include time fixed effects")
@@ -1587,12 +1638,32 @@ function _estimate_lp(; data::String, method::String="standard", shock::Int=1,
                        instruments::String="", knots::Int=3, lambda::Float64=0.0,
                        state_var=nothing, gamma::Float64=1.5, transition::String="logistic",
                        treatment::Int=1, score_method::String="logit",
+                       mop_f::Bool=false, mop_tau::Float64=0.10, mop_bandwidth::Int=0,
+                       ar_bands::Bool=false, ar_level::Float64=0.95, ar_grid::Int=401,
+                       ar_span::Float64=20.0,
                        output::String="", format::String="table")
     validate_method(method, ["standard", "iv", "smooth", "state", "propensity", "robust"], "LP method")
+    # W10/#112: the weak-IV riders only exist on the LP-IV path. Silently ignoring them under
+    # another --method would let an agent believe it got robust bands it never received.
+    if method != "iv"
+        set = String[]
+        mop_f && push!(set, "--mop-f")
+        ar_bands && push!(set, "--ar-bands")
+        mop_tau == 0.10 || push!(set, "--mop-tau")
+        mop_bandwidth == 0 || push!(set, "--mop-bandwidth")
+        ar_level == 0.95 || push!(set, "--ar-level")
+        ar_grid == 401 || push!(set, "--ar-grid")
+        ar_span == 20.0 || push!(set, "--ar-span")
+        isempty(set) || throw(CliError("usage/invalid",
+            "estimate lp: $(join(set, ", ")) applies only to --method iv (got --method $method)"))
+    end
     if method == "standard"
         return _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
     elseif method == "iv"
-        return _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format)
+        return _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format;
+                               mop_f=mop_f, mop_tau=mop_tau, mop_bandwidth=mop_bandwidth,
+                               ar_bands=ar_bands, ar_level=ar_level, ar_grid=ar_grid,
+                               ar_span=ar_span)
     elseif method == "smooth"
         return _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
     elseif method == "state"
@@ -1646,8 +1717,14 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
         title="LP Coefficients ($shock_name → responses)", format=format, output=output)
 
     _status()
+    # `LPModel.T_eff` is a Vector{Int} of length H+1 — the sample shrinks as h grows. The old
+    # code nested the whole vector into one kv cell (the `data describe` defect: an agent
+    # reading a scalar-looking key gets an array). Report the endpoints instead. Found while
+    # fixing the LP-IV path in W10/#112.
+    t_eff = collect(Int.(model.T_eff))
     output_kv(Pair{String,Any}[
-        "Effective observations" => model.T_eff,
+        "Effective observations (h=0)" => first(t_eff),
+        "Effective observations (min)" => minimum(t_eff),
         "Covariance estimator" => vcov,
         "Horizons" => horizons,
         "Control lags" => control_lags,
@@ -1655,8 +1732,30 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
     return model
 end
 
-function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format)
-    isempty(instruments) && error("LP-IV requires --instruments=<file.csv>")
+function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format;
+                         mop_f::Bool=false, mop_tau::Float64=0.10, mop_bandwidth::Int=0,
+                         ar_bands::Bool=false, ar_level::Float64=0.95, ar_grid::Int=401,
+                         ar_span::Float64=20.0)
+    # was a bare error() → untyped exit 1 for an ordinary missing-option mistake
+    isempty(instruments) && throw(CliError("usage/missing",
+        "estimate lp --method iv requires --instruments <file.csv>";
+        hint="the instruments live in their own CSV, one column per excluded instrument"))
+    # MOP publishes only the four tabulated simplified critical values; anything else is an
+    # untyped ArgumentError from inside the estimator.
+    if mop_f
+        mop_tau in (0.05, 0.10, 0.20, 0.30) || throw(CliError("usage/invalid",
+            "estimate lp: --mop-tau must be one of 0.05, 0.10, 0.20, 0.30 (got $mop_tau)"))
+        mop_bandwidth >= 0 || throw(CliError("usage/invalid",
+            "estimate lp: --mop-bandwidth must be ≥ 0 (got $mop_bandwidth)"))
+    end
+    if ar_bands
+        (0.0 < ar_level < 1.0) || throw(CliError("usage/invalid",
+            "estimate lp: --ar-level must be in (0, 1) (got $ar_level)"))
+        ar_grid >= 5 || throw(CliError("usage/invalid",
+            "estimate lp: --ar-grid must be ≥ 5 (got $ar_grid)"))
+        ar_span > 0.0 || throw(CliError("usage/invalid",
+            "estimate lp: --ar-span must be > 0 (got $ar_span)"))
+    end
 
     Y, varnames = load_multivariate_data(data)
     Z, _ = load_multivariate_data(instruments)
@@ -1666,16 +1765,32 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
     _status("Estimating LP-IV: shock=$shock_name, horizons=$horizons, instruments=$(size(Z, 2))")
     _status()
 
-    model = estimate_lp_iv(Y, shock, Z, horizons; lags=control_lags, cov_type=Symbol(vcov))
+    model = try
+        estimate_lp_iv(Y, shock, Z, horizons; lags=control_lags, cov_type=Symbol(vcov),
+                       varnames=varnames)
+    catch e
+        throw(_domain_or_data_error(e, "LP-IV estimation"))
+    end
 
-    # First-stage diagnostics
+    # First-stage diagnostics.
+    # W10/#112 — THIS LEAF WAS DEAD ON REAL MEMs. `weak_instrument_test(::LPIVModel)` returns
+    # `(F_stats, weak_horizons, min_F, passes_threshold, threshold)`; the old code read
+    # `wi.F_stat`, a name real does not have, so every `estimate lp --method iv` invocation
+    # exited 1 with an untyped FieldError. The mock had INVENTED `(F_stat=…, is_weak=…)`,
+    # which kept T1/T2 green, and `estimate lp` had T3 coverage only for --method standard.
+    # Same class as #84: a mock more permissive than real hides a guaranteed production crash.
+    # The F is per-horizon (LP-IV re-estimates the first stage at every h), so the summary
+    # reports the MINIMUM — the binding one — not a single scalar that does not exist.
     wi = weak_instrument_test(model)
+    f_stats = collect(Float64.(wi.F_stats))
+    min_f = Float64(wi.min_F)
     _status("First-stage diagnostics:")
-    _status("  F-statistic: $(round(wi.F_stat; digits=2))")
-    if wi.F_stat < 10
-        _status_styled("  Warning: Weak instruments (F < 10)\n"; color=:yellow)
+    _status("  F-statistic: min $(round(min_f; digits=2)) over $(length(f_stats)) horizon(s)")
+    if !wi.passes_threshold
+        _status_styled("  Warning: Weak instruments (F < 10) at horizon(s) " *
+            "$(join(wi.weak_horizons .- 1, ", "))\n"; color=:yellow)
     else
-        _status_styled("  Instruments appear strong (F >= 10)\n"; color=:green)
+        _status_styled("  Instruments appear strong (F >= 10 at every horizon)\n"; color=:green)
     end
     _status()
 
@@ -1685,13 +1800,90 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         title="LP-IV Coefficients ($shock_name → responses)", format=format, output=output)
 
     _status()
+    # `T_eff` is also per-horizon (the sample shrinks as h grows), so nesting the whole
+    # vector in one kv cell would repeat the `data describe` defect — report the endpoints.
+    t_eff = collect(Int.(model.T_eff))
     output_kv(Pair{String,Any}[
-        "Effective observations" => model.T_eff,
+        "Effective observations (h=0)" => first(t_eff),
+        "Effective observations (min)" => minimum(t_eff),
         "Covariance estimator" => vcov,
-        "First-stage F" => round(wi.F_stat; digits=2),
+        "First-stage F (min)" => round(min_f; digits=2),
+        "First-stage F (h=0)" => round(first(f_stats); digits=2),
+        "Weak horizons" => length(wi.weak_horizons),
         "Instruments" => size(Z, 2),
     ]; format=format, title="LP-IV Estimation Summary")
+
+    # ── W10/#112: weak-instrument-robust LP-IV diagnostics ──────────────────
+    if mop_f
+        mop = try
+            montiel_olea_pflueger_f(model; tau=mop_tau, bandwidth=mop_bandwidth)
+        catch e
+            throw(_domain_or_data_error(e, "Montiel Olea-Pflueger effective F"))
+        end
+        _status()
+        output_kv(Pair{String,Any}[
+            "f_effective"     => round(Float64(mop.f_effective); digits=4),
+            "critical_value"  => round(Float64(mop.critical_value); digits=4),
+            "tau"             => Float64(mop.tau),
+            "weak"            => mop.weak,
+            "n_instruments"   => mop.n_instruments,
+            "bandwidth"       => mop.bandwidth,
+            "f_naive"         => round(Float64(mop.f_naive); digits=4),
+        ]; format=format, title="Montiel Olea-Pflueger Effective F")
+        mop.weak && _status_styled(
+            "  Effective F $(round(Float64(mop.f_effective); digits=2)) < MOP critical value " *
+            "$(round(Float64(mop.critical_value); digits=2)): the 2SLS bands above are unreliable — " *
+            "rerun with --ar-bands for weak-instrument-robust bands\n"; color=:yellow)
+    end
+
+    if ar_bands
+        band = try
+            lp_iv_ar_band(model; level=ar_level, n_grid=ar_grid, span=ar_span)
+        catch e
+            throw(_domain_or_data_error(e, "LP-IV Anderson-Rubin bands"))
+        end
+        # Second output_result on this handler → its own --output path, or the coefficient
+        # table written above would be silently overwritten.
+        output_result(_lp_ar_band_table(band);
+            format=Symbol(format), output=_per_var_output_path(output, "ar_bands"),
+            title="LP-IV Anderson-Rubin Bands ($(round(Int, 100 * ar_level))%)")
+        n_unb = count(!, band.bounded)
+        n_unb > 0 && _status_styled(
+            "  $n_unb of $(length(band.bounded)) AR cells are unbounded: at those horizons the " *
+            "instrument cannot bound the response and the Wald band is over-confident\n";
+            color=:yellow)
+    end
     return model
+end
+
+"""
+Tidy (C051) rendering of an `LPIVARBand`: one row per horizon × response.
+
+`lower`/`upper` are the ENVELOPE of the AR set, which may be `±Inf` — an unbounded AR set
+is the substantive finding under weak identification, so it is reported rather than
+truncated (`_json_safe` renders the infinities as `"Inf"`/`"-Inf"` in the envelope). A set
+that is a union of disjoint components carries `n_components > 1`; `is_empty` marks the
+over-identification rejection where no value of θ is consistent with the instruments.
+"""
+function _lp_ar_band_table(band)
+    H = band.horizon
+    resp = band.response_names
+    rows = NamedTuple[]
+    for j in eachindex(resp), h in 0:H
+        i = h + 1
+        push!(rows, (horizon = h,
+                     response = resp[j],
+                     irf = Float64(band.point[i, j]),
+                     ar_lower = Float64(band.lower[i, j]),
+                     ar_upper = Float64(band.upper[i, j]),
+                     n_components = length(band.sets[i, j]),
+                     bounded = band.bounded[i, j],
+                     is_empty = band.is_empty[i, j],
+                     wald_lower = Float64(band.wald_lower[i, j]),
+                     wald_upper = Float64(band.wald_upper[i, j]),
+                     bandwidth = band.bandwidths[i, j]))
+    end
+    return DataFrame(rows)
 end
 
 function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
@@ -2850,19 +3042,99 @@ end
 
 function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
                         weights::String="", clusters::String="",
+                        lat::String="", lon::String="", dist_cutoff::Float64=0.0,
+                        conley_kernel::String="bartlett", conley_metric::String="euclidean",
+                        time_col::String="", time_cutoff::Int=0,
                         output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; weights_col=weights, clusters_col=clusters)
+    # ── W10/#112: Conley (1999) spatial HAC ─────────────────────────────────
+    # Guard the whole option group up front and in BOTH directions: choosing `conley`
+    # without coordinates, and supplying coordinates under another cov-type (which would
+    # otherwise be a silent no-op that reads as spatially-corrected inference).
+    is_conley = cov_type == "conley"
+    conley_opts = [("--lat", !isempty(lat)), ("--lon", !isempty(lon)),
+                   ("--dist-cutoff", dist_cutoff != 0.0),
+                   ("--time-col", !isempty(time_col)), ("--time-cutoff", time_cutoff != 0)]
+    if is_conley
+        (!isempty(lat) && !isempty(lon)) || throw(CliError("usage/missing",
+            "estimate reg --cov-type conley requires both --lat and --lon coordinate columns";
+            hint="e.g. --cov-type conley --lat latitude --lon longitude --dist-cutoff 100"))
+        dist_cutoff > 0.0 || throw(CliError("usage/invalid",
+            "estimate reg: --dist-cutoff must be > 0 for --cov-type conley (got $dist_cutoff)";
+            hint="km for --conley-metric haversine, coordinate units for euclidean"))
+        time_cutoff >= 0 || throw(CliError("usage/invalid",
+            "estimate reg: --time-cutoff must be ≥ 0 (got $time_cutoff)"))
+        # A time cutoff without a time column silently degrades to spatial-only, and a time
+        # column with cutoff 0 does nothing — both mean the user did not get what they asked.
+        (isempty(time_col) == (time_cutoff == 0)) || throw(CliError("usage/invalid",
+            "estimate reg: --time-col and --time-cutoff must be given together for " *
+            "spatial+serial Conley (got --time-col '$time_col', --time-cutoff $time_cutoff)"))
+    else
+        set = [n for (n, given) in conley_opts if given]
+        isempty(set) || throw(CliError("usage/invalid",
+            "estimate reg: $(join(set, ", ")) applies only to --cov-type conley (got --cov-type $cov_type)"))
+    end
+
+    coords = is_conley ? _load_coords(data, lat, lon, conley_metric) : nothing
+    tvec = nothing
+    if is_conley && !isempty(time_col)
+        df_t = load_data(data)
+        time_col in names(df_t) || throw(CliError("data/column-range",
+            "--time-col '$time_col' not found; available: $(join(names(df_t), ", "))"))
+        any(ismissing, df_t[!, time_col]) && throw(CliError("data/missing-values",
+            "--time-col '$time_col' contains missing values"))
+        # Upstream forms the serial lag as `abs(t_i - t_j)` and gives any NON-INTEGER gap
+        # zero weight. So a String time column is an untyped MethodError deep inside the
+        # loop, and — worse — a Float column with fractional values is a SILENT no-op: the
+        # serial correction runs and contributes nothing. Require an integral period index.
+        traw = collect(df_t[!, time_col])
+        tnum = try
+            Vector{Float64}(traw)
+        catch
+            throw(CliError("data/invalid",
+                "--time-col '$time_col' must be a numeric period index (e.g. a year or a " *
+                "1..T counter); dates and labels are not supported"))
+        end
+        all(v -> isfinite(v) && v == round(v), tnum) || throw(CliError("data/invalid",
+            "--time-col '$time_col' must hold whole-number periods — upstream gives any " *
+            "non-integer time gap zero weight, so a fractional column silently disables " *
+            "the serial correction instead of failing"))
+        tvec = Int.(round.(tnum))
+    end
+    # The coordinate/time columns are numeric, so `_load_reg_data` would otherwise pull them
+    # into X as regressors — a wrong point estimate that no error would reveal.
+    drop_cols = is_conley ? filter(!isempty, String[lat, lon, time_col]) : String[]
+
+    y, X, xcols = _load_reg_data(data, dep; weights_col=weights, clusters_col=clusters,
+                                 exclude_cols=drop_cols)
     w = _load_weights(data, weights)
     cl = _load_clusters(data, clusters)
+    if cov_type == "cluster" && cl === nothing
+        throw(CliError("usage/missing",
+            "estimate reg --cov-type cluster requires --clusters <column>"))
+    end
 
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     wls_tag = isnothing(w) ? "OLS" : "WLS"
     _status("$wls_tag Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
+    if is_conley
+        _status("  Conley HAC: coords=($lat, $lon), metric=$conley_metric, kernel=$conley_kernel, cutoff=$dist_cutoff")
+        isempty(time_col) || _status("  Conley serial: time=$time_col, lag cutoff=$time_cutoff")
+    end
     _status()
 
-    model = estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w,
-                         varnames=xcols, clusters=cl)
+    model = try
+        estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w,
+                     varnames=xcols, clusters=cl,
+                     coords=coords, cutoff=dist_cutoff,
+                     conley_kernel=Symbol(conley_kernel),
+                     conley_metric=Symbol(conley_metric),
+                     time=tvec, time_cutoff=time_cutoff)
+    catch e
+        # NOT `_garch_variant_error`: its hint talks about series length and p/q orders,
+        # which is nonsense for a cross-section regression.
+        throw(_domain_or_data_error(e, "OLS/WLS regression"))
+    end
 
     coef_df = _reg_coef_table(model, xcols)
     output_result(coef_df; format=Symbol(format), output=output, title="$wls_tag Regression Coefficients")
@@ -2880,6 +3152,26 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
         "BIC"             => round(bic(model); digits=4),
     ]
     output_kv(pairs; format=format, title="Fit Statistics")
+
+    # Emitted ONLY under --cov-type conley, so the existing `estimate reg` envelope stays
+    # byte-identical when the new options are not used. The settings belong in the data
+    # because a Conley SE is meaningless without the cutoff/metric that produced it.
+    if is_conley
+        cpairs = Pair{String,Any}[
+            "cov_type"      => "conley",
+            "lat_column"    => lat,
+            "lon_column"    => lon,
+            "metric"        => conley_metric,
+            "kernel"        => conley_kernel,
+            "dist_cutoff"   => dist_cutoff,
+            "cutoff_units"  => conley_metric == "haversine" ? "km" : "coordinate units",
+        ]
+        if !isempty(time_col)
+            push!(cpairs, "time_column" => time_col)
+            push!(cpairs, "time_cutoff" => time_cutoff)
+        end
+        output_kv(cpairs; format=format, title="Conley Spatial HAC Settings")
+    end
     return model
 end
 
@@ -3352,6 +3644,7 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
                          method::String="fe", twoway::Bool=false,
                          cov_type::String="cluster", ar1::String="none",
                          pcse_unbalanced::String="casewise",
+                         absorb::String="", hdfe_tol::Float64=1e-8, hdfe_maxiter::Int=1000,
                          id_col::String="", time_col::String="",
                          output::String="", format::String="table")
     # was a bare error() -> internal/error exit 1 for an ordinary usage mistake
@@ -3361,6 +3654,30 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     # covariance, so a mismatch is a usage error rather than a silent no-op.
     (cov_type == "pcse" || pcse_unbalanced == "casewise") || throw(CliError("usage/invalid",
         "estimate preg: --pcse-unbalanced applies only to --cov-type pcse (got --cov-type $cov_type)"))
+
+    # ── W10/#112: high-dimensional fixed-effect absorption ──────────────────
+    absorb_dims = String[strip(s) for s in split(absorb, ",") if !isempty(strip(s))]
+    if !isempty(absorb_dims)
+        method == "fe" || throw(CliError("usage/invalid",
+            "estimate preg: --absorb is supported only for --method fe (the within estimator), got --method $method"))
+        # NOT merely "mutually exclusive with --twoway": upstream computes `twoway=true` by
+        # the SAME alternating projections, so pointing the user at `--absorb entity,time`
+        # is the correct route on balanced AND unbalanced panels. The additive identity
+        # y - ȳᵢ - ȳₜ + ȳ that a naive two-way demeaning uses is only valid when balanced.
+        twoway && throw(CliError("usage/invalid",
+            "estimate preg: --absorb and --twoway are mutually exclusive";
+            hint="pass --absorb entity,time to absorb entity and time fixed effects"))
+        length(unique(absorb_dims)) == length(absorb_dims) || throw(CliError("usage/invalid",
+            "estimate preg: --absorb contains duplicate dimensions ($(join(absorb_dims, ", ")))"))
+        hdfe_tol > 0 || throw(CliError("usage/invalid",
+            "estimate preg: --hdfe-tol must be > 0 (got $hdfe_tol)"))
+        hdfe_maxiter >= 1 || throw(CliError("usage/invalid",
+            "estimate preg: --hdfe-maxiter must be ≥ 1 (got $hdfe_maxiter)"))
+    else
+        (hdfe_tol == 1e-8 && hdfe_maxiter == 1000) || throw(CliError("usage/invalid",
+            "estimate preg: --hdfe-tol/--hdfe-maxiter apply only with --absorb"))
+    end
+
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3369,12 +3686,18 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     _status("Panel Regression ($method): $dep ~ $(join(indep_syms, " + "))")
     ar1 == "none" || _status("  Prais-Winsten AR(1): $ar1")
     cov_type == "pcse" && _status("  PCSE unbalanced handling: $pcse_unbalanced")
+    isempty(absorb_dims) || _status("  Absorbing FE: $(join(absorb_dims, " × "))")
     _status()
 
     # Previously unwrapped: an upstream ArgumentError surfaced as exit 1.
     model = try
         estimate_xtreg(pd, Symbol(dep), indep_syms;
             model=model_sym, twoway=twoway, cov_type=cov_sym,
+            # NOT `_to_sym`: these are CSV column names (or the reserved index aliases),
+            # not hyphenated CLI enum values — rewriting `-`→`_` would corrupt a legal
+            # column name like `region-code`.
+            absorb=Symbol[Symbol(d) for d in absorb_dims],
+            hdfe_tol=hdfe_tol, hdfe_maxiter=hdfe_maxiter,
             ar1=_to_sym(replace(ar1, '-' => '_')),
             pcse_unbalanced=_to_sym(pcse_unbalanced))
     catch e
@@ -3397,6 +3720,29 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
         "N groups"     => model.n_groups,
     ]
     output_kv(pairs; format=format, title="Model Statistics")
+
+    # Emitted ONLY under --absorb, so a plain `estimate preg` envelope is unchanged. The
+    # absorbed-parameter count is not decoration: it is the degrees of freedom the within
+    # transformation consumed, and `converged=false` means the reported coefficients came
+    # from a TRUNCATED projection loop — a silent accuracy loss otherwise invisible.
+    hd = hasproperty(model, :hdfe) ? model.hdfe : nothing
+    if hd !== nothing
+        hpairs = Pair{String,Any}[
+            "absorb"          => join(string.(hd.absorb), ","),
+            "n_absorbed"      => hd.n_absorbed,
+            "n_levels"        => join(string.(hd.n_levels), ","),
+            "n_components"    => hd.n_components,
+            "converged"       => hd.converged,
+            "iterations"      => hd.iterations,
+            "final_change"    => hd.change,
+            "tol"             => hd.tol,
+        ]
+        output_kv(hpairs; format=format, title="HDFE Absorption")
+        hd.converged || _status_styled(
+            "  Warning: HDFE absorption did NOT converge in $(hd.iterations) iterations " *
+            "(change $(hd.change) > tol $(hd.tol)); raise --hdfe-maxiter or --hdfe-tol\n";
+            color=:yellow)
+    end
     return model
 end
 

@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity), Stock-Yogo weak-instrument diagnostics, panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 54 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity), Stock-Yogo weak-instrument diagnostics, Anderson-Rubin weak-instrument-robust tests and confidence sets, wild cluster bootstrap (few-cluster inference), panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 56 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
 
 ## Unit Root Tests
 
@@ -325,6 +325,93 @@ friedman test weak-instrument data.csv --dep=y --endogenous=x_endog --instrument
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** a diagnostics kv block (`n_endogenous`, `n_excluded_instruments`, `first_stage_f`, `cragg_donald_f`, `kleibergen_paap_f`, `stock_yogo_10pct_cv` or `threshold`, `weak`) plus a decision line (H0: instruments are weak — a large F rejects it).
+
+### test anderson-rubin
+
+Anderson-Rubin (1949) weak-instrument-**robust** inference. A weak first stage does not merely inflate the F: it invalidates the 2SLS Wald interval, whose coverage can be far below nominal at any sample size. The AR test has correct size regardless of instrument strength, and inverting it gives a confidence set with correct coverage. Use it whenever `test weak-instrument` flags a problem — and as a matter of course when the identification is contested.
+
+Data layout is identical to [`estimate iv`](estimate.md#estimate-iv) and `test weak-instrument`.
+
+```bash
+# Test H0: beta_educ = 0 and report the inverted confidence set
+friedman test anderson-rubin data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
+
+# Test a specific value; cluster-robust
+friedman test anderson-rubin data.csv --dep=y --endogenous=x --instruments=z1,z2 \
+  --beta0=0.5 --cov-type=cluster --clusters=state
+
+# Test only, no confidence set
+friedman test anderson-rubin data.csv --dep=y --endogenous=x --instruments=z --no-ci
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--endogenous` | | String | (required) | Comma-separated endogenous regressor column names |
+| `--instruments` | | String | (required) | Comma-separated **excluded** instrument column names |
+| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` |
+| `--clusters` | | String | | Cluster column (required for `--cov-type cluster`) |
+| `--beta0` | | String | 0 for each | Hypothesized coefficient value(s), comma-separated |
+| `--level` | | Float64 | 0.95 | Nominal coverage of the confidence set |
+| `--n-grid` | | Int | 1001 | Grid points used to invert the test |
+| `--span` | | Float64 | 20.0 | Search half-width around the 2SLS estimate, in standard errors |
+| `--no-ci` | | Flag | off | Report only the test at `--beta0` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** an **Anderson-Rubin Test** kv block (`statistic`, `p_value`, `df1`, `df2`, `distribution`, `ar_cov_type`, `wald_cov_type`, `beta0`), then — unless `--no-ci` — an **Anderson-Rubin Confidence Set** table with one row per connected component (`component | lower | upper | lower_bounded | upper_bounded`) and an **Anderson-Rubin Set Summary** kv block (`shape`, `n_components`, `bounded`, `is_empty`, `is_whole_line`, `critical_value`, `grid_lo`, `grid_hi`, `estimate_2sls`, `wald_lower`, `wald_upper`).
+
+**The set is not forced to be an interval, and the renderer does not assume `[lo, hi]`.** `shape` is one of:
+
+| `shape` | Meaning |
+|---------|---------|
+| `bounded` | An ordinary interval strictly inside the search range |
+| `unbounded` | Reaches the edge of the range on one or both sides — the instruments cannot bound the coefficient, and the Wald interval is over-confident rather than merely wide. Widen `--span` to search further |
+| `disjoint` | A union of components; over-identification has ruled out an interior region |
+| `whole-line` | Every searched value is accepted — no identifying information |
+| `empty` | **Zero rows.** No value of the coefficient is consistent with the over-identifying restrictions: the model itself is rejected, not just the instrument strength |
+
+Unbounded sides carry `±Inf`, rendered as `"Inf"`/`"-Inf"` in JSON. The 2SLS Wald interval is reported alongside because the contrast between the two IS the diagnostic.
+
+Two constraints worth knowing:
+
+* Inverting the test requires **exactly one** endogenous regressor. With more, the test at `--beta0` is still reported and the confidence set is skipped with a note on stderr — the test is valid either way.
+* `estimate_iv` upstream fits only `ols`/`hc0`–`hc3`; there is no clustered IV *fit*. Under `--cov-type cluster` the AR statistic is cluster-robust while the comparison Wald interval comes from an `hc1` fit. Both are recorded (`ar_cov_type`, `wald_cov_type`) so the comparison is never read as like-for-like.
+
+### test wild-cluster
+
+Wild cluster bootstrap (Cameron-Gelbach-Miller 2008) of a single linear restriction, with the confidence interval obtained by inverting the test — matching Stata `boottest`. **This is the few-cluster procedure.** The cluster-robust normal approximation over-rejects badly when the number of clusters `G` is small (a nominal 5% test can reject 20%+ at `G ≈ 10`), and the restricted bootstrap corrects it; with many clusters the two agree and this leaf buys you nothing.
+
+```bash
+friedman test wild-cluster data.csv --dep=y --clusters=state --coefficient=treatment
+friedman test wild-cluster data.csv --dep=y --clusters=firm --coefficient=x1 --null=0 \
+  --boot-weights=webb --boot-reps=9999
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent variable column name |
+| `--clusters` | | String | (required) | Cluster column name |
+| `--coefficient` | | String | (1st regressor) | Regressor to test, by name |
+| `--null` | | Float64 | 0.0 | Hypothesized value `r` in H₀: βⱼ = r |
+| `--boot-reps` | | Int | 999 | Bootstrap replications (ignored when the sign space is enumerated) |
+| `--boot-weights` | | String | `rademacher` | `rademacher` or `webb` (6-point) |
+| `--level` | | Float64 | 0.95 | Coverage of the inverted-test CI |
+| `--ci-gridpoints` | | Int | 25 | Grid used to bracket the CI crossings |
+| `--enumerate-signs` | | String | `auto` | `auto`, `yes`, `no` — exact enumeration of the 2^G sign vectors |
+| `--no-impose-null` | | Flag | off | Unrestricted WCU variant instead of the default restricted WCR |
+| `--no-ci` | | Flag | off | Skip the confidence interval |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** a kv block reporting the bootstrap p-value **beside** the analytic one — `p_bootstrap_symmetric`, `p_bootstrap_equaltail`, `p_cluster_robust_normal` — plus `estimate`, `t_statistic`, `n_clusters`, `n_boot`, `weights`, `impose_null`, `enumerated`, and (unless `--no-ci`) `ci_lower`/`ci_upper`. The gap between the bootstrap and asymptotic p-values is the point of running it.
+
+Notes:
+
+* The default is the **restricted** (WCR) variant, which imposes the null on the bootstrap DGP. Cameron-Gelbach-Miller and MacKinnon-Webb both show WCR dominates the unrestricted WCU; `--no-impose-null` is available but is not what you want by default.
+* With Rademacher weights and `2^G ≤ --boot-reps`, all `2^G` sign vectors are **enumerated exactly**, so the test carries no simulation error at all. `enumerated=true` records when this happened, and it is noted on stderr.
+* Prefer `--boot-weights webb` when `G` is very small: the 6-point distribution has more support points than Rademacher's two, which matters when `2^G` is the binding constraint on how many distinct bootstrap statistics exist.
+* Fewer than 12 clusters triggers a note on stderr — that is the regime the method exists for, not a warning about your data.
 
 ## Cointegration
 

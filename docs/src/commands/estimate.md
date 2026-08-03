@@ -380,8 +380,35 @@ friedman estimate lp data.csv --method=robust --treatment=1 --score-method=logit
 | `--transition` | | String | `logistic` | `logistic`, `exponential`, `indicator` (state only) |
 | `--treatment` | | Int | 1 | Treatment variable index (propensity/robust only) |
 | `--score-method` | | String | `logit` | `logit`, `probit` (propensity/robust only) |
+| `--mop-f` | | Flag | off | Report the Montiel Olea-Pflueger effective first-stage F (iv only) |
+| `--mop-tau` | | Float64 | 0.10 | MOP worst-case relative-bias target: `0.05`, `0.10`, `0.20`, `0.30` |
+| `--mop-bandwidth` | | Int | 0 | HAC lag length for the effective F; 0 = auto |
+| `--ar-bands` | | Flag | off | Report weak-instrument-robust Anderson-Rubin IRF bands (iv only) |
+| `--ar-level` | | Float64 | 0.95 | Coverage of the AR bands |
+| `--ar-grid` | | Int | 401 | Grid points per horizon × response when inverting the AR test |
+| `--ar-span` | | Float64 | 20.0 | AR search half-width, in 2SLS standard errors |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+
+### Weak-instrument-robust LP-IV
+
+The LP-IV summary always reports the per-horizon first-stage F — as a **minimum over horizons**, because LP-IV re-estimates the first stage at every `h` and the binding one is the weakest. Two stronger diagnostics are available on `--method iv`, both off by default (the AR bands invert a test over a grid at every horizon × response and are far from free):
+
+```bash
+# Montiel Olea-Pflueger effective F — the correct weak-IV statistic under heteroskedasticity
+friedman estimate lp data.csv --method=iv --instruments=z.csv --mop-f --mop-tau=0.10
+
+# Anderson-Rubin bands — correct coverage at ANY instrument strength
+friedman estimate lp data.csv --method=iv --instruments=z.csv --ar-bands --ar-level=0.95
+```
+
+`--mop-f` emits a **Montiel Olea-Pflueger Effective F** table (`f_effective`, `critical_value`, `tau`, `weak`, `n_instruments`, `bandwidth`, `f_naive`). The effective F is the statistic to act on: the naive first-stage F is valid only under homoskedasticity, and the two diverge exactly when it matters. The critical values are MOP's *simplified* (nuisance-parameter-free) ones — conservative upper bounds — so a pass is a genuine pass.
+
+`--ar-bands` emits **LP-IV Anderson-Rubin Bands**, one row per horizon × response: `horizon | response | irf | ar_lower | ar_upper | n_components | bounded | is_empty | wald_lower | wald_upper | bandwidth`. Both the AR set and the 2SLS Wald band are reported side by side because **the contrast between them is the diagnostic**. `ar_lower`/`ar_upper` may be `±Inf` (rendered as `"-Inf"`/`"Inf"` in JSON): an unbounded cell means the instrument cannot bound the response at that horizon, and the Wald band there is over-confident rather than merely wide. The HAC bandwidth scales with the horizon (`max(auto, h+1)`), since horizon-`h` LP residuals are MA(`h`) by construction; the value actually used is reported per cell.
+
+One row per horizon × response means the shock variable appears as a response to itself. At `h=0` that response is **identically 1 with zero standard error**, so both the Wald band and the AR set legitimately collapse to the single point `{1}` (`ar_lower == ar_upper == wald_lower == wald_upper == 1`). That cell is correct output, not a degenerate failure — do not read a zero-width interval there as a bug.
+
+Both option groups are rejected with a typed `usage/invalid` under any other `--method` — silently ignoring them would let an agent believe it received robust bands it never got.
 
 ## estimate arima
 
@@ -981,13 +1008,51 @@ friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--dep` | | String | (1st col) | Dependent variable column name |
-| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` |
+| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `conley` |
 | `--weights` | | String | | Weight variable column name (for WLS) |
-| `--clusters` | | String | | Cluster variable column name |
+| `--clusters` | | String | | Cluster variable column name (required for `--cov-type cluster`) |
+| `--lat` | | String | | Latitude / first coordinate column (`conley` only) |
+| `--lon` | | String | | Longitude / second coordinate column (`conley` only) |
+| `--dist-cutoff` | | Float64 | 0.0 | Spatial cutoff: km for `haversine`, coordinate units for `euclidean` (`conley` only) |
+| `--conley-kernel` | | String | `bartlett` | `bartlett` (tapered) or `uniform` (`conley` only) |
+| `--conley-metric` | | String | `euclidean` | `euclidean` (projected coordinates) or `haversine` (degrees → km) |
+| `--time-col` | | String | | Time column for spatial **and** serial correlation (`conley` only) |
+| `--time-cutoff` | | Int | 0 | Serial-correlation lag cutoff; must accompany `--time-col` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Tidy coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) + fit statistics (R², Adj R², F-stat, AIC, BIC).
+
+### Conley (1999) spatial HAC standard errors
+
+`--cov-type conley` weights every pair of observations by a kernel in their distance, rather than assuming correlation is total within a cluster and zero across it. Use it when dependence is spatial and continuous — neighbouring counties, nearby plants, grid cells — where no clustering partition is defensible.
+
+```bash
+# Projected coordinates (metres, km, …): euclidean distance, cutoff in the same units
+friedman estimate reg plants.csv --dep=output --cov-type=conley \
+  --lat=coord_y --lon=coord_x --dist-cutoff=50
+
+# Degrees: haversine distance, cutoff in kilometres
+friedman estimate reg counties.csv --dep=wage --cov-type=conley \
+  --lat=latitude --lon=longitude --conley-metric=haversine --dist-cutoff=100
+
+# Spatial *and* serial correlation (Conley panel): add a time column and a lag cutoff
+friedman estimate reg panel.csv --dep=y --cov-type=conley \
+  --lat=lat --lon=lon --conley-metric=haversine --dist-cutoff=100 \
+  --time-col=year --time-cutoff=3
+```
+
+Under `conley` the leaf emits one extra table, **Conley Spatial HAC Settings**, recording the coordinate columns, metric, kernel and cutoff. This is deliberate: a Conley standard error is not interpretable without the cutoff that produced it, and the cutoff is a researcher choice, not a property of the data.
+
+Guards, all typed:
+
+* `--cov-type conley` without `--lat`/`--lon` → `usage/missing`; with `--dist-cutoff ≤ 0` → `usage/invalid`.
+* Any Conley option supplied under a different `--cov-type` → `usage/invalid`, never a silent no-op.
+* `--time-col` and `--time-cutoff` must be given together — a lag cutoff with no time column would silently degrade to spatial-only.
+* `--conley-metric haversine` requires latitude in `[-90, 90]` and longitude in `[-180, 180]`; out-of-range degrees would otherwise yield nonsense distances rather than an error.
+* The coordinate and time columns are **excluded from the regressor matrix**. They are ordinary numeric CSV columns, so without this they would enter the design as regressors — a wrong point estimate that no error would reveal.
+
+Choosing the cutoff is a judgement call and the result is sensitive to it: too small and the correction is negligible, too large and the estimator loses precision (and can fail to be positive semi-definite, though upstream clips the eigenvalues to keep it valid). Report the cutoff, and check that conclusions survive a range of them.
 
 ## Penalized, robust & censored regression
 

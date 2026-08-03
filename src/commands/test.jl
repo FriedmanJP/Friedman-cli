@@ -812,6 +812,68 @@ function test_specs()::Vector{CommandSpec}
             category="test",
             handler=wrap_legacy(_test_weak_instrument),
         ),
+        # W10/#112: Anderson-Rubin weak-instrument-robust inference. A SEPARATE LEAF rather
+        # than a flag on `test weak-instrument`, decided by output shape: AR produces a test
+        # AND a confidence SET whose components are rows, which does not fit the flat kv
+        # table `test weak-instrument` emits. A leaf whose table set changes with a flag
+        # forces every agent consuming it to branch.
+        CommandSpec(
+            path=["test", "anderson-rubin"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
+                OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
+                OptionSpec(name="cov-type", type=String, default="hc1",
+                           choices=["ols", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="Covariance weighting the AR statistic; cluster additionally needs --clusters"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster column name (required for --cov-type cluster)"),
+                OptionSpec(name="beta0", type=String, default="",
+                           description="Hypothesized coefficient value(s) on the endogenous regressors, comma-separated (default: 0 for each)"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Nominal coverage of the confidence set"),
+                OptionSpec(name="n-grid", type=Int, default=1001, description="Grid points used to invert the AR test"),
+                OptionSpec(name="span", type=Float64, default=20.0, description="Search half-width around the 2SLS estimate, in standard errors"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[
+                FlagSpec(name="no-ci", description="Report only the AR test at --beta0, skipping the inverted confidence set")
+            ],
+            tables=[TableSpec(name=:anderson_rubin, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_anderson_rubin),
+        ),
+        # W10/#112: wild cluster bootstrap (Cameron-Gelbach-Miller 2008), the few-cluster
+        # inference procedure matching Stata `boottest`. Tests ONE linear restriction, so it
+        # takes a single --coefficient rather than emitting a whole coefficient table.
+        CommandSpec(
+            path=["test", "wild-cluster"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster column name (required)"),
+                OptionSpec(name="coefficient", type=String, default="", description="Regressor to test, by name (default: the first regressor)"),
+                OptionSpec(name="null", type=Float64, default=0.0, description="Hypothesized value r in H0: beta_j = r"),
+                OptionSpec(name="boot-reps", type=Int, default=999, description="Bootstrap replications (ignored when the 2^G sign space is enumerated)"),
+                OptionSpec(name="boot-weights", type=String, default="rademacher", choices=["rademacher","webb"],
+                           description="Bootstrap weights; webb (6-point) is preferred when the cluster count is very small"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Coverage of the inverted-test confidence interval"),
+                OptionSpec(name="ci-gridpoints", type=Int, default=25, description="Grid used to bracket the CI crossings"),
+                OptionSpec(name="enumerate-signs", type=String, default="auto", choices=["auto","yes","no"],
+                           description="Exact enumeration of the 2^G Rademacher sign vectors: auto enumerates whenever possible"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
+            ],
+            flags=[
+                FlagSpec(name="no-impose-null", description="Use the unrestricted WCU variant instead of the default restricted WCR"),
+                FlagSpec(name="no-ci", description="Skip the inverted-test confidence interval")
+            ],
+            tables=[TableSpec(name=:wild_cluster, description="Path to CSV data file")],
+            category="test",
+            handler=wrap_legacy(_test_wild_cluster),
+        ),
         # C062b: ARDL bounds test (Pesaran-Shin-Smith 2001) + NARDL symmetry Wald tests.
         # Both fit a single-equation (N)ARDL via the shared `_load_reg_data` loader + the
         # `_fit_ardl`/`_fit_nardl` helpers (estimate.jl), then run the test. The bounds test has
@@ -2153,6 +2215,264 @@ function _test_weak_instrument(; data::String, dep::String="", endogenous::Strin
             "Reject H0 (weak instruments): F=$(round(stat; digits=3)) exceeds the $cvsrc ($(round(cv; digits=3))) -- instruments look strong",
             "Cannot reject H0 (weak instruments): F=$(round(stat; digits=3)) ≤ the $cvsrc ($(round(cv; digits=3))) -- instruments may be weak (biased 2SLS)")
     end
+end
+
+# ── W10/#112: Anderson-Rubin weak-instrument-robust inference ──────
+# Fits `estimate_iv` through the shared `_load_iv_data` loader, then reports the AR test at
+# --beta0 and (for a single endogenous regressor) the confidence SET obtained by inverting
+# it. The set is NOT forced to be an interval: under weak identification it is routinely
+# unbounded on one or both sides, and with over-identification it can be a union of
+# disjoint components or empty. Each connected component is its own row, with ±Inf carried
+# through rather than truncated — the contrast with the 2SLS Wald interval IS the diagnostic.
+function _test_anderson_rubin(; data::String, dep::String="", endogenous::String="",
+                               instruments::String="", cov_type::String="hc1",
+                               clusters::String="", beta0::String="",
+                               level::Float64=0.95, n_grid::Int=1001, span::Float64=20.0,
+                               no_ci::Bool=false, format::String="table", output::String="")
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "test anderson-rubin: --level must be in (0, 1) (got $level)"))
+    n_grid >= 5 || throw(CliError("usage/invalid",
+        "test anderson-rubin: --n-grid must be ≥ 5 (got $n_grid)"))
+    span > 0.0 || throw(CliError("usage/invalid",
+        "test anderson-rubin: --span must be > 0 (got $span)"))
+    if cov_type == "cluster"
+        isempty(clusters) && throw(CliError("usage/missing",
+            "test anderson-rubin: --cov-type cluster requires --clusters <column>"))
+    elseif !isempty(clusters)
+        throw(CliError("usage/invalid",
+            "test anderson-rubin: --clusters applies only to --cov-type cluster (got --cov-type $cov_type)"))
+    end
+
+    d = _load_iv_data(data, dep, endogenous, instruments; clusters_col=clusters)
+    cl = _load_clusters(data, clusters)
+    n_endog = length(d.endog_idx)
+
+    b0 = if isempty(beta0)
+        zeros(Float64, n_endog)
+    else
+        vals = Float64[]
+        for tok in split(beta0, ",")
+            s = strip(tok)
+            isempty(s) && continue
+            v = tryparse(Float64, s)
+            v === nothing && throw(CliError("usage/invalid",
+                "test anderson-rubin: --beta0 entry '$s' is not a number"))
+            push!(vals, v)
+        end
+        length(vals) == n_endog || throw(CliError("usage/invalid",
+            "test anderson-rubin: --beta0 has $(length(vals)) value(s) but there are " *
+            "$n_endog endogenous regressor(s) ($(join(d.endog_names, ", ")))"))
+        vals
+    end
+
+    # `estimate_iv` accepts only :ols/:hc0-:hc3 — a clustered IV FIT does not exist upstream.
+    # The AR statistic itself is clustered (it recomputes its own covariance from the
+    # clusters vector), but the 2SLS Wald interval it reports for comparison then comes from
+    # the hc1 fit. Both covariances are recorded in the settings table so the comparison is
+    # never read as like-for-like.
+    fit_cov = cov_type == "cluster" ? "hc1" : cov_type
+    _status("Anderson-Rubin Test (weak-instrument robust): $(d.dep_col) ~ $(join(d.xcols, " + "))")
+    _status("  Endogenous: $(join(d.endog_names, ", ")); excluded instruments: $(join(d.inst_names, ", "))")
+    _status("  Observations: $(length(d.y)), AR covariance: $cov_type, 2SLS fit covariance: $fit_cov")
+    cov_type == "cluster" && _status("  Clusters: $(length(unique(cl))) (column '$clusters')")
+    _status()
+
+    model = try
+        estimate_iv(d.y, d.X, d.Z; endogenous=d.endog_idx, cov_type=Symbol(fit_cov), varnames=d.xcols)
+    catch e
+        throw(_domain_or_data_error(e, "IV (2SLS) estimation"))
+    end
+
+    art = try
+        anderson_rubin_test(model, b0; cov_type=Symbol(cov_type), clusters=cl)
+    catch e
+        throw(_domain_or_data_error(e, "Anderson-Rubin test"))
+    end
+
+    output_kv(Pair{String,Any}[
+        "n_endogenous"          => n_endog,
+        "n_excluded_instruments"=> length(d.inst_names),
+        "beta0"                 => join(string.(round.(b0; digits=6)), ","),
+        "statistic"             => round(Float64(art.statistic); digits=6),
+        "p_value"               => round(Float64(art.p_value); digits=6),
+        "df1"                   => art.df1,
+        "df2"                   => art.df2,
+        "distribution"          => string(art.distribution),
+        "ar_cov_type"           => string(art.cov_type),
+        "wald_cov_type"         => fit_cov,
+    ]; format=format, output=output, title="Anderson-Rubin Test: $(d.dep_col)")
+
+    if !no_ci
+        if n_endog != 1
+            # Upstream inverts over a SINGLE endogenous coefficient. Say so rather than
+            # letting the ArgumentError read as a failure of the run.
+            _status_styled("  Confidence set skipped: inverting the AR test requires exactly " *
+                "one endogenous regressor (this model has $n_endog); the test above is still valid\n";
+                color=:yellow)
+        else
+            ci = try
+                anderson_rubin_ci(model; level=level, n_grid=n_grid, span=span,
+                                  cov_type=Symbol(cov_type), clusters=cl)
+            catch e
+                throw(_domain_or_data_error(e, "Anderson-Rubin confidence set"))
+            end
+            _status()
+            output_result(_ar_set_table(ci);
+                format=Symbol(format), output=_per_var_output_path(output, "ar_set"),
+                title="Anderson-Rubin Confidence Set ($(round(Int, 100 * level))%): $(ci.endog_name)")
+            _status()
+            output_kv(Pair{String,Any}[
+                "shape"           => _ar_shape(ci),
+                "n_components"    => length(ci.intervals),
+                "bounded"         => ci.bounded,
+                "is_empty"        => ci.is_empty,
+                "is_whole_line"   => ci.is_whole_line,
+                "level"           => Float64(ci.level),
+                "critical_value"  => round(Float64(ci.critical_value); digits=6),
+                "grid_lo"         => round(Float64(ci.grid_lo); digits=6),
+                "grid_hi"         => round(Float64(ci.grid_hi); digits=6),
+                "estimate_2sls"   => round(Float64(ci.estimate); digits=6),
+                "wald_lower"      => round(Float64(ci.wald_lower); digits=6),
+                "wald_upper"      => round(Float64(ci.wald_upper); digits=6),
+            ]; format=format, output=_per_var_output_path(output, "ar_set_summary"),
+               title="Anderson-Rubin Set Summary")
+            ci.is_empty && _status_styled(
+                "  The AR set is EMPTY: no value of $(ci.endog_name) is consistent with the " *
+                "over-identifying restrictions — the model, not just the instrument strength, is rejected\n";
+                color=:yellow)
+            (!ci.bounded && !ci.is_empty) && _status_styled(
+                "  The AR set is UNBOUNDED: the instruments cannot bound $(ci.endog_name); " *
+                "the 2SLS Wald interval [$(round(Float64(ci.wald_lower); digits=4)), " *
+                "$(round(Float64(ci.wald_upper); digits=4))] is over-confident\n"; color=:yellow)
+        end
+    end
+
+    # H0 is the hypothesized beta0; a small p rejects it.
+    return interpret_test_result(Float64(art.p_value),
+        "Reject H0: beta_endog = $(join(string.(b0), ", ")) (AR statistic $(round(Float64(art.statistic); digits=4)))",
+        "Cannot reject H0: beta_endog = $(join(string.(b0), ", ")) at the chosen level")
+end
+
+"""Name the shape of an AR confidence set, which need not be a bounded interval."""
+function _ar_shape(ci)
+    ci.is_empty && return "empty"
+    ci.is_whole_line && return "whole-line"
+    !ci.bounded && return "unbounded"
+    length(ci.intervals) > 1 && return "disjoint"
+    return "bounded"
+end
+
+"""
+Tidy (C051) rendering of an `AndersonRubinCI`: one row per connected component.
+
+An empty set is rendered as ZERO rows (with `is_empty` recorded in the summary kv) rather
+than as a row of sentinels — an empty set has no components, and inventing one would read
+as a finite interval. Unbounded sides carry `±Inf`, which `_json_safe` renders as
+`"Inf"`/`"-Inf"` in the envelope.
+"""
+function _ar_set_table(ci)
+    rows = NamedTuple[]
+    for (i, (a, b)) in enumerate(ci.intervals)
+        push!(rows, (component = i,
+                     lower = Float64(a),
+                     upper = Float64(b),
+                     lower_bounded = isfinite(a),
+                     upper_bounded = isfinite(b)))
+    end
+    isempty(rows) && return DataFrame(component=Int[], lower=Float64[], upper=Float64[],
+                                      lower_bounded=Bool[], upper_bounded=Bool[])
+    return DataFrame(rows)
+end
+
+# ── W10/#112: wild cluster bootstrap (Cameron-Gelbach-Miller 2008) ──
+# The point of the method is few-cluster inference: the cluster-robust normal approximation
+# over-rejects badly when G is small, and the restricted (WCR) bootstrap corrects it. Both
+# p-values are reported side by side because their DIFFERENCE is the diagnostic. With
+# Rademacher weights and 2^G <= --boot-reps the whole sign space is enumerated, so the test
+# then carries no simulation error at all.
+function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
+                             coefficient::String="", null::Float64=0.0,
+                             boot_reps::Int=999, boot_weights::String="rademacher",
+                             level::Float64=0.95, ci_gridpoints::Int=25,
+                             enumerate_signs::String="auto", no_impose_null::Bool=false,
+                             no_ci::Bool=false, format::String="table", output::String="")
+    isempty(clusters) && throw(CliError("usage/missing",
+        "test wild-cluster: --clusters <column> is required";
+        hint="the wild CLUSTER bootstrap needs the cluster assignment; there is no default"))
+    boot_reps >= 1 || throw(CliError("usage/invalid",
+        "test wild-cluster: --boot-reps must be ≥ 1 (got $boot_reps)"))
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
+        "test wild-cluster: --level must be in (0, 1) (got $level)"))
+    ci_gridpoints >= 2 || throw(CliError("usage/invalid",
+        "test wild-cluster: --ci-gridpoints must be ≥ 2 (got $ci_gridpoints)"))
+
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+    cl = _load_clusters(data, clusters)
+    G = length(unique(cl))
+
+    coefname = isempty(coefficient) ? xcols[1] : coefficient
+    coefname in xcols || throw(CliError("data/column-range",
+        "test wild-cluster: --coefficient '$coefname' is not among the regressors: $(join(xcols, ", "))"))
+
+    # NOT named `enumerate`: a kwarg of that name shadows `Base.enumerate` for the whole
+    # function body, which is a trap waiting for the next edit.
+    enum_flag = enumerate_signs == "auto" ? nothing : (enumerate_signs == "yes")
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Wild Cluster Bootstrap: $dep_name ~ $(join(xcols, " + "))")
+    _status("  H0: $coefname = $null; clusters: $G (column '$clusters'); weights: $boot_weights")
+    _status("  Variant: $(no_impose_null ? "WCU (null not imposed)" : "WCR (null imposed)")")
+    G < 12 && _status_styled(
+        "  Only $G clusters: this is exactly the regime the wild cluster bootstrap exists for — " *
+        "the cluster-robust normal p-value below is expected to over-reject\n"; color=:cyan)
+    _status()
+
+    model = try
+        estimate_reg(y, X; cov_type=:cluster, varnames=xcols, clusters=cl)
+    catch e
+        throw(_domain_or_data_error(e, "cluster-robust regression"))
+    end
+
+    b = try
+        wild_cluster_bootstrap(model, coefname, null;
+            clusters=cl, n_boot=boot_reps, weights=Symbol(boot_weights),
+            imposenull=!no_impose_null, ci=!no_ci, level=level,
+            ci_gridpoints=ci_gridpoints, enumerate=enum_flag)
+    catch e
+        throw(_domain_or_data_error(e, "wild cluster bootstrap"))
+    end
+
+    pairs = Pair{String,Any}[
+        "coefficient"             => b.coefname,
+        "estimate"                => round(Float64(b.estimate); digits=6),
+        "null_value"              => Float64(b.null_value),
+        "t_statistic"             => round(Float64(b.t_stat); digits=6),
+        "p_bootstrap_symmetric"   => round(Float64(b.p_value); digits=6),
+        "p_bootstrap_equaltail"   => round(Float64(b.p_value_equaltail); digits=6),
+        "p_cluster_robust_normal" => round(Float64(b.p_value_asymptotic); digits=6),
+        "n_clusters"              => b.n_clusters,
+        "n_boot"                  => b.n_boot,
+        "weights"                 => string(b.weighttype),
+        "impose_null"             => b.imposenull,
+        "enumerated"              => b.enumerated,
+    ]
+    if !no_ci && isfinite(b.ci_lower)
+        push!(pairs, "level" => Float64(b.level))
+        push!(pairs, "ci_lower" => round(Float64(b.ci_lower); digits=6))
+        push!(pairs, "ci_upper" => round(Float64(b.ci_upper); digits=6))
+    end
+    output_kv(pairs; format=format, output=output,
+              title="Wild Cluster Bootstrap: $(b.coefname)")
+
+    b.enumerated && _status_styled(
+        "  All 2^$(b.n_clusters) sign vectors were enumerated: the bootstrap p-value is exact " *
+        "(no simulation error)\n"; color=:green)
+
+    # The bootstrap p-value is the one to act on; the asymptotic one is the comparison.
+    return interpret_test_result(Float64(b.p_value),
+        "Reject H0: $(b.coefname) = $(b.null_value) (bootstrap p = $(round(Float64(b.p_value); digits=4)); " *
+        "cluster-robust normal p = $(round(Float64(b.p_value_asymptotic); digits=4)))",
+        "Cannot reject H0: $(b.coefname) = $(b.null_value) (bootstrap p = $(round(Float64(b.p_value); digits=4)); " *
+        "cluster-robust normal p = $(round(Float64(b.p_value_asymptotic); digits=4)))")
 end
 
 # ── C071: VECM cointegration restriction tests ───────────
