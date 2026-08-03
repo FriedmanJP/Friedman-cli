@@ -4442,7 +4442,7 @@ end  # HD handlers
         @test node isa NodeCommand
         @test node.name == "forecast"
         # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
-        @test length(node.subcmds) == 29
+        @test length(node.subcmds) == 30
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -5002,7 +5002,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 29  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 30  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101)
         @test haskey(node.subcmds, "vecm")
     end
 

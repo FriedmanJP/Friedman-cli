@@ -271,6 +271,23 @@ SVARRestrictions(n::Int; zeros=ZeroRestriction[], signs=SignRestriction[]) =
 struct AriasSVARResult{T}
     Q_draws::Vector{Matrix{T}}; irf_draws::Array{T,4}; weights::Vector{T}; acceptance_rate::T
     restrictions::SVARRestrictions
+    # MEMs#372: the importance weights became operative in 0.7.2, so ESS is now a real
+    # diagnostic rather than a formality. Kish's ESS and its fraction of n_draws.
+    ess::T
+    ess_fraction::T
+end
+# Back-compatible arity, matching real: derive the diagnostics from the weights.
+# Both the parametric and the inferred-parameter forms, since existing call sites use each.
+AriasSVARResult(Q_draws::Vector{Matrix{T}}, irf_draws::Array{T,4}, weights::Vector{T},
+                acceptance_rate::T, restrictions::SVARRestrictions) where {T} =
+    AriasSVARResult{T}(Q_draws, irf_draws, weights, acceptance_rate, restrictions)
+function AriasSVARResult{T}(Q_draws, irf_draws, weights, acceptance_rate,
+                            restrictions) where {T}
+    sw = sum(weights); sw2 = sum(w -> w^2, weights)
+    ess = sw2 > 0 ? T(sw^2 / sw2) : zero(T)
+    n = length(weights)
+    AriasSVARResult{T}(Q_draws, irf_draws, weights, acceptance_rate, restrictions,
+                       ess, n > 0 ? ess / T(n) : zero(T))
 end
 
 struct UhligSVARResult{T}
@@ -866,7 +883,13 @@ nvars(m::VECMModel) = size(m.Y, 2)
 # IRF
 function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing,
              narrative_check=nothing, ci_type=:none, reps=200, conf_level=0.95,
-             stationary_only=false, seed=nothing)
+             stationary_only=false, seed=nothing,
+             bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
+             bias_correct::Bool=false, bias_reps::Int=0)
+    bootstrap in (:iid, :wild, :block) || throw(ArgumentError(
+        "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
+    wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
+        "wild_dist must be :rademacher or :mammen; got :$wild_dist"))
     n = size(model.Y, 2)
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5
@@ -8999,6 +9022,106 @@ report(p::MFVARPosterior) = "MF-VAR($(p.p)) mock report"
 
 export TVPVARPosterior, estimate_tvpvar, volatility_path
 export MFVARPosterior, estimate_mfvar, latent_path
+
+# ─── W8/#110: generalized FEVD + Waggoner-Zha conditional forecasts ──────────
+
+# Pesaran-Shin generalized FEVD. Deliberately does NOT sum to 1 across shocks unless
+# normalize=true -- a mock that normalized unconditionally would hide exactly the property
+# the renderer and the T3 assertion have to get right.
+function generalized_fevd(model::VARModel, horizon::Int; normalize::Bool=false,
+                          shock_names::Union{Nothing,Vector{String}}=nothing)
+    n = size(model.Y, 2)
+    props = Array{Float64,3}(undef, n, n, horizon)
+    for h in 1:horizon, i in 1:n, j in 1:n
+        props[i, j, h] = i == j ? 0.8 : 0.3          # rows sum to > 1 for n >= 2
+    end
+    if normalize
+        for h in 1:horizon, i in 1:n
+            props[i, :, h] ./= sum(@view props[i, :, h])
+        end
+    end
+    FEVD(props, props)
+end
+generalized_fevd(post::BVARPosterior, horizon::Int; normalize::Bool=false,
+                 shock_names::Union{Nothing,Vector{String}}=nothing) =
+    generalized_fevd(_mock_var(post.data, post.p), horizon;
+                     normalize=normalize, shock_names=shock_names)
+
+struct ForecastCondition{T<:AbstractFloat}
+    variable::Union{Int,String,Symbol}
+    horizon::Int
+    value::T
+    sd::T
+    function ForecastCondition{T}(variable, horizon::Integer, value::Real,
+                                  sd::Real=zero(T)) where {T<:AbstractFloat}
+        horizon >= 1 || throw(ArgumentError("condition horizon must be ≥ 1, got $horizon"))
+        sd >= 0 || throw(ArgumentError("condition sd must be non-negative, got $sd"))
+        new{T}(variable, Int(horizon), T(value), T(sd))
+    end
+end
+forecast_condition(variable::Union{Int,String,Symbol}, horizon::Integer, value::Real;
+                   sd::Real=0.0) = ForecastCondition{Float64}(variable, horizon, value, sd)
+
+struct ConditionalForecast{T<:AbstractFloat}
+    forecast::Matrix{T}
+    ci_lower::Matrix{T}
+    ci_upper::Matrix{T}
+    horizon::Int
+    conf_level::T
+    varnames::Vector{String}
+    conditions::Vector{ForecastCondition{T}}
+    unconditional::Matrix{T}
+    shocks::Matrix{T}
+    identification::Symbol
+    n_draws::Int
+end
+
+function _mock_conditional_forecast(varnames::Vector{String}, conds, h::Int,
+                                    reps::Int, conf_level::Real)
+    h >= 1 || throw(ArgumentError("Forecast horizon must be positive"))
+    reps >= 1 || throw(ArgumentError("reps must be positive"))
+    (0 < conf_level < 1) || throw(ArgumentError("conf_level must be in (0, 1)"))
+    n = length(varnames)
+    cl = Vector{ForecastCondition{Float64}}()
+    for c in conds
+        idx = c.variable isa Integer ? Int(c.variable) :
+              something(findfirst(==(String(c.variable)), varnames), 0)
+        idx >= 1 && idx <= n || throw(ArgumentError(
+            "condition variable $(repr(c.variable)) not found. Available: $varnames"))
+        c.horizon <= h || throw(ArgumentError(
+            "condition horizon $(c.horizon) exceeds forecast horizon $h"))
+        push!(cl, c)
+    end
+    uncond = fill(0.25, h, n)
+    fcast = copy(uncond)
+    lo = fcast .- 1.0
+    hi = fcast .+ 1.0
+    # A HARD condition pins the path exactly and collapses the band, which is what the
+    # renderer and T3 check.
+    for c in cl
+        idx = c.variable isa Integer ? Int(c.variable) :
+              findfirst(==(String(c.variable)), varnames)
+        fcast[c.horizon, idx] = c.value
+        if c.sd == 0
+            lo[c.horizon, idx] = c.value
+            hi[c.horizon, idx] = c.value
+        end
+    end
+    ConditionalForecast{Float64}(fcast, lo, hi, h, Float64(conf_level), copy(varnames),
+                                 cl, uncond, fill(0.1, h, n), :cholesky, reps)
+end
+
+conditional_forecast(model::VARModel, conditions, h::Int; Q=nothing, reps::Int=1000,
+                     conf_level::Real=0.95, rng=nothing) =
+    _mock_conditional_forecast(model.varnames, conditions, h, reps, conf_level)
+conditional_forecast(post::BVARPosterior, conditions, h::Int; Q=nothing, reps::Int=1000,
+                     conf_level::Real=0.95, rng=nothing) =
+    _mock_conditional_forecast(post.varnames, conditions, h, reps, conf_level)
+
+report(fc::ConditionalForecast) = "ConditionalForecast mock report"
+
+export generalized_fevd, ForecastCondition, forecast_condition, ConditionalForecast
+export conditional_forecast
 
 # ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
 #

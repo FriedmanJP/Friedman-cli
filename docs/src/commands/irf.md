@@ -41,6 +41,13 @@ friedman irf var data.csv --id=jade
 # With bootstrap confidence intervals
 friedman irf var data.csv --shock=1 --ci=bootstrap --replications=1000
 
+# Wild bootstrap (heteroskedastic residuals) / moving-block (serial dependence)
+friedman irf var data.csv --ci=bootstrap --bootstrap=wild --wild-dist=mammen
+friedman irf var data.csv --ci=bootstrap --bootstrap=block --block-length=12
+
+# Kilian (1998) bias-corrected bands
+friedman irf var data.csv --ci=bootstrap --bias-correct --bias-reps=250
+
 # Cumulative IRFs (for differenced data)
 friedman irf var data.csv --shock=1 --cumulative
 
@@ -93,6 +100,55 @@ friedman irf var data.csv --shock=1 --ci=bootstrap --stationary-only
 See [Configuration](../configuration.md) for restriction TOML formats.
 
 **Output:** Tidy table (`horizon|variable|shock|value|lower|upper`) filtered to `--shock` (the Arias/Uhlig/`--identified-set` paths stay wide — see [Output format](#output-format-c051) above).
+
+### Bootstrap schemes and bias correction
+
+These apply under `--ci bootstrap` only; with any other `--ci` they are ignored and the CLI
+says so on stderr rather than letting the flag look effective.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--bootstrap` | String | `iid` | `iid`, `wild`, `block` |
+| `--wild-dist` | String | `rademacher` | Multiplier for `--bootstrap wild`: `rademacher`, `mammen` |
+| `--block-length` | Int | 0 | Block length for `--bootstrap block` (0 = library default) |
+| `--bias-correct` | Flag | | Kilian (1998) bias-corrected bands |
+| `--bias-reps` | Int | 0 | Inner reps for `--bias-correct` (0 = same as `--replications`) |
+
+Which scheme to use follows from what the residuals violate. `iid` resamples them
+independently and assumes both homoskedasticity and no serial dependence. `wild` multiplies
+each residual by a mean-zero draw, preserving conditional heteroskedasticity — the usual
+choice for macro data. `block` resamples contiguous blocks, preserving short-range
+dependence the VAR has not captured.
+
+!!! warning "`--bias-correct` is bootstrap-after-bootstrap"
+    OLS VAR coefficients are biased toward stationarity in small samples, which biases the
+    IRFs. Kilian's correction estimates that bias by an *inner* bootstrap, re-centres the
+    DGP, and corrects every outer draw.
+
+    The cost is **multiplicative, not additive**: the inner loop runs `--bias-reps` (default:
+    `--replications`) re-estimations *per outer draw*. With the defaults that is 1000 × 1000
+    VAR fits. Set `--bias-reps` well below `--replications` — a few hundred is normally
+    enough to pin the bias down — before running this on anything large.
+
+### Arias identification diagnostics
+
+`--id arias` now reports an importance-sampling diagnostics table alongside the IRF:
+
+| Field | Meaning |
+|---|---|
+| `acceptance_rate` | Fraction of candidate draws satisfying the restrictions |
+| `n_draws` | Nominal draw count |
+| `ess` | Kish's effective sample size of the importance weights |
+| `ess_fraction` | `ess / n_draws` |
+
+Read `ess_fraction`, not `n_draws`. Under pure sign restrictions the weights are uniform and
+the fraction is 1. **With zero restrictions it can be far below 1**, meaning a handful of
+draws carry most of the posterior mass and the summary rests on far fewer effective draws
+than the nominal count suggests. Below 0.1 the CLI warns on stderr.
+
+This matters from CLI v0.9.1 specifically: the importance weights were inoperative before
+MEMs 0.7.2, so Arias results changed at the bump and the diagnostic is what tells you
+whether to trust the new ones.
 
 ## irf bvar
 

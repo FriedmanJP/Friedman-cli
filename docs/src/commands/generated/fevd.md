@@ -179,6 +179,8 @@ Compute forecast error variance decomposition
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--generalized` | — | Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1) |
+| `--normalize` | — | Rescale generalized shares to sum to 1 per variable |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `fevd_var` (Compute forecast error variance decomposition)

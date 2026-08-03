@@ -3178,6 +3178,158 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     end
 
     # W13/#115 — Den Haan (2010) accuracy, the audit's adopt-now row.
+    # ── W8/#110: scenario forecasts, bootstrap schemes, generalized FEVD ────
+    @testset "forecast scenario (W8/#110)" begin
+        csv = dgp_var2(; T=160, seed=41)
+        cond = tempname() * ".csv"
+        write(cond, "variable,period,value\ny1,1,2.5\ny1,2,2.0\n")
+
+        r = run_json(["forecast", "scenario", csv, "--conditions-file", cond,
+                      "--lags", "2", "--horizons", "6", "--replications", "200"])
+        assert_envelope_ok(r; label="forecast scenario")
+        path = nothing
+        for (_, v) in pairs(r.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["horizon", "variable", "value", "unconditional"]) &&
+                (path = v)
+        end
+        @test path !== nothing
+        if path !== nothing
+            @test length(table_rows(path)) == 6 * 3
+            # A HARD condition (no sd) must pin the path EXACTLY and collapse the band --
+            # that is the whole contract of a hard conditional forecast.
+            for rw in table_rows(path)
+                a = collect(rw)
+                v  = String(a[col_index(path, "variable")])
+                h  = Int(a[col_index(path, "horizon")])
+                if v == "y1" && h in (1, 2)
+                    want = h == 1 ? 2.5 : 2.0
+                    @test Float64(a[col_index(path, "value")]) ≈ want atol=1e-6
+                    @test Float64(a[col_index(path, "lower")]) ≈ want atol=1e-6
+                    @test Float64(a[col_index(path, "upper")]) ≈ want atol=1e-6
+                end
+            end
+        end
+        # The implied structural shocks ride their own table.
+        shk = nothing
+        for (_, v) in pairs(r.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["horizon", "shock", "value"]) &&
+                !("variable" in table_cols(v)) && (shk = v)
+        end
+        @test shk !== nothing
+
+        # BVAR dispatch is a separate upstream method, so exercise it too.
+        rb = run_json(["forecast", "scenario", csv, "--conditions-file", cond,
+                       "--method", "bvar", "--lags", "2", "--horizons", "6",
+                       "--draws", "200", "--replications", "200"])
+        assert_envelope_ok(rb; label="forecast scenario --method bvar")
+
+        # Malformed conditions: every one of these is a typed data error, never exit 1.
+        bad_cols = tempname() * ".csv"; write(bad_cols, "var,period,value\ny1,1,2.5\n")
+        @test run_json(["forecast", "scenario", csv, "--conditions-file", bad_cols,
+                        "--lags", "2"]).code == 3
+        # A blank cell must be caught BEFORE the Float64 conversion (the loader lesson).
+        blank = tempname() * ".csv"; write(blank, "variable,period,value\ny1,1,\n")
+        @test run_json(["forecast", "scenario", csv, "--conditions-file", blank,
+                        "--lags", "2"]).code == 3
+        unknown = tempname() * ".csv"; write(unknown, "variable,period,value\nnope,1,2.5\n")
+        @test run_json(["forecast", "scenario", csv, "--conditions-file", unknown,
+                        "--lags", "2"]).code == 3
+        beyond = tempname() * ".csv"; write(beyond, "variable,period,value\ny1,99,2.5\n")
+        @test run_json(["forecast", "scenario", csv, "--conditions-file", beyond,
+                        "--lags", "2", "--horizons", "6"]).code == 3
+        dup = tempname() * ".csv"
+        write(dup, "variable,period,value\ny1,1,2.5\ny1,1,3.0\n")
+        @test run_json(["forecast", "scenario", csv, "--conditions-file", dup,
+                        "--lags", "2"]).code == 3
+        # Missing --conditions-file is a usage error, not a data one.
+        @test run_json(["forecast", "scenario", csv, "--lags", "2"]).code == 2
+
+        for f in (cond, bad_cols, blank, unknown, beyond, dup, csv)
+            rm(f; force=true)
+        end
+    end
+
+    @testset "irf var bootstrap schemes + Kilian (W8/#110)" begin
+        csv = dgp_var2(; T=140, seed=43)
+        for scheme in ("iid", "wild", "block")
+            r = run_json(["irf", "var", csv, "--lags", "2", "--horizons", "6",
+                          "--ci", "bootstrap", "--replications", "60",
+                          "--bootstrap", scheme])
+            assert_envelope_ok(r; label="irf var --bootstrap $scheme")
+            _, t = first_table(r.doc)
+            @test t !== nothing && !isempty(table_rows(t))
+        end
+        for wd in ("rademacher", "mammen")      # upstream implements only these two
+            r = run_json(["irf", "var", csv, "--lags", "2", "--horizons", "4",
+                          "--ci", "bootstrap", "--replications", "40",
+                          "--bootstrap", "wild", "--wild-dist", wd])
+            assert_envelope_ok(r; label="irf var --wild-dist $wd")
+        end
+        rk = run_json(["irf", "var", csv, "--lags", "2", "--horizons", "4",
+                       "--ci", "bootstrap", "--replications", "40",
+                       "--bias-correct", "--bias-reps", "20"])
+        assert_envelope_ok(rk; label="irf var --bias-correct")
+        @test run_json(["irf", "var", csv, "--bootstrap", "bogus"]).code == 2
+        @test run_json(["irf", "var", csv, "--wild-dist", "bogus"]).code == 2
+        @test run_json(["irf", "var", csv, "--block-length", "-1"]).code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "fevd var --generalized (W8/#110)" begin
+        csv = dgp_var2(; T=140, seed=47)
+        H = 5
+        sums(t) = begin
+            acc = Dict{Tuple{Int,String},Float64}()
+            for rw in table_rows(t)
+                a = collect(rw)
+                k = (Int(a[col_index(t, "horizon")]), String(a[col_index(t, "variable")]))
+                acc[k] = get(acc, k, 0.0) + Float64(a[col_index(t, "value")])
+            end
+            acc
+        end
+
+        # Orthogonalized: shares DO sum to 1 per (horizon, variable).
+        ro = run_json(["fevd", "var", csv, "--lags", "2", "--horizons", string(H)])
+        assert_envelope_ok(ro; label="fevd var orthogonalized")
+        _, to = first_table(ro.doc)
+        @test to !== nothing
+        if to !== nothing
+            for (_, v) in sums(to)
+                @test v ≈ 1.0 atol=1e-6
+            end
+        end
+
+        # Generalized: they do NOT. Reusing the sum-to-1 assertion here would be wrong --
+        # the generalized shocks are correlated, so contributions overlap.
+        rg = run_json(["fevd", "var", csv, "--lags", "2", "--horizons", string(H),
+                       "--generalized"])
+        assert_envelope_ok(rg; label="fevd var --generalized")
+        _, tg = first_table(rg.doc)
+        @test tg !== nothing
+        if tg !== nothing
+            sg = sums(tg)
+            @test !isempty(sg)
+            @test all(v -> v > 0, values(sg))
+            # At least one row must genuinely depart from 1, else --generalized is a no-op.
+            @test any(v -> abs(v - 1.0) > 1e-6, values(sg))
+        end
+
+        # --normalize rescales them back to 1, which is the only way to read them as shares.
+        rn = run_json(["fevd", "var", csv, "--lags", "2", "--horizons", string(H),
+                       "--generalized", "--normalize"])
+        assert_envelope_ok(rn; label="fevd var --generalized --normalize")
+        _, tn = first_table(rn.doc)
+        @test tn !== nothing
+        if tn !== nothing
+            for (_, v) in sums(tn)
+                @test v ≈ 1.0 atol=1e-6
+            end
+        end
+        rm(csv; force=true)
+    end
+
     # ── W7/#109: TVP-VAR-SV, MF-VAR, BVAR hyperopt ──────────────────────────
     @testset "estimate tvpvar + irf tvpvar (W7/#109)" begin
         csv = dgp_var2(; T=120, seed=21)

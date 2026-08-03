@@ -6558,7 +6558,7 @@ function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::
                         varnames=varnames)
     catch e
         e isa CliError && rethrow()
-        _domain_or_data_error(e, "estimate tvpvar")
+        throw(_domain_or_data_error(e, "estimate tvpvar"))
     end
     return post, varnames
 end
@@ -6736,7 +6736,7 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
                        n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames)
     catch e
         e isa CliError && rethrow()
-        _domain_or_data_error(e, "estimate mfvar")
+        throw(_domain_or_data_error(e, "estimate mfvar"))
     end
     _status_report(() -> report(post))
 

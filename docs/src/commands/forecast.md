@@ -67,6 +67,60 @@ friedman forecast bvar data.csv --sampler=gibbs --config=prior.toml
 !!! note "v0.3.0"
     BVAR forecasts now return typed `BVARForecast` objects with the same accessor interface as `VARForecast`.
 
+## forecast scenario
+
+Waggoner–Zha conditional (scenario) forecasts: pin some variables to chosen paths and let
+the model work out everything else, together with the structural shocks that would deliver
+the scenario.
+
+```bash
+friedman forecast scenario data.csv --conditions-file=scenario.csv --horizons=12
+friedman forecast scenario data.csv --conditions-file=scenario.csv --method=bvar --draws=2000
+```
+
+**Conditions file.** A long-format CSV, one condition per row:
+
+```csv
+variable,period,value,sd
+gdp,1,2.5,0
+gdp,2,2.0,0
+inflation,4,3.1,0.5
+```
+
+- `variable` — a column name from your data, or a 1-based index.
+- `period` — the forecast horizon the condition applies to (1 = first forecast period).
+- `value` — the level the variable is pinned to.
+- `sd` — optional. **0 (the default) is a hard condition**: the path is pinned exactly and
+  the interval collapses to a point at that horizon. A positive `sd` makes it soft, so the
+  model may deviate at a cost.
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--conditions-file` | | String | | **Required.** Path to the conditions CSV |
+| `--method` | | String | `var` | Model to condition: `var`, `bvar` |
+| `--lags` | `-p` | Int | auto | Lag order (4 for `bvar`) |
+| `--horizons` | `-h` | Int | 12 | Forecast horizon |
+| `--replications` | | Int | 1000 | Draws used for the conditional bands |
+| `--confidence` | | Float64 | 0.95 | Confidence level in (0, 1) |
+| `--draws` | `-n` | Int | 2000 | MCMC draws (`--method bvar`) |
+| `--sampler` | | String | `direct` | `direct`, `gibbs` (`--method bvar`) |
+| `--plot` / `--plot-save` | | Flag/String | | Plot the conditional path |
+
+**Output:** the conditional path (`horizon`, `variable`, `value`, `lower`, `upper`,
+`unconditional`), the implied structural shocks as a second table, and the settings.
+
+The `unconditional` column is the baseline forecast from the same fit. A scenario is only
+interpretable against the baseline it departs from, and computing it here rather than in a
+second command guarantees both come from the same draws.
+
+Check the implied shocks before believing a scenario. A path that requires structural shocks
+far outside their historical range is arithmetically consistent but not economically
+credible, and the shock table is what reveals that.
+
+!!! note "The option is `--conditions-file`, not `--conditions`"
+    `--conditions` is reserved: it prints the GPL conditions notice, and it is matched
+    anywhere in the command line.
+
 ## forecast lp
 
 Direct LP forecasts with configurable impulse path and confidence intervals.

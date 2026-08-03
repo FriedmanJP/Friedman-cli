@@ -223,6 +223,10 @@ Compute frequentist impulse response functions
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
+| `--bootstrap` | — | `String` | `iid` | `iid`, `wild`, `block` | Bootstrap scheme (--ci bootstrap): iid\|wild\|block |
+| `--block-length` | — | `Int64` | `0` | — | Block length for --bootstrap block (0 = library default) |
+| `--wild-dist` | — | `String` | `rademacher` | `rademacher`, `mammen` | Wild-bootstrap multiplier: rademacher\|mammen |
+| `--bias-reps` | — | `Int64` | `0` | — | Inner reps for --bias-correct (0 = same as --replications) |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -237,6 +241,7 @@ Compute frequentist impulse response functions
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
 | `--identified-set` | — | Return full identified set for sign restrictions |
 | `--stationary-only` | — | Filter non-stationary bootstrap draws |
+| `--bias-correct` | — | Kilian (1998) bias-corrected bootstrap bands |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `irf_var` (Compute frequentist impulse response functions)

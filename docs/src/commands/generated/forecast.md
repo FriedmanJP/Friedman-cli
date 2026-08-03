@@ -3,7 +3,7 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 33
+**Leaves:** 34
 
 ### `friedman forecast aparch`
 
@@ -766,6 +766,41 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `forecast_sarima` (Path to CSV data file)
+
+---
+
+### `friedman forecast scenario`
+
+Waggoner-Zha conditional (scenario) forecast
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--conditions-file` | — | `String` | `""` | — | REQUIRED long-format CSV: variable,period,value[,sd] |
+| `--method` | — | `String` | `var` | `var`, `bvar` | Model to condition: var\|bvar |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto for var, 4 for bvar) |
+| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--replications` | — | `Int64` | `1000` | — | Draws used for the conditional bands |
+| `--confidence` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
+| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws (--method bvar) |
+| `--sampler` | — | `String` | `direct` | — | direct\|gibbs (--method bvar) |
+| `--config` | — | `String` | `""` | — | TOML config for the BVAR prior |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `scenario` (Conditional forecast path); `shocks` (Implied structural shocks); `settings` (Scenario settings)
 
 ---
 

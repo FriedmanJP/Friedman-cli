@@ -32,6 +32,36 @@ friedman fevd var data.csv --id=sign --config=sign_restrictions.toml
 
 **Output:** Tidy table (`horizon|variable|shock|value`); `value` is the variance share in `[0, 1]` (Arias/Uhlig identification still builds its own wide table — no MEMs `FEVD` to route through `long_table`).
 
+## Generalized FEVD (`--generalized`)
+
+Pesaran–Shin (1998) generalized forecast error variance decomposition. It sidesteps
+identification entirely — each variable is shocked under the historical covariance rather
+than an orthogonalized one — so it is a flag rather than an `--id` value, and `--id`/`--config`
+are ignored when it is set.
+
+```bash
+friedman fevd var data.csv --horizons=20 --generalized
+friedman fevd var data.csv --horizons=20 --generalized --normalize
+```
+
+!!! warning "Generalized shares do not sum to 1"
+    This is the property that trips people up. The generalized shocks are **correlated**, so
+    their contributions overlap and the shares for a given (horizon, variable) sum to
+    something other than 1 — often greater. They are *not* an orthogonal decomposition and
+    must not be read as "shock *j* explains *x*% of variable *i*".
+
+    The advantage is invariance: unlike a Cholesky FEVD, the answer does not depend on the
+    ordering of the variables, which is often arbitrary.
+
+    `--normalize` rescales each variable's row to sum to 1. That makes the numbers readable
+    as shares, but the rescaling is a convention, not a derivation — the overlap it hides is
+    still there.
+
+| Flag | Description |
+|------|-------------|
+| `--generalized` | Pesaran–Shin generalized FEVD (identification-free) |
+| `--normalize` | Rescale shares to sum to 1 per variable |
+
 ## fevd bvar
 
 Bayesian FEVD with posterior mean proportions.
