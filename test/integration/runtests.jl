@@ -3178,6 +3178,148 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     end
 
     # W13/#115 — Den Haan (2010) accuracy, the audit's adopt-now row.
+    # ── W9/#111: quantile regression + RDD ──────────────────────────────────
+    @testset "estimate qreg (W9/#111)" begin
+        # Homoskedastic errors: the SLOPE is the same at every quantile and only the
+        # INTERCEPT shifts, by the normal quantile. That is the property worth asserting --
+        # it fails if taus are mismatched to columns.
+        csv = tempname() * ".csv"
+        open(csv, "w") do io
+            println(io, "y,const_,x")
+            r = 1.0
+            for i in 1:400
+                r = mod(r * 48271, 2147483647)          # deterministic, no RNG dependency
+                u1 = r / 2147483647
+                r = mod(r * 48271, 2147483647)
+                u2 = r / 2147483647
+                z  = sqrt(-2log(max(u1, 1e-12))) * cos(2pi * u2)
+                r = mod(r * 48271, 2147483647)
+                x  = (r / 2147483647 - 0.5) * 4
+                println(io, "$(1.0 + 2.0x + z),1.0,$x")
+            end
+        end
+
+        rq = run_json(["estimate", "qreg", csv, "--dep", "y", "--tau", "0.25,0.5,0.75"])
+        assert_envelope_ok(rq; label="estimate qreg")
+        ct = nothing
+        for (_, v) in pairs(rq.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["tau", "term", "estimate", "std_error"]) && (ct = v)
+        end
+        @test ct !== nothing
+        if ct !== nothing
+            @test length(table_rows(ct)) == 3 * 2       # 3 quantiles x 2 terms
+            slopes = Float64[]; intercepts = Float64[]
+            for rw in table_rows(ct)
+                a = collect(rw)
+                term = String(a[col_index(ct, "term")])
+                est  = Float64(a[col_index(ct, "estimate")])
+                term == "x" ? push!(slopes, est) : push!(intercepts, est)
+            end
+            @test length(slopes) == 3
+            @test all(b -> abs(b - 2.0) < 0.25, slopes)
+            # Intercepts must be strictly increasing in tau -- the whole point of the model.
+            @test issorted(intercepts)
+            @test intercepts[3] - intercepts[1] > 0.5
+        end
+
+        for se in ("iid", "robust", "boot")
+            r2 = run_json(["estimate", "qreg", csv, "--dep", "y", "--tau", "0.5",
+                           "--se", se, "--n-boot", "50"])
+            assert_envelope_ok(r2; label="estimate qreg --se $se")
+        end
+        @test run_json(["estimate", "qreg", csv, "--tau", "0"]).code == 2
+        @test run_json(["estimate", "qreg", csv, "--tau", "1"]).code == 2
+        @test run_json(["estimate", "qreg", csv, "--tau", "0.5,0.5"]).code == 2
+        @test run_json(["estimate", "qreg", csv, "--tau", "abc"]).code == 2
+        @test run_json(["estimate", "qreg", csv, "--se", "bogus"]).code == 2
+        @test run_json(["estimate", "qreg", csv, "--alpha", "0"]).code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "estimate rdd (W9/#111)" begin
+        # Sharp design with a KNOWN jump of 3.0 at 0. Assert the CI covers the truth rather
+        # than pinning the point estimate: the CCT bandwidth is data-driven, so the estimate
+        # legitimately moves.
+        csv = tempname() * ".csv"
+        open(csv, "w") do io
+            println(io, "y,run")
+            r = 7.0
+            for i in 1:600
+                r = mod(r * 48271, 2147483647); u1 = r / 2147483647
+                r = mod(r * 48271, 2147483647); u2 = r / 2147483647
+                z  = sqrt(-2log(max(u1, 1e-12))) * cos(2pi * u2)
+                r = mod(r * 48271, 2147483647)
+                x  = (r / 2147483647 - 0.5) * 8
+                y  = 0.5x + (x >= 0 ? 3.0 : 0.0) + 0.5z
+                println(io, "$y,$x")
+            end
+        end
+
+        rr = run_json(["estimate", "rdd", csv, "--outcome", "y", "--running", "run",
+                       "--cutoff", "0"])
+        assert_envelope_ok(rr; label="estimate rdd")
+        tt = nothing
+        for (_, v) in pairs(rr.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            all(c -> c in table_cols(v), ["method", "estimate", "std_error"]) && (tt = v)
+        end
+        @test tt !== nothing
+        if tt !== nothing
+            bym = Dict(String(collect(rw)[col_index(tt, "method")]) => collect(rw)
+                       for rw in table_rows(tt))
+            @test sort(collect(keys(bym))) == ["bias-corrected", "conventional", "robust"]
+            for m in ("conventional", "robust")
+                a = bym[m]
+                lo = Float64(a[col_index(tt, "ci_lower")])
+                hi = Float64(a[col_index(tt, "ci_upper")])
+                @test lo <= 3.0 <= hi
+            end
+            # "robust" is the BIAS-CORRECTED point with a wider SE, not a third estimate.
+            @test Float64(bym["robust"][col_index(tt, "estimate")]) ≈
+                  Float64(bym["bias-corrected"][col_index(tt, "estimate")]) atol=1e-9
+            @test Float64(bym["robust"][col_index(tt, "std_error")]) >=
+                  Float64(bym["conventional"][col_index(tt, "std_error")])
+        end
+
+        # Auto-selected bandwidth must be reported, and an explicit one must be honoured.
+        st = nothing
+        for (_, v) in pairs(rr.doc.data)
+            (v isa JSON3.Object && haskey(v, :rows)) || continue
+            "metric" in table_cols(v) &&
+                any(w -> String(collect(w)[1]) == "bandwidth_h", table_rows(v)) && (st = v)
+        end
+        @test st !== nothing
+        if st !== nothing
+            hv = 0.0
+            for rw in table_rows(st)
+                a = collect(rw)
+                String(a[1]) == "bandwidth_h" && (hv = Float64(a[2]))
+            end
+            @test hv > 0
+        end
+        rh = run_json(["estimate", "rdd", csv, "--outcome", "y", "--running", "run",
+                       "--cutoff", "0", "--bandwidth", "2.0"])
+        assert_envelope_ok(rh; label="estimate rdd --bandwidth")
+
+        for k in ("triangular", "epanechnikov", "uniform")
+            rk = run_json(["estimate", "rdd", csv, "--outcome", "y", "--running", "run",
+                           "--cutoff", "0", "--kernel", k])
+            assert_envelope_ok(rk; label="estimate rdd --kernel $k")
+        end
+
+        # A cutoff outside the running variable's support leaves one side empty -- typed
+        # data error, never an untyped crash from inside the local regression.
+        @test run_json(["estimate", "rdd", csv, "--outcome", "y", "--running", "run",
+                        "--cutoff", "999"]).code == 3
+        @test run_json(["estimate", "rdd", csv, "--outcome", "y", "--running", "y",
+                        "--cutoff", "0"]).code == 2
+        @test run_json(["estimate", "rdd", csv, "--kernel", "bogus"]).code == 2
+        @test run_json(["estimate", "rdd", csv, "--order", "0"]).code == 2
+        @test run_json(["estimate", "rdd", csv, "--level", "1.5"]).code == 2
+        rm(csv; force=true)
+    end
+
     # ── W8/#110: scenario forecasts, bootstrap schemes, generalized FEVD ────
     @testset "forecast scenario (W8/#110)" begin
         csv = dgp_var2(; T=160, seed=41)

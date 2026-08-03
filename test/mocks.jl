@@ -9123,6 +9123,96 @@ report(fc::ConditionalForecast) = "ConditionalForecast mock report"
 export generalized_fevd, ForecastCondition, forecast_condition, ConditionalForecast
 export conditional_forecast
 
+# ─── W9/#111: quantile regression + RDD ──────────────────────────────────────
+# Field names and shapes mirror real. NOTE beta/stderr/residuals/fitted are k x n_tau (or
+# n x n_tau) MATRICES even for a single tau -- a mock that collapsed them to vectors would
+# hide the renderer's indexing.
+
+struct QuantileRegModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    taus::Vector{T}
+    beta::Matrix{T}
+    vcov_mats::Vector{Matrix{T}}
+    stderr::Matrix{T}
+    residuals::Matrix{T}
+    fitted::Matrix{T}
+    objective::Vector{T}
+    pseudo_r2::Vector{T}
+    varnames::Vector{String}
+    se_type::Symbol
+    n_obs::Int
+    converged::Vector{Bool}
+end
+
+function estimate_qreg(y::AbstractVector, X::AbstractMatrix, tau=0.5;
+                       se::Symbol=:iid, varnames=nothing, n_boot::Int=500,
+                       rng=nothing, alpha::Real=0.05)
+    n, k = length(y), size(X, 2)
+    size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
+    n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
+    se in (:iid, :robust, :boot) ||
+        throw(ArgumentError("se must be :iid, :robust, or :boot; got :$se"))
+    taus = tau isa Real ? Float64[tau] : Float64.(collect(tau))
+    all(t -> 0 < t < 1, taus) || throw(ArgumentError("tau must lie in (0, 1)"))
+    nt = length(taus)
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : copy(varnames)
+    beta = Matrix{Float64}(undef, k, nt)
+    for j in 1:nt, i in 1:k
+        beta[i, j] = 0.5 + 0.1 * i + taus[j]        # varies with tau, as a real fit would
+    end
+    QuantileRegModel{Float64}(Float64.(y), Float64.(X), taus, beta,
+        [Matrix{Float64}(I, k, k) for _ in 1:nt], fill(0.2, k, nt),
+        fill(0.1, n, nt), fill(0.5, n, nt), fill(12.5, nt), fill(0.3, nt),
+        vn, se, n, fill(true, nt))
+end
+
+struct RDDResult{T<:AbstractFloat}
+    tau_conventional::T
+    tau_bias_corrected::T
+    se_conventional::T
+    se_robust::T
+    ci_conventional::Tuple{T,T}
+    ci_robust::Tuple{T,T}
+    pvalue_robust::T
+    z_robust::T
+    h::T
+    b::T
+    n_left::Int
+    n_right::Int
+    cutoff::T
+    p::Int
+    kernel::Symbol
+    level::T
+    design::Symbol
+    first_stage::Union{Nothing,T}
+end
+
+function estimate_rdd(y::AbstractVector, running::AbstractVector; cutoff::Real=0.0,
+                      fuzzy=nothing, kernel::Symbol=:triangular, p::Int=1,
+                      h=nothing, b=nothing, level::Real=0.95)
+    length(running) == length(y) ||
+        throw(ArgumentError("running must have length $(length(y))"))
+    kernel in (:triangular, :epanechnikov, :uniform) || throw(ArgumentError(
+        "kernel must be :triangular, :epanechnikov, or :uniform; got :$kernel"))
+    p >= 1 || throw(ArgumentError("p must be >= 1, got $p"))
+    0 < level < 1 || throw(ArgumentError("level must lie in (0,1), got $level"))
+    fuzzy === nothing || length(fuzzy) == length(y) ||
+        throw(ArgumentError("fuzzy must have length $(length(y))"))
+    nl = count(<(cutoff), running); nr = count(>=(cutoff), running)
+    hh = h === nothing ? 1.5 : Float64(h)
+    bb = b === nothing ? 2.5 : Float64(b)
+    RDDResult{Float64}(2.0, 2.1, 0.4, 0.45, (1.216, 2.784), (1.218, 2.982),
+                       0.0001, 4.67, hh, bb, nl, nr, Float64(cutoff), p, kernel,
+                       Float64(level), fuzzy === nothing ? :sharp : :fuzzy,
+                       fuzzy === nothing ? nothing : 0.8)
+end
+
+report(m::QuantileRegModel) = "QuantileRegModel mock report"
+report(r::RDDResult) = "RDDResult mock report"
+
+export QuantileRegModel, estimate_qreg, RDDResult, estimate_rdd
+
 # ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
 #
 # Deliberately LAST in the file: it maps names → Types, and mocks.jl is one flat module

@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 72
+**Leaves:** 74
 
 ### `friedman estimate 3sls`
 
@@ -1270,6 +1270,56 @@ Path to CSV panel data file
 | `--collapse` | — | Collapse instruments to limit count |
 
 **Output tables:** `estimate_pvar` (Path to CSV panel data file)
+
+---
+
+### `friedman estimate qreg`
+
+Quantile regression (Koenker-Bassett)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable (default: first numeric column) |
+| `--tau` | — | `String` | `0.5` | — | Quantile(s) in (0,1); one value or a comma-list |
+| `--se` | — | `String` | `iid` | `iid`, `robust`, `boot` | Standard errors: iid\|robust\|boot |
+| `--n-boot` | — | `Int64` | `500` | — | Bootstrap replications for --se boot |
+| `--alpha` | — | `Float64` | `0.05` | — | Significance level for the CI, in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `qreg` (Quantile regression coefficients); `fit` (Per-quantile fit diagnostics)
+
+---
+
+### `friedman estimate rdd`
+
+Regression discontinuity (Calonico-Cattaneo-Titiunik)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--outcome` | — | `String` | `""` | — | Outcome variable (default: first numeric column) |
+| `--running` | — | `String` | `""` | — | Running/forcing variable (default: next numeric column) |
+| `--fuzzy` | — | `String` | `""` | — | Treatment column for a FUZZY design (default: sharp) |
+| `--cutoff` | — | `Float64` | `0.0` | — | Threshold on the running variable |
+| `--bandwidth` | — | `Float64` | `0.0` | — | Main bandwidth h (0 = CCT auto-selection) |
+| `--bias-bandwidth` | — | `Float64` | `0.0` | — | Bias bandwidth b (0 = CCT auto-selection) |
+| `--kernel` | — | `String` | `triangular` | `triangular`, `epanechnikov`, `uniform` | triangular\|epanechnikov\|uniform |
+| `--order` | — | `Int64` | `1` | — | Local polynomial order (>= 1) |
+| `--level` | — | `Float64` | `0.95` | — | Confidence level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `rdd` (Conventional / bias-corrected / robust treatment effect); `settings` (Bandwidths, effective N and robust inference)
 
 ---
 

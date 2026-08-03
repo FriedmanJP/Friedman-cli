@@ -116,6 +116,95 @@ is emitted; the CLI says so on stderr rather than letting the flag look effectiv
     `lambda1`/`lambda2`/`lambda3` now map to `tau`/`lambda`/`decay` and `mu`/`omega` keep
     the library defaults.
 
+## estimate qreg
+
+Quantile regression (Koenker–Bassett). Where OLS fits the conditional mean, this fits a
+conditional quantile — so it shows whether a covariate acts differently at the bottom and
+top of the outcome distribution.
+
+```bash
+friedman estimate qreg data.csv --dep=wage --tau=0.5
+friedman estimate qreg data.csv --dep=wage --tau=0.1,0.25,0.5,0.75,0.9 --se=robust
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | first numeric column | Dependent variable |
+| `--tau` | | String | `0.5` | Quantile(s) in (0,1); one value or a comma-list |
+| `--se` | | String | `iid` | `iid`, `robust`, `boot` |
+| `--n-boot` | | Int | 500 | Bootstrap replications for `--se boot` |
+| `--alpha` | | Float64 | 0.05 | Significance level for the CI |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+Every other numeric column is a regressor, as in `estimate reg` — **include a `const_`
+column of ones if you want an intercept.** A comma-list fits all quantiles in a single call
+and the coefficient table carries a `tau` column, one row per (quantile, term).
+
+Which `--se`: `iid` assumes the errors are identically distributed (fast, but the assumption
+that usually motivates quantile regression is that they are not); `robust` uses a
+Powell-style sandwich; `boot` resamples. Prefer `robust` or `boot` for real work.
+
+**Reading the output.** Under homoskedastic errors the slopes are the *same* at every
+quantile and only the intercept shifts — so quantile-varying slopes are the finding, not the
+baseline. `pseudo_r2` is per-quantile and is **not** comparable with an OLS R²: it compares
+the check-function objective against an intercept-only fit *at that quantile*.
+
+No `--plot`: MEMs 0.7.2 ships no plot recipe for `QuantileRegModel`.
+
+## estimate rdd
+
+Regression discontinuity with Calonico–Cattaneo–Titiunik robust bias correction. Units just
+above and just below a cutoff are treated as comparable, so the jump in the outcome at the
+cutoff identifies the treatment effect.
+
+```bash
+friedman estimate rdd data.csv --outcome=y --running=score --cutoff=60
+friedman estimate rdd data.csv --outcome=y --running=score --cutoff=60 --fuzzy=enrolled
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--outcome` | String | first numeric column | Outcome variable |
+| `--running` | String | next numeric column | Running/forcing variable |
+| `--fuzzy` | String | | Treatment column for a **fuzzy** design (default: sharp) |
+| `--cutoff` | Float64 | 0.0 | Threshold on the running variable |
+| `--bandwidth` | Float64 | 0 (auto) | Main bandwidth *h*; 0 uses CCT selection |
+| `--bias-bandwidth` | Float64 | 0 (auto) | Bias bandwidth *b*; 0 uses CCT selection |
+| `--kernel` | String | `triangular` | `triangular`, `epanechnikov`, `uniform` |
+| `--order` | Int | 1 | Local polynomial order |
+| `--level` | Float64 | 0.95 | Confidence level |
+
+!!! warning "`--cutoff` defaults to 0"
+    That matches the common convention of centring the running variable, but a forgotten
+    `--cutoff` on an uncentred variable produces a confident, wrong answer rather than an
+    error. The cutoff in force is always echoed on stderr — check it. If the cutoff falls
+    outside the running variable's range the CLI refuses (`data/invalid`) rather than fitting
+    a one-sided regression.
+
+**Output — the CCT triple.** Three rows, and the relationship between them matters:
+
+| method | estimate | interpretation |
+|---|---|---|
+| `conventional` | τ̂ | the local-polynomial estimate, biased at the boundary |
+| `bias-corrected` | τ̂<sup>bc</sup> | bias removed, but its CI understates uncertainty |
+| `robust` | τ̂<sup>bc</sup> | **same point estimate**, wider SE accounting for having estimated the bias |
+
+`robust` is not a third estimate — it is the bias-corrected point with honest inference, and
+it is the row to report. `bias-corrected` deliberately has no CI here, because a
+conventional interval around it is the one CCT warn against.
+
+The settings table reports the selected bandwidths and `n_left`/`n_right` — the **effective**
+observations inside the bandwidth, not the full sample. A handful of effective points makes
+the estimate fragile no matter how tight the interval looks, and the CLI warns below 10 per
+side.
+
+For a fuzzy design, `--fuzzy` names the actual-treatment column and `first_stage` reports the
+jump in treatment probability at the cutoff. A weak first stage inflates the ratio estimate
+exactly as a weak instrument does.
+
+No `--plot`: MEMs 0.7.2 ships no plot recipe for `RDDResult`.
+
 ## estimate tvpvar
 
 Time-varying-parameter VAR with stochastic volatility (Primiceri 2005): both the

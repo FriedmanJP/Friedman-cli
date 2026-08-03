@@ -136,6 +136,48 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_bvar),
         ),
         CommandSpec(
+            path=["estimate", "qreg"],
+            summary="Quantile regression (Koenker-Bassett)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first numeric column)"),
+                OptionSpec(name="tau", type=String, default="0.5", description="Quantile(s) in (0,1); one value or a comma-list"),
+                OptionSpec(name="se", type=String, default="iid", description="Standard errors: iid|robust|boot", choices=["iid","robust","boot"]),
+                OptionSpec(name="n-boot", type=Int, default=500, description="Bootstrap replications for --se boot"),
+                OptionSpec(name="alpha", type=Float64, default=0.05, description="Significance level for the CI, in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:qreg, description="Quantile regression coefficients"),
+                    TableSpec(name=:fit, description="Per-quantile fit diagnostics")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_qreg),
+        ),
+        CommandSpec(
+            path=["estimate", "rdd"],
+            summary="Regression discontinuity (Calonico-Cattaneo-Titiunik)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="outcome", type=String, default="", description="Outcome variable (default: first numeric column)"),
+                OptionSpec(name="running", type=String, default="", description="Running/forcing variable (default: next numeric column)"),
+                OptionSpec(name="fuzzy", type=String, default="", description="Treatment column for a FUZZY design (default: sharp)"),
+                OptionSpec(name="cutoff", type=Float64, default=0.0, description="Threshold on the running variable"),
+                OptionSpec(name="bandwidth", type=Float64, default=0.0, description="Main bandwidth h (0 = CCT auto-selection)"),
+                OptionSpec(name="bias-bandwidth", type=Float64, default=0.0, description="Bias bandwidth b (0 = CCT auto-selection)"),
+                OptionSpec(name="kernel", type=String, default="triangular", description="triangular|epanechnikov|uniform", choices=["triangular","epanechnikov","uniform"]),
+                OptionSpec(name="order", type=Int, default=1, description="Local polynomial order (>= 1)"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Confidence level in (0,1)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:rdd, description="Conventional / bias-corrected / robust treatment effect"),
+                    TableSpec(name=:settings, description="Bandwidths, effective N and robust inference")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_rdd),
+        ),
+        CommandSpec(
             path=["estimate", "tvpvar"],
             summary="TVP-VAR with stochastic volatility (Primiceri 2005)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -6757,4 +6799,211 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
         "draws"       => size(post.B_draws, 1),
     ]; format=format, title="MF-VAR Specification")
     return post
+end
+
+# ── W9/#111: quantile regression (Koenker-Bassett) + RDD (CCT) ───────────────
+#
+# NEITHER QuantileRegModel NOR RDDResult is in MEMs' `_COEF_TABLE_TYPES`, so `DataFrame(model)`
+# raises "no default Tables.columns implementation" -- the `_reg_coef_table` trap. Both tables
+# are hand-built to the same C051 column set. Neither type has a `plot_result` recipe on the
+# 0.7.2 tag (checked src/plotting/), so neither leaf advertises --plot.
+
+const _QREG_SE_TYPES = ("iid", "robust", "boot")
+
+"""Parse `--tau`: one value or a comma-list. Upstream fits a whole vector in one call."""
+function _parse_taus(tau::String)
+    taus = Float64[]
+    for tok in split(tau, ',')
+        s = strip(tok)
+        isempty(s) && continue
+        v = tryparse(Float64, s)
+        v === nothing && throw(CliError("usage/invalid",
+            "--tau must be a number or comma-separated numbers in (0, 1), got '$tau'"))
+        0 < v < 1 || throw(CliError("usage/invalid",
+            "--tau must lie strictly in (0, 1), got $v";
+            hint="0 and 1 are not estimable quantiles"))
+        push!(taus, v)
+    end
+    isempty(taus) && throw(CliError("usage/invalid", "--tau is empty"))
+    length(unique(taus)) == length(taus) || throw(CliError("usage/invalid",
+        "--tau repeats a quantile: $tau"))
+    return taus
+end
+
+function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
+                         se::String="iid", n_boot::Int=500, alpha::Float64=0.05,
+                         output::String="", format::String="table")
+    taus = _parse_taus(tau)
+    se_l = lowercase(strip(se))
+    se_l in _QREG_SE_TYPES || throw(CliError("usage/invalid-option",
+        "invalid --se '$se'; must be one of $(join(_QREG_SE_TYPES, "|"))"))
+    n_boot >= 1 || throw(CliError("usage/invalid", "--n-boot must be ≥ 1 (got $n_boot)"))
+    0 < alpha < 1 || throw(CliError("usage/invalid",
+        "--alpha must lie in (0, 1) (got $alpha)"))
+
+    y, X, xcols = _load_reg_data(data, dep)
+    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    _status("Quantile Regression: $dep_name ~ $(join(xcols, " + "))")
+    _status("  Observations: $(length(y)), τ: $(join(taus, ", ")), SE: $se_l")
+    _status()
+
+    model = try
+        estimate_qreg(y, X, length(taus) == 1 ? taus[1] : taus;
+                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "estimate qreg"))
+    end
+
+    # beta/stderr are k × n_tau, so the tidy table carries a `tau` column and one row per
+    # (tau, term) -- never a wide per-quantile block.
+    k, ntau = size(model.beta)
+    z = _normal_quantile(1 - alpha / 2)
+    rows_tau = Float64[]; rows_term = String[]
+    est = Float64[]; ses = Float64[]; stat = Float64[]; pval = Float64[]
+    lo = Float64[]; hi = Float64[]
+    for j in 1:ntau, i in 1:k
+        b = Float64(model.beta[i, j]); s = Float64(model.stderr[i, j])
+        t = s > 0 ? b / s : NaN
+        push!(rows_tau, Float64(model.taus[j])); push!(rows_term, model.varnames[i])
+        push!(est, b); push!(ses, s); push!(stat, t)
+        push!(pval, isfinite(t) ? 2 * (1 - _normal_cdf(abs(t))) : NaN)
+        push!(lo, b - z * s); push!(hi, b + z * s)
+    end
+    output_result(DataFrame(tau=rows_tau, term=rows_term, estimate=est, std_error=ses,
+                            stat=stat, p_value=pval, ci_lower=lo, ci_upper=hi);
+                  format=Symbol(format), output=output,
+                  title="Quantile Regression Coefficients ($(se_l) SE)")
+
+    # Pseudo-R² is per-quantile and NOT comparable with an OLS R²: it compares the check-
+    # function objective against an intercept-only quantile fit, so it measures fit at that
+    # quantile only.
+    output_result(DataFrame(tau=Float64.(model.taus),
+                            objective=round.(Float64.(model.objective); digits=6),
+                            pseudo_r2=round.(Float64.(model.pseudo_r2); digits=6),
+                            converged=[c ? 1.0 : 0.0 for c in model.converged]);
+                  format=Symbol(format), output=_per_var_output_path(output, "fit"),
+                  title="Quantile Fit Diagnostics")
+    any(!, model.converged) && _status_styled(
+        "  warning: at least one quantile did NOT converge\n"; color=:yellow)
+    return model
+end
+
+const _RDD_KERNELS = ("triangular", "epanechnikov", "uniform")
+
+function _estimate_rdd(; data::String, outcome::String="", running::String="",
+                        fuzzy::String="", cutoff::Float64=0.0,
+                        bandwidth::Float64=0.0, bias_bandwidth::Float64=0.0,
+                        kernel::String="triangular", order::Int=1,
+                        level::Float64=0.95,
+                        output::String="", format::String="table")
+    kern = lowercase(strip(kernel))
+    kern in _RDD_KERNELS || throw(CliError("usage/invalid-option",
+        "invalid --kernel '$kernel'; must be one of $(join(_RDD_KERNELS, "|"))"))
+    order >= 1 || throw(CliError("usage/invalid", "--order must be ≥ 1 (got $order)"))
+    0 < level < 1 || throw(CliError("usage/invalid",
+        "--level must lie in (0, 1) (got $level)"))
+    bandwidth >= 0 || throw(CliError("usage/invalid",
+        "--bandwidth must be > 0, or 0 for CCT auto-selection (got $bandwidth)"))
+    bias_bandwidth >= 0 || throw(CliError("usage/invalid",
+        "--bias-bandwidth must be > 0, or 0 for CCT auto-selection (got $bias_bandwidth)"))
+
+    df = load_data(data)
+    numcols = variable_names(df)
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
+    ycol = isempty(outcome) ? numcols[1] : outcome
+    ycol in numcols || throw(CliError("data/column-range",
+        "outcome '$ycol' not found in numeric columns: $(join(numcols, ", "))"))
+    rcol = if isempty(running)
+        cand = filter(!=(ycol), numcols)
+        isempty(cand) && throw(CliError("usage/missing",
+            "--running is required: only one numeric column ('$ycol') is present"))
+        cand[1]
+    else
+        running
+    end
+    rcol in numcols || throw(CliError("data/column-range",
+        "running variable '$rcol' not found in numeric columns: $(join(numcols, ", "))"))
+    ycol == rcol && throw(CliError("usage/invalid",
+        "--outcome and --running must be different columns (both '$ycol')"))
+
+    cols = [ycol, rcol]
+    isempty(fuzzy) || push!(cols, fuzzy)
+    isempty(fuzzy) || fuzzy in numcols || throw(CliError("data/column-range",
+        "fuzzy treatment '$fuzzy' not found in numeric columns: $(join(numcols, ", "))"))
+    for c in cols
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them first"))
+    end
+    y = Vector{Float64}(df[!, ycol])
+    run = Vector{Float64}(df[!, rcol])
+
+    # Both sides of the cutoff must carry mass, or the local regressions have nothing to
+    # fit on one side. Upstream's failure here is not a CLI-level message, and this is
+    # squarely user input.
+    nl = count(<(cutoff), run); nr = count(>=(cutoff), run)
+    (nl > 0 && nr > 0) || throw(CliError("data/invalid",
+        "running variable '$rcol' has no observations on " *
+        (nl == 0 ? "the LEFT" : "the RIGHT") * " of cutoff $cutoff " *
+        "($nl below, $nr at or above)";
+        hint="check --cutoff is on the scale of '$rcol' (range " *
+             "$(round(minimum(run); digits=4))…$(round(maximum(run); digits=4)))"))
+
+    fz = isempty(fuzzy) ? nothing : Vector{Float64}(df[!, fuzzy])
+    _status("RDD: outcome=$ycol, running=$rcol, cutoff=$cutoff" *
+            (isempty(fuzzy) ? " (sharp)" : ", fuzzy=$fuzzy"))
+    _status("  $nl observations below the cutoff, $nr at or above; kernel=$kern, p=$order")
+    _status()
+
+    res = try
+        estimate_rdd(y, run; cutoff=cutoff, fuzzy=fz, kernel=Symbol(kern), p=order,
+                     h=bandwidth > 0 ? bandwidth : nothing,
+                     b=bias_bandwidth > 0 ? bias_bandwidth : nothing,
+                     level=level)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "estimate rdd"))
+    end
+
+    # The CCT triple. All three share ONE point estimate per row-pair by construction:
+    # "robust" is the bias-corrected estimate with a wider SE that accounts for having
+    # estimated the bias, NOT a third estimate. Reporting them as three rows makes that
+    # explicit rather than leaving a reader to infer it.
+    output_result(DataFrame(
+        method   = ["conventional", "bias-corrected", "robust"],
+        estimate = round.([Float64(res.tau_conventional), Float64(res.tau_bias_corrected),
+                           Float64(res.tau_bias_corrected)]; digits=6),
+        std_error = round.([Float64(res.se_conventional), Float64(res.se_conventional),
+                            Float64(res.se_robust)]; digits=6),
+        ci_lower = round.([Float64(res.ci_conventional[1]), NaN,
+                           Float64(res.ci_robust[1])]; digits=6),
+        ci_upper = round.([Float64(res.ci_conventional[2]), NaN,
+                           Float64(res.ci_robust[2])]; digits=6),
+    ); format=Symbol(format), output=output,
+       title="RDD Treatment Effect ($(res.design), $(round(Int, 100*res.level))% CI)")
+
+    settings = Pair{String,Any}[
+        "design"          => String(res.design),
+        "cutoff"          => res.cutoff,
+        "kernel"          => String(res.kernel),
+        "order"           => res.p,
+        "bandwidth_h"     => round(Float64(res.h); digits=6),
+        "bias_bandwidth_b" => round(Float64(res.b); digits=6),
+        "n_left"          => res.n_left,
+        "n_right"         => res.n_right,
+        "z_robust"        => round(Float64(res.z_robust); digits=6),
+        "pvalue_robust"   => round(Float64(res.pvalue_robust); digits=6),
+    ]
+    res.first_stage === nothing ||
+        push!(settings, "first_stage" => round(Float64(res.first_stage); digits=6))
+    output_kv(settings; format=format, title="RDD Settings & Diagnostics")
+
+    # n_left/n_right are the EFFECTIVE counts inside the bandwidth, not the whole sample.
+    # A handful of effective observations makes the estimate unreliable however tight the
+    # nominal CI looks.
+    min(res.n_left, res.n_right) < 10 && _status_styled(
+        "  warning: only $(res.n_left)/$(res.n_right) effective observations within the " *
+        "bandwidth on the left/right — the estimate rests on very few points\n";
+        color=:yellow)
+    return res
 end
