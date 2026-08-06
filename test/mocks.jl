@@ -5397,7 +5397,14 @@ struct FactorBreakResult{T<:AbstractFloat}
     n_factors::Int
     nobs::Int
     n_vars::Int
+    # MEMs 0.7.3/#606: per-series sup statistics + maximizing dates — populated by the
+    # two POOLED methods (breitung_eickmeier, han_inoue), nothing for chen_dolado_gonzalo.
+    series_statistics::Union{Vector{T}, Nothing}
+    series_break_dates::Union{Vector{Int}, Nothing}
 end
+# 7-arg back-compat constructor, mirroring real (#606)
+FactorBreakResult{T}(s, p, bd, m, nf, no, nv) where {T<:AbstractFloat} =
+    FactorBreakResult{T}(s, p, bd, m, nf, no, nv, nothing, nothing)
 
 function panic_test(X::AbstractMatrix{T}; r=:auto, method=:pooled) where T
     n_obs, n_units = size(X)
@@ -5437,7 +5444,15 @@ end
 
 function factor_break_test(X::AbstractMatrix{T}, r::Int; method=:breitung_eickmeier) where T
     n_obs, n_units = size(X)
-    FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units)
+    if method in (:breitung_eickmeier, :han_inoue)
+        # Deliberately UNSORTED per-series stats so a handler that forgets to sort shows.
+        stats = T[T(1 + (i * 7) % n_units) for i in 1:n_units]
+        dates = Int[div(n_obs, 2) + (i % 3) for i in 1:n_units]
+        FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units,
+                             stats, dates)
+    else
+        FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units)
+    end
 end
 function factor_break_test(pd::PanelData{T}, r::Int; method=:breitung_eickmeier) where T
     X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)

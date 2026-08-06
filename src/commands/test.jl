@@ -4459,6 +4459,23 @@ function _test_factor_break(; data::String, factors::Int=2,
     ]
     output_kv(pairs; format=format, output=output, title="Factor Break Test")
 
+    # W2/#124 (MEMs 0.7.3/#606): the pooled methods (breitung_eickmeier, han_inoue) carry
+    # each series' own sup statistic and maximizing date; chen_dolado_gonzalo legitimately
+    # does not (nothing) — the table is simply absent then, never an error. Caveat (docs):
+    # the ranking identifies the breakers when a MODEST subset breaks; a break large
+    # enough to rotate the factor space elevates stable series' statistics too.
+    if result.series_statistics !== nothing
+        ord = sortperm(result.series_statistics; rev=true)
+        per_df = DataFrame(
+            series=ord,
+            statistic=round.(Float64.(result.series_statistics[ord]); digits=4),
+            break_date=result.series_break_dates[ord],
+        )
+        output_result(per_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "series"),
+                      title="Per-Series Break Diagnostics")
+    end
+
     interpret_test_result(result.pvalue,
         "Reject H0: factor structure instability detected at index $(result.break_date)",
         "Cannot reject H0: factor structure appears stable")

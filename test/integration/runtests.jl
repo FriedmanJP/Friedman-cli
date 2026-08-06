@@ -4677,12 +4677,31 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["test", "gregory-hansen", uni]).code == 3
         end
 
-        @testset "test factor-break (n_factors/n_vars)" begin
+        @testset "test factor-break (n_factors/n_vars + per-series, W2/#124)" begin
             r = run_json(["test", "factor-break", multi, "--factors", "1"])
             assert_envelope_ok(r; label="factor-break")
-            _, tbl = first_table(r.doc)
+            # named, not first_table: the leaf now emits TWO tables (the standing lesson)
+            tbl = named_table(r.doc, :factor_break_test)
+            @test tbl !== nothing
             @test metric_value(tbl, "Factors") !== nothing
             @test metric_value(tbl, "Units") !== nothing
+            # Pooled default (breitung_eickmeier) carries per-series diagnostics
+            # (MEMs 0.7.3/#606): one row per series, sorted by statistic descending.
+            ps = named_table(r.doc, :per_series_break_diagnostics)
+            @test ps !== nothing
+            if ps !== nothing
+                rows = table_rows(ps)
+                nv = metric_value(tbl, "Units")
+                @test length(rows) == Int(nv)
+                si = col_index(ps, "statistic")
+                stats = [numv(collect(rw)[si]) for rw in rows]
+                @test issorted(stats; rev=true)
+            end
+            # chen_dolado_gonzalo has no per-series decomposition — table absent, exit 0.
+            rc = run_json(["test", "factor-break", multi, "--factors", "1",
+                           "--method", "chen_dolado_gonzalo"])
+            assert_envelope_ok(rc; label="factor-break cdg")
+            @test named_table(rc.doc, :per_series_break_diagnostics) === nothing
         end
 
         @testset "fevd bvar (point_estimate, (var,shock,h) layout since MEMs 0.7.3/#527)" begin

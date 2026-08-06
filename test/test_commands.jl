@@ -9845,6 +9845,14 @@ end
                 _test_factor_break(; data=csv, factors=2, method="breitung_eickmeier",
                                      id_col="", time_col="", format="table")
             end
+            # W2/#124: pooled methods emit the per-series table…
+            @test occursin("Per-Series Break Diagnostics", out)
+            # …and chen_dolado_gonzalo (series fields = nothing) silently omits it.
+            out_cdg = _capture() do
+                _test_factor_break(; data=csv, factors=2, method="chen_dolado_gonzalo",
+                                     id_col="", time_col="", format="table")
+            end
+            @test !occursin("Per-Series Break Diagnostics", out_cdg)
         end
     end
 
