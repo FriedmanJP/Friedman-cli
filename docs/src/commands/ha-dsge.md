@@ -91,6 +91,34 @@ friedman dsge ha steady-state huggett --format json
     "status": "ok",
     "command": "friedman dsge ha steady-state",
     "data": {
+        "ha_euler_accuracy_log10_by_convention": {
+            "rows": [
+                [
+                    "midpoints",
+                    -1.9362687,
+                    -4.5398656,
+                    584,
+                    14,
+                    0
+                ],
+                [
+                    "nodes",
+                    -4.4699492,
+                    -5.6558001,
+                    585,
+                    15,
+                    0
+                ]
+            ],
+            "columns": [
+                "convention",
+                "max",
+                "mean",
+                "n_evaluated",
+                "n_constrained",
+                "n_offgrid"
+            ]
+        },
         "ha_steady_state_diagnostics": {
             "rows": [
                 [
@@ -228,6 +256,34 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
     "status": "ok",
     "command": "friedman dsge ha solve",
     "data": {
+        "ha_euler_accuracy_log10_by_convention": {
+            "rows": [
+                [
+                    "midpoints",
+                    -1.9362687,
+                    -4.5398656,
+                    584,
+                    14,
+                    0
+                ],
+                [
+                    "nodes",
+                    -4.4699492,
+                    -5.6558001,
+                    585,
+                    15,
+                    0
+                ]
+            ],
+            "columns": [
+                "convention",
+                "max",
+                "mean",
+                "n_evaluated",
+                "n_constrained",
+                "n_offgrid"
+            ]
+        },
         "ha_dsge_solve_diagnostics_method_reiter": {
             "rows": [
                 [

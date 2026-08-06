@@ -5764,7 +5764,15 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 # Teeth: wherever the cell is NOT degenerate, the AR set must have strictly
                 # positive width — a point set anywhere the Wald band is a real interval
                 # would mean the inversion collapsed.
-                if wu_ > wl_
+                #
+                # The degeneracy test must be a TOLERANCE, not exact float equality. At the
+                # h=0 own-shock cell the Wald band is 1 ± 0, but the two endpoints are only
+                # bit-identical if the zero half-width stays exactly zero: on the Linux CI
+                # runner's BLAS they came out a ULP apart (1.0000000000000002 vs 1.0), which
+                # flipped that cell into this branch and failed on the perfectly correct
+                # point set {1}, while macOS was green. Substantive cells here are ~0.3 wide,
+                # so 1e-8 separates them from rounding noise by 7 orders of magnitude.
+                if wu_ - wl_ > 1e-8 * max(1.0, abs(wl_), abs(wu_))
                     @test hi_f > lo_f
                     n_strict += 1
                 end
