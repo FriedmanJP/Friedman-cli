@@ -5122,10 +5122,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             y[t] = alpha * z[t]
         end
         """)
-        # ORDER 2, not 1: upstream's order-1 analytical moments are wrong for controls (the
-        # state↔control covariance drops the contemporaneous shock term), so `dsge moments`
-        # refuses order 1. For this EXACTLY LINEAR model order 2 reproduces the first-order
-        # moments precisely, which is what makes the closed-form checks below valid.
+        # For this EXACTLY LINEAR model order 2 reproduces the first-order moments
+        # precisely, which is what makes the closed-form checks below valid. (Order 1 was
+        # refused until MEMs 0.7.3/#607 fixed the control-block covariance — its own
+        # closed-form case follows below, W9/#116.)
         r = run_json(["dsge", "moments", spec, "--order", "2", "--lags", "3"])
         assert_envelope_ok(r; label="dsge moments order 2")
 
@@ -5200,6 +5200,61 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        # ORDER 1 — re-enabled in W9/#116 (v0.9.2): MEMs 0.7.3 (#607) fixed the order-1
+        # state↔control covariance. Pre-fix this model reported corr(z,y) = rho (0.7) and
+        # autocorr(y,k) = rho^(k+2) — the assertions below are EXACTLY those numbers, so
+        # they are the proof of the fix, not a smoke test.
+        r1 = run_json(["dsge", "moments", spec, "--order", "1", "--lags", "3"])
+        assert_envelope_ok(r1; label="dsge moments order 1")
+        cv1 = nothing
+        for (_, v) in pairs(r1.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "correlation" in String[string(c) for c in v.columns]
+                cv1 = v; break
+            end
+        end
+        @test cv1 !== nothing
+        if cv1 !== nothing
+            v1_ = col_index(cv1, "variable1"); v2_ = col_index(cv1, "variable2")
+            ci1 = col_index(cv1, "correlation")
+            for rw in table_rows(cv1)
+                r_ = collect(rw)
+                # y = alpha*z ⇒ corr = 1 exactly; the pre-fix defect reported rho here.
+                string(r_[v1_]) == string(r_[v2_]) ||
+                    @test isapprox(numv(r_[ci1]), 1.0; atol=1e-6)
+            end
+        end
+        ac1 = nothing
+        for (_, v) in pairs(r1.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "autocorrelation" in String[string(c) for c in v.columns]
+                ac1 = v; break
+            end
+        end
+        @test ac1 !== nothing
+        if ac1 !== nothing
+            li1 = col_index(ac1, "lag"); ri1 = col_index(ac1, "autocorrelation")
+            for rw in table_rows(ac1)
+                r_ = collect(rw)
+                # rho^k for BOTH variables; the control was rho^(k+2) pre-fix.
+                @test isapprox(numv(r_[ri1]), rho^Int(r_[li1]); atol=1e-6)
+            end
+        end
+        m1 = nothing
+        for (_, v) in pairs(r1.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "std_dev" in String[string(c) for c in v.columns]
+                m1 = v; break
+            end
+        end
+        @test m1 !== nothing
+        if m1 !== nothing
+            vi1 = col_index(m1, "variable"); si1 = col_index(m1, "std_dev")
+            byv1 = Dict(string(collect(rw)[vi1]) => collect(rw) for rw in table_rows(m1))
+            @test isapprox(numv(byv1["z"][si1]), sqrt(var_z); rtol=1e-6)
+            @test isapprox(numv(byv1["y"][si1]), 0.4 * sqrt(var_z); rtol=1e-6)
+        end
+
         # Order 3 runs and stays finite (the closed-form pruned recursion).
         for ord in ("3",)
             ro = run_json(["dsge", "moments", spec, "--method", "perturbation",
@@ -5228,10 +5283,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
-        # Typed guards. --order 1 is a REFUSAL, not a silent wrong answer: upstream's
-        # order-1 path reports corr(z,y)=rho instead of 1.0 and autocorr(y,k)=rho^(k+2)
-        # instead of rho^k for control variables. Re-enable when upstream is fixed.
-        @test run_json(["dsge", "moments", spec, "--order", "1"]).code == 2
+        # Typed guards. (--order 1 is no longer a refusal — re-enabled in W9/#116 after
+        # MEMs 0.7.3/#607 fixed the control-block covariance; its closed-form case above
+        # is the proof.)
         @test run_json(["dsge", "moments", spec, "--order", "0"]).code == 2
         @test run_json(["dsge", "moments", spec, "--order", "4"]).code == 2
         @test run_json(["dsge", "moments", spec, "--lags", "0"]).code == 2

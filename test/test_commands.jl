@@ -11445,17 +11445,14 @@ end  # W10 micro inference riders
     @testset "_dsge_moments — orders and guards" begin
         mktempdir() do dir
             m = _w12_model(dir)
-            for ord in (2, 3)
+            # order 1 re-enabled in W9/#116 (MEMs 0.7.3/#607 fixed the control-block
+            # covariance); the closed-form proof lives in T3 — here all three orders run.
+            for ord in (1, 2, 3)
                 out = _capture() do
                     _dsge_moments(; model=m, method="perturbation", order=ord,
                                    lags=2, format="table", output="")
                 end
                 @test occursin("Moments", out) || occursin("moments", out)
-            end
-            # order 1 is REFUSED: upstream's order-1 analytical moments are wrong for
-            # control variables (verified against the closed form on a linear AR(1) model).
-            @test_throws CliError _capture() do
-                _dsge_moments(; model=m, order=1, format="table")
             end
             @test_throws CliError _capture() do
                 _dsge_moments(; model=m, order=0, format="table")

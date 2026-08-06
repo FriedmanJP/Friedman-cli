@@ -143,7 +143,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="perturbation",
                            description="Solution method (moments need a PerturbationSolution)"),
                 OptionSpec(name="order", type=Int, default=2,
-                           description="Perturbation order: 2 or 3 (order 1 is disabled — upstream's order-1 moments are wrong for controls)"),
+                           description="Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly)"),
                 OptionSpec(name="lags", type=Int, default=1, description="Autocovariance lags to report (>= 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1081,32 +1081,13 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
                         lags::Int=1, output::String="", format::String="table")
     (1 <= order <= 3) || throw(CliError("usage/invalid",
         "dsge moments: --order must be 1, 2 or 3 (got $order)"))
-    # ── UPSTREAM DEFECT: the order-1 analytical-moments path is WRONG for controls ──
-    # `analytical_moments` at order 1 sets `Var_y[state, control] = Var_x * gx_state'`,
-    # which is Cov(z_{t-1}, y_t): it neither applies `hx` nor adds the contemporaneous
-    # `eta_x * eta_y'` term, so the true `Cov(z_t, y_t) = hx*Var(z)*gx' + eta_x*eta_y'` comes
-    # out short by a factor of rho. The same lagged map is then squared into the
-    # autocovariance recursion (`G1_equiv[control, state] = gx_state * hx_state`), so a
-    # control's autocorrelation at lag k is reported as rho^(k+2) instead of rho^k.
-    #
-    # Measured on y = 0.4*z with z an AR(1), rho = 0.7: corr(z, y) came out 0.7 instead of
-    # 1.0, and autocorr(y, k) as rho^(k+2). Variances and the whole state block are correct;
-    # only blocks involving CONTROLS are wrong — which in a typical DSGE is most of the
-    # variables anyone cares about. Orders 2 and 3 go through `_augmented_moments_2nd/3rd`
-    # and reproduce the closed form exactly, so the defect is confined to order 1. (Upstream
-    # fixed this same control-map time shift in the order-2/3 routine in MEMs#368 and left
-    # the order-1 branch alone.)
-    #
-    # Refusing is strictly better than emitting a wrong table: for a LINEAR model `--order 2`
-    # returns the first-order moments exactly (the second-order blocks are zero), so nothing
-    # is lost there. Re-enable order 1 once upstream is fixed — the handler needs no other
-    # change.
-    order >= 2 || throw(CliError("usage/invalid",
-        "dsge moments: --order 1 is disabled — MacroEconometricModels' order-1 analytical " *
-        "moments are wrong for control variables (the state↔control covariance omits the " *
-        "contemporaneous shock term, so correlations and control autocorrelations are off " *
-        "by powers of the persistence). Orders 2 and 3 are correct.";
-        hint="use --order 2: for a linear model it reproduces the first-order moments exactly"))
+    # Order 1 was REFUSED from W12/#114 through v0.9.1: upstream's order-1 state↔control
+    # covariance dropped the contemporaneous shock term (corr(state, control) reported as
+    # rho where the truth is 1, control autocorrelations as rho^(k+2) instead of rho^k).
+    # Fixed in MEMs 0.7.3 (#607) — `Sigma_xy = hx*Var(z)*gx' + eta_x*eta_y'` and the
+    # `G1_equiv` control map now match the closed form — and re-enabled here (W9/#116 of
+    # the v0.9.2 program). The order-1 closed-form AR(1) T3 case is the proof; --order 2
+    # stays the default (for a linear model it reproduces first-order moments exactly).
     lags >= 1 || throw(CliError("usage/invalid",
         "dsge moments: --lags must be ≥ 1 (got $lags)"))
 

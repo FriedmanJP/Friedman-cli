@@ -982,7 +982,7 @@ Path to DSGE model file (.toml or .jl)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `perturbation` | — | Solution method (moments need a PerturbationSolution) |
-| `--order` | — | `Int64` | `2` | — | Perturbation order: 2 or 3 (order 1 is disabled — upstream's order-1 moments are wrong for controls) |
+| `--order` | — | `Int64` | `2` | — | Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly) |
 | `--lags` | — | `Int64` | `1` | — | Autocovariance lags to report (>= 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
