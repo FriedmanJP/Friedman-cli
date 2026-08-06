@@ -1774,6 +1774,23 @@ end  # Shared utilities
                 @test _has_tbl(doc, "term", "estimate")
             end
 
+            @testset "--horizon: direct-h is real since 0.7.3 (MEMs#574, W10/#131)" begin
+                # The mock now shifts the target like real (y_{t+h-1}), so h=4
+                # must change the fit and drop h-1 tail targets from the sample.
+                _metric(doc, name) = begin
+                    t = first(t for t in _tables(doc) if "metric" in String.(t.columns))
+                    d = Dict(String(collect(r)[1]) => collect(r)[2] for r in t.rows)
+                    d[name]
+                end
+                d1 = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6"])
+                d4 = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "4"])
+                @test _metric(d4, "h") == 4
+                @test _metric(d4, "nobs") == _metric(d1, "nobs") - 3
+                @test _metric(d4, "r2") != _metric(d1, "r2")
+                eh = _err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "0"])
+                @test eh isa CliError && eh.code == "usage/invalid"
+            end
+
             @testset "bad input → typed classes, never uncaught exit-1" begin
                 # missing --hf-data → usage/missing-option (exit 2)
                 em = _err([lf, "--m", "3", "--k", "6"])
@@ -9746,6 +9763,26 @@ end
         end
     end
 
+    @testset "factor family carries CSV varnames (W10/#131, MEMs#538)" begin
+        # The mock replicates real's naming: FAVAR key variables take their panel
+        # names inside the augmented VAR; sdfm responses take the panel names.
+        mktempdir() do dir
+            csv = joinpath(dir, "named.csv")
+            CSV.write(csv, DataFrame(s1=randn(80), s2=randn(80), s3=randn(80),
+                                     infl=randn(80), ffr=randn(80)))
+            out_f = _capture() do
+                _irf_favar(; data=csv, factors=2, lags=1, key_vars="infl,ffr",
+                             horizons=6, id="cholesky", format="table")
+            end
+            @test occursin("infl", out_f) && occursin("ffr", out_f)
+            out_s = _capture() do
+                _irf_sdfm(; data=csv, factors=2, horizons=6, format="table")
+            end
+            @test occursin("infl", out_s)
+            @test !occursin("Var 1", out_s)
+        end
+    end
+
     @testset "_fevd_favar" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
@@ -10653,6 +10690,32 @@ end
                         instruments="var4", method="fe", cov_type="cluster",
                         id_col="group", time_col="time", format="table", output="")
                 end
+                # W10/#131 (MEMs#553): diagnostics table always emitted; the mock is
+                # just-identified here (1 endog, 1 instrument) so Sargan says why
+                # it is missing rather than a bare N/A.
+                @test occursin("Weak-Instrument Diagnostics", out)
+                @test occursin("unavailable (failed or underidentified)", out)
+                # Overidentified (2 instruments): Sargan carries a number.
+                csv5 = _make_panel_csv(dir; G=5, T_per=20, n=5)
+                out2 = _capture() do
+                    _estimate_piv(; data=csv5, dep="var1", exog="var2", endog="var3",
+                        instruments="var4,var5", method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Weak-Instrument Diagnostics", out2)
+                @test !occursin("unavailable", out2)
+                # Missing --dep/--endog: bare error() used to make these exit 1.
+                for kw in [(; exog="var2", endog="var3"), (; dep="var1", exog="var2")]
+                    err = try
+                        _capture() do
+                            _estimate_piv(; data=csv, id_col="group", time_col="time",
+                                          format="table", kw...)
+                        end
+                    catch e
+                        e
+                    end
+                    @test err isa CliError && err.code == "usage/missing"
+                end
             end
         end
 
@@ -10796,6 +10859,34 @@ end
                 out = _capture() do
                     _predict_mlogit(; data=csv, dep="var1", cov_type="ols",
                                      output="", format="table")
+                end
+            end
+        end
+
+        @testset "predict --marginal-effects re-added w/ handler support (W10/#131, MEMs#550)" begin
+            # #85 removed the flag because no handler accepted it; MEMs#550 (0.7.3)
+            # added delta-method SEs upstream. The mock returns the REAL shapes:
+            # ordered → NamedTuple (K×J matrices), mlogit → MultinomialMarginalEffects.
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                for f in (_predict_ologit, _predict_oprobit)
+                    out = _capture() do
+                        f(; data=csv, dep="var1", marginal_effects=true,
+                          output="", format="table")
+                    end
+                    @test occursin("Average Marginal Effects", out)
+                    @test occursin("dydx", out) && occursin("se", out)
+                end
+                out_m = _capture() do
+                    _predict_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                     marginal_effects=true, output="", format="table")
+                end
+                @test occursin("Average Marginal Effects", out_m)
+                # …and the flag is DECLARED on all three predict leaves (registry ↔
+                # handler agreement in both directions).
+                for leaf in ("ologit", "oprobit", "mlogit")
+                    fl = [f.name for f in _flags_for_kind(Symbol(leaf), :predict)]
+                    @test "marginal-effects" in fl
                 end
             end
         end
@@ -11275,6 +11366,70 @@ end  # Diagnostic warning branches
             @test_throws CliError _capture() do
                 _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity",
                                 hdfe_maxiter=0, id_col="id", time_col="time", format="table")
+            end
+        end
+    end
+
+    @testset "_estimate_preg — ab/bb instrument controls (W10/#131)" begin
+        mktempdir() do dir
+            rng = MersenneTwister(7)
+            N, T = 10, 8
+            d = DataFrame(id=repeat(1:N, inner=T), time=repeat(1:T, N),
+                          y=randn(rng, N * T), x=randn(rng, N * T))
+            csv = joinpath(dir, "dyn.csv"); CSV.write(csv, d)
+
+            # ab emits the Dynamic Panel Diagnostics table; collapse shrinks the
+            # instrument count (mock mirrors the real direction).
+            out_full = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="ab",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test occursin("Dynamic Panel Diagnostics", out_full)
+            @test occursin("n_instruments", out_full)
+            out_col = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="ab",
+                                collapse=true, id_col="id", time_col="time",
+                                format="table", output="")
+            end
+            @test occursin("collapsed", out_col)   # stderr status notes the collapse
+            # bb routes too, and a plain fe run emits NO diagnostics table.
+            out_bb = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="bb",
+                                min_lag_endo=2, max_lag_endo=4,
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test occursin("Dynamic Panel Diagnostics", out_bb)
+            out_fe = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="fe",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test !occursin("Dynamic Panel Diagnostics", out_fe)
+
+            # Guards: controls on a non-GMM method refuse (upstream would silently
+            # ignore them); window sanity on the GMM path.
+            for kw in [(; collapse=true), (; min_lag_endo=3), (; max_lag_endo=5)]
+                err = try
+                    _capture() do
+                        _estimate_preg(; data=csv, dep="y", indep="x", method="fe",
+                                        id_col="id", time_col="time", format="table",
+                                        kw...)
+                    end
+                catch e
+                    e
+                end
+                @test err isa CliError && err.code == "usage/invalid"
+            end
+            for kw in [(; min_lag_endo=0), (; min_lag_endo=5, max_lag_endo=3)]
+                err = try
+                    _capture() do
+                        _estimate_preg(; data=csv, dep="y", indep="x", method="ab",
+                                        id_col="id", time_col="time", format="table",
+                                        kw...)
+                    end
+                catch e
+                    e
+                end
+                @test err isa CliError && err.code == "usage/invalid"
             end
         end
     end

@@ -1151,9 +1151,13 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
 
     _status("Estimating FAVAR: $r factors, $lags lags, method=$method, $(length(key_indices)) key variables")
 
+    # panel_varnames (W10/#131, MEMs#538): the key variables inside the augmented
+    # VAR take their CSV column names, so irf/fevd/forecast favar label them
+    # "infl"/"ffr" instead of the positional "X9"/"X10".
     favar = estimate_favar(Y, key_indices, r, lags;
                            method=Symbol(method),
-                           n_draws=draws)
+                           n_draws=draws,
+                           panel_varnames=varnames)
     return favar, Y, varnames
 end
 

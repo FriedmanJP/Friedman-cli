@@ -904,7 +904,10 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5
     ci_hi = ci_type == :none ? nothing : vals .+ 0.5
-    ImpulseResponse(vals, ci_lo, ci_hi)
+    # Real carries model.varnames into the result — dropping them here hid the
+    # whole favar label adoption (W10/#131) from T1/T2.
+    ImpulseResponse(vals, ci_lo, ci_hi, horizon, copy(model.varnames),
+                    copy(model.varnames), :cholesky)
 end
 function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
              method=:cholesky, data=nothing, quantiles=[0.16, 0.5, 0.84],
@@ -958,7 +961,8 @@ end
 function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing)
     n = size(model.Y, 2)
     props = ones(n, n, horizon) / n
-    FEVD(props, props)
+    # Real carries model.varnames into the result (same gap as irf above).
+    FEVD(props, props, copy(model.varnames), copy(model.varnames))
 end
 function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
               data=nothing, quantiles=[0.16, 0.5, 0.84])
@@ -1167,8 +1171,13 @@ function forecast(model::LPModel, shock_path; ci_method=:analytical, conf_level=
 end
 
 # Factor functions
-function estimate_factors(X, r; standardize=true)
+function estimate_factors(X, r; standardize=true,
+                          varnames::Union{Nothing,Vector{String}}=nothing)
     T_obs, n = size(X)
+    # Real (factor/static.jl, MEMs#538) validates the length before storing.
+    vn = varnames === nothing ? ["Var $i" for i in 1:n] : varnames
+    length(vn) == n || throw(ArgumentError(
+        "varnames has $(length(vn)) entries but X has $n columns"))
     FactorModel(X, ones(T_obs, r)*0.1, ones(n, r)*0.3, Float64[r-i+1 for i in 1:r])
 end
 function ic_criteria(X, max_factors; standardize=true)
@@ -5046,8 +5055,13 @@ function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
     Sigma = Matrix{T}(I(n_aug)) * T(0.5)
     factors = randn(T, n_obs, r)
     loadings = randn(T, n_vars, r)
-    vnames = ["aug$i" for i in 1:n_aug]
-    pvnames = panel_varnames === nothing ? ["var$i" for i in 1:n_vars] : panel_varnames
+    # Real aug names (favar/estimation.jl): F1..Fr then the KEY variables' panel
+    # names — pvn[idx] whether given or the "X$i" default (MEMs#538 adoption).
+    pvnames = panel_varnames === nothing ? ["X$i" for i in 1:n_vars] : panel_varnames
+    length(pvnames) == n_vars || throw(ArgumentError(
+        "panel_varnames has $(length(pvnames)) entries but X has $n_vars columns"))
+    vnames = vcat(["F$i" for i in 1:r],
+                  [1 <= idx <= n_vars ? pvnames[idx] : "Y$idx" for idx in key_indices])
     if method == :bayesian
         B_draws = ones(T, size(B, 1), size(B, 2), n_draws) * T(0.1)
         Sigma_draws = ones(T, n_aug, n_aug, n_draws) * T(0.5)
@@ -5061,9 +5075,10 @@ function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
 end
 
 function to_var(favar::FAVARModel{T}) where T
-    n = size(favar.Y, 2)
+    # Carry the augmented names into the VAR so irf/fevd favar label the key
+    # variables with their panel names, exactly as real does.
     VARModel{T}(favar.Y, favar.p, favar.B, favar.U, favar.Sigma,
-                favar.aic, favar.bic, T(-92.0))
+                favar.aic, favar.bic, T(-92.0), copy(favar.varnames))
 end
 
 function favar_panel_irf(favar::FAVARModel{T}, irf_result::ImpulseResponse{T}) where T
@@ -5113,40 +5128,45 @@ struct StructuralDFM{T<:Real}
     structural_irf::Array{T,3}
     loadings_td::Matrix{T}
     p_var::Int; shock_names::Vector{String}
+    varnames::Vector{String}   # panel names (MEMs#538); real default "Var $i"
 end
 
 function estimate_structural_dfm(X::Matrix{T}, q::Int;
         identification=:cholesky, p=1, H=40, sign_check=nothing,
-        max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett) where T
+        max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett,
+        varnames::Union{Nothing,Vector{String}}=nothing) where T
     n_obs, n_vars = size(X)
+    # Real (factor/structural.jl, MEMs#538) defaults and validates the length.
+    vn = varnames === nothing ? ["Var $i" for i in 1:n_vars] : varnames
+    length(vn) == n_vars || throw(ArgumentError(
+        "varnames has $(length(vn)) entries but panel has $n_vars columns"))
     gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel)
     factor_Y = randn(T, n_obs - p, q)
     B_fvar = ones(T, q * p + 1, q) * T(0.1)
     U_fvar = randn(T, n_obs - p, q)
     Sigma_fvar = Matrix{T}(I(q)) * T(0.5)
-    fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0), T(-45.0))
+    # Real names the factor VAR "Factor $i" — fevd sdfm labels come from here.
+    fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0),
+                       T(-45.0), ["Factor $i" for i in 1:q])
     B0 = Matrix{T}(I(q))
     Q_mat = Matrix{T}(I(q))
     loadings_td = randn(T, n_vars, q)
     s_irf = ones(T, H + 1, n_vars, q) * T(0.05)
     snames = ["structural_shock_$i" for i in 1:q]
-    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames)
+    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames, vn)
 end
 
 function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
-    n_vars = size(sdfm.loadings_td, 1)
-    q = size(sdfm.B0, 1)
     h = min(horizon, size(sdfm.structural_irf, 1) - 1)
     vals = sdfm.structural_irf[1:h+1, :, :]
-    vnames = ["var$i" for i in 1:n_vars]
-    ImpulseResponse(vals, nothing, nothing, h, vnames, sdfm.shock_names, :structural_dfm)
+    # Real labels panel responses with sdfm.varnames (favar/analysis.jl).
+    ImpulseResponse(vals, nothing, nothing, h, copy(sdfm.varnames), sdfm.shock_names, :structural_dfm)
 end
 
-function fevd(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
-    q = size(sdfm.B0, 1)
-    props = ones(T, q, q, horizon) / T(q)
-    FEVD(props, props)
-end
+# Real delegates to the factor VAR (favar/analysis.jl) — labels are "Factor $i".
+# No kwargs absorber: the CLI never forwards kwargs here, and mock ⊆ real means
+# stricter is the safe direction (keeps the check_mock_surface absorber budget flat).
+fevd(sdfm::StructuralDFM{T}, horizon::Int) where T = fevd(sdfm.factor_var, horizon)
 
 export StructuralDFM, estimate_structural_dfm
 
@@ -7056,12 +7076,15 @@ struct PanelIVModel{T<:Real}
     sigma_u::T
     sigma_e::T
     rho::T
+    # Real (preg/types.jl): first_stage_f is NOT nullable (Inf when no endog,
+    # NaN when degenerate); the other five are Union{Nothing,T} — nothing means
+    # the computation failed OR the model is just-/under-identified.
     first_stage_f::T
-    sargan_stat::T
-    sargan_pval::T
-    cragg_donald_f::T
-    kleibergen_paap_f::T
-    stock_yogo_10pct::T
+    sargan_stat::Union{Nothing,T}
+    sargan_pval::Union{Nothing,T}
+    cragg_donald_f::Union{Nothing,T}
+    kleibergen_paap_f::Union{Nothing,T}
+    stock_yogo_10pct::Union{Nothing,T}
     varnames::Vector{String}
     endog_names::Vector{String}
     instrument_names::Vector{String}
@@ -7172,7 +7195,11 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         model=:fe, twoway=false, fe=:twoway, cov_type=:cluster, clusters=nothing,
         varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise,
         absorb::Vector{Symbol}=Symbol[], hdfe_tol::Real=1e-8, hdfe_maxiter::Int=1000,
-        hdfe_accel::Bool=true) where T
+        hdfe_accel::Bool=true,
+        collapse::Bool=false, min_lag_endo::Int=2, max_lag_endo::Int=99) where T
+    # Real validates the model symbol up front (preg/estimation.jl).
+    model in (:fe, :re, :fd, :between, :cre, :ab, :bb) ||
+        throw(ArgumentError("model must be :fe, :re, :fd, :between, :cre, :ab, or :bb; got :$model"))
     # Mirror real's validation (preg/estimation.jl) for the #75 additions.
     # W10/#112 absorb guards, verbatim from real — including the twoway exclusivity whose
     # error message points at `absorb=[:entity, :time]` (the correct route on an UNBALANCED
@@ -7224,11 +7251,26 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
          change = 1e-10,
          tol = Float64(hdfe_tol),
          accel = hdfe_accel)
+    # Real's :ab/:bb path routes through PVAR GMM and returns a PanelRegModel
+    # whose dynamic_diagnostics NamedTuple carries the AB tests + Hansen J +
+    # n_instruments (W10/#131). The count responds to the proliferation controls
+    # the same direction as real: collapsing shrinks it, widening the lag window
+    # grows it.
+    dyn = if model in (:ab, :bb)
+        maxl = min(max_lag_endo, 8)
+        n_inst = collapse ? (maxl - min_lag_endo + 1) : (maxl - min_lag_endo + 1) * 5
+        (ar1 = T(-2.1), ar1_p = T(0.036), ar2 = T(0.4), ar2_p = T(0.69),
+         hansen = T(11.2), hansen_df = max(n_inst - length(covariates) - 1, 1),
+         hansen_p = T(0.34), n_instruments = n_inst)
+    else
+        nothing
+    end
+    model in (:ab, :bb) && (vnames = ["L.$(outcome)"; string.(covariates)])
     PanelRegModel{T}(beta, vcov_mat, resids, fitted_vals, y, X,
         T(0.35), T(0.25), T(0.30), T(0.5), T(1.0), T(0.2), T(0.5),
         T(20.0), T(0.001), T(-200.0), T(410.0), T(420.0),
         vnames, meth, Bool(twoway), cov_type, n, pd.n_groups, T(n / max(pd.n_groups, 1)),
-        nothing, pd, nothing, nothing, hdfe_info)
+        nothing, pd, dyn, nothing, hdfe_info)
 end
 
 function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
@@ -7245,9 +7287,13 @@ function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
     endog_names = string.(endog)
     inst_names = string.(instruments)
+    # Real: Sargan is nothing when just-identified (dof = n_inst - n_endog <= 0).
+    overid = length(instruments) > length(endog)
+    sargan_s = overid ? T(2.5) : nothing
+    sargan_p = overid ? T(0.30) : nothing
     PanelIVModel{T}(beta, vcov_mat, resids, fitted_vals, y, X, Z,
         T(0.30), T(0.20), T(0.25), T(0.5), T(1.0), T(0.2),
-        T(12.0), T(2.5), T(0.30), T(10.0), T(9.0), T(7.0),
+        T(12.0), sargan_s, sargan_p, T(10.0), T(9.0), T(7.0),
         vnames, endog_names, inst_names, model isa Symbol ? model : :fe, cov_type,
         n, pd.n_groups, pd)
 end
@@ -7526,24 +7572,40 @@ function DataFrames.DataFrame(m::MultinomialLogitModel)
     return df
 end
 
-function marginal_effects(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}};
-        type=:ame, at=nothing, conf_level=0.95) where T
+# Real (0.8.0, MEMs#550): NO kwargs on either family, and TWO different shapes —
+# the ordered models return a plain NamedTuple whose effects/se are K×J MATRICES
+# (categories UNTYPED, copy(m.categories)); mlogit returns the exported
+# MultinomialMarginalEffects struct (se NULLABLE, base-category column all zeros).
+# Neither carries z/p/CI, so they must never route through the shared
+# MarginalEffects renderer. The old mock did exactly that, with three invented
+# kwargs real does not have (#85 class).
+function marginal_effects(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}}) where T
     k = length(m.beta)
     nc = length(m.categories)
-    effects = ones(T, k, nc) * T(0.1)
-    MarginalEffects{T}(vec(effects), fill(T(0.02), k*nc), fill(T(5.0), k*nc),
-        fill(T(0.001), k*nc), vec(effects) .- T(0.04), vec(effects) .+ T(0.04),
-        m.varnames, type, T(conf_level))
+    # AMEs across categories sum to zero per variable (∂Σp/∂x = 0) — keep the
+    # real property so tests can pin it.
+    effects = Matrix{T}(repeat(collect(range(-0.1, 0.1; length=nc))', k))
+    (effects = effects, se = fill(T(0.02), k, nc),
+     varnames = copy(m.varnames), categories = copy(m.categories))
 end
 
-function marginal_effects(m::MultinomialLogitModel{T};
-        type=:ame, at=nothing, conf_level=0.95) where T
+# Real struct (reg/multinomial.jl, exported): se is nothing when the model vcov
+# is rank-deficient; categories are String (unlike ordered's untyped vector).
+# Live-verified on 0.8.0: every category INCLUDING the base gets a real
+# probability-scale AME and each variable's effects sum to ~0 across categories.
+struct MultinomialMarginalEffects{T<:AbstractFloat}
+    effects::Matrix{T}
+    se::Union{Matrix{T},Nothing}
+    varnames::Vector{String}
+    categories::Vector{String}
+end
+
+function marginal_effects(m::MultinomialLogitModel{T}) where T
     k = size(m.beta, 1)
     nc = length(m.categories)
-    effects = ones(T, k, nc) * T(0.1)
-    MarginalEffects{T}(vec(effects), fill(T(0.02), k*nc), fill(T(5.0), k*nc),
-        fill(T(0.001), k*nc), vec(effects) .- T(0.04), vec(effects) .+ T(0.04),
-        m.varnames, type, T(conf_level))
+    effects = Matrix{T}(repeat(collect(range(-0.1, 0.1; length=nc))', k))
+    MultinomialMarginalEffects{T}(effects, fill(T(0.02), k, nc),
+        copy(m.varnames), string.(m.categories))
 end
 
 function brant_test(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}}) where T
@@ -8414,7 +8476,8 @@ function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
     CTTwoAssetSolution{T}(b, a, V, c, d, sb, sa, g, T(1.0), T(5.0), nothing, true)
 end
 
-export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
+export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel,
+       MultinomialMarginalEffects
 export generalized_residuals   # MEMs#507: ordered-model score residual (W4/#87)
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
@@ -9034,6 +9097,7 @@ function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
     m >= 1 || throw(ArgumentError("m must be ≥ 1 (got m=$m)"))
     K >= 1 || throw(ArgumentError("K must be ≥ 1"))
     p_ar >= 0 || throw(ArgumentError("p_ar must be ≥ 0"))
+    h >= 1 || throw(ArgumentError("h must be ≥ 1 (got h=$h)"))
     (weights ∈ (:beta2, :beta3) && K < 2) && throw(ArgumentError("Beta weights require K ≥ 2 (got K=$K)"))
     T = Float64
     yv = collect(T, y_lf); xv = collect(T, X_hf)
@@ -9048,16 +9112,20 @@ function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
     end
     isempty(retained) && throw(ArgumentError(
         "no complete high-frequency blocks: need ≥ $K HF obs before a low-frequency period"))
-    # AR block: keep periods with p_ar available own-lags.
-    keep = Int[i for (i, t) in enumerate(retained) if t - p_ar >= 1]
-    isempty(keep) && throw(ArgumentError("no periods with $p_ar autoregressive lags available"))
+    # AR block: keep periods with p_ar available own-lags AND the direct-h
+    # target in sample. h was INERT upstream at ≤0.7.2 and implemented at 0.7.3
+    # (MEMs#574: regress y_{t+h-1} on information dated t) — the mock must not
+    # stay on the old inert behavior or T1/T2 can never see h change anything.
+    keep = Int[i for (i, t) in enumerate(retained) if t - p_ar >= 1 && t + h - 1 <= Tlf]
+    isempty(keep) && throw(ArgumentError(
+        "no periods with $p_ar autoregressive lags and direct horizon h=$h available"))
     n = length(keep)
     Xlags = reduce(vcat, [reshape(blocks[i], 1, K) for i in keep])
     Wlin = Matrix{T}(undef, n, 1 + p_ar); yv_used = Vector{T}(undef, n)
     for (r, i) in enumerate(keep)
         t = retained[i]; Wlin[r, 1] = one(T)
         for j in 1:p_ar; Wlin[r, 1 + j] = yv[t - j]; end
-        yv_used[r] = yv[t]
+        yv_used[r] = yv[t + h - 1]   # direct-h target (h=1 ≡ nowcast of y_t)
     end
     # Concentrated OLS at a documented default θ (no NLS — genuine-ish fit for shape/error tests).
     if weights === :umidas

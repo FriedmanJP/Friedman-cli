@@ -475,7 +475,8 @@ function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
     if isnothing(model)
         Y, varnames = load_multivariate_data(data)
         q = factors === nothing ? ic_criteria_gdfm(Y, min(10, size(Y, 2) - 1)).q_opt : factors
-        sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags, H=horizons)
+        sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags,
+                                       H=horizons, varnames=varnames)
     else
         sdfm = model
     end

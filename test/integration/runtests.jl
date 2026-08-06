@@ -865,6 +865,30 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "4", "--k", "6"]).code == 3            # HF shorter than m×LF (240 < 4*80=320) → data/shape
             rm(lf; force=true); rm(hf; force=true)
         end
+
+        @testset "--horizon is a REAL direct-h regression since 0.7.3 (MEMs#574, W10/#131)" begin
+            # At ≤0.7.2 the h kwarg was inert: the model claimed a direct h-step
+            # target while always fitting h=1. The adoption test is behavioral:
+            # an explicit --horizon 1 reproduces the default bit-for-bit, and
+            # --horizon 4 changes the fit (different target ⇒ different SSR/R²).
+            lf, hf, _ = dgp_midas(; Tlf=120, m=3, K=6, seed=99)
+            base = ["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "6"]
+            r_def = run_json(base)
+            r_h1 = run_json([base; "--horizon"; "1"])
+            r_h4 = run_json([base; "--horizon"; "4"])
+            @test r_def.code == 0 && r_h1.code == 0 && r_h4.code == 0
+            dg(r) = named_table(r.doc, :midas_diagnostics)
+            r2v(r) = (t = dg(r); t === nothing ? nothing : metric_value(t, "r2"))
+            @test r2v(r_h1) !== nothing && r2v(r_def) !== nothing
+            @test numv(r2v(r_h1)) == numv(r2v(r_def))          # h=1 IS the default
+            @test numv(r2v(r_h4)) != numv(r2v(r_def))          # h=4 fits a different target
+            @test metric_value(dg(r_h4), "h") == 4             # …and records it
+            # nobs shrinks by h-1: the last 3 targets fall out of sample.
+            @test numv(metric_value(dg(r_h4), "nobs")) ==
+                  numv(metric_value(dg(r_def), "nobs")) - 3
+            @test run_json([base; "--horizon"; "0"]).code == 2
+            rm(lf; force=true); rm(hf; force=true)
+        end
     end
 
     @testset "estimate threshold — general two-regime threshold regression (#70)" begin
@@ -2936,6 +2960,44 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "factor family carries CSV varnames (W10/#131, MEMs#538)" begin
+        # Before the adoption, irf favar labelled key variables by panel POSITION
+        # ("X9"/"X10") and irf sdfm labelled every response "Var $i" — real names
+        # existed only in the loader and never reached the model.
+        rng = MersenneTwister(61)
+        df = DataFrame([Symbol("s$i") => randn(rng, 140) for i in 1:4]...,
+                       :infl => randn(rng, 140), :ffr => randn(rng, 140))
+        csv = write_csv(df; prefix="factor_names")
+
+        vars_of(r) = begin
+            _, t = first_table(r.doc)
+            t === nothing ? String[] :
+                sort(unique(String[string(collect(row)[col_index(t, "variable")])
+                                   for row in table_rows(t)]))
+        end
+
+        ri = run_json(["irf", "favar", csv, "--factors", "2",
+                       "--key-vars", "infl,ffr", "--horizons", "4"])
+        assert_envelope_ok(ri; label="irf favar named")
+        @test vars_of(ri) == ["F1", "F2", "ffr", "infl"]
+
+        rf = run_json(["fevd", "favar", csv, "--factors", "2",
+                       "--key-vars", "infl,ffr", "--horizons", "4"])
+        @test rf.code == 0
+        @test vars_of(rf) == ["F1", "F2", "ffr", "infl"]
+
+        rs = run_json(["irf", "sdfm", csv, "--factors", "2", "--horizons", "4"])
+        assert_envelope_ok(rs; label="irf sdfm named")
+        vs = vars_of(rs)
+        @test "infl" in vs && "ffr" in vs && "s1" in vs
+        @test !any(startswith(v, "Var ") for v in vs)
+
+        # estimate sdfm stores them on the model itself.
+        re = run_json(["estimate", "sdfm", csv, "--factors", "2"])
+        @test re.code == 0
+        rm(csv; force=true)
+    end
+
     # ── Panel VAR + DiD family (C054): this suite is the gate that was missing
     # when the MEMs 0.7.0 bump silently broke xtset / estimate_pvar / pvar_fevd /
     # pvar_bootstrap_irf / pvar_lag_selection / lp_did. ──────────────────────
@@ -4959,6 +5021,38 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        # W10/#131: --marginal-effects re-added WITH handler support (MEMs#550 gave
+        # the ordered/multinomial models delta-method SEs at 0.7.3). Two upstream
+        # shapes — ordered NamedTuple vs MultinomialMarginalEffects — render to one
+        # tidy variable|category|dydx|se table. The closed form pinning the values:
+        # probabilities sum to 1, so each variable's AMEs sum to 0 across categories
+        # (live-verified: the mlogit BASE category carries a real effect too).
+        @testset "predict --marginal-effects (W10/#131, MEMs#550)" begin
+            for (leaf, key) in [("ologit", :ordered_logit_average_marginal_effects),
+                                ("oprobit", :ordered_probit_average_marginal_effects),
+                                ("mlogit", :multinomial_logit_average_marginal_effects)]
+                r = run_json(["predict", leaf, ord, "--dep", "y", "--marginal-effects"])
+                assert_envelope_ok(r; label="predict $leaf --marginal-effects")
+                # The probability table must still be there (2nd table gets its own
+                # output path, never displaces the 1st).
+                _, ptbl = first_table(r.doc)
+                @test ptbl !== nothing
+                me = named_table(r.doc, key)
+                @test me !== nothing
+                if me !== nothing
+                    cols = table_cols(me)
+                    @test cols == ["variable", "category", "dydx", "se"]
+                    rows = [collect(row) for row in table_rows(me)]
+                    @test length(rows) == 6            # 2 vars × 3 categories
+                    @test all(isfinite(numv(r_[4])) for r_ in rows)   # SEs are REAL now
+                    for v in unique(String[string(r_[1]) for r_ in rows])
+                        s = sum(numv(r_[3]) for r_ in rows if string(r_[1]) == v)
+                        @test abs(s) < 5e-6            # renderer rounds to 6 digits
+                    end
+                end
+            end
+        end
+
         # `generalized_residuals` is ORDERED-ONLY upstream. The flag must therefore exist
         # on ologit/oprobit and NOT on mlogit — a declared flag whose handler cannot honour
         # it is the failure mode that shipped 19 broken leaves once already (#85).
@@ -5610,6 +5704,128 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
                         "--absorb", "nosuchcol",
                         "--id-col", "id", "--time-col", "time"]).code in (2, 3)
+        rm(csv; force=true)
+    end
+
+    @testset "estimate preg ab/bb instrument controls (W10/#131)" begin
+        # Dynamic panel: y_it = 0.5 y_{i,t-1} + 0.8 x_it + fe_i + eps. The point is
+        # not the coefficient but the INSTRUMENT COUNT: --collapse and the lag
+        # window are what MEMs#549 added, and n_instruments is the observable.
+        rng = MersenneTwister(41)
+        N, T = 25, 12
+        id = Int[]; tt = Int[]; xs = Float64[]; ys = Float64[]
+        for i in 1:N
+            fe = randn(rng); ylag = randn(rng)
+            for t in 1:T
+                xv = randn(rng)
+                yv = 0.5 * ylag + 0.8 * xv + fe + 0.3 * randn(rng)
+                push!(id, i); push!(tt, t); push!(xs, xv); push!(ys, yv)
+                ylag = yv
+            end
+        end
+        csv = write_csv(DataFrame(id=id, time=tt, y=ys, x=xs); prefix="dynpanel")
+        base = ["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                "--id-col", "id", "--time-col", "time"]
+
+        n_inst(r) = begin
+            dd = named_table(r.doc, :dynamic_panel_diagnostics)
+            dd === nothing ? nothing : metric_value(dd, "n_instruments")
+        end
+
+        r_ab = run_json([base; "--method"; "ab"])
+        assert_envelope_ok(r_ab; label="estimate preg --method ab")
+        @test named_table(r_ab.doc, :panel_regression_coefficients_ab) !== nothing
+        ni_full = n_inst(r_ab)
+        @test ni_full !== nothing && Int(ni_full) > 0
+
+        # Collapse strictly shrinks the instrument matrix.
+        r_col = run_json([base; "--method"; "ab"; "--collapse"])
+        @test r_col.code == 0
+        ni_col = n_inst(r_col)
+        @test ni_col !== nothing && Int(ni_col) < Int(ni_full)
+
+        # Narrowing the lag window shrinks it too (99 → 4).
+        r_win = run_json([base; "--method"; "ab"; "--max-lag-endo"; "4"])
+        @test r_win.code == 0
+        ni_win = n_inst(r_win)
+        @test ni_win !== nothing && Int(ni_win) < Int(ni_full)
+
+        # bb (system GMM) takes the same controls.
+        r_bb = run_json([base; "--method"; "bb"; "--collapse"])
+        @test r_bb.code == 0
+        @test n_inst(r_bb) !== nothing
+
+        # A plain fe run never emits the diagnostics table…
+        r_fe = run_json(base)
+        @test r_fe.code == 0 && named_table(r_fe.doc, :dynamic_panel_diagnostics) === nothing
+        # …and the controls on a non-GMM method are refused, not silently ignored.
+        @test run_json([base; "--collapse"]).code == 2
+        @test run_json([base; "--min-lag-endo"; "3"]).code == 2
+        # Window sanity on the GMM path.
+        @test run_json([base; "--method"; "ab"; "--min-lag-endo"; "0"]).code == 2
+        @test run_json([base; "--method"; "ab"; "--min-lag-endo"; "5";
+                        "--max-lag-endo"; "3"]).code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "estimate piv weak-instrument diagnostics (W10/#131, MEMs#553)" begin
+        # This leaf had ZERO T3 coverage. Strong instruments by construction
+        # (first-stage R² ≈ 0.9), true structural coefficient 1.2 on the
+        # endogenous regressor, u in both equations = the endogeneity.
+        rng = MersenneTwister(43)
+        N, T = 30, 10
+        id = repeat(1:N, inner=T); tt = repeat(1:T, N)
+        z1 = randn(rng, N * T); z2 = randn(rng, N * T)
+        u = randn(rng, N * T)
+        endo = 0.7z1 + 0.5z2 + 0.4u + 0.3randn(rng, N * T)
+        x = randn(rng, N * T)
+        y = 1.2endo + 0.5x + u + 0.3randn(rng, N * T)
+        csv = write_csv(DataFrame(id=id, time=tt, y=y, x=x, endo=endo, z1=z1, z2=z2);
+                        prefix="pivdiag")
+        base = ["estimate", "piv", csv, "--dep", "y", "--exog", "x", "--endog", "endo",
+                "--id-col", "id", "--time-col", "time"]
+
+        r = run_json([base; "--instruments"; "z1,z2"])
+        assert_envelope_ok(r; label="estimate piv overidentified")
+        ct = named_table(r.doc, :panel_iv_coefficients)
+        @test ct !== nothing
+        if ct !== nothing
+            rows = table_rows(ct)
+            ti = col_index(ct, "term"); ei = col_index(ct, "estimate")
+            terms = [string(collect(rw)[ti]) for rw in rows]
+            @test "endo" in terms
+            be = Float64(collect(rows[findfirst(==("endo"), terms)])[ei])
+            @test isapprox(be, 1.2; atol=0.1)
+        end
+        dd = named_table(r.doc, :weak_instrument_diagnostics)
+        @test dd !== nothing
+        if dd !== nothing
+            @test numv(metric_value(dd, "first-stage F (min partial)")) > 10.0
+            @test numv(metric_value(dd, "Cragg-Donald F")) > 10.0
+            @test numv(metric_value(dd, "Kleibergen-Paap F")) > 10.0
+            # Tabulated constant for 1 endogenous / 2 instruments — a stable pin.
+            @test numv(metric_value(dd, "Stock-Yogo 10% critical value")) ≈ 19.93 atol = 0.01
+            @test metric_value(dd, "Sargan p-value") !== nothing
+            @test numv(metric_value(dd, "Sargan p-value")) <= 1.0
+        end
+
+        # Just-identified: Sargan has no dof — the cell says WHY it is missing.
+        rj = run_json([base; "--instruments"; "z1"])
+        @test rj.code == 0
+        dj = named_table(rj.doc, :weak_instrument_diagnostics)
+        @test dj !== nothing
+        if dj !== nothing
+            @test string(metric_value(dj, "Sargan statistic")) ==
+                  "unavailable (failed or underidentified)"
+        end
+
+        # Bare error() used to turn these usage mistakes into exit 1.
+        @test run_json(["estimate", "piv", csv, "--exog", "x", "--endog", "endo",
+                        "--instruments", "z1", "--id-col", "id",
+                        "--time-col", "time"]).code == 2
+        @test run_json(["estimate", "piv", csv, "--dep", "y", "--exog", "x",
+                        "--instruments", "z1", "--id-col", "id",
+                        "--time-col", "time"]).code == 2
         rm(csv; force=true)
     end
 

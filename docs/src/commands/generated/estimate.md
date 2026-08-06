@@ -1219,11 +1219,14 @@ Path to CSV panel data file
 | `--absorb` | — | `String` | `""` | — | Comma-separated high-dimensional FE dimensions to absorb (entity, time, cohort, or a column name); --method fe only |
 | `--hdfe-tol` | — | `Float64` | `1.0e-8` | — | Absorption convergence tolerance |
 | `--hdfe-maxiter` | — | `Int64` | `1000` | — | Maximum alternating-projection iterations |
+| `--min-lag-endo` | — | `Int64` | `2` | — | First instrument lag for endogenous regressors (--method ab\|bb) |
+| `--max-lag-endo` | — | `Int64` | `99` | — | Last instrument lag for endogenous regressors (--method ab\|bb) |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--twoway` | — | Include time fixed effects |
+| `--collapse` | — | Collapse the GMM instrument matrix (--method ab\|bb) |
 
 **Output tables:** `estimate_preg` (Path to CSV panel data file)
 

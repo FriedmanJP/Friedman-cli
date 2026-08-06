@@ -426,6 +426,10 @@ In-sample fitted values (mlogit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--marginal-effects` | — | Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none) |
+
 **Output tables:** `predict_mlogit` (In-sample fitted values)
 
 ---
@@ -524,6 +528,10 @@ In-sample fitted values (ologit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--marginal-effects` | — | Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none) |
+
 **Output tables:** `predict_ologit` (In-sample fitted values)
 
 ---
@@ -544,6 +552,10 @@ In-sample fitted values (oprobit)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--marginal-effects` | — | Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none) |
 
 **Output tables:** `predict_oprobit` (In-sample fitted values)
 
