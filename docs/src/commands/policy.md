@@ -1,7 +1,7 @@
 # policy
 
 McKay–Wolf policy counterfactuals (MEMs 0.8.0 counterfactual module; McKay & Wolf 2023,
-Caravello, McKay & Wolf 2025). 7 subcommands across two verbs.
+Caravello, McKay & Wolf 2025). 12 subcommands across four verbs.
 
 The core idea: the causal effects of identified **policy shocks** form a *menu*; a rule
 counterfactual re-weights that menu so an alternative policy rule holds along the
@@ -12,6 +12,8 @@ the exercise is Lucas-robust — no model re-estimation under the new rule.
 |---------|-------------|
 | `policy effects var/bvar/lp/sign` | Build and display the policy causal-effects menu |
 | `policy counterfactual var/bvar/lp` | McKay–Wolf rule counterfactual on that menu |
+| `policy optimal var/bvar/lp` | Optimal policy under a quadratic loss (TOML `[loss]`) |
+| `policy moments var/bvar` | Unconditional second moments under a counterfactual rule/loss |
 
 **Square vs thin is the module's central axis.** A *square* menu (as many policy shocks
 as horizons, `is_square = true`) supports an exact solve — the rule holds exactly. A
@@ -122,6 +124,51 @@ inflation-target *level* is out of scope by construction.
 A `[loss]` schema (`get_policy_loss`: `lambda` required, `type = "ait"` with
 `beta = 1/1.01`, `[loss.smoothing]`) ships with this family for the optimal-policy
 leaves that build on it.
+
+## policy optimal
+
+Same plumbing as `policy counterfactual`, with a **quadratic loss** (`--loss-config`,
+required — `lambda` has no upstream default) in place of a rule. Instrument smoothing
+comes from `[loss.smoothing]`; the config loader owns the `W_z`/`wedge_term` split, and
+smoothing requires exactly one mapped instrument.
+
+```bash
+friedman policy optimal var data.csv --shocks 3 --nonpolicy-shock 1 \
+    --outcomes infl=1,ygap=2 --instruments rate=3 --loss-config loss.toml
+```
+
+The summary adds the loss accounting: `loss_base`, `loss_cf`, and `foc_norm` — the
+first-order-condition norm, ≈ 0 at the optimum (the optimality certificate). If the
+loss ever *increases*, a warning row appears in the summary (upstream flags it as a
+kernel/sign bug — do not use those paths). There is **no `--spanned-tol`** on this
+leaf: upstream hardcodes 0.05.
+
+## policy moments
+
+Second-moment (Wold) counterfactual: the unconditional covariance of the mapped
+variables under the baseline and under an alternative rule (`--rule`/`--rule-config`)
+**or** loss (`--loss-config`) — exactly one of the two.
+
+```bash
+friedman policy moments var data.csv --shocks 3 --outcomes infl=1,ygap=2 \
+    --instruments rate=3 --rule rate-peg --horizon 40
+friedman policy moments var data.csv --shocks 3 --outcomes infl=1,ygap=2 \
+    --instruments rate=3 --rule rate-peg --frequencies business-cycle
+```
+
+**Output:** a standard-deviations table (`sd_base`/`sd_cf` + band columns under
+draws), tidy pairwise correlations, and a summary whose **`tail_share`** is the VMA
+truncation honesty number — above 0.01 means `--horizon` must grow. `--frequencies`
+band-limits the variance (`business-cycle` = periods 6–32; or `lo,hi` in radians,
+`0 ≤ lo < hi ≤ π`). `--draw-source ce|wold|both` picks the uncertainty source
+(`both` enforces matching draw counts). `--plot-view sd|corr` selects the plot panel.
+
+!!! warning "This is the one engine that assumes invertibility"
+    Second-moment counterfactuals require the Wold innovations to span the structural
+    shocks (invertibility / forecast sufficiency). Level counterfactuals
+    (`policy counterfactual`) do not need this. Upstream warns once per session; the
+    Wold orthogonalization itself carries **no identification content** — moments are
+    rotation-invariant.
 
 ## Statelessness and reproducibility
 

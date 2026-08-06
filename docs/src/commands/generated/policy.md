@@ -3,7 +3,7 @@
 
 Generated reference for `friedman policy` and its subcommands.
 
-**Leaves:** 7
+**Leaves:** 12
 
 ### `friedman policy counterfactual bvar`
 
@@ -217,6 +217,186 @@ Path to CSV data file
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
 **Output tables:** `policy_effects_var` (Policy causal-effects menu)
+
+---
+
+### `friedman policy moments bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--rule` | — | `String` | `""` | — | Builtin counterfactual rule (see policy counterfactual) |
+| `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into sd bands: auto\|on\|off |
+| `--draw-source` | — | `String` | `ce` | `ce`, `wold`, `both` | Uncertainty source: ce \| wold \| both (matching counts enforced) |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--frequencies` | — | `String` | `none` | — | none \| business-cycle (2π/32..2π/6) \| lo,hi in radians (0 ≤ lo < hi ≤ π) |
+| `--plot-view` | — | `String` | `sd` | `sd`, `corr` | Plot panel: sd \| corr |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_moments_bvar` (Second moments under a counterfactual rule/loss)
+
+---
+
+### `friedman policy moments var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--rule` | — | `String` | `""` | — | Builtin counterfactual rule (see policy counterfactual) |
+| `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into sd bands: auto\|on\|off |
+| `--draw-source` | — | `String` | `ce` | `ce`, `wold`, `both` | Uncertainty source: ce \| wold \| both (matching counts enforced) |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--frequencies` | — | `String` | `none` | — | none \| business-cycle (2π/32..2π/6) \| lo,hi in radians (0 ≤ lo < hi ≤ π) |
+| `--plot-view` | — | `String` | `sd` | `sd`, `corr` | Plot panel: sd \| corr |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_moments_var` (Second moments under a counterfactual rule/loss)
+
+---
+
+### `friedman policy optimal bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
+| `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--negate` | — | Flip the non-policy shock's sign |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_optimal_bvar` (Optimal policy under a quadratic loss)
+
+---
+
+### `friedman policy optimal lp`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--n-draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
+| `--config` | — | `String` | `""` | — | TOML identification config |
+| `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
+| `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--negate` | — | Flip the non-policy shock's sign |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_optimal_lp` (Optimal policy under a quadratic loss)
+
+---
+
+### `friedman policy optimal var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
+| `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--negate` | — | Flip the non-policy shock's sign |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_optimal_var` (Optimal policy under a quadratic loss)
 
 ---
 

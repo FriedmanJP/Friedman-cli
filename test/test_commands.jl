@@ -1736,6 +1736,58 @@ end  # Shared utilities
                 @test e3 isa CliError && e3.code == "usage/missing"
             end
 
+            @testset "optimal + moments (W5/#127)" begin
+                losstoml = joinpath(dir, "loss.toml")
+                write(losstoml, """
+                [loss]
+                outcomes = ["infl", "ygap"]
+                lambda = [1.0, 0.5]
+                """)
+                doc = _pdoc(["optimal", "var", csv, "--shocks", "3",
+                             "--nonpolicy-shock", "1", "--outcomes", "infl=1,ygap=2",
+                             "--instruments", "rate=3", "--loss-config", losstoml,
+                             "--horizon", "6"])
+                @test doc.status == "ok"
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                # Loss accounting is DATA; the optimum cannot lose to the baseline.
+                @test haskey(s, "loss_base") && haskey(s, "loss_cf")
+                @test Float64(s["loss_cf"]) <= Float64(s["loss_base"]) + 1e-10
+                @test any(startswith(k, "foc_norm") for k in keys(s))
+                # --loss-config is REQUIRED; --spanned-tol is NOT declared (#85 class:
+                # upstream optimal_policy hardcodes 0.05).
+                e = _perr(["optimal", "var", csv, "--shocks", "3",
+                           "--nonpolicy-shock", "1", "--outcomes", "infl=1",
+                           "--instruments", "rate=3"])
+                @test e isa CliError && e.code == "usage/missing"
+                node = register_policy_commands!()
+                opt_leaf = node.subcmds["optimal"].subcmds["var"]
+                @test !any(o -> o.name == "spanned-tol", opt_leaf.options)
+
+                dm = _pdoc(["moments", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--horizon", "8"])
+                @test dm.status == "ok"
+                sd = dm.data[:counterfactual_standard_deviations]
+                @test String.(sd.columns)[1:3] == ["variable", "sd_base", "sd_cf"]
+                rows = [collect(r) for r in sd.rows]
+                # Stabilizing counterfactual: sd shrinks (mock mirrors the direction).
+                @test all(Float64(r[3]) < Float64(r[2]) for r in rows)
+                ms = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dm.data[:moments_summary].rows)
+                @test any(startswith(k, "tail_share") for k in keys(ms))
+
+                # rule XOR loss; bad frequency band.
+                e2 = _perr(["moments", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--loss-config", losstoml])
+                @test e2 isa CliError && e2.code == "usage/invalid"
+                e3 = _perr(["moments", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--frequencies", "2,1"])
+                @test e3 isa CliError && e3.code == "usage/invalid"
+            end
+
             @testset "square container → exact solve enforces the peg" begin
                 # 2 policy shocks with H=2 makes the menu square: the pegged
                 # instrument path must be EXACTLY zero and rel_residual ~0.

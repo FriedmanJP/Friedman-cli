@@ -19,7 +19,7 @@
 
 module MacroEconometricModels
 
-using LinearAlgebra: I, diagm, Diagonal, dot, pinv, norm
+using LinearAlgebra: I, diagm, Diagonal, dot, pinv, norm, diag
 using Statistics: mean, var, std, quantile
 using Random
 import Serialization
@@ -8017,13 +8017,221 @@ function policy_counterfactual(base::BaselinePath{T}, ce::PolicyCausalEffects{T}
                             n_used, 0, T(NaN), T(NaN), T(NaN))
 end
 
-# plot_result(::PolicyCounterfactual) rides the generic mock plot_result — real
-# HAS a typed recipe for it (verified 0.8.0), so the generic is not masking a gap.
+# ── W5/#127: optimal policy + second-moment counterfactuals ──────────────────
+
+struct WoldRepresentation{T<:AbstractFloat}
+    Theta::Array{T,3}
+    Sigma_u::Matrix{T}
+    varnames::Vector{String}
+    draws::Union{Nothing,Array{T,4}}
+end
+
+struct CounterfactualMoments{T<:AbstractFloat}
+    varnames::Vector{Symbol}
+    Sigma_base::Matrix{T}
+    Sigma_cf::Matrix{T}
+    sd_base::Vector{T}
+    sd_cf::Vector{T}
+    corr_base::Matrix{T}
+    corr_cf::Matrix{T}
+    sd_cf_bands::Union{Nothing,Matrix{T}}
+    Theta_cf::Array{T,3}
+    policy_name::String
+    H::Int
+    tail_share::T
+    freq_band::Union{Nothing,Tuple{T,T}}
+end
+
+function wold_representation(m::VARModel{T}; H::Int,
+                             orthogonalize::Symbol=:cholesky) where T
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    n = size(m.Y, 2)
+    Theta = zeros(T, H, n, n)
+    for h in 1:H, i in 1:n, j in 1:n
+        Theta[h, i, j] = (i == j ? T(0.5)^(h - 1) : T(0.1) * T(0.5)^h)
+    end
+    WoldRepresentation{T}(Theta, Matrix{T}(I(n)) * T(0.5), copy(m.varnames), nothing)
+end
+
+function wold_representation(post::BVARPosterior{T}; H::Int,
+                             orthogonalize::Symbol=:cholesky,
+                             max_draws::Int=post.n_draws) where T
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    n = post.n
+    Theta = zeros(T, H, n, n)
+    for h in 1:H, i in 1:n, j in 1:n
+        Theta[h, i, j] = (i == j ? T(0.5)^(h - 1) : T(0.1) * T(0.5)^h)
+    end
+    nd = min(max_draws, post.n_draws)
+    draws = reshape(Theta, H, n, n, 1) .+ T(0.02) .* randn(T, H, n, n, nd)
+    WoldRepresentation{T}(Theta, Matrix{T}(I(n)) * T(0.5),
+                          ["y$i" for i in 1:n], draws)
+end
+
+_loss_horizon_mock(loss::PolicyLoss) = size(loss.W_x[1], 1)
+
+function optimal_rule(ce::PolicyCausalEffects{T}, loss::PolicyLoss;
+                      z_wedge=nothing) where T
+    is_square(ce) || throw(ArgumentError(
+        "optimal_rule requires a square (model-implied) container: the targeting rule needs the full news menu"))
+    H = ce.H
+    _loss_horizon_mock(loss) == H || throw(ArgumentError(
+        "loss H = $(_loss_horizon_mock(loss)) does not match the container H = $H"))
+    A_x = Matrix{Float64}[]
+    for (j, sym) in enumerate(loss.outcomes)
+        i = findfirst(==(sym), ce.outcomes)
+        i === nothing && throw(ArgumentError(
+            "loss outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+        push!(A_x, Matrix{Float64}(ce.Theta_x[i]' * loss.W_x[j]))
+    end
+    A_z = Matrix{Float64}[]
+    wedge = zeros(H)
+    for (j, sym) in enumerate(loss.instruments)
+        k = findfirst(==(sym), ce.instruments)
+        push!(A_z, Matrix{Float64}(ce.Theta_z[k]' *
+            (loss.W_z === nothing ? zeros(H, H) : loss.W_z[j])))
+        z_wedge !== nothing && (wedge .+= ce.Theta_z[k]' * Vector{Float64}(z_wedge[j]))
+    end
+    # Rule symbols cover the FULL container (every path gets a counterfactual).
+    all_A_x = [any(==(s), loss.outcomes) ?
+                   A_x[findfirst(==(s), loss.outcomes)] : zeros(H, H)
+               for s in ce.outcomes]
+    all_A_z = [any(==(s), loss.instruments) ?
+                   A_z[findfirst(==(s), loss.instruments)] : zeros(H, H)
+               for s in ce.instruments]
+    PolicyRule{Float64}(copy(ce.outcomes), copy(ce.instruments), all_A_x, all_A_z,
+                        wedge, "optimal($(loss.name))")
+end
+
+function optimal_policy(base::BaselinePath{T}, ce::PolicyCausalEffects{T},
+                        loss::PolicyLoss;
+                        z_wedge=nothing, draws::Symbol=:auto,
+                        baseline_draws::Symbol=:fixed,
+                        quantiles=(0.16, 0.5, 0.84)) where T
+    H = ce.H
+    base.H == H || throw(ArgumentError(
+        "baseline H = $(base.H) does not match the container H = $H"))
+    _loss_horizon_mock(loss) == H || throw(ArgumentError(
+        "loss H = $(_loss_horizon_mock(loss)) does not match the container H = $H"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
+    for sym in loss.outcomes
+        sym in ce.outcomes || throw(ArgumentError(
+            "loss outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+    end
+    xb = [Vector{T}(base.x[findfirst(==(s), base.outcomes)]) for s in ce.outcomes]
+    zb = [Vector{T}(base.z[findfirst(==(s), base.instruments)]) for s in ce.instruments]
+    n_s = size(ce.Theta_x[1], 2)
+    # Normal equations: (Σ Θ'WΘ) ν = −Σ Θ'W x_base (+ instrument/wedge terms)
+    A = zeros(T, n_s, n_s)
+    rhs = zeros(T, n_s)
+    for (j, sym) in enumerate(loss.outcomes)
+        i = findfirst(==(sym), ce.outcomes)
+        A .+= ce.Theta_x[i]' * loss.W_x[j] * ce.Theta_x[i]
+        rhs .-= ce.Theta_x[i]' * loss.W_x[j] * xb[i]
+    end
+    for (j, sym) in enumerate(loss.instruments)
+        k = findfirst(==(sym), ce.instruments)
+        Wz = loss.W_z === nothing ? nothing : loss.W_z[j]
+        Wz === nothing || (A .+= ce.Theta_z[k]' * Wz * ce.Theta_z[k];
+                           rhs .-= ce.Theta_z[k]' * Wz * zb[k])
+        z_wedge === nothing ||
+            (rhs .+= ce.Theta_z[k]' * Vector{T}(z_wedge[j]))
+    end
+    nu = pinv(A) * rhs
+    x_cf = [xb[i] + ce.Theta_x[i] * nu for i in eachindex(ce.outcomes)]
+    z_cf = [zb[k] + ce.Theta_z[k] * nu for k in eachindex(ce.instruments)]
+    lossof(xs, zs) = begin
+        L = zero(T)
+        for (j, sym) in enumerate(loss.outcomes)
+            i = findfirst(==(sym), ce.outcomes)
+            L += xs[i]' * loss.W_x[j] * xs[i]
+        end
+        L
+    end
+    loss_base = lossof(xb, zb)
+    loss_cf = lossof(x_cf, z_cf)
+    foc = A * nu - rhs
+    err = vcat([loss.W_x[j] * x_cf[findfirst(==(sym), ce.outcomes)]
+                for (j, sym) in enumerate(loss.outcomes)]...)
+    rel = norm(err) / max(norm(vcat(xb...)), eps(T))
+    qlev = collect(T, quantiles)
+    PolicyCounterfactual{T}(copy(ce.outcomes), copy(ce.instruments), xb, zb,
+                            x_cf, z_cf, nothing, nothing, nu,
+                            copy(ce.shock_labels), err, rel, nothing,
+                            rel < T(0.05),                      # hardcoded like real
+                            "optimal($(loss.name))", H, qlev, 0, 0,
+                            loss_base, loss_cf, norm(foc))
+end
+
+function _cf_resolve_band_mock(frequencies)
+    frequencies === :none && return nothing
+    frequencies === :business_cycle && return (2π / 32, 2π / 6)
+    frequencies isa Tuple || throw(ArgumentError(
+        "frequencies: expected :none, :business_cycle or an (ω_lo, ω_hi) tuple, got $frequencies"))
+    lo, hi = frequencies
+    (0 <= lo < hi <= π + 1e-12) || throw(ArgumentError(
+        "frequencies: expected 0 <= lo < hi <= pi, got ($lo, $hi)"))
+    (Float64(lo), Float64(hi))
+end
+
+function counterfactual_moments(wold::WoldRepresentation{T}, ce::PolicyCausalEffects{T},
+                                policy::Union{PolicyRule,PolicyLoss};
+                                outcomes::AbstractVector{<:Pair},
+                                instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[],
+                                draws::Symbol=:auto, draw_source::Symbol=:ce,
+                                quantiles=(0.16, 0.5, 0.84),
+                                frequencies=:none,
+                                warn_invertibility::Bool=true) where T
+    H = ce.H
+    Hw = size(wold.Theta, 1)
+    Hw >= H || throw(ArgumentError(
+        "Wold horizon $Hw is shorter than the container H = $H; re-run wold_representation with H >= $H"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
+    draw_source in (:ce, :wold, :both) || throw(ArgumentError(
+        "draw_source: expected :ce, :wold or :both, got :$draw_source"))
+    band = _cf_resolve_band_mock(frequencies)
+    out_syms = Symbol[first(p) for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    sort(out_syms) == sort(ce.outcomes) || throw(ArgumentError(
+        "outcomes must map exactly the container outcomes $(ce.outcomes), got $(out_syms)"))
+    sort(ins_syms) == sort(ce.instruments) || throw(ArgumentError(
+        "instruments must map exactly the container instruments $(ce.instruments), got $(ins_syms)"))
+    syms = vcat(out_syms, ins_syms)
+    rows = Int[_cf_resolve(last(p), wold.varnames, "Wold variable")
+               for p in vcat(collect(outcomes), collect(instruments))]
+    nv = length(syms)
+    n = size(wold.Theta, 2)
+    Sigma_base = zeros(T, nv, nv)
+    for h in 1:H
+        Th = wold.Theta[h, rows, :]
+        Sigma_base .+= Th * Th'
+    end
+    # A stabilizing counterfactual shrinks variance; a band restricts it further.
+    scale = band === nothing ? T(0.8) : T(0.5)
+    Sigma_cf = scale .* Sigma_base
+    sd_base = sqrt.(diag(Sigma_base))
+    sd_cf = sqrt.(diag(Sigma_cf))
+    corr(M, s) = [M[i, j] / max(s[i] * s[j], eps(T)) for i in 1:nv, j in 1:nv]
+    nd = ce.Theta_x_draws === nothing ? 0 : size(ce.Theta_x_draws[1], 3)
+    use = draws == :on || (draws == :auto && nd > 0)
+    bands = use ? Matrix{T}(hcat([sd_cf .+ (q - T(0.5)) .* T(0.05)
+                                  for q in collect(T, quantiles)]...)) : nothing
+    pname = policy isa PolicyRule ? policy.name : policy.name
+    CounterfactualMoments{T}(syms, Sigma_base, Sigma_cf, sd_base, sd_cf,
+                             corr(Sigma_base, sd_base), corr(Sigma_cf, sd_cf),
+                             bands, T(0.05) .* ones(T, H, nv, n), pname, H,
+                             T(0.005),
+                             band === nothing ? nothing : (T(band[1]), T(band[2])))
+end
 
 export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterfactual,
        is_square, policy_causal_effects, baseline_path, policy_counterfactual,
        rate_peg_rule, rate_target_rule, inflation_target_rule, output_gap_rule,
-       ngdp_rule, taylor_rule, policy_loss, ait_loss, smoothing_penalty
+       ngdp_rule, taylor_rule, policy_loss, ait_loss, smoothing_penalty,
+       WoldRepresentation, CounterfactualMoments, wold_representation,
+       optimal_policy, optimal_rule, counterfactual_moments
 
 # NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.
 #

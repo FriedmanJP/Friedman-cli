@@ -1011,10 +1011,14 @@ function get_policy_loss(config::Dict)
         K = get(sec, "K", 19)
         K isa Integer || throw(CliError("config/type", "[loss] K must be an integer"))
         K >= 1 || throw(CliError("config/invalid", "[loss] K must be ≥ 1 (got $K)"))
+        pi_var = Symbol(String(get(sec, "pi_var", "infl")))
+        y_var = Symbol(String(get(sec, "y_var", "ygap")))
+        pi_var == y_var && throw(CliError("config/invalid",
+            "[loss] ait needs distinct pi_var and y_var (both are '$pi_var')"))
         return (type=:ait, beta=beta,
                 lambda_avg=_num("lambda_avg", 0.6), lambda_t=_num("lambda_t", 0.4),
                 lambda_y=_num("lambda_y", 1.0), delta=_num("delta", 0.1), K=Int(K),
-                smoothing=smoothing)
+                pi_var=pi_var, y_var=y_var, smoothing=smoothing)
     end
 
     oraw = get(sec, "outcomes", nothing)

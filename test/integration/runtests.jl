@@ -5954,6 +5954,81 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ruletoml; force=true)
         end
 
+        @testset "policy optimal + moments (W5/#127)" begin
+            losstoml = tempname() * ".toml"
+            write(losstoml, """
+            [loss]
+            outcomes = ["infl", "ygap"]
+            lambda = [1.0, 0.5]
+
+            [loss.smoothing]
+            lambda = 0.5
+            """)
+            ro = run_json(vcat(["policy", "optimal", "var", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--loss-config", losstoml,
+                                "--horizon", "8"], maps))
+            assert_envelope_ok(ro; label="policy optimal var")
+            so = cfsum(ro)
+            # The optimality certificate: foc_norm ≈ 0 and the loss cannot rise.
+            foc_key = first(k for k in keys(so) if startswith(k, "foc_norm"))
+            @test numv(so[foc_key]) < 1e-6
+            @test numv(so["loss_cf"]) <= numv(so["loss_base"]) + 1e-10
+            @test named_table(ro.doc, :implementation_error_path) !== nothing
+            # --loss-config required; lambda-less TOML is config/missing-key (4).
+            @test run_json(vcat(["policy", "optimal", "var", csv, "--shocks", "3",
+                                 "--nonpolicy-shock", "1"], maps)).code == 2
+            badtoml = tempname() * ".toml"
+            write(badtoml, "[loss]\noutcomes = [\"infl\"]\n")
+            @test run_json(vcat(["policy", "optimal", "var", csv, "--shocks", "3",
+                                 "--nonpolicy-shock", "1", "--loss-config", badtoml],
+                                maps)).code == 4
+            rm(badtoml; force=true)
+
+            rm_ = run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "12"], maps))
+            assert_envelope_ok(rm_; label="policy moments var rate-peg")
+            sd = named_table(rm_.doc, :counterfactual_standard_deviations)
+            @test sd !== nothing
+            vi = col_index(sd, "variable"); bi = col_index(sd, "sd_base")
+            ci2 = col_index(sd, "sd_cf")
+            rrow = first(r for r in table_rows(sd)
+                         if String(collect(r)[vi]) == "rate")
+            # Pegging the rate must collapse its unconditional sd.
+            @test numv(collect(rrow)[ci2]) < numv(collect(rrow)[bi])
+            ms = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rm_.doc, :moments_summary)))
+            tail_key = first(k for k in keys(ms) if startswith(k, "tail_share"))
+            @test numv(ms[tail_key]) >= 0.0
+            @test named_table(rm_.doc, :counterfactual_correlations) !== nothing
+
+            # Band-limited variance ⊂ full variance, variable by variable.
+            rb_ = run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "12",
+                                 "--frequencies", "business-cycle"], maps))
+            @test rb_.code == 0
+            sdb = named_table(rb_.doc, :counterfactual_standard_deviations)
+            full = Dict(String(collect(r)[vi]) => numv(collect(r)[bi])
+                        for r in table_rows(sd))
+            for r in table_rows(sdb)
+                @test numv(collect(r)[bi]) <= full[String(collect(r)[vi])] + 1e-8
+            end
+
+            # moments on the bvar route (wold from the posterior)
+            @test run_json(vcat(["policy", "moments", "bvar", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "8",
+                                 "--draws", "200"], maps)).code == 0
+            # rule XOR loss; bad band; both → usage errors
+            @test run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--loss-config", losstoml],
+                                maps)).code == 2
+            @test run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3"],
+                                maps)).code == 2
+            @test run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--frequencies", "2,1"],
+                                maps)).code == 2
+            rm(losstoml; force=true)
+        end
+
         @testset "guards — typed, never exit 1" begin
             b = vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
                       "--nonpolicy-shock", "1"], maps)

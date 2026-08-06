@@ -155,6 +155,55 @@ function _build_policy_rule(rule::String, config::String, H::Int,
            taylor_rule(H; outcomes=cli_outcomes, instruments=cli_instruments)  # textbook defaults
 end
 
+# ── Loss construction (W5/#127) ─────────────────────────────
+
+"""Build `(PolicyLoss, z_wedge)` from a `[loss]` TOML. The `smoothing_penalty`
+split is owned HERE: its `.W_z` feeds `policy_loss(W_z=…)`, its `.wedge_term`
+the engines' `z_wedge=` — handlers cannot get the split wrong."""
+function _build_policy_loss(loss_config::String, H::Int,
+                            cli_outcomes::Vector{Symbol},
+                            cli_instruments::Vector{Symbol})
+    isempty(loss_config) && throw(CliError("usage/missing",
+        "policy: --loss-config <toml> is required (the quadratic loss; lambda has NO default upstream)";
+        hint="e.g. [loss] outcomes = [\"infl\",\"ygap\"], lambda = [1.0, 0.5]"))
+    spec = get_policy_loss(load_config(loss_config))
+    sm = spec.smoothing
+    W_z = nothing
+    z_wedge = nothing
+    loss_instruments = Symbol[]
+    if sm !== nothing
+        length(cli_instruments) == 1 || throw(CliError("usage/invalid",
+            "policy: [loss.smoothing] penalizes ONE instrument; map exactly one in --instruments (got $(length(cli_instruments)))"))
+        sp = smoothing_penalty(H; lambda=sm.lambda, beta=sm.beta, z_lag=sm.z_lag)
+        W_z = [sp.W_z]
+        z_wedge = [sp.wedge_term]
+        loss_instruments = cli_instruments
+    end
+    if spec.type === :ait
+        for s in (spec.pi_var, spec.y_var)
+            s in cli_outcomes || throw(CliError("config/invalid",
+                "[loss] ait variable '$s' is not among the --outcomes names ($(join(cli_outcomes, ", ")))"))
+        end
+        base = ait_loss(H; beta=spec.beta, lambda_avg=spec.lambda_avg,
+                        lambda_t=spec.lambda_t, lambda_y=spec.lambda_y,
+                        delta=spec.delta, K=spec.K,
+                        pi_var=spec.pi_var, y_var=spec.y_var)
+        # ait_loss carries no instrument penalty — rebuild with the smoothing block.
+        loss = sm === nothing ? base :
+               PolicyLoss(outcomes=base.outcomes, W_x=base.W_x,
+                          instruments=loss_instruments, W_z=W_z,
+                          lambda=base.lambda, beta=base.beta, name=base.name)
+        return loss, z_wedge
+    end
+    for s in spec.outcomes
+        s in cli_outcomes || throw(CliError("config/invalid",
+            "[loss] outcome '$s' is not among the --outcomes names ($(join(cli_outcomes, ", ")))"))
+    end
+    loss = policy_loss(spec.outcomes, H; lambda=spec.lambda, beta=spec.beta,
+                       instruments=loss_instruments, W_z=W_z)
+    return loss, z_wedge
+end
+
 # ── Menu construction per source route ──────────────────────
 
 """Build `(ce, ir_or_bir)` for one source route. The IRF object is returned too
@@ -360,6 +409,215 @@ function _policy_counterfactual(route::String; data::String, lags=nothing,
     return result
 end
 
+# ── policy optimal handler (W5/#127) ────────────────────────
+
+function _policy_optimal(route::String; data::String, lags=nothing,
+                         horizon::Int=20, draws::Int=2000, replications::Int=0,
+                         n_draws::Int=500, config::String="",
+                         shocks::String="", nonpolicy_shock::String="",
+                         outcomes::String="", instruments::String="",
+                         normalize::String="none", loss_config::String="",
+                         use_draws::String="auto", baseline_draws::String="fixed",
+                         quantiles::String="0.16,0.5,0.84", negate::Bool=false,
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    replications >= 0 || throw(CliError("usage/invalid",
+        "policy: --replications must be ≥ 0 (got $replications)"))
+    n_draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --n-draws must be ≥ 1 (got $n_draws)"))
+    draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --draws must be ≥ 1 (got $draws)"))
+    use_draws in ("auto", "on", "off") || throw(CliError("usage/invalid-option",
+        "invalid --use-draws '$use_draws'; must be auto, on or off"))
+    baseline_draws in ("fixed", "match") || throw(CliError("usage/invalid-option",
+        "invalid --baseline-draws '$baseline_draws'; must be fixed or match"))
+    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
+        "invalid --normalize '$normalize'; must be none or instrument-impact"))
+    norm_sym = normalize == "none" ? :none : :instrument_impact
+    qs = _parse_cf_quantiles(quantiles)
+    isempty(strip(nonpolicy_shock)) && throw(CliError("usage/missing",
+        "policy optimal: --nonpolicy-shock is required (the disturbance the optimal policy responds to)"))
+    np_shock = (v = tryparse(Int, strip(nonpolicy_shock)); v === nothing ?
+                String(strip(nonpolicy_shock)) : v)
+    shock_list = _parse_cf_shocks(shocks)
+    out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
+    ins_pairs = _parse_cf_pairs(instruments, "--instruments")
+    out_syms = Symbol[first(p) for p in out_pairs]
+    ins_syms = Symbol[first(p) for p in ins_pairs]
+
+    loss, z_wedge = _build_policy_loss(loss_config, horizon, out_syms, ins_syms)
+
+    _status("Optimal policy ($route): loss=$(loss.name), H=$horizon")
+    _status()
+
+    result = try
+        ce, ir = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+                              replications=replications, n_draws=n_draws, config=config,
+                              shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
+                              normalize=norm_sym)
+        base = baseline_path(ir, np_shock, out_pairs, ins_pairs;
+                             H=horizon, negate=negate)
+        # NOTE: optimal_policy hardcodes spanned_tol = 0.05 upstream (no kwarg) —
+        # this leaf deliberately declares NO --spanned-tol (#85 class).
+        optimal_policy(base, ce, loss;
+                       z_wedge=z_wedge, draws=Symbol(use_draws),
+                       baseline_draws=Symbol(baseline_draws), quantiles=Tuple(qs))
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "optimal policy"))
+    end
+
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _render_policy_counterfactual(result; format=format, output=output)
+    return result
+end
+
+# ── policy moments handler (W5/#127) ────────────────────────
+
+function _parse_cf_frequencies(spec::String)
+    s = strip(spec)
+    s == "none" && return :none
+    s == "business-cycle" && return :business_cycle
+    parts = split(s, ",")
+    length(parts) == 2 || throw(CliError("usage/invalid",
+        "policy moments: --frequencies must be none, business-cycle, or lo,hi in radians (got '$spec')"))
+    lo = tryparse(Float64, strip(parts[1]))
+    hi = tryparse(Float64, strip(parts[2]))
+    (lo === nothing || hi === nothing) && throw(CliError("usage/invalid",
+        "policy moments: --frequencies band bounds must be numbers (got '$spec')"))
+    (0.0 <= lo < hi <= Float64(π) + 1e-12) || throw(CliError("usage/invalid",
+        "policy moments: --frequencies needs 0 ≤ lo < hi ≤ π (got $lo, $hi)"))
+    return (lo, hi)
+end
+
+function _policy_moments(route::String; data::String, lags=nothing,
+                         horizon::Int=20, draws::Int=2000, replications::Int=0,
+                         config::String="", shocks::String="",
+                         outcomes::String="", instruments::String="",
+                         normalize::String="none", rule::String="",
+                         rule_config::String="", loss_config::String="",
+                         use_draws::String="auto", draw_source::String="ce",
+                         quantiles::String="0.16,0.5,0.84",
+                         frequencies::String="none",
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="",
+                         plot_view::String="sd")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    replications >= 0 || throw(CliError("usage/invalid",
+        "policy: --replications must be ≥ 0 (got $replications)"))
+    draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --draws must be ≥ 1 (got $draws)"))
+    use_draws in ("auto", "on", "off") || throw(CliError("usage/invalid-option",
+        "invalid --use-draws '$use_draws'; must be auto, on or off"))
+    draw_source in ("ce", "wold", "both") || throw(CliError("usage/invalid-option",
+        "invalid --draw-source '$draw_source'; must be ce, wold or both"))
+    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
+        "invalid --normalize '$normalize'; must be none or instrument-impact"))
+    plot_view in ("sd", "corr") || throw(CliError("usage/invalid-option",
+        "invalid --plot-view '$plot_view'; must be sd or corr"))
+    norm_sym = normalize == "none" ? :none : :instrument_impact
+    qs = _parse_cf_quantiles(quantiles)
+    freq = _parse_cf_frequencies(frequencies)
+    shock_list = _parse_cf_shocks(shocks)
+    out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
+    ins_pairs = _parse_cf_pairs(instruments, "--instruments"; required=false)
+    out_syms = Symbol[first(p) for p in out_pairs]
+    ins_syms = Symbol[first(p) for p in ins_pairs]
+
+    # Policy = a rule XOR a loss.
+    has_rule = !isempty(rule) || !isempty(rule_config)
+    has_loss = !isempty(loss_config)
+    (has_rule && has_loss) && throw(CliError("usage/invalid",
+        "policy moments: give a rule (--rule/--rule-config) OR a loss (--loss-config), not both"))
+    (has_rule || has_loss) || throw(CliError("usage/missing",
+        "policy moments: a counterfactual policy is required — --rule/--rule-config or --loss-config"))
+    policy = has_rule ?
+        _build_policy_rule(rule, rule_config, horizon, out_syms, ins_syms) :
+        first(_build_policy_loss(loss_config, horizon, out_syms, ins_syms))
+
+    _status("Counterfactual second moments ($route): H=$horizon" *
+            (freq === :none ? "" : ", band=$frequencies"))
+    _status()
+
+    mom = try
+        if route == "var"
+            model, Y, varnames, p = _load_and_estimate_var(data, lags)
+            kw = Dict{Symbol,Any}()
+            if replications > 0
+                kw[:ci_type] = :bootstrap
+                kw[:reps] = replications
+            end
+            ir = irf(model, horizon; kw...)
+            ce = policy_causal_effects(ir, shock_list, out_pairs, ins_pairs;
+                                       H=horizon, normalize=norm_sym)
+            # orthogonalize carries NO identification content here — moments are
+            # rotation-invariant (CMW App. A.2); cholesky is just a factorization.
+            wold = wold_representation(model; H=horizon)
+        else
+            post, Y, varnames, p, n = _load_and_estimate_bvar(data,
+                lags === nothing ? 4 : lags, config, draws, "direct")
+            bir = irf(post, horizon)
+            ce = policy_causal_effects(bir, shock_list, out_pairs, ins_pairs;
+                                       H=horizon, normalize=norm_sym)
+            wold = wold_representation(post; H=horizon)
+        end
+        counterfactual_moments(wold, ce, policy;
+                               outcomes=out_pairs, instruments=ins_pairs,
+                               draws=Symbol(use_draws), draw_source=Symbol(draw_source),
+                               quantiles=Tuple(qs), frequencies=freq)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "counterfactual moments"))
+    end
+
+    _maybe_plot(mom; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+    _render_policy_moments(mom; format=format, output=output, draw_source=draw_source)
+    return mom
+end
+
+function _render_policy_moments(m; format::String="table", output::String="",
+                                draw_source::String="ce")
+    nv = length(m.varnames)
+    # 1. Standard deviations, baseline vs counterfactual (+ draw bands).
+    sd = DataFrame(variable=String.(m.varnames),
+                   sd_base=round.(Float64.(m.sd_base); digits=6),
+                   sd_cf=round.(Float64.(m.sd_cf); digits=6))
+    if m.sd_cf_bands !== nothing
+        for q in 1:size(m.sd_cf_bands, 2)
+            sd[!, Symbol("sd_cf_q$q")] = round.(Float64.(m.sd_cf_bands[:, q]); digits=6)
+        end
+    end
+    output_result(sd; format=Symbol(format), output=output,
+                  title="Counterfactual Standard Deviations")
+
+    # 2. Correlations, tidy upper triangle.
+    v1 = String[]; v2 = String[]; cb = Float64[]; cc = Float64[]
+    for i in 1:nv, j in (i+1):nv
+        push!(v1, String(m.varnames[i])); push!(v2, String(m.varnames[j]))
+        push!(cb, round(Float64(m.corr_base[i, j]); digits=6))
+        push!(cc, round(Float64(m.corr_cf[i, j]); digits=6))
+    end
+    isempty(v1) || output_result(
+        DataFrame(var1=v1, var2=v2, corr_base=cb, corr_cf=cc);
+        format=Symbol(format), output=_per_var_output_path(output, "corr"),
+        title="Counterfactual Correlations")
+
+    # 3. Summary — tail_share is the VMA-truncation honesty number.
+    pairs = Pair{String,Any}[
+        "policy"      => m.policy_name,
+        "H"           => m.H,
+        "tail_share (VMA truncation; > 0.01 means grow --horizon)" =>
+            round(Float64(m.tail_share); digits=6),
+        "draw_source" => draw_source,
+        "freq_band"   => m.freq_band === nothing ? "full spectrum" :
+                         "$(round(Float64(m.freq_band[1]); digits=4)):$(round(Float64(m.freq_band[2]); digits=4))",
+    ]
+    output_kv(pairs; format=format, title="Moments Summary")
+end
+
 function _render_policy_counterfactual(r; format::String="table", output::String="")
     # 1. Paths table (baseline vs counterfactual, bands when propagated).
     nq = length(r.quantile_levels)
@@ -384,8 +642,10 @@ function _render_policy_counterfactual(r; format::String="table", output::String
                   output=_per_var_output_path(output, "nu"),
                   title="Enforcing Policy Shocks (nu)")
 
-    # 3. Implementation-error path — the honesty signal for thin menus.
-    err_df = DataFrame(horizon=1:r.H,
+    # 3. Implementation-error path — the honesty signal for thin menus. NOT
+    # indexed by horizon: optimal_policy stacks the outcome+instrument FOC
+    # blocks, so the path can be a multiple of H — index it by component.
+    err_df = DataFrame(index=1:length(r.error_path),
                        error=round.(Float64.(r.error_path); digits=6))
     output_result(err_df; format=Symbol(format),
                   output=_per_var_output_path(output, "error"),
@@ -404,6 +664,19 @@ function _render_policy_counterfactual(r; format::String="table", output::String
     if r.rel_residual_bands !== nothing
         pairs = vcat(pairs, Pair{String,Any}[
             "rel_residual_bands" => join(round.(Float64.(r.rel_residual_bands); digits=6), ", ")])
+    end
+    # Loss accounting — populated by optimal_policy (W5), NaN on plain rule
+    # counterfactuals. foc_norm ≈ 0 is the optimality check.
+    if isfinite(r.loss_base)
+        append!(pairs, Pair{String,Any}[
+            "loss_base" => round(Float64(r.loss_base); digits=6),
+            "loss_cf"   => round(Float64(r.loss_cf); digits=6),
+            "foc_norm (≈0 at the optimum)" => round(Float64(r.foc_norm); digits=8),
+        ])
+        # Upstream warns "loss increased" on a kernel/sign bug — that is a
+        # RESULT, so it must be data, not a swallowed stderr line.
+        r.loss_cf > r.loss_base && push!(pairs, "warning" =>
+            "loss INCREASED under the optimal policy — upstream flags this as a kernel/sign bug; do not use these paths")
     end
     r.spanned || push!(pairs, "note" =>
         "rule NOT enforceable within the span of the supplied policy shocks; the counterfactual is a least-squares approximation — read error_path")
@@ -523,7 +796,75 @@ function register_policy_commands!()
             handler=wrap_legacy((; kw...) -> _policy_counterfactual(route; kw...)),
         ))
     end
+    # ── W5/#127: policy optimal + policy moments ────────────
+    for route in ("var", "bvar", "lp")
+        push!(specs, CommandSpec(
+            path=["policy", "optimal", route],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="Path to CSV data file")],
+            options=[_POLICY_COMMON...; _policy_route_options(route)...;
+                     OptionSpec(name="nonpolicy-shock", type=String, default="",
+                                description="The ONE non-policy shock the optimal policy responds to (REQUIRED)");
+                     OptionSpec(name="loss-config", type=String, default="",
+                                description="TOML [loss] section (REQUIRED; lambda has no default upstream)");
+                     OptionSpec(name="use-draws", type=String, default="auto",
+                                choices=["auto", "on", "off"],
+                                description="Propagate menu draws into bands: auto|on|off");
+                     OptionSpec(name="baseline-draws", type=String, default="fixed",
+                                choices=["fixed", "match"],
+                                description="fixed | match (equal draw counts enforced)");
+                     OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
+                                description="Band quantiles, comma-separated in (0,1)");
+                     # NO --spanned-tol: optimal_policy hardcodes 0.05 upstream.
+                     OptionSpec(name="normalize", type=String, default="none",
+                                choices=["none", "instrument-impact"],
+                                description="none | instrument-impact");
+                     PLOT_OPTIONS...],
+            flags=[FlagSpec(name="negate",
+                            description="Flip the non-policy shock's sign"),
+                   FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=Symbol("policy_optimal_$route"),
+                              description="Optimal policy under a quadratic loss")],
+            category="policy",
+            handler=wrap_legacy((; kw...) -> _policy_optimal(route; kw...)),
+        ))
+    end
+    for route in ("var", "bvar")
+        push!(specs, CommandSpec(
+            path=["policy", "moments", route],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="Path to CSV data file")],
+            options=[_POLICY_COMMON...; _policy_route_options(route)...;
+                     OptionSpec(name="rule", type=String, default="",
+                                description="Builtin counterfactual rule (see policy counterfactual)");
+                     OptionSpec(name="rule-config", type=String, default="",
+                                description="TOML [rule] section");
+                     OptionSpec(name="loss-config", type=String, default="",
+                                description="TOML [loss] section (rule XOR loss)");
+                     OptionSpec(name="use-draws", type=String, default="auto",
+                                choices=["auto", "on", "off"],
+                                description="Propagate draws into sd bands: auto|on|off");
+                     OptionSpec(name="draw-source", type=String, default="ce",
+                                choices=["ce", "wold", "both"],
+                                description="Uncertainty source: ce | wold | both (matching counts enforced)");
+                     OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
+                                description="Band quantiles, comma-separated in (0,1)");
+                     OptionSpec(name="frequencies", type=String, default="none",
+                                description="none | business-cycle (2π/32..2π/6) | lo,hi in radians (0 ≤ lo < hi ≤ π)");
+                     OptionSpec(name="plot-view", type=String, default="sd",
+                                choices=["sd", "corr"],
+                                description="Plot panel: sd | corr");
+                     PLOT_OPTIONS...],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=Symbol("policy_moments_$route"),
+                              description="Second moments under a counterfactual rule/loss")],
+            category="policy",
+            handler=wrap_legacy((; kw...) -> _policy_moments(route; kw...)),
+        ))
+    end
     register!(specs)
     return build_node("policy", specs;
-        description="Policy counterfactuals: causal-effect menus and McKay-Wolf rule counterfactuals")
+        description="Policy counterfactuals: causal-effect menus, McKay-Wolf rule counterfactuals, optimal policy and second moments")
 end
