@@ -18,7 +18,7 @@ Example shape (fields abbreviated):
   "command": "friedman estimate var",
   "status": "ok",
   "meta": {
-    "cli_version": "0.9.0",
+    "cli_version": "0.9.1",
     "mems_version": "0.7.0",
     "julia": "1.12.x",
     "seed": null,
@@ -92,9 +92,12 @@ VAR/VECM IRFs, so their `ReproManifest` records it and the draws reproduce bit-f
 ## Model handles
 
 `--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
-`.jld2` is the native, versioned format (`VARModel`/`BVARPosterior`/`RegModel`/`LogitModel`/
-`ProbitModel`/`LPModel`); `.fmod` is an interim fallback for other model types. `friedman model
-info PATH` inspects a handle without re-running estimation.
+`.jld2` is the native, versioned format and since CLI v0.9.1 covers the full upstream
+serialization registry (56 types at MacroEconometricModels 0.7.2) — in practice every model
+`estimate` can fit. `.fmod` is the interim handle, now needed only for the DSGE/heterogeneous-agent
+*solutions* reachable via `dsge solve --save-model`, whose compiled model closures cannot be
+stored portably; saving one of those to `.jld2` fails with `model/unsupported-save` (exit 5) and
+writes nothing. `friedman model info PATH` inspects either format without re-running estimation.
 
 ## Quiet / no-color / json alias
 

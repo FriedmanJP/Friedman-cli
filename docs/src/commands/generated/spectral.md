@@ -65,7 +65,7 @@ Spectral density estimation
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--method` | `-m` | `String` | `welch` | `periodogram`, `welch`, `smoothed`, `ar` | periodogram|welch|smoothed|ar |
+| `--method` | `-m` | `String` | `welch` | `periodogram`, `welch`, `smoothed`, `ar` | periodogram\|welch\|smoothed\|ar |
 | `--bandwidth` | — | `Float64` | — | — | Smoothing bandwidth |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -108,7 +108,7 @@ Filter transfer function (theoretical frequency response)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--filter` | — | `String` | `hp` | `hp`, `bk`, `hamilton`, `ideal` | hp|bk|hamilton|ideal |
+| `--filter` | — | `String` | `hp` | `hp`, `bk`, `hamilton`, `ideal` | hp\|bk\|hamilton\|ideal |
 | `--lambda` | — | `Float64` | `1600.0` | — | Filter parameter (e.g. HP lambda) |
 | `--nobs` | — | `Int64` | `200` | — | Number of observations (for frequency grid) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |

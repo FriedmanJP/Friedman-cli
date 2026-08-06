@@ -98,6 +98,8 @@ friedman dsge solve rbc.toml --constraints=occbin.toml --periods=60
 
 **Output (OccBin):** Piecewise-linear transition path for all endogenous variables.
 
+**Determinacy verdict (W12/#114).** Every solve that produces a solution carrying the Sims `eu` pair also emits a **Determinacy Verdict** table: `existence | uniqueness | verdict | solver`. As in [`dsge determinacy-map`](#dsge-determinacy-map), the pair is reported rather than collapsed into a single boolean — `existence = 0` (no stable equilibrium exists) and `uniqueness = 0` (equilibria exist but are not unique) call for different changes to the model. Anything other than a determinate verdict is also flagged on stderr.
+
 See [Configuration](../configuration.md#occbin-constraints) for the OccBin constraints TOML format.
 
 ## dsge irf
@@ -195,6 +197,97 @@ friedman dsge simulate rbc.toml --seed=42 --antithetic
 
 **Output:** Simulated data table with a column per endogenous variable, periods after burn-in.
 
+## dsge moments
+
+Closed-form theoretical moments of a solved model at perturbation order 1, 2 or 3. Simulation-free: at order ≥ 2 these come from the pruned state-space recursion (Andreasen, Fernández-Villaverde & Rubio-Ramírez 2018), not from a long simulation, so they are exact rather than Monte-Carlo.
+
+```bash
+friedman dsge moments rbc.toml                            # order 2 (default)
+friedman dsge moments rbc.toml --order=2 --lags=4
+friedman dsge moments rbc.toml --order=3 --lags=8 -f json
+```
+
+!!! warning "`--order 1` is disabled (upstream defect)"
+    MacroEconometricModels' **order-1** analytical moments are wrong for **control** variables. The state↔control covariance is computed as `Var(z)·gx'`, which is `Cov(z_{t-1}, y_t)` — it neither applies the transition `hx` nor adds the contemporaneous `η_x·η_y'` term, so the true `Cov(z_t, y_t) = hx·Var(z)·gx' + η_x·η_y'` comes out short by a factor of the persistence. The same lagged map is then squared into the autocovariance recursion.
+
+    Measured on `y = 0.4·z` with `z` an AR(1) at ρ = 0.7: `corr(z, y)` was reported as **0.7 instead of 1.0**, and a control's autocorrelation at lag `k` as **ρ^(k+2) instead of ρ^k**. Variances and the entire state block are correct — only blocks involving controls are affected, which in a typical DSGE is most of the variables of interest.
+
+    Orders 2 and 3 go through a different routine and reproduce the closed form exactly, so `dsge moments` refuses order 1 with a typed usage error rather than emitting a wrong table. Tracked in [issue #116](https://github.com/FriedmanJP/Friedman-cli/issues/116); filed upstream as [MEMs#607](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/607). **For a linear model `--order 2` reproduces the first-order moments precisely** (the second-order blocks are zero), so nothing is lost there.
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--method` | | String | `perturbation` | Solution method (moments need a perturbation solution) |
+| `--order` | | Int | 2 | Perturbation order: 2 or 3 (1 is disabled — see above) |
+| `--lags` | | Int | 1 | Autocovariance lags to report (≥ 1) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** three tables.
+
+* **DSGE Theoretical Moments** — `variable | steady_state | mean | mean_minus_ss | std_dev`
+* **Variance-Covariance** — `variable1 | variable2 | covariance | correlation` (upper triangle)
+* **Autocovariances** — `variable | lag | autocovariance | autocorrelation`
+
+`mean_minus_ss` is the column to look at. For a linear model it is identically zero — the certainty-equivalent mean *is* the steady state. For a nonlinear model at order ≥ 2 it is the **risk correction**: precautionary behaviour shifts the ergodic mean away from the deterministic steady state, and that shift is precisely what a higher-order solve buys you. Reporting the mean beside the steady state makes it visible rather than leaving it to be re-derived.
+
+!!! note "Augmented models"
+    Specs that the parser augments (to handle leads/lags beyond one period) report moments over the **original** variables only, and the labels are filtered to match. A moment table that silently used the augmented variable order would attribute every number to the wrong variable.
+
+There is deliberately **no `--pruned` switch**. Upstream's simulation of a perturbation solution is *always* pruned (Kim, Kim, Schaumburg & Sims 2008) and exposes no unpruned path, so a flag would advertise a choice that does not exist. `dsge simulate --order 2|3` is likewise pruned.
+
+## dsge determinacy-map
+
+Sweep one or two parameters and record the Blanchard–Kahn/Sims determinacy verdict at each grid point. Answers "over what region of the parameter space does this model have a unique stable equilibrium?" — the Taylor principle being the textbook case.
+
+The sweep is config-driven, because it is two parameter names plus grids plus a resolution — past the point where flags stay readable.
+
+```toml
+# determinacy.toml
+[determinacy]
+params = ["phi_pi", "phi_y"]     # 1 or 2 parameter names
+lower  = [0.0, 0.0]
+upper  = [3.0, 1.0]
+points = [61, 41]
+# optional
+method = "gensys"                # gensys | klein | blanchard-kahn
+div    = 1.00000001              # stable/unstable eigenvalue boundary
+```
+
+```bash
+friedman dsge determinacy-map nk.toml --config=determinacy.toml
+friedman dsge determinacy-map nk.toml --config=determinacy.toml --threaded --plot
+```
+
+`grids = [[...], [...]]` supplies explicit grid values instead of `lower`/`upper`/`points`. A scalar is accepted wherever a one-element list would do.
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--config` | | String | (required) | TOML with a `[determinacy]` section |
+| `--rank-rtol` | | Float64 | 1e-8 | Relative tolerance of the Sims rank tests |
+| `--threaded` | | Flag | | Evaluate grid points on all threads (results identical to the serial sweep) |
+| `--verbose-solver` | | Flag | | Do **not** suppress per-grid-point solver warnings |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive heatmap in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** a tidy long table with one row per grid cell — `<param1> | [<param2>] | verdict | label | existence | uniqueness` — plus a **Determinacy Region Summary** (`n_determinate`, `n_indeterminate`, `n_no_solution`, `n_failed`, `method`, `div`), and for a one-parameter sweep a **Determinacy Boundary** table.
+
+Verdict codes and their labels:
+
+| `verdict` | `label` | `existence` | `uniqueness` | Meaning |
+|-----------|---------|-------------|--------------|---------|
+| `1` | determinate | 1 | 1 | Unique stable equilibrium |
+| `0` | indeterminate | 1 | 0 | Stable equilibria exist but are not unique (sunspots) |
+| `-1` | no solution | 0 | — | No stable equilibrium exists |
+| `-2` | failed | -1 | -1 | The model could not be solved at this point |
+
+**The raw `existence`/`uniqueness` pair is reported, not just the collapsed verdict**, because `existence = 0` and `uniqueness = 0` are different diagnoses with different fixes — no stable equilibrium at all, versus sunspot indeterminacy — and an agent should not have to re-derive which one it hit.
+
+`failed` cells are counted separately and warned about on stderr. A grid point that would not solve is a **hole in the sweep, not a fourth region**: treating it as indeterminacy would invent a frontier out of a numerical gap. For the same reason the boundary calculation skips any pair involving a failed point.
+
+The boundary is located to the resolution of the grid — refine `points` to sharpen it. For a two-parameter sweep no boundary table is emitted, since the frontier is a curve rather than a set of points; read the map (or plot it).
+
 ## dsge estimate
 
 Estimate DSGE model parameters from data. 4 estimation methods.
@@ -236,8 +329,29 @@ friedman dsge perfect-foresight rbc.toml --shocks=shocks.csv --periods=200
 | `--shocks` | | String | (required) | Path to shock sequence CSV |
 | `--periods` | | Int | 100 | Simulation periods |
 | `--constraint-solver` | | String | (empty) | Constraint solver backend: `nonlinearsolve`, `optim`, `nlopt`, `ipopt`, `path` (empty = legacy OccBin path) |
+| `--prefilter` | | String | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` — observable transform applied before estimation |
+| `--hp-lambda` | | Float64 | 1600.0 | HP smoothing parameter, `--prefilter hp` only |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+
+#### Trending observables (`--prefilter`)
+
+A DSGE model is solved in stationary deviations from steady state, but macro data is not stationary. `--prefilter` reconciles the two by transforming the observables before the Kalman filter sees them — Dynare's `prefilter`.
+
+| Mode | What it removes |
+|------|-----------------|
+| `none` | Nothing (default). Correct only if your observables are *already* stationary deviations |
+| `demean` | Each observable's sample mean |
+| `first-difference` | `Δyₜ = yₜ − yₜ₋₁`; **drops the first observation** |
+| `linear-detrend` | The OLS fit on `[1, t]`, per observable |
+| `hp` | The Hodrick–Prescott trend, keeping the cycle. `--hp-lambda` is 1600 quarterly, 129600 monthly, 6.25 annual |
+
+Two things worth knowing:
+
+* The option is on **every `dsge bayes` leaf that estimates**, not just `bayes estimate`. The CLI is stateless, so each leaf re-estimates from scratch — a prefilter available only on `bayes estimate` could not be carried into `bayes irf`/`fevd`/`hd`, and those results would silently come from a differently-specified estimate.
+* It is **not** available on the frequentist `dsge estimate`. `estimate_dsge` upstream takes no prefilter argument, and declaring an option the handler cannot honour would fail on every invocation. If you need prefiltering, use the Bayesian path or transform the CSV first (`data transform`).
+
+`--hp-lambda` under any mode other than `hp` is a typed usage error rather than a silent no-op.
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
@@ -265,7 +379,7 @@ friedman dsge steady-state rbc.toml --constraints=occbin.toml
 
 ## dsge bayes
 
-Bayesian DSGE workflow. `bayes` is a **nested command group** with 13 sub-leaves: `estimate`, `irf`, `fevd`, `hd`, `simulate`, `summary`, `compare`, `predictive`, plus five diagnostics (C073) — `mcmc-diag`, `identification`, `learning-rate`, `overlap`, `marginal-lik`. All share common options for model specification, data, parameters, and priors (`identification` is the exception — it runs no MCMC and takes only `--params`/`--observables`/`--solver`/`--order`/`--n-lags`).
+Bayesian DSGE workflow. `bayes` is a **nested command group** with 15 sub-leaves: `estimate`, `irf`, `fevd`, `hd`, `simulate`, `summary`, `compare`, `predictive`, plus five diagnostics (C073) — `mcmc-diag`, `identification`, `learning-rate`, `overlap`, `marginal-lik`. All share common options for model specification, data, parameters, and priors (`identification` is the exception — it runs no MCMC and takes only `--params`/`--observables`/`--solver`/`--order`/`--n-lags`).
 
 ### Common Options (all dsge bayes sub-commands)
 

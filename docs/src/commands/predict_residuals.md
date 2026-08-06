@@ -143,14 +143,30 @@ For `piv`, also requires `--endog` and `--instruments`.
 `predict ologit`, `predict oprobit`, and `predict mlogit` return one predicted-probability
 column per category (`prob_<category>`), plus an `observation` index.
 
-`residuals ologit`, `residuals oprobit` and `residuals mlogit` exit with
-`model/unsupported` (exit 5): MacroEconometricModels 0.7.0 defines no `residuals` method
-for ordered or multinomial models, and there is no single standard residual definition
-for them. Use `predict` for the per-category probabilities instead.
+`residuals ologit`, `residuals oprobit` and `residuals mlogit` return one residual column
+per category (`resid_<category>`), plus an `observation` index — a `J`-category response
+has `J` residuals per observation, so there is no meaningful single `residual` column.
+`--kind` selects the definition:
 
-This is tracked upstream as
-[MacroEconometricModels.jl#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507);
-the leaves will be enabled once it ships.
+| `--kind` | Meaning |
+|---|---|
+| `response` (default) | `dᵢⱼ − P̂ᵢⱼ`; each row sums to zero |
+| `pearson` | `rᵢⱼ / sqrt(P̂ᵢⱼ(1−P̂ᵢⱼ))` |
+| `deviance` | signed contributions whose sum of squares is `−2·loglik` |
+
+For the **ordered** models only, `--generalized` replaces that matrix with the length-`n`
+generalized (score) residual of Chesher & Irish (1987) — `eᵢ = ∂ℓᵢ/∂(xᵢ'β)`, the quantity
+that makes outer-product-of-gradients LM specification tests work, and the direct analogue
+of the binary models' `yᵢ − p̂ᵢ`. The flag is deliberately **not** offered on `mlogit`:
+an unordered response has no meaningful length-`n` scalar residual, and its per-alternative
+`response` residuals already *are* its generalized residuals. Passing it there is a usage
+error (exit 2).
+
+!!! note "Enabled in CLI v0.9.1"
+    These three leaves previously exited `model/unsupported` (exit 5) because
+    MacroEconometricModels 0.7.0 defined no `residuals` method for ordered or multinomial
+    models. [MEMs#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507)
+    settled both the definition and the return shape in 0.7.2.
 
 ## State space: `predict statespace`, `residuals statespace`
 
@@ -185,23 +201,53 @@ friedman predict statespace y.csv --state smoothed
 friedman residuals statespace y.csv --standardized
 ```
 
-## Nonlinear time series: `residuals setar | star | ms-ar | ms`
+## Nonlinear time series: `residuals setar | star | ms-ar | ms`, `predict`/`forecast ms | ms-ar`
 
-These four have a `residuals` leaf but **no `predict` counterpart**, and that asymmetry is
-upstream, not a design choice here. MacroEconometricModels defines `residuals` for
-`ThresholdModel`, `STARModel` and `MSRegModel`, but exposes no `predict`/`fitted` for any of
-them.
+All four have a `residuals` leaf. **`predict` and `forecast` exist for the Markov-switching
+models only** (`ms`, `ms-ar`) — SETAR and STAR still have neither, and that asymmetry is
+upstream, not a design choice here: MacroEconometricModels defines `predict`/`forecast` for
+`MSRegModel` but not for `ThresholdModel` or `STARModel`.
 
-For the Markov-switching models the fitted series is perfectly well defined — it is the
-regime-probability-weighted conditional mean `ŷₜ = Σₖ Pr(sₜ=k) · E[yₜ | sₜ=k]` — and the library
-already computes it internally to form the residuals it returns; it simply does not store it.
-Adding a `predict` leaf here would mean recomputing a quantity upstream already has, and risking
-divergence from whatever definition it eventually publishes (smoothed- vs filtered-weighted).
-Tracked as
-[MacroEconometricModels.jl#510](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/510),
-which also covers the absence of a `forecast` method for Markov-switching models — the only
-nonlinear time-series family in the package that cannot forecast. The leaves will be added once
-it ships.
+!!! note "Added in CLI v0.9.1"
+    `predict ms|ms-ar` and `forecast ms|ms-ar` were previously absent because upstream stored
+    no fitted values and offered no Markov-switching forecast.
+    [MEMs#510](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/510) shipped both
+    in 0.7.2.
+
+### `predict ms | ms-ar`
+
+Emits the regime-probability-weighted conditional mean `ŷₜ = Σₖ Pr(sₜ=k) · E[yₜ | sₜ=k]` as a
+tidy `t | fitted` table. `--probs` chooses the weighting:
+
+| `--probs` | Meaning |
+|---|---|
+| `smoothed` (default) | uses the full sample; `y − fitted` reproduces `residuals` exactly |
+| `filtered` | the real-time analogue, using information up to `t` only |
+
+The two are genuinely different series, so `predict --probs filtered` is **not** a restatement
+of `residuals`: only the smoothed weighting satisfies the residual identity.
+
+### `forecast ms | ms-ar`
+
+`forecast ms-ar` projects the model itself over `--horizons`. The path is the exact analytic
+conditional mean; because the predictive density is a Gaussian *mixture* over regime paths, the
+bands come from simulating `--reps` regime paths at `--ci-level`. Two tables are emitted: the
+tidy forecast path, and the `h × K` **predicted regime probabilities** `ξ_{t+h|t} = (P')ʰ ξ_{t|t}`.
+
+`forecast ms` is a switching **regression**, which cannot project itself — it needs future
+regressors. Pass them with `--x-future <csv>` (`h` rows × `k` columns, matching the fitted
+design). The one exception is an intercept-only fit, where the future design is just a column of
+ones and `--horizons` alone is enough. A model with regressors and no `--x-future` is a usage
+error rather than a guess.
+
+Neither forecast leaf offers `--plot`/`--plot-save`: MacroEconometricModels 0.7.2 ships no
+`plot_result` recipe for `MSForecast` (the same gap as `ThresholdForecast`/`STARForecast`).
+
+```bash
+friedman predict  ms-ar y.csv --p 1 --probs filtered
+friedman forecast ms-ar y.csv --p 1 --horizons 8 --ci-level 0.90
+friedman forecast ms    data.csv --dep y --x-future future_x.csv
+```
 
 Each leaf mirrors its `estimate` sibling's options so any fit that changes the residuals can be
 reproduced. Options that affect **only** the attached inference are omitted: `estimate setar`'s
@@ -219,6 +265,25 @@ friedman residuals setar y.csv --p 1 --d auto
 friedman residuals star  y.csv --p 1 --type lstr1
 friedman residuals ms-ar y.csv --p 1 --k-regimes 3
 friedman residuals ms    data.csv --dep y
+```
+
+## Count models: `predict poisson | nbreg`, `residuals poisson | nbreg`
+
+`predict` returns the conditional mean `μ̂ᵢ = exp(xᵢ'β̂ + offsetᵢ)` as an `observation | fitted`
+table; `residuals` returns `yᵢ − μ̂ᵢ` as `observation | residual`.
+
+Both leaves mirror their `estimate` sibling's fit options so the refit matches
+([`estimate poisson`](estimate.md#estimate-poisson) /
+[`estimate nbreg`](estimate.md#estimate-nbreg)), including `--offset` / `--exposure`. The
+reporting-only options are omitted: `--irr` and `--conf-level` affect the incidence-rate-ratio
+table, which neither verb emits.
+
+There is **no `--kind`**: MacroEconometricModels exposes a single residual vector for these
+models, so offering a choice would be advertising something the library cannot honour.
+
+```bash
+friedman predict   poisson data.csv --dep claims --exposure policy_years
+friedman residuals nbreg   data.csv --dep claims
 ```
 
 ## Systems: `predict sur | 3sls`, `residuals sur | 3sls`

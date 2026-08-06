@@ -136,18 +136,43 @@ end
 # Native MEMs `save_model`/`load_model` (JLD2-backed, versioned, portable across a
 # package upgrade) support only these result types; everything else falls back to
 # the interim `.fmod` Serialization handle above. Dispatch is by suffix + type.
-const _NATIVE_SAVE_TYPES = Set([
-    "VARModel", "BVARPosterior", "RegModel", "LogitModel", "ProbitModel", "LPModel",
+# The native set is DERIVED from upstream's own registry rather than hand-copied: MEMs#506
+# grew it 6 → 56 types, and a hand-maintained mirror would silently rot at the next bump
+# (the C038 protocol re-runs T3 against whatever this resolves to). `_SERIALIZABLE_TYPES`
+# is upstream-private, so a rename must NOT stop the CLI from loading — fall back to the
+# frozen 0.7.2 names, which only costs us newer types until the list is refreshed.
+const _NATIVE_SAVE_TYPES_FALLBACK = Set([
+    "APARCHModel", "ARCHModel", "ARDLModel", "ARFIMAModel", "ARIMAModel", "ARMAModel",
+    "ARModel", "BVARPosterior", "CGARCHModel", "CointRegModel", "CrossSectionData",
+    "DynamicFactorModel", "EGARCHModel", "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
+    "FactorModel", "GARCHModel", "GJRGARCHModel", "GMMModel", "GarchMidasModel",
+    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "LPIVModel", "LPModel",
+    "LogitModel", "MAModel", "MGARCHModel", "MidasModel", "MultinomialLogitModel",
+    "NARDLModel", "OrderedLogitModel", "OrderedProbitModel", "PMGModel", "PVARModel",
+    "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
+    "PanelProbitModel", "PanelRegModel", "ProbitModel", "PropensityLPModel", "RegModel",
+    "SMMModel", "SURModel", "SVModel", "SmoothLPModel", "StateLPModel", "StateSpaceModel",
+    "StructuralDFM", "ThresholdModel", "TimeSeriesData", "VARModel", "VECMModel",
 ])
+
+const _NATIVE_SAVE_TYPES = if isdefined(MacroEconometricModels, :_SERIALIZABLE_TYPES)
+    Set(String(k) for k in keys(getfield(MacroEconometricModels, :_SERIALIZABLE_TYPES)))
+else
+    _NATIVE_SAVE_TYPES_FALLBACK
+end
 
 _is_native_saveable(model) = string(nameof(typeof(model))) in _NATIVE_SAVE_TYPES
 
 """
     save_model_dispatch(path, model) → path
 
-Hybrid save (C052). `.jld2` → native MEMs `save_model` (portable, versioned; only
-the six `_NATIVE_SAVE_TYPES`). `.fmod` → interim Serialization handle (any type).
-No recognized suffix → native when supported, else interim.
+Hybrid save (C052, widened in W1/#106). `.jld2` → native MEMs `save_model` (portable,
+versioned; the `_NATIVE_SAVE_TYPES` registry, 56 types at MEMs 0.7.2). `.fmod` → interim
+Serialization handle (any type). No recognized suffix → native when supported, else interim.
+
+What is left on `.fmod` is now a deliberate carve-out rather than a coverage gap: the DSGE
+and heterogeneous-agent SOLUTION types hold compiled `@dsge` residual closures, which do
+not round-trip through JLD2, so upstream keeps them out of its registry on purpose.
 """
 function save_model_dispatch(path::String, model)
     isempty(path) && return nothing
@@ -156,8 +181,12 @@ function save_model_dispatch(path::String, model)
         _is_native_saveable(model) || throw(CliError(
             "model/unsupported-save",
             "native .jld2 save does not support $(typeof(model))",
-            hint="use a .fmod path for the portable interim format, or a supported " *
-                 "type ($(join(sort(collect(_NATIVE_SAVE_TYPES)), ", ")))",
+            # 56 supported types is far too many to list in an error; the actionable
+            # half of the old hint was always "use .fmod", and what remains unsupported
+            # is the DSGE/HA solution carve-out, so say why.
+            hint="re-run with a .fmod path — DSGE and heterogeneous-agent solutions " *
+                 "carry compiled model closures that the portable .jld2 format cannot " *
+                 "store, so they use the interim handle format instead",
         ))
         _validate_output_path(path)
         MacroEconometricModels.save_model(model, path)

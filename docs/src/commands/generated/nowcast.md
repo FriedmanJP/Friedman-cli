@@ -22,7 +22,7 @@ Nowcast via bridge equations
 | `--lag-y` | — | `Int64` | `1` | — | Dependent variable lags |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 ---
 
@@ -41,7 +41,7 @@ Nowcast via Bayesian VAR
 | `--lags` | `-p` | `Int64` | `5` | — | VAR lags |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 ---
 
@@ -59,11 +59,11 @@ Nowcast via Dynamic Factor Model (EM algorithm)
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables (remaining columns) |
 | `--factors` | `-r` | `Int64` | `2` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
-| `--idio` | — | `String` | `ar1` | — | Idiosyncratic component: ar1|iid |
+| `--idio` | — | `String` | `ar1` | — | Idiosyncratic component: ar1\|iid |
 | `--max-iter` | — | `Int64` | `100` | — | Maximum EM iterations |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
 | Flag | Short | Description |
@@ -84,13 +84,13 @@ Forecast from a nowcasting model
 |--------|-------|------|---------|---------|-------------|
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
-| `--method` | — | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm|bvar|bridge |
+| `--method` | — | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm\|bvar\|bridge |
 | `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM) |
 | `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
 | `--horizons` | `-h` | `Int64` | `4` | — | Forecast horizon |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
 | Flag | Short | Description |
@@ -109,13 +109,13 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | `--data-old` | — | `String` | `""` | — | Path to old vintage CSV |
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
-| `--method` | — | `String` | `dfm` | `dfm`, `bvar` | dfm|bvar |
+| `--method` | — | `String` | `dfm` | `dfm`, `bvar` | dfm\|bvar |
 | `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM) |
 | `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
 | `--target-period` | — | `Int64` | `0` | — | Target period (0=last) |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
 | Flag | Short | Description |

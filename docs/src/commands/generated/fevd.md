@@ -17,12 +17,12 @@ Compute Bayesian forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--horizons` | `-h` | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | direct|gibbs |
+| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -54,7 +54,7 @@ FAVAR forecast error variance decomposition
 | `--id` | — | `String` | `cholesky` | — | Identification method |
 | `--config` | — | `String` | `""` | — | TOML config for restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -82,11 +82,11 @@ Compute forecast error variance decomposition via structural LP
 | `--horizons` | `-h` | `Int64` | `20` | — | Forecast horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west|white|driscoll_kraay |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -116,7 +116,7 @@ Compute Panel VAR forecast error variance decomposition
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--horizons` | `-h` | `Int64` | `10` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -139,11 +139,11 @@ Structural DFM forecast error variance decomposition
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--horizons` | `-h` | `Int64` | `20` | — | FEVD horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
@@ -167,10 +167,10 @@ Compute forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | `-h` | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun|arias|uhlig |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -179,6 +179,8 @@ Compute forecast error variance decomposition
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--generalized` | — | Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1) |
+| `--normalize` | — | Rescale generalized shares to sum to 1 per variable |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `fevd_var` (Compute forecast error variance decomposition)
@@ -196,13 +198,13 @@ Compute FEVD via VECM → VAR representation
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto|1|2|...) |
-| `--deterministic` | — | `String` | `constant` | — | none|constant|trend |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--horizons` | `-h` | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky|sign|narrative|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |

@@ -21,13 +21,13 @@ Path to CSV data file
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated list |
 | `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
-| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic|bic |
+| `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
 | `--horizon` | — | `Int64` | `12` | — | Max multiplier horizon H (≥ 0) |
 | `--nreps` | — | `Int64` | `500` | — | Bootstrap replications for bands (0 = no bands) |
 | `--level` | — | `Float64` | `0.95` | — | Bootstrap band coverage level |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 | Flag | Short | Description |
 |------|-------|-------------|
