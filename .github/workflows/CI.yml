@@ -88,7 +88,9 @@ jobs:
     runs-on: ubuntu-latest
     # T3 grew 1280 -> 1498 cases as #85 closed the predict/residuals/nowcast/data
     # coverage gaps; 13m53 on one PR and 15m17 (timeout) on the next. Same story.
-    timeout-minutes: 40
+    # 26m40 at 3064 cases, and --code-coverage=user adds instrumentation overhead on
+    # top of that, so the budget is 60 rather than 40.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
@@ -104,8 +106,25 @@ jobs:
             Pkg.develop(path=".")
             Pkg.instantiate()
           '
+      # T3 is what actually exercises the handlers, so it has to be what reports their
+      # coverage. Until this step existed, coverage came from `test/runtests.jl` alone —
+      # T1/T2 on mocks — and every `src/commands/` path reachable only through real MEMs
+      # counted as a miss. That put the `commands` patch gate structurally at odds with
+      # this repo's own policy (codecov.yml: "T3 is the real gate"), and it under-reported
+      # hardest exactly where the tests are strongest. Codecov merges the two reports for
+      # the commit, so the engine job's upload is unaffected.
       - name: Run integration-core
-        run: julia --project=test/integration test/integration/runtests.jl
+        run: julia --code-coverage=user --project=test/integration test/integration/runtests.jl
+      - name: Process coverage
+        uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
+        with:
+          directories: src
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true
 
   # T4 E2E — subprocess battery on PRs (+ push)
   e2e:
