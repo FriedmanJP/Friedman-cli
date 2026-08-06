@@ -542,7 +542,11 @@ struct VARForecast{T<:AbstractFloat}
     ci_method::Symbol
     conf_level::T
     varnames::Vector{String}
+    # Real trailing field (0.8.0): forecast draws, layout n_draws × h × n.
+    _draws::Union{Nothing,Array{T,3}}
 end
+VARForecast(f::Matrix{T}, cl, cu, h::Int, cm::Symbol, conf::T, vn) where T =
+    VARForecast{T}(f, cl, cu, h, cm, conf, vn, nothing)
 
 # ─── Non-Gaussian Types ──────────────────────────────────
 
@@ -1435,8 +1439,11 @@ end
 function forecast(model::VARModel, h::Int; ci_method=:none, reps=500, conf_level=0.95)
     n = size(model.Y, 2)
     fc = ones(h, n) * 0.1
-    VARForecast(fc, fc .- 0.5, fc .+ 0.5, h, ci_method, conf_level,
-                ["var$i" for i in 1:n])
+    # Real's frequentist path stores draws (n_draws × h × n) — verified live at
+    # 0.8.0; the mock stores a small stack so the OPP draw branch is reachable.
+    drw = reshape(fc, 1, h, n) .+ 0.05 .* randn(50, h, n)
+    VARForecast{Float64}(fc, fc .- 0.5, fc .+ 0.5, h, ci_method, Float64(conf_level),
+                         ["var$i" for i in 1:n], drw)
 end
 
 # Volatility test functions
@@ -3968,7 +3975,13 @@ struct BVARForecast{T<:AbstractFloat}
     conf_level::T
     point_estimate::Symbol
     varnames::Vector{String}
+    # Real trailing field (0.8.0): posterior forecast draws (store_draws=true),
+    # layout n_draws × h × n. Without store_draws upstream leaves it nothing and
+    # estimate_opp silently falls back to IRF-only bands.
+    _draws::Union{Nothing,Array{T,3}}
 end
+BVARForecast(f::Matrix{T}, cl, cu, h::Int, conf::T, pe::Symbol, vn) where T =
+    BVARForecast{T}(f, cl, cu, h, conf, pe, vn, nothing)
 
 point_forecast(f::Union{VARForecast,BVARForecast}) = f.forecast
 lower_bound(f::Union{VARForecast,BVARForecast}) = f.ci_lower
@@ -4834,12 +4847,17 @@ long_table(f::MSForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, Stri
 export MSRegModel, estimate_ms, estimate_ms_ar, MSForecast
 
 # BVAR forecast dispatch — returns BVARForecast
-function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)
+function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84],
+                  conf_level=0.95, store_draws::Bool=false)
     n = post.n
     fc = ones(h, n) * 0.1
     pe = ci_method isa Symbol ? ci_method : :mean
+    # store_draws is real's 0.8.0 kwarg; without it _draws stays nothing and
+    # estimate_opp silently narrows its bands — the trap W6 exists to defuse.
+    drw = store_draws ?
+        reshape(fc, 1, h, n) .+ 0.05 .* randn(min(post.n_draws, 100), h, n) : nothing
     BVARForecast{Float64}(fc, fc .- 0.5, fc .+ 0.5, h, Float64(conf_level), pe,
-                           ["var$i" for i in 1:n])
+                          ["var$i" for i in 1:n], drw)
 end
 
 export BVARForecast, point_forecast, lower_bound, upper_bound, forecast_horizon
@@ -5105,7 +5123,7 @@ function favar_panel_forecast(favar::FAVARModel{T}, fc::VARForecast{T}) where T
     h = fc.horizon
     panel_fc = ones(T, h, N) * T(0.1)
     VARForecast{T}(panel_fc, panel_fc .- T(0.5), panel_fc .+ T(0.5),
-                    h, :none, T(0.95), favar.panel_varnames)
+                    h, :none, T(0.95), favar.panel_varnames, nothing)
 end
 
 # FAVAR dispatches for irf/fevd/hd — delegate to VAR internals
@@ -8226,12 +8244,231 @@ function counterfactual_moments(wold::WoldRepresentation{T}, ce::PolicyCausalEff
                              band === nothing ? nothing : (T(band[1]), T(band[2])))
 end
 
+# ── W6/#128: the OPP family (Barnichon–Mesters) ──────────────────────────────
+
+struct PolicyForecast{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    values::Vector{Vector{T}}
+    draws::Union{Nothing,Vector{Matrix{T}}}
+    H::Int
+    origin::String
+end
+
+abstract type OPPConstraint end
+struct PathFloorConstraint{T<:AbstractFloat} <: OPPConstraint
+    instrument::Symbol
+    floor::T
+    horizons::UnitRange{Int}
+end
+zlb_constraint(; floor::Real=0.0, instrument::Symbol=:rate,
+               horizons::UnitRange{Int}=1:typemax(Int)) =
+    PathFloorConstraint{Float64}(instrument, Float64(floor), horizons)
+
+struct OPPResult{T<:AbstractFloat}
+    delta::Vector{T}
+    delta_plugin::Vector{T}
+    shock_labels::Vector{String}
+    gradient::Vector{T}
+    loss_base::T
+    loss_opp::T
+    Y_base::Vector{Vector{T}}
+    Y_opp::Vector{Vector{T}}
+    P_base::Union{Nothing,Vector{Vector{T}}}
+    P_opp::Union{Nothing,Vector{Vector{T}}}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    H::Int
+    origin::String
+    delta_draws::Union{Nothing,Matrix{T}}
+    bands::Union{Nothing,Dict{T,Matrix{T}}}
+    reject::Union{Nothing,Dict{T,Vector{Bool}}}
+    n_failed::Int
+end
+
+struct OPPSequence{T<:AbstractFloat}
+    dates::Vector{String}
+    delta::Matrix{T}        # n_s × n_dates — shocks are ROWS (real layout)
+    delta_tc::Matrix{T}
+    news_part::Matrix{T}
+    pref_part::Matrix{T}
+    aging_part::Matrix{T}
+    bands::Union{Nothing,Dict{T,Array{T,3}}}
+    reject::Union{Nothing,Dict{T,Matrix{Bool}}}
+    shock_labels::Vector{String}
+    loss_name::String
+end
+
+function policy_forecast(fc::Union{VARForecast{T},BVARForecast{T}},
+                         outcomes::AbstractVector{<:Pair};
+                         targets::AbstractVector{<:Pair}=Pair{Symbol,Float64}[],
+                         H::Int=fc.horizon,
+                         origin::AbstractString="") where T
+    1 <= H <= fc.horizon || throw(ArgumentError(
+        "H: expected 1 <= H <= $(fc.horizon) (the forecast horizon), got $H"))
+    isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
+    out_syms = Symbol[first(p) for p in outcomes]
+    out_idx = Int[_cf_resolve(last(p), fc.varnames, "variable") for p in outcomes]
+    tmap = Dict{Symbol,Float64}(Symbol(first(p)) => Float64(last(p)) for p in targets)
+    for k in keys(tmap)
+        k in out_syms || throw(ArgumentError(
+            "targets: :$k is not among the requested outcomes $(out_syms)"))
+    end
+    vals = [Vector{T}(fc.forecast[1:H, vi]) .- T(get(tmap, out_syms[i], 0.0))
+            for (i, vi) in enumerate(out_idx)]
+    drws = fc._draws === nothing ? nothing :
+           Matrix{T}[Matrix{T}(permutedims(fc._draws[:, 1:H, vi])) .-
+                     T(get(tmap, out_syms[i], 0.0))
+                     for (i, vi) in enumerate(out_idx)]
+    PolicyForecast{T}(out_syms, vals, drws, H, String(origin))
+end
+
+function policy_forecast(outcomes::AbstractVector{Symbol},
+                         values::AbstractVector{<:AbstractVector{<:Real}};
+                         sd=nothing, rho::Real=0.9, n_draws::Int=1000, rng=nothing,
+                         H::Int=isempty(values) ? 0 : length(first(values)),
+                         cross_corr=:independent, min_sd::Real=0.0,
+                         origin::AbstractString="")
+    isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
+    length(values) == length(outcomes) || throw(ArgumentError(
+        "values: expected $(length(outcomes)) paths (one per outcome), got $(length(values))"))
+    n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
+    (sd === nothing && cross_corr === :independent) && throw(ArgumentError(
+        "sd: per-horizon standard deviations are required unless a full cross_corr covariance is given"))
+    vals = [Vector{Float64}(v) for v in values]
+    for v in vals
+        length(v) == H || throw(ArgumentError(
+            "values: expected length H = $H paths, got $(length(v))"))
+    end
+    drws = [hcat([v .+ 0.1 .* randn(H) for _ in 1:n_draws]...) for v in vals]
+    PolicyForecast{Float64}(collect(outcomes), vals, drws, H, String(origin))
+end
+
+interp_to_quarterly(annual::AbstractVector{<:Real}, H::Int) =
+    [Float64(annual[min(cld(h, 4), length(annual))]) for h in 1:H]
+
+function _opp_core(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
+                   loss::PolicyLoss; instrument_path=nothing, z_wedge=nothing) where T
+    H = ce.H
+    pf.H == H || throw(ArgumentError(
+        "forecast H = $(pf.H) does not match the IRF container H = $H; re-build the two on a common horizon"))
+    _loss_horizon_mock(loss) == H || throw(ArgumentError(
+        "loss H = $(_loss_horizon_mock(loss)) does not match the container H = $H"))
+    for sym in loss.outcomes
+        sym in ce.outcomes || throw(ArgumentError(
+            "loss outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+        sym in pf.outcomes || throw(ArgumentError(
+            "loss outcome :$sym not found in the forecast outcomes $(pf.outcomes)"))
+    end
+    is_square(ce) && @warn "full-menu OPP on a square container is ill-posed (BM design around thin subsets)"
+    n_s = size(ce.Theta_x[1], 2)
+    A = zeros(T, n_s, n_s)
+    g = zeros(T, n_s)
+    Yb = [Vector{T}(pf.values[findfirst(==(s), pf.outcomes)]) for s in ce.outcomes]
+    for (j, sym) in enumerate(loss.outcomes)
+        i = findfirst(==(sym), ce.outcomes)
+        A .+= ce.Theta_x[i]' * loss.W_x[j] * ce.Theta_x[i]
+        g .+= ce.Theta_x[i]' * loss.W_x[j] * Yb[i]
+    end
+    delta = -pinv(A) * g
+    Yo = [Yb[i] + ce.Theta_x[i] * delta for i in eachindex(ce.outcomes)]
+    lossof(Y) = sum(Y[findfirst(==(sym), ce.outcomes)]' * loss.W_x[j] *
+                    Y[findfirst(==(sym), ce.outcomes)]
+                    for (j, sym) in enumerate(loss.outcomes))
+    Pb = nothing; Po = nothing
+    if instrument_path !== nothing
+        Pb = [Vector{T}(last(p)) for p in instrument_path]
+        Po = [Pb[k] + ce.Theta_z[k] * delta for k in eachindex(Pb)]
+    end
+    (delta=delta, gradient=g, Yb=Yb, Yo=Yo, Pb=Pb, Po=Po,
+     loss_base=lossof(Yb), loss_opp=lossof(Yo))
+end
+
+function opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T}, loss::PolicyLoss;
+             instrument_path=nothing, z_wedge=nothing) where T
+    c = _opp_core(pf, ce, loss; instrument_path=instrument_path, z_wedge=z_wedge)
+    OPPResult{T}(c.delta, copy(c.delta), copy(ce.shock_labels), c.gradient,
+                 c.loss_base, c.loss_opp, c.Yb, c.Yo, c.Pb, c.Po,
+                 copy(ce.outcomes), copy(ce.instruments), ce.H, pf.origin,
+                 nothing, nothing, nothing, 0)
+end
+
+function estimate_opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
+                      loss::PolicyLoss; instrument_path=nothing, z_wedge=nothing,
+                      independent::Bool=true, levels=(0.60, 0.75, 0.90),
+                      n_sim::Int=2000, rng=nothing) where T
+    all(l -> 0 < l < 1, levels) || throw(ArgumentError(
+        "levels: expected levels in (0, 1), got $levels"))
+    (pf.draws === nothing && ce.Theta_x_draws === nothing) && throw(ArgumentError(
+        "estimate_opp requires draws on at least one source (forecast or menu)"))
+    c = _opp_core(pf, ce, loss; instrument_path=instrument_path, z_wedge=z_wedge)
+    n_s = length(c.delta)
+    dd = c.delta .+ T(0.1) .* randn(T, n_s, max(n_sim, 10))
+    med = [T(quantile(dd[k, :], 0.5)) for k in 1:n_s]
+    bands = Dict{T,Matrix{T}}()
+    rej = Dict{T,Vector{Bool}}()
+    for l in levels
+        lo = [T(quantile(dd[k, :], (1 - l) / 2)) for k in 1:n_s]
+        hi = [T(quantile(dd[k, :], 1 - (1 - l) / 2)) for k in 1:n_s]
+        bands[T(l)] = hcat(lo, hi)
+        rej[T(l)] = [!(lo[k] <= 0 <= hi[k]) for k in 1:n_s]
+    end
+    OPPResult{T}(med, c.delta, copy(ce.shock_labels), c.gradient,
+                 c.loss_base, c.loss_opp, c.Yb, c.Yo, c.Pb, c.Po,
+                 copy(ce.outcomes), copy(ce.instruments), ce.H, pf.origin,
+                 Matrix{T}(dd'), bands, rej, 0)
+end
+
+function constrained_opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
+                         loss::PolicyLoss, constraints::AbstractVector{<:OPPConstraint};
+                         instrument_path=nothing, z_wedge=nothing,
+                         method::Symbol=:auto, delta0=nothing, multistart::Int=1,
+                         rng=nothing, n_sim::Int=0, levels=(0.6, 0.75, 0.9),
+                         independent::Bool=true) where T
+    method in (:auto, :slsqp, :projection) || throw(ArgumentError(
+        "method: expected :auto, :slsqp or :projection, got :$method"))
+    instrument_path === nothing && throw(ArgumentError(
+        "constrained_opp requires instrument_path (the announced path the constraints act on)"))
+    r = opp(pf, ce, loss; instrument_path=instrument_path, z_wedge=z_wedge)
+    # Real returns a NamedTuple, NOT a result type (the #118 blind-spot class) —
+    # field list copied verbatim.
+    (; result=r, method_used=(method === :projection ? :projection : :slsqp),
+     binding=fill(false, length(constraints)), kkt_residual=0.0,
+     warm_start_feasible=true)
+end
+
+function opp_sequence(forecasts::AbstractVector, ce::PolicyCausalEffects{T},
+                      loss::PolicyLoss; dates=nothing, ce_by_date=nothing,
+                      instrument_paths=nothing, constraints=OPPConstraint[],
+                      z_wedge=nothing, n_sim::Int=0, levels=(0.6, 0.75, 0.9),
+                      independent::Bool=true, rng=nothing) where T
+    nd = length(forecasts)
+    nd >= 2 || throw(ArgumentError("opp_sequence: expected >= 2 dates, got $nd"))
+    ds = dates === nothing ? [string("t", i) for i in 1:nd] : collect(String, dates)
+    n_s = size(ce.Theta_x[1], 2)
+    delta = zeros(T, n_s, nd)
+    for (d, f) in enumerate(forecasts)
+        f === missing && continue
+        delta[:, d] = opp(f, ce, loss).delta
+    end
+    news = zeros(T, n_s, nd); pref = zeros(T, n_s, nd); aging = zeros(T, n_s, nd)
+    for d in 2:nd
+        rev = delta[:, d] - delta[:, d-1]
+        news[:, d] = T(0.9) .* rev      # exact three-part: parts SUM to the revision
+        aging[:, d] = T(0.1) .* rev
+    end
+    OPPSequence{T}(ds, delta, copy(delta), news, pref, aging,
+                   nothing, nothing, copy(ce.shock_labels), loss.name)
+end
+
 export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterfactual,
        is_square, policy_causal_effects, baseline_path, policy_counterfactual,
        rate_peg_rule, rate_target_rule, inflation_target_rule, output_gap_rule,
        ngdp_rule, taylor_rule, policy_loss, ait_loss, smoothing_penalty,
        WoldRepresentation, CounterfactualMoments, wold_representation,
-       optimal_policy, optimal_rule, counterfactual_moments
+       optimal_policy, optimal_rule, counterfactual_moments,
+       PolicyForecast, OPPResult, OPPSequence, OPPConstraint, PathFloorConstraint,
+       policy_forecast, interp_to_quarterly, opp, estimate_opp, constrained_opp,
+       zlb_constraint, opp_sequence
 
 # NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.
 #

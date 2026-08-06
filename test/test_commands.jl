@@ -1788,6 +1788,71 @@ end  # Shared utilities
                 @test e3 isa CliError && e3.code == "usage/invalid"
             end
 
+            @testset "opp family (W6/#128)" begin
+                losstoml = joinpath(dir, "opp_loss.toml")
+                write(losstoml, """
+                [loss]
+                outcomes = ["infl", "ygap"]
+                lambda = [1.0, 0.5]
+                """)
+                ob = ["opp", "var", csv, "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                      "--instruments", "rate=3", "--loss-config", losstoml,
+                      "--horizon", "6"]
+                doc = _pdoc([ob; "--targets"; "infl=0,ygap=0"])
+                @test doc.status == "ok"
+                dd = doc.data[:opp_recommendation_delta]
+                @test String.(dd.columns)[1:4] == ["shock", "delta", "delta_plugin", "gradient"]
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:opp_summary].rows)
+                @test haskey(s, "loss_base") && haskey(s, "loss_opp")
+                @test haskey(s, "band_polarity")   # reversed polarity is a DATA field
+                @test haskey(doc.data, :objective_gap_paths)
+
+                # The gaps-vs-levels trap: no targets / partial targets refuse.
+                e = _perr(collect(ob))
+                @test e isa CliError && e.code == "usage/missing"
+                e2 = _perr([ob..., "--targets", "infl=0"])
+                @test e2 isa CliError && e2.code == "usage/missing"
+
+                # Constrained: TOML + announced path; missing path refuses.
+                constoml = joinpath(dir, "cons.toml")
+                write(constoml, """
+                [[constraint]]
+                type = "zlb"
+                floor = 0.0
+                instrument = "rate"
+                """)
+                dc = _pdoc([ob; "--targets"; "infl=0,ygap=0";
+                            "--constraints-file"; constoml;
+                            "--instrument-path"; "0.1,0.1,0.1,0.1,0.1,0.1"])
+                sc = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dc.data[:opp_summary].rows)
+                @test haskey(sc, "method_used") && haskey(sc, "kkt_residual")
+                e3 = _perr([ob..., "--targets", "infl=0,ygap=0",
+                            "--constraints-file", constoml])
+                @test e3 isa CliError && e3.code == "usage/missing"
+
+                # opp-sequence: per-date gap files + required --sd.
+                fdir = joinpath(dir, "fc"); mkpath(fdir)
+                for (i, d) in enumerate(["2020Q1", "2020Q2"])
+                    CSV.write(joinpath(fdir, "$d.csv"),
+                              DataFrame(infl=fill(0.5 - 0.1i, 6), ygap=fill(-1.0, 6)))
+                end
+                ds = _pdoc(["opp-sequence", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--loss-config", losstoml, "--forecasts-dir", fdir,
+                            "--sd", "0.5,0.5", "--horizon", "6"])
+                @test ds.status == "ok"
+                @test haskey(ds.data, :opp_sequence_delta_by_date)
+                dec = ds.data[:opp_revision_decomposition]
+                @test String.(dec.columns) == ["date", "shock", "news", "pref", "aging"]
+                e4 = _perr(["opp-sequence", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--loss-config", losstoml, "--forecasts-dir", fdir,
+                            "--horizon", "6"])
+                @test e4 isa CliError && e4.code == "usage/missing"   # --sd required
+            end
+
             @testset "square container → exact solve enforces the peg" begin
                 # 2 policy shocks with H=2 makes the menu square: the pegged
                 # instrument path must be EXACTLY zero and rel_residual ~0.

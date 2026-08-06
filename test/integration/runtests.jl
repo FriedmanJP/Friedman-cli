@@ -6029,6 +6029,87 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(losstoml; force=true)
         end
 
+        @testset "OPP family (W6/#128)" begin
+            losstoml = tempname() * ".toml"
+            write(losstoml, "[loss]\noutcomes = [\"infl\", \"ygap\"]\nlambda = [1.0, 0.5]\n")
+            ob = vcat(["policy", "opp", "var", csv, "--shocks", "3",
+                       "--loss-config", losstoml, "--horizon", "8"], maps)
+
+            r = run_json([ob; "--targets"; "infl=0,ygap=0"; "--n-sim"; "500"])
+            assert_envelope_ok(r; label="policy opp var")
+            dd = named_table(r.doc, :opp_recommendation_delta)
+            @test dd !== nothing
+            cols = table_cols(dd)
+            @test cols[1:4] == ["shock", "delta", "delta_plugin", "gradient"]
+            # BM reversed polarity bands at 60/75/90, labelled as upstream does.
+            @test "lo60" in cols && "hi90" in cols && "reject60" in cols
+            row = collect(first(table_rows(dd)))
+            @test isfinite(numv(row[2])) && isfinite(numv(row[3]))
+            s = Dict(String(collect(rw)[1]) => collect(rw)[2]
+                     for rw in table_rows(named_table(r.doc, :opp_summary)))
+            @test haskey(s, "band_polarity") && occursin("LOWER", String(s["band_polarity"]))
+            @test named_table(r.doc, :objective_gap_paths) !== nothing
+
+            # The gaps-vs-levels trap is a refusal, not a silent zero-target run.
+            @test run_json(ob).code == 2
+            @test run_json([ob; "--targets"; "infl=0"]).code == 2
+
+            # bvar route: store_draws=true is passed → posterior bands present.
+            rb = run_json(vcat(["policy", "opp", "bvar", csv, "--shocks", "3",
+                                "--loss-config", losstoml, "--horizon", "8",
+                                "--draws", "300", "--n-sim", "300",
+                                "--targets", "infl=0,ygap=0"], maps))
+            @test rb.code == 0
+            @test "lo60" in table_cols(named_table(rb.doc, :opp_recommendation_delta))
+
+            # Constrained OPP: ZLB floor + announced path → SLSQP + KKT reported;
+            # missing --instrument-path refuses.
+            constoml = tempname() * ".toml"
+            write(constoml, "[[constraint]]\ntype = \"zlb\"\nfloor = -0.1\ninstrument = \"rate\"\n")
+            rc = run_json([ob; "--targets"; "infl=0,ygap=0";
+                           "--constraints-file"; constoml; "--n-sim"; "0";
+                           "--instrument-path"; "0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0"])
+            @test rc.code == 0
+            sc = Dict(String(collect(rw)[1]) => collect(rw)[2]
+                      for rw in table_rows(named_table(rc.doc, :opp_summary)))
+            @test String(sc["method_used"]) in ("slsqp", "projection")
+            @test haskey(sc, "kkt_residual") && haskey(sc, "warm_start_feasible")
+            @test named_table(rc.doc, :instrument_paths_announced_vs_recommended) !== nothing
+            @test run_json([ob; "--targets"; "infl=0,ygap=0";
+                            "--constraints-file"; constoml]).code == 2
+
+            # opp-sequence: per-date gap files; the revision decomposition is
+            # EXACT three-part (news + pref + aging = delta_t − delta_{t−1}).
+            fdir = mktempdir()
+            for (i, d) in enumerate(["2019Q4", "2020Q1", "2020Q2"])
+                CSV.write(joinpath(fdir, "$d.csv"),
+                          DataFrame(infl=fill(0.6 - 0.15i, 8), ygap=fill(-1.0 + 0.2i, 8)))
+            end
+            rs = run_json(vcat(["policy", "opp-sequence", "var", csv, "--shocks", "3",
+                                "--loss-config", losstoml, "--forecasts-dir", fdir,
+                                "--sd", "0.5,0.5", "--horizon", "8"], maps))
+            assert_envelope_ok(rs; label="policy opp-sequence var")
+            dl = named_table(rs.doc, :opp_sequence_delta_by_date)
+            dec = named_table(rs.doc, :opp_revision_decomposition)
+            @test dl !== nothing && dec !== nothing
+            del = Dict(String(collect(rw)[1]) => numv(collect(rw)[3])
+                       for rw in table_rows(dl))
+            parts = Dict(String(collect(rw)[1]) =>
+                         numv(collect(rw)[3]) + numv(collect(rw)[4]) + numv(collect(rw)[5])
+                         for rw in table_rows(dec))
+            dates = sort(collect(keys(del)))
+            for i in 2:length(dates)
+                @test isapprox(parts[dates[i]], del[dates[i]] - del[dates[i-1]];
+                               atol=5e-6)   # renderer rounds to 6 digits
+            end
+            # --sd required on the sequence route (external containers need uncertainty)
+            @test run_json(vcat(["policy", "opp-sequence", "var", csv, "--shocks", "3",
+                                 "--loss-config", losstoml, "--forecasts-dir", fdir,
+                                 "--horizon", "8"], maps)).code == 2
+            rm(losstoml; force=true); rm(constoml; force=true)
+            rm(fdir; recursive=true, force=true)
+        end
+
         @testset "guards — typed, never exit 1" begin
             b = vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
                       "--nonpolicy-shock", "1"], maps)

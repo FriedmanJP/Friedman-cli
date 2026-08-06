@@ -1,7 +1,7 @@
 # policy
 
-McKay–Wolf policy counterfactuals (MEMs 0.8.0 counterfactual module; McKay & Wolf 2023,
-Caravello, McKay & Wolf 2025). 12 subcommands across four verbs.
+McKay–Wolf and Barnichon–Mesters policy counterfactuals (MEMs 0.8.0 counterfactual
+module). 16 subcommands across six verbs.
 
 The core idea: the causal effects of identified **policy shocks** form a *menu*; a rule
 counterfactual re-weights that menu so an alternative policy rule holds along the
@@ -14,6 +14,8 @@ the exercise is Lucas-robust — no model re-estimation under the new rule.
 | `policy counterfactual var/bvar/lp` | McKay–Wolf rule counterfactual on that menu |
 | `policy optimal var/bvar/lp` | Optimal policy under a quadratic loss (TOML `[loss]`) |
 | `policy moments var/bvar` | Unconditional second moments under a counterfactual rule/loss |
+| `policy opp var/bvar` | Barnichon–Mesters optimal policy perturbation (point/simulated/constrained) |
+| `policy opp-sequence var/bvar` | OPP across forecast vintages with the exact revision decomposition |
 
 **Square vs thin is the module's central axis.** A *square* menu (as many policy shocks
 as horizons, `is_square = true`) supports an exact solve — the rule holds exactly. A
@@ -169,6 +171,60 @@ band-limits the variance (`business-cycle` = periods 6–32; or `lo,hi` in radia
     (`policy counterfactual`) do not need this. Upstream warns once per session; the
     Wold orthogonalization itself carries **no identification content** — moments are
     rotation-invariant.
+
+## policy opp
+
+The Barnichon–Mesters OPP asks: *is the announced policy optimal, and if not, by how
+much should it move?* The answer `δ*` is a perturbation per identified policy-shock
+direction, from two sufficient statistics — the forecast **gaps** and the shock's
+causal effects.
+
+```bash
+friedman policy opp var data.csv --shocks 3 --outcomes infl=1,ygap=2 --instruments rate=3 \
+    --loss-config loss.toml --targets infl=2.0,ygap=0
+```
+
+!!! danger "Gaps, not levels"
+    The OPP consumes deviations from target. **`--targets` is required and must cover
+    every outcome** — an omitted outcome would default to a zero target, and feeding a
+    *level* forecast with an implicit zero target silently drives the level to zero
+    (wrong answer, no error). On the external route (`--values-file`) the paths are
+    gaps already, so `--targets` is refused there. And per BM S0.5, the forecast must
+    be conditional on the **baseline** rule even under repeated OPP adoption.
+
+- **Model-forecast route** (`var`/`bvar`): the same estimate supplies the menu and the
+  forecast; the BVAR forecast is drawn with `store_draws` so posterior bands are real
+  (without it upstream silently falls back to narrower IRF-only bands).
+- **External route**: `--values-file` (gap paths CSV) + `--sd`/`--rho` (BM damped
+  covariance `Σ[j,k]=sd_j·sd_k·ρ^|j−k|`) **or** `--cross-corr-file` (a full covariance
+  — upstream then ignores `sd`/`rho`, so the CLI makes them mutually exclusive);
+  `--min-sd` floors the sds; `--interp-quarterly` expands annual SEP paths.
+- With draws and `--n-sim > 0`, `estimate_opp` runs: `delta` is the draw **median**
+  (BM convention), `delta_plugin` keeps the point — both rendered.
+
+!!! note "Reversed band polarity"
+    Bands are at **60/75/90%** and the polarity is deliberate (BM §5.1): rejection at
+    the *lower* level rejects more readily — the conservative choice for a policymaker
+    averse to running non-optimal policy. The renderer labels them exactly as upstream
+    does and repeats the note as an envelope field; no joint statistic is invented.
+
+**Constrained OPP** (`--constraints-file`, TOML `[[constraint]]` floors/ZLB; requires
+`--instrument-path`, the announced path the constraints act on): SLSQP by default with
+`method_used`/`binding`/`kkt_residual`/`warm_start_feasible` in the summary;
+`--method projection` is the crude floor-only fallback (feasible but NOT the
+constrained optimum — the warning stays visible). An infeasible set errors naming the
+most-violated constraint. Closure-taking `FunctionConstraint`s are not scriptable from
+TOML and are refused with a pointer. Cost note: `--n-sim > 0` re-solves the SLSQP per
+simulation draw.
+
+## policy opp-sequence
+
+OPP across forecast vintages: `--forecasts-dir` holds one gap-path CSV per date
+(sorted filenames become the date labels), `--sd` is required (the external forecast
+containers need uncertainty). Output: `δ` by date and the **exact three-part revision
+decomposition** — news + preference + aging sum to `δ_t − δ_{t−1}` exactly (a
+deliberate finite-H deviation from BM eq. 32). With constraints the per-date SLSQP
+cost compounds.
 
 ## Statelessness and reproducibility
 

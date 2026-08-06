@@ -3855,6 +3855,25 @@ using TOML
         @test_throws CliError get_policy_loss(Dict("loss" => Dict(
             "outcomes" => ["infl"], "lambda" => [1.0], "beta" => 1.5)))
     end
+
+    @testset "get_opp_constraints — floors, closure gate (W6/#128)" begin
+        c = get_opp_constraints(Dict("constraint" => [Dict(
+            "type" => "zlb", "floor" => 0.0, "instrument" => "rate",
+            "horizons" => "1:8")]))
+        @test length(c) == 1 && c[1].type === :floor
+        @test c[1].instrument === :rate && c[1].horizons == 1:8
+        call = get_opp_constraints(Dict("constraint" => [Dict("type" => "floor")]))
+        @test call[1].horizons == 1:typemax(Int)   # "all" default
+        # FunctionConstraint needs a Julia closure → refused with the W8 pointer.
+        err = try
+            get_opp_constraints(Dict("constraint" => [Dict("type" => "function")]))
+        catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        @test occursin("closure", err.message)
+        @test_throws CliError get_opp_constraints(Dict("constraint" => [Dict(
+            "type" => "floor", "horizons" => "8:1")]))
+        @test_throws CliError get_opp_constraints(Dict{String,Any}())
+    end
 end
 
 # ──────────────────────────────────────────────────────────────

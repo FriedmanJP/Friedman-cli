@@ -221,14 +221,14 @@ function _policy_menu(route::String; data::String, lags, horizon::Int, draws::In
         ir = irf(model, horizon; kw...)
         ce = policy_causal_effects(ir, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
-        return ce, ir
+        return ce, ir, model
     elseif route == "bvar"
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags === nothing ? 4 : lags,
                                                           config, draws, "direct")
         bir = irf(post, horizon)
         ce = policy_causal_effects(bir, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
-        return ce, bir
+        return ce, bir, post
     elseif route == "lp"
         slp, Y, varnames = _load_and_structural_lp(data, horizon,
             lags === nothing ? 4 : lags, nothing, "cholesky", "newey_west", config;
@@ -239,7 +239,7 @@ function _policy_menu(route::String; data::String, lags, horizon::Int, draws::In
                                    H=horizon, n_draws=n_draws)
         normalize === :none || throw(CliError("usage/invalid",
             "policy: --normalize applies to the var|bvar|sign routes; the lp route keeps the estimator's scale"))
-        return ce, slp.irf
+        return ce, slp.irf, slp
     elseif route == "sign"
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
         check_func, _ = _build_check_func(config)
@@ -249,7 +249,7 @@ function _policy_menu(route::String; data::String, lags, horizon::Int, draws::In
                             store_all=true)
         ce = policy_causal_effects(set, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
-        return ce, set
+        return ce, set, set
     end
     throw(CliError("usage/invalid", "unknown policy source route '$route'"))
 end
@@ -317,7 +317,7 @@ function _policy_effects(route::String; data::String, lags=nothing, horizon::Int
     _status("Policy causal effects ($route): H=$horizon, shocks=$shocks")
     _status()
 
-    ce, _ = try
+    ce, _, _ = try
         _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
                      replications=replications, n_draws=n_draws, config=config,
                      shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
@@ -386,7 +386,7 @@ function _policy_counterfactual(route::String; data::String, lags=nothing,
     _status()
 
     result = try
-        ce, ir = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+        ce, ir, _ = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
                               replications=replications, n_draws=n_draws, config=config,
                               shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
                               normalize=norm_sym)
@@ -453,7 +453,7 @@ function _policy_optimal(route::String; data::String, lags=nothing,
     _status()
 
     result = try
-        ce, ir = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+        ce, ir, _ = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
                               replications=replications, n_draws=n_draws, config=config,
                               shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
                               normalize=norm_sym)
@@ -697,6 +697,400 @@ function _push_paths!(rows, syms, role, base, cf, bands, nq)
     end
 end
 
+# ── OPP family (W6/#128, Barnichon–Mesters) ─────────────────
+
+"""Parse `--targets infl=2.0,ygap=0` into Pair{Symbol,Float64}. REQUIRED to
+cover every outcome: the OPP consumes GAPS, and an omitted outcome silently
+defaults to a ZERO target — feeding levels drives levels to zero with no
+error, the module's loudest trap."""
+function _parse_cf_targets(spec::String, out_syms::Vector{Symbol})
+    isempty(strip(spec)) && throw(CliError("usage/missing",
+        "policy opp: --targets is required — the OPP consumes GAPS (forecast − target), and an implicit zero target on a LEVEL forecast silently drives the level to zero";
+        hint="one entry per outcome, e.g. --targets infl=2.0,ygap=0"))
+    out = Pair{Symbol,Float64}[]
+    for tok in split(spec, ",")
+        tok = strip(tok)
+        isempty(tok) && continue
+        parts = split(tok, "=")
+        length(parts) == 2 || throw(CliError("usage/invalid",
+            "policy opp: --targets entries must be name=value (got '$tok')"))
+        v = tryparse(Float64, strip(parts[2]))
+        v === nothing && throw(CliError("usage/invalid",
+            "policy opp: --targets values must be numbers (got '$tok')"))
+        push!(out, Symbol(strip(parts[1])) => v)
+    end
+    tnames = first.(out)
+    for s in out_syms
+        s in tnames || throw(CliError("usage/missing",
+            "policy opp: --targets must cover EVERY outcome — '$s' has no target (an implicit zero is the gaps-vs-levels trap)"))
+    end
+    for s in tnames
+        s in out_syms || throw(CliError("usage/invalid",
+            "policy opp: --targets names '$s', which is not among the --outcomes"))
+    end
+    return out
+end
+
+function _parse_cf_levels(spec::String)
+    ls = _parse_cf_quantiles(spec)   # same numeric/order validation
+    return Tuple(ls)
+end
+
+"""`--instrument-path v1,v2,…` (length H) for the single mapped instrument."""
+function _parse_cf_instrument_path(spec::String, H::Int, ins_syms::Vector{Symbol})
+    isempty(strip(spec)) && return nothing
+    length(ins_syms) == 1 || throw(CliError("usage/invalid",
+        "policy opp: --instrument-path applies to a SINGLE mapped instrument (got $(length(ins_syms)))"))
+    vals = Float64[]
+    for tok in split(spec, ",")
+        v = tryparse(Float64, strip(tok))
+        v === nothing && throw(CliError("usage/invalid",
+            "policy opp: --instrument-path values must be numbers (got '$tok')"))
+        push!(vals, v)
+    end
+    length(vals) == H || throw(CliError("usage/invalid",
+        "policy opp: --instrument-path has $(length(vals)) values but --horizon is $H"))
+    return [ins_syms[1] => vals]
+end
+
+function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
+                     draws::Int=2000, replications::Int=0, n_draws::Int=500,
+                     config::String="", shocks::String="", outcomes::String="",
+                     instruments::String="", normalize::String="none",
+                     loss_config::String="", targets::String="",
+                     values_file::String="", sd::String="", rho::Float64=0.9,
+                     cross_corr_file::String="", min_sd::Float64=0.0,
+                     interp_quarterly::Bool=false, origin::String="",
+                     instrument_path::String="", constraints_file::String="",
+                     method::String="auto", n_sim::Int=2000,
+                     levels::String="0.6,0.75,0.9", matched_draws::Bool=false,
+                     output::String="", format::String="table",
+                     plot::Bool=false, plot_save::String="", plot_view::String="delta")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    replications >= 0 || throw(CliError("usage/invalid",
+        "policy: --replications must be ≥ 0 (got $replications)"))
+    n_draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --n-draws must be ≥ 1 (got $n_draws)"))
+    draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --draws must be ≥ 1 (got $draws)"))
+    n_sim >= 0 || throw(CliError("usage/invalid",
+        "policy opp: --n-sim must be ≥ 0 (got $n_sim)"))
+    (0.0 <= min_sd) || throw(CliError("usage/invalid",
+        "policy opp: --min-sd must be ≥ 0 (got $min_sd)"))
+    method in ("auto", "slsqp", "projection") || throw(CliError("usage/invalid-option",
+        "invalid --method '$method'; must be auto, slsqp or projection (constrained OPP only)"))
+    plot_view in ("delta", "paths") || throw(CliError("usage/invalid-option",
+        "invalid --plot-view '$plot_view'; must be delta or paths"))
+    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
+        "invalid --normalize '$normalize'; must be none or instrument-impact"))
+    norm_sym = normalize == "none" ? :none : :instrument_impact
+    lv = _parse_cf_levels(levels)
+    shock_list = _parse_cf_shocks(shocks)
+    out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
+    ins_pairs = _parse_cf_pairs(instruments, "--instruments")
+    out_syms = Symbol[first(p) for p in out_pairs]
+    ins_syms = Symbol[first(p) for p in ins_pairs]
+    loss, z_wedge = _build_policy_loss(loss_config, horizon, out_syms, ins_syms)
+    ipath = _parse_cf_instrument_path(instrument_path, horizon, ins_syms)
+
+    use_external = !isempty(values_file)
+    (use_external && isempty(sd) && isempty(cross_corr_file)) && throw(CliError("usage/missing",
+        "policy opp: external GAP paths need forecast uncertainty — give --sd (per-outcome, BM damped covariance) or --cross-corr-file"))
+    tpairs = use_external ? Pair{Symbol,Float64}[] :
+             _parse_cf_targets(targets, out_syms)
+    (use_external && !isempty(targets)) && throw(CliError("usage/invalid",
+        "policy opp: --targets applies to the model-forecast route; --values-file paths are GAPS already"))
+
+    _status("Optimal policy perturbation ($route): H=$horizon" *
+            (isempty(origin) ? "" : ", origin=$origin"))
+    _status()
+
+    result_nt = try
+        ce, ir, est = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+                              replications=replications, n_draws=n_draws, config=config,
+                              shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
+                              normalize=norm_sym)
+        pf = if use_external
+            df = load_data(values_file)
+            cols = names(df)
+            vals = Vector{Vector{Float64}}()
+            for s in out_syms
+                String(s) in cols || throw(CliError("data/missing-column",
+                    "policy opp: --values-file has no column '$s' (columns: $(join(cols, ", ")))"))
+                v = Float64.(collect(skipmissing(df[!, String(s)])))
+                interp_quarterly && (v = interp_to_quarterly(v, horizon))
+                length(v) == horizon || throw(CliError("data/shape",
+                    "policy opp: --values-file paths must have length --horizon = $horizon (got $(length(v)); annual SEP paths need --interp-quarterly)"))
+                push!(vals, v)
+            end
+            cc = :independent
+            if !isempty(cross_corr_file)
+                isempty(sd) || throw(CliError("usage/invalid",
+                    "policy opp: --cross-corr-file IGNORES --sd/--rho upstream — give one or the other, not both"))
+                cc = Matrix{Float64}(df_to_matrix(load_data(cross_corr_file)))
+            end
+            sdv = nothing
+            if !isempty(sd)
+                ss = [tryparse(Float64, strip(t)) for t in split(sd, ",")]
+                any(isnothing, ss) && throw(CliError("usage/invalid",
+                    "policy opp: --sd must be numbers, one per outcome"))
+                length(ss) == length(out_syms) || throw(CliError("usage/invalid",
+                    "policy opp: --sd has $(length(ss)) entries but $(length(out_syms)) outcomes"))
+                sdv = [fill(Float64(x), horizon) for x in ss]
+            end
+            policy_forecast(out_syms, vals; sd=sdv, rho=rho, n_draws=n_draws,
+                            H=horizon, cross_corr=cc, min_sd=min_sd, origin=origin)
+        elseif route == "bvar"
+            # store_draws is LOAD-BEARING: without it estimate_opp silently
+            # falls back to IRF-only bands (narrower, one @info line).
+            fc = forecast(est, horizon; store_draws=true)
+            policy_forecast(fc, out_pairs; targets=tpairs, H=horizon, origin=origin)
+        else
+            fc = forecast(est, horizon)
+            policy_forecast(fc, out_pairs; targets=tpairs, H=horizon, origin=origin)
+        end
+
+        if !isempty(constraints_file)
+            ipath === nothing && throw(CliError("usage/missing",
+                "policy opp: --constraints-file requires --instrument-path (the ANNOUNCED path the constraints act on)"))
+            specs = get_opp_constraints(load_config(constraints_file))
+            cons = [zlb_constraint(; floor=c.floor, instrument=c.instrument,
+                                   horizons=c.horizons isa UnitRange ? c.horizons :
+                                            (1:typemax(Int)))
+                    for c in specs]
+            constrained_opp(pf, ce, loss, cons;
+                            instrument_path=ipath, z_wedge=z_wedge,
+                            method=Symbol(method), n_sim=n_sim, levels=lv,
+                            independent=!matched_draws)
+        else
+            has_draws = pf.draws !== nothing || ce.Theta_x_draws !== nothing
+            if has_draws && n_sim > 0
+                (; result=estimate_opp(pf, ce, loss;
+                                       instrument_path=ipath, z_wedge=z_wedge,
+                                       independent=!matched_draws, levels=lv,
+                                       n_sim=n_sim),
+                 method_used=:unconstrained, binding=Bool[],
+                 kkt_residual=NaN, warm_start_feasible=true)
+            else
+                (; result=opp(pf, ce, loss; instrument_path=ipath, z_wedge=z_wedge),
+                 method_used=:unconstrained, binding=Bool[],
+                 kkt_residual=NaN, warm_start_feasible=true)
+            end
+        end
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "optimal policy perturbation"))
+    end
+
+    r = result_nt.result
+    _maybe_plot(r; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+    _render_opp(r, result_nt; format=format, output=output,
+                constrained=!isempty(constraints_file))
+    return r
+end
+
+function _render_opp(r, nt; format::String="table", output::String="",
+                     constrained::Bool=false)
+    # 1. The recommendation per identified shock direction. delta is the draw
+    # MEDIAN after estimate_opp (BM convention); delta_plugin keeps the point.
+    dd = DataFrame(shock=r.shock_labels,
+                   delta=round.(Float64.(r.delta); digits=6),
+                   delta_plugin=round.(Float64.(r.delta_plugin); digits=6),
+                   gradient=round.(Float64.(r.gradient); digits=6))
+    if r.bands !== nothing
+        for lev in sort(collect(keys(r.bands)))
+            B = r.bands[lev]
+            dd[!, Symbol("lo", round(Int, 100lev))] = round.(Float64.(B[:, 1]); digits=6)
+            dd[!, Symbol("hi", round(Int, 100lev))] = round.(Float64.(B[:, 2]); digits=6)
+        end
+    end
+    if r.reject !== nothing
+        for lev in sort(collect(keys(r.reject)))
+            dd[!, Symbol("reject", round(Int, 100lev))] = r.reject[lev]
+        end
+    end
+    output_result(dd; format=Symbol(format), output=output,
+                  title="OPP Recommendation (delta)")
+
+    # 2. Objective gap paths before/after (+ instrument paths when present).
+    gv = String[]; gh = Int[]; gb = Float64[]; go = Float64[]
+    for (i, sym) in enumerate(r.outcomes), h in 1:r.H
+        push!(gv, String(sym)); push!(gh, h)
+        push!(gb, round(Float64(r.Y_base[i][h]); digits=6))
+        push!(go, round(Float64(r.Y_opp[i][h]); digits=6))
+    end
+    output_result(DataFrame(variable=gv, horizon=gh, gap_base=gb, gap_opp=go);
+                  format=Symbol(format), output=_per_var_output_path(output, "gaps"),
+                  title="Objective Gap Paths")
+    if r.P_base !== nothing && r.P_opp !== nothing
+        pv = String[]; ph = Int[]; pb = Float64[]; po = Float64[]
+        for (k, sym) in enumerate(r.instruments), h in 1:r.H
+            push!(pv, String(sym)); push!(ph, h)
+            push!(pb, round(Float64(r.P_base[k][h]); digits=6))
+            push!(po, round(Float64(r.P_opp[k][h]); digits=6))
+        end
+        output_result(DataFrame(instrument=pv, horizon=ph,
+                                announced=pb, recommended=po);
+                      format=Symbol(format),
+                      output=_per_var_output_path(output, "paths"),
+                      title="Instrument Paths (announced vs recommended)")
+    end
+
+    # 3. Summary — reversed-polarity note is an envelope FIELD, not stderr.
+    pairs = Pair{String,Any}[
+        "loss_base" => round(Float64(r.loss_base); digits=6),
+        "loss_opp"  => round(Float64(r.loss_opp); digits=6),
+        "H"         => r.H,
+        "origin"    => isempty(r.origin) ? "(unset)" : r.origin,
+        "n_failed"  => r.n_failed,
+    ]
+    r.bands !== nothing && push!(pairs, "band_polarity" =>
+        "BM reversed polarity: bands at 60/75/90% — rejection at the LOWER level rejects more readily (conservative for a policymaker averse to non-optimal policy)")
+    if constrained
+        append!(pairs, Pair{String,Any}[
+            "method_used" => String(nt.method_used),
+            "binding" => isempty(nt.binding) ? "none" :
+                         join(string.(nt.binding), ","),
+            "kkt_residual" => isfinite(nt.kkt_residual) ?
+                              round(Float64(nt.kkt_residual); digits=8) : "n/a",
+            "warm_start_feasible" => nt.warm_start_feasible,
+        ])
+        nt.method_used === :projection && push!(pairs, "warning" =>
+            "projection fallback: feasible but NOT the constrained optimum (upstream's own caveat)")
+    end
+    output_kv(pairs; format=format, title="OPP Summary")
+end
+
+# ── policy opp-sequence (W6/#128) ───────────────────────────
+
+function _policy_opp_sequence(route::String; data::String, lags=nothing,
+                              horizon::Int=20, draws::Int=2000, replications::Int=0,
+                              n_draws::Int=500, config::String="", shocks::String="",
+                              outcomes::String="", instruments::String="",
+                              normalize::String="none", loss_config::String="",
+                              forecasts_dir::String="", sd::String="",
+                              rho::Float64=0.9, n_sim::Int=0,
+                              levels::String="0.6,0.75,0.9", matched_draws::Bool=false,
+                              output::String="", format::String="table",
+                              plot::Bool=false, plot_save::String="",
+                              plot_view::String="fan")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    n_sim >= 0 || throw(CliError("usage/invalid",
+        "policy opp-sequence: --n-sim must be ≥ 0 (got $n_sim)"))
+    draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --draws must be ≥ 1 (got $draws)"))
+    n_draws >= 1 || throw(CliError("usage/invalid",
+        "policy: --n-draws must be ≥ 1 (got $n_draws)"))
+    replications >= 0 || throw(CliError("usage/invalid",
+        "policy: --replications must be ≥ 0 (got $replications)"))
+    plot_view in ("fan", "decomposition") || throw(CliError("usage/invalid-option",
+        "invalid --plot-view '$plot_view'; must be fan or decomposition"))
+    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
+        "invalid --normalize '$normalize'; must be none or instrument-impact"))
+    norm_sym = normalize == "none" ? :none : :instrument_impact
+    lv = _parse_cf_levels(levels)
+    shock_list = _parse_cf_shocks(shocks)
+    out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
+    ins_pairs = _parse_cf_pairs(instruments, "--instruments")
+    out_syms = Symbol[first(p) for p in out_pairs]
+    ins_syms = Symbol[first(p) for p in ins_pairs]
+    loss, z_wedge = _build_policy_loss(loss_config, horizon, out_syms, ins_syms)
+
+    isempty(sd) && throw(CliError("usage/missing",
+        "policy opp-sequence: --sd is required (per-outcome forecast sd — the external forecast containers need uncertainty)"))
+    isempty(forecasts_dir) && throw(CliError("usage/missing",
+        "policy opp-sequence: --forecasts-dir is required — one GAP-path CSV per date (sorted filenames = dates; one column per outcome)"))
+    isdir(forecasts_dir) || throw(CliError("data/file-not-found",
+        "policy opp-sequence: --forecasts-dir '$forecasts_dir' is not a directory"))
+    files = sort(filter(f -> endswith(f, ".csv"), readdir(forecasts_dir)))
+    isempty(files) && throw(CliError("data/empty",
+        "policy opp-sequence: no .csv files in '$forecasts_dir'"))
+    length(files) >= 2 || throw(CliError("usage/invalid",
+        "policy opp-sequence needs ≥ 2 dates (got $(length(files))); a single date is plain policy opp"))
+
+    sdv = nothing
+    if !isempty(sd)
+        ss = [tryparse(Float64, strip(t)) for t in split(sd, ",")]
+        any(isnothing, ss) && throw(CliError("usage/invalid",
+            "policy opp-sequence: --sd must be numbers, one per outcome"))
+        length(ss) == length(out_syms) || throw(CliError("usage/invalid",
+            "policy opp-sequence: --sd has $(length(ss)) entries but $(length(out_syms)) outcomes"))
+        sdv = [fill(Float64(x), horizon) for x in ss]
+    end
+
+    _status("OPP sequence ($route): $(length(files)) dates, H=$horizon")
+    _status()
+
+    seq = try
+        ce, _, _ = _policy_menu(route; data=data, lags=lags, horizon=horizon,
+                                draws=draws, replications=replications,
+                                n_draws=n_draws, config=config, shocks=shock_list,
+                                outcomes=out_pairs, instruments=ins_pairs,
+                                normalize=norm_sym)
+        dates = String[splitext(f)[1] for f in files]
+        fcs = map(files) do f
+            df = load_data(joinpath(forecasts_dir, f))
+            cols = names(df)
+            vals = Vector{Vector{Float64}}()
+            for s in out_syms
+                String(s) in cols || throw(CliError("data/missing-column",
+                    "policy opp-sequence: '$f' has no column '$s' (columns: $(join(cols, ", ")))"))
+                v = Float64.(collect(skipmissing(df[!, String(s)])))
+                length(v) == horizon || throw(CliError("data/shape",
+                    "policy opp-sequence: '$f' paths must have length --horizon = $horizon (got $(length(v)))"))
+                push!(vals, v)
+            end
+            policy_forecast(out_syms, vals; sd=sdv, rho=rho, n_draws=n_draws,
+                            H=horizon, origin=splitext(f)[1])
+        end
+        opp_sequence(collect(Union{PolicyForecast,Missing}, fcs), ce, loss;
+                     dates=dates, z_wedge=z_wedge, n_sim=n_sim, levels=lv,
+                     independent=!matched_draws)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "OPP sequence"))
+    end
+
+    _maybe_plot(seq; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+    _render_opp_sequence(seq; format=format, output=output)
+    return seq
+end
+
+function _render_opp_sequence(s; format::String="table", output::String="")
+    # Upstream layout is n_s × n_dates (shocks are ROWS) — types.jl docstring.
+    ns, nd = size(s.delta)
+    dv = String[]; sv = String[]; dl = Float64[]; dtc = Float64[]
+    nw = Float64[]; pf = Float64[]; ag = Float64[]
+    for d in 1:nd, k in 1:ns
+        push!(dv, s.dates[d]); push!(sv, s.shock_labels[k])
+        push!(dl, round(Float64(s.delta[k, d]); digits=6))
+        push!(dtc, round(Float64(s.delta_tc[k, d]); digits=6))
+        push!(nw, round(Float64(s.news_part[k, d]); digits=6))
+        push!(pf, round(Float64(s.pref_part[k, d]); digits=6))
+        push!(ag, round(Float64(s.aging_part[k, d]); digits=6))
+    end
+    output_result(DataFrame(date=dv, shock=sv, delta=dl, delta_tc=dtc);
+                  format=Symbol(format), output=output,
+                  title="OPP Sequence (delta by date)")
+    # Exact three-part revision decomposition — news + preference + aging
+    # (deliberate finite-H deviation from BM eq. 32; the parts SUM to the
+    # revision exactly).
+    output_result(DataFrame(date=dv, shock=sv, news=nw, pref=pf, aging=ag);
+                  format=Symbol(format),
+                  output=_per_var_output_path(output, "decomposition"),
+                  title="OPP Revision Decomposition")
+    pairs = Pair{String,Any}[
+        "loss" => s.loss_name,
+        "n_dates" => nd,
+        "shock_labels" => join(s.shock_labels, ", "),
+    ]
+    s.bands !== nothing && push!(pairs, "band_polarity" =>
+        "BM reversed polarity: bands at 60/75/90% — rejection at the LOWER level rejects more readily")
+    output_kv(pairs; format=format, title="OPP Sequence Summary")
+end
+
 # ── Registry ────────────────────────────────────────────────
 
 const _POLICY_COMMON = [
@@ -864,7 +1258,96 @@ function register_policy_commands!()
             handler=wrap_legacy((; kw...) -> _policy_moments(route; kw...)),
         ))
     end
+    # ── W6/#128: OPP family (Barnichon–Mesters) ─────────────
+    _OPP_SHARED = OptionSpec[
+        OptionSpec(name="loss-config", type=String, default="",
+                   description="TOML [loss] section (REQUIRED)");
+        OptionSpec(name="n-sim", type=Int, default=2000,
+                   description="Simulation draws for estimate_opp bands (0 = point only)");
+        OptionSpec(name="levels", type=String, default="0.6,0.75,0.9",
+                   description="Band levels — BM REVERSED polarity: rejection at the LOWER level is the conservative call");
+        OptionSpec(name="normalize", type=String, default="none",
+                   choices=["none", "instrument-impact"],
+                   description="none | instrument-impact");
+    ]
+    for route in ("var", "bvar")
+        push!(specs, CommandSpec(
+            path=["policy", "opp", route],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="Path to CSV data file")],
+            options=[_POLICY_COMMON...; _policy_route_options(route)...;
+                     _OPP_SHARED...;
+                     OptionSpec(name="targets", type=String, default="",
+                                description="Explicit targets name=value per outcome (REQUIRED on the model-forecast route — gaps, NOT levels)");
+                     OptionSpec(name="values-file", type=String, default="",
+                                description="External GAP paths CSV (one column per outcome; replaces the model forecast)");
+                     OptionSpec(name="sd", type=String, default="",
+                                description="External route: per-outcome forecast sd (BM damped covariance)");
+                     OptionSpec(name="rho", type=Float64, default=0.9,
+                                description="External route: BM damping rho in Σ[j,k]=sd_j·sd_k·ρ^|j−k|");
+                     OptionSpec(name="cross-corr-file", type=String, default="",
+                                description="External route: full covariance CSV — IGNORES --sd/--rho upstream (mutually exclusive)");
+                     OptionSpec(name="min-sd", type=Float64, default=0.0,
+                                description="External route: sd floor (warns when it binds)");
+                     OptionSpec(name="origin", type=String, default="",
+                                description="Forecast origin label, e.g. 2008M4");
+                     OptionSpec(name="instrument-path", type=String, default="",
+                                description="Announced instrument path, comma H values (REQUIRED with --constraints-file)");
+                     OptionSpec(name="constraints-file", type=String, default="",
+                                description="TOML [[constraint]] tables → constrained OPP (named deliberately: --conditions is swallowed pre-dispatch)");
+                     OptionSpec(name="method", type=String, default="auto",
+                                choices=["auto", "slsqp", "projection"],
+                                description="Constrained solver: auto | slsqp | projection (crude floor-only fallback)");
+                     OptionSpec(name="plot-view", type=String, default="delta",
+                                choices=["delta", "paths"],
+                                description="Plot panel: delta | paths");
+                     PLOT_OPTIONS...],
+            flags=[FlagSpec(name="matched-draws",
+                            description="Pair draw d across sources (independent=false; equal counts enforced)"),
+                   FlagSpec(name="interp-quarterly",
+                            description="External route: interpolate annual SEP paths to quarterly"),
+                   FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=Symbol("policy_opp_$route"),
+                              description="Barnichon-Mesters optimal policy perturbation")],
+            category="policy",
+            handler=wrap_legacy((; kw...) -> _policy_opp(route; kw...)),
+        ))
+        push!(specs, CommandSpec(
+            path=["policy", "opp-sequence", route],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="Path to CSV data file")],
+            options=[_POLICY_COMMON...; _policy_route_options(route)...;
+                     OptionSpec(name="loss-config", type=String, default="",
+                                description="TOML [loss] section (REQUIRED)");
+                     OptionSpec(name="forecasts-dir", type=String, default="",
+                                description="Directory of per-date GAP-path CSVs (sorted filenames = dates; REQUIRED)");
+                     OptionSpec(name="sd", type=String, default="",
+                                description="Per-outcome forecast sd shared across dates");
+                     OptionSpec(name="rho", type=Float64, default=0.9,
+                                description="BM damping rho");
+                     OptionSpec(name="n-sim", type=Int, default=0,
+                                description="Simulation draws per date (compounds cost)");
+                     OptionSpec(name="levels", type=String, default="0.6,0.75,0.9",
+                                description="Band levels (BM reversed polarity)");
+                     OptionSpec(name="normalize", type=String, default="none",
+                                choices=["none", "instrument-impact"],
+                                description="none | instrument-impact");
+                     OptionSpec(name="plot-view", type=String, default="fan",
+                                choices=["fan", "decomposition"],
+                                description="Plot panel: fan | decomposition");
+                     PLOT_OPTIONS...],
+            flags=[FlagSpec(name="matched-draws",
+                            description="Pair draw d across sources (independent=false)"),
+                   FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=Symbol("policy_opp_sequence_$route"),
+                              description="Barnichon-Mesters OPP sequence with revision decomposition")],
+            category="policy",
+            handler=wrap_legacy((; kw...) -> _policy_opp_sequence(route; kw...)),
+        ))
+    end
     register!(specs)
     return build_node("policy", specs;
-        description="Policy counterfactuals: causal-effect menus, McKay-Wolf rule counterfactuals, optimal policy and second moments")
+        description="Policy counterfactuals: causal-effect menus, McKay-Wolf rule counterfactuals, optimal policy, second moments and OPP")
 end

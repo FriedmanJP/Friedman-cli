@@ -1055,3 +1055,57 @@ function get_policy_loss(config::Dict)
     return (type=:diagonal, outcomes=outcomes, lambda=lambda, beta=beta,
             smoothing=smoothing)
 end
+
+"""
+    get_opp_constraints(config::Dict) → Vector{NamedTuple}
+
+Parse `[[constraint]]` tables for `constrained_opp` (W6/#128). Covers the
+path-floor family (`zlb_constraint`); `FunctionConstraint` takes a Julia
+closure and is closure-gated (W8) — a `type = "function"` entry is refused
+with a pointer rather than silently ignored.
+"""
+function get_opp_constraints(config::Dict)
+    raw = get(config, "constraint", nothing)
+    raw isa AbstractVector || throw(CliError("config/missing-key",
+        "TOML must have [[constraint]] tables";
+        hint="e.g. [[constraint]]\\ntype = \"floor\"\\nfloor = 0.0\\ninstrument = \"rate\""))
+    out = NamedTuple[]
+    for (i, c) in enumerate(raw)
+        c isa AbstractDict || throw(CliError("config/type",
+            "[[constraint]] #$i must be a table"))
+        ctype = String(get(c, "type", "floor"))
+        ctype == "function" && throw(CliError("config/invalid",
+            "[[constraint]] #$i: type = \"function\" needs a Julia closure — closure-taking constraints are not scriptable from TOML (see the v0.9.2 W8 decision record)"))
+        ctype in ("floor", "zlb") || throw(CliError("config/invalid",
+            "[[constraint]] #$i: type must be floor|zlb (got '$ctype')"))
+        fl = get(c, "floor", 0.0)
+        fl isa Real || throw(CliError("config/type",
+            "[[constraint]] #$i: floor must be a number"))
+        inst = get(c, "instrument", "rate")
+        inst isa AbstractString || throw(CliError("config/type",
+            "[[constraint]] #$i: instrument must be a string"))
+        hraw = get(c, "horizons", "all")
+        horizons = if hraw isa AbstractString
+            s = String(strip(hraw))
+            if s == "all"
+                1:typemax(Int)
+            else
+                m = match(r"^(\d+):(\d+)$", s)
+                m === nothing && throw(CliError("config/invalid",
+                    "[[constraint]] #$i: horizons must be \"all\" or \"lo:hi\" (got '$s')"))
+                lo, hi = parse(Int, m[1]), parse(Int, m[2])
+                (1 <= lo <= hi) || throw(CliError("config/invalid",
+                    "[[constraint]] #$i: horizons needs 1 ≤ lo ≤ hi (got $s)"))
+                lo:hi
+            end
+        else
+            throw(CliError("config/type",
+                "[[constraint]] #$i: horizons must be a string (\"all\" or \"lo:hi\")"))
+        end
+        push!(out, (type=:floor, floor=Float64(fl), instrument=Symbol(inst),
+                    horizons=horizons))
+    end
+    isempty(out) && throw(CliError("config/invalid",
+        "at least one [[constraint]] table is required"))
+    return out
+end

@@ -3,7 +3,7 @@
 
 Generated reference for `friedman policy` and its subcommands.
 
-**Leaves:** 12
+**Leaves:** 16
 
 ### `friedman policy counterfactual bvar`
 
@@ -290,6 +290,172 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `policy_moments_var` (Second moments under a counterfactual rule/loss)
+
+---
+
+### `friedman policy opp bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
+| `--n-sim` | — | `Int64` | `2000` | — | Simulation draws for estimate_opp bands (0 = point only) |
+| `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels — BM REVERSED polarity: rejection at the LOWER level is the conservative call |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--targets` | — | `String` | `""` | — | Explicit targets name=value per outcome (REQUIRED on the model-forecast route — gaps, NOT levels) |
+| `--values-file` | — | `String` | `""` | — | External GAP paths CSV (one column per outcome; replaces the model forecast) |
+| `--sd` | — | `String` | `""` | — | External route: per-outcome forecast sd (BM damped covariance) |
+| `--rho` | — | `Float64` | `0.9` | — | External route: BM damping rho in Σ[j,k]=sd_j·sd_k·ρ^\|j−k\| |
+| `--cross-corr-file` | — | `String` | `""` | — | External route: full covariance CSV — IGNORES --sd/--rho upstream (mutually exclusive) |
+| `--min-sd` | — | `Float64` | `0.0` | — | External route: sd floor (warns when it binds) |
+| `--origin` | — | `String` | `""` | — | Forecast origin label, e.g. 2008M4 |
+| `--instrument-path` | — | `String` | `""` | — | Announced instrument path, comma H values (REQUIRED with --constraints-file) |
+| `--constraints-file` | — | `String` | `""` | — | TOML [[constraint]] tables → constrained OPP (named deliberately: --conditions is swallowed pre-dispatch) |
+| `--method` | — | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
+| `--plot-view` | — | `String` | `delta` | `delta`, `paths` | Plot panel: delta \| paths |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--matched-draws` | — | Pair draw d across sources (independent=false; equal counts enforced) |
+| `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_opp_bvar` (Barnichon-Mesters optimal policy perturbation)
+
+---
+
+### `friedman policy opp var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
+| `--n-sim` | — | `Int64` | `2000` | — | Simulation draws for estimate_opp bands (0 = point only) |
+| `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels — BM REVERSED polarity: rejection at the LOWER level is the conservative call |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--targets` | — | `String` | `""` | — | Explicit targets name=value per outcome (REQUIRED on the model-forecast route — gaps, NOT levels) |
+| `--values-file` | — | `String` | `""` | — | External GAP paths CSV (one column per outcome; replaces the model forecast) |
+| `--sd` | — | `String` | `""` | — | External route: per-outcome forecast sd (BM damped covariance) |
+| `--rho` | — | `Float64` | `0.9` | — | External route: BM damping rho in Σ[j,k]=sd_j·sd_k·ρ^\|j−k\| |
+| `--cross-corr-file` | — | `String` | `""` | — | External route: full covariance CSV — IGNORES --sd/--rho upstream (mutually exclusive) |
+| `--min-sd` | — | `Float64` | `0.0` | — | External route: sd floor (warns when it binds) |
+| `--origin` | — | `String` | `""` | — | Forecast origin label, e.g. 2008M4 |
+| `--instrument-path` | — | `String` | `""` | — | Announced instrument path, comma H values (REQUIRED with --constraints-file) |
+| `--constraints-file` | — | `String` | `""` | — | TOML [[constraint]] tables → constrained OPP (named deliberately: --conditions is swallowed pre-dispatch) |
+| `--method` | — | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
+| `--plot-view` | — | `String` | `delta` | `delta`, `paths` | Plot panel: delta \| paths |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--matched-draws` | — | Pair draw d across sources (independent=false; equal counts enforced) |
+| `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_opp_var` (Barnichon-Mesters optimal policy perturbation)
+
+---
+
+### `friedman policy opp-sequence bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
+| `--forecasts-dir` | — | `String` | `""` | — | Directory of per-date GAP-path CSVs (sorted filenames = dates; REQUIRED) |
+| `--sd` | — | `String` | `""` | — | Per-outcome forecast sd shared across dates |
+| `--rho` | — | `Float64` | `0.9` | — | BM damping rho |
+| `--n-sim` | — | `Int64` | `0` | — | Simulation draws per date (compounds cost) |
+| `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels (BM reversed polarity) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-view` | — | `String` | `fan` | `fan`, `decomposition` | Plot panel: fan \| decomposition |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--matched-draws` | — | Pair draw d across sources (independent=false) |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_opp_sequence_bvar` (Barnichon-Mesters OPP sequence with revision decomposition)
+
+---
+
+### `friedman policy opp-sequence var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
+| `--forecasts-dir` | — | `String` | `""` | — | Directory of per-date GAP-path CSVs (sorted filenames = dates; REQUIRED) |
+| `--sd` | — | `String` | `""` | — | Per-outcome forecast sd shared across dates |
+| `--rho` | — | `Float64` | `0.9` | — | BM damping rho |
+| `--n-sim` | — | `Int64` | `0` | — | Simulation draws per date (compounds cost) |
+| `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels (BM reversed polarity) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-view` | — | `String` | `fan` | `fan`, `decomposition` | Plot panel: fan \| decomposition |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--matched-draws` | — | Pair draw d across sources (independent=false) |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_opp_sequence_var` (Barnichon-Mesters OPP sequence with revision decomposition)
 
 ---
 
