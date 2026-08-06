@@ -2754,6 +2754,51 @@ end
     @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
 end
 
+# W8: a pretty-printer must never fail a command. `report()`/`show` output is a human
+# convenience on stderr; the stdout data is the contract. Upstream proved the point —
+# MEMs 0.7.2 `_select_horizons(H)` returns `[1, 4, 8, H]` for `5 < H <= 12`, so
+# `show(::ImpulseResponse)` indexed horizon 8 of a 6-horizon array and `irf var
+# --horizons 6|7` exited 1 with an untyped BoundsError while `long_table` produced a
+# perfectly good result. The swallow is the fix, so it is the branch worth asserting.
+@testset "_status_report swallows display failures (W8)" begin
+    prev_q = _QUIET[]
+    try
+        # --quiet: no summary at all, and `f` is never even run.
+        _QUIET[] = true
+        ran = Ref(false)
+        @test _status_report(() -> (ran[] = true)) === nothing
+        @test !ran[]
+
+        _QUIET[] = false
+        # Normal path: `f` runs, and what it writes to stdout is diverted to stderr so
+        # the data-only stdout contract holds even while a summary is printing.
+        mktemp() do path, io
+            r = redirect_stderr(io) do
+                _status_report(() -> print("SUMMARY-BODY"))
+            end
+            flush(io)
+            @test r === nothing
+            @test occursin("SUMMARY-BODY", read(path, String))
+        end
+
+        # The point of the wrapper: a throwing display is a missing summary, not a
+        # failed run — no exception escapes, and the note names the cause on stderr.
+        mktemp() do path, io
+            r = redirect_stderr(io) do
+                _status_report(() -> error("upstream show() is broken"))
+            end
+            flush(io)
+            out = read(path, String)
+            @test r === nothing
+            @test occursin("summary display failed", out)
+            @test occursin("upstream show() is broken", out)
+            @test occursin("results are unaffected", out)
+        end
+    finally
+        _QUIET[] = prev_q
+    end
+end
+
 @testset "error taxonomy" begin
     include(joinpath(dirname(@__DIR__), "src", "output", "errors.jl"))
     e = CliError("data/file-not-found", "file not found: x.csv"; hint="check the path")
