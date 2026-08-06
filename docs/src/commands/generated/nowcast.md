@@ -40,6 +40,12 @@ Nowcast via Bayesian VAR
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
 | `--lags` | `-p` | `Int64` | `5` | — | VAR lags |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
+| `--prior` | — | `String` | `conjugate` | `conjugate`, `litterman` | conjugate (GLP dummy-observation NIW) \| litterman (fixed-Σ; enables --theta-cross) |
+| `--theta-cross` | — | `String` | `""` | — | Initial cross-variable relative tightness > 0 (litterman only; rejected with conjugate) |
+| `--lambda0` | — | `Float64` | `0.2` | — | Initial overall shrinkage λ |
+| `--theta0` | — | `Float64` | `1.0` | — | Initial lag-decay exponent (Litterman d / GLP α) |
+| `--miu0` | — | `Float64` | `1.0` | — | Initial sum-of-coefficients weight μ |
+| `--alpha0` | — | `Float64` | `2.0` | — | Initial co-persistence weight α |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

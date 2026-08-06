@@ -7846,7 +7846,7 @@ end  # Data handlers
     @testset "option counts" begin
         node = register_nowcast_commands!()
         @test length(node.subcmds["dfm"].options) == 10
-        @test length(node.subcmds["bvar"].options) == 6
+        @test length(node.subcmds["bvar"].options) == 12   # +6 in W1/#123 (prior, theta-cross, 4 hyperparameters)
         @test length(node.subcmds["bridge"].options) == 8
         @test length(node.subcmds["news"].options) == 12
         @test length(node.subcmds["forecast"].options) == 10
@@ -7902,6 +7902,44 @@ end  # Data handlers
             csv = _make_csv(dir; T=100, n=5)
             out = _capture() do
                 _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1, lags=3)
+            end
+        end
+    end
+
+    @testset "_nowcast_bvar — litterman prior + theta-cross (W1/#123)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                               prior="litterman", theta_cross="0.5")
+            end
+            @test occursin("litterman", out)
+            @test occursin("theta_cross", out)
+            # conjugate output must NOT carry a theta_cross row (it is NaN there)
+            out_c = _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1)
+            end
+            @test !occursin("theta_cross", out_c)
+            # --theta-cross under conjugate is a TYPED usage error, guarded before the
+            # estimator (upstream's ArgumentError would be data/invalid — wrong class)
+            err = try
+                _capture() do
+                    _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                                   theta_cross="0.5")
+                end
+                nothing
+            catch e; e; end
+            @test err isa CliError && err.code == "usage/invalid"
+            @test_throws CliError _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                               prior="litterman", theta_cross="not-a-number")
+            end
+            @test_throws CliError _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                               prior="litterman", theta_cross="-1.0")
+            end
+            @test_throws CliError _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1, lambda0=0.0)
             end
         end
     end

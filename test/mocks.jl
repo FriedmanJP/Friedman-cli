@@ -2269,6 +2269,9 @@ struct NowcastBVAR{T<:AbstractFloat} <: AbstractNowcastModel
     X_sm::Matrix{T}; beta::Matrix{T}; sigma::Matrix{T}
     lambda::T; theta::T; miu::T; alpha::T; lags::Int; loglik::T
     nM::Int; nQ::Int; data::Matrix{T}
+    # MEMs 0.7.2/#602 additions (real field names/semantics: theta_cross is NaN under
+    # :conjugate, where it is not a free parameter)
+    converged::Bool; theta_cross::T; prior::Symbol
 end
 
 struct NowcastBridge{T<:AbstractFloat} <: AbstractNowcastModel
@@ -2295,10 +2298,23 @@ function nowcast_dfm(Y::AbstractMatrix, nM::Int, nQ::Int; r=2, p=1, idio=:ar1, b
         zeros(sd), Matrix{Float64}(I(sd)), r, p, ones(Int, N, 1), -100.0, 50, nM, nQ, idio, copy(Y))
 end
 
-function nowcast_bvar(Y::AbstractMatrix, nM::Int, nQ::Int; lags=5, kwargs...)
+# Mirror the real kwarg surface (bvar_nowcast.jl) — no `kwargs...` catch-all: a
+# swallowed kwarg is exactly how a real-MEMs MethodError hides behind a green suite.
+function nowcast_bvar(Y::AbstractMatrix, nM::Int, nQ::Int; lags=5, thresh=1e-6,
+                      max_iter=nothing, lambda0=0.2, theta0=1.0, miu0=1.0, alpha0=2.0,
+                      prior::Symbol=:conjugate,
+                      theta_cross0::Union{Real,Nothing}=nothing)
     T_obs, N = size(Y)
+    N == nM + nQ || throw(ArgumentError("nM ($nM) + nQ ($nQ) must equal number of columns ($N)"))
+    lags >= 1 || throw(ArgumentError("lags must be >= 1, got $lags"))
+    prior in (:conjugate, :litterman) ||
+        throw(ArgumentError("prior must be :conjugate or :litterman, got :$prior"))
+    prior == :conjugate && theta_cross0 !== nothing &&
+        throw(ArgumentError("theta_cross is not a parameter of the conjugate prior"))
+    tc = prior == :litterman ? Float64(something(theta_cross0, 1.0)) : NaN
     NowcastBVAR{Float64}(copy(Y), randn(N*lags+1, N), Matrix{Float64}(I(N)),
-        0.2, 1.0, 1.0, 2.0, lags, -100.0, nM, nQ, copy(Y))
+        lambda0, theta0, miu0, alpha0, lags, -100.0, nM, nQ, copy(Y),
+        true, tc, prior)
 end
 
 function nowcast_bridge(Y::AbstractMatrix, nM::Int, nQ::Int; lagM=1, lagQ=1, lagY=1)

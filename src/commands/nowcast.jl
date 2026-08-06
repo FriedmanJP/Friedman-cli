@@ -44,6 +44,14 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
                 OptionSpec(name="lags", short="p", type=Int, default=5, description="VAR lags"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
+                OptionSpec(name="prior", type=String, default="conjugate", choices=["conjugate", "litterman"],
+                           description="conjugate (GLP dummy-observation NIW) | litterman (fixed-Σ; enables --theta-cross)"),
+                OptionSpec(name="theta-cross", type=String, default="",
+                           description="Initial cross-variable relative tightness > 0 (litterman only; rejected with conjugate)"),
+                OptionSpec(name="lambda0", type=Float64, default=0.2, description="Initial overall shrinkage λ"),
+                OptionSpec(name="theta0", type=Float64, default=1.0, description="Initial lag-decay exponent (Litterman d / GLP α)"),
+                OptionSpec(name="miu0", type=Float64, default=1.0, description="Initial sum-of-coefficients weight μ"),
+                OptionSpec(name="alpha0", type=Float64, default=2.0, description="Initial co-persistence weight α"),
                 out_fmt...,
             ],
             category="nowcast", handler=wrap_legacy(_nowcast_bvar)),
@@ -154,16 +162,41 @@ end
 
 function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
                         lags::Int=5, target_var::Int=0,
+                        prior::String="conjugate", theta_cross::String="",
+                        lambda0::Float64=0.2, theta0::Float64=1.0,
+                        miu0::Float64=1.0, alpha0::Float64=2.0,
                         output::String="", format::String="table")
+    # --theta-cross is a Litterman-only knob: under the conjugate NIW prior the
+    # cross/own tightness ratio is pinned by Σ whatever the dummy rows are (MEMs#602),
+    # so upstream rejects the combination — guard it as a typed usage error up front.
+    tc = nothing
+    if !isempty(theta_cross)
+        prior == "conjugate" && throw(CliError("usage/invalid",
+            "nowcast bvar: --theta-cross is not a parameter of the conjugate prior " *
+            "(the dummy-observation NIW pins the cross/own tightness ratio via Σ)";
+            hint="use --prior litterman, which fixes Σ and frees the cross-lag knob"))
+        tc = tryparse(Float64, theta_cross)
+        (tc === nothing || tc <= 0) && throw(CliError("usage/invalid",
+            "nowcast bvar: --theta-cross must be a positive number (got '$theta_cross')"))
+    end
+    lambda0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --lambda0 must be > 0 (got $lambda0)"))
+    theta0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --theta0 must be > 0 (got $theta0)"))
+    miu0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --miu0 must be > 0 (got $miu0)"))
+    alpha0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --alpha0 must be > 0 (got $alpha0)"))
+
     Y, varnames = load_multivariate_data(data)
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
     _status("Nowcast BVAR: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    _status("  Lags: $lags")
+    _status("  Lags: $lags, Prior: $prior" * (tc === nothing ? "" : ", theta_cross0=$tc"))
     _status()
 
-    model = nowcast_bvar(Y, nM, nQ; lags=lags)
+    model = tc === nothing ?
+        nowcast_bvar(Y, nM, nQ; lags=lags, lambda0=lambda0, theta0=theta0,
+                     miu0=miu0, alpha0=alpha0, prior=Symbol(prior)) :
+        nowcast_bvar(Y, nM, nQ; lags=lags, lambda0=lambda0, theta0=theta0,
+                     miu0=miu0, alpha0=alpha0, prior=Symbol(prior), theta_cross0=tc)
     tv = target_var > 0 ? target_var : nothing
     result = nowcast(model; target_var=tv)
 
@@ -180,7 +213,24 @@ function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=
                round(model.loglik; digits=2)]
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast BVAR (lags=$lags, target=$target_name)")
+                  title="Nowcast BVAR (lags=$lags, prior=$prior, target=$target_name)")
+
+    # Optimized hyperparameters (Nelder-Mead), not the initial values. loglik is NOT
+    # comparable across priors (conjugate integrates Σ out; Litterman holds it fixed) —
+    # the settings table records the prior so a reader can't compare across it blindly.
+    settings = Pair{String,Any}[
+        "prior" => string(model.prior),
+        "lambda (overall shrinkage)" => round(model.lambda; digits=6),
+        "theta (lag decay)" => round(model.theta; digits=6),
+        "miu (sum-of-coefficients)" => round(model.miu; digits=6),
+        "alpha (co-persistence)" => round(model.alpha; digits=6),
+    ]
+    isnan(model.theta_cross) ||
+        push!(settings, "theta_cross (cross-variable tightness)" => round(model.theta_cross; digits=6))
+    output_kv(settings; format=format, output=_per_var_output_path(output, "settings"),
+              title="Nowcast BVAR Hyperparameters")
+    prior == "litterman" &&
+        _status("Note: loglik under litterman is a fixed-Σ objective — not comparable to the conjugate prior's value.")
 end
 
 function _nowcast_bridge(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,

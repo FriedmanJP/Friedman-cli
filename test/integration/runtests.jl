@@ -4731,6 +4731,37 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 assert_envelope_ok(r; label="nowcast $leaf")
             end
         end
+
+        @testset "nowcast bvar --prior litterman (W1/#123, MEMs#602)" begin
+            rl = run_json(["nowcast", "bvar", multi, "--lags", "2",
+                           "--prior", "litterman", "--theta-cross", "0.5"])
+            assert_envelope_ok(rl; label="nowcast bvar litterman")
+            # The hyperparameters table records the prior and — litterman only — the
+            # optimized theta_cross. Find it by its distinctive first column values.
+            hp = named_table(rl.doc, :nowcast_bvar_hyperparameters)
+            @test hp !== nothing
+            if hp !== nothing
+                kv = Dict(string(collect(rw)[1]) => collect(rw)[2] for rw in table_rows(hp))
+                @test kv["prior"] == "litterman"
+                @test any(startswith(k, "theta_cross") for k in keys(kv))
+            end
+            # Same data under conjugate: no theta_cross row, and a different point
+            # nowcast (the priors are genuinely different objectives — MEMs#602).
+            rc = run_json(["nowcast", "bvar", multi, "--lags", "2"])
+            assert_envelope_ok(rc; label="nowcast bvar conjugate")
+            hpc = named_table(rc.doc, :nowcast_bvar_hyperparameters)
+            @test hpc !== nothing
+            if hpc !== nothing
+                kvc = Dict(string(collect(rw)[1]) => collect(rw)[2] for rw in table_rows(hpc))
+                @test kvc["prior"] == "conjugate"
+                @test !any(startswith(k, "theta_cross") for k in keys(kvc))
+            end
+            # --theta-cross with the conjugate prior is a typed usage error (exit 2),
+            # guarded in the CLI before upstream's ArgumentError can map to exit 3.
+            @test run_json(["nowcast", "bvar", multi, "--theta-cross", "0.5"]).code == 2
+            @test run_json(["nowcast", "bvar", multi, "--prior", "litterman",
+                            "--theta-cross", "-1"]).code == 2
+        end
         @testset "nowcast forecast" begin
             r = run_json(["nowcast", "forecast", multi, "--factors", "1",
                           "--lags", "1", "--horizons", "3"])
