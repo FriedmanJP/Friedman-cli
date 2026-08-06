@@ -219,10 +219,11 @@ struct BayesianFEVD{T}
     n_effective::Int
     n_failed::Int
 end
-# Convenience 3-arg constructor for backward compat
+# Convenience 3-arg constructor for backward compat.
+# Real point_estimate is (variable, shock, horizon) since MEMs 0.7.3 (#527).
 BayesianFEVD(m::Array{T,3}, q::Array{T,4}, ql::Vector{T}) where T =
-    BayesianFEVD(q, m, size(m,1),
-    ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql,
+    BayesianFEVD(q, m, size(m,3),
+    ["var$i" for i in 1:size(m,1)], ["shock$i" for i in 1:size(m,2)], ql,
     0, size(q, 4), 0)
 
 struct HistoricalDecomposition{T}
@@ -961,17 +962,18 @@ function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothin
 end
 function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
               data=nothing, quantiles=[0.16, 0.5, 0.84])
-    # Real BayesianFEVD.point_estimate is (horizon, variable, shock) — match it, or
-    # the mock hides a transposed render (the layout half of #84's fevd bvar bug).
-    props = ones(horizon, n, n) / n
-    q = ones(horizon, n, n, length(quantiles)) / n
+    # Real BayesianFEVD.point_estimate is (variable, shock, horizon) since MEMs 0.7.3
+    # (#527 unified the axes) — match it, or the mock hides a transposed render (the
+    # layout half of #84's fevd bvar bug, whose permutedims fix is now REMOVED).
+    props = ones(n, n, horizon) / n
+    q = ones(n, n, horizon, length(quantiles)) / n
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 function fevd(post::BVARPosterior, horizon::Int;
               quantiles=[0.16, 0.5, 0.84])
     n = post.n
-    props = ones(horizon, n, n) / n
-    q = ones(horizon, n, n, length(quantiles)) / n
+    props = ones(n, n, horizon) / n
+    q = ones(n, n, horizon, length(quantiles)) / n
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 
@@ -2569,12 +2571,16 @@ function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto,
     if method == :perturbation
         n_states = max(1, n ÷ 2)
         n_controls = n - n_states
-        gx = ones(T, n_controls, n_states) * T(0.1)
-        hx = Matrix{T}(I(n_states)) * T(0.5)
-        eta = zeros(T, n_states, ne)
-        for i in 1:min(n_states, ne); eta[i, i] = T(1.0); end
-        gxx = order >= 2 ? zeros(T, n_controls, n_states, n_states) : nothing
-        hxx = order >= 2 ? zeros(T, n_states, n_states, n_states) : nothing
+        # Real gx/hx are ny×nv and nx×nv where v = [states; shocks] (the Stage-14 #368
+        # augmented layout, MEMs ≥0.7.2). A state-only mock gx hid a broken
+        # `dsge solve --method perturbation` render branch for a whole release line.
+        nv = n_states + ne
+        gx = ones(T, n_controls, nv) * T(0.1)
+        hx = hcat(Matrix{T}(I(n_states)) * T(0.5), zeros(T, n_states, ne))
+        eta = zeros(T, nv, ne)
+        for i in 1:ne; eta[n_states + i, i] = T(1.0); end
+        gxx = order >= 2 ? zeros(T, n_controls, nv, nv) : nothing
+        hxx = order >= 2 ? zeros(T, n_states, nv, nv) : nothing
         gσσ = order >= 2 ? zeros(T, n_controls) : nothing
         hσσ = order >= 2 ? zeros(T, n_states) : nothing
         ss = zeros(T, n)
@@ -8721,7 +8727,7 @@ function dynamic_multipliers(m::NARDLModel{T}, H::Int; bootstrap::Bool=true, nre
 end
 
 export ARDLLongRun, ARDLModel, ARDLBoundsTest, NARDLModel, NARDLSymmetryTest, NARDLMultipliers
-export estimate_ardl, estimate_nardl, long_run, bounds_test, symmetry_test, dynamic_multipliers
+export estimate_ardl, estimate_nardl, long_run, ecm_form, bounds_test, symmetry_test, dynamic_multipliers
 
 # ─── C062c: dynamic heterogeneous-panel ARDL (PMG / MG / DFE) ────────────────
 # PMGModel mirrors the real MEMs 0.7.0 field NAMES/ORDER (a subset is fine — check_mock_surface

@@ -3936,6 +3936,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test length(table_rows(tbl)) == 2
         end
 
+        @testset "dsge solve --method perturbation --order 2 (gx over v=[states; shocks])" begin
+            # gx/hx are ny×nv with v = [states; shocks] (Stage-14 #368 layout, ≥0.7.2).
+            # The renderer labelled only the state columns → DimensionMismatch exit 1 on
+            # EVERY model with a shock. Broken through the whole v0.9.1 line because this
+            # `--method` branch had no T3 of its own (the per-BRANCH coverage lesson).
+            r = run_json(["dsge", "solve", model_jl, "--method", "perturbation", "--order", "2"])
+            assert_envelope_ok(r; label="dsge solve perturbation o2")
+            tbl = named_table(r.doc, :perturbation_policy_gx_order_2)
+            @test tbl !== nothing
+            cols = String[string(c) for c in tbl.columns]
+            # one column per state PLUS one per shock, after the leading :control
+            @test cols == ["control", "Y", "e"]
+            row = collect(table_rows(tbl)[1])
+            # C[t] = Y[t] = rho*Y[t-1] + sigma*e[t] → loadings are exactly (rho, sigma)
+            @test numv(row[2]) ≈ 0.9 atol=1e-8
+            @test numv(row[3]) ≈ 0.01 atol=1e-8
+        end
+
         @testset "dsge steady-state from TOML (compute_steady_state world-age)" begin
             r = run_json(["dsge", "steady-state", model_toml])
             assert_envelope_ok(r; label="dsge steady-state")
@@ -4667,7 +4685,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test metric_value(tbl, "Units") !== nothing
         end
 
-        @testset "fevd bvar (point_estimate, and its (h,var,shock) layout)" begin
+        @testset "fevd bvar (point_estimate, (var,shock,h) layout since MEMs 0.7.3/#527)" begin
             r = run_json(["fevd", "bvar", multi, "--lags", "1", "--horizons", "4"])
             assert_envelope_ok(r; label="fevd bvar")
             _, tbl = first_table(r.doc)

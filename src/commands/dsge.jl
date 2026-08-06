@@ -925,7 +925,16 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         _status("\n  State variables ($n_s): $(join([spec.varnames[i] for i in sol.state_indices], ", "))")
         _status("  Control variables ($n_c): $(join([spec.varnames[i] for i in sol.control_indices], ", "))")
 
-        gx_df = DataFrame(sol.gx, [spec.varnames[i] for i in sol.state_indices])
+        # gx is ny×nv with v = [states; shocks] (Stage-14 #368 layout, MEMs ≥0.7.2) —
+        # labelling only the state columns was a DimensionMismatch on every model with
+        # a shock, i.e. every model. Broken since the 0.7.2 bump; no per-branch T3.
+        state_names = [spec.varnames[i] for i in sol.state_indices]
+        shock_names = String.(spec.exog)
+        nv = size(sol.gx, 2)
+        col_names = nv == length(state_names) + length(shock_names) ?
+            vcat(state_names, shock_names) :
+            (nv == length(state_names) ? state_names : ["v$i" for i in 1:nv])
+        gx_df = DataFrame(sol.gx, col_names)
         insertcols!(gx_df, 1, :control => [spec.varnames[i] for i in sol.control_indices])
         output_result(gx_df; format=Symbol(format), output=output,
                       title="Perturbation Policy (gx, order=$order)")

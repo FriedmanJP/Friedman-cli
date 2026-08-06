@@ -5795,7 +5795,7 @@ function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::Str
     output_result(_ardl_longrun_table(lr); format=Symbol(format),
                   output=_per_var_output_path(output, "longrun"),
                   title="ARDL Long-Run Coefficients ($dep_name)")
-    ecm = MacroEconometricModels.ecm_form(m)   # ecm_form is not exported → qualify
+    ecm = ecm_form(m)   # exported since MEMs 0.8.0
     output_kv(Pair{String,Any}[
         "p"             => m.p,
         "q"             => join(m.q, ","),

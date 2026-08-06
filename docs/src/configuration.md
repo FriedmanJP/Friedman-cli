@@ -27,11 +27,11 @@ enabled = true       # auto-optimize hyperparameters via grid search
 | `lambda1` | `tau` | Overall tightness of the prior | 0.01 -- 1.0 |
 | `lambda2` | `lambda` | Cross-variable shrinkage (how much other variables' lags matter) | 0.1 -- 1.0 |
 | `lambda3` | `decay` | Lag decay rate (higher = faster decay of lag importance) | 0.5 -- 2.0 |
-| `lambda4` | `omega` | Constant term variance (large = uninformative) | 10000 -- 1e6 |
+| `lambda4` | — | Accepted for backward compatibility but **not forwarded** — `mu` and `omega` keep MEMs' own defaults | — |
 
 When `optimization.enabled = true`, Friedman ignores the manual hyperparameters and uses `optimize_hyperparameters()` to find optimal values via grid search over tau.
 
-When optimization is disabled, AR(1) residual standard deviations are estimated from the data and used for the `omega` parameter (per-variable scale).
+When optimization is disabled, `lambda1`/`lambda2`/`lambda3` map to MEMs' `tau`/`lambda`/`decay`; `mu` and `omega` are left at upstream defaults. Note (MEMs 0.7.3): `omega` is the replication weight of the `diag(σ̂)` residual-covariance dummy — its default moved from 2.0 to 1.0, so config-Minnesota results shifted at the v0.9.2 bump.
 
 ## Sign Restrictions
 

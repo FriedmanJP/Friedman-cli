@@ -335,9 +335,9 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
 
     _maybe_plot(bfevd; plot=plot, plot_save=plot_save)
 
-    # BayesianFEVD.point_estimate is (horizon, variable, shock); the shared renderer
-    # indexes [variable, shock, horizon] like the frequentist FEVD array.
-    _output_fevd_tables(permutedims(bfevd.point_estimate, (2, 3, 1)), varnames, horizons;
+    # BayesianFEVD.point_estimate is (variable, shock, horizon) since MEMs 0.7.3 (#527
+    # unified it with FEVD/LPFEVD) — exactly the order the shared renderer indexes.
+    _output_fevd_tables(bfevd.point_estimate, varnames, horizons;
                         id=id, title_prefix="Bayesian FEVD", format=format, output=output)
 end
 

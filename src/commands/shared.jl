@@ -714,7 +714,10 @@ function _build_prior(config_path::String, Y::AbstractMatrix, p::Int)
             # `gen_dummy_obs`, so there is nothing for the CLI to compute here.
             #
             # The config schema exposes only lambda1/2/3, so `mu` and `omega` keep upstream's
-            # defaults rather than being invented from the data.
+            # defaults rather than being invented from the data. NOTE (MEMs 0.7.3, #529):
+            # `omega` is now the REPLICATION WEIGHT of the diag(σ̂) covariance dummy
+            # (default moved 2.0 → 1.0), no longer an on/off switch — config-minnesota
+            # results shifted at that bump for exactly this reason.
             return MinnesotaHyperparameters(;
                 tau=prior_cfg["lambda1"],
                 decay=prior_cfg["lambda3"],
