@@ -7440,6 +7440,42 @@ end  # Enhanced Granger handlers
         end
     end
 
+    @testset "_data_load — :mp-shocks NaN survives the round-trip (W3/#125)" begin
+        # NaN is NOT zero: zero is a valid shock value, so any loader that
+        # coerced NaN→0 would silently fabricate shocks. The mock carries the
+        # real per-column valid ranges, so these counts match T3 exactly.
+        mktempdir() do dir
+            out = joinpath(dir, "mp.csv")
+            _capture() do
+                _data_load(; name=":mp-shocks", output=out)   # dash spelling normalizes
+            end
+            df = CSV.read(out, DataFrame)
+            @test size(df) == (240, 8)
+            @test names(df) == ["ygap", "infl", "ffr", "lpcom", "rr", "mp1", "ad", "bzk_ist"]
+            @test isnan(df.rr[1])                  # pre-1969Q1: outside published sample
+            @test count(!isnan, df.rr) == 156      # Romer-Romer 1969Q1–2007Q4
+            @test count(!isnan, df.mp1) == 95      # Gertler-Karadi 1988Q4–2012Q2
+        end
+    end
+
+    @testset "_data_describe — NaN-padded valid windows (:mp_shocks)" begin
+        mktempdir() do dir
+            outfile = joinpath(dir, "desc.json")
+            _capture() do
+                _data_describe(; data=":mp_shocks", format="json", output=outfile)
+            end
+            rows = JSON3.read(read(outfile, String))
+            byvar = Dict(String(r.variable) => r for r in rows)
+            # n counts FINITE observations; first/last_valid bound the window.
+            @test byvar["rr"].n == 156
+            @test byvar["rr"].first_valid == 37 && byvar["rr"].last_valid == 192
+            @test byvar["ygap"].first_valid == 37 && byvar["ygap"].last_valid == 240
+            @test byvar["ffr"].n == 223
+            # Statistics exclude the NaN padding rather than propagating it.
+            @test isfinite(byvar["rr"].mean) && isfinite(byvar["rr"].std)
+        end
+    end
+
     @testset "_data_load — mpdta with --vars" begin
         mktempdir() do dir
             out = cd(dir) do
@@ -10527,11 +10563,67 @@ end
             end
         end
 
+        @testset "_data_dropna — drops NaN rows, --vars scopes the check (W3/#125)" begin
+            mktempdir() do dir
+                csv = joinpath(dir, "nan.csv")
+                a = randn(20); a[1:5] .= NaN
+                CSV.write(csv, DataFrame(a=a, b=randn(20)))
+
+                out_csv = joinpath(dir, "clean.csv")
+                _capture() do
+                    _data_dropna(; data=csv, format="csv", output=out_csv)
+                end
+                @test nrow(CSV.read(out_csv, DataFrame)) == 15   # NaN rows actually dropped
+
+                # --vars used to pass Vector{SubString} into real dropna's
+                # ::Union{Vector{String},Nothing} assertion → TypeError exit 1.
+                out_b = joinpath(dir, "clean_b.csv")
+                _capture() do
+                    _data_dropna(; data=csv, vars="b", format="csv", output=out_b)
+                end
+                @test nrow(CSV.read(out_b, DataFrame)) == 20     # b is fully finite
+
+                # Unknown --vars entry is typed, not upstream's raw ArgumentError.
+                err = try
+                    _capture() do
+                        _data_dropna(; data=csv, vars="nope", format="table", output="")
+                    end
+                catch e
+                    e
+                end
+                @test err isa CliError && err.code == "data/column-range"
+            end
+        end
+
         @testset "_data_keeprows" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=50, n=3)
                 out = _capture() do
                     _data_keeprows(; data=csv, rows="1:20", format="table", output="")
+                end
+            end
+        end
+
+        @testset "_data_keeprows — typed guards (W3/#125)" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=50, n=3)
+                for (rows, code) in [("", "usage/missing"),          # was a bare error() → exit 1
+                                     ("abc", "usage/invalid"),       # was raw parse ArgumentError
+                                     ("1:2:3", "usage/invalid"),
+                                     ("40:900", "usage/invalid"),    # was upstream BoundsError
+                                     ("20:10", "usage/invalid")]     # empty selection
+                    err = try
+                        _capture() do
+                            _data_keeprows(; data=csv, rows=rows, format="table", output="")
+                        end
+                    catch e
+                        e
+                    end
+                    @test err isa CliError && err.code == code
+                end
+                # 1:end still resolves to the full sample.
+                _capture() do
+                    _data_keeprows(; data=csv, rows="1:end", format="table", output="")
                 end
             end
         end

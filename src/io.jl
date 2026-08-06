@@ -213,7 +213,7 @@ and is served by the `io` command family instead.
 """
 const EXAMPLE_DATASETS = (
     :fred_md, :fred_qd, :pwt, :mpdta, :ddcg,
-    :denmark, :gnp_hamilton, :grunfeld, :mroz, :nile, :stackloss,
+    :denmark, :gnp_hamilton, :grunfeld, :mp_shocks, :mroz, :nile, :stackloss,
 )
 
 """

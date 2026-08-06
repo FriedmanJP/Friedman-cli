@@ -203,6 +203,7 @@ const _DATASET_INFO = Dict(
     :denmark      => ("Time Series",  "55 × 5",       "Danish money-demand data (Johansen-Juselius cointegration)"),
     :gnp_hamilton => ("Time Series",  "135 × 1",      "US GNP growth (Hamilton 1989 Markov-switching example)"),
     :grunfeld     => ("Panel",        "10 × 20 × 3",  "Grunfeld investment panel (10 firms, 20 years)"),
+    :mp_shocks    => ("Time Series",  "240 × 8",      "US monetary panel + policy-shock series (McKay-Wolf 2023; NaN outside published samples)"),
     :mroz         => ("Cross Section", "753 × 22",    "Mroz (1987) female labour supply"),
     :nile         => ("Time Series",  "100 × 1",      "Nile river annual flow (local-level state space)"),
     :stackloss    => ("Cross Section", "21 × 4",      "Brownlee stack-loss plant data (robust regression)"),
@@ -354,9 +355,17 @@ function _data_describe(; data::String, format::String="table", output::String="
     tsd = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
     summary = describe_data(tsd)
 
+    # NaN-padded series (:mp_shocks ships 6 of 8 columns NaN outside their
+    # published samples) are valid only inside a window that `n` alone cannot
+    # locate — report the first/last finite row per column (0 = none finite).
+    fv = [something(findfirst(isfinite, @view Y[:, j]), 0) for j in 1:n_vars]
+    lv = [something(findlast(isfinite, @view Y[:, j]), 0) for j in 1:n_vars]
+
     result_df = DataFrame(
         variable=vn,
         n=summary.n,   # already per-variable; fill() nested a vector into every cell
+        first_valid=fv,
+        last_valid=lv,
         mean=round.(summary.mean; digits=4),
         std=round.(summary.std; digits=4),
         min=round.(summary.min; digits=4),
@@ -582,8 +591,24 @@ function _data_dropna(; data::String, vars::String="",
     ts = TimeSeriesData(Y; varnames=vnames)
 
     n_before = size(Y, 1)
-    var_list = isempty(vars) ? nothing : [strip(s) for s in split(vars, ",")]
-    cleaned = dropna(ts; vars=var_list)
+    # Real dropna's kwarg is asserted ::Union{Vector{String},Nothing} — a bare
+    # strip() comprehension is Vector{SubString} and TypeErrors on every --vars
+    # invocation, so materialize Strings and pre-check the names ourselves.
+    var_list = isempty(vars) ? nothing :
+               String[String(strip(s)) for s in split(vars, ",") if !isempty(strip(s))]
+    if var_list !== nothing
+        for v in var_list
+            v in vnames || throw(CliError("data/column-range",
+                "variable '$v' not found";
+                hint="available: $(join(vnames[1:min(5, length(vnames))], ", "))..."))
+        end
+    end
+    cleaned = try
+        dropna(ts; vars=var_list)
+    catch e
+        # "All rows contain NaN or Inf" is an untyped ArgumentError upstream.
+        e isa ArgumentError ? throw(CliError("data/invalid", e.msg)) : rethrow()
+    end
     n_after = size(cleaned.data, 1)
 
     _status("Drop NA: $data")
@@ -597,7 +622,8 @@ end
 
 function _data_keeprows(; data::String, rows::String="",
                          output::String="", format::String="table")
-    isempty(rows) && error("--rows is required (e.g. 1:100, 1,5,10)")
+    isempty(rows) && throw(CliError("usage/missing",
+        "--rows is required (e.g. 1:100, 1,5,10)"))
 
     df = load_data(data)
     Y = df_to_matrix(df)
@@ -605,15 +631,28 @@ function _data_keeprows(; data::String, rows::String="",
     ts = TimeSeriesData(Y; varnames=vnames)
     n_total = size(Y, 1)
 
+    _rows_err() = throw(CliError("usage/invalid",
+        "--rows must be a range like 1:100 (or 1:end) or a comma list like 1,5,10 (got '$rows')"))
     indices = if occursin(":", rows)
         parts = split(rows, ":")
-        lo = parse(Int, strip(parts[1]))
+        length(parts) == 2 || _rows_err()
+        lo = tryparse(Int, strip(parts[1]))
         hi_str = strip(parts[2])
-        hi = hi_str == "end" ? n_total : parse(Int, hi_str)
+        hi = hi_str == "end" ? n_total : tryparse(Int, hi_str)
+        (lo === nothing || hi === nothing) && _rows_err()
         collect(lo:hi)
     else
-        [parse(Int, strip(s)) for s in split(rows, ",")]
+        ix = [tryparse(Int, strip(s)) for s in split(rows, ",")]
+        any(isnothing, ix) && _rows_err()
+        Int[i for i in ix]
     end
+    # Real keeprows raises an untyped ArgumentError on an empty selection and a
+    # BoundsError past T_obs — both would exit 1; guard here instead.
+    isempty(indices) && throw(CliError("usage/invalid",
+        "--rows selects no rows (got '$rows')"))
+    (minimum(indices) < 1 || maximum(indices) > n_total) &&
+        throw(CliError("usage/invalid",
+            "--rows out of range: data has rows 1:$n_total (got '$rows')"))
 
     filtered = keeprows(ts, indices)
 

@@ -2057,7 +2057,9 @@ struct DataDiagnostic
 end
 
 struct DataSummary{T<:Real}
-    n::Int; mean::Vector{T}; std::Vector{T}; min::Vector{T}
+    # Real n is Vector{Int} — the NON-NaN count per variable (a scalar here made
+    # the mock blind to NaN-padded datasets like :mp_shocks).
+    n::Vector{Int}; mean::Vector{T}; std::Vector{T}; min::Vector{T}
     p25::Vector{T}; median::Vector{T}; p75::Vector{T}; max::Vector{T}
     skewness::Vector{T}; kurtosis::Vector{T}
 end
@@ -2117,6 +2119,22 @@ function load_example(name::Symbol)
         T_obs = 135
         TimeSeriesData(randn(T_obs, 1) .+ 1.0, ["gnp_growth"], :quarterly, [1],
             collect(1:T_obs), "US GNP growth (Hamilton 1989)", ["GNP growth"])
+    elseif name == :mp_shocks
+        # McKay-Wolf (2023) US monetary panel (CF-20/MEMs#400): 240 quarters × 8
+        # vars, NaN outside each series' published sample. The NaN mask below is
+        # the REAL per-column valid range (row 1 = 1960Q1), so T1/T2 exercise the
+        # same valid-count/valid-window arithmetic as T3 — NaN is not zero.
+        T_obs = 240
+        vn = ["ygap", "infl", "ffr", "lpcom", "rr", "mp1", "ad", "bzk_ist"]
+        valid = [(37, 240), (1, 223), (1, 223), (1, 213),
+                 (37, 192), (116, 210), (92, 195), (1, 209)]
+        data = fill(NaN, T_obs, 8)
+        for (j, (f, l)) in enumerate(valid)
+            data[f:l, j] = randn(l - f + 1) .+ 2.0
+        end
+        TimeSeriesData(data, vn, :quarterly, fill(1, 8), collect(1:T_obs),
+            "US monetary panel with published policy-shock series (McKay-Wolf 2023)",
+            ["Variable $v" for v in vn])
     elseif name == :nile
         # Nile annual flow: 100 years × 1 var
         T_obs = 100
@@ -2146,7 +2164,7 @@ function load_example(name::Symbol)
     else
         # Real load_example throws ArgumentError — match it so error-mapping is testable.
         throw(ArgumentError("Unknown dataset :$name. Available: fred_md, fred_qd, pwt, mpdta, ddcg, " *
-                            "denmark, gnp_hamilton, grunfeld, mroz, nile, stackloss, wiot"))
+                            "denmark, gnp_hamilton, grunfeld, mp_shocks, mroz, nile, stackloss, wiot"))
     end
 end
 
@@ -2163,17 +2181,23 @@ nobs(d::TimeSeriesData) = size(d.data, 1)
 nvars(d::TimeSeriesData) = size(d.data, 2)
 
 function describe_data(d::TimeSeriesData)
-    T_obs, n = size(d.data)
-    m = vec(mean(d.data; dims=1))
-    s = vec(std_mock(d.data))
-    mn = vec(minimum(d.data; dims=1))
-    mx = vec(maximum(d.data; dims=1))
+    # Real describe_data excludes NaN/Inf from every statistic and counts finite
+    # observations per variable — averaging NaN straight in hid the whole
+    # NaN-padded-dataset class (:mp_shocks) from T1/T2.
+    nv = size(d.data, 2)
+    cols = [filter(isfinite, d.data[:, j]) for j in 1:nv]
+    n = [length(c) for c in cols]
+    m = [isempty(c) ? NaN : mean(c) for c in cols]
+    s = [length(c) < 2 ? NaN :
+         sqrt(sum(abs2, c .- mean(c)) / (length(c) - 1)) for c in cols]
+    mn = [isempty(c) ? NaN : minimum(c) for c in cols]
+    mx = [isempty(c) ? NaN : maximum(c) for c in cols]
     p25 = m .- 0.67 .* s
     med = copy(m)
     p75 = m .+ 0.67 .* s
-    sk = fill(0.1, n)
-    ku = fill(3.0, n)
-    DataSummary(T_obs, m, s, mn, p25, med, p75, mx, sk, ku)
+    sk = fill(0.1, nv)
+    ku = fill(3.0, nv)
+    DataSummary(n, m, s, mn, p25, med, p75, mx, sk, ku)
 end
 
 # Simple std without Distributions dependency
@@ -7534,12 +7558,33 @@ function hausman_iia(m::MultinomialLogitModel{T}; omit_category::Int=2) where T
     PanelTestResult{T}("Hausman IIA", T(3.5), T(0.48), k, "IIA test")
 end
 
-function dropna(ts; vars=nothing, cols=nothing)
-    ts
+# Real dropna/keeprows semantics replicated exactly. The old no-op versions
+# accepted anything (an invented `cols` kwarg; a Vector{SubString} for `vars`,
+# which real's `::Union{Vector{String},Nothing}` assertion rejects with a
+# TypeError) and returned the data UNCHANGED — hiding both the SubString crash
+# and the whole NaN-row-dropping behavior from T1/T2.
+function dropna(d::TimeSeriesData; vars::Union{Vector{String},Nothing}=nothing)
+    mat = d.data
+    if vars === nothing
+        good = [all(isfinite, mat[i, :]) for i in 1:size(mat, 1)]
+    else
+        col_idx = [findfirst(==(v), d.varnames) for v in vars]
+        any(isnothing, col_idx) && throw(ArgumentError(
+            "Variable(s) not found: $(vars[findall(isnothing, col_idx)])"))
+        cidx = Int[c for c in col_idx]
+        good = [all(isfinite, mat[i, cidx]) for i in 1:size(mat, 1)]
+    end
+    idx = findall(good)
+    isempty(idx) && throw(ArgumentError("All rows contain NaN or Inf — no data remaining"))
+    TimeSeriesData(mat[idx, :], copy(d.varnames), d.frequency, copy(d.tcode),
+                   d.time_index[idx], d.desc, copy(d.vardesc))
 end
 
-function keeprows(ts, indices::AbstractVector)
-    ts
+function keeprows(d::TimeSeriesData, idx::Vector{Int})
+    isempty(idx) && throw(ArgumentError("No rows selected — empty result"))
+    all(i -> 1 <= i <= size(d.data, 1), idx) || throw(BoundsError(d, idx))
+    TimeSeriesData(d.data[idx, :], copy(d.varnames), d.frequency, copy(d.tcode),
+                   d.time_index[idx], d.desc, copy(d.vardesc))
 end
 
 # NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.

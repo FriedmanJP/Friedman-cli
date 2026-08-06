@@ -4593,6 +4593,76 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        @testset ":mp_shocks — NaN outside published samples (W3/#125)" begin
+            mktempdir() do dir
+                out = joinpath(dir, "mp.csv")
+                # Dash spelling normalizes to the underscore symbol.
+                @test run_json(["data", "load", ":mp-shocks", "-o", out]).code == 0
+                df = CSV.read(out, DataFrame)
+                @test size(df) == (240, 8)
+                @test names(df) == ["ygap", "infl", "ffr", "lpcom", "rr", "mp1", "ad", "bzk_ist"]
+
+                # Upstream pins (test_mp_shocks_data.jl): loading must not shift,
+                # scale, or zero-fill — NaN is NOT zero; zero is a valid shock value.
+                @test df.ffr[1] ≈ 3.93 atol = 0.01              # FRED FEDFUNDS 1960Q1
+                @test isnan(df.rr[1])                            # pre-1969Q1
+                @test count(!isnan, df.rr) == 156                # Romer-Romer window
+                @test findfirst(!isnan, df.rr) == 37             # 1969Q1
+                @test findlast(!isnan, df.rr) == 192             # 2007Q4
+                @test maximum(filter(!isnan, df.ffr)) > 15.0     # Volcker peak, % units
+
+                # data describe locates the valid window per column.
+                r = run_json(["data", "describe", ":mp_shocks"])
+                @test r.code == 0
+                tbl = named_table(r.doc, :descriptive_statistics)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    cols = table_cols(tbl)
+                    vi = findfirst(==("variable"), cols)
+                    ni = findfirst(==("n"), cols)
+                    fi = findfirst(==("first_valid"), cols)
+                    li = findfirst(==("last_valid"), cols)
+                    @test fi !== nothing && li !== nothing
+                    rows = [collect(row) for row in table_rows(tbl)]
+                    rr = findfirst(rv -> string(rv[vi]) == "rr", rows)
+                    @test rr !== nothing
+                    @test rows[rr][ni] == 156
+                    @test rows[rr][fi] == 37 && rows[rr][li] == 192
+                end
+
+                # Documented prep step: subset → dropna → estimate, end to end.
+                sub = joinpath(dir, "macro3.csv")
+                @test run_json(["data", "load", ":mp_shocks",
+                                "--vars", "ygap,infl,ffr", "-o", sub]).code == 0
+                clean = joinpath(dir, "macro3_clean.csv")
+                @test run_json(["data", "dropna", sub,
+                                "--format", "csv", "-o", clean]).code == 0
+                cdf = CSV.read(clean, DataFrame)
+                @test nrow(cdf) == 187                # 1969Q1–2015Q3 jointly finite
+                @test !any(isnan, Matrix(cdf))
+                @test run_json(["estimate", "var", clean, "--lags", "4"]).code == 0
+
+                # dropna --vars: a Vector{SubString} used to TypeError against
+                # real dropna's ::Union{Vector{String},Nothing} kwarg assertion
+                # (exit 1 on EVERY --vars invocation; the old no-op mock hid it).
+                rronly = joinpath(dir, "rr_only.csv")
+                @test run_json(["data", "dropna", out, "--vars", "rr",
+                                "--format", "csv", "-o", rronly]).code == 0
+                @test nrow(CSV.read(rronly, DataFrame)) == 156
+                # Unknown --vars entry is typed data (3), not upstream's exit 1.
+                @test run_json(["data", "dropna", out, "--vars", "nope"]).code == 3
+
+                # keeprows guards: bare error()/raw parse/BoundsError all exited 1.
+                win = joinpath(dir, "win.csv")
+                @test run_json(["data", "keeprows", out, "--rows", "37:192",
+                                "--format", "csv", "-o", win]).code == 0
+                @test nrow(CSV.read(win, DataFrame)) == 156
+                @test run_json(["data", "keeprows", out, "--rows", "1:999"]).code == 2
+                @test run_json(["data", "keeprows", out, "--rows", "abc"]).code == 2
+                @test run_json(["data", "keeprows", out]).code == 2
+            end
+        end
+
         @testset "~ is expanded by the loader (the REPL has no shell)" begin
             mktempdir() do dir
                 CSV.write(joinpath(dir, "tilde.csv"), DataFrame(a=randn(20)))
