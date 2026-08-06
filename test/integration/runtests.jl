@@ -6110,6 +6110,100 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(fdir; recursive=true, force=true)
         end
 
+        @testset "structural routes (W7/#129)" begin
+            nk = tempname() * ".toml"
+            write(nk, """
+            [model]
+            parameters = { rho = 0.8, kappa = 0.3, phi = 1.5, sigma = 0.01 }
+            endogenous = ["ygap", "infl", "rate"]
+            exogenous = ["e", "mp"]
+            linear = true
+            [[model.equations]]
+            expr = "ygap[t] = rho * ygap[t-1] - 0.2 * rate[t] + sigma * e[t]"
+            [[model.equations]]
+            expr = "infl[t] = 0.5 * infl[t-1] + kappa * ygap[t]"
+            [[model.equations]]
+            expr = "rate[t] = phi * infl[t] + 0.01 * mp[t]"
+            """)
+
+            rn = run_json(["policy", "news", "dsge", nk, "--policy-shock", "mp",
+                           "--outcomes", "infl=infl,ygap=ygap",
+                           "--instruments", "rate=rate", "--horizon", "8"])
+            assert_envelope_ok(rn; label="policy news dsge")
+            sn = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rn.doc, :policy_causal_effects_summary)))
+            # The news menu is SQUARE by construction — the exact-solve regime.
+            @test sn["is_square"] == true && Int(sn["n_shocks"]) == 8
+            @test sn["source"] == "dsge"
+
+            # Behavioral discounting shrinks the menu; identity request refused
+            # implicitly (NaN sentinels), out-of-range refused explicitly.
+            rb = run_json(["policy", "news", "dsge", nk, "--policy-shock", "mp",
+                           "--outcomes", "infl=infl", "--horizon", "6",
+                           "--behavioral-m", "0.7"])
+            @test rb.code == 0
+            menu0 = named_table(rn.doc, :policy_causal_effects_menu)
+            @test run_json(["policy", "news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl", "--horizon", "6",
+                            "--behavioral-m", "1.5"]).code == 2
+
+            # History: forecast-revision counterfactual over a window.
+            rh = run_json(vcat(["policy", "history", "var", csv, "--shocks", "3",
+                                "--rule", "rate-peg", "--horizon", "12",
+                                "--t-range", "100:105"], maps))
+            assert_envelope_ok(rh; label="policy history var")
+            ht = named_table(rh.doc, :counterfactual_history)
+            @test ht !== nothing
+            @test length(unique(String[string(collect(r)[1]) for r in table_rows(ht)])) == 6
+            @test run_json(vcat(["policy", "history", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "4",
+                                 "--t-range", "100:110"], maps)).code == 2  # window > H−1
+
+            # Spanning: genuine square-vs-thin pair, machine-readable verdict.
+            rs = run_json(vcat(["policy", "spanning", "var", csv, nk,
+                                "--shocks", "3", "--nonpolicy-shock", "1",
+                                "--model-outcomes", "infl=infl,ygap=ygap",
+                                "--model-instruments", "rate=rate",
+                                "--policy-shock", "mp", "--rule", "rate-peg",
+                                "--horizon", "8"], maps))
+            assert_envelope_ok(rs; label="policy spanning var")
+            sv = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rs.doc, :spanning_verdict)))
+            @test haskey(sv, "spanned") && haskey(sv, "loading_inside")
+            @test 0.0 <= numv(sv["loading_inside"]) <= 1.0 + 1e-9
+            # name-agreement guard fires typed, before upstream's untyped error
+            @test run_json(vcat(["policy", "spanning", "var", csv, nk,
+                                 "--shocks", "3", "--nonpolicy-shock", "1",
+                                 "--model-outcomes", "pi=infl,gap=ygap",
+                                 "--model-instruments", "rate=rate",
+                                 "--policy-shock", "mp", "--rule", "rate-peg",
+                                 "--horizon", "8"], maps)).code == 2
+
+            # Sufficiency: population laboratory, no data. The 3-var NK with
+            # 2 shocks and 2 observables is invertible.
+            rf = run_json(["policy", "sufficiency", "dsge", nk,
+                           "--observables", "infl,rate", "--horizon", "12"])
+            assert_envelope_ok(rf; label="policy sufficiency dsge")
+            sf = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rf.doc, :sufficiency_summary)))
+            @test sf["invertible"] == true
+            fev = named_table(rf.doc, :forecast_sufficiency_fev_ratios)
+            @test all(numv(collect(r)[3]) >= 1.0 - 1e-9 for r in table_rows(fev))
+
+            # HA routes: the .jl/builtin HA path had ZERO T3 for a year — keep
+            # these small (huggett, tiny horizons) but PRESENT.
+            rj = run_json(["policy", "jacobian", "ha", "huggett",
+                           "--jac-output", "C", "--t-horizon", "20"])
+            @test rj.code == 0
+            jt = named_table(rj.doc, :sequence_space_jacobian_dc_dr)
+            @test jt !== nothing && length(table_rows(jt)) == 400   # T² tidy rows
+            rha = run_json(["policy", "news", "ha", "huggett",
+                            "--outcomes", "c=C", "--horizon", "4",
+                            "--t-horizon", "40"])
+            @test rha.code == 0
+            rm(nk; force=true)
+        end
+
         @testset "guards — typed, never exit 1" begin
             b = vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
                       "--nonpolicy-shock", "1"], maps)

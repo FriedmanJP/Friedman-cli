@@ -3,7 +3,7 @@
 
 Generated reference for `friedman policy` and its subcommands.
 
-**Leaves:** 16
+**Leaves:** 23
 
 ### `friedman policy counterfactual bvar`
 
@@ -220,6 +220,98 @@ Path to CSV data file
 
 ---
 
+### `friedman policy history bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule (REQUIRED; length ≤ H−1) |
+| `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
+| `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into bands |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_history_bvar` (Historical counterfactual from forecast revisions)
+
+---
+
+### `friedman policy history var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
+| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule (REQUIRED; length ≤ H−1) |
+| `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
+| `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
+| `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
+| `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into bands |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_history_var` (Historical counterfactual from forecast revisions)
+
+---
+
+### `friedman policy jacobian ha`
+
+HA model (builtin name or .jl HADSGESpec)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | HA model (builtin name or .jl HADSGESpec) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--input` | — | `String` | `r` | `r`, `w` | Price input: r \| w |
+| `--jac-output` | — | `String` | `""` | — | Household aggregate to differentiate, e.g. C or A (REQUIRED) |
+| `--t-horizon` | — | `Int64` | `300` | — | Jacobian dimension T (the table is T² rows) |
+| `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `policy_jacobian_ha` (Sequence-space household jacobian)
+
+---
+
 ### `friedman policy moments bvar`
 
 Path to CSV data file
@@ -290,6 +382,56 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `policy_moments_var` (Second moments under a counterfactual rule/loss)
+
+---
+
+### `friedman policy news dsge`
+
+DSGE model file (TOML or .jl DSGESpec)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | DSGE model file (TOML or .jl DSGESpec) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--policy-shock` | — | `String` | `""` | — | Exogenous shock the news menu perturbs (REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | name=model_variable map (SYMBOLS; REQUIRED) |
+| `--instruments` | — | `String` | `""` | — | name=model_variable map |
+| `--horizon` | — | `Int64` | `100` | — | News horizon H (one QZ of dimension n+H−1 — MW use 100) |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear solver (nonlinear menus unsupported upstream) |
+| `--chunk` | — | `Int64` | `0` | — | Shock columns per solve (0 = all at once) |
+| `--behavioral-m` | — | `Float64` | `NaN` | — | Cognitive discounting m in [0,1] (behavioral operator; square menus only) |
+| `--behavioral-theta` | — | `Float64` | `NaN` | — | Sticky-expectations theta in [0,1] |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `policy_news_dsge` (Square DSGE news menu)
+
+---
+
+### `friedman policy news ha`
+
+HA model (builtin name or .jl HADSGESpec)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | HA model (builtin name or .jl HADSGESpec) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--outcomes` | — | `String` | `""` | — | name=model_variable map (SYMBOLS; REQUIRED) |
+| `--instruments` | — | `String` | `""` | — | name=model_variable map (default rate=r) |
+| `--horizon` | — | `Int64` | `100` | — | News horizon H |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation (≥ H; < H+50 warns) |
+| `--rule-closure` | — | `String` | `administered` | `administered`, `market` | administered \| market (market: huggett-only; the wedge is exactly neutral there BY CONSTRUCTION) |
+| `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
+| `--behavioral-m` | — | `Float64` | `NaN` | — | Cognitive discounting m in [0,1] (behavioral operator; square menus only) |
+| `--behavioral-theta` | — | `Float64` | `NaN` | — | Sticky-expectations theta in [0,1] |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `policy_news_ha` (HA news menu via sequence-space jacobians)
 
 ---
 
@@ -563,6 +705,70 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `policy_optimal_var` (Optimal policy under a quadratic loss)
+
+---
+
+### `friedman policy spanning var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+| `model` | `String` | yes | — | DSGE model file for the FULL news menu |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
+| `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
+| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--lags` | `-p` | `Int64` | — | — | VAR lag order (default AIC) |
+| `--replications` | — | `Int64` | `0` | — | Bootstrap draws on the empirical menu |
+| `--nonpolicy-shock` | — | `String` | `""` | — | Baseline non-policy shock (REQUIRED) |
+| `--model-outcomes` | — | `String` | `""` | — | name=model_variable map for the news menu (SAME names as --outcomes) |
+| `--model-instruments` | — | `String` | `""` | — | name=model_variable map |
+| `--policy-shock` | — | `String` | `""` | — | Model shock behind the full news menu (REQUIRED) |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear DSGE solver |
+| `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
+| `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
+| `--tol` | — | `Float64` | `0.1` | — | Spanned-verdict tolerance on gap_rel |
+| `--n-sim` | — | `Int64` | `200` | — | Draw propagation for gap bands |
+| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_spanning_var` (Does the model choice matter for THIS counterfactual?)
+
+---
+
+### `friedman policy sufficiency dsge`
+
+DSGE model file (TOML or .jl DSGESpec)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | DSGE model file (TOML or .jl DSGESpec) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--observables` | — | `String` | `""` | — | Comma-separated model variables the econometrician sees (REQUIRED) |
+| `--horizon` | — | `Int64` | `40` | — | FEV comparison horizon |
+| `--method` | — | `String` | `gensys` | — | DSGE solve method |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `policy_sufficiency_dsge` (Population forecast-sufficiency laboratory (no data))
 
 ---
 

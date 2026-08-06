@@ -22,13 +22,13 @@ friedman
 ├── model     info
 ├── multipliers     nardl
 ├── nowcast     bridge | bvar | dfm | forecast | news
-├── policy     counterfactual bvar | counterfactual lp | counterfactual var | effects bvar | effects lp | effects sign | effects var | moments bvar | moments var | opp bvar | opp var | opp-sequence bvar | opp-sequence var | optimal bvar | optimal lp | optimal var
+├── policy     counterfactual bvar | counterfactual lp | counterfactual var | effects bvar | effects lp | effects sign | effects var | history bvar | history var | jacobian ha | moments bvar | moments var | news dsge | news ha | opp bvar | opp var | opp-sequence bvar | opp-sequence var | optimal bvar | optimal lp | optimal var | spanning var | sufficiency dsge
 ├── predict     3sls | aparch | arch | arfima | arima | bvar | cgarch | dynamic | egarch | favar | fiegarch | figarch | garch | garch-midas | gdfm | gjr-garch | igarch | logit | mlogit | ms | ms-ar | nbreg | ologit | oprobit | piv | plogit | poisson | pprobit | preg | probit | reg | sarima | statespace | static | sur | sv | var | vecm
 ├── residuals     3sls | aparch | arch | arfima | arima | bvar | cgarch | dynamic | egarch | favar | fiegarch | figarch | garch | garch-midas | gdfm | gjr-garch | igarch | logit | mlogit | ms | ms-ar | nbreg | ologit | oprobit | piv | plogit | poisson | pprobit | preg | probit | reg | sarima | setar | star | statespace | static | sur | sv | var | vecm
 ├── spectral     acf | cross | density | periodogram | transfer
 └── test     adf | adf-2break | anderson-rubin | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breitung | breusch-pagan | chow | cips | cusum | cusumsq | dfgls | dh-causality | dispersion | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fisher-johansen | fourier-adf | fourier-kpss | glejser | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | harvey | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | influence | ips | johansen | kao | kpss | ljung-box | llc | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | recursive-residuals | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | white | wild-cluster | wooldridge-ar | za
 
-Total: 19 top-level commands, 403 leaves (from registry).
+Total: 19 top-level commands, 410 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -49,7 +49,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`model`](generated/model.md) — 1 leaves
 - [`multipliers`](generated/multipliers.md) — 1 leaves
 - [`nowcast`](generated/nowcast.md) — 5 leaves
-- [`policy`](generated/policy.md) — 16 leaves
+- [`policy`](generated/policy.md) — 23 leaves
 - [`predict`](generated/predict.md) — 38 leaves
 - [`residuals`](generated/residuals.md) — 40 leaves
 - [`spectral`](generated/spectral.md) — 5 leaves

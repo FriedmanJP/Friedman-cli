@@ -1,7 +1,7 @@
 # policy
 
 McKay–Wolf and Barnichon–Mesters policy counterfactuals (MEMs 0.8.0 counterfactual
-module). 16 subcommands across six verbs.
+module). 23 subcommands across eleven verbs.
 
 The core idea: the causal effects of identified **policy shocks** form a *menu*; a rule
 counterfactual re-weights that menu so an alternative policy rule holds along the
@@ -16,6 +16,22 @@ the exercise is Lucas-robust — no model re-estimation under the new rule.
 | `policy moments var/bvar` | Unconditional second moments under a counterfactual rule/loss |
 | `policy opp var/bvar` | Barnichon–Mesters optimal policy perturbation (point/simulated/constrained) |
 | `policy opp-sequence var/bvar` | OPP across forecast vintages with the exact revision decomposition |
+| `policy news dsge/ha` | **Square** model news menus (DSGE via one QZ of dimension n+H−1; HA via sequence-space jacobians) |
+| `policy jacobian ha` | Standalone household sequence-space jacobian (bare `T²`-row tidy matrix; no plot) |
+| `policy history var/bvar` | Historical counterfactual over an observation window — from **forecast revisions**, never identified shocks (raw forecasts double-count) |
+| `policy spanning var` | Does the model choice matter for THIS counterfactual? (thin empirical vs full news menu) |
+| `policy sufficiency dsge` | Population forecast-sufficiency laboratory (no data; invertibility is sufficient, not necessary) |
+
+Structural-route notes (v0.9.2 W7): the DSGE/HA maps are `name=model_symbol`
+(`--outcomes infl=pi`), not column indices. `--behavioral-m`/`--behavioral-theta`
+(both ∈ [0,1]) apply Gabaix cognitive discounting / sticky expectations on the **news
+leaves only** — behavioral operators refuse thin empirical menus (already
+behavior-inclusive), and applying them to a GE-closed menu is an approximation (CMW
+apply per block before closure). On `policy news ha`, `--rule-closure market` is
+huggett-only and its wedge is exactly neutral **by construction** (the analytic GE
+check — the flat output is correct, not broken); `--t-horizon < H+50` adds a
+truncation warning to the summary. `policy history` requires the window length
+`≤ H−1`; `wedge_builder` customization is closure-gated (see the W8 decision record).
 
 **Square vs thin is the module's central axis.** A *square* menu (as many policy shocks
 as horizons, `is_square = true`) supports an exact solve — the rule holds exactly. A

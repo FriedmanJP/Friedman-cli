@@ -8460,6 +8460,124 @@ function opp_sequence(forecasts::AbstractVector, ce::PolicyCausalEffects{T},
                    nothing, nothing, copy(ce.shock_labels), loss.name)
 end
 
+# ── W7/#129: structural routes ───────────────────────────────────────────────
+
+struct CounterfactualHistory{T<:AbstractFloat}
+    dates::Vector{String}
+    varnames::Vector{Symbol}
+    realized::Matrix{T}
+    cf::Matrix{T}
+    cf_bands::Union{Nothing,Array{T,3}}
+    nu::Matrix{T}
+    rel_residual::Vector{T}
+    policy_name::String
+    H::Int
+    quantile_levels::Vector{T}
+    n_draws_used::Int
+    n_draws_failed::Int
+end
+
+struct SpanningDiagnostic{T<:AbstractFloat}
+    gap::Vector{T}
+    gap_rel::Vector{T}
+    loading_inside::T
+    rel_residual_emp::T
+    spanned::Bool
+    outcomes::Vector{Symbol}
+    x_cf_emp::Vector{Vector{T}}
+    x_cf_full::Vector{Vector{T}}
+    bands_gap::Union{Nothing,Vector{Matrix{T}}}
+end
+
+struct ForecastSufficiency{T<:AbstractFloat}
+    observables::Vector{Symbol}
+    fev_ratio::Matrix{T}
+    one_step_ratio::Vector{T}
+    invertible::Bool
+    H::Int
+end
+
+function policy_news_matrix(spec::DSGESpec, policy_shock::Symbol,
+                            outcomes::AbstractVector{<:Pair{Symbol,Symbol}},
+                            instruments::AbstractVector{<:Pair{Symbol,Symbol}}=Pair{Symbol,Symbol}[];
+                            H::Int=100, solver::Symbol=:gensys, chunk::Int=0)
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    solver in (:gensys, :klein, :blanchard_kahn) || throw(ArgumentError(
+        "policy_news_matrix supports the linear solvers :gensys/:klein/:blanchard_kahn only (nonlinear news menus are out of scope), got :$solver"))
+    isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
+    out_syms = Symbol[first(p) for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    # SQUARE by construction: n_s = H news columns, decaying loadings.
+    mk() = [Float64(0.5)^(abs(h - k)) * 0.1 for h in 1:H, k in 1:H]
+    PolicyCausalEffects{Float64}(out_syms, ins_syms,
+        [mk() for _ in out_syms], [mk() for _ in ins_syms], nothing, nothing,
+        H, ["news $k" for k in 1:H], :dsge)
+end
+
+function behavioral(ce::PolicyCausalEffects{T}; m::Real=1.0, theta::Real=0.0) where T
+    (0 <= m <= 1 && 0 <= theta <= 1) || throw(ArgumentError(
+        "behavioral: expected m and theta in [0, 1], got m=$m, theta=$theta"))
+    is_square(ce) || throw(ArgumentError(
+        "behavioral operators need a square (model news) container; empirical thin menus are already behavior-inclusive"))
+    scale = T(m) * (1 - T(theta) / 2)
+    PolicyCausalEffects{T}(copy(ce.outcomes), copy(ce.instruments),
+        [scale .* M for M in ce.Theta_x], [scale .* M for M in ce.Theta_z],
+        nothing, nothing, ce.H, copy(ce.shock_labels), ce.source)
+end
+
+function counterfactual_history(mdl::Union{VARModel{T},BVARPosterior{T}},
+                                data::AbstractMatrix{<:Real},
+                                t_range::AbstractUnitRange{Int},
+                                ce::PolicyCausalEffects,
+                                policy::Union{PolicyRule,PolicyLoss};
+                                outcomes::AbstractVector{<:Pair},
+                                instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[],
+                                H::Int=ce.H, dates=nothing, wedge_builder=nothing,
+                                draws::Symbol=:auto,
+                                quantiles=(0.16, 0.5, 0.84)) where T
+    H == ce.H || throw(ArgumentError(
+        "H = $H must equal the container H = $(ce.H)"))
+    length(t_range) <= H - 1 || throw(ArgumentError(
+        "window length $(length(t_range)) must be <= H - 1 = $(H - 1)"))
+    syms = vcat(Symbol[first(p) for p in outcomes], Symbol[first(p) for p in instruments])
+    nd = length(t_range); nv = length(syms)
+    ds = dates === nothing ? [string("t", t) for t in t_range] : collect(String, dates)
+    realized = Matrix{Float64}(data[collect(t_range), 1:nv])
+    pname = policy isa PolicyRule ? policy.name : policy.name
+    CounterfactualHistory{Float64}(ds, syms, realized, 0.9 .* realized, nothing,
+        zeros(nd, size(ce.Theta_x[1], 2)), fill(0.02, nd), pname, H,
+        collect(Float64, quantiles), 0, 0)
+end
+
+function spanning_diagnostic(base::BaselinePath, ce_emp::PolicyCausalEffects,
+                             ce_full::PolicyCausalEffects,
+                             policy::Union{PolicyRule,PolicyLoss};
+                             draws::Symbol=:auto, tol::Real=0.1, n_sim::Int=200,
+                             quantiles=(0.16, 0.5, 0.84), rng=nothing)
+    is_square(ce_full) || throw(ArgumentError(
+        "ce_full must be a square (model-implied) container"))
+    ce_emp.H == ce_full.H || throw(ArgumentError(
+        "container horizons differ: emp H = $(ce_emp.H) vs full H = $(ce_full.H)"))
+    ce_emp.outcomes == ce_full.outcomes || throw(ArgumentError(
+        "container outcomes differ: $(ce_emp.outcomes) vs $(ce_full.outcomes)"))
+    H = ce_emp.H
+    xe = [0.1 .* ones(H) for _ in ce_emp.outcomes]
+    xf = [0.12 .* ones(H) for _ in ce_emp.outcomes]
+    gap = fill(0.02, H)
+    SpanningDiagnostic{Float64}(gap, fill(0.05, H), 0.95, 0.04,
+        maximum(fill(0.05, H)) < Float64(tol), copy(ce_emp.outcomes), xe, xf, nothing)
+end
+
+function forecast_sufficiency(sol::Union{DSGESolution,PerturbationSolution},
+                              observables::AbstractVector{Symbol}; H::Int=40)
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    isempty(observables) && throw(ArgumentError(
+        "observables: expected at least one observable"))
+    n = length(observables)
+    ForecastSufficiency{Float64}(collect(observables),
+        ones(H, n) .+ 0.01, fill(1.01, n), true, H)
+end
+
 export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterfactual,
        is_square, policy_causal_effects, baseline_path, policy_counterfactual,
        rate_peg_rule, rate_target_rule, inflation_target_rule, output_gap_rule,
@@ -8468,7 +8586,10 @@ export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterf
        optimal_policy, optimal_rule, counterfactual_moments,
        PolicyForecast, OPPResult, OPPSequence, OPPConstraint, PathFloorConstraint,
        policy_forecast, interp_to_quarterly, opp, estimate_opp, constrained_opp,
-       zlb_constraint, opp_sequence
+       zlb_constraint, opp_sequence,
+       CounterfactualHistory, SpanningDiagnostic, ForecastSufficiency,
+       policy_news_matrix, sequence_jacobian, behavioral, counterfactual_history,
+       spanning_diagnostic, forecast_sufficiency
 
 # NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.
 #
@@ -10768,5 +10889,37 @@ const _SERIALIZABLE_TYPES = Dict{String,Type}(
     n => getfield(@__MODULE__, Symbol(n))
     for n in _SERIALIZABLE_TYPE_NAMES if isdefined(@__MODULE__, Symbol(n))
 )
+
+
+# W7 HA-typed mocks live BELOW the HA type definitions — mocks.jl is one
+# flat top-to-bottom module and a typed signature is resolved at include time
+# (the standing forward-reference lesson).
+function policy_causal_effects(spec::HADSGESpec, ss::HASteadyState;
+                               outcomes::AbstractVector{<:Pair{Symbol,Symbol}},
+                               instruments::AbstractVector{<:Pair{Symbol,Symbol}}=[:rate => :r],
+                               H::Int=100, T_horizon::Int=300,
+                               rule_closure::Symbol=:administered, dx::Real=1e-4)
+    rule_closure in (:administered, :market) || throw(ArgumentError(
+        "rule_closure: expected :administered or :market, got :$rule_closure"))
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    T_horizon >= H || throw(ArgumentError(
+        "T_horizon = $T_horizon must be >= H = $H"))
+    out_syms = Symbol[first(p) for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    mk() = [Float64(0.6)^(abs(h - k)) * 0.05 for h in 1:H, k in 1:H]
+    PolicyCausalEffects{Float64}(out_syms, ins_syms,
+        [mk() for _ in out_syms], [mk() for _ in ins_syms], nothing, nothing,
+        H, ["news $k" for k in 1:H], :ha)
+end
+
+function sequence_jacobian(spec::HADSGESpec, ss::HASteadyState,
+                           input::Symbol, output::Symbol;
+                           T_horizon::Int=300, dx::Real=1e-4)
+    input in (:r, :w) || throw(ArgumentError(
+        "input: expected :r or :w, got :$input"))
+    T_horizon >= 1 || throw(ArgumentError("T_horizon: expected >= 1, got $T_horizon"))
+    [Float64(0.7)^(abs(i - j)) * 0.1 for i in 1:T_horizon, j in 1:T_horizon]
+end
+
 
 end # module

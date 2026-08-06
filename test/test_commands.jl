@@ -1853,6 +1853,65 @@ end  # Shared utilities
                 @test e4 isa CliError && e4.code == "usage/missing"   # --sd required
             end
 
+            @testset "structural routes (W7/#129)" begin
+                nk = joinpath(dir, "nk.toml")
+                write(nk, """
+                [model]
+                parameters = { rho = 0.8 }
+                endogenous = ["ygap", "infl", "rate"]
+                exogenous = ["e", "mp"]
+                linear = true
+                [[model.equations]]
+                expr = "ygap[t] = rho * ygap[t-1] + e[t]"
+                [[model.equations]]
+                expr = "infl[t] = 0.3 * ygap[t]"
+                [[model.equations]]
+                expr = "rate[t] = 1.5 * infl[t] + mp[t]"
+                """)
+                dn = _pdoc(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl,ygap=ygap",
+                            "--instruments", "rate=rate", "--horizon", "6"])
+                @test dn.status == "ok"
+                sn = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dn.data[:policy_causal_effects_summary].rows)
+                @test sn["is_square"] == true && sn["n_shocks"] == 6
+
+                # Behavioral is an option on the news leaves; values guarded [0,1].
+                db = _pdoc(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl", "--horizon", "4",
+                            "--behavioral-m", "0.8"])
+                sb = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in db.data[:policy_causal_effects_summary].rows)
+                @test haskey(sb, "behavioral")
+                eb = _perr(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl", "--horizon", "4",
+                            "--behavioral-m", "1.5"])
+                @test eb isa CliError && eb.code == "usage/invalid"
+                # Sym-pair parser: an integer column spec is the WRONG shape here.
+                es = _perr(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl", "--horizon", "4"])
+                @test es isa CliError && es.code == "usage/invalid"
+
+                dh = _pdoc(["history", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--horizon", "8",
+                            "--t-range", "50:54"])
+                @test dh.status == "ok"
+                @test haskey(dh.data, :counterfactual_history)
+                # window must fit inside H−1
+                eh = _perr(["history", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1", "--rule", "rate-peg",
+                            "--horizon", "4", "--t-range", "50:60"])
+                @test eh isa CliError && eh.code == "usage/invalid"
+
+                dsuf = _pdoc(["sufficiency", "dsge", nk,
+                              "--observables", "infl,rate", "--horizon", "6"])
+                @test dsuf.status == "ok"
+                ss2 = Dict(String(collect(r)[1]) => collect(r)[2]
+                           for r in dsuf.data[:sufficiency_summary].rows)
+                @test haskey(ss2, "invertible")
+            end
+
             @testset "square container → exact solve enforces the peg" begin
                 # 2 policy shocks with H=2 makes the menu square: the pegged
                 # instrument path must be EXACTLY zero and rel_residual ~0.

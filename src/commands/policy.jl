@@ -1091,6 +1091,353 @@ function _render_opp_sequence(s; format::String="table", output::String="")
     output_kv(pairs; format=format, title="OPP Sequence Summary")
 end
 
+# ── W7/#129: structural routes ──────────────────────────────
+
+"""Second Pair shape (`Symbol => Symbol`): model-variable maps for the DSGE/HA
+news menus. Deliberately NOT shared with `_parse_cf_pairs` — the empirical maps
+resolve to IRF columns (Int|String), these to model symbols."""
+function _parse_cf_sym_pairs(spec::String, opt::String; required::Bool=true)
+    out = Pair{Symbol,Symbol}[]
+    for tok in split(spec, ",")
+        tok = strip(tok)
+        isempty(tok) && continue
+        parts = split(tok, "=")
+        (length(parts) == 2 && !isempty(strip(parts[1])) && !isempty(strip(parts[2]))) ||
+            throw(CliError("usage/invalid",
+                "policy: $opt entries must be name=model_variable (got '$tok')";
+                hint="e.g. $opt infl=pi,ygap=y (model SYMBOLS, not column indices)"))
+        push!(out, Symbol(strip(parts[1])) => Symbol(strip(parts[2])))
+    end
+    (required && isempty(out)) && throw(CliError("usage/missing",
+        "policy: $opt is required (module name = model variable symbol)"))
+    return out
+end
+
+"""Optional behavioral discounting on a SQUARE menu. Sentinel NaN defaults let
+the handler distinguish "not requested" from the identity values (m=1, θ=0 ARE
+the identity — a bare invocation would be a silent no-op otherwise)."""
+function _apply_behavioral(ce, m::Float64, theta::Float64)
+    isnan(m) && isnan(theta) && return ce, false
+    mm = isnan(m) ? 1.0 : m
+    tt = isnan(theta) ? 0.0 : theta
+    (0.0 <= mm <= 1.0) || throw(CliError("usage/invalid",
+        "policy: --behavioral-m must be in [0, 1] (got $mm)"))
+    (0.0 <= tt <= 1.0) || throw(CliError("usage/invalid",
+        "policy: --behavioral-theta must be in [0, 1] (got $tt)"))
+    return behavioral(ce; m=mm, theta=tt), true
+end
+
+function _policy_news(route::String; model::String, policy_shock::String="",
+                      outcomes::String="", instruments::String="",
+                      horizon::Int=100, solver::String="gensys", chunk::Int=0,
+                      t_horizon::Int=300, rule_closure::String="administered",
+                      dx::Float64=1e-4, behavioral_m::Float64=NaN,
+                      behavioral_theta::Float64=NaN,
+                      output::String="", format::String="table")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    chunk >= 0 || throw(CliError("usage/invalid",
+        "policy news: --chunk must be ≥ 0 (got $chunk)"))
+    ce, applied = try
+        if route == "dsge"
+            solver in ("gensys", "klein", "blanchard-kahn") ||
+                throw(CliError("usage/invalid-option",
+                    "invalid --solver '$solver'; must be gensys, klein or blanchard-kahn (linear only)"))
+            isempty(strip(policy_shock)) && throw(CliError("usage/missing",
+                "policy news dsge: --policy-shock is required (the exogenous the news menu perturbs)"))
+            out_pairs = _parse_cf_sym_pairs(outcomes, "--outcomes")
+            ins_pairs = _parse_cf_sym_pairs(instruments, "--instruments"; required=false)
+            spec = _load_dsge_model(model)
+            _status("DSGE news menu: shock=$policy_shock, H=$horizon (one QZ of dimension n+H−1)")
+            _status()
+            # The menu build EVALUATES the runtime-loaded spec's residual fns →
+            # world-age barrier, exactly like the RA solve path.
+            ce0 = _dsge_call(policy_news_matrix, spec, Symbol(policy_shock),
+                             out_pairs, ins_pairs;
+                             H=horizon, solver=Symbol(replace(solver, '-' => '_')),
+                             chunk=chunk)
+            _apply_behavioral(ce0, behavioral_m, behavioral_theta)
+        else  # ha
+            t_horizon >= horizon || throw(CliError("usage/invalid",
+                "policy news ha: --t-horizon ($t_horizon) must be ≥ --horizon ($horizon)"))
+            dx > 0 || throw(CliError("usage/invalid",
+                "policy news ha: --dx must be > 0 (got $dx)"))
+            rule_closure in ("administered", "market") ||
+                throw(CliError("usage/invalid-option",
+                    "invalid --rule-closure '$rule_closure'; must be administered or market (market is huggett-only upstream)"))
+            out_pairs = _parse_cf_sym_pairs(outcomes, "--outcomes")
+            ins_pairs = isempty(strip(instruments)) ? [:rate => :r] :
+                        _parse_cf_sym_pairs(instruments, "--instruments")
+            spec = _load_ha_model(model)
+            _status("HA news menu: H=$horizon, T_horizon=$t_horizon, closure=$rule_closure")
+            _status()
+            ss = compute_steady_state(spec)
+            # Verified on the tag: the CF HA path never invokes the aggregate
+            # spec's residual closures — no invokelatest (the W13 lesson cuts
+            # both ways; do not pattern-match the RA fix).
+            ce0 = policy_causal_effects(spec, ss; outcomes=out_pairs,
+                                        instruments=ins_pairs, H=horizon,
+                                        T_horizon=t_horizon,
+                                        rule_closure=Symbol(rule_closure), dx=dx)
+            _apply_behavioral(ce0, behavioral_m, behavioral_theta)
+        end
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "policy news menu"))
+    end
+
+    output_result(_policy_effects_table(ce); format=Symbol(format), output=output,
+                  title="Policy Causal Effects Menu")
+    s = _policy_effects_summary(ce, :none)
+    applied && push!(s, "behavioral" =>
+        "m=$(isnan(behavioral_m) ? 1.0 : behavioral_m), theta=$(isnan(behavioral_theta) ? 0.0 : behavioral_theta) (approximation on a GE-closed menu — CMW apply per block before closure)")
+    route == "ha" && t_horizon < horizon + 50 && push!(s, "truncation_warning" =>
+        "T_horizon = $t_horizon < H + 50 — the sequence-space truncation may bite; grow --t-horizon")
+    output_kv(s; format=format, title="Policy Causal Effects Summary")
+    return ce
+end
+
+function _policy_jacobian(; model::String, input::String="r", jac_output::String="",
+                          t_horizon::Int=300, dx::Float64=1e-4,
+                          output::String="", format::String="table")
+    input in ("r", "w") || throw(CliError("usage/invalid-option",
+        "invalid --input '$input'; must be r or w"))
+    t_horizon >= 1 || throw(CliError("usage/invalid",
+        "policy jacobian: --t-horizon must be ≥ 1 (got $t_horizon)"))
+    dx > 0 || throw(CliError("usage/invalid",
+        "policy jacobian: --dx must be > 0 (got $dx)"))
+    isempty(strip(jac_output)) && throw(CliError("usage/missing",
+        "policy jacobian: --jac-output is required (the household aggregate to differentiate, e.g. C or A)"))
+    J = try
+        spec = _load_ha_model(model)
+        ss = compute_steady_state(spec)
+        _status("Sequence-space jacobian: d$(jac_output)/d$(input), T=$t_horizon")
+        _status()
+        sequence_jacobian(spec, ss, Symbol(input), Symbol(jac_output);
+                          T_horizon=t_horizon, dx=dx)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "sequence jacobian"))
+    end
+    # A bare T×T Matrix upstream (no report/plot recipes) — tidy long render;
+    # at T=300 this is 90k rows, which is the data contract, not a bug.
+    rows = Int[]; cols = Int[]; vals = Float64[]
+    for j in axes(J, 2), i in axes(J, 1)
+        push!(rows, i); push!(cols, j)
+        push!(vals, round(Float64(J[i, j]); digits=8))
+    end
+    output_result(DataFrame(row=rows, col=cols, value=vals);
+                  format=Symbol(format), output=output,
+                  title="Sequence-Space Jacobian d$(jac_output)/d$(input)")
+end
+
+function _policy_history(route::String; data::String, lags=nothing, horizon::Int=20,
+                         draws::Int=2000, replications::Int=0, n_draws::Int=500,
+                         config::String="", shocks::String="", outcomes::String="",
+                         instruments::String="", normalize::String="none",
+                         rule::String="", rule_config::String="",
+                         loss_config::String="", t_range::String="",
+                         use_draws::String="auto",
+                         quantiles::String="0.16,0.5,0.84",
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    use_draws in ("auto", "on", "off") || throw(CliError("usage/invalid-option",
+        "invalid --use-draws '$use_draws'; must be auto, on or off"))
+    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
+        "invalid --normalize '$normalize'; must be none or instrument-impact"))
+    norm_sym = normalize == "none" ? :none : :instrument_impact
+    qs = _parse_cf_quantiles(quantiles)
+    m = match(r"^(\d+):(\d+)$", strip(t_range))
+    m === nothing && throw(CliError("usage/missing",
+        "policy history: --t-range lo:hi is required (the observation window to re-run under the counterfactual rule)"))
+    lo, hi = parse(Int, m[1]), parse(Int, m[2])
+    (1 <= lo <= hi) || throw(CliError("usage/invalid",
+        "policy history: --t-range needs 1 ≤ lo ≤ hi (got $t_range)"))
+    (hi - lo + 1) <= horizon - 1 || throw(CliError("usage/invalid",
+        "policy history: window length $(hi - lo + 1) must be ≤ H − 1 = $(horizon - 1) (grow --horizon or shrink the window)"))
+    shock_list = _parse_cf_shocks(shocks)
+    out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
+    ins_pairs = _parse_cf_pairs(instruments, "--instruments"; required=false)
+    out_syms = Symbol[first(p) for p in out_pairs]
+    ins_syms = Symbol[first(p) for p in ins_pairs]
+    has_rule = !isempty(rule) || !isempty(rule_config)
+    has_loss = !isempty(loss_config)
+    (has_rule && has_loss) && throw(CliError("usage/invalid",
+        "policy history: give a rule (--rule/--rule-config) OR a loss (--loss-config), not both"))
+    (has_rule || has_loss) || throw(CliError("usage/missing",
+        "policy history: a counterfactual policy is required — --rule/--rule-config or --loss-config"))
+    policy = has_rule ?
+        _build_policy_rule(rule, rule_config, horizon, out_syms, ins_syms) :
+        first(_build_policy_loss(loss_config, horizon, out_syms, ins_syms))
+
+    _status("Counterfactual history ($route): t=$t_range, H=$horizon")
+    # Built from FORECAST REVISIONS, never identified shocks (raw forecasts
+    # double-count — CMW subtlety #9); rests on forecast sufficiency.
+    _status()
+
+    hist = try
+        ce, _, est = _policy_menu(route; data=data, lags=lags, horizon=horizon,
+                                  draws=draws, replications=replications,
+                                  n_draws=n_draws, config=config, shocks=shock_list,
+                                  outcomes=out_pairs, instruments=ins_pairs,
+                                  normalize=norm_sym)
+        Y, varnames = load_multivariate_data(data)
+        counterfactual_history(est, Y, lo:hi, ce, policy;
+                               outcomes=out_pairs, instruments=ins_pairs,
+                               H=horizon, draws=Symbol(use_draws),
+                               quantiles=Tuple(qs))
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "counterfactual history"))
+    end
+
+    _maybe_plot(hist; plot=plot, plot_save=plot_save)
+    nd_, nv_ = size(hist.realized)
+    dv = String[]; vv = String[]; rv = Float64[]; cv = Float64[]; rr = Float64[]
+    for d in 1:nd_, v in 1:nv_
+        push!(dv, hist.dates[d]); push!(vv, String(hist.varnames[v]))
+        push!(rv, round(Float64(hist.realized[d, v]); digits=6))
+        push!(cv, round(Float64(hist.cf[d, v]); digits=6))
+        push!(rr, round(Float64(hist.rel_residual[d]); digits=6))
+    end
+    output_result(DataFrame(date=dv, variable=vv, realized=rv,
+                            counterfactual=cv, rel_residual=rr);
+                  format=Symbol(format), output=output,
+                  title="Counterfactual History")
+    output_kv(Pair{String,Any}[
+        "policy" => hist.policy_name,
+        "H" => hist.H,
+        "n_dates" => length(hist.dates),
+        "n_draws_used" => hist.n_draws_used,
+        "n_draws_failed" => hist.n_draws_failed,
+        "note" => "built from forecast revisions, never identified shocks (raw forecasts double-count); rests on forecast sufficiency — see policy sufficiency",
+    ]; format=format, title="History Summary")
+    return hist
+end
+
+function _policy_spanning(; data::String, model::String, lags=nothing,
+                          horizon::Int=20, replications::Int=0,
+                          shocks::String="", nonpolicy_shock::String="",
+                          outcomes::String="", instruments::String="",
+                          model_outcomes::String="", model_instruments::String="",
+                          policy_shock::String="", solver::String="gensys",
+                          rule::String="", rule_config::String="", tol::Float64=0.1,
+                          n_sim::Int=200, quantiles::String="0.16,0.5,0.84",
+                          output::String="", format::String="table",
+                          plot::Bool=false, plot_save::String="")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    tol > 0 || throw(CliError("usage/invalid",
+        "policy spanning: --tol must be > 0 (got $tol)"))
+    n_sim >= 0 || throw(CliError("usage/invalid",
+        "policy spanning: --n-sim must be ≥ 0 (got $n_sim)"))
+    qs = _parse_cf_quantiles(quantiles)
+    isempty(strip(nonpolicy_shock)) && throw(CliError("usage/missing",
+        "policy spanning: --nonpolicy-shock is required"))
+    isempty(strip(policy_shock)) && throw(CliError("usage/missing",
+        "policy spanning: --policy-shock is required (the model shock behind the FULL news menu)"))
+    np_shock = (v = tryparse(Int, strip(nonpolicy_shock)); v === nothing ?
+                String(strip(nonpolicy_shock)) : v)
+    shock_list = _parse_cf_shocks(shocks)
+    out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
+    ins_pairs = _parse_cf_pairs(instruments, "--instruments"; required=false)
+    mo_pairs = _parse_cf_sym_pairs(model_outcomes, "--model-outcomes")
+    mi_pairs = _parse_cf_sym_pairs(model_instruments, "--model-instruments";
+                                   required=false)
+    out_syms = Symbol[first(p) for p in out_pairs]
+    ins_syms = Symbol[first(p) for p in ins_pairs]
+    # The diagnostic compares by exact symbol equality — enforce name agreement
+    # HERE with a typed message, before upstream's ArgumentError does it untyped.
+    Symbol[first(p) for p in mo_pairs] == out_syms || throw(CliError("usage/invalid",
+        "policy spanning: --model-outcomes must use the SAME names in the SAME order as --outcomes ($(join(out_syms, ", ")))"))
+    Symbol[first(p) for p in mi_pairs] == ins_syms || throw(CliError("usage/invalid",
+        "policy spanning: --model-instruments must use the SAME names in the SAME order as --instruments"))
+    pol = _build_policy_rule(rule, rule_config, horizon, out_syms, ins_syms)
+
+    _status("Spanning diagnostic: empirical menu vs full news menu, H=$horizon")
+    _status()
+
+    sp = try
+        ce_emp, ir, _ = _policy_menu("var"; data=data, lags=lags, horizon=horizon,
+                                     draws=2000, replications=replications,
+                                     n_draws=500, config="", shocks=shock_list,
+                                     outcomes=out_pairs, instruments=ins_pairs,
+                                     normalize=:none)
+        base = baseline_path(ir, np_shock, out_pairs, ins_pairs; H=horizon)
+        spec = _load_dsge_model(model)
+        ce_full = _dsge_call(policy_news_matrix, spec, Symbol(policy_shock),
+                             mo_pairs, mi_pairs; H=horizon,
+                             solver=Symbol(replace(solver, '-' => '_')))
+        spanning_diagnostic(base, ce_emp, ce_full, pol;
+                            tol=tol, n_sim=n_sim, quantiles=Tuple(qs))
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "spanning diagnostic"))
+    end
+
+    _maybe_plot(sp; plot=plot, plot_save=plot_save)
+    gv = String[]; gh = Int[]; ge = Float64[]; gf = Float64[]
+    gg = Float64[]; gr = Float64[]
+    H = length(sp.gap) ÷ max(length(sp.outcomes), 1)
+    idx = 0
+    for (i, sym) in enumerate(sp.outcomes), h in 1:length(sp.x_cf_emp[i])
+        idx += 1
+        push!(gv, String(sym)); push!(gh, h)
+        push!(ge, round(Float64(sp.x_cf_emp[i][h]); digits=6))
+        push!(gf, round(Float64(sp.x_cf_full[i][h]); digits=6))
+    end
+    output_result(DataFrame(variable=gv, horizon=gh, cf_thin=ge, cf_full=gf);
+                  format=Symbol(format), output=output,
+                  title="Spanning: thin vs full counterfactual paths")
+    output_kv(Pair{String,Any}[
+        # The verdict is a convenience; the raw numbers are the result.
+        "spanned" => sp.spanned,
+        "gap_rel (max)" => round(maximum(Float64.(sp.gap_rel)); digits=6),
+        "loading_inside" => round(Float64(sp.loading_inside); digits=6),
+        "rel_residual_emp" => round(Float64(sp.rel_residual_emp); digits=6),
+        "interpretation" => "does the model choice matter for THIS counterfactual? spanned=true → the thin empirical menu already carries it",
+    ]; format=format, title="Spanning Verdict")
+    return sp
+end
+
+function _policy_sufficiency(; model::String, observables::String="",
+                             horizon::Int=40, method::String="gensys",
+                             output::String="", format::String="table",
+                             plot::Bool=false, plot_save::String="")
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    isempty(strip(observables)) && throw(CliError("usage/missing",
+        "policy sufficiency: --observables is required (comma-separated model variables the econometrician sees)"))
+    obs = Symbol[Symbol(strip(t)) for t in split(observables, ",") if !isempty(strip(t))]
+    fs = try
+        spec = _load_dsge_model(model)
+        sol = _solve_dsge(spec; method=method)
+        # Pure population laboratory — consumes NO data.
+        forecast_sufficiency(sol, obs; H=horizon)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "forecast sufficiency"))
+    end
+    _maybe_plot(fs; plot=plot, plot_save=plot_save)
+    fv = String[]; fh = Int[]; fr = Float64[]
+    for (j, s) in enumerate(fs.observables), h in 1:fs.H
+        push!(fv, String(s)); push!(fh, h)
+        push!(fr, round(Float64(fs.fev_ratio[h, j]); digits=6))
+    end
+    output_result(DataFrame(observable=fv, horizon=fh, fev_ratio=fr);
+                  format=Symbol(format), output=output,
+                  title="Forecast Sufficiency FEV Ratios")
+    output_kv(Pair{String,Any}[
+        "invertible" => fs.invertible,
+        "one_step_ratio" => join(round.(Float64.(fs.one_step_ratio); digits=6), ", "),
+        "H" => fs.H,
+        "note" => "fev_ratio ≥ 1 = Wold-info FEV over full-info FEV; invertibility is SUFFICIENT for forecast sufficiency, not necessary",
+    ]; format=format, title="Sufficiency Summary")
+    return fs
+end
+
 # ── Registry ────────────────────────────────────────────────
 
 const _POLICY_COMMON = [
@@ -1347,7 +1694,176 @@ function register_policy_commands!()
             handler=wrap_legacy((; kw...) -> _policy_opp_sequence(route; kw...)),
         ))
     end
+    # ── W7/#129: structural routes ──────────────────────────
+    _FMT = OptionSpec[
+        OptionSpec(name="output", short="o", type=String, default="",
+                   description="Export results to file");
+        OptionSpec(name="format", short="f", type=String, default="table",
+                   choices=["table", "csv", "json"], description="table|csv|json");
+    ]
+    _BEH = OptionSpec[
+        OptionSpec(name="behavioral-m", type=Float64, default=NaN,
+                   description="Cognitive discounting m in [0,1] (behavioral operator; square menus only)");
+        OptionSpec(name="behavioral-theta", type=Float64, default=NaN,
+                   description="Sticky-expectations theta in [0,1]");
+    ]
+    push!(specs, CommandSpec(
+        path=["policy", "news", "dsge"],
+        summary="DSGE model file (TOML or .jl DSGESpec)",
+        args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                      description="DSGE model file (TOML or .jl DSGESpec)")],
+        options=[OptionSpec(name="policy-shock", type=String, default="",
+                            description="Exogenous shock the news menu perturbs (REQUIRED)");
+                 OptionSpec(name="outcomes", type=String, default="",
+                            description="name=model_variable map (SYMBOLS; REQUIRED)");
+                 OptionSpec(name="instruments", type=String, default="",
+                            description="name=model_variable map");
+                 OptionSpec(name="horizon", type=Int, default=100,
+                            description="News horizon H (one QZ of dimension n+H−1 — MW use 100)");
+                 OptionSpec(name="solver", type=String, default="gensys",
+                            choices=["gensys", "klein", "blanchard-kahn"],
+                            description="Linear solver (nonlinear menus unsupported upstream)");
+                 OptionSpec(name="chunk", type=Int, default=0,
+                            description="Shock columns per solve (0 = all at once)");
+                 _BEH...; _FMT...],
+        flags=FlagSpec[],   # PolicyCausalEffects has no plot recipe
+        tables=[TableSpec(name=:policy_news_dsge, description="Square DSGE news menu")],
+        category="policy",
+        handler=wrap_legacy((; kw...) -> _policy_news("dsge"; kw...)),
+    ))
+    push!(specs, CommandSpec(
+        path=["policy", "news", "ha"],
+        summary="HA model (builtin name or .jl HADSGESpec)",
+        args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                      description="HA model (builtin name or .jl HADSGESpec)")],
+        options=[OptionSpec(name="outcomes", type=String, default="",
+                            description="name=model_variable map (SYMBOLS; REQUIRED)");
+                 OptionSpec(name="instruments", type=String, default="",
+                            description="name=model_variable map (default rate=r)");
+                 OptionSpec(name="horizon", type=Int, default=100,
+                            description="News horizon H");
+                 OptionSpec(name="t-horizon", type=Int, default=300,
+                            description="Sequence-space truncation (≥ H; < H+50 warns)");
+                 OptionSpec(name="rule-closure", type=String, default="administered",
+                            choices=["administered", "market"],
+                            description="administered | market (market: huggett-only; the wedge is exactly neutral there BY CONSTRUCTION)");
+                 OptionSpec(name="dx", type=Float64, default=1e-4,
+                            description="Finite-difference step");
+                 _BEH...; _FMT...],
+        flags=FlagSpec[],
+        tables=[TableSpec(name=:policy_news_ha, description="HA news menu via sequence-space jacobians")],
+        category="policy",
+        handler=wrap_legacy((; kw...) -> _policy_news("ha"; kw...)),
+    ))
+    push!(specs, CommandSpec(
+        path=["policy", "jacobian", "ha"],
+        summary="HA model (builtin name or .jl HADSGESpec)",
+        args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                      description="HA model (builtin name or .jl HADSGESpec)")],
+        options=[OptionSpec(name="input", type=String, default="r",
+                            choices=["r", "w"], description="Price input: r | w");
+                 OptionSpec(name="jac-output", type=String, default="",
+                            description="Household aggregate to differentiate, e.g. C or A (REQUIRED)");
+                 OptionSpec(name="t-horizon", type=Int, default=300,
+                            description="Jacobian dimension T (the table is T² rows)");
+                 OptionSpec(name="dx", type=Float64, default=1e-4,
+                            description="Finite-difference step");
+                 _FMT...],
+        flags=FlagSpec[],   # bare Matrix upstream — no report/plot
+        tables=[TableSpec(name=:policy_jacobian_ha, description="Sequence-space household jacobian")],
+        category="policy",
+        handler=wrap_legacy((; kw...) -> _policy_jacobian(; kw...)),
+    ))
+    for route in ("var", "bvar")
+        push!(specs, CommandSpec(
+            path=["policy", "history", route],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="Path to CSV data file")],
+            options=[_POLICY_COMMON...; _policy_route_options(route)...;
+                     OptionSpec(name="t-range", type=String, default="",
+                                description="Observation window lo:hi to re-run under the rule (REQUIRED; length ≤ H−1)");
+                     OptionSpec(name="rule", type=String, default="",
+                                description="Builtin counterfactual rule");
+                     OptionSpec(name="rule-config", type=String, default="",
+                                description="TOML [rule] section");
+                     OptionSpec(name="loss-config", type=String, default="",
+                                description="TOML [loss] section (rule XOR loss)");
+                     OptionSpec(name="use-draws", type=String, default="auto",
+                                choices=["auto", "on", "off"],
+                                description="Propagate draws into bands");
+                     OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
+                                description="Band quantiles in (0,1)");
+                     OptionSpec(name="normalize", type=String, default="none",
+                                choices=["none", "instrument-impact"],
+                                description="none | instrument-impact");
+                     PLOT_OPTIONS...],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=Symbol("policy_history_$route"),
+                              description="Historical counterfactual from forecast revisions")],
+            category="policy",
+            handler=wrap_legacy((; kw...) -> _policy_history(route; kw...)),
+        ))
+    end
+    push!(specs, CommandSpec(
+        path=["policy", "spanning", "var"],
+        summary="Path to CSV data file",
+        args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                      description="Path to CSV data file"),
+              ArgSpec(name="model", type=String, required=true, default=nothing,
+                      description="DSGE model file for the FULL news menu")],
+        options=[_POLICY_COMMON...;
+                 OptionSpec(name="lags", short="p", type=Int, default=nothing,
+                            description="VAR lag order (default AIC)");
+                 OptionSpec(name="replications", type=Int, default=0,
+                            description="Bootstrap draws on the empirical menu");
+                 OptionSpec(name="nonpolicy-shock", type=String, default="",
+                            description="Baseline non-policy shock (REQUIRED)");
+                 OptionSpec(name="model-outcomes", type=String, default="",
+                            description="name=model_variable map for the news menu (SAME names as --outcomes)");
+                 OptionSpec(name="model-instruments", type=String, default="",
+                            description="name=model_variable map");
+                 OptionSpec(name="policy-shock", type=String, default="",
+                            description="Model shock behind the full news menu (REQUIRED)");
+                 OptionSpec(name="solver", type=String, default="gensys",
+                            choices=["gensys", "klein", "blanchard-kahn"],
+                            description="Linear DSGE solver");
+                 OptionSpec(name="rule", type=String, default="",
+                            description="Builtin counterfactual rule");
+                 OptionSpec(name="rule-config", type=String, default="",
+                            description="TOML [rule] section");
+                 OptionSpec(name="tol", type=Float64, default=0.1,
+                            description="Spanned-verdict tolerance on gap_rel");
+                 OptionSpec(name="n-sim", type=Int, default=200,
+                            description="Draw propagation for gap bands");
+                 OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
+                            description="Band quantiles in (0,1)");
+                 PLOT_OPTIONS...],
+        flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+        tables=[TableSpec(name=:policy_spanning_var,
+                          description="Does the model choice matter for THIS counterfactual?")],
+        category="policy",
+        handler=wrap_legacy((; kw...) -> _policy_spanning(; kw...)),
+    ))
+    push!(specs, CommandSpec(
+        path=["policy", "sufficiency", "dsge"],
+        summary="DSGE model file (TOML or .jl DSGESpec)",
+        args=[ArgSpec(name="model", type=String, required=true, default=nothing,
+                      description="DSGE model file (TOML or .jl DSGESpec)")],
+        options=[OptionSpec(name="observables", type=String, default="",
+                            description="Comma-separated model variables the econometrician sees (REQUIRED)");
+                 OptionSpec(name="horizon", type=Int, default=40,
+                            description="FEV comparison horizon");
+                 OptionSpec(name="method", type=String, default="gensys",
+                            description="DSGE solve method");
+                 _FMT...; PLOT_OPTIONS...],
+        flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+        tables=[TableSpec(name=:policy_sufficiency_dsge,
+                          description="Population forecast-sufficiency laboratory (no data)")],
+        category="policy",
+        handler=wrap_legacy((; kw...) -> _policy_sufficiency(; kw...)),
+    ))
     register!(specs)
     return build_node("policy", specs;
-        description="Policy counterfactuals: causal-effect menus, McKay-Wolf rule counterfactuals, optimal policy, second moments and OPP")
+        description="Policy counterfactuals: menus (empirical + structural), rule counterfactuals, optimal policy, moments, OPP, histories and diagnostics")
 end
