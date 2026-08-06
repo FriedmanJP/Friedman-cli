@@ -17,6 +17,7 @@ _friedman() {
     'model'
     'multipliers'
     'nowcast'
+    'policy'
     'predict'
     'residuals'
     'spectral'

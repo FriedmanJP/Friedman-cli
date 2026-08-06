@@ -67,6 +67,7 @@ include("commands/nowcast.jl")
 include("commands/dsge.jl")
 include("commands/did.jl")
 include("commands/multipliers.jl")  # multipliers nardl — new top-level (C062b)
+include("commands/policy.jl")       # policy counterfactuals — new top-level (W4/#126)
 include("commands/spectral.jl")
 include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
@@ -104,6 +105,7 @@ function build_app()
         "dsge"      => register_dsge_commands!(),
         "did"       => register_did_commands!(),
         "multipliers" => register_multipliers_commands!(),
+        "policy"    => register_policy_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
         "model"     => register_model_commands!(),

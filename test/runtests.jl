@@ -3800,6 +3800,61 @@ using TOML
         cfg = Dict("smm" => Dict("theta0" => ["a", "b"]))
         @test_throws CliError get_smm(cfg)
     end
+
+    # ── W4/#126: policy rule/loss schemas ────────────────────────────────────
+    @testset "get_policy_rule — types, CMW trap, defaults" begin
+        # taylor with NO params keeps upstream's TEXTBOOK defaults
+        r = get_policy_rule(Dict("rule" => Dict("type" => "taylor")))
+        @test r.type === :taylor
+        @test r.params.rho == 0.5 && r.params.phi_pi == 1.5 && r.params.phi_y == 1.0
+        @test r.outcomes == [:infl, :ygap] && r.instruments == [:rate]
+        # cmw = true sets ALL THREE CMW values…
+        rc = get_policy_rule(Dict("rule" => Dict("type" => "taylor", "cmw" => true)))
+        @test rc.params.rho == 0.85 && rc.params.phi_pi == 2.0 && rc.params.phi_y == 0.25
+        # …and REFUSES a half-override (neither rule).
+        err = try
+            get_policy_rule(Dict("rule" => Dict("type" => "taylor", "cmw" => true,
+                                                "phi_pi" => 1.5)))
+        catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        # rate-target requires a path; ngdp requires distinct pi/y.
+        @test_throws CliError get_policy_rule(Dict("rule" => Dict("type" => "rate-target")))
+        @test_throws CliError get_policy_rule(Dict("rule" => Dict("type" => "ngdp",
+            "pi_var" => "infl", "y_var" => "infl")))
+        # unknown type / missing section
+        @test_throws CliError get_policy_rule(Dict("rule" => Dict("type" => "peg")))
+        @test_throws CliError get_policy_rule(Dict{String,Any}())
+        rp = get_policy_rule(Dict("rule" => Dict("type" => "rate-target",
+                                                 "path" => [1.0, 2.0])))
+        @test rp.params.path == [1.0, 2.0]
+    end
+
+    @testset "get_policy_loss — lambda REQUIRED, ait beta, smoothing split" begin
+        # lambda is REQUIRED — upstream policy_loss has no default.
+        err = try
+            get_policy_loss(Dict("loss" => Dict("outcomes" => ["infl", "ygap"])))
+        catch e; e; end
+        @test err isa CliError && err.code == "config/missing-key"
+        l = get_policy_loss(Dict("loss" => Dict("outcomes" => ["infl", "ygap"],
+                                                "lambda" => [1.0, 0.5])))
+        @test l.type === :diagonal && l.lambda == [1.0, 0.5] && l.beta == 1.0
+        # shape mismatch
+        @test_throws CliError get_policy_loss(Dict("loss" => Dict(
+            "outcomes" => ["infl", "ygap"], "lambda" => [1.0])))
+        # ait: beta defaults to the MW replication value 1/1.01, NOT 0.99
+        a = get_policy_loss(Dict("loss" => Dict("type" => "ait")))
+        @test a.type === :ait && a.beta ≈ 1 / 1.01
+        @test a.lambda_avg == 0.6 && a.lambda_t == 0.4 && a.K == 19
+        # smoothing sub-table parsed as one unit (W_z + wedge_term split later)
+        s = get_policy_loss(Dict("loss" => Dict(
+            "outcomes" => ["infl"], "lambda" => [1.0],
+            "smoothing" => Dict("lambda" => 2.0, "z_lag" => 0.1))))
+        @test s.smoothing !== nothing && s.smoothing.lambda == 2.0
+        @test s.smoothing.z_lag == 0.1 && s.smoothing.beta == 1.0
+        # beta bounds
+        @test_throws CliError get_policy_loss(Dict("loss" => Dict(
+            "outcomes" => ["infl"], "lambda" => [1.0], "beta" => 1.5)))
+    end
 end
 
 # ──────────────────────────────────────────────────────────────

@@ -855,3 +855,199 @@ function get_determinacy(config::Dict)
     return (params=params, grids=grids, method=Symbol(replace(meth, '-' => '_')),
             div=Float64(divv))
 end
+
+# ── W4/#126: policy-counterfactual rule & loss schemas (MEMs 0.8.0 CF module) ──
+
+const _POLICY_RULE_TYPES = ("rate-peg", "rate-target", "inflation-target",
+                            "output-gap", "ngdp", "taylor")
+
+"""
+    get_policy_rule(config::Dict) → NamedTuple
+
+Parse a `[rule]` section into a validated rule spec. The actual `PolicyRule` is
+built later (`_build_policy_rule`) because the truncation horizon `H` comes from
+the command line, not the TOML.
+
+Traps this schema exists to defuse (each ships a wrong number if misread):
+- `taylor` WITHOUT parameters uses upstream's TEXTBOOK defaults
+  (ρ=0.5, φπ=1.5, φy=1.0) — NOT the Caravello–McKay–Wolf calibration.
+  `cmw = true` sets ρ=0.85, φπ=2.0, φy=0.25 and REFUSES to combine with
+  explicit ρ/φ entries (a half-override is neither rule).
+- Rules are stabilization around the model's FIXED steady state — a different
+  inflation-target *level* is out of scope by construction.
+"""
+function get_policy_rule(config::Dict)
+    sec = get(config, "rule", Dict())
+    isempty(sec) && throw(CliError("config/missing-key",
+        "TOML must have a [rule] section";
+        hint="e.g. type = \"taylor\", cmw = true"))
+
+    rtype = String(get(sec, "type", ""))
+    rtype in _POLICY_RULE_TYPES || throw(CliError("config/invalid",
+        "[rule] type must be one of $(join(_POLICY_RULE_TYPES, "|")), got '$rtype'"))
+
+    _syms(key, default) = begin
+        raw = get(sec, key, default)
+        raw isa AbstractVector || throw(CliError("config/type",
+            "[rule] $key must be a list of variable names"))
+        out = Symbol[]
+        for v in raw
+            v isa AbstractString || throw(CliError("config/type",
+                "[rule] $key entries must be strings, got $(typeof(v))"))
+            push!(out, Symbol(v))
+        end
+        isempty(out) && throw(CliError("config/invalid", "[rule] $key must not be empty"))
+        out
+    end
+    outcomes = _syms("outcomes", ["infl", "ygap"])
+    instruments = _syms("instruments", ["rate"])
+
+    _num(key, default) = begin
+        v = get(sec, key, default)
+        v isa Real || throw(CliError("config/type", "[rule] $key must be a number"))
+        Float64(v)
+    end
+    pi_var = Symbol(String(get(sec, "pi_var", "infl")))
+    y_var = Symbol(String(get(sec, "y_var", "ygap")))
+
+    params = if rtype == "taylor"
+        cmw = get(sec, "cmw", false)
+        cmw isa Bool || throw(CliError("config/type", "[rule] cmw must be true/false"))
+        explicit = [k for k in ("rho", "phi_pi", "phi_y") if haskey(sec, k)]
+        if cmw
+            isempty(explicit) || throw(CliError("config/invalid",
+                "[rule] cmw = true sets rho/phi_pi/phi_y itself; remove $(join(explicit, ", ")) (a half-override is neither rule)"))
+            (rho=0.85, phi_pi=2.0, phi_y=0.25, z_lag=_num("z_lag", 0.0),
+             pi_var=pi_var, y_var=y_var)
+        else
+            # Upstream's TEXTBOOK defaults — deliberately restated here so the
+            # schema, not the reader's memory, owns them.
+            (rho=_num("rho", 0.5), phi_pi=_num("phi_pi", 1.5),
+             phi_y=_num("phi_y", 1.0), z_lag=_num("z_lag", 0.0),
+             pi_var=pi_var, y_var=y_var)
+        end
+    elseif rtype == "rate-target"
+        praw = get(sec, "path", nothing)
+        praw isa AbstractVector || throw(CliError("config/missing-key",
+            "[rule] type = \"rate-target\" needs path = [..] (the instrument path, length H)"))
+        path = Float64[]
+        for v in praw
+            v isa Real || throw(CliError("config/type",
+                "[rule] path must contain numbers, got $(typeof(v))"))
+            push!(path, Float64(v))
+        end
+        (path=path,)
+    elseif rtype == "inflation-target"
+        (pi_var=pi_var,)
+    elseif rtype == "output-gap"
+        (y_var=y_var,)
+    elseif rtype == "ngdp"
+        pi_var == y_var && throw(CliError("config/invalid",
+            "[rule] ngdp needs distinct pi_var and y_var (both are '$pi_var')"))
+        (pi_var=pi_var, y_var=y_var)
+    else  # rate-peg
+        NamedTuple()
+    end
+
+    return (type=Symbol(replace(rtype, '-' => '_')), outcomes=outcomes,
+            instruments=instruments, params=params)
+end
+
+"""
+    get_policy_loss(config::Dict) → NamedTuple
+
+Parse a `[loss]` section into a validated loss spec (built with `H` later).
+
+- **`lambda` is REQUIRED for the diagonal loss** — upstream `policy_loss` has no
+  default, and silently assuming 1.0 changes every optimal-policy result.
+- `type = "ait"` (average-inflation targeting) defaults `beta` to `1/1.01`
+  (≈0.990099, the McKay–Wolf `set_polpref.m` replication value — NOT 0.99), and
+  its defaults do NOT reproduce the paper-text λπ = λy = 1.
+- `[loss.smoothing]` is the `smoothing_penalty` builder: it returns a NamedTuple
+  whose `.W_z` feeds `policy_loss(W_z=…)` and whose `.wedge_term` feeds the
+  engines' `z_wedge=` — the loader records it as one unit so handlers cannot
+  split it wrong.
+"""
+function get_policy_loss(config::Dict)
+    sec = get(config, "loss", Dict())
+    isempty(sec) && throw(CliError("config/missing-key",
+        "TOML must have a [loss] section";
+        hint="e.g. outcomes = [\"infl\", \"ygap\"], lambda = [1.0, 0.5]"))
+
+    ltype = String(get(sec, "type", "diagonal"))
+    ltype in ("diagonal", "ait") || throw(CliError("config/invalid",
+        "[loss] type must be diagonal|ait, got '$ltype'"))
+
+    _num(key, default) = begin
+        v = get(sec, key, default)
+        v isa Real || throw(CliError("config/type", "[loss] $key must be a number"))
+        Float64(v)
+    end
+
+    smoothing = nothing
+    if haskey(sec, "smoothing")
+        sm = sec["smoothing"]
+        sm isa AbstractDict || throw(CliError("config/type",
+            "[loss.smoothing] must be a table (lambda/beta/z_lag)"))
+        _smnum(key, default) = begin
+            v = get(sm, key, default)
+            v isa Real || throw(CliError("config/type",
+                "[loss.smoothing] $key must be a number"))
+            Float64(v)
+        end
+        sl = _smnum("lambda", 1.0)
+        sl > 0 || throw(CliError("config/invalid",
+            "[loss.smoothing] lambda must be > 0 (got $sl)"))
+        sb = _smnum("beta", 1.0)
+        (0 < sb <= 1) || throw(CliError("config/invalid",
+            "[loss.smoothing] beta must be in (0, 1] (got $sb)"))
+        smoothing = (lambda=sl, beta=sb, z_lag=_smnum("z_lag", 0.0))
+    end
+
+    if ltype == "ait"
+        beta = _num("beta", 1 / 1.01)
+        (0 < beta <= 1) || throw(CliError("config/invalid",
+            "[loss] beta must be in (0, 1] (got $beta)"))
+        K = get(sec, "K", 19)
+        K isa Integer || throw(CliError("config/type", "[loss] K must be an integer"))
+        K >= 1 || throw(CliError("config/invalid", "[loss] K must be ≥ 1 (got $K)"))
+        return (type=:ait, beta=beta,
+                lambda_avg=_num("lambda_avg", 0.6), lambda_t=_num("lambda_t", 0.4),
+                lambda_y=_num("lambda_y", 1.0), delta=_num("delta", 0.1), K=Int(K),
+                smoothing=smoothing)
+    end
+
+    oraw = get(sec, "outcomes", nothing)
+    oraw isa AbstractVector || throw(CliError("config/missing-key",
+        "[loss] must set outcomes = [..] (the loss variables)"))
+    outcomes = Symbol[]
+    for v in oraw
+        v isa AbstractString || throw(CliError("config/type",
+            "[loss] outcomes entries must be strings, got $(typeof(v))"))
+        push!(outcomes, Symbol(v))
+    end
+    isempty(outcomes) && throw(CliError("config/invalid", "[loss] outcomes must not be empty"))
+
+    # REQUIRED — upstream policy_loss has no default and defaulting silently
+    # to 1.0 would change every result.
+    lraw = get(sec, "lambda", nothing)
+    lraw isa AbstractVector || throw(CliError("config/missing-key",
+        "[loss] must set lambda = [..], one weight per outcome (upstream has NO default)"))
+    lambda = Float64[]
+    for v in lraw
+        v isa Real || throw(CliError("config/type",
+            "[loss] lambda must contain numbers, got $(typeof(v))"))
+        push!(lambda, Float64(v))
+    end
+    length(lambda) == length(outcomes) || throw(CliError("config/shape",
+        "[loss] lambda has $(length(lambda)) entries but $(length(outcomes)) outcomes"))
+    all(>=(0), lambda) || throw(CliError("config/invalid",
+        "[loss] lambda weights must be ≥ 0"))
+
+    beta = _num("beta", 1.0)
+    (0 < beta <= 1) || throw(CliError("config/invalid",
+        "[loss] beta must be in (0, 1] (got $beta)"))
+
+    return (type=:diagonal, outcomes=outcomes, lambda=lambda, beta=beta,
+            smoothing=smoothing)
+end

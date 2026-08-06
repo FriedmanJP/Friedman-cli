@@ -13,6 +13,7 @@ complete -c friedman -n "__fish_use_subcommand" -a irf
 complete -c friedman -n "__fish_use_subcommand" -a model
 complete -c friedman -n "__fish_use_subcommand" -a multipliers
 complete -c friedman -n "__fish_use_subcommand" -a nowcast
+complete -c friedman -n "__fish_use_subcommand" -a policy
 complete -c friedman -n "__fish_use_subcommand" -a predict
 complete -c friedman -n "__fish_use_subcommand" -a residuals
 complete -c friedman -n "__fish_use_subcommand" -a spectral

@@ -385,6 +385,36 @@ b = [[1.0], [-1.0]]   # β = b   (p×r, exactly r columns)
 | `A` | `[vecm_restriction]` | `α = Aψ` matrix (`p × a`, `a ≥ r`; `alpha`/`joint`) |
 | `b` | `[vecm_restriction]` | Known cointegrating space (`p × r`, exactly `r` cols; `known-beta`) |
 
+## Policy Rule & Loss (`policy` family)
+
+`policy counterfactual --rule-config` reads a `[rule]` section; the `[loss]` section
+feeds the optimal-policy leaves built on the same family.
+
+```toml
+[rule]
+type = "taylor"     # rate-peg | rate-target | inflation-target | output-gap | ngdp | taylor
+cmw = true          # taylor: rho=0.85, phi_pi=2.0, phi_y=0.25 — refuses partial overrides
+# rho/phi_pi/phi_y/z_lag   # taylor, textbook defaults (0.5/1.5/1.0/0.0) when cmw absent
+# pi_var/y_var             # variable names among the outcomes
+# path = [4.0, 4.0]        # rate-target: pegged instrument path, length --horizon
+# outcomes/instruments     # default ["infl","ygap"] / ["rate"]
+
+[loss]
+outcomes = ["infl", "ygap"]
+lambda = [1.0, 0.5]  # REQUIRED — upstream has no default; one weight per outcome
+beta = 1.0           # discount, (0, 1]
+# type = "ait"       # average-inflation targeting: beta defaults to 1/1.01 (MW
+#                    # replication value, NOT 0.99); lambda_avg/lambda_t/lambda_y/delta/K
+
+[loss.smoothing]     # optional Δz penalty — parsed as ONE unit: its W_z part feeds
+lambda = 1.0         # policy_loss(W_z=...), its wedge_term the engines' z_wedge=
+beta = 1.0
+z_lag = 0.0
+```
+
+Rules are stabilization around the model's fixed steady state; different target
+*levels* are out of scope by construction. See the [`policy` guide](commands/policy.md).
+
 ## Output Formats
 
 All commands support three output formats:

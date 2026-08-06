@@ -3,7 +3,7 @@ _friedman() {
   local cur prev words cword
   _init_completion || return
   if [[ $cword -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "completions data did dsge estimate fevd filter forecast hd io irf model multipliers nowcast predict residuals spectral test repl" -- "$cur") )
+    COMPREPLY=( $(compgen -W "completions data did dsge estimate fevd filter forecast hd io irf model multipliers nowcast policy predict residuals spectral test repl" -- "$cur") )
     return
   fi
   case "${words[1]}" in
@@ -21,6 +21,7 @@ _friedman() {
     model) COMPREPLY=( $(compgen -W "info" -- "$cur") ) ;;
     multipliers) COMPREPLY=( $(compgen -W "nardl" -- "$cur") ) ;;
     nowcast) COMPREPLY=( $(compgen -W "bridge bvar dfm forecast news" -- "$cur") ) ;;
+    policy) COMPREPLY=( $(compgen -W "counterfactual effects" -- "$cur") ) ;;
     predict) COMPREPLY=( $(compgen -W "3sls aparch arch arfima arima bvar cgarch dynamic egarch favar fiegarch figarch garch garch-midas gdfm gjr-garch igarch logit mlogit ms ms-ar nbreg ologit oprobit piv plogit poisson pprobit preg probit reg sarima statespace static sur sv var vecm" -- "$cur") ) ;;
     residuals) COMPREPLY=( $(compgen -W "3sls aparch arch arfima arima bvar cgarch dynamic egarch favar fiegarch figarch garch garch-midas gdfm gjr-garch igarch logit mlogit ms ms-ar nbreg ologit oprobit piv plogit poisson pprobit preg probit reg sarima setar star statespace static sur sv var vecm" -- "$cur") ) ;;
     spectral) COMPREPLY=( $(compgen -W "acf cross density periodogram transfer" -- "$cur") ) ;;

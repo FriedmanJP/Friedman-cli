@@ -19,7 +19,7 @@
 
 module MacroEconometricModels
 
-using LinearAlgebra: I, diagm, Diagonal, dot
+using LinearAlgebra: I, diagm, Diagonal, dot, pinv, norm
 using Statistics: mean, var, std, quantile
 using Random
 import Serialization
@@ -178,7 +178,14 @@ MinnesotaHyperparameters(; tau::Real=3.0, decay::Real=0.5, lambda::Real=5.0,
 struct ImpulseResponse{T}
     values::Array{T,3}; ci_lower::Union{Array{T,3},Nothing}; ci_upper::Union{Array{T,3},Nothing}
     horizon::Int; variables::Vector{String}; shocks::Vector{String}; ci_type::Symbol
+    # Real trailing field (var/types.jl): bootstrap draws in package layout
+    # reps × horizon × variable × shock; nothing on deterministic paths. The CF
+    # adapters (policy_causal_effects / baseline_path, W4/#126) read it directly.
+    _draws::Union{Nothing,Array{T,4}}
 end
+# 7-arg form mirrors real's backward-compatible constructor (draws default nothing)
+ImpulseResponse(v::Array{T,3}, cl, cu, h::Int, vars, shocks, ci::Symbol) where T =
+    ImpulseResponse{T}(v, cl, cu, h, vars, shocks, ci, nothing)
 # Convenience 3-arg constructor for backward compat with existing handler tests
 ImpulseResponse(v::Array{T,3}, cl, cu) where T = ImpulseResponse(v, cl, cu, size(v,1),
     ["var$i" for i in 1:size(v,2)], ["shock$i" for i in 1:size(v,3)], :cholesky)
@@ -904,10 +911,13 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5
     ci_hi = ci_type == :none ? nothing : vals .+ 0.5
-    # Real carries model.varnames into the result — dropping them here hid the
-    # whole favar label adoption (W10/#131) from T1/T2.
-    ImpulseResponse(vals, ci_lo, ci_hi, horizon, copy(model.varnames),
-                    copy(model.varnames), :cholesky)
+    # Real stores bootstrap draws in package layout reps × horizon × var × shock;
+    # the CF adapters (W4/#126) slice them, so the mock must populate them too.
+    drw = ci_type == :bootstrap ?
+        reshape(vals, 1, horizon + 1, n, n) .+ 0.05 .* randn(reps, horizon + 1, n, n) :
+        nothing
+    ImpulseResponse{Float64}(vals, ci_lo, ci_hi, horizon, copy(model.varnames),
+                             copy(model.varnames), :cholesky, drw)
 end
 function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
              method=:cholesky, data=nothing, quantiles=[0.16, 0.5, 0.84],
@@ -7648,6 +7658,372 @@ function keeprows(d::TimeSeriesData, idx::Vector{Int})
     TimeSeriesData(d.data[idx, :], copy(d.varnames), d.frequency, copy(d.tcode),
                    d.time_index[idx], d.desc, copy(d.vardesc))
 end
+
+# ─── Policy-counterfactual module (W4/#126, MEMs 0.8.0 CF-01..24) ────────────
+# Field names, layouts and validation mirror real (counterfactual/types.jl).
+# The engine is real's :ls math (assembly + pinv projection) — it is pure linear
+# algebra, so the mock implements it faithfully rather than inventing shapes.
+
+struct PolicyCausalEffects{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    Theta_x::Vector{Matrix{T}}
+    Theta_z::Vector{Matrix{T}}
+    Theta_x_draws::Union{Nothing,Vector{Array{T,3}}}
+    Theta_z_draws::Union{Nothing,Vector{Array{T,3}}}
+    H::Int
+    shock_labels::Vector{String}
+    source::Symbol
+end
+
+struct PolicyRule{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    A_x::Vector{Matrix{T}}
+    A_z::Vector{Matrix{T}}
+    wedge::Vector{T}
+    name::String
+end
+
+struct PolicyLoss{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    W_x::Vector{Matrix{T}}
+    W_z::Union{Nothing,Vector{Matrix{T}}}
+    lambda::Vector{T}
+    beta::T
+    name::String
+end
+
+struct BaselinePath{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    x::Vector{Vector{T}}
+    z::Vector{Vector{T}}
+    x_draws::Union{Nothing,Vector{Matrix{T}}}
+    z_draws::Union{Nothing,Vector{Matrix{T}}}
+    H::Int
+    label::String
+end
+
+struct PolicyCounterfactual{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    x_base::Vector{Vector{T}}
+    z_base::Vector{Vector{T}}
+    x_cf::Vector{Vector{T}}
+    z_cf::Vector{Vector{T}}
+    x_bands::Union{Nothing,Vector{Matrix{T}}}
+    z_bands::Union{Nothing,Vector{Matrix{T}}}
+    nu::Vector{T}
+    shock_labels::Vector{String}
+    error_path::Vector{T}
+    rel_residual::T
+    rel_residual_bands::Union{Nothing,Vector{T}}
+    spanned::Bool
+    rule_name::String
+    H::Int
+    quantile_levels::Vector{T}
+    n_draws_used::Int
+    n_draws_failed::Int
+    loss_base::T
+    loss_cf::T
+    foc_norm::T
+end
+
+is_square(ce::PolicyCausalEffects) = size(ce.Theta_x[1], 2) == ce.H
+
+# Variable/shock resolution: Int index or String name, real's error style.
+function _cf_resolve(v, names::Vector{String}, what::String)
+    if v isa Integer
+        (1 <= v <= length(names)) || throw(ArgumentError(
+            "$what index $v out of range 1:$(length(names))"))
+        return Int(v)
+    end
+    i = findfirst(==(String(v)), names)
+    i === nothing && throw(ArgumentError(
+        "$what '$v' not found in $(names)"))
+    return i
+end
+
+function _cf_check_horizon(H::Int, stored::Int)
+    1 <= H <= stored || throw(ArgumentError(
+        "H: expected 1 <= H <= $stored (the stored IRF horizon), got $H"))
+end
+
+function _pce_build_mock(values::Array{T,3}, draws4, variables, shocknames,
+                         shocks, outcomes, instruments;
+                         H::Int, normalize::Symbol, source::Symbol) where T
+    normalize in (:none, :instrument_impact) || throw(ArgumentError(
+        "normalize: expected :none or :instrument_impact, got :$normalize"))
+    _cf_check_horizon(H, size(values, 1))
+    isempty(shocks) && throw(ArgumentError("shocks: expected at least one policy shock"))
+    shock_idx = Int[_cf_resolve(s, shocknames, "shock") for s in shocks]
+    out_syms = Symbol[first(p) for p in outcomes]
+    out_idx = Int[_cf_resolve(last(p), variables, "variable") for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    ins_idx = Int[_cf_resolve(last(p), variables, "variable") for p in instruments]
+    slice(vi) = Matrix{T}(values[1:H, vi, shock_idx])
+    dslice(vi) = Array{T,3}(permutedims(draws4[:, 1:H, vi, shock_idx], (2, 3, 1)))
+    Theta_x = [slice(vi) for vi in out_idx]
+    Theta_z = [slice(vi) for vi in ins_idx]
+    Dx = draws4 === nothing ? nothing : Array{T,3}[dslice(vi) for vi in out_idx]
+    Dz = draws4 === nothing ? nothing : Array{T,3}[dslice(vi) for vi in ins_idx]
+    PolicyCausalEffects{T}(out_syms, ins_syms, Theta_x, Theta_z, Dx, Dz,
+                           H, shocknames[shock_idx], source)
+end
+
+policy_causal_effects(ir::ImpulseResponse{T}, shocks::AbstractVector,
+                      outcomes::AbstractVector{<:Pair},
+                      instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                      H::Int=ir.horizon, normalize::Symbol=:none,
+                      source::Symbol=:var) where T =
+    _pce_build_mock(ir.values, ir._draws, ir.variables, ir.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize, source=source)
+
+function policy_causal_effects(bir::BayesianImpulseResponse{T}, shocks::AbstractVector,
+                               outcomes::AbstractVector{<:Pair},
+                               instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                               H::Int=bir.horizon, normalize::Symbol=:none,
+                               source::Symbol=:bvar) where T
+    _pce_build_mock(bir.point_estimate, bir._draws, bir.variables, bir.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize, source=source)
+end
+
+policy_causal_effects(s::SignIdentifiedSet{T}, shocks::AbstractVector,
+                      outcomes::AbstractVector{<:Pair},
+                      instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                      H::Int=size(s.irf_draws, 2), normalize::Symbol=:none) where T =
+    _pce_build_mock(irf_median(s), s.irf_draws, s.variables, s.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize,
+                    source=:sign_set)
+
+function policy_causal_effects(slp::StructuralLP{T}, shocks::AbstractVector,
+                               outcomes::AbstractVector{<:Pair},
+                               instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                               H::Int=slp.irf.horizon, normalize::Symbol=:none,
+                               n_draws::Int=500, rng=nothing) where T
+    n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
+    Hh, nv, ns = size(slp.irf.values)
+    draws4 = reshape(slp.irf.values, 1, Hh, nv, ns) .+
+             T(0.02) .* randn(T, n_draws, Hh, nv, ns)
+    _pce_build_mock(slp.irf.values, draws4, slp.irf.variables, slp.irf.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize, source=:lp)
+end
+
+function _bp_build_mock(values::Array{T,3}, draws4, variables, shocknames,
+                        nonpolicy_shock, outcomes, instruments;
+                        H::Int, negate::Bool) where T
+    _cf_check_horizon(H, size(values, 1))
+    si = _cf_resolve(nonpolicy_shock, shocknames, "shock")
+    sgn = negate ? -one(T) : one(T)
+    out_syms = Symbol[first(p) for p in outcomes]
+    out_idx = Int[_cf_resolve(last(p), variables, "variable") for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    ins_idx = Int[_cf_resolve(last(p), variables, "variable") for p in instruments]
+    x = [sgn .* Vector{T}(values[1:H, vi, si]) for vi in out_idx]
+    z = [sgn .* Vector{T}(values[1:H, vi, si]) for vi in ins_idx]
+    dm(vi) = Matrix{T}(sgn .* permutedims(draws4[:, 1:H, vi, si]))
+    xd = draws4 === nothing ? nothing : Matrix{T}[dm(vi) for vi in out_idx]
+    zd = draws4 === nothing ? nothing : Matrix{T}[dm(vi) for vi in ins_idx]
+    BaselinePath{T}(out_syms, ins_syms, x, z, xd, zd, H,
+                    shocknames[si] * (negate ? " (negated)" : ""))
+end
+
+baseline_path(ir::ImpulseResponse{T}, nonpolicy_shock,
+              outcomes::AbstractVector{<:Pair},
+              instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+              H::Int=ir.horizon, negate::Bool=false) where T =
+    _bp_build_mock(ir.values, ir._draws, ir.variables, ir.shocks, nonpolicy_shock,
+                   outcomes, instruments; H=H, negate=negate)
+
+baseline_path(bir::BayesianImpulseResponse{T}, nonpolicy_shock,
+              outcomes::AbstractVector{<:Pair},
+              instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+              H::Int=bir.horizon, negate::Bool=false) where T =
+    _bp_build_mock(bir.point_estimate, bir._draws, bir.variables, bir.shocks,
+                   nonpolicy_shock, outcomes, instruments; H=H, negate=negate)
+
+# Rule builders (real validation: single instrument for peg/target/taylor,
+# named variables required among outcomes, pi ≠ y for ngdp/taylor).
+function _cf_single_instrument(instruments, who)
+    length(instruments) == 1 || throw(ArgumentError(
+        "$who: expected exactly 1 instrument, got $(length(instruments))"))
+end
+function _cf_require_var(v::Symbol, outcomes, argname, who)
+    i = findfirst(==(v), outcomes)
+    i === nothing && throw(ArgumentError(
+        "$who: $argname :$v not found in outcomes $(outcomes)"))
+    return i
+end
+_lag_shift_mock(H) = [Float64(i == j + 1) for i in 1:H, j in 1:H]
+
+function rate_peg_rule(H::Int; outcomes=[:infl, :ygap], instruments=[:rate])
+    _cf_single_instrument(instruments, "rate_peg_rule")
+    PolicyRule{Float64}(collect(outcomes), collect(instruments),
+                        [zeros(H, H) for _ in outcomes], [Matrix{Float64}(I, H, H)],
+                        zeros(H), "rate peg")
+end
+function rate_target_rule(H::Int, path::AbstractVector{<:Real};
+                          outcomes=[:infl, :ygap], instruments=[:rate])
+    _cf_single_instrument(instruments, "rate_target_rule")
+    length(path) == H || throw(ArgumentError(
+        "rate_target_rule: path: expected length H = $H, got $(length(path))"))
+    PolicyRule{Float64}(collect(outcomes), collect(instruments),
+                        [zeros(H, H) for _ in outcomes], [Matrix{Float64}(I, H, H)],
+                        Vector{Float64}(path), "rate target path")
+end
+function inflation_target_rule(H::Int; pi_var::Symbol=:infl,
+                               outcomes=[:infl, :ygap], instruments=[:rate])
+    i = _cf_require_var(pi_var, outcomes, "pi_var", "inflation_target_rule")
+    A_x = [zeros(H, H) for _ in outcomes]; A_x[i] = Matrix{Float64}(I, H, H)
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x,
+                        [zeros(H, H) for _ in instruments], zeros(H), "inflation target")
+end
+function output_gap_rule(H::Int; y_var::Symbol=:ygap,
+                         outcomes=[:infl, :ygap], instruments=[:rate])
+    i = _cf_require_var(y_var, outcomes, "y_var", "output_gap_rule")
+    A_x = [zeros(H, H) for _ in outcomes]; A_x[i] = Matrix{Float64}(I, H, H)
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x,
+                        [zeros(H, H) for _ in instruments], zeros(H), "output gap target")
+end
+function ngdp_rule(H::Int; pi_var::Symbol=:infl, y_var::Symbol=:ygap,
+                   outcomes=[:infl, :ygap], instruments=[:rate])
+    i_pi = _cf_require_var(pi_var, outcomes, "pi_var", "ngdp_rule")
+    i_y = _cf_require_var(y_var, outcomes, "y_var", "ngdp_rule")
+    i_pi == i_y && throw(ArgumentError(
+        "ngdp_rule: pi_var and y_var must differ, both are :$pi_var"))
+    A_x = [zeros(H, H) for _ in outcomes]
+    A_x[i_pi] = Matrix{Float64}(I, H, H)
+    A_x[i_y] = Matrix{Float64}(I, H, H) - _lag_shift_mock(H)
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x,
+                        [zeros(H, H) for _ in instruments], zeros(H), "ngdp target")
+end
+function taylor_rule(H::Int; rho::Real=0.5, phi_pi::Real=1.5, phi_y::Real=1.0,
+                     z_lag::Real=0.0, pi_var::Symbol=:infl, y_var::Symbol=:ygap,
+                     outcomes=[:infl, :ygap], instruments=[:rate])
+    _cf_single_instrument(instruments, "taylor_rule")
+    i_pi = _cf_require_var(pi_var, outcomes, "pi_var", "taylor_rule")
+    i_y = _cf_require_var(y_var, outcomes, "y_var", "taylor_rule")
+    i_pi == i_y && throw(ArgumentError(
+        "taylor_rule: pi_var and y_var must differ, both are :$pi_var"))
+    A_x = [zeros(H, H) for _ in outcomes]
+    A_x[i_pi] = -(1 - rho) * phi_pi * Matrix{Float64}(I, H, H)
+    A_x[i_y] = -(1 - rho) * phi_y * Matrix{Float64}(I, H, H)
+    A_z = Matrix{Float64}(I, H, H) - rho * _lag_shift_mock(H)
+    wedge = zeros(H); wedge[1] = rho * z_lag
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x, [A_z], wedge,
+                        "taylor(ρ=$(rho), φπ=$(phi_pi), φy=$(phi_y))")
+end
+
+function policy_loss(outcomes::AbstractVector{Symbol}, H::Int;
+                     lambda::AbstractVector{<:Real},   # REQUIRED, like real
+                     beta::Real=1.0, instruments::AbstractVector{Symbol}=Symbol[],
+                     W_z=nothing, name::AbstractString="discounted diagonal")
+    length(lambda) == length(outcomes) || throw(ArgumentError(
+        "policy_loss: lambda: expected $(length(outcomes)) weights (one per outcome), got $(length(lambda))"))
+    (0 < beta <= 1) || throw(ArgumentError("beta: expected 0 < beta <= 1, got $beta"))
+    W_x = [Matrix{Float64}(Float64(lam) .* Diagonal([Float64(beta)^(h - 1) for h in 1:H]))
+           for lam in lambda]
+    PolicyLoss{Float64}(collect(outcomes), collect(instruments), W_x,
+                        W_z === nothing ? nothing : collect(Matrix{Float64}, W_z),
+                        Vector{Float64}(lambda), Float64(beta), String(name))
+end
+
+function ait_loss(H::Int; beta::Real=1/1.01, lambda_avg::Real=0.6, lambda_t::Real=0.4,
+                  lambda_y::Real=1.0, delta::Real=0.1, K::Int=19)
+    K >= 1 || throw(ArgumentError("K: expected K >= 1, got $K"))
+    policy_loss([:infl, :ygap], H; lambda=[lambda_avg + lambda_t, lambda_y],
+                beta=beta, name="average inflation targeting")
+end
+
+function smoothing_penalty(H::Int; lambda::Real=1.0, beta::Real=1.0, z_lag::Real=0.0)
+    D = Matrix{Float64}(I, H, H) - _lag_shift_mock(H)
+    W = Float64(lambda) .* (D' * Diagonal([Float64(beta)^(h - 1) for h in 1:H]) * D)
+    wedge = zeros(H); wedge[1] = Float64(lambda) * Float64(z_lag)
+    (W_z=W, wedge_term=wedge)   # NamedTuple, NOT a PolicyLoss — real's contract
+end
+
+_rule_horizon_mock(rule::PolicyRule) =
+    isempty(rule.A_x) ? size(rule.A_z[1], 1) : size(rule.A_x[1], 1)
+
+# Real's :ls engine — assembly + pinv projection + honesty numbers.
+function policy_counterfactual(base::BaselinePath{T}, ce::PolicyCausalEffects{T},
+                               rule::PolicyRule;
+                               method::Symbol=:auto, draws::Symbol=:auto,
+                               baseline_draws::Symbol=:fixed,
+                               quantiles=(0.16, 0.5, 0.84),
+                               spanned_tol::Real=0.05) where T
+    H = ce.H
+    base.H == H || throw(ArgumentError(
+        "baseline H = $(base.H) does not match the container H = $H"))
+    _rule_horizon_mock(rule) == H || throw(ArgumentError(
+        "rule H = $(_rule_horizon_mock(rule)) does not match the container H = $H"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
+    baseline_draws in (:fixed, :match) || throw(ArgumentError(
+        "baseline_draws: expected :fixed or :match, got :$baseline_draws"))
+    method in (:auto, :ls, :exact) || throw(ArgumentError(
+        "method: expected :auto, :ls or :exact, got :$method"))
+    for sym in rule.outcomes
+        sym in ce.outcomes || throw(ArgumentError(
+            "rule outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+    end
+    for sym in rule.instruments
+        sym in ce.instruments || throw(ArgumentError(
+            "rule instrument :$sym not found in the container instruments $(ce.instruments)"))
+    end
+
+    xb = [Vector{T}(base.x[findfirst(==(s), base.outcomes)]) for s in ce.outcomes]
+    zb = [Vector{T}(base.z[findfirst(==(s), base.instruments)]) for s in ce.instruments]
+    n_s = size(ce.Theta_x[1], 2)
+    M = zeros(T, H, n_s)
+    b = -Vector{T}(rule.wedge)
+    for (i, sym) in enumerate(rule.outcomes)
+        ci = findfirst(==(sym), ce.outcomes)
+        M .+= rule.A_x[i] * ce.Theta_x[ci]
+        b .+= rule.A_x[i] * xb[ci]
+    end
+    for (k, sym) in enumerate(rule.instruments)
+        ck = findfirst(==(sym), ce.instruments)
+        M .+= rule.A_z[k] * ce.Theta_z[ck]
+        b .+= rule.A_z[k] * zb[ck]
+    end
+    nu = -pinv(M) * b
+    err = M * nu + b
+    rel = norm(err) / max(norm(b), eps(T))
+    x_cf = [xb[i] + ce.Theta_x[i] * nu for i in eachindex(ce.outcomes)]
+    z_cf = [zb[k] + ce.Theta_z[k] * nu for k in eachindex(ce.instruments)]
+
+    qlev = collect(T, quantiles)
+    nd = ce.Theta_x_draws === nothing ? 0 : size(ce.Theta_x_draws[1], 3)
+    use = draws == :on || (draws == :auto && nd > 0)
+    (draws == :on && nd == 0) && throw(ArgumentError(
+        "draws = :on requires a draws-bearing container"))
+    x_bands = nothing; z_bands = nothing; rr_bands = nothing
+    n_used = 0
+    if use
+        n_used = nd
+        nq = length(qlev)
+        band(v) = Matrix{T}(hcat([v .+ (q - T(0.5)) .* T(0.1) for q in qlev]...))
+        x_bands = [band(x_cf[i]) for i in eachindex(ce.outcomes)]
+        z_bands = [band(z_cf[k]) for k in eachindex(ce.instruments)]
+        rr_bands = [rel + (q - T(0.5)) * T(0.01) for q in qlev]
+    end
+    PolicyCounterfactual{T}(copy(ce.outcomes), copy(ce.instruments), xb, zb,
+                            x_cf, z_cf, x_bands, z_bands, nu,
+                            copy(ce.shock_labels), err, rel, rr_bands,
+                            rel < T(spanned_tol), rule.name, H, qlev,
+                            n_used, 0, T(NaN), T(NaN), T(NaN))
+end
+
+# plot_result(::PolicyCounterfactual) rides the generic mock plot_result — real
+# HAS a typed recipe for it (verified 0.8.0), so the generic is not masking a gap.
+
+export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterfactual,
+       is_square, policy_causal_effects, baseline_path, policy_counterfactual,
+       rate_peg_rule, rate_target_rule, inflation_target_rule, output_gap_rule,
+       ngdp_rule, taylor_rule, policy_loss, ait_loss, smoothing_penalty
 
 # NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.
 #

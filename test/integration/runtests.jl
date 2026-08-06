@@ -5829,6 +5829,150 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "policy family (W4/#126, new top-level, MEMs 0.8.0 CF module)" begin
+        rng = MersenneTwister(47)
+        T_obs = 200
+        infl = zeros(T_obs); ygap = zeros(T_obs); rate = zeros(T_obs)
+        for t in 2:T_obs
+            ygap[t] = 0.6ygap[t-1] - 0.1rate[t-1] + randn(rng)
+            infl[t] = 0.5infl[t-1] + 0.2ygap[t-1] + 0.5randn(rng)
+            rate[t] = 0.7rate[t-1] + 0.3infl[t-1] + 0.3randn(rng)
+        end
+        csv = write_csv(DataFrame(infl=infl, ygap=ygap, rate=rate); prefix="policy")
+        maps = ["--outcomes", "infl=1,ygap=2", "--instruments", "rate=3"]
+
+        cfsum(r) = begin
+            t = named_table(r.doc, :counterfactual_summary)
+            t === nothing ? Dict{String,Any}() :
+                Dict(String(collect(row)[1]) => collect(row)[2] for row in table_rows(t))
+        end
+
+        @testset "effects — one leaf per source route" begin
+            rv = run_json(vcat(["policy", "effects", "var", csv, "--shocks", "3",
+                                "--horizon", "8"], maps))
+            assert_envelope_ok(rv; label="policy effects var")
+            menu = named_table(rv.doc, :policy_causal_effects_menu)
+            @test menu !== nothing
+            @test length(table_rows(menu)) == 3 * 8      # 3 mapped vars × 1 shock × H
+            s = Dict(String(collect(r)[1]) => collect(r)[2]
+                     for r in table_rows(named_table(rv.doc, :policy_causal_effects_summary)))
+            @test s["is_square"] == false && s["source"] == "var"
+
+            rb = run_json(vcat(["policy", "effects", "bvar", csv, "--shocks", "3",
+                                "--horizon", "6", "--draws", "300"], maps))
+            @test rb.code == 0
+            sb = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rb.doc, :policy_causal_effects_summary)))
+            @test Int(sb["n_draws"]) > 0                 # posterior draws carried over
+
+            rl = run_json(vcat(["policy", "effects", "lp", csv, "--shocks", "3",
+                                "--horizon", "6", "--n-draws", "50"], maps))
+            @test rl.code == 0
+
+            # sign route needs a restrictions config
+            signtoml = tempname() * ".toml"
+            write(signtoml, """
+            [identification]
+            method = "sign"
+
+            [identification.sign_matrix]
+            matrix = [[1, 0, 0], [0, 0, 0], [0, 0, 0]]
+            horizons = [0]
+            """)
+            rs = run_json(vcat(["policy", "effects", "sign", csv, "--shocks", "1",
+                                "--horizon", "6", "--config", signtoml,
+                                "--replications", "200"], maps))
+            @test rs.code == 0
+            ss = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rs.doc, :policy_causal_effects_summary)))
+            @test ss["source"] == "sign_set" && Int(ss["n_draws"]) > 0
+            @test run_json(vcat(["policy", "effects", "sign", csv, "--shocks", "1",
+                                 "--horizon", "6"], maps)).code == 2   # no config
+            rm(signtoml; force=true)
+        end
+
+        @testset "counterfactual var — thin menu is HONEST about the shortfall" begin
+            r = run_json(vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                               "--nonpolicy-shock", "1", "--rule", "rate-peg",
+                               "--horizon", "8"], maps))
+            assert_envelope_ok(r; label="policy counterfactual var rate-peg")
+            for k in (:policy_counterfactual_paths, :enforcing_policy_shocks_nu,
+                      :implementation_error_path, :counterfactual_summary)
+                @test named_table(r.doc, k) !== nothing
+            end
+            s = cfsum(r)
+            @test s["rule"] == "rate peg"
+            @test numv(s["rel_residual"]) >= 0.0
+            @test haskey(s, "spanned")
+            # 1 policy shock cannot enforce an 8-period peg exactly
+            @test numv(s["rel_residual"]) > 1e-8
+        end
+
+        @testset "counterfactual var — SQUARE menu enforces the peg EXACTLY" begin
+            # 2 policy shocks, H=2 → n_s == H → exact solve: the pegged
+            # instrument path is identically zero and rel_residual ~0.
+            r = run_json(["policy", "counterfactual", "var", csv, "--shocks", "2,3",
+                          "--nonpolicy-shock", "1", "--outcomes", "infl=1",
+                          "--instruments", "rate=3", "--rule", "rate-peg",
+                          "--horizon", "2"])
+            @test r.code == 0
+            s = cfsum(r)
+            @test numv(s["rel_residual"]) < 1e-8 && s["spanned"] == true
+            p = named_table(r.doc, :policy_counterfactual_paths)
+            ci = col_index(p, "counterfactual"); ri = col_index(p, "role")
+            zvals = [numv(collect(row)[ci]) for row in table_rows(p)
+                     if String(collect(row)[ri]) == "instrument"]
+            @test all(abs(v) < 1e-8 for v in zvals)
+        end
+
+        @testset "counterfactual — draws, routes, rule config" begin
+            # bootstrap bands on the var route
+            rb = run_json(vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--rule", "rate-peg",
+                                "--horizon", "6", "--replications", "50"], maps))
+            @test rb.code == 0
+            p = named_table(rb.doc, :policy_counterfactual_paths)
+            @test "q16" in table_cols(p) && "q84" in table_cols(p)
+            @test Int(cfsum(rb)["n_draws_used"]) > 0
+
+            # bvar route propagates posterior draws
+            rv = run_json(vcat(["policy", "counterfactual", "bvar", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--rule", "taylor",
+                                "--horizon", "6", "--draws", "300"], maps))
+            @test rv.code == 0
+            @test Int(cfsum(rv)["n_draws_used"]) > 0
+            @test occursin("0.5", String(cfsum(rv)["rule"]))   # TEXTBOOK taylor, not CMW
+
+            # lp route + CMW taylor via TOML — the cmw trap defused end-to-end
+            ruletoml = tempname() * ".toml"
+            write(ruletoml, "[rule]\ntype = \"taylor\"\ncmw = true\n")
+            rl = run_json(vcat(["policy", "counterfactual", "lp", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--rule-config", ruletoml,
+                                "--horizon", "6", "--n-draws", "50"], maps))
+            @test rl.code == 0
+            @test occursin("0.85", String(cfsum(rl)["rule"]))
+            rm(ruletoml; force=true)
+        end
+
+        @testset "guards — typed, never exit 1" begin
+            b = vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                      "--nonpolicy-shock", "1"], maps)
+            @test run_json([b; "--rule"; "rate-peg"; "--horizon"; "0"]).code == 2
+            @test run_json([b; "--rule"; "bogus"]).code == 2
+            @test run_json(b).code == 2                       # no rule at all
+            @test run_json([b; "--rule"; "rate-peg"; "--quantiles"; "0.16,1.5"]).code == 2
+            @test run_json([b; "--rule"; "rate-peg"; "--spanned-tol"; "-1"]).code == 2
+            # taylor builtin without infl/ygap-named outcomes → friendly usage error
+            @test run_json(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                            "--nonpolicy-shock", "1", "--outcomes", "cpi=1,gap=2",
+                            "--instruments", "rate=3", "--rule", "taylor"]).code == 2
+            # unknown shock name → typed data-side error, not exit 1
+            @test run_json(vcat(["policy", "effects", "var", csv, "--shocks", "nosuch",
+                                 "--horizon", "4"], maps)).code in (3, 5)
+        end
+        rm(csv; force=true)
+    end
+
     @testset "test wild-cluster (W10/#112)" begin
         # FEW clusters — the regime the method exists for. G=8, a real treatment effect of
         # 1.0 assigned at CLUSTER level (so the cluster-robust normal p over-rejects).

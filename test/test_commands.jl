@@ -87,6 +87,7 @@ include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
 include(joinpath(project_root, "src", "commands", "multipliers.jl"))
+include(joinpath(project_root, "src", "commands", "policy.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
@@ -1639,6 +1640,118 @@ end  # Shared utilities
                 @test length(node.subcmds) == 1
                 @test haskey(node.subcmds, "nardl")
                 @test node.subcmds["nardl"] isa LeafCommand
+            end
+        end
+    end
+
+    @testset "policy — effects + counterfactual (W4/#126, new top-level)" begin
+        # McKay-Wolf policy counterfactuals. The mock CF layer implements real's
+        # :ls math (assembly + pinv), so the closed forms hold in T1/T2 too.
+        _pdoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["policy"], collect(String, args),
+                                       String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _perr(args) = begin
+            e = nothing
+            try
+                _capture() do
+                    _dispatch_via_app(vcat(String["policy"], collect(String, args)))
+                end
+            catch ex
+                e = ex
+            end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3, colnames=["infl", "ygap", "rate"])
+            base = ["counterfactual", "var", csv, "--shocks", "3",
+                    "--nonpolicy-shock", "1", "--outcomes", "infl=1,ygap=2",
+                    "--instruments", "rate=3", "--horizon", "6"]
+
+            @testset "structure: 19th top-level, 7 leaves" begin
+                node = register_policy_commands!()
+                @test node isa NodeCommand
+                eff = node.subcmds["effects"]; cf = node.subcmds["counterfactual"]
+                @test sort(collect(keys(eff.subcmds))) == ["bvar", "lp", "sign", "var"]
+                @test sort(collect(keys(cf.subcmds))) == ["bvar", "lp", "var"]
+            end
+
+            @testset "effects var — tidy menu + honest summary" begin
+                doc = _pdoc(["effects", "var", csv, "--shocks", "3",
+                             "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                             "--horizon", "6"])
+                @test doc.status == "ok"
+                menu = doc.data[:policy_causal_effects_menu]
+                @test String.(menu.columns) == ["variable", "role", "shock", "horizon", "value"]
+                @test length(collect(menu.rows)) == 3 * 1 * 6   # 3 vars × 1 shock × H
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:policy_causal_effects_summary].rows)
+                @test s["is_square"] == false && s["n_draws"] == 0
+            end
+
+            @testset "counterfactual var — rate peg, honesty in the DATA" begin
+                doc = _pdoc([base; "--rule"; "rate-peg"])
+                @test doc.status == "ok"
+                @test haskey(doc.data, :policy_counterfactual_paths)
+                @test haskey(doc.data, :enforcing_policy_shocks_nu)
+                @test haskey(doc.data, :implementation_error_path)
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                @test s["rule"] == "rate peg"
+                @test haskey(s, "rel_residual") && haskey(s, "spanned")
+            end
+
+            @testset "counterfactual var — bootstrap draws → band columns" begin
+                doc = _pdoc([base; "--rule"; "rate-peg"; "--replications"; "30"])
+                p = doc.data[:policy_counterfactual_paths]
+                @test "q16" in String.(p.columns) && "q84" in String.(p.columns)
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                @test s["n_draws_used"] == 30
+            end
+
+            @testset "guards — typed usage errors, builtin-rule contract" begin
+                @test (_perr([base..., "--rule", "rate-peg", "--horizon", "0"])).code == "usage/invalid"
+                @test (_perr([base..., "--rule", "bogus"])).code == "usage/invalid-option"
+                # --rule + --rule-config together
+                @test (_perr([base..., "--rule", "rate-peg", "--rule-config", "x.toml"])).code == "usage/invalid"
+                # neither
+                @test (_perr(collect(base))).code == "usage/missing"
+                # taylor builtin needs outcomes NAMED infl/ygap
+                e = _perr(["counterfactual", "var", csv, "--shocks", "3",
+                           "--nonpolicy-shock", "1", "--outcomes", "cpi=1,gap=2",
+                           "--instruments", "rate=3", "--rule", "taylor"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # malformed pair spec
+                e2 = _perr(["effects", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl", "--horizon", "4"])
+                @test e2 isa CliError && e2.code == "usage/invalid"
+                # missing shocks
+                e3 = _perr(["effects", "var", csv,
+                            "--outcomes", "infl=1", "--horizon", "4"])
+                @test e3 isa CliError && e3.code == "usage/missing"
+            end
+
+            @testset "square container → exact solve enforces the peg" begin
+                # 2 policy shocks with H=2 makes the menu square: the pegged
+                # instrument path must be EXACTLY zero and rel_residual ~0.
+                doc = _pdoc(["counterfactual", "var", csv, "--shocks", "2,3",
+                             "--nonpolicy-shock", "1", "--outcomes", "infl=1",
+                             "--instruments", "rate=3", "--rule", "rate-peg",
+                             "--horizon", "2"])
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                @test s["spanned"] == true
+                p = doc.data[:policy_counterfactual_paths]
+                ci = findfirst(==("counterfactual"), String.(p.columns))
+                ri = findfirst(==("role"), String.(p.columns))
+                zvals = [collect(r)[ci] for r in p.rows
+                         if String(collect(r)[ri]) == "instrument"]
+                @test all(abs(Float64(v)) < 1e-8 for v in zvals)
             end
         end
     end
