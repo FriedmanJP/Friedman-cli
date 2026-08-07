@@ -54,6 +54,31 @@ using Friedman
         @test Int(Friedman.run_cli(["estimate", "var", "/nonexistent/file.csv"])) == 3
     end
 
+    @testset "pre-dispatch globals are leading-only (#117)" begin
+        # Mid-argv, --warranty/--conditions/--version are ordinary (unknown)
+        # tokens for the leaf/node parser → usage error, exit 2. The old
+        # whole-argv match printed the GPL notice / version and exited 0
+        # WITHOUT running the command — a leaf option of the same name was
+        # silently swallowed (`io download --version` shipped dead this way).
+        redirect_stdout(devnull) do
+            redirect_stderr(devnull) do
+                @test Int(Friedman.run_cli(["estimate", "var", "nofile.csv", "--warranty"])) == 2
+                @test Int(Friedman.run_cli(["estimate", "var", "nofile.csv", "--conditions"])) == 2
+                @test Int(Friedman.run_cli(["estimate", "var", "nofile.csv", "--version"])) == 2
+                @test Int(Friedman.run_cli(["estimate", "--warranty"])) == 2
+                # Leading position still works.
+                @test Int(Friedman.run_cli(["--warranty"])) == 0
+                @test Int(Friedman.run_cli(["--conditions"])) == 0
+                # -h is help EVERYWHERE — the 48 `short="h"` horizon shorts were
+                # unreachable (help fires before tokenization) and are removed;
+                # the registry guard refuses any future reserved name/short.
+                @test Int(Friedman.run_cli(["fevd", "var", "-h"])) == 0
+                @test_throws ErrorException Friedman._to_option(
+                    Friedman.OptionSpec(name="x", short="h", type=Int, default=1, description=""))
+            end
+        end
+    end
+
     @testset "MEMs logging routing (#348 / C050)" begin
         # Not quiet: @info and @warn both surface.
         Friedman._QUIET[] = false

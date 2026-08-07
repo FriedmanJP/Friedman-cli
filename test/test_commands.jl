@@ -131,6 +131,25 @@ end
 # Shared utilities (shared.jl)
 # ═══════════════════════════════════════════════════════════════
 
+@testset "registry reserved names/shorts guard (#117)" begin
+    # `-h`/`--help` fire before tokenization and `--version`/`-V`, `--warranty`,
+    # `--conditions` are leading-only globals — a spec claiming one is refused at
+    # build_app time. 48 leaves once shipped an unreachable `-h` horizon short.
+    # (Sources are included directly here — no `Friedman.` module in T1/T2; the
+    # real build_app-under-guard case lives in T3's test_entry.jl.)
+    @test_throws ErrorException _to_option(
+        OptionSpec(name="horizon", short="h", type=Int, default=1, description="dead"))
+    @test_throws ErrorException _to_option(
+        OptionSpec(name="conditions", type=String, default="", description="swallowed"))
+    @test_throws ErrorException _to_flag(
+        FlagSpec(name="warranty", description="swallowed"))
+    @test_throws ErrorException _to_flag(
+        FlagSpec(name="verbose", short="V", description="dead"))
+    # sane specs still pass
+    @test _to_option(
+        OptionSpec(name="horizons", type=Int, default=20, description="ok")) isa Option
+end
+
 @testset "Shared utilities" begin
 
     @testset "ID_METHOD_MAP" begin

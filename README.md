@@ -85,7 +85,7 @@ friedman [command] [subcommand] [args...] [options...]
 
 All commands support `--format` (`table`|`csv`|`json`) and `--output` (file path) options.
 
-**Global flags:** `--help`, `--version`, `--warranty`, `--conditions`, plus agent globals `--quiet`/`-q`, `--no-color`, `--seed N`, `--json` (leading only).
+**Global flags (leading only):** `--version`/`-V`, `--warranty`, `--conditions`, plus agent globals `--quiet`/`-q`, `--no-color`, `--seed N`, `--json`. Mid-argv they are ordinary tokens (an unknown option is a usage error, exit 2) — they are never swallowed out of a command line. `--help`/`-h` prints help at any position; `-h` is reserved for help on every leaf, and the registry refuses any option/flag that tries to claim a reserved name or short (`help`, `version`, `warranty`, `conditions`, `-h`, `-V`).
 
 ### Interactive REPL
 

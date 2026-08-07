@@ -17,7 +17,7 @@ Compute Bayesian impulse response functions with credible intervals
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
@@ -52,7 +52,7 @@ FAVAR impulse response functions
 | `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--id` | — | `String` | `cholesky` | — | Identification method |
 | `--config` | — | `String` | `""` | — | TOML config for restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -84,7 +84,7 @@ Compute structural LP impulse response functions
 |--------|-------|------|---------|---------|-------------|
 | `--shock` | — | `Int64` | `1` | — | Single shock index (1-based) |
 | `--shocks` | — | `String` | `""` | — | Comma-separated shock indices (e.g. 1,2,3) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
@@ -123,7 +123,7 @@ Compute Panel VAR impulse response functions (OIRF/GIRF)
 | `--id-col` | — | `String` | `""` | — | Panel group identifier column |
 | `--time-col` | — | `String` | `""` | — | Time period column |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
-| `--horizons` | `-h` | `Int64` | `10` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `10` | — | IRF horizon |
 | `--irf-type` | — | `String` | `oirf` | — | oirf\|girf |
 | `--boot-draws` | — | `Int64` | `500` | — | Bootstrap draws for CIs |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
@@ -153,7 +153,7 @@ Structural DFM impulse response functions (panel-wide)
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--horizons` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -182,7 +182,7 @@ Date-specific IRF from a TVP-VAR-SV
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--date` | — | `Int64` | `0` | — | Date index in 1:T_eff to evaluate the IRF at (REQUIRED) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order |
 | `--draws` | `-n` | `Int64` | `2000` | — | Retained Gibbs draws |
@@ -219,7 +219,7 @@ Compute frequentist impulse response functions
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
@@ -262,7 +262,7 @@ Compute impulse response functions via VECM → VAR representation
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |

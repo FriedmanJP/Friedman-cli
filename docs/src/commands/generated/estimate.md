@@ -790,7 +790,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `standard` | — | standard\|iv\|smooth\|state\|propensity\|robust |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--control-lags` | — | `Int64` | `4` | — | Number of control lags |
 | `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--instruments` | — | `String` | `""` | — | Path to instruments CSV (iv only) |
@@ -1463,7 +1463,7 @@ Path to CSV data file
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto) |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--horizon` | `-h` | `Int64` | `40` | — | Structural IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | Structural IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--bandwidth` | — | `Int64` | `0` | — | Spectral bandwidth (0=auto) |
 | `--kernel` | — | `String` | `bartlett` | — | bartlett\|parzen\|quadratic_spectral |

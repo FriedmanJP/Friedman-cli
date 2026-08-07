@@ -1,16 +1,36 @@
 # CommandSpec → LeafCommand / NodeCommand adapter (P2-1)
 
+# Names/shorts the pre-dispatch layer owns (#117): `--help`/`-h` fire before
+# tokenization on every leaf (`_wants_help`), and `--version`/`-V`, `--warranty`,
+# `--conditions` are leading-only globals. A spec claiming one would be dead or
+# shadowed on every invocation — refuse at registration (build_app), not in
+# production. 48 leaves shipped an unreachable `-h` horizon short this way.
+const _RESERVED_OPTION_NAMES = ("help", "version", "warranty", "conditions")
+const _RESERVED_SHORTS = ("h", "V")
+
+function _check_reserved(kind::String, name::String, short::String)
+    name in _RESERVED_OPTION_NAMES && error(
+        "registry: $kind '--$name' collides with a pre-dispatch global; " *
+        "pick another name (e.g. '--$name-file')")
+    short in _RESERVED_SHORTS && error(
+        "registry: $kind '--$name' claims reserved short '-$short' " *
+        "(help/version fire before tokenization, so the short can never bind); drop it")
+    return nothing
+end
+
 function _to_argument(a::ArgSpec)
     return Argument(a.name; type=a.type, required=a.required,
                     default=a.default, description=a.description)
 end
 
 function _to_option(o::OptionSpec)
+    _check_reserved("option", o.name, o.short)
     return Option(o.name; short=o.short, type=o.type, default=o.default,
                   description=o.description, choices=o.choices)
 end
 
 function _to_flag(f::FlagSpec)
+    _check_reserved("flag", f.name, f.short)
     return Flag(f.name; short=f.short, description=f.description)
 end
 

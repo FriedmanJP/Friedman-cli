@@ -90,7 +90,7 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="dfm", choices=["dfm", "bvar", "bridge"], description="dfm|bvar|bridge"),
                 OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM)"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
-                OptionSpec(name="horizons", short="h", type=Int, default=4, description="Forecast horizon"),
+                OptionSpec(name="horizons", type=Int, default=4, description="Forecast horizon"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
             ],

@@ -655,6 +655,18 @@ using .MacroEconometricModels
         # --conditions flag prints conditions text
         conditions_output = capture_stdout(() -> dispatch(entry, ["--conditions"]))
         @test contains(conditions_output, "copies")
+
+        # #117: pre-dispatch globals are LEADING-ONLY. Mid-argv the token belongs
+        # to the leaf parser (unknown option → ParseError, exit 2) — the old
+        # whole-argv match printed the GPL notice / version and exited 0 WITHOUT
+        # running the command, silently swallowing any same-named leaf option.
+        for tok in ("--warranty", "--conditions", "--version", "-V")
+            @test_throws ParseError capture_stdout(
+                () -> dispatch(entry, ["sub", "run", "test.csv", tok]))
+        end
+        # …and at node level a mid-argv global is an unknown command, not a notice.
+        @test_throws DispatchError capture_stdout(
+            () -> dispatch(entry, ["sub", "--warranty"]))
     end
 
     @testset "DispatchError on unknown command" begin

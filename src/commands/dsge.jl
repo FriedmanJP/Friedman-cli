@@ -48,7 +48,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="method", type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
                 OptionSpec(name="n-sim", type=Int, default=0, description="Simulation-based IRF draws (0=analytical)"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
@@ -70,7 +70,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="method", type=String, default="gensys", description="Solution method: gensys|klein|perturbation|projection|pfi"),
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -251,7 +251,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
             options=[
                 BAYES_OPTIONS...,
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -268,7 +268,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
             options=[
                 BAYES_OPTIONS...,
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -353,7 +353,7 @@ function dsge_specs()::Vector{CommandSpec}
                 BAYES_OPTIONS...,
                 OptionSpec(name="n-hd-draws", type=Int, default=200, description="Number of posterior draws for HD"),
                 OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84", description="Quantile levels"),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -570,7 +570,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="HA solution method: ssj|reiter (krusell-smith has no linear IRF)",
                            choices=["ssj", "reiter"]),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -591,7 +591,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="HA solution method: ssj|reiter",
                            choices=["ssj", "reiter"]),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -634,7 +634,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="Must be reiter (SSJ has no distribution basis)",
                            choices=["reiter"]),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-index", type=Int, default=1, description="Aggregate shock index (1-based)"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
@@ -656,7 +656,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="Must be reiter for dynamic inequality IRF",
                            choices=["reiter"]),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-index", type=Int, default=1, description="Aggregate shock index (1-based)"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
@@ -815,7 +815,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="k0", type=Float64, default=0.0,
                            description="Initial capital (0 = 80% of steady-state k)"),
-                OptionSpec(name="horizon", short="h", type=Int, default=50, description="Transition periods H"),
+                OptionSpec(name="horizon", type=Int, default=50, description="Transition periods H"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),

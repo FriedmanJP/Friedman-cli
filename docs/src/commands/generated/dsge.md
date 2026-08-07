@@ -107,7 +107,7 @@ Path to DSGE model file (.toml or .jl)
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--horizon` | `-h` | `Int64` | `40` | — | FEVD horizon |
+| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -148,7 +148,7 @@ Path to DSGE model file (.toml or .jl)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--n-hd-draws` | — | `Int64` | `200` | — | Number of posterior draws for HD |
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Quantile levels |
-| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -210,7 +210,7 @@ Path to DSGE model file (.toml or .jl)
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -661,7 +661,7 @@ Path to DSGE model file (.toml or .jl)
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `gensys` | — | Solution method: gensys\|klein\|perturbation\|projection\|pfi |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--horizon` | `-h` | `Int64` | `40` | — | FEVD horizon |
+| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -716,7 +716,7 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
-| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -767,7 +767,7 @@ Aggregate FEVD from linearized HA-DSGE solution
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--horizon` | `-h` | `Int64` | `40` | — | FEVD horizon |
+| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -792,7 +792,7 @@ Gini and wealth-percentile IRFs after an aggregate shock
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
-| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -819,7 +819,7 @@ Aggregate IRFs from linearized HA-DSGE solution
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
-| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -955,7 +955,7 @@ Path to DSGE model file (.toml or .jl)
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `gensys` | — | Solution method: gensys\|klein\|perturbation\|projection\|pfi |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--horizon` | `-h` | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--n-sim` | — | `Int64` | `0` | — | Simulation-based IRF draws (0=analytical) |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
@@ -1004,7 +1004,7 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 | `--z` | — | `Float64` | `1.0` | — | TFP |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 80% of steady-state k) |
-| `--horizon` | `-h` | `Int64` | `50` | — | Transition periods H |
+| `--horizon` | — | `Int64` | `50` | — | Transition periods H |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |

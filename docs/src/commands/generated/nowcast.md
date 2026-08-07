@@ -93,7 +93,7 @@ Forecast from a nowcasting model
 | `--method` | — | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm\|bvar\|bridge |
 | `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM) |
 | `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
-| `--horizons` | `-h` | `Int64` | `4` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `4` | — | Forecast horizon |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

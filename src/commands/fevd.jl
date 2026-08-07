@@ -24,7 +24,7 @@ function fevd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -46,7 +46,7 @@ function fevd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
@@ -67,7 +67,7 @@ function fevd_specs()::Vector{CommandSpec}
             summary="Compute forecast error variance decomposition via structural LP",
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
@@ -92,7 +92,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="Forecast horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -114,7 +114,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
-                OptionSpec(name="horizons", short="h", type=Int, default=10, description="Forecast horizon"),
+                OptionSpec(name="horizons", type=Int, default=10, description="Forecast horizon"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -134,7 +134,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="FEVD horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="FEVD horizon"),
                 OptionSpec(name="id", type=String, default="cholesky", description="Identification method"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for restrictions"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -156,7 +156,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="FEVD horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="FEVD horizon"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")

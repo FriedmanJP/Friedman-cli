@@ -62,7 +62,10 @@ function io_specs()::Vector{CommandSpec}
                            description="oecd|wiod|exiobase3|eora26|gloria"),
                 OptionSpec(name="storage", type=String, default="",
                            description="Destination folder for downloaded archives (required)"),
-                OptionSpec(name="version", type=String, default="",
+                # Named --source-version, NOT --version: that is a reserved
+                # pre-dispatch global (#117) and the old spelling was swallowed
+                # by it on every invocation (printed the CLI version, exit 0).
+                OptionSpec(name="source-version", type=String, default="",
                            description="Source version (e.g. OECD v2023)"),
                 OptionSpec(name="years", type=String, default="",
                            description="Comma-separated year filter (default: all)"),
@@ -305,7 +308,7 @@ function _io_sources(; format::String="table", output::String="")
     output_result(df; format=Symbol(format), output=output, title="IO/MRIO Sources")
 end
 
-function _io_download(; source::String="", storage::String="", version::String="",
+function _io_download(; source::String="", storage::String="", source_version::String="",
                       years::String="", system::String="pxp",
                       email::String="", password::String="",
                       offline::Bool=false, overwrite::Bool=false, no_verify::Bool=false,
@@ -323,9 +326,10 @@ function _io_download(; source::String="", storage::String="", version::String="
 
     src = Symbol(source)
     yrs = _parse_years(years)
-    ver = isempty(version) ? nothing : version
+    ver = isempty(source_version) ? nothing : source_version
 
-    _status("Downloading :$source → $storage" * (isempty(version) ? "" : " (version=$version)"))
+    _status("Downloading :$source → $storage" *
+            (isempty(source_version) ? "" : " (version=$source_version)"))
     # Forward source-specific kwargs only where the per-source downloader accepts
     # them: `system` → exiobase3 only; `verify` → every source except eora26 (which
     # takes neither). download_io relays extras verbatim, so over-forwarding is a

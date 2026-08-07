@@ -115,7 +115,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="HD horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="HD horizon"),
                 OptionSpec(name="id", type=String, default="cholesky", description="Identification method"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for restrictions"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),

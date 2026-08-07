@@ -61,7 +61,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
             order_opts[vol.order]...,
         ]
         if with_horizons
-            push!(opts, OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"))
+            push!(opts, OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"))
         end
         # W11/#113: only the three estimators that actually take a conditional distribution
         # upstream get --dist. arch/sv have no `dist` kwarg at all, so declaring it there
@@ -228,7 +228,7 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="method", type=String, default="standard", description="standard|iv|smooth|state|propensity|robust"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
                 OptionSpec(name="control-lags", type=Int, default=4, description="Number of control lags"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="instruments", type=String, default="", description="Path to instruments CSV (iv only)"),
@@ -1168,7 +1168,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="Structural IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral bandwidth (0=auto)"),
                 OptionSpec(name="kernel", type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),

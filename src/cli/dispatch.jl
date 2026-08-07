@@ -29,20 +29,22 @@ _wants_help(args::Vector{String}) = "--help" in args || "-h" in args
 Main dispatch: walk the command tree from `entry` using `args`, then execute the matched leaf.
 """
 function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
-    # Handle --version at top level
-    if "--version" in args || "-V" in args
-        println(entry.name, " v", entry.version)
-        return
-    end
-
-    # Handle --warranty / --conditions (GPL notice)
-    if "--warranty" in args
-        MacroEconometricModels.warranty()
-        return
-    end
-    if "--conditions" in args
-        MacroEconometricModels.conditions()
-        return
+    # Pre-dispatch globals are LEADING-ONLY (#117): they fire only as the FIRST
+    # token, before any subcommand path is consumed. The old whole-argv match
+    # swallowed a leaf option of the same name — the GPL notice printed instead
+    # of the command running, silently, exit 0 (found in W8; `forecast scenario`
+    # spells its option `--conditions-file` to dodge the old behaviour).
+    if !isempty(args)
+        if args[1] == "--version" || args[1] == "-V"
+            println(entry.name, " v", entry.version)
+            return
+        elseif args[1] == "--warranty"
+            MacroEconometricModels.warranty()
+            return
+        elseif args[1] == "--conditions"
+            MacroEconometricModels.conditions()
+            return
+        end
     end
 
     # Handle --help at top level only (not when a subcommand follows)

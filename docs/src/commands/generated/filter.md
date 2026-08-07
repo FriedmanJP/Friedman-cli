@@ -94,7 +94,7 @@ Hamilton (2018) regression filter
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | `-h` | `Int64` | `8` | — | Forecast horizon |
+| `--horizon` | — | `Int64` | `8` | — | Forecast horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags in regression |
 | `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
