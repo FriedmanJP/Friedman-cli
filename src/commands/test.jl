@@ -4075,6 +4075,9 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
         _status("VAR Granger Causality Test (all pairwise): VAR($p), $n variables")
         _status()
 
+        # granger_test_all returns an n×n Matrix{Union{GrangerCausalityResult,Nothing}}
+        # (nothing on the diagonal), and each result carries variable INDICES:
+        # cause::Vector{Int}, effect::Int (#118).
         results = granger_test_all(model)
 
         test_df = DataFrame(
@@ -4085,10 +4088,13 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
             p_value=Float64[]
         )
         for r in results
-            push!(test_df, (cause=r.cause, effect=r.effect,
+            r === nothing && continue
+            cause_name = join((_var_name(varnames, i) for i in r.cause), "+")
+            push!(test_df, (cause=cause_name, effect=_var_name(varnames, r.effect),
                            statistic=round(r.statistic; digits=4),
                            df=r.df, p_value=round(r.pvalue; digits=4)))
         end
+        sort!(test_df, [:cause, :effect])
 
         output_result(test_df; format=Symbol(format), output=output,
                       title="VAR Granger Causality (all pairwise)")

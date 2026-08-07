@@ -2057,6 +2057,73 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ci; force=true); rm(nc; force=true)
         end
 
+        @testset "granger — VAR pairwise + --all matrix (#118)" begin
+            # Real granger_test_all returns an n×n Matrix{Union{GrangerCausalityResult,
+            # Nothing}} (diagonal = nothing) with cause::Vector{Int}/effect::Int — the
+            # old flat iteration into String columns made `test granger --all` exit 1
+            # on every real-MEMs invocation while the invented mock kept T1/T2 green.
+            csv = dgp_granger(; T=300, seed=141)
+            kv_with(doc, metric) = begin
+                found = nothing
+                for (_, v) in pairs(doc.data)
+                    v isa JSON3.Object && haskey(v, :columns) || continue
+                    metric_value(v, metric) === nothing || (found = v; break)
+                end
+                found
+            end
+            rf = run_json(["test", "granger", csv, "--model", "var",
+                           "--cause", "1", "--effect", "2"])
+            assert_envelope_ok(rf; label="granger x→y")
+            pxy = numv(metric_value(kv_with(rf.doc, "p-value"), "p-value"))
+            @test pxy < 0.05                        # x Granger-causes y by construction
+            rb = run_json(["test", "granger", csv, "--model", "var",
+                           "--cause", "2", "--effect", "1"])
+            assert_envelope_ok(rb; label="granger y→x")
+            pyx = numv(metric_value(kv_with(rb.doc, "p-value"), "p-value"))
+            @test pyx > pxy                         # the non-causal direction is weaker
+
+            ra = run_json(["test", "granger", csv, "--model", "var", "--all"])
+            assert_envelope_ok(ra; label="granger --all")
+            t = begin
+                found = nothing
+                for (_, v) in pairs(ra.doc.data)
+                    v isa JSON3.Object && haskey(v, :columns) || continue
+                    ("cause" in table_cols(v) && "effect" in table_cols(v)) && (found = v; break)
+                end
+                found
+            end
+            @test t !== nothing
+            rows = table_rows(t)
+            @test length(rows) == 2                 # n(n-1) ordered pairs, diagonal skipped
+            ci_ = col_index(t, "cause"); ei_ = col_index(t, "effect"); pi_ = col_index(t, "p_value")
+            pairs_seen = Set((String(collect(r)[ci_]), String(collect(r)[ei_])) for r in rows)
+            @test pairs_seen == Set([("x", "y"), ("y", "x")])   # CSV names, not y1/y2
+            p_by_pair = Dict((String(collect(r)[ci_]), String(collect(r)[ei_])) =>
+                             numv(collect(r)[pi_]) for r in rows)
+            @test p_by_pair[("x", "y")] < p_by_pair[("y", "x")]
+
+            # #119: the model itself carries the CSV names now — long_table output
+            # (variable/shock columns) must say x/y, never the y1..yn default.
+            ri = run_json(["irf", "var", csv, "--horizons", "4"])
+            assert_envelope_ok(ri; label="irf var names (#119)")
+            it = begin
+                found = nothing
+                for (_, v) in pairs(ri.doc.data)
+                    v isa JSON3.Object && haskey(v, :columns) || continue
+                    ("variable" in table_cols(v) && "shock" in table_cols(v)) && (found = v; break)
+                end
+                found
+            end
+            @test it !== nothing
+            vi_ = col_index(it, "variable"); si_ = col_index(it, "shock")
+            seen_vars = Set(String(collect(r)[vi_]) for r in table_rows(it))
+            seen_shocks = Set(String(collect(r)[si_]) for r in table_rows(it))
+            @test seen_vars == Set(["x", "y"])
+            @test seen_shocks ⊆ Set(["x", "y", "x_shock", "y_shock"])
+            @test !("y1" in seen_vars)
+            rm(csv; force=true)
+        end
+
         @testset "hansen-instability / park-added — stable cointegration" begin
             ci = dgp_coint(; T=250, β=2.0, seed=141)
             rh = run_json(["test", "hansen-instability", ci, "--dep", "y"])

@@ -307,7 +307,7 @@ end
 
 struct LPModel{T}
     Y::Matrix{T}; shock_var::Int; horizon::Int; lags::Int
-    B::Matrix{T}; residuals::Matrix{T}; vcov::Matrix{T}; T_eff::Int
+    B::Matrix{T}; residuals::Matrix{T}; vcov::Matrix{T}; T_eff::Vector{Int}
 end
 # W10/#112: `first_stage_F` and `T_eff` are per-horizon VECTORS in real MEMs (the first
 # stage is re-estimated at every h and the sample shrinks with h). The mock stored scalars,
@@ -324,7 +324,8 @@ struct StateLPModel{T}
     Y::Matrix{T}; B_expansion::Matrix{T}; B_recession::Matrix{T}; horizon::Int
 end
 struct PropensityLPModel{T}
-    Y::Matrix{T}; ate::T; ate_se::T; horizon::Int
+    # Real ate/ate_se are (H+1)×n_response MATRICES (#118 shape gate).
+    Y::Matrix{T}; ate::Matrix{T}; ate_se::Matrix{T}; horizon::Int
 end
 struct LPImpulseResponse{T}
     values::Matrix{T}; ci_lower::Matrix{T}; ci_upper::Matrix{T}; se::Matrix{T}
@@ -1092,7 +1093,7 @@ end
 # LP functions
 function estimate_lp(Y, shock_var, horizon; lags=4, cov_type=:newey_west)
     T_obs, n = size(Y)
-    LPModel(Y, shock_var, horizon, lags, ones(lags+1, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n)) * 0.01, T_obs-lags)
+    LPModel(Y, shock_var, horizon, lags, ones(lags+1, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n)) * 0.01, [T_obs - lags - h for h in 0:horizon])
 end
 function lp_irf(model::LPModel; conf_level=0.95)
     n = size(model.Y, 2); h = model.horizon + 1
@@ -1148,7 +1149,7 @@ end
 test_regime_difference(model::StateLPModel; h=nothing) =
     (joint_test=(avg_t_stat=2.5, p_value=0.012),)
 function estimate_propensity_lp(Y, treatment, covariates, horizon; ps_method=:logit, trimming=(0.01,0.99))
-    PropensityLPModel(Y, 0.5, 0.1, horizon)
+    PropensityLPModel(Y, fill(0.5, horizon + 1, size(Y, 2)), fill(0.1, horizon + 1, size(Y, 2)), horizon)
 end
 function propensity_irf(model::PropensityLPModel; conf_level=0.95)
     n = size(model.Y, 2); h = model.horizon + 1
@@ -1158,7 +1159,7 @@ end
 propensity_diagnostics(model::PropensityLPModel) =
     (propensity_summary=(treated=(mean=0.7,), control=(mean=0.3,)), balance=(max_weighted=0.05,))
 doubly_robust_lp(Y, treatment, covariates, horizon; ps_method=:logit) =
-    PropensityLPModel(Y, 0.6, 0.12, horizon)
+    PropensityLPModel(Y, fill(0.6, horizon + 1, size(Y, 2)), fill(0.12, horizon + 1, size(Y, 2)), horizon)
 
 function structural_lp(Y, horizon; method=:cholesky, lags=4, var_lags=4,
                        cov_type=:newey_west, ci_type=:none, reps=200, conf_level=0.95,
@@ -1170,7 +1171,7 @@ function structural_lp(Y, horizon; method=:cholesky, lags=4, var_lags=4,
     ci_hi = ci_type == :none ? nothing : irf_vals .+ 0.5
     irf_res = ImpulseResponse(irf_vals, ci_lo, ci_hi)
     Q = Matrix{Float64}(I(n))
-    lp_models = [LPModel(Y, i, horizon, lags, ones(5, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n))*0.01, T_obs-lags) for i in 1:n]
+    lp_models = [LPModel(Y, i, horizon, lags, ones(5, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n))*0.01, [T_obs - lags - h for h in 0:horizon]) for i in 1:n]
     StructuralLP(irf_res, model, Q, method, ones(horizon+1, n, n)*0.1, lp_models)
 end
 function lp_fevd(slp::StructuralLP, horizons::Int; estimator=:R2, n_boot=200, conf_level=0.95)
@@ -1739,7 +1740,10 @@ struct PVARTestResult{T<:Real}
 end
 
 struct GrangerCausalityResult{T<:Real}
-    statistic::T; pvalue::T; df::Int; test_type::Symbol; cause::String; effect::String
+    # Real layout (teststat/granger.jl:47): cause is a Vector of variable INDICES,
+    # effect an index; the old mock invented String names here (#118 shape gate).
+    statistic::T; pvalue::T; df::Int; cause::Vector{Int}; effect::Int
+    n::Int; p::Int; nobs::Int; test_type::Symbol
 end
 
 struct LRTestResult{T<:Real}
@@ -1890,17 +1894,23 @@ function pvar_lag_selection(panel::PanelData, max_p::Int; dependent_vars=nothing
     (table=tbl, best_bic=1, best_aic=1, best_hqic=1, models=PVARModel[])
 end
 
-# Enhanced Granger causality for VAR
-function granger_test(model::VARModel, cause::Int, effect::Int; lags=nothing)
-    GrangerCausalityResult(12.5, 0.003, 2, :pairwise, "var$cause", "var$effect")
+# Enhanced Granger causality for VAR. Real granger_test takes NO kwargs, and
+# granger_test_all returns an n×n Matrix{Union{GrangerCausalityResult,Nothing}}
+# with nothing on the diagonal, indexed [effect, cause] — NOT a flat vector.
+function granger_test(model::VARModel, cause::Int, effect::Int)
+    n = size(model.Y, 2)
+    GrangerCausalityResult(12.5, 0.003, model.p, [cause], effect,
+                           n, model.p, size(model.Y, 1) - model.p, :pairwise)
 end
 
-function granger_test_all(model::VARModel; lags=nothing)
+function granger_test_all(model::VARModel)
     n = size(model.Y, 2)
-    results = GrangerCausalityResult[]
-    for i in 1:n, j in 1:n
-        i == j && continue
-        push!(results, GrangerCausalityResult(10.0 + i, 0.01, 2, :pairwise, "var$i", "var$j"))
+    results = Matrix{Union{GrangerCausalityResult{Float64},Nothing}}(nothing, n, n)
+    for effect in 1:n, cause in 1:n
+        cause == effect && continue
+        results[effect, cause] = GrangerCausalityResult(10.0 + cause, 0.01, model.p, [cause],
+                                                        effect, n, model.p,
+                                                        size(model.Y, 1) - model.p, :pairwise)
     end
     results
 end
@@ -2062,19 +2072,21 @@ export hp_filter, hamilton_filter, beveridge_nelson, baxter_king, boosted_hp, tr
 
 struct TimeSeriesData{T<:Real}
     data::Matrix{T}; varnames::Vector{String}; frequency::Symbol
-    tcode::Vector{Int}; time_index::Vector{Int}; desc::String; vardesc::Vector{String}
+    # Real desc is a ONE-ELEMENT Vector{String} (accessor is d.desc[1]) — #118 shape gate.
+    tcode::Vector{Int}; time_index::Vector{Int}; desc::Vector{String}; vardesc::Vector{String}
 end
 # Keyword constructor matching MacroEconometricModels v0.2.2 interface
 function TimeSeriesData(data::AbstractMatrix{T}; varnames=String[], frequency=:unknown,
                         tcode=fill(1, size(data, 2)), time_index=collect(1:size(data, 1)),
                         desc="", vardesc=fill("", size(data, 2)), source_refs=Symbol[]) where T<:Real
-    TimeSeriesData{T}(Matrix{T}(data), varnames, frequency, tcode, time_index, desc, vardesc)
+    TimeSeriesData{T}(Matrix{T}(data), varnames, frequency, tcode, time_index,
+                      desc isa AbstractString ? [String(desc)] : desc, vardesc)
 end
 
 # Field order is a prefix of the real CrossSectionData (source_refs omitted).
 struct CrossSectionData{T<:Real}
     data::Matrix{T}; varnames::Vector{String}; obs_id::Vector{Int}
-    N_obs::Int; n_vars::Int; desc::String; vardesc::Vector{String}
+    N_obs::Int; n_vars::Int; desc::Vector{String}; vardesc::Vector{String}
 end
 
 struct DataDiagnostic
@@ -2099,7 +2111,7 @@ function load_example(name::Symbol)
         vd = vcat(["Industrial Production", "CPI All Urban", "Fed Funds Rate"],
                   ["Variable $i" for i in 4:n_vars])
         TimeSeriesData(data, vn, :monthly, tc, collect(1:T_obs),
-            "FRED-MD Monthly Database (2024 vintage)", vd)
+            ["FRED-MD Monthly Database (2024 vintage)"], vd)
     elseif name == :fred_qd
         n_vars = 245; T_obs = 268
         data = randn(T_obs, n_vars) .+ 1.0
@@ -2107,7 +2119,7 @@ function load_example(name::Symbol)
         tc = vcat([5, 5], [1 for _ in 3:n_vars])
         vd = vcat(["Real GDP", "Real PCE"], ["Variable $i" for i in 3:n_vars])
         TimeSeriesData(data, vn, :quarterly, tc, collect(1:T_obs),
-            "FRED-QD Quarterly Database", vd)
+            ["FRED-QD Quarterly Database"], vd)
     elseif name == :pwt
         n_vars = 42; n_countries = 38; T_per = 74
         T_obs = n_countries * T_per
@@ -2139,12 +2151,12 @@ function load_example(name::Symbol)
         T_obs = 55
         vn = ["LRM", "LRY", "LPY", "IBO", "IDE"]
         TimeSeriesData(randn(T_obs, 5) .+ 1.0, vn, :quarterly, fill(1, 5),
-            collect(1:T_obs), "Danish money demand", ["Variable $v" for v in vn])
+            collect(1:T_obs), ["Danish money demand"], ["Variable $v" for v in vn])
     elseif name == :gnp_hamilton
         # Hamilton (1989) US GNP growth: 135 quarters × 1 var
         T_obs = 135
         TimeSeriesData(randn(T_obs, 1) .+ 1.0, ["gnp_growth"], :quarterly, [1],
-            collect(1:T_obs), "US GNP growth (Hamilton 1989)", ["GNP growth"])
+            collect(1:T_obs), ["US GNP growth (Hamilton 1989)"], ["GNP growth"])
     elseif name == :mp_shocks
         # McKay-Wolf (2023) US monetary panel (CF-20/MEMs#400): 240 quarters × 8
         # vars, NaN outside each series' published sample. The NaN mask below is
@@ -2159,13 +2171,13 @@ function load_example(name::Symbol)
             data[f:l, j] = randn(l - f + 1) .+ 2.0
         end
         TimeSeriesData(data, vn, :quarterly, fill(1, 8), collect(1:T_obs),
-            "US monetary panel with published policy-shock series (McKay-Wolf 2023)",
+            ["US monetary panel with published policy-shock series (McKay-Wolf 2023)"],
             ["Variable $v" for v in vn])
     elseif name == :nile
         # Nile annual flow: 100 years × 1 var
         T_obs = 100
         TimeSeriesData(randn(T_obs, 1) .+ 900.0, ["flow"], :annual, [1],
-            collect(1:T_obs), "Nile river annual flow", ["Flow"])
+            collect(1:T_obs), ["Nile river annual flow"], ["Flow"])
     elseif name == :grunfeld
         # Grunfeld investment panel: 10 firms × 20 years × 3 vars
         n_groups = 10; n_years = 20; n_vars = 3
@@ -2179,12 +2191,12 @@ function load_example(name::Symbol)
         # Mroz (1987) female labour supply: 753 × 22 cross section
         vn = vcat(["inlf", "hours", "kidslt6", "kidsge6"], ["var$i" for i in 5:22])
         CrossSectionData(randn(753, 22) .+ 1.0, vn, collect(1:753), 753, 22,
-                         "Mroz (1987) female labour supply", ["Variable $v" for v in vn])
+                         ["Mroz (1987) female labour supply"], ["Variable $v" for v in vn])
     elseif name == :stackloss
         # Brownlee stack-loss plant data: 21 × 4 cross section
         vn = ["stackloss", "airflow", "watertemp", "acidconc"]
         CrossSectionData(randn(21, 4) .+ 1.0, vn, collect(1:21), 21, 4,
-                         "Brownlee stack loss", ["Variable $v" for v in vn])
+                         ["Brownlee stack loss"], ["Variable $v" for v in vn])
     elseif name == :wiot
         _mock_wiot()   # Miller & Blair (2009) IO fixture (defined below)
     else
@@ -2201,7 +2213,7 @@ varnames(d::TimeSeriesData) = d.varnames
 varnames(d::PanelData) = d.varnames
 varnames(d::CrossSectionData) = d.varnames
 frequency(d::TimeSeriesData) = d.frequency
-desc(d::TimeSeriesData) = d.desc
+desc(d::TimeSeriesData) = d.desc[1]
 vardesc(d::TimeSeriesData) = d.vardesc
 nobs(d::TimeSeriesData) = size(d.data, 1)
 nvars(d::TimeSeriesData) = size(d.data, 2)

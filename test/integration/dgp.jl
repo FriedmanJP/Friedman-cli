@@ -517,3 +517,16 @@ function dgp_select(; n::Int=400, seed::Int=42)
     return write_csv(DataFrame("y" => y, "const" => ones(n), "x1" => x1, "x2" => x2,
                                "x3" => x3, "x4" => x4); prefix="select")
 end
+
+"""Granger-causal pair: `x` is AR(0.5); `y` loads on LAGGED x (β) plus its own lag —
+so x Granger-causes y and y does not cause x. Column names (x, y) are deliberately
+non-default so the `--all` table's index→name resolution is exercised (#118)."""
+function dgp_granger(; T::Int=300, β::Float64=0.8, seed::Int=42)
+    rng = MersenneTwister(seed)
+    x = zeros(T); y = zeros(T)
+    for t in 2:T
+        x[t] = 0.5 * x[t-1] + randn(rng)
+        y[t] = 0.4 * y[t-1] + β * x[t-1] + randn(rng)
+    end
+    return write_csv(DataFrame(x=x, y=y); prefix="granger")
+end
