@@ -100,19 +100,18 @@ end
 capture_manifest(; seed::Union{Integer,Nothing}=nothing,
                    settings::AbstractDict=Dict{String,Any}()) =
     ReproManifest(seed === nothing ? nothing : Int(seed), Threads.nthreads(),
-                  string(VERSION), "0.7.0",
+                  string(VERSION), "0.7.2",
                   Dict("Distributions" => "0.25", "StatsAPI" => "1.7"),
                   string(Sys.KERNEL), string(Sys.MACHINE),
                   "2026-01-01T00:00:00Z", "unknown", false,
                   Dict{String,Any}(settings))
 
-const _MOCK_NATIVE_SAVE_TYPES = Set([
-    "VARModel", "BVARPosterior", "RegModel", "LogitModel", "ProbitModel", "LPModel",
-])
-
 function save_model(model, path::AbstractString)
     tname = string(nameof(typeof(model)))
-    tname in _MOCK_NATIVE_SAVE_TYPES || throw(SerializationError(
+    # `_SERIALIZABLE_TYPES` mirrors the real registry and is defined at the BOTTOM of this
+    # file — every type in it must already exist, and mocks.jl is one flat top-to-bottom
+    # module. A function body resolves at call time, so referring to it here is fine.
+    haskey(_SERIALIZABLE_TYPES, tname) || throw(SerializationError(
         "save_model does not support $(typeof(model))"))
     open(p -> Serialization.serialize(p,
         Dict{String,Any}("format_version" => SERIALIZATION_FORMAT_VERSION,
@@ -165,9 +164,15 @@ struct BVARPosterior{T}
 end
 
 struct MinnesotaHyperparameters
-    tau::Float64; decay::Float64; lambda::Float64; mu::Float64; omega::Vector{Float64}
+    # `omega` is a SCALAR weight on the residual-covariance prior in real MEMs. It used to
+    # be Vector{Float64} here, which let `_build_prior` pass a length-n vector of AR
+    # residual s.d.s — real raises `TypeError: in keyword argument omega, expected Real`,
+    # i.e. exit 1 on every `--config` minnesota run. Keep the keyword `::Real` so the mock
+    # rejects exactly what real rejects.
+    tau::Float64; decay::Float64; lambda::Float64; mu::Float64; omega::Float64
 end
-MinnesotaHyperparameters(; tau=0.2, decay=1.0, lambda=0.5, mu=1.0, omega=[1.0]) =
+MinnesotaHyperparameters(; tau::Real=3.0, decay::Real=0.5, lambda::Real=5.0,
+                           mu::Real=2.0, omega::Real=2.0) =
     MinnesotaHyperparameters(tau, decay, lambda, mu, omega)
 
 struct ImpulseResponse{T}
@@ -266,6 +271,23 @@ SVARRestrictions(n::Int; zeros=ZeroRestriction[], signs=SignRestriction[]) =
 struct AriasSVARResult{T}
     Q_draws::Vector{Matrix{T}}; irf_draws::Array{T,4}; weights::Vector{T}; acceptance_rate::T
     restrictions::SVARRestrictions
+    # MEMs#372: the importance weights became operative in 0.7.2, so ESS is now a real
+    # diagnostic rather than a formality. Kish's ESS and its fraction of n_draws.
+    ess::T
+    ess_fraction::T
+end
+# Back-compatible arity, matching real: derive the diagnostics from the weights.
+# Both the parametric and the inferred-parameter forms, since existing call sites use each.
+AriasSVARResult(Q_draws::Vector{Matrix{T}}, irf_draws::Array{T,4}, weights::Vector{T},
+                acceptance_rate::T, restrictions::SVARRestrictions) where {T} =
+    AriasSVARResult{T}(Q_draws, irf_draws, weights, acceptance_rate, restrictions)
+function AriasSVARResult{T}(Q_draws, irf_draws, weights, acceptance_rate,
+                            restrictions) where {T}
+    sw = sum(weights); sw2 = sum(w -> w^2, weights)
+    ess = sw2 > 0 ? T(sw^2 / sw2) : zero(T)
+    n = length(weights)
+    AriasSVARResult{T}(Q_draws, irf_draws, weights, acceptance_rate, restrictions,
+                       ess, n > 0 ? ess / T(n) : zero(T))
 end
 
 struct UhligSVARResult{T}
@@ -279,8 +301,13 @@ struct LPModel{T}
     Y::Matrix{T}; shock_var::Int; horizon::Int; lags::Int
     B::Matrix{T}; residuals::Matrix{T}; vcov::Matrix{T}; T_eff::Int
 end
+# W10/#112: `first_stage_F` and `T_eff` are per-horizon VECTORS in real MEMs (the first
+# stage is re-estimated at every h and the sample shrinks with h). The mock stored scalars,
+# which let the CLI read a `wi.F_stat` that real never had — exit 1 in production, green
+# suite. Mock array SHAPE must match real, not just the field names (#84, `fevd bvar`).
 struct LPIVModel{T}
-    Y::Matrix{T}; instruments::Matrix{T}; first_stage_F::T; horizon::Int; T_eff::Int
+    Y::Matrix{T}; instruments::Matrix{T}; first_stage_F::Vector{T}; horizon::Int
+    T_eff::Vector{Int}; shock_var::Int; response_vars::Vector{Int}; varnames::Vector{String}
 end
 struct SmoothLPModel{T}
     Y::Matrix{T}; lambda::T; horizon::Int
@@ -440,6 +467,37 @@ end
 struct ARIMAForecast{T}
     forecast::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}; se::Vector{T}
     horizon::Int; conf_level::T
+end
+
+# W6/#108 — multiplicative seasonal ARIMA. Field names/order mirror real
+# `SARIMAModel <: AbstractARIMAModel` (mock ⊆ real). `phi_expanded`/`theta_expanded` are the
+# multiplied-out polynomials real carries; kept so the subset check stays honest.
+struct SARIMAModel{T}
+    y::Vector{T}
+    y_diff::Vector{T}
+    p::Int
+    d::Int
+    q::Int
+    P::Int
+    D::Int
+    Q::Int
+    s::Int
+    c::T
+    phi::Vector{T}
+    theta::Vector{T}
+    Phi::Vector{T}
+    Theta::Vector{T}
+    phi_expanded::Vector{T}
+    theta_expanded::Vector{T}
+    sigma2::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    loglik::T
+    aic::T
+    bic::T
+    method::Symbol
+    converged::Bool
+    iterations::Int
 end
 # Convenience 5-arg constructor for backward compat
 ARIMAForecast(f::Vector{T}, cl, cu, se, h::Int) where T =
@@ -718,7 +776,8 @@ end
 select_lag_order(Y, max_p; criterion=:aic) = min(2, max(1, max_p))
 estimate_var(Y, p; check_stability=true) = _mock_var(Y, p)
 
-estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing, seed=nothing) =
+estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing,
+              hyperopt::Symbol=:glp, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
                   10, p, size(Y,2), Y)
 posterior_mean_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
@@ -728,7 +787,24 @@ posterior_mean_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
 posterior_median_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
-optimize_hyperparameters(Y, p) = MinnesotaHyperparameters(tau=0.2, decay=1.0, lambda=0.5, omega=ones(size(Y,2)))
+optimize_hyperparameters(Y, p) = MinnesotaHyperparameters(tau=0.2, decay=1.0, lambda=0.5, omega=2.0)
+
+# GLP joint optimization (real returns the hyperparameters PLUS diagnostics that
+# `estimate_bvar` discards, which is why the CLI selects here and passes `hyper=`).
+struct GLPHyperparameters
+    hyper::MinnesotaHyperparameters
+    log_ml::Float64
+    log_posterior::Float64
+    converged::Bool
+    at_bound::Bool
+    iterations::Int
+    log_ml_default::Float64
+end
+optimize_hyperparameters_glp(Y, p; decay::Real=0.5, omega::Real=2.0, starts::Int=4,
+                             max_iter::Int=500, f_reltol::Real=1e-8,
+                             verbose::Bool=true) = GLPHyperparameters(
+    MinnesotaHyperparameters(tau=0.35, decay=0.6, lambda=4.2, mu=1.8, omega=2.0),
+    -123.45, -130.2, true, false, 17, -140.7)
 
 # StatsAPI-like functions
 coef(m::VARModel) = m.B
@@ -784,6 +860,10 @@ const _MOCK_FLAGS = Dict{Symbol,Any}(
     :verify_decomposition => true,
     :normality_all_pass => false,
     :lp_iv_weak => false,
+    # W10/#112: drives `anderson_rubin_ci`'s degenerate set shapes so T1/T2 can exercise
+    # the empty / unbounded / disjoint / whole-line rendering branches, which is where a
+    # `[lo, hi]` assumption in a renderer would break.
+    :ar_set_shape => :bounded,
 )
 
 function is_stationary(m::VARModel)
@@ -812,7 +892,13 @@ nvars(m::VECMModel) = size(m.Y, 2)
 # IRF
 function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing,
              narrative_check=nothing, ci_type=:none, reps=200, conf_level=0.95,
-             stationary_only=false, seed=nothing)
+             stationary_only=false, seed=nothing,
+             bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
+             bias_correct::Bool=false, bias_reps::Int=0)
+    bootstrap in (:iid, :wild, :block) || throw(ArgumentError(
+        "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
+    wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
+        "wild_dist must be :rademacher or :mammen; got :$wild_dist"))
     n = size(model.Y, 2)
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5
@@ -993,17 +1079,33 @@ function lp_irf(model::LPModel; conf_level=0.95)
     vals = ones(h, n) * 0.1
     LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, abs.(ones(h, n)) * 0.1)
 end
-function estimate_lp_iv(Y, shock_var, Z, horizon; lags=4, cov_type=:newey_west)
+function estimate_lp_iv(Y, shock_var, Z, horizon; lags=4, cov_type=:newey_west,
+                       response_vars=collect(1:size(Y, 2)), bandwidth=0,
+                       varnames=["y$i" for i in 1:size(Y, 2)])
     T_obs = size(Y, 1)
     f_val = _MOCK_FLAGS[:lp_iv_weak] ? 5.0 : 15.0
-    LPIVModel(Y, Z, f_val, horizon, T_obs-4)
+    # F and T_eff both decay with the horizon, as they do upstream.
+    fs = [f_val - 0.1 * h for h in 0:horizon]
+    te = [T_obs - lags - h for h in 0:horizon]
+    LPIVModel(Y, Z, fs, horizon, te, shock_var, collect(response_vars), collect(varnames))
 end
 function lp_iv_irf(model::LPIVModel; conf_level=0.95)
-    n = size(model.Y, 2); h = model.horizon + 1
+    n = length(model.response_vars); h = model.horizon + 1
     vals = ones(h, n) * 0.1
     LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
 end
-weak_instrument_test(model::LPIVModel; threshold=10.0) = (F_stat=model.first_stage_F, is_weak=model.first_stage_F < threshold)
+# Real returns (F_stats, weak_horizons, min_F, passes_threshold, threshold) — there is NO
+# `F_stat`/`is_weak`. The old mock invented both, so `estimate lp --method iv` passed T1/T2
+# while exiting 1 on every real invocation (W10/#112). Mirror real's tuple exactly.
+function weak_instrument_test(model::LPIVModel; threshold=10.0)
+    F_stats = model.first_stage_F
+    weak_horizons = findall(F_stats .< threshold)
+    (F_stats=F_stats, weak_horizons=weak_horizons, min_F=minimum(F_stats),
+     passes_threshold=isempty(weak_horizons), threshold=threshold)
+end
+weak_instrument_test(F_stats::Vector; threshold=10.0) =
+    (F_stats=F_stats, weak_horizons=findall(F_stats .< threshold),
+     min_F=minimum(F_stats), passes_threshold=all(F_stats .>= threshold), threshold=threshold)
 function estimate_smooth_lp(Y, shock_var, horizon; n_knots=3, lambda=0.0, degree=3)
     SmoothLPModel(Y, lambda, horizon)
 end
@@ -1175,6 +1277,57 @@ end
 function auto_arima(y; max_p=5, max_q=5, max_d=2, criterion=:bic, method=:mle)
     estimate_arima(y, 1, 1, 1; method=method)
 end
+
+# W6/#108 — guards mirror real estimate_sarima/auto_sarima so the CLI's exit classes are
+# exercised at T1/T2 with the same classes real produces.
+function estimate_sarima(y, p::Int, d::Int, q::Int, P::Int, D::Int, Q::Int, s::Int;
+                         method::Symbol=:css_mle, include_intercept::Bool=true,
+                         max_iter::Int=500)
+    all(>=(0), (p, d, q, P, D, Q)) ||
+        throw(ArgumentError("orders p,d,q,P,D,Q must be non-negative"))
+    if P > 0 || D > 0 || Q > 0
+        s >= 2 || throw(ArgumentError(
+            "seasonal period s must be ≥ 2 when any seasonal order is positive, got $s"))
+    end
+    s >= 0 || throw(ArgumentError("seasonal period s must be non-negative, got $s"))
+    v, res, fit = _ar_like_y(y)
+    phi = p > 0 ? fill(0.3, p) : Float64[]
+    theta = q > 0 ? fill(0.2, q) : Float64[]
+    Phi = P > 0 ? fill(0.4, P) : Float64[]
+    Theta = Q > 0 ? fill(0.1, Q) : Float64[]
+    SARIMAModel(v, v, p, d, q, P, D, Q, s, include_intercept ? 0.05 : 0.0,
+                phi, theta, Phi, Theta, vcat(phi, Phi), vcat(theta, Theta),
+                0.5, res, fit, -50.0, -100.0, -95.0, method, true, 12)
+end
+
+function auto_sarima(y, s::Int; d=nothing, D=nothing, max_p::Int=2, max_q::Int=2,
+                     max_P::Int=1, max_Q::Int=1, criterion::Symbol=:aic,
+                     method::Symbol=:css_mle, include_intercept::Bool=true)
+    criterion in (:aic, :bic) ||
+        throw(ArgumentError("criterion must be :aic or :bic, got :$criterion"))
+    s >= 1 || throw(ArgumentError("seasonal period s must be ≥ 1, got $s"))
+    estimate_sarima(y, min(1, max_p), d === nothing ? 1 : d, min(1, max_q),
+                    min(1, max_P), D === nothing ? 1 : D, min(1, max_Q), s;
+                    method=method, include_intercept=include_intercept)
+end
+
+function forecast(m::SARIMAModel, h::Int; conf_level::Real=0.95)
+    h >= 1 || throw(ArgumentError("horizon must be ≥ 1"))
+    base = isempty(m.y) ? 0.0 : Float64(m.y[end])
+    f = fill(base, h)
+    se = [sqrt(Float64(m.sigma2)) * sqrt(Float64(k)) for k in 1:h]
+    ARIMAForecast{Float64}(f, f .- 1.96 .* se, f .+ 1.96 .* se, se, h, Float64(conf_level))
+end
+
+residuals(m::SARIMAModel) = m.residuals
+predict(m::SARIMAModel) = m.fitted
+fitted(m::SARIMAModel) = m.fitted
+aic(m::SARIMAModel) = m.aic
+bic(m::SARIMAModel) = m.bic
+loglikelihood(m::SARIMAModel) = m.loglik
+nobs(m::SARIMAModel) = length(m.y)
+
+export SARIMAModel, estimate_sarima, auto_sarima
 function estimate_arfima(y, p, q; method=:css, d0=nothing, trunc=200, max_iter=500)
     v, res, fit = _ar_like_y(y)
     d = isnothing(d0) ? 0.3 : Float64(d0)
@@ -1230,10 +1383,20 @@ function forecast(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}, h::Int; conf_l
 end
 
 # Volatility model functions
+# W11/#113: garch/egarch/gjr-garch take a conditional distribution upstream; arch does NOT
+# (no `dist` kwarg at all), so it deliberately keeps the 3-positional signature here — a mock
+# that accepted `dist` on arch would hide a guaranteed real MethodError. The guard mirrors
+# upstream `_vol_dist_check` so the exit class matches.
+_mock_dist_check(dist::Symbol) = dist in (:normal, :student, :ged) || throw(ArgumentError(
+    "dist must be :normal, :student, or :ged; got :$dist"))
+
 estimate_arch(y, q) = ARCHModel(ones(q+2) * 0.1)
-estimate_garch(y, p, q) = GARCHModel(ones(p+q+2) * 0.1)
-estimate_egarch(y, p, q) = EGARCHModel(ones(2*q+p+2) * 0.1)
-estimate_gjr_garch(y, p, q) = GJRGARCHModel(ones(2*q+p+2) * 0.1)
+estimate_garch(y, p, q; dist::Symbol=:normal) =
+    (_mock_dist_check(dist); GARCHModel(ones(p+q+2) * 0.1))
+estimate_egarch(y, p, q; dist::Symbol=:normal) =
+    (_mock_dist_check(dist); EGARCHModel(ones(2*q+p+2) * 0.1))
+estimate_gjr_garch(y, p, q; dist::Symbol=:normal) =
+    (_mock_dist_check(dist); GJRGARCHModel(ones(2*q+p+2) * 0.1))
 estimate_sv(y; n_samples=5000) = SVModel(ones(3) * 0.1)
 coef(m::ARCHModel) = [m.mu, m.omega, m.alpha...]
 coef(m::GARCHModel) = [m.mu, m.omega, m.alpha..., m.beta...]
@@ -1830,7 +1993,8 @@ export GrangerCausalityResult, LRTestResult, LMTestResult
 export HPFilterResult, HamiltonFilterResult, BeveridgeNelsonResult, BaxterKingResult, BoostedHPResult
 
 export select_lag_order, estimate_var, estimate_bvar, posterior_mean_model, posterior_median_model
-export optimize_hyperparameters, coef, loglikelihood, stderror, predict, residuals, report
+export optimize_hyperparameters, optimize_hyperparameters_glp, GLPHyperparameters
+export coef, loglikelihood, stderror, predict, residuals, report
 export is_stationary, companion_matrix, companion_matrix_factors, nvars
 export irf, fevd, historical_decomposition, verify_decomposition, contribution
 export cumulative_irf
@@ -2180,16 +2344,37 @@ struct DSGESpec{T<:Real}
     param_values::Dict{Symbol,T}; n_endog::Int; n_exog::Int; n_params::Int
     varnames::Vector{String}; steady_state::Vector{T}
     linear::Bool
+    # W12/#114: real's augmentation bookkeeping. `dsge moments` needs both to filter the
+    # moment labels down to the ORIGINAL variables the way upstream filters the matrices —
+    # a mislabelled moment table otherwise. Added because a handler consumes them, per the
+    # mock-surface rule (fields are added on demand, never eagerly).
+    augmented::Bool
+    original_endog::Vector{Symbol}
 end
-function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false, kwargs...)
-    endog = [Symbol("y$i") for i in 1:n_endog]
-    exog = [Symbol("e$i") for i in 1:n_exog]
-    params = [:alpha, :beta, :delta]
-    param_values = Dict{Symbol,Float64}(:alpha => 0.33, :beta => 0.99, :delta => 0.025)
-    varnames = ["y$i" for i in 1:n_endog]
+function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false,
+                   endog_names=nothing, exog_names=nothing,
+                   params=nothing, param_values=nothing,
+                   augmented::Bool=false, original_endog=nothing, kwargs...)
+    endog = endog_names === nothing ? [Symbol("y$i") for i in 1:n_endog] :
+            Symbol[Symbol(v) for v in endog_names]
+    exog = exog_names === nothing ? [Symbol("e$i") for i in 1:n_exog] :
+           Symbol[Symbol(v) for v in exog_names]
+    n_endog = length(endog)
+    n_exog = length(exog)
+    ps = params === nothing ? [:alpha, :beta, :delta] : Symbol[Symbol(p) for p in params]
+    pv = param_values === nothing ?
+        Dict{Symbol,Float64}(p => 0.5 for p in ps) :
+        Dict{Symbol,Float64}(Symbol(k) => Float64(v) for (k, v) in param_values)
+    # Keep the historical defaults when the block declared no parameters, so existing
+    # fixtures that rely on alpha/beta/delta are unaffected.
+    if params === nothing
+        pv = Dict{Symbol,Float64}(:alpha => 0.33, :beta => 0.99, :delta => 0.025)
+    end
+    varnames = String[String(v) for v in endog]
     ss = zeros(Float64, n_endog)
-    DSGESpec{Float64}(endog, exog, params, param_values, n_endog, n_exog, length(params),
-                      varnames, ss, linear)
+    orig = original_endog === nothing ? endog : Symbol[Symbol(v) for v in original_endog]
+    DSGESpec{Float64}(endog, exog, ps, pv, n_endog, n_exog, length(ps),
+                      varnames, ss, linear, augmented, orig)
 end
 
 # ── Mock @dsge macro (mirrors real MEMs' @dsge; C051/RA-DSGE loader) ────────
@@ -2219,13 +2404,66 @@ function _mock_dsge_extract(block, kw::Symbol)
     return Any[]
 end
 
+"""Parse a `parameters: a = 1.0, b = 2.0` declaration into (names, values).
+
+Real MEMs records the declared names on `spec.params`, and handlers validate user input
+against them (`dsge determinacy-map` rejects an unknown swept parameter). A mock that
+always reported `alpha, beta, delta` would make that guard untestable and would diverge
+from real on the one field the guard reads.
+
+`parameters: a = 1.0, b = 2.0` does NOT parse like the other declarations — `=` binds
+looser than `,` there, so Julia produces a nest like
+
+  Expr(:(=), :(parameters:a), quote (1.0, b) = 2.0 end)
+
+rather than a flat tuple. Rather than reverse-engineer that shape (which changes with the
+number of parameters), collect every Symbol in the subtree in source order, dropping the
+`parameters` keyword and the `:` operator. Values are not recovered — the mock only needs
+the NAMES, which is what handlers validate against.
+"""
+function _mock_dsge_collect_syms!(out::Vector{Symbol}, x)
+    if x isa Symbol
+        (x === :parameters || x === :(:)) || push!(out, x)
+    elseif x isa Expr
+        for a in x.args
+            _mock_dsge_collect_syms!(out, a)
+        end
+    end
+    return out
+end
+
+function _mock_dsge_params(block)
+    (block isa Expr && block.head === :block) || return Symbol[], Dict{Symbol,Float64}()
+    for arg in block.args
+        arg isa Expr || continue
+        syms = _mock_dsge_collect_syms!(Symbol[], arg)
+        # The `parameters` line is the one whose subtree mentions the keyword.
+        occursin("parameters", string(arg)) || continue
+        startswith(strip(string(arg)), "parameters") || continue
+        names = unique(syms)
+        isempty(names) && continue
+        return names, Dict{Symbol,Float64}(n => 0.5 for n in names)
+    end
+    return Symbol[], Dict{Symbol,Float64}()
+end
+
 macro dsge(block)
-    ne = max(length(_mock_dsge_extract(block, :endogenous)), 1)
-    nx = max(length(_mock_dsge_extract(block, :exogenous)), 1)
+    en = Symbol[v for v in _mock_dsge_extract(block, :endogenous) if v isa Symbol]
+    # Real accepts `variables:` as well as `endogenous:`.
+    isempty(en) && (en = Symbol[v for v in _mock_dsge_extract(block, :variables) if v isa Symbol])
+    xn = Symbol[v for v in _mock_dsge_extract(block, :exogenous) if v isa Symbol]
+    isempty(xn) && (xn = Symbol[v for v in _mock_dsge_extract(block, :shocks) if v isa Symbol])
+    ne = max(length(en), 1)
+    nx = max(length(xn), 1)
+    pnames, pvals = _mock_dsge_params(block)
     lin_names = _mock_dsge_extract(block, :linear)
     is_linear = !isempty(lin_names) && lin_names[1] === true
     # Splice the constructor object so the expansion needs nothing in the caller's scope.
-    return :($(DSGESpec)(; n_endog=$ne, n_exog=$nx, linear=$is_linear))
+    return :($(DSGESpec)(; n_endog=$ne, n_exog=$nx, linear=$is_linear,
+                          endog_names=$(isempty(en) ? nothing : en),
+                          exog_names=$(isempty(xn) ? nothing : xn),
+                          params=$(isempty(pnames) ? nothing : pnames),
+                          param_values=$(isempty(pvals) ? nothing : pvals)))
 end
 
 struct LinearDSGE{T<:Real}
@@ -4246,6 +4484,28 @@ struct MSRegModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
     iterations::Int
     xnames::Vector{String}
     yname::String
+    # W3/#101 (MEMs#510): regime-probability-weighted conditional means. `fitted` uses the
+    # SMOOTHED probabilities so `y - fitted == residuals` holds exactly; `fitted_filtered`
+    # is the real-time analogue and does NOT satisfy that identity. Both are trailing
+    # KEYWORDS upstream so the 29-positional contract is unchanged — mirrored exactly here
+    # so the mock's existing construction sites keep compiling.
+    fitted::Vector{T}
+    fitted_filtered::Vector{T}
+
+    function MSRegModel{T}(model_type, y, X, k_regimes, p, mu, coefs, se_coefs, ar, se_ar,
+                           sigma2, se_sigma2, P, ergodic, expected_durations,
+                           filtered_prob, smoothed_prob, residuals, loglik, aic, bic,
+                           n, n_params, switching_var, switching_ar, converged,
+                           iterations, xnames, yname;
+                           fitted::Vector{T}=T[],
+                           fitted_filtered::Vector{T}=T[]) where {T<:AbstractFloat}
+        fit = isempty(fitted) ? Vector{T}(y) .- Vector{T}(residuals) : fitted
+        new{T}(model_type, y, X, k_regimes, p, mu, coefs, se_coefs, ar, se_ar,
+               sigma2, se_sigma2, P, ergodic, expected_durations,
+               filtered_prob, smoothed_prob, residuals, loglik, aic, bic,
+               n, n_params, switching_var, switching_ar, converged,
+               iterations, xnames, yname, fit, fitted_filtered)
+    end
 end
 
 # Ergodic (stationary) distribution of a row-stochastic P via power iteration (guarded, no inv).
@@ -4344,7 +4604,15 @@ function estimate_ms(y::AbstractVector, X::AbstractMatrix; k_regimes::Int=2,
     MSRegModel{Float64}(:regression, yv, Xm, K, 0, means, B, seB, Float64[], Float64[],
         sig2, se_sig2, P, _mock_ms_ergodic(P),
         Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
-        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y")
+        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, "y";
+        # W3/#101: real estimate_ms populates BOTH means, so the mock must too — otherwise
+        # `--probs filtered` would throw here while working in production, and the T1/T2
+        # tier would never exercise the branch.
+        fitted=Vector{Float64}(yv) .- Vector{Float64}(resid),
+        # Deliberately NOT equal to `fitted`: upstream's filtered mean uses strictly less
+        # information, and `y - fitted_filtered != residuals`. Keeping them distinct is what
+        # lets a test tell the two --probs branches apart.
+        fitted_filtered=(Vector{Float64}(yv) .- Vector{Float64}(resid)) .* 0.99)
 end
 
 # Single-arg intercept-only dispatch (X = ones(n,1)); kwargs enumerated explicitly (NOT a
@@ -4411,22 +4679,94 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
     MSRegModel{Float64}(:ms_ar, ylin, Xlin, K, p, mu, coefs, se_coefs, phi, se_phi,
         sig2, se_sig2, P, _mock_ms_ergodic(P),
         Float64[1.0 / max(1.0 - P[k, k], eps()) for k in 1:K], filt, smooth, resid,
-        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname)
+        loglik, aic, bic, n, n_params, switching_variance, false, true, 1, xnms, yname;
+        fitted=Vector{Float64}(ylin) .- Vector{Float64}(resid),
+        fitted_filtered=(Vector{Float64}(ylin) .- Vector{Float64}(resid)) .* 0.99)
 end
 
 # Real MEMs defines StatsAPI.residuals for all three nonlinear types (nonlinear/types.jl:256,
 # :450, :618) — these mirror it so `residuals setar|star|ms-ar|ms` are exercised at T1/T2.
 # Defined HERE, after all three structs: the mock is one flat module included top-to-bottom and
 # a method signature resolves its types immediately, so a forward reference is an include-time
-# UndefVarError. Deliberately NO `predict`/`fitted` for any of them — real has none either, and
+# UndefVarError. Still NO `predict` for ThresholdModel/STARModel — real has none for those, and
 # teaching the mock a method real lacks is the #84 defect class that shipped 19 broken commands.
-# (MS fitted values ARE well defined and already computed upstream — see MEMs#510 — but until
-# real exposes them the mock must not either, or the CLI would be written against a phantom.)
 residuals(m::ThresholdModel) = m.residuals
 residuals(m::STARModel) = m.residuals
 residuals(m::MSRegModel) = m.residuals
 
-export MSRegModel, estimate_ms, estimate_ms_ar
+# W3/#101: MEMs#510 shipped, so MSRegModel — and ONLY MSRegModel — now has predict/forecast.
+# Guards mirror real exactly, because their exit class is what the CLI is tested against.
+function predict(m::MSRegModel; probs::Symbol=:smoothed)
+    probs in (:smoothed, :filtered) ||
+        throw(ArgumentError("probs must be :smoothed or :filtered; got :$probs"))
+    probs === :smoothed && return m.fitted
+    isempty(m.fitted_filtered) && throw(ArgumentError(
+        "this MSRegModel carries no filtered fitted values (it was built without them)"))
+    return m.fitted_filtered
+end
+
+# Plain struct, matching the mock's ThresholdForecast/STARForecast: this mock module defines
+# no AbstractForecastResult hierarchy, and the CLI reaches MSForecast only through the
+# explicit `long_table(::MSForecast)` below, never through an abstract dispatch.
+struct MSForecast{T<:AbstractFloat}
+    forecast::Vector{T}
+    ci_lower::Vector{T}
+    ci_upper::Vector{T}
+    se::Vector{T}
+    regime_prob::Matrix{T}
+    horizon::Int
+    conf_level::T
+    reps::Int
+end
+
+_mock_ms_regime_prob(m, h::Int) = begin
+    xi = copy(m.smoothed_prob[end, :])
+    out = zeros(Float64, h, m.k_regimes)
+    for i in 1:h
+        xi = vec(xi' * m.P)
+        out[i, :] = xi
+    end
+    out
+end
+
+# `forecast(m, h)` is :ms_ar-ONLY and `forecast(m, X_new)` is :regression-ONLY upstream —
+# each throws on the other's model type. The mock must reproduce that split or the CLI's
+# dispatch guard is never exercised until production.
+function forecast(m::MSRegModel, h::Int; reps::Int=1000, level::Real=0.90, kwargs...)
+    m.model_type === :ms_ar || throw(ArgumentError(
+        "forecast(m, h) is defined for :ms_ar models. A switching REGRESSION needs future " *
+        "regressors — call forecast(m, X_new) with an h x k matrix instead."))
+    h >= 1 || throw(ArgumentError("horizon h must be >= 1."))
+    (0 < level < 1) || throw(ArgumentError("level must satisfy 0 < level < 1."))
+    xi = _mock_ms_regime_prob(m, h)
+    fmean = [dot(view(xi, i, :), m.mu) for i in 1:h]
+    se = fill(sqrt(sum(m.sigma2) / m.k_regimes), h)
+    MSForecast{Float64}(fmean, fmean .- 1.96 .* se, fmean .+ 1.96 .* se, se, xi,
+                        h, Float64(level), reps)
+end
+
+function forecast(m::MSRegModel, X_new::AbstractMatrix; reps::Int=1000, level::Real=0.90,
+                  kwargs...)
+    m.model_type === :regression || throw(ArgumentError(
+        "forecast(m, X_new) is defined for switching REGRESSIONS. An :ms_ar model " *
+        "projects itself — call forecast(m, h)."))
+    size(X_new, 2) == size(m.coefs, 1) || throw(ArgumentError(
+        "X_new must have $(size(m.coefs, 1)) columns (got $(size(X_new, 2)))."))
+    h = size(X_new, 1)
+    h >= 1 || throw(ArgumentError("X_new must have at least one row."))
+    (0 < level < 1) || throw(ArgumentError("level must satisfy 0 < level < 1."))
+    xi = _mock_ms_regime_prob(m, h)
+    Xf = Matrix{Float64}(X_new)
+    fmean = [dot(view(xi, i, :), [dot(view(Xf, i, :), view(m.coefs, :, k))
+                                 for k in 1:m.k_regimes]) for i in 1:h]
+    se = fill(sqrt(sum(m.sigma2) / m.k_regimes), h)
+    MSForecast{Float64}(fmean, fmean .- 1.96 .* se, fmean .+ 1.96 .* se, se, xi,
+                        h, Float64(level), reps)
+end
+
+long_table(f::MSForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+
+export MSRegModel, estimate_ms, estimate_ms_ar, MSForecast
 
 # BVAR forecast dispatch — returns BVARForecast
 function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)
@@ -4786,7 +5126,13 @@ function estimate_dsge_bayes(spec::DSGESpec{T},
         n_draws=10000, burnin=5000, ess_target=0.5,
         measurement_error=nothing, solver=:gensys,
         solver_kwargs=NamedTuple(), delayed_acceptance=false,
-        n_screen=200, rng=nothing, solver_obj=nothing) where T
+        n_screen=200, rng=nothing, solver_obj=nothing,
+        prefilter::Symbol=:none, hp_lambda::Real=1600,
+        observation_trends=nothing, warn_trends::Bool=true) where T
+    # W12/#114: mirror real's enum so a bad --prefilter throws the same class here.
+    prefilter in (:none, :demean, :first_difference, :linear_detrend, :hp) ||
+        throw(ArgumentError(
+            "prefilter must be one of (:none, :demean, :first_difference, :linear_detrend, :hp), got :$prefilter"))
     theta0v = theta0 isa AbstractDict ? collect(values(theta0)) :
               theta0 isa NamedTuple ? collect(theta0) : collect(theta0)
     np = length(theta0v)
@@ -5596,8 +5942,35 @@ confint(m::ProbitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m.beta
 
 function estimate_reg(y::AbstractVector{T}, X::AbstractMatrix{T};
                       cov_type=:hc1, weights=nothing, varnames=nothing,
-                      clusters=nothing) where T
+                      clusters=nothing, coords=nothing, cutoff::Real=0.0,
+                      conley_kernel::Symbol=:bartlett, conley_metric::Symbol=:euclidean,
+                      time=nothing, time_cutoff::Int=0, conley_psd::Bool=true) where T
     n, k = size(X)
+    # W10/#112 — mirror real's validation EXACTLY so the mock throws the same exit class on
+    # degenerate input (standing rule). `:conley` joins the enum; coords are required for it
+    # and must have n rows; the kernel/metric enums are closed (the `--wild-dist` lesson).
+    cov_type in (:ols, :hc0, :hc1, :hc2, :hc3, :cluster, :conley) || throw(ArgumentError(
+        "cov_type must be :ols, :hc0, :hc1, :hc2, :hc3, :cluster, or :conley; got :$cov_type"))
+    if cov_type == :conley
+        coords === nothing && throw(ArgumentError("coords required for :conley cov_type"))
+        size(coords, 1) == n || throw(ArgumentError("coords must have $n rows"))
+        conley_kernel in (:bartlett, :uniform) || throw(ArgumentError(
+            "kernel must be :bartlett or :uniform; got :$conley_kernel"))
+        conley_metric in (:euclidean, :haversine) || throw(ArgumentError(
+            "metric must be :euclidean or :haversine; got :$conley_metric"))
+        conley_metric === :haversine && size(coords, 2) < 2 && throw(ArgumentError(
+            "metric = :haversine needs coords with 2 columns (latitude, longitude)"))
+        time_cutoff >= 0 || throw(ArgumentError("time_cutoff must be >= 0, got $time_cutoff"))
+        time === nothing || length(time) == n || throw(ArgumentError("time must have length $n"))
+    end
+    if cov_type == :cluster
+        clusters === nothing && throw(ArgumentError("clusters required for :cluster cov_type"))
+        length(clusters) == n || throw(ArgumentError("clusters must have length $n"))
+    end
+    if weights !== nothing
+        length(weights) == n || throw(ArgumentError("weights must have length $n"))
+        all(w -> w > zero(T), weights) || throw(ArgumentError("All weights must be positive"))
+    end
     beta = ones(T, k) * T(0.5)
     vcov_mat = Matrix{T}(I(k)) * T(0.01)
     fitted_vals = X * beta
@@ -5713,6 +6086,146 @@ function odds_ratio(m::LogitModel{T}; conf_level=0.95) where T
     # Field is `or` upstream (OddsRatio struct) — name it the same here.
     (or=or, se=se, ci_lower=ci_lo, ci_upper=ci_hi, varnames=m.varnames, conf_level=conf_level)
 end
+
+# ─── W2/#107: count-data regression (MEMs#427) ───────────────────────────────
+# Fields are the REAL names in real order (check_mock_surface: mock ⊆ real). Note
+# NegBinModel carries `alpha`/`alpha_se` that PoissonModel does not, and that its
+# `vcov_mat` is the joint (beta, log alpha) block — stderror slices beta out, exactly
+# as upstream does.
+struct PoissonModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    vcov_mat::Matrix{T}
+    residuals::Vector{T}
+    fitted::Vector{T}
+    offset::Union{Nothing,Vector{T}}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    deviance::T
+    null_deviance::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+    cov_type::Symbol
+end
+
+struct NegBinModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    beta::Vector{T}
+    alpha::T
+    vcov_mat::Matrix{T}
+    alpha_se::T
+    residuals::Vector{T}
+    fitted::Vector{T}
+    offset::Union{Nothing,Vector{T}}
+    loglik::T
+    loglik_null::T
+    pseudo_r2::T
+    deviance::T
+    null_deviance::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+end
+
+struct DispersionTest{T<:AbstractFloat}
+    nb2::NamedTuple{(:alpha, :se, :t_stat, :p_value),NTuple{4,T}}
+    nb1::NamedTuple{(:alpha, :se, :t_stat, :p_value),NTuple{4,T}}
+    n::Int
+end
+
+# Mirror upstream's own validation so the CLI's exit classes are exercised at T1/T2 with
+# the SAME classes real produces (a looser mock turns a production failure green).
+function _count_check(y, X, offset, exposure)
+    length(y) == size(X, 1) ||
+        throw(ArgumentError("y and X must have the same number of rows"))
+    any(v -> v < 0, y) && throw(ArgumentError("count response must be non-negative"))
+    all(isinteger, y) || throw(ArgumentError("count response must be integer-valued"))
+    offset === nothing || exposure === nothing ||
+        throw(ArgumentError("supply at most one of `offset` and `exposure`"))
+    off = exposure !== nothing ? log.(Vector{Float64}(exposure)) :
+          offset !== nothing ? Vector{Float64}(offset) : zeros(Float64, length(y))
+    length(off) == length(y) ||
+        throw(ArgumentError("offset/exposure must have length $(length(y))"))
+    return off
+end
+
+function estimate_poisson(y::AbstractVector, X::AbstractMatrix;
+                          offset=nothing, exposure=nothing, cov_type::Symbol=:robust,
+                          varnames=nothing, clusters=nothing, maxiter::Int=100, tol=1e-10)
+    cov_type in (:robust, :mle, :hc0, :hc1, :hc2, :hc3, :cluster) || throw(ArgumentError(
+        "cov_type must be :robust, :mle, :hc0, :hc1, :hc2, :hc3, or :cluster; got :$cov_type"))
+    off = _count_check(y, X, offset, exposure)
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    n, k = size(Xm)
+    beta = fill(0.1, k)
+    mu = exp.(Xm * beta .+ off)
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : collect(String, varnames)
+    PoissonModel{Float64}(yv, Xm, beta, Matrix{Float64}(0.01I, k, k), yv .- mu, mu,
+                          offset === nothing && exposure === nothing ? nothing : off,
+                          -120.0, -150.0, 0.2, 90.0, 120.0, 250.0, 260.0, vn, true, 5,
+                          cov_type)
+end
+
+function estimate_nbreg(y::AbstractVector, X::AbstractMatrix;
+                        offset=nothing, exposure=nothing, varnames=nothing,
+                        maxiter::Int=1000, tol=1e-10)
+    off = _count_check(y, X, offset, exposure)
+    yv = Vector{Float64}(y); Xm = Matrix{Float64}(X)
+    n, k = size(Xm)
+    beta = fill(0.1, k)
+    mu = exp.(Xm * beta .+ off)
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : collect(String, varnames)
+    # Joint (beta, log alpha) block: k+1 square, so stderror must slice.
+    NegBinModel{Float64}(yv, Xm, beta, 0.5, Matrix{Float64}(0.01I, k + 1, k + 1), 0.05,
+                         yv .- mu, mu,
+                         offset === nothing && exposure === nothing ? nothing : off,
+                         -110.0, -150.0, 0.27, 80.0, 120.0, 240.0, 252.0, vn, true, 8)
+end
+
+dispersion_test(m::PoissonModel) =
+    DispersionTest{Float64}((alpha=0.42, se=0.10, t_stat=4.2, p_value=0.00003),
+                            (alpha=0.31, se=0.09, t_stat=3.4, p_value=0.0007),
+                            length(m.y))
+
+function incidence_rate_ratio(m::Union{PoissonModel{T},NegBinModel{T}};
+                              conf_level=0.95) where T
+    irr = exp.(m.beta)
+    se = stderror(m)
+    (or=irr, se=irr .* se, ci_lower=exp.(m.beta .- 1.96 .* se),
+     ci_upper=exp.(m.beta .+ 1.96 .* se), varnames=m.varnames, conf_level=conf_level)
+end
+
+for M in (:PoissonModel, :NegBinModel)
+    @eval begin
+        coef(m::$M) = m.beta
+        residuals(m::$M) = m.residuals
+        predict(m::$M) = m.fitted
+        fitted(m::$M) = m.fitted
+        nobs(m::$M) = length(m.y)
+        loglikelihood(m::$M) = m.loglik
+        aic(m::$M) = m.aic
+        bic(m::$M) = m.bic
+        r2(m::$M) = m.pseudo_r2
+    end
+end
+vcov(m::PoissonModel) = m.vcov_mat
+stderror(m::PoissonModel) = sqrt.(max.(diag(m.vcov_mat), 0.0))
+dof_residual(m::PoissonModel) = length(m.y) - length(m.beta)
+# Slice beta out of the joint block, exactly as upstream does.
+vcov(m::NegBinModel) = m.vcov_mat[1:length(m.beta), 1:length(m.beta)]
+stderror(m::NegBinModel) = sqrt.(max.(diag(m.vcov_mat)[1:length(m.beta)], 0.0))
+dof_residual(m::NegBinModel) = length(m.y) - length(m.beta) - 1
+
+export PoissonModel, NegBinModel, DispersionTest
+export estimate_poisson, estimate_nbreg, dispersion_test, incidence_rate_ratio
 
 function vif(m::RegModel{T}) where T
     k = length(m.beta)
@@ -6462,6 +6975,10 @@ struct PanelRegModel{T<:Real}
     group_effects::Union{Nothing,Vector{T}}
     data::PanelData{T}
     dynamic_diagnostics::Union{Nothing,NamedTuple}
+    # Real's tail (preg/types.jl): Prais-Winsten rho and the HDFE absorption diagnostics.
+    # `hdfe` is `nothing` unless `absorb=` was used (W10/#112).
+    ar1_rho::Union{Nothing,T,Vector{T}}
+    hdfe::Union{Nothing,NamedTuple}
 end
 
 struct PanelIVModel{T<:Real}
@@ -6592,8 +7109,32 @@ confint(m::PanelProbitModel; level=0.95) = hcat(m.beta .- 1.96 .* stderror(m), m
 
 function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         model=:fe, twoway=false, fe=:twoway, cov_type=:cluster, clusters=nothing,
-        varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise) where T
+        varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise,
+        absorb::Vector{Symbol}=Symbol[], hdfe_tol::Real=1e-8, hdfe_maxiter::Int=1000,
+        hdfe_accel::Bool=true) where T
     # Mirror real's validation (preg/estimation.jl) for the #75 additions.
+    # W10/#112 absorb guards, verbatim from real — including the twoway exclusivity whose
+    # error message points at `absorb=[:entity, :time]` (the correct route on an UNBALANCED
+    # panel, where the additive two-way identity does not hold).
+    if !isempty(absorb)
+        model === :fe || throw(ArgumentError(
+            "absorb= is supported only for model=:fe (the within estimator); got :$model"))
+        twoway && throw(ArgumentError(
+            "absorb= and twoway=true are mutually exclusive — pass absorb=[:entity, :time] " *
+            "to absorb entity and time fixed effects"))
+        length(unique(absorb)) == length(absorb) || throw(ArgumentError(
+            "absorb contains duplicate dimensions: $absorb"))
+        hdfe_maxiter >= 1 || throw(ArgumentError("maxiter must be >= 1, got $hdfe_maxiter"))
+        hdfe_tol > 0 || throw(ArgumentError("tol must be positive, got $hdfe_tol"))
+        # Real resolves each dimension against the panel: a matching variable column wins,
+        # else the reserved index aliases. An unknown name is an ArgumentError there too.
+        for d in absorb
+            (String(d) in pd.varnames ||
+             d in (:entity, :id, :unit, :group, :time, :period, :cohort)) || throw(ArgumentError(
+                "absorb dimension :$d not found in panel data. Available: $(pd.varnames) " *
+                "or the reserved indices :entity, :time, :cohort"))
+        end
+    end
     cov_type in (:ols, :cluster, :twoway, :driscoll_kraay, :pcse) ||
         throw(ArgumentError("cov_type must be :ols, :cluster, :twoway, :driscoll_kraay, or :pcse; got :$cov_type"))
     pcse_unbalanced in (:casewise, :pairwise) ||
@@ -6609,11 +7150,24 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
     resids = y .- fitted_vals
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
     meth = model isa Symbol ? model : :fe
+    hdfe_info = isempty(absorb) ? nothing :
+        (absorb = copy(absorb),
+         n_absorbed = sum(3 for _ in absorb) - length(absorb) + 1,
+         n_levels = [3 for _ in absorb],
+         n_components = 1,
+         marginal = [true for _ in absorb],
+         n_absorbed_cluster = 0,
+         converged = true,
+         iterations = 4,
+         sweeps = 8,
+         change = 1e-10,
+         tol = Float64(hdfe_tol),
+         accel = hdfe_accel)
     PanelRegModel{T}(beta, vcov_mat, resids, fitted_vals, y, X,
         T(0.35), T(0.25), T(0.30), T(0.5), T(1.0), T(0.2), T(0.5),
         T(20.0), T(0.001), T(-200.0), T(410.0), T(420.0),
         vnames, meth, Bool(twoway), cov_type, n, pd.n_groups, T(n / max(pd.n_groups, 1)),
-        nothing, pd, nothing)
+        nothing, pd, nothing, nothing, hdfe_info)
 end
 
 function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
@@ -6765,9 +7319,53 @@ coef(m::MultinomialLogitModel) = vec(m.beta)
 vcov(m::OrderedLogitModel) = m.vcov_mat
 vcov(m::OrderedProbitModel) = m.vcov_mat
 vcov(m::MultinomialLogitModel) = m.vcov_mat[:, :, 1]
-residuals(m::OrderedLogitModel) = m.y .- m.fitted[:, 1]
-residuals(m::OrderedProbitModel) = m.y .- m.fitted[:, 1]
-residuals(m::MultinomialLogitModel) = m.y .- m.fitted[:, 1]
+# W4/#87 — mirror real MEMs 0.7.2 (MEMs#507). These three used to return
+# `m.y .- m.fitted[:, 1]`, a length-n vector that real MEMs NEVER defined: the exact #84
+# trap, a mock method more permissive than real. Real returns an n x J matrix (one column
+# per category) and takes `kind`; the CLI renders it with _choice_resid_table, so the mock
+# MUST produce the same SHAPE or the renderer is only ever exercised in production.
+# Real MEMs recodes the response to integer category indices 1..J before storing it; the
+# mock keeps whatever the caller passed, and the shared T1/T2 fixture hands these
+# estimators CONTINUOUS columns, so `Int(y[i])` would throw InexactError. Rank the observed
+# values instead — that IS the category index for an ordered response — and clamp to the
+# fitted width so a fixture with more distinct values than columns still renders.
+function _cat_index(y, J::Int)
+    pos = Dict(c => i for (i, c) in enumerate(sort(unique(y))))
+    return [clamp(pos[v], 1, J) for v in y]
+end
+
+function _category_residuals(y, fitted::AbstractMatrix, kind::Symbol)
+    n, J = size(fitted)
+    D = zeros(Float64, n, J)
+    idx = _cat_index(y, J)
+    for i in 1:n
+        D[i, idx[i]] = 1.0
+    end
+    R = D .- fitted
+    kind === :response && return R
+    kind === :pearson && return R ./ sqrt.(max.(fitted .* (1 .- fitted), eps()))
+    kind === :deviance &&
+        return sign.(R) .* sqrt.(max.(-2 .* D .* log.(max.(fitted, eps())), 0.0))
+    throw(ArgumentError("residual kind must be :response, :pearson or :deviance, got :$kind"))
+end
+
+residuals(m::OrderedLogitModel; kind::Symbol=:response) =
+    _category_residuals(m.y, m.fitted, kind)
+residuals(m::OrderedProbitModel; kind::Symbol=:response) =
+    _category_residuals(m.y, m.fitted, kind)
+residuals(m::MultinomialLogitModel; kind::Symbol=:response) =
+    _category_residuals(m.y, m.fitted, kind)
+
+# Length-n score residual — ORDERED MODELS ONLY, matching real. Upstream deliberately
+# defines no generalized_residuals for MultinomialLogitModel (an unordered response has no
+# meaningful length-n scalar residual), so the mock must not define one either.
+_mock_gen_resid(m) = begin
+    n, J = size(m.fitted)
+    idx = _cat_index(m.y, J)
+    [1.0 - m.fitted[i, idx[i]] for i in 1:n]
+end
+generalized_residuals(m::OrderedLogitModel) = _mock_gen_resid(m)
+generalized_residuals(m::OrderedProbitModel) = _mock_gen_resid(m)
 predict(m::OrderedLogitModel) = m.fitted[:, 1]
 predict(m::OrderedProbitModel) = m.fitted[:, 1]
 predict(m::MultinomialLogitModel) = m.fitted[:, 1]
@@ -6943,6 +7541,10 @@ struct HASteadyState{T<:AbstractFloat}
     iterations::Int
     euler_error::T
     excess_demand::T
+    # MEMs#508: real 0.7.2 carries both Euler conventions alongside the selected scalar.
+    # Field names/order mirror real exactly — the mock must stay a strict subset.
+    parametric::Any
+    euler::Any
 end
 
 struct HADSGESolution{T<:AbstractFloat}
@@ -7129,6 +7731,57 @@ struct KrusellSmithSolution{T<:AbstractFloat}
     iterations::Int
 end
 
+# W13/#115 — Den Haan (2010) accuracy. Field names/order mirror real DenHaanAccuracy.
+struct DenHaanAccuracy{T<:AbstractFloat}
+    aggregate::Symbol
+    dh_max::T
+    dh_mean::T
+    sigma_ref::T
+    sigma_plm::T
+    ref_path::Vector{T}
+    plm_path::Vector{T}
+    T_sim::Int
+    T_burn::Int
+    source::Symbol
+end
+
+# Guards mirror real: @assert on the horizon, and :huggett is unsupported because it has no
+# aggregate capital. The CLI pre-guards both, but the mock must still refuse so a regression
+# in that pre-guard cannot pass at T1/T2.
+function den_haan_test(ks::KrusellSmithSolution{T}; T_sim::Int=10000, T_burn::Int=1000,
+                       rho_z::Real=0.95, sigma_z::Real=0.007, seed::Int=98765) where T
+    T_sim > T_burn + 10 || throw(AssertionError("T_sim must exceed T_burn by at least 10"))
+    ks.spec.model === :huggett &&
+        error("den_haan_test is implemented for the capital models (:aiyagari/:ks)")
+    n = T_sim - T_burn
+    ref = T[T(1.0) + T(0.01) * sin(i / 10) for i in 1:n]
+    plm = ref .+ T(0.0005)
+    DenHaanAccuracy{T}(:K, T(0.08), T(0.03), T(0.005), T(0.005), ref, plm,
+                       T_sim, T_burn, :plm)
+end
+
+# Real 0.7.2 has a SECOND method for the linearized solutions, which recover the implied
+# law of motion by regression over T_fit periods. It rejects :krusell_smith (that case
+# takes the KrusellSmithSolution above) and, like the other method, refuses :huggett.
+function den_haan_test(sol::HADSGESolution{T}; T_sim::Int=2000, T_burn::Int=200,
+                       T_fit::Int=4000, rho_z::Real=0.95, sigma_z::Real=0.007,
+                       seed::Int=98765) where T
+    T_sim > T_burn + 10 || throw(AssertionError("T_sim must exceed T_burn by at least 10"))
+    T_fit > 100 || throw(AssertionError("T_fit must be > 100 to fit the implied law of motion"))
+    sol.spec.model === :huggett &&
+        error("den_haan_test is implemented for the capital models (:aiyagari/:ks)")
+    sol.method in (:ssj, :reiter) || error(
+        "den_haan_test(::HADSGESolution) supports the linearized methods :ssj and :reiter; " *
+        "got :$(sol.method). For a Krusell-Smith solution pass the KrusellSmithSolution.")
+    n = T_sim - T_burn
+    ref = T[T(1.0) + T(0.02) * sin(i / 8) for i in 1:n]
+    plm = ref .+ T(0.004)
+    # Deliberately worse than the fitted-PLM numbers above: upstream measures 12.2% (ssj)
+    # and 5.5% (reiter) against 0.07% for Krusell-Smith on the same model.
+    DenHaanAccuracy{T}(:K, T(0.122), T(0.061), T(0.011), T(0.005), ref, plm,
+                       T_sim, T_burn, :implied)
+end
+
 function _mock_ha_ss(spec::HADSGESpec{T}) where T
     HASteadyState{T}(
         Dict{Symbol,Any}(:savings => ones(T, 10, 2) * T(0.5)),
@@ -7136,13 +7789,29 @@ function _mock_ha_ss(spec::HADSGESpec{T}) where T
         ones(T, 10, 2),
         Dict{Symbol,T}(:r => T(0.01), :w => T(1.0)),
         Dict{Symbol,T}(:K => T(10.0), :Y => T(1.0), :excess_demand => T(0.0)),
-        nothing, nothing, true, 10, T(1e-6), T(0.0))
+        nothing, nothing, true, 10, T(1e-6), T(0.0),
+        nothing,
+        # Node evaluation understates the error (EGM solves the Euler equation exactly at
+        # the nodes), so the mock keeps midpoints strictly worse than nodes, as upstream does.
+        (midpoints=(points=:midpoints, max=T(-2.1), mean=T(-3.0),
+                    n_evaluated=18, n_constrained=2, n_offgrid=0),
+         nodes=(points=:nodes, max=T(-5.4), mean=T(-6.2),
+                n_evaluated=20, n_constrained=0, n_offgrid=0)))
 end
 
 function compute_steady_state(spec::HADSGESpec{T};
         K_init=nothing, r_bounds=nothing, max_iter::Int=100, tol=1e-8,
-        verbose::Bool=false, price_fn=nothing, clearing=nothing) where T
-    _mock_ha_ss(spec)
+        verbose::Bool=false, price_fn=nothing, clearing=nothing,
+        euler_points::Symbol=:midpoints) where T
+    euler_points in (:nodes, :midpoints) || throw(ArgumentError(
+        "_ha_steady_state: euler_points must be :nodes or :midpoints, got :$euler_points."))
+    ss = _mock_ha_ss(spec)
+    # `euler_error` is whichever convention was selected — mirror real, which picks from
+    # the same pair it stores in `euler` rather than recomputing.
+    sel = euler_points === :nodes ? ss.euler.nodes.max : ss.euler.midpoints.max
+    HASteadyState{T}(ss.policies, ss.distribution, ss.value_fn, ss.prices, ss.aggregates,
+                     ss.grid, ss.income, ss.converged, ss.iterations, T(sel),
+                     ss.excess_demand, ss.parametric, ss.euler)
 end
 
 function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
@@ -7157,8 +7826,11 @@ function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
     n_red = n_reduced
     n_sys = max(n_red + 1, 2)
     endog = [Symbol("x_$i") for i in 1:n_sys]
+    # The two trailing fields are real's augmentation bookkeeping (W12/#114); a
+    # throwaway system spec is never augmented, so it is its own original variable set.
     dummy_dsge = DSGESpec{T}(endog, [:epsilon], Symbol[], Dict{Symbol,T}(),
-                             n_sys, 1, 0, string.(endog), zeros(T, n_sys), false)
+                             n_sys, 1, 0, string.(endog), zeros(T, n_sys), false,
+                             false, endog)
     G1 = Matrix{T}(I, n_sys, n_sys) * T(0.5)
     impact = ones(T, n_sys, 1) * T(0.1)
     lin = LinearDSGE{T}(Matrix{T}(I, n_sys, n_sys), G1, zeros(T, n_sys), impact,
@@ -7661,10 +8333,12 @@ function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
 end
 
 export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
+export generalized_residuals   # MEMs#507: ordered-model score residual (W4/#87)
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
 
 export HADSGESpec, HASteadyState, HADSGESolution, KrusellSmithSolution
+export DenHaanAccuracy, den_haan_test
 export CTAiyagari, CTSteadyState, CTTransition, CTTwoAsset, CTTwoAssetSolution, CTPoissonIncome
 export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
 export X13FilterResult, IOData
@@ -8376,5 +9050,752 @@ end
 export MidasForecast
 
 export MidasModel, estimate_midas, midas_weights
+
+# ─── W7/#109: TVP-VAR-SV and MF-VAR ──────────────────────────────────────────
+# Field names and ARRAY LAYOUTS mirror real exactly. H_draws holds log-VARIANCES (the
+# Kim-Shephard-Chib state), so volatility_path must return exp(h/2) -- a mock that stored
+# standard deviations directly would hide a unit bug in the handler.
+
+struct TVPVARPosterior{T<:AbstractFloat}
+    B_draws::Array{T,3}       # n_draws x T_eff x k,  k = n(1+np)
+    A_draws::Array{T,3}       # n_draws x T_eff x n_a
+    H_draws::Array{T,3}       # n_draws x T_eff x n   (log variances)
+    Q_draws::Array{T,3}
+    S_draws::Array{T,3}
+    W_draws::Matrix{T}
+    Y::Matrix{T}
+    p::Int
+    n::Int
+    T_eff::Int
+    n_train::Int
+    tvp::Bool
+    sv::Bool
+    varnames::Vector{String}
+end
+
+function estimate_tvpvar(Y, p::Int; tvp::Bool=true, sv::Bool=true,
+                         n_draws::Int=2000, n_burn::Int=1000, thin::Int=1,
+                         n_train::Int=0, k_Q::Real=0.01, k_S::Real=0.1, k_W::Real=0.01,
+                         varnames::Vector{String}=String[], rng=nothing)
+    T_obs, n = size(Y)
+    n >= 2 || throw(ArgumentError("TVP-VAR requires at least 2 variables, got $n"))
+    p >= 1 || throw(ArgumentError("p must be at least 1, got $p"))
+    n_draws >= 1 || throw(ArgumentError("n_draws must be positive"))
+    vn = isempty(varnames) ? ["y$i" for i in 1:n] : copy(varnames)
+    T_eff = max(T_obs - p - n_train, 1)
+    k = n * (1 + n * p); n_a = n * (n - 1) ÷ 2
+    N = max(cld(n_draws, thin), 1)
+    B = zeros(Float64, N, T_eff, k)
+    for d in 1:N, t in 1:T_eff, j in 1:k
+        B[d, t, j] = 0.1 + 0.001 * d + 0.0001 * t
+    end
+    A = zeros(Float64, N, T_eff, max(n_a, 1))
+    H = fill(-0.5, N, T_eff, n)          # log variance -> sd = exp(-0.25) ≈ 0.7788
+    TVPVARPosterior{Float64}(B, A, H, zeros(Float64, N, k, k),
+                             zeros(Float64, N, max(n_a,1), max(n_a,1)),
+                             zeros(Float64, N, n), Matrix{Float64}(Y), p, n, T_eff,
+                             n_train, tvp, sv, vn)
+end
+
+function volatility_path(post::TVPVARPosterior; quantile_levels::Vector{<:Real}=[0.16,0.5,0.84])
+    vol = exp.(post.H_draws ./ 2)
+    mu = dropdims(sum(vol; dims=1) ./ size(vol,1); dims=1)
+    qs = Array{Float64,3}(undef, post.T_eff, post.n, length(quantile_levels))
+    for q in eachindex(quantile_levels), j in 1:post.n, t in 1:post.T_eff
+        qs[t, j, q] = mu[t, j]
+    end
+    return mu, qs
+end
+
+function irf(post::TVPVARPosterior, horizon::Int; t::Int=post.T_eff, n_draws::Int=500,
+             quantile_levels::Vector{<:Real}=[0.05,0.16,0.84,0.95],
+             stationary_only::Bool=true)
+    horizon >= 1 || throw(ArgumentError("horizon must be positive"))
+    1 <= t <= post.T_eff || throw(ArgumentError("t must be in 1:$(post.T_eff), got $t"))
+    n = post.n
+    point = zeros(Float64, horizon, n, n)
+    for h in 1:horizon, i in 1:n, j in 1:n
+        point[h, i, j] = (i == j ? 1.0 : 0.3) * 0.8^(h-1)
+    end
+    ql = Float64.(quantile_levels)
+    quant = Array{Float64,4}(undef, horizon, n, n, length(ql))
+    for q in eachindex(ql), j in 1:n, i in 1:n, h in 1:horizon
+        quant[h, i, j, q] = point[h, i, j] * (0.9 + 0.05 * q)
+    end
+    shocks = ["$(nm) shock" for nm in post.varnames]
+    BayesianImpulseResponse{Float64}(quant, point, horizon, copy(post.varnames), shocks,
+                                     ql, zeros(Float64, 1, horizon, n, n), n_draws, n_draws, 0)
+end
+
+struct MFVARPosterior{T<:AbstractFloat}
+    B_draws::Array{T,3}
+    Sigma_draws::Array{T,3}
+    Z_draws::Array{T,3}       # n_draws x T_hf x n
+    data::Matrix{T}
+    p::Int
+    n::Int
+    T_hf::Int
+    low_freq::Vector{Int}
+    freq_ratio::Int
+    aggregation::Vector{Symbol}
+    varnames::Vector{String}
+end
+
+function estimate_mfvar(data, p::Int; low_freq::Vector{Int}=Int[], freq_ratio::Int=3,
+                        aggregation=:growth, n_draws::Int=1000, n_burn::Int=500,
+                        prior::Symbol=:minnesota, hyper=nothing,
+                        varnames::Vector{String}=String[], rng=nothing)
+    p >= 1 || throw(ArgumentError("p must be at least 1, got $p"))
+    prior in (:minnesota, :diffuse) ||
+        throw(ArgumentError("prior must be :minnesota or :diffuse, got :$prior"))
+    freq_ratio >= 1 || throw(ArgumentError("freq_ratio must be ≥ 1, got $freq_ratio"))
+    T_hf, n = size(data)
+    all(1 .<= low_freq .<= n) ||
+        throw(ArgumentError("low_freq indices must be in 1:$n, got $low_freq"))
+    vn = isempty(varnames) ? ["y$i" for i in 1:n] : copy(varnames)
+    aggs = aggregation isa Symbol ? fill(aggregation, length(low_freq)) : copy(aggregation)
+    length(aggs) == length(low_freq) || throw(ArgumentError(
+        "aggregation must be a Symbol or one Symbol per low_freq series"))
+    for a in aggs
+        a in (:stock, :flow, :average, :growth) || throw(ArgumentError(
+            "aggregation must be :stock, :flow, :average or :growth, got :$a"))
+    end
+    # High-frequency columns must be complete; low-frequency ones need some data.
+    is_low = fill(false, n); for j in low_freq; is_low[j] = true; end
+    for i in 1:n
+        if is_low[i]
+            any(!isnan, @view data[:, i]) ||
+                throw(ArgumentError("low-frequency series $(vn[i]) has no observations"))
+        else
+            any(isnan, @view data[:, i]) && throw(ArgumentError(
+                "high-frequency series $(vn[i]) contains NaN; either list it in low_freq " *
+                "or supply a complete series"))
+        end
+    end
+    N = max(n_draws, 1)
+    Z = zeros(Float64, N, T_hf, n)
+    for d in 1:N, t in 1:T_hf, j in 1:n
+        v = data[t, j]
+        Z[d, t, j] = isnan(v) ? 0.5 + 0.001 * d : v
+    end
+    k = n * p + 1
+    MFVARPosterior{Float64}(zeros(Float64, N, k, n), zeros(Float64, N, n, n), Z,
+                            Matrix{Float64}(data), p, n, T_hf, copy(low_freq),
+                            freq_ratio, aggs, vn)
+end
+
+function latent_path(post::MFVARPosterior; quantile_levels::Vector{<:Real}=[0.16,0.5,0.84])
+    mu = dropdims(sum(post.Z_draws; dims=1) ./ size(post.Z_draws,1); dims=1)
+    qs = Array{Float64,3}(undef, post.T_hf, post.n, length(quantile_levels))
+    for q in eachindex(quantile_levels), j in 1:post.n, t in 1:post.T_hf
+        qs[t, j, q] = mu[t, j]
+    end
+    return mu, qs
+end
+
+report(p::TVPVARPosterior) = "TVP-VAR($(p.p)) mock report"
+report(p::MFVARPosterior) = "MF-VAR($(p.p)) mock report"
+
+export TVPVARPosterior, estimate_tvpvar, volatility_path
+export MFVARPosterior, estimate_mfvar, latent_path
+
+# ─── W8/#110: generalized FEVD + Waggoner-Zha conditional forecasts ──────────
+
+# Pesaran-Shin generalized FEVD. Deliberately does NOT sum to 1 across shocks unless
+# normalize=true -- a mock that normalized unconditionally would hide exactly the property
+# the renderer and the T3 assertion have to get right.
+function generalized_fevd(model::VARModel, horizon::Int; normalize::Bool=false,
+                          shock_names::Union{Nothing,Vector{String}}=nothing)
+    n = size(model.Y, 2)
+    props = Array{Float64,3}(undef, n, n, horizon)
+    for h in 1:horizon, i in 1:n, j in 1:n
+        props[i, j, h] = i == j ? 0.8 : 0.3          # rows sum to > 1 for n >= 2
+    end
+    if normalize
+        for h in 1:horizon, i in 1:n
+            props[i, :, h] ./= sum(@view props[i, :, h])
+        end
+    end
+    FEVD(props, props)
+end
+generalized_fevd(post::BVARPosterior, horizon::Int; normalize::Bool=false,
+                 shock_names::Union{Nothing,Vector{String}}=nothing) =
+    generalized_fevd(_mock_var(post.data, post.p), horizon;
+                     normalize=normalize, shock_names=shock_names)
+
+struct ForecastCondition{T<:AbstractFloat}
+    variable::Union{Int,String,Symbol}
+    horizon::Int
+    value::T
+    sd::T
+    function ForecastCondition{T}(variable, horizon::Integer, value::Real,
+                                  sd::Real=zero(T)) where {T<:AbstractFloat}
+        horizon >= 1 || throw(ArgumentError("condition horizon must be ≥ 1, got $horizon"))
+        sd >= 0 || throw(ArgumentError("condition sd must be non-negative, got $sd"))
+        new{T}(variable, Int(horizon), T(value), T(sd))
+    end
+end
+forecast_condition(variable::Union{Int,String,Symbol}, horizon::Integer, value::Real;
+                   sd::Real=0.0) = ForecastCondition{Float64}(variable, horizon, value, sd)
+
+struct ConditionalForecast{T<:AbstractFloat}
+    forecast::Matrix{T}
+    ci_lower::Matrix{T}
+    ci_upper::Matrix{T}
+    horizon::Int
+    conf_level::T
+    varnames::Vector{String}
+    conditions::Vector{ForecastCondition{T}}
+    unconditional::Matrix{T}
+    shocks::Matrix{T}
+    identification::Symbol
+    n_draws::Int
+end
+
+function _mock_conditional_forecast(varnames::Vector{String}, conds, h::Int,
+                                    reps::Int, conf_level::Real)
+    h >= 1 || throw(ArgumentError("Forecast horizon must be positive"))
+    reps >= 1 || throw(ArgumentError("reps must be positive"))
+    (0 < conf_level < 1) || throw(ArgumentError("conf_level must be in (0, 1)"))
+    n = length(varnames)
+    cl = Vector{ForecastCondition{Float64}}()
+    for c in conds
+        idx = c.variable isa Integer ? Int(c.variable) :
+              something(findfirst(==(String(c.variable)), varnames), 0)
+        idx >= 1 && idx <= n || throw(ArgumentError(
+            "condition variable $(repr(c.variable)) not found. Available: $varnames"))
+        c.horizon <= h || throw(ArgumentError(
+            "condition horizon $(c.horizon) exceeds forecast horizon $h"))
+        push!(cl, c)
+    end
+    uncond = fill(0.25, h, n)
+    fcast = copy(uncond)
+    lo = fcast .- 1.0
+    hi = fcast .+ 1.0
+    # A HARD condition pins the path exactly and collapses the band, which is what the
+    # renderer and T3 check.
+    for c in cl
+        idx = c.variable isa Integer ? Int(c.variable) :
+              findfirst(==(String(c.variable)), varnames)
+        fcast[c.horizon, idx] = c.value
+        if c.sd == 0
+            lo[c.horizon, idx] = c.value
+            hi[c.horizon, idx] = c.value
+        end
+    end
+    ConditionalForecast{Float64}(fcast, lo, hi, h, Float64(conf_level), copy(varnames),
+                                 cl, uncond, fill(0.1, h, n), :cholesky, reps)
+end
+
+conditional_forecast(model::VARModel, conditions, h::Int; Q=nothing, reps::Int=1000,
+                     conf_level::Real=0.95, rng=nothing) =
+    _mock_conditional_forecast(model.varnames, conditions, h, reps, conf_level)
+conditional_forecast(post::BVARPosterior, conditions, h::Int; Q=nothing, reps::Int=1000,
+                     conf_level::Real=0.95, rng=nothing) =
+    _mock_conditional_forecast(post.varnames, conditions, h, reps, conf_level)
+
+report(fc::ConditionalForecast) = "ConditionalForecast mock report"
+
+export generalized_fevd, ForecastCondition, forecast_condition, ConditionalForecast
+export conditional_forecast
+
+# ─── W9/#111: quantile regression + RDD ──────────────────────────────────────
+# Field names and shapes mirror real. NOTE beta/stderr/residuals/fitted are k x n_tau (or
+# n x n_tau) MATRICES even for a single tau -- a mock that collapsed them to vectors would
+# hide the renderer's indexing.
+
+struct QuantileRegModel{T<:AbstractFloat}
+    y::Vector{T}
+    X::Matrix{T}
+    taus::Vector{T}
+    beta::Matrix{T}
+    vcov_mats::Vector{Matrix{T}}
+    stderr::Matrix{T}
+    residuals::Matrix{T}
+    fitted::Matrix{T}
+    objective::Vector{T}
+    pseudo_r2::Vector{T}
+    varnames::Vector{String}
+    se_type::Symbol
+    n_obs::Int
+    converged::Vector{Bool}
+end
+
+function estimate_qreg(y::AbstractVector, X::AbstractMatrix, tau=0.5;
+                       se::Symbol=:iid, varnames=nothing, n_boot::Int=500,
+                       rng=nothing, alpha::Real=0.05)
+    n, k = length(y), size(X, 2)
+    size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
+    n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
+    se in (:iid, :robust, :boot) ||
+        throw(ArgumentError("se must be :iid, :robust, or :boot; got :$se"))
+    taus = tau isa Real ? Float64[tau] : Float64.(collect(tau))
+    all(t -> 0 < t < 1, taus) || throw(ArgumentError("tau must lie in (0, 1)"))
+    nt = length(taus)
+    vn = varnames === nothing ? ["x$i" for i in 1:k] : copy(varnames)
+    beta = Matrix{Float64}(undef, k, nt)
+    for j in 1:nt, i in 1:k
+        beta[i, j] = 0.5 + 0.1 * i + taus[j]        # varies with tau, as a real fit would
+    end
+    QuantileRegModel{Float64}(Float64.(y), Float64.(X), taus, beta,
+        [Matrix{Float64}(I, k, k) for _ in 1:nt], fill(0.2, k, nt),
+        fill(0.1, n, nt), fill(0.5, n, nt), fill(12.5, nt), fill(0.3, nt),
+        vn, se, n, fill(true, nt))
+end
+
+struct RDDResult{T<:AbstractFloat}
+    tau_conventional::T
+    tau_bias_corrected::T
+    se_conventional::T
+    se_robust::T
+    ci_conventional::Tuple{T,T}
+    ci_robust::Tuple{T,T}
+    pvalue_robust::T
+    z_robust::T
+    h::T
+    b::T
+    n_left::Int
+    n_right::Int
+    cutoff::T
+    p::Int
+    kernel::Symbol
+    level::T
+    design::Symbol
+    first_stage::Union{Nothing,T}
+end
+
+function estimate_rdd(y::AbstractVector, running::AbstractVector; cutoff::Real=0.0,
+                      fuzzy=nothing, kernel::Symbol=:triangular, p::Int=1,
+                      h=nothing, b=nothing, level::Real=0.95)
+    length(running) == length(y) ||
+        throw(ArgumentError("running must have length $(length(y))"))
+    kernel in (:triangular, :epanechnikov, :uniform) || throw(ArgumentError(
+        "kernel must be :triangular, :epanechnikov, or :uniform; got :$kernel"))
+    p >= 1 || throw(ArgumentError("p must be >= 1, got $p"))
+    0 < level < 1 || throw(ArgumentError("level must lie in (0,1), got $level"))
+    fuzzy === nothing || length(fuzzy) == length(y) ||
+        throw(ArgumentError("fuzzy must have length $(length(y))"))
+    nl = count(<(cutoff), running); nr = count(>=(cutoff), running)
+    hh = h === nothing ? 1.5 : Float64(h)
+    bb = b === nothing ? 2.5 : Float64(b)
+    RDDResult{Float64}(2.0, 2.1, 0.4, 0.45, (1.216, 2.784), (1.218, 2.982),
+                       0.0001, 4.67, hh, bb, nl, nr, Float64(cutoff), p, kernel,
+                       Float64(level), fuzzy === nothing ? :sharp : :fuzzy,
+                       fuzzy === nothing ? nothing : 0.8)
+end
+
+report(m::QuantileRegModel) = "QuantileRegModel mock report"
+report(r::RDDResult) = "RDDResult mock report"
+
+export QuantileRegModel, estimate_qreg, RDDResult, estimate_rdd
+
+# ─── W10/#112: micro inference riders ────────────────────────────────────────────────
+#
+# Field names, types and ARRAY SHAPES mirror real MEMs 0.7.2 exactly. Nothing here invents
+# a name real lacks (#84) — the CIPS/`plot_result` lessons — and the AR/wild-bootstrap
+# results deliberately reproduce real's degenerate shapes (empty set, unbounded side,
+# enumerated sign space) so a handler that assumes `[lo, hi]` fails at T1/T2 rather than in
+# production.
+
+struct AndersonRubinTest{T<:AbstractFloat}
+    beta0::Vector{T}
+    statistic::T
+    p_value::T
+    df1::Int
+    df2::Int
+    distribution::Symbol
+    cov_type::Symbol
+    endog_names::Vector{String}
+end
+
+struct AndersonRubinCI{T<:AbstractFloat}
+    intervals::Vector{Tuple{T,T}}
+    is_empty::Bool
+    is_whole_line::Bool
+    bounded::Bool
+    level::T
+    critical_value::T
+    grid_lo::T
+    grid_hi::T
+    wald_lower::T
+    wald_upper::T
+    estimate::T
+    df1::Int
+    distribution::Symbol
+    endog_name::String
+end
+
+# Mirrors real's `_ar_unpack`: the model must carry Z and the endogenous indices, i.e. it
+# must have come from `estimate_iv`. Same ArgumentError, hence the same exit class.
+function _mock_ar_unpack(m::RegModel)
+    m.Z === nothing && throw(ArgumentError(
+        "the model was not estimated by IV — anderson_rubin_test requires a model from estimate_iv"))
+    m.endogenous === nothing && throw(ArgumentError("the model carries no endogenous indices"))
+    return m.endogenous
+end
+
+function anderson_rubin_test(model, beta0; cov_type=nothing, clusters=nothing)
+    endog = _mock_ar_unpack(model)
+    ct = cov_type === nothing ? model.cov_type : cov_type
+    ct in (:ols, :hc0, :hc1, :hc2, :hc3, :cluster) || throw(ArgumentError(
+        "cov_type must be :ols, :hc0, :hc1, :hc2, :hc3, or :cluster; got :$ct"))
+    ct === :cluster && clusters === nothing && throw(ArgumentError(
+        "clusters is required for cov_type=:cluster"))
+    b0 = beta0 isa Number ? Float64[Float64(beta0)] : Vector{Float64}(beta0)
+    length(b0) == length(endog) || throw(ArgumentError(
+        "beta0 has length $(length(b0)) but the model has $(length(endog)) endogenous regressors"))
+    q = size(model.Z, 2) - (size(model.X, 2) - length(endog))
+    q = max(q, 1)
+    dist = ct === :ols ? :F : :chisq
+    AndersonRubinTest{Float64}(b0, 2.5, 0.08, q, length(model.y) - size(model.Z, 2),
+                               dist, ct, model.varnames[endog])
+end
+
+# `_MOCK_FLAGS[:ar_set_shape]` drives the degenerate shapes so T1/T2 can exercise the
+# renderer's empty / unbounded / disjoint branches, which is where a `[lo, hi]` assumption
+# would break.
+function anderson_rubin_ci(model; level=0.95, n_grid=1001, span=20, grid=nothing,
+                           cov_type=nothing, clusters=nothing)
+    endog = _mock_ar_unpack(model)
+    length(endog) == 1 || throw(ArgumentError(
+        "anderson_rubin_ci inverts over a single endogenous coefficient; this model has " *
+        "$(length(endog)). Use anderson_rubin_test at specific vectors instead."))
+    (0 < level < 1) || throw(ArgumentError("level must be in (0, 1)"))
+    n_grid >= 5 || throw(ArgumentError("n_grid must be at least 5"))
+    ct = cov_type === nothing ? model.cov_type : cov_type
+    ct === :cluster && clusters === nothing && throw(ArgumentError(
+        "clusters is required for cov_type=:cluster"))
+    j = endog[1]
+    est = Float64(model.beta[j])
+    shape = get(_MOCK_FLAGS, :ar_set_shape, :bounded)
+    ivals, empt, whole, bnd = if shape === :empty
+        (Tuple{Float64,Float64}[], true, false, true)
+    elseif shape === :whole
+        ([(-Inf, Inf)], false, true, false)
+    elseif shape === :unbounded
+        ([(est - 0.4, Inf)], false, false, false)
+    elseif shape === :disjoint
+        ([(est - 1.2, est - 0.6), (est + 0.6, est + 1.2)], false, false, true)
+    else
+        ([(est - 0.5, est + 0.5)], false, false, true)
+    end
+    AndersonRubinCI{Float64}(ivals, empt, whole, bnd, Float64(level), 3.84,
+                             est - Float64(span) * 0.1, est + Float64(span) * 0.1,
+                             est - 0.3, est + 0.3, est, 1,
+                             ct === :ols ? :F : :chisq, model.varnames[j])
+end
+
+struct WildClusterBootstrap{T<:AbstractFloat}
+    coefname::String
+    coefindex::Int
+    estimate::T
+    null_value::T
+    t_stat::T
+    p_value::T
+    p_value_equaltail::T
+    p_value_asymptotic::T
+    ci_lower::T
+    ci_upper::T
+    level::T
+    t_boot::Vector{T}
+    n_boot::Int
+    n_clusters::Int
+    weighttype::Symbol
+    imposenull::Bool
+    enumerated::Bool
+end
+
+function wild_cluster_bootstrap(model::RegModel, coefficient, null_value::Real=0.0;
+                                clusters=nothing, n_boot::Int=999,
+                                weights::Symbol=:rademacher, imposenull::Bool=true,
+                                ci::Bool=true, level::Real=0.95, ci_gridpoints::Int=25,
+                                enumerate=nothing, rng=nothing)
+    # Mirror real's guards: clusters are REQUIRED for a RegModel, and the weight scheme is
+    # a closed two-member enum (the `--wild-dist` lesson — never infer enum members).
+    clusters === nothing && throw(ArgumentError(
+        "clusters is required for a RegModel — pass the same cluster vector used for the " *
+        "cluster-robust covariance"))
+    weights in (:rademacher, :webb) || throw(ArgumentError(
+        "weights must be :rademacher or :webb; got :$weights"))
+    # NOT `something(findfirst(...), throw(...))`: `something` is an ordinary function, so
+    # BOTH arguments are evaluated and the throw fires even on a successful lookup.
+    idx = if coefficient isa Integer
+        Int(coefficient)
+    else
+        hit = findfirst(==(string(coefficient)), model.varnames)
+        hit === nothing && throw(ArgumentError(
+            "coefficient $(coefficient) not found in $(model.varnames)"))
+        hit
+    end
+    (1 <= idx <= length(model.varnames)) || throw(ArgumentError(
+        "coefficient index $idx out of range 1:$(length(model.varnames))"))
+    G = length(unique(clusters))
+    G >= 2 || throw(ArgumentError("Need at least 2 clusters for the wild cluster bootstrap"))
+    # Real enumerates whenever 2^G <= n_boot and the weights are Rademacher; `enumerate`
+    # forces or forbids it — and FORCING it when it is impossible is an error upstream,
+    # so mirror that rather than silently obliging (a mock looser than real hides a real
+    # failure).
+    can_enum = weights === :rademacher && G <= 20 && 2^G <= n_boot
+    if enumerate === true && !can_enum
+        throw(ArgumentError(
+            "enumerate=true requires Rademacher weights, G ≤ 20 and 2^G ≤ n_boot " *
+            "(G=$G, n_boot=$n_boot, weights=:$weights)"))
+    end
+    enumerated = enumerate === nothing ? can_enum : (enumerate === true)
+    nb = enumerated ? 2^min(G, 20) : n_boot
+    est = Float64(model.beta[idx])
+    WildClusterBootstrap{Float64}(model.varnames[idx], idx, est, Float64(null_value),
+                                  2.1, 0.07, 0.065, 0.03,
+                                  ci ? est - 0.4 : NaN, ci ? est + 0.4 : NaN,
+                                  Float64(level), fill(0.5, min(nb, 16)), nb, G,
+                                  weights, imposenull, enumerated)
+end
+
+struct MontielOleaPfluegerF{T<:AbstractFloat}
+    f_effective::T
+    critical_value::T
+    tau::T
+    weak::Bool
+    n_instruments::Int
+    bandwidth::Int
+    f_naive::T
+end
+
+const _MOP_SIMPLIFIED_CV = Dict(0.05 => 37.42, 0.10 => 23.11, 0.20 => 15.06, 0.30 => 12.04)
+
+function montiel_olea_pflueger_f(model::LPIVModel; tau::Real=0.10, bandwidth::Int=0)
+    haskey(_MOP_SIMPLIFIED_CV, Float64(tau)) || throw(ArgumentError(
+        "tau must be one of $(sort(collect(keys(_MOP_SIMPLIFIED_CV)))), got $tau"))
+    crit = _MOP_SIMPLIFIED_CV[Float64(tau)]
+    f_naive = Float64(first(model.first_stage_F))
+    f_eff = f_naive * 0.9
+    MontielOleaPfluegerF{Float64}(f_eff, crit, Float64(tau), f_eff < crit,
+                                  size(model.instruments, 2), bandwidth, f_naive)
+end
+
+struct LPIVARBand{T<:AbstractFloat}
+    lower::Matrix{T}
+    upper::Matrix{T}
+    sets::Matrix{Vector{Tuple{T,T}}}
+    bounded::Matrix{Bool}
+    is_empty::Matrix{Bool}
+    wald_lower::Matrix{T}
+    wald_upper::Matrix{T}
+    point::Matrix{T}
+    bandwidths::Matrix{Int}
+    horizon::Int
+    level::T
+    critical_value::T
+    df1::Int
+    response_names::Vector{String}
+    shock_name::String
+end
+
+function lp_iv_ar_band(model::LPIVModel; level::Real=0.95, n_grid::Int=401,
+                       span::Real=20, bandwidth::Int=0, responses=nothing)
+    (0 < level < 1) || throw(ArgumentError("level must be in (0, 1)"))
+    n_grid >= 5 || throw(ArgumentError("n_grid must be at least 5"))
+    H = model.horizon
+    names = model.varnames[model.response_vars]
+    nr = length(names)
+    responses === nothing || (all(1 .<= responses .<= nr) || throw(ArgumentError(
+        "responses must index into 1:$nr")))
+    idx = responses === nothing ? collect(1:nr) : responses
+    nk = length(idx)
+    pt = fill(0.1, H + 1, nk)
+    lo = fill(-0.4, H + 1, nk)
+    hi = fill(0.6, H + 1, nk)
+    bnd = trues(H + 1, nk)
+    emp = falses(H + 1, nk)
+    # Real routinely returns unbounded cells at long horizons; make the LAST horizon
+    # unbounded so a renderer that assumes finite bounds fails at T1/T2, not in production.
+    lo[H + 1, :] .= -Inf
+    bnd[H + 1, :] .= false
+    sets = Matrix{Vector{Tuple{Float64,Float64}}}(undef, H + 1, nk)
+    for i in 1:(H + 1), j in 1:nk
+        sets[i, j] = [(lo[i, j], hi[i, j])]
+    end
+    LPIVARBand{Float64}(lo, hi, sets, bnd, emp, pt .- 0.3, pt .+ 0.3, pt,
+                        fill(max(bandwidth, 1), H + 1, nk), H, Float64(level), 3.84,
+                        size(model.instruments, 2), names[idx], "$(model.varnames[model.shock_var]) (IV)")
+end
+
+report(t::AndersonRubinTest) = "AndersonRubinTest mock report"
+report(c::AndersonRubinCI) = "AndersonRubinCI mock report"
+report(b::WildClusterBootstrap) = "WildClusterBootstrap mock report"
+report(m::MontielOleaPfluegerF) = "MontielOleaPfluegerF mock report"
+report(b::LPIVARBand) = "LPIVARBand mock report"
+
+export AndersonRubinTest, AndersonRubinCI, anderson_rubin_test, anderson_rubin_ci,
+       WildClusterBootstrap, wild_cluster_bootstrap,
+       MontielOleaPfluegerF, montiel_olea_pflueger_f, LPIVARBand, lp_iv_ar_band
+
+# ─── W12/#114: determinacy mapping + closed-form moments ──────────────────────────────
+#
+# Field names and shapes mirror real MEMs 0.7.2 exactly. The verdict codes are real's
+# `DETERMINACY_CODES` values, and `determinacy_boundary` reproduces real's rule that a pair
+# involving a FAILED point is not a boundary crossing — a solve failure is missing
+# information, not a region, and inventing a frontier out of it would be a real bug the
+# mock must be able to expose.
+
+const DETERMINACY_CODES = (determinate=1, indeterminate=0, no_solution=-1, failed=-2)
+
+function determinacy_label(code::Integer)
+    code == DETERMINACY_CODES.determinate   && return "determinate"
+    code == DETERMINACY_CODES.indeterminate && return "indeterminate"
+    code == DETERMINACY_CODES.no_solution   && return "no solution"
+    code == DETERMINACY_CODES.failed        && return "failed"
+    return "unknown"
+end
+
+struct DeterminacyMap{T<:AbstractFloat}
+    params::Vector{Symbol}
+    axes::Vector{Vector{T}}
+    verdict::Matrix{Int}
+    eu::Array{Int,3}
+    failures::Dict{Tuple{Int,Int},String}
+    base_values::Dict{Symbol,T}
+    div::Float64
+    method::Symbol
+end
+
+function determinacy_region(spec::DSGESpec{T},
+                            theta_base::AbstractDict=spec.param_values;
+                            params, grids, div::Real=1.0 + 1e-8, rank_rtol::Real=1e-8,
+                            method::Symbol=:gensys, threaded::Bool=false,
+                            quiet::Bool=true) where {T}
+    pnames = params isa Symbol ? [params] : collect(Symbol.(params))
+    (1 <= length(pnames) <= 2) || throw(ArgumentError(
+        "determinacy_region sweeps 1 or 2 parameters, got $(length(pnames))"))
+    for p in pnames
+        p in spec.params || throw(ArgumentError(
+            "parameter :$p is not a parameter of this model (have $(spec.params))"))
+    end
+    length(unique(pnames)) == length(pnames) || throw(ArgumentError(
+        "the swept parameters must be distinct, got $pnames"))
+    method in (:gensys, :klein, :blanchard_kahn) || throw(ArgumentError(
+        "method must be :gensys, :klein, or :blanchard_kahn; got :$method"))
+    gaxes = if length(pnames) == 1 && !(grids isa Tuple) &&
+               !(grids isa AbstractVector{<:AbstractVector})
+        [collect(Float64, grids)]
+    else
+        [collect(Float64, g) for g in grids]
+    end
+    length(gaxes) == length(pnames) || throw(ArgumentError(
+        "got $(length(pnames)) parameter(s) but $(length(gaxes)) grid(s)"))
+    all(!isempty, gaxes) || throw(ArgumentError("grids must be non-empty"))
+
+    n1 = length(gaxes[1])
+    n2 = length(pnames) == 2 ? length(gaxes[2]) : 1
+    verdict = Matrix{Int}(undef, n1, n2)
+    eu = Array{Int,3}(undef, n1, n2, 2)
+    # A Taylor-principle-shaped boundary: determinate above 1.0 on the first axis, so a T3
+    # or T1/T2 case can assert region labels on BOTH sides of a known frontier.
+    for j in 1:n2, i in 1:n1
+        det = gaxes[1][i] > 1.0
+        verdict[i, j] = det ? DETERMINACY_CODES.determinate : DETERMINACY_CODES.indeterminate
+        eu[i, j, 1] = 1
+        eu[i, j, 2] = det ? 1 : 0
+    end
+    base = Dict{Symbol,Float64}(Symbol(k) => Float64(v) for (k, v) in theta_base)
+    return DeterminacyMap{Float64}(pnames, gaxes, verdict, eu,
+                                   Dict{Tuple{Int,Int},String}(), base,
+                                   Float64(div), method)
+end
+
+function determinacy_boundary(m::DeterminacyMap{T}) where {T}
+    length(m.params) == 1 || throw(ArgumentError(
+        "determinacy_boundary is defined for a one-parameter sweep; this map sweeps " *
+        "$(length(m.params)) parameters — read `verdict` directly."))
+    g = m.axes[1]
+    out = T[]
+    fail = DETERMINACY_CODES.failed
+    for i in 2:length(g)
+        a, b = m.verdict[i-1, 1], m.verdict[i, 1]
+        (a == fail || b == fail) && continue      # a hole is not a crossing
+        a == b && continue
+        push!(out, (g[i-1] + g[i]) / 2)
+    end
+    return out
+end
+
+"""
+Mock `analytical_moments`, packed EXACTLY as real packs it — the CLI unpacks by position,
+so a divergence here would hide a mislabelled-moment bug in production.
+
+`:covariance` → upper-triangle of Var_y, then diagonal autocov per lag.
+`:gmm`        → means, then upper-triangle PRODUCT moments (Var + E·E), then diagonal
+                autocov + E² per lag.
+"""
+function analytical_moments(sol::PerturbationSolution{T}; lags::Int=1,
+                            format::Symbol=:covariance) where {T}
+    format in (:covariance, :gmm) ||
+        throw(ArgumentError("format must be :covariance or :gmm; got $format"))
+    spec = sol.spec
+    idx = spec.augmented ? Int[findfirst(==(v), spec.endog) for v in spec.original_endog] :
+                           collect(1:spec.n_endog)
+    k = length(idx)
+    # Deterministic, order-dependent fixtures: the risk correction is zero at order 1 and
+    # non-zero above, which is the property the handler's `mean_minus_ss` column reports.
+    E = T[sol.order == 1 ? zero(T) : T(0.01 * i * (sol.order - 1)) for i in 1:k]
+    Var = zeros(T, k, k)
+    for i in 1:k, j in 1:k
+        Var[i, j] = i == j ? T(1.0 + 0.1 * i) : T(0.2 / (1 + abs(i - j)))
+    end
+    out = T[]
+    if format === :gmm
+        append!(out, E)
+        for i in 1:k, j in i:k
+            push!(out, Var[i, j] + E[i] * E[j])
+        end
+        for lag in 1:lags, i in 1:k
+            push!(out, T(0.7^lag) * Var[i, i] + E[i]^2)
+        end
+    else
+        for i in 1:k, j in i:k
+            push!(out, Var[i, j])
+        end
+        for lag in 1:lags, i in 1:k
+            push!(out, T(0.7^lag) * Var[i, i])
+        end
+    end
+    return out
+end
+
+report(m::DeterminacyMap) = "DeterminacyMap mock report"
+
+export DeterminacyMap, determinacy_region, determinacy_boundary, determinacy_label,
+       DETERMINACY_CODES, analytical_moments
+
+# ─── Native-serialization registry (mirrors real `_SERIALIZABLE_TYPES`, MEMs#506) ─────
+#
+# Deliberately LAST in the file: it maps names → Types, and mocks.jl is one flat module
+# included top-to-bottom, so every referenced type must already be defined (the same
+# forward-reference trap that broke the C051 `DataFrame(::Union{...})` dispatches).
+#
+# The names are upstream's 56 at MEMs 0.7.2, filtered to those this mock actually
+# defines. Filtering keeps the mock a SUBSET of real, which is the safe direction (#84):
+# a mock that accepted a type real rejects would turn a guaranteed production
+# `SerializationError` into a green suite. The DSGE/HA solution types are absent from
+# upstream's registry on purpose (compiled `@dsge` closures do not round-trip), so they
+# are absent here too and keep falling back to the CLI's `.fmod` handle.
+const _SERIALIZABLE_TYPE_NAMES = (
+    "APARCHModel", "ARCHModel", "ARDLModel", "ARFIMAModel", "ARIMAModel", "ARMAModel",
+    "ARModel", "BVARPosterior", "CGARCHModel", "CointRegModel", "CrossSectionData",
+    "DynamicFactorModel", "EGARCHModel", "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
+    "FactorModel", "GARCHModel", "GJRGARCHModel", "GMMModel", "GarchMidasModel",
+    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "LPIVModel", "LPModel",
+    "LogitModel", "MAModel", "MGARCHModel", "MidasModel", "MultinomialLogitModel",
+    "NARDLModel", "OrderedLogitModel", "OrderedProbitModel", "PMGModel", "PVARModel",
+    "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
+    "PanelProbitModel", "PanelRegModel", "ProbitModel", "PropensityLPModel", "RegModel",
+    "SMMModel", "SURModel", "SVModel", "SmoothLPModel", "StateLPModel", "StateSpaceModel",
+    "StructuralDFM", "ThresholdModel", "TimeSeriesData", "VARModel", "VECMModel",
+)
+
+const _SERIALIZABLE_TYPES = Dict{String,Type}(
+    n => getfield(@__MODULE__, Symbol(n))
+    for n in _SERIALIZABLE_TYPE_NAMES if isdefined(@__MODULE__, Symbol(n))
+)
 
 end # module

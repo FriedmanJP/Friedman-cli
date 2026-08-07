@@ -72,6 +72,10 @@ function _predict_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q
                           method::String="css_mle", auto::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    # Bound BEFORE the branch: on the `--model <handle>` path there is no CSV to read a
+    # column name from, and the title below is emitted on BOTH paths. Leaving it to the
+    # branch made every `predict arima --model …` die with an UndefVarError (exit 1).
+    vname = "model"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
         method_sym = Symbol(method)
@@ -670,6 +674,9 @@ function _residuals_arima(; data::String="", column::Int=1, p=nothing, d::Int=0,
                             method::String="css_mle", auto::Bool=false,
                             output::String="", format::String="table",
                             model=nothing)
+    # See _predict_arima: bound before the branch so the shared title below cannot hit an
+    # UndefVarError on the `--model <handle>` path.
+    vname = "model"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
         method_sym = Symbol(method)
@@ -1042,26 +1049,63 @@ end
 # ── Ordered/Multinomial Residuals ───────────────────────
 
 """
-    _unsupported_residuals(label, leaf)
+    _choice_resid_table(resid, categories) → DataFrame
 
-Ordered/multinomial choice models have no `residuals` method in MEMs 0.7.0, and there
-is no single standard residual definition for them (the test mock used to invent
-`y - fitted[:, 1]`, which is not a recognised statistic). Fail with a typed error
-rather than fabricate one — `predict` gives the per-category probabilities.
-
-Filed upstream as MacroEconometricModels.jl#507 (which also asks them to settle the
-return shape: an `n x K` response-residual matrix vs a length-`n` generalised
-residual). Re-enabling these leaves is gated on that: CLI issue #87. If upstream
-declines, remove the three leaves at v1.0 (C055) instead of shipping leaves that
-can only error.
+Per-category residual matrix (`n x J`) as one tidy column per category, mirroring
+`_choice_prob_table`. An unordered/ordered response has J residuals per observation, so
+this cannot collapse to a single `residual` column the way the binary models do.
 """
-_unsupported_residuals(label::String, leaf::String) =
-    throw(CliError("model/unsupported",
-        "$label residuals are not defined upstream (MEMs 0.7.0 has no residuals method)";
-        hint="use 'friedman predict $leaf' for per-category predicted probabilities"))
+function _choice_resid_table(resid::AbstractMatrix, categories)
+    df = DataFrame(observation=1:size(resid, 1))
+    labels = length(categories) == size(resid, 2) ? string.(categories) :
+             string.(1:size(resid, 2))
+    for (j, lab) in enumerate(labels)
+        df[!, "resid_$lab"] = round.(resid[:, j]; digits=6)
+    end
+    return df
+end
+
+"""
+    _choice_residuals_output(model, label, kind, generalized; format, output)
+
+Shared renderer for `residuals ologit|oprobit|mlogit` (W4/#87, un-gated by MEMs#507).
+
+`generalized=true` emits the length-`n` score residual (ordered models only — the flag is
+not declared on mlogit). Otherwise emits the `n x J` per-category matrix selected by
+`kind`. Every upstream call is wrapped: these are the raw MEMs entry points, and an
+untyped exception here would surface as `internal/error` (exit 1) on ordinary bad input.
+"""
+function _choice_residuals_output(model, label::String, kind::String, generalized::Bool;
+                                  format::String, output::String)
+    if generalized
+        g = try
+            generalized_residuals(model)
+        catch e
+            throw(CliError("model/error",
+                "$label generalized residuals failed";
+                hint=sprint(showerror, e)))
+        end
+        df = DataFrame(observation=1:length(g),
+                       generalized_residual=round.(g; digits=6))
+        return output_result(df; format=Symbol(format), output=output,
+                             title="$label Generalized Residuals")
+    end
+    R = try
+        residuals(model; kind=Symbol(kind))
+    catch e
+        throw(CliError("model/error",
+            "$label residuals (kind=$kind) failed";
+            hint=sprint(showerror, e)))
+    end
+    df = R isa AbstractMatrix ? _choice_resid_table(R, model.categories) :
+         DataFrame(observation=1:length(R), residual=round.(R; digits=6))
+    return output_result(df; format=Symbol(format), output=output,
+                         title="$label Residuals ($kind)")
+end
 
 function _residuals_ologit(; data::String="", dep::String="", cov_type::String="hc1",
-                            clusters::String="",
+                            clusters::String="", kind::String="response",
+                            generalized::Bool=false,
                             output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     cl = _load_clusters(data, clusters)
@@ -1072,11 +1116,13 @@ function _residuals_ologit(; data::String="", dep::String="", cov_type::String="
     _status("Ordered Logit Residuals: $dep_name")
     _status()
 
-    _unsupported_residuals("Ordered Logit", "ologit")
+    return _choice_residuals_output(model, "Ordered Logit", kind, generalized;
+                                    format=format, output=output)
 end
 
 function _residuals_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
-                             clusters::String="",
+                             clusters::String="", kind::String="response",
+                             generalized::Bool=false,
                              output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     cl = _load_clusters(data, clusters)
@@ -1087,11 +1133,12 @@ function _residuals_oprobit(; data::String="", dep::String="", cov_type::String=
     _status("Ordered Probit Residuals: $dep_name")
     _status()
 
-    _unsupported_residuals("Ordered Probit", "oprobit")
+    return _choice_residuals_output(model, "Ordered Probit", kind, generalized;
+                                    format=format, output=output)
 end
 
 function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="ols",
-                            clusters::String="",
+                            clusters::String="", kind::String="response",
                             output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
@@ -1101,7 +1148,12 @@ function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="
     _status("Multinomial Logit Residuals: $dep_name")
     _status()
 
-    _unsupported_residuals("Multinomial Logit", "mlogit")
+    # No `generalized` kwarg here on purpose — see _ORDERED_RESID_FLAGS: upstream defines
+    # generalized_residuals for ordered models only, so the flag is not declared for mlogit
+    # and must not be accepted here either (a declared option and its handler kwarg have to
+    # agree in both directions).
+    return _choice_residuals_output(model, "Multinomial Logit", kind, false;
+                                    format=format, output=output)
 end
 
 
@@ -1131,8 +1183,30 @@ const _LOGIT_EXTRA_FLAGS = [
 const _ORDERED_EXTRA = OptionSpec[]
 const _MLOGIT_EXTRA = OptionSpec[]
 
-"""Flags for a fitted leaf — only `predict` exposes the discrete-choice reports."""
+# W4/#87: MEMs 0.7.2 settled the ordered/multinomial residual question upstream
+# (MEMs#507), which is what these three leaves were gated on. `residuals(m; kind=)`
+# returns an n x J matrix (one column per category) for all three models.
+const _CHOICE_RESID_EXTRA = [
+    OptionSpec(name="kind", type=String, default="response",
+               choices=["response", "pearson", "deviance"],
+               description="Residual type: response (d-P, rows sum to zero) | pearson | deviance"),
+]
+# `generalized_residuals` is the length-n score residual (Chesher & Irish 1987) and
+# upstream defines it for the ORDERED models ONLY. It is deliberately not advertised on
+# mlogit: for an unordered response there is no meaningful length-n scalar residual, and
+# upstream documents that the per-alternative `:response` residuals ARE the generalized
+# ones. Advertising it there would be a flag whose handler call cannot succeed.
+const _ORDERED_RESID_FLAGS = [
+    FlagSpec(name="generalized",
+             description="Length-n generalized (score) residual instead of the per-category matrix"),
+]
+
+"""Flags for a fitted leaf — `predict` exposes the discrete-choice reports, `residuals`
+the ordered-model generalized residual."""
 function _flags_for_kind(kind::Symbol, verb::Symbol)
+    if verb === :residuals
+        return (kind === :ologit || kind === :oprobit) ? _ORDERED_RESID_FLAGS : FlagSpec[]
+    end
     verb === :predict || return FlagSpec[]
     kind === :logit && return _LOGIT_EXTRA_FLAGS
     kind === :probit && return filter(f -> f.name != "odds-ratio", _LOGIT_EXTRA_FLAGS)
@@ -1191,9 +1265,9 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     elseif kind === :probit
         return [REG_OPTIONS...; (verb === :predict ? _LOGIT_EXTRA : OptionSpec[])]
     elseif kind === :ologit || kind === :oprobit
-        return [REG_OPTIONS...; (verb === :predict ? _ORDERED_EXTRA : OptionSpec[])]
+        return [REG_OPTIONS...; (verb === :predict ? _ORDERED_EXTRA : _CHOICE_RESID_EXTRA)]
     elseif kind === :mlogit
-        return [REG_OPTIONS...; (verb === :predict ? _MLOGIT_EXTRA : OptionSpec[])]
+        return [REG_OPTIONS...; (verb === :predict ? _MLOGIT_EXTRA : _CHOICE_RESID_EXTRA)]
     elseif kind === :bvar
         return [
             OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
@@ -1252,6 +1326,94 @@ function predict_specs()::Vector{CommandSpec}
     # The six C064a GARCH variants are NOT in VOL_MODELS (their option sets differ), so
     # _specs_for_verb cannot generate them — append their hand-written specs (#69).
     return vcat(_specs_for_verb(:predict, "In-sample fitted values"), CommandSpec[
+        # W6/#108: SARIMA in-sample fitted values / residuals. Both come from the abstract
+        # AbstractARIMAModel StatsAPI block, so no SARIMA-specific method is needed.
+        CommandSpec(
+            path=["predict", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OUTPUT_OPTIONS...],
+            flags=copy(SARIMA_FLAGS),
+            tables=[TableSpec(name=:predict_sarima, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_sarima),
+        ),
+        # W2/#107: count-data conditional means exp(x'b + offset). Upstream's 1-arg
+        # `predict(m)` returns m.fitted; the (m, Xnew) out-of-sample form is out of scope
+        # here, matching every other `predict` leaf. NO --plot: src/plotting/ has no
+        # dispatch covering PoissonModel/NegBinModel on the 0.7.2 tag.
+        CommandSpec(
+            path=["predict", "poisson"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="cov-type", type=String, default="robust",
+                           choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_poisson, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_poisson),
+        ),
+        CommandSpec(
+            path=["predict", "nbreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:predict_nbreg, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_nbreg),
+        ),
+        # W3/#101: MS fitted values, un-gated by MEMs#510. `--probs` picks the regime
+        # weighting; upstream warns `y - predict(m; probs=:filtered)` is NOT residuals(m)
+        # (those are smoothed-weighted and use strictly more information), so these leaves
+        # are not a restatement of `residuals ms|ms-ar`. Same OPPOSITE switching-variance
+        # defaults as the residuals leaves — ms-ar FALSE, ms TRUE. Do not unify them.
+        CommandSpec(
+            path=["predict", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="probs", type=String, default="smoothed", description="Regime weighting: smoothed or filtered", choices=["smoothed","filtered"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:predict_ms_ar, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_ms_ar),
+        ),
+        CommandSpec(
+            path=["predict", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="probs", type=String, default="smoothed", description="Regime weighting: smoothed or filtered", choices=["smoothed","filtered"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:predict_ms, description="Path to CSV data file")],
+            category="predict",
+            handler=wrap_legacy(_predict_ms),
+        ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
             path=["predict", "statespace"],
@@ -1519,6 +1681,51 @@ function residuals_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:residuals_ms, description="Path to CSV data file")],
             category="residuals",
             handler=wrap_legacy(_residuals_ms),
+        ),
+        # W6/#108: SARIMA residuals (abstract AbstractARIMAModel dispatch).
+        CommandSpec(
+            path=["residuals", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OUTPUT_OPTIONS...],
+            flags=copy(SARIMA_FLAGS),
+            tables=[TableSpec(name=:residuals_sarima, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_sarima),
+        ),
+        # W2/#107: count-data residuals. `residuals(m)` is a bare field accessor upstream
+        # with NO `kind` kwarg, so no --kind is advertised here (a declared option the
+        # handler cannot honour fails on every call — #85).
+        CommandSpec(
+            path=["residuals", "poisson"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="cov-type", type=String, default="robust",
+                           choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
+                           description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_poisson, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_poisson),
+        ),
+        CommandSpec(
+            path=["residuals", "nbreg"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[COUNT_COMMON_OPTIONS...,
+                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
+                OUTPUT_OPTIONS...],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:residuals_nbreg, description="Path to CSV data file")],
+            category="residuals",
+            handler=wrap_legacy(_residuals_nbreg),
         ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(

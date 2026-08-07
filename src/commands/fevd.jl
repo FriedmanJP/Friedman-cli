@@ -32,7 +32,9 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser")
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="generalized", description="Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1)"),
+                FlagSpec(name="normalize", description="Rescale generalized shares to sum to 1 per variable")
             ],
             tables=[TableSpec(name=:fevd_var, description="Compute forecast error variance decomposition")],
             category="fevd",
@@ -180,6 +182,7 @@ end
 
 function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
                     id::String="cholesky", config::String="",
+                    generalized::Bool=false, normalize::Bool=false,
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
@@ -265,6 +268,28 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         end
         _output_fevd_tables(proportions, varnames, n_h;
                             id="uhlig", title_prefix="FEVD", format=format, output=output)
+        return
+    end
+
+    # W8/#110 (MEMs#364): Pesaran-Shin generalized FEVD. It is NOT an identification
+    # scheme -- it sidesteps identification entirely by shocking each variable under the
+    # historical covariance -- so it is a separate flag rather than an --id value, and it
+    # ignores --id.
+    if generalized
+        id == "cholesky" && !isempty(config) &&
+            _status("--config ignored: generalized FEVD imposes no identification")
+        id == "cholesky" || _status("--id $id ignored: generalized FEVD imposes no " *
+                                    "identification")
+        fevd_result = generalized_fevd(model, horizons; normalize=normalize)
+        _status_report(() -> report(fevd_result))
+        _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+        # THE shares do NOT sum to 1 across shocks unless --normalize is given: the
+        # generalized shocks are correlated, so their contributions overlap and double-count.
+        # Saying so in the title keeps a reader from reading the rows as an orthogonal
+        # decomposition.
+        note = normalize ? "normalized to sum to 1" : "shares do NOT sum to 1 across shocks"
+        output_result(long_table(fevd_result); format=Symbol(format), output=output,
+                      title="Generalized FEVD (Pesaran-Shin, $note)")
         return
     end
 

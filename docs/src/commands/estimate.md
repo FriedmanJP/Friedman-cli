@@ -50,6 +50,7 @@ friedman estimate bvar data.csv --sampler=gibbs --draws=5000
 | `--draws` | `-n` | Int | 2000 | MCMC draws |
 | `--sampler` | | String | `direct` | `direct`, `gibbs` |
 | `--method` | | String | `mean` | `mean`, `median` (posterior extraction) |
+| `--hyperopt` | | String | `glp` | Minnesota hyperparameter selection: `glp`, `grid` |
 | `--config` | | String | | TOML config for prior hyperparameters |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
@@ -57,6 +58,269 @@ friedman estimate bvar data.csv --sampler=gibbs --draws=5000
 **Output:** Posterior mean/median coefficient matrix, AIC/BIC/HQC.
 
 See [Configuration](../configuration.md) for Minnesota prior TOML format.
+
+!!! note "Hyperparameter selection changed in CLI v0.9.1 (MEMs 0.7.2)"
+    `--prior minnesota` (the default) without a `--config` leaves the hyperparameters
+    to the library, which now runs the full **Giannone, Lenza & Primiceri (2015)**
+    joint optimization of the marginal likelihood over the overall, sum-of-coefficients
+    and dummy-initial-observation tightness. Through CLI v0.9.0 this was a `tau`-only
+    grid search, so **`estimate bvar` results change at this version** for runs that do
+    not pass `--config`. Supplying `--config` pins the hyperparameters explicitly and is
+    unaffected, as is `--prior normal`.
+
+    Only this leaf is affected. The derived BVAR commands (`irf`/`fevd`/`hd`/`forecast`/
+    `predict`/`residuals bvar`, `nowcast bvar`) default to the **normal** prior when no
+    `--config` is given, and hyperparameter selection is never reached under that prior.
+
+### Choosing and inspecting the hyperparameters
+
+`--hyperopt grid` restores the pre-0.9.1 `tau`-only grid search if you need to reproduce
+older numbers; `glp` (the default) runs the joint optimization.
+
+Either way the selected values are reported as their own table, which the library itself
+does not expose — `BVARPosterior` keeps only the draws, so without this there is no way to
+tell what prior the posterior was actually drawn under:
+
+```
+Minnesota Hyperparameters (glp)
+ tau             0.3517
+ decay           0.5
+ lambda          4.2
+ mu              2.0
+ omega           2.0
+ log_ml          -390.408
+ log_ml_default  -407.566
+ log_posterior   -392.168
+ converged       1.0
+ at_bound        0.0
+ iterations      82.0
+```
+
+Read `log_ml` against `log_ml_default`: that is the marginal-likelihood gain over the
+library's default hyperparameters, and it is the only direct evidence the optimization
+helped. **`at_bound = 1` deserves more attention than `converged = 0`** — it means a
+hyperparameter is pinned to the edge of the search box, so the "optimum" is an artefact of
+the box rather than a maximum, and the CLI warns on stderr when it happens.
+
+**Precedence:** an explicit `--config` `[prior]` pins the hyperparameters and the library
+then ignores hyperparameter selection entirely, so `--hyperopt` has no effect and no table
+is emitted; the CLI says so on stderr rather than letting the flag look effective. Under
+`--prior normal` the Minnesota hyperparameters are never consulted at all.
+
+!!! note "`--config` minnesota was broken before v0.9.1"
+    The config path passed a length-*n* vector of AR residual standard deviations as
+    `omega`, but `omega` is a **scalar** weight on the residual-covariance prior. Real MEMs
+    rejects it (`TypeError: in keyword argument omega, expected Real`), so **every**
+    `--config` run with a minnesota prior failed with an internal error across the whole
+    BVAR family. Per-variable σᵢ scaling is the library's own job; the config's
+    `lambda1`/`lambda2`/`lambda3` now map to `tau`/`lambda`/`decay` and `mu`/`omega` keep
+    the library defaults.
+
+## estimate qreg
+
+Quantile regression (Koenker–Bassett). Where OLS fits the conditional mean, this fits a
+conditional quantile — so it shows whether a covariate acts differently at the bottom and
+top of the outcome distribution.
+
+```bash
+friedman estimate qreg data.csv --dep=wage --tau=0.5
+friedman estimate qreg data.csv --dep=wage --tau=0.1,0.25,0.5,0.75,0.9 --se=robust
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | first numeric column | Dependent variable |
+| `--tau` | | String | `0.5` | Quantile(s) in (0,1); one value or a comma-list |
+| `--se` | | String | `iid` | `iid`, `robust`, `boot` |
+| `--n-boot` | | Int | 500 | Bootstrap replications for `--se boot` |
+| `--alpha` | | Float64 | 0.05 | Significance level for the CI |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+Every other numeric column is a regressor, as in `estimate reg` — **include a `const_`
+column of ones if you want an intercept.** A comma-list fits all quantiles in a single call
+and the coefficient table carries a `tau` column, one row per (quantile, term).
+
+Which `--se`: `iid` assumes the errors are identically distributed (fast, but the assumption
+that usually motivates quantile regression is that they are not); `robust` uses a
+Powell-style sandwich; `boot` resamples. Prefer `robust` or `boot` for real work.
+
+**Reading the output.** Under homoskedastic errors the slopes are the *same* at every
+quantile and only the intercept shifts — so quantile-varying slopes are the finding, not the
+baseline. `pseudo_r2` is per-quantile and is **not** comparable with an OLS R²: it compares
+the check-function objective against an intercept-only fit *at that quantile*.
+
+No `--plot`: MEMs 0.7.2 ships no plot recipe for `QuantileRegModel`.
+
+## estimate rdd
+
+Regression discontinuity with Calonico–Cattaneo–Titiunik robust bias correction. Units just
+above and just below a cutoff are treated as comparable, so the jump in the outcome at the
+cutoff identifies the treatment effect.
+
+```bash
+friedman estimate rdd data.csv --outcome=y --running=score --cutoff=60
+friedman estimate rdd data.csv --outcome=y --running=score --cutoff=60 --fuzzy=enrolled
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--outcome` | String | first numeric column | Outcome variable |
+| `--running` | String | next numeric column | Running/forcing variable |
+| `--fuzzy` | String | | Treatment column for a **fuzzy** design (default: sharp) |
+| `--cutoff` | Float64 | 0.0 | Threshold on the running variable |
+| `--bandwidth` | Float64 | 0 (auto) | Main bandwidth *h*; 0 uses CCT selection |
+| `--bias-bandwidth` | Float64 | 0 (auto) | Bias bandwidth *b*; 0 uses CCT selection |
+| `--kernel` | String | `triangular` | `triangular`, `epanechnikov`, `uniform` |
+| `--order` | Int | 1 | Local polynomial order |
+| `--level` | Float64 | 0.95 | Confidence level |
+
+!!! warning "`--cutoff` defaults to 0"
+    That matches the common convention of centring the running variable, but a forgotten
+    `--cutoff` on an uncentred variable produces a confident, wrong answer rather than an
+    error. The cutoff in force is always echoed on stderr — check it. If the cutoff falls
+    outside the running variable's range the CLI refuses (`data/invalid`) rather than fitting
+    a one-sided regression.
+
+**Output — the CCT triple.** Three rows, and the relationship between them matters:
+
+| method | estimate | interpretation |
+|---|---|---|
+| `conventional` | τ̂ | the local-polynomial estimate, biased at the boundary |
+| `bias-corrected` | τ̂<sup>bc</sup> | bias removed, but its CI understates uncertainty |
+| `robust` | τ̂<sup>bc</sup> | **same point estimate**, wider SE accounting for having estimated the bias |
+
+`robust` is not a third estimate — it is the bias-corrected point with honest inference, and
+it is the row to report. `bias-corrected` deliberately has no CI here, because a
+conventional interval around it is the one CCT warn against.
+
+The settings table reports the selected bandwidths and `n_left`/`n_right` — the **effective**
+observations inside the bandwidth, not the full sample. A handful of effective points makes
+the estimate fragile no matter how tight the interval looks, and the CLI warns below 10 per
+side.
+
+For a fuzzy design, `--fuzzy` names the actual-treatment column and `first_stage` reports the
+jump in treatment probability at the cutoff. A weak first stage inflates the ratio estimate
+exactly as a weak instrument does.
+
+No `--plot`: MEMs 0.7.2 ships no plot recipe for `RDDResult`.
+
+## estimate tvpvar
+
+Time-varying-parameter VAR with stochastic volatility (Primiceri 2005): both the
+coefficients and the shock volatilities drift as random walks, estimated by Gibbs sampling.
+
+```bash
+friedman estimate tvpvar data.csv --lags=2 --draws=2000 --burnin=1000
+friedman estimate tvpvar data.csv --no-sv          # drifting coefficients, constant volatility
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--lags` | `-p` | Int | 2 | Lag order |
+| `--draws` | `-n` | Int | 2000 | Retained Gibbs draws |
+| `--burnin` | | Int | 1000 | Burn-in sweeps discarded |
+| `--thin` | | Int | 1 | Keep every k-th draw |
+| `--n-train` | | Int | 0 | Training sample used to calibrate priors |
+| `--k-q` / `--k-s` / `--k-w` | | Float64 | 0.01 / 0.1 / 0.01 | Random-walk prior scales (> 0) |
+| `--no-tvp` | | Flag | | Hold coefficients constant |
+| `--no-sv` | | Flag | | Hold volatilities constant |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**Output:** the stochastic-volatility path in tidy long form (`period`, `variable`, `mean`,
+`q16`, `q50`, `q84`) plus a specification summary.
+
+The volatility column is a **standard deviation**, σ*ᵢₜ* = exp(*hᵢₜ*/2). The sampler's state
+is a log-*variance*, so a number quoted straight off the state would be wrong by a square
+and a log; the CLI converts.
+
+Requires at least 2 variables. There is no `--plot`: MEMs 0.7.2 ships no plot recipe for
+`TVPVARPosterior`.
+
+## irf tvpvar
+
+The IRF of a TVP-VAR is **different at every date** — that time variation is the reason to
+fit one — so `--date` is required rather than quietly defaulting to the end of the sample.
+
+```bash
+friedman irf tvpvar data.csv --date=40 --horizons=20
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--date` | | Int | | **Required.** Date index in `1:T_eff` |
+| `--horizons` | `-h` | Int | 20 | IRF horizon |
+| `--shock` | | Int | 1 | Shock variable index (1-based) |
+| `--irf-draws` | | Int | 500 | Posterior draws used for the bands |
+| `--no-stationary-only` | | Flag | | Include explosive draws instead of discarding them |
+
+Estimation options (`--lags`, `--draws`, `--burnin`, `--thin`, `--n-train`, `--k-q`/`--k-s`/`--k-w`,
+`--no-tvp`, `--no-sv`) match `estimate tvpvar`.
+
+`--date` indexes the **effective** sample, after lags and any training observations — run
+`estimate tvpvar` first and read `T_eff` from the specification table. A missing `--date` is
+rejected before the sampler runs; an out-of-range one can only be caught afterwards, since
+`T_eff` is not known until then.
+
+By default explosive posterior draws are discarded. If *every* draw is explosive at the
+requested date the command fails with `model/error` naming `--no-stationary-only` as the
+escape hatch — that is a modelling outcome, not a bug.
+
+## estimate mfvar
+
+Mixed-frequency VAR (Schorfheide & Song 2015). Series observed at different frequencies are
+combined in a single high-frequency VAR, with the low-frequency series treated as a latent
+high-frequency process observed only periodically.
+
+```bash
+friedman estimate mfvar monthly_quarterly.csv --freq-ratio=3 --aggregation=average
+friedman estimate mfvar data.csv --low-freq=2,3 --aggregation=growth,flow
+```
+
+**Data layout.** One CSV at the **high** frequency. A low-frequency series occupies a normal
+column, blank in the periods where it is not observed:
+
+```csv
+monthly,quarterly
+0.31,
+0.28,
+0.44,0.34
+0.19,
+```
+
+Unlike every other loader this one *keeps* the gaps — they are the signal, not bad data. The
+blank must be a genuinely empty cell in a multi-column row; a blank line is an empty row that
+CSV parsing skips entirely, which would silently shorten the series instead.
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--lags` | `-p` | Int | 2 | Lag order |
+| `--low-freq` | | String | | 1-based indices of low-frequency columns (default: those with gaps) |
+| `--freq-ratio` | | Int | 3 | High- per low-frequency periods (3 = monthly/quarterly) |
+| `--aggregation` | | String | `growth` | `stock`, `flow`, `average`, `growth` — one, or one per low-frequency series |
+| `--draws` | `-n` | Int | 1000 | Retained Gibbs draws |
+| `--burnin` | | Int | 500 | Burn-in sweeps discarded |
+| `--prior` | | String | `minnesota` | `minnesota`, `diffuse` |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+`--aggregation` states how the low-frequency observation relates to the latent
+high-frequency path: `stock` (end-of-period level), `flow` (sum), `average` (mean), or
+`growth` (the triangular weighting appropriate to log-differences). Getting this wrong
+misstates the observation equation, so it is worth being deliberate about.
+
+**Output:** the latent high-frequency path in tidy long form (`period`, `variable`, `mean`,
+`q16`, `q50`, `q84`) plus a specification summary. The path covers **every** series at the
+high frequency, including the interpolated ones — that interpolation is the point of the
+model. Fully-observed series come back with zero-width bands, which is a useful sanity check.
+
+No `--plot`: MEMs 0.7.2 ships no plot recipe for `MFVARPosterior`.
+
+!!! note "Seeding"
+    `estimate_tvpvar` and `estimate_mfvar` take an RNG rather than a seed, so `--seed`
+    cannot be recorded in the result's reproducibility manifest the way it is for
+    `estimate bvar`. Runs remain reproducible through the global seed the CLI sets.
 
 ## estimate lp
 
@@ -116,8 +380,35 @@ friedman estimate lp data.csv --method=robust --treatment=1 --score-method=logit
 | `--transition` | | String | `logistic` | `logistic`, `exponential`, `indicator` (state only) |
 | `--treatment` | | Int | 1 | Treatment variable index (propensity/robust only) |
 | `--score-method` | | String | `logit` | `logit`, `probit` (propensity/robust only) |
+| `--mop-f` | | Flag | off | Report the Montiel Olea-Pflueger effective first-stage F (iv only) |
+| `--mop-tau` | | Float64 | 0.10 | MOP worst-case relative-bias target: `0.05`, `0.10`, `0.20`, `0.30` |
+| `--mop-bandwidth` | | Int | 0 | HAC lag length for the effective F; 0 = auto |
+| `--ar-bands` | | Flag | off | Report weak-instrument-robust Anderson-Rubin IRF bands (iv only) |
+| `--ar-level` | | Float64 | 0.95 | Coverage of the AR bands |
+| `--ar-grid` | | Int | 401 | Grid points per horizon × response when inverting the AR test |
+| `--ar-span` | | Float64 | 20.0 | AR search half-width, in 2SLS standard errors |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+
+### Weak-instrument-robust LP-IV
+
+The LP-IV summary always reports the per-horizon first-stage F — as a **minimum over horizons**, because LP-IV re-estimates the first stage at every `h` and the binding one is the weakest. Two stronger diagnostics are available on `--method iv`, both off by default (the AR bands invert a test over a grid at every horizon × response and are far from free):
+
+```bash
+# Montiel Olea-Pflueger effective F — the correct weak-IV statistic under heteroskedasticity
+friedman estimate lp data.csv --method=iv --instruments=z.csv --mop-f --mop-tau=0.10
+
+# Anderson-Rubin bands — correct coverage at ANY instrument strength
+friedman estimate lp data.csv --method=iv --instruments=z.csv --ar-bands --ar-level=0.95
+```
+
+`--mop-f` emits a **Montiel Olea-Pflueger Effective F** table (`f_effective`, `critical_value`, `tau`, `weak`, `n_instruments`, `bandwidth`, `f_naive`). The effective F is the statistic to act on: the naive first-stage F is valid only under homoskedasticity, and the two diverge exactly when it matters. The critical values are MOP's *simplified* (nuisance-parameter-free) ones — conservative upper bounds — so a pass is a genuine pass.
+
+`--ar-bands` emits **LP-IV Anderson-Rubin Bands**, one row per horizon × response: `horizon | response | irf | ar_lower | ar_upper | n_components | bounded | is_empty | wald_lower | wald_upper | bandwidth`. Both the AR set and the 2SLS Wald band are reported side by side because **the contrast between them is the diagnostic**. `ar_lower`/`ar_upper` may be `±Inf` (rendered as `"-Inf"`/`"Inf"` in JSON): an unbounded cell means the instrument cannot bound the response at that horizon, and the Wald band there is over-confident rather than merely wide. The HAC bandwidth scales with the horizon (`max(auto, h+1)`), since horizon-`h` LP residuals are MA(`h`) by construction; the value actually used is reported per cell.
+
+One row per horizon × response means the shock variable appears as a response to itself. At `h=0` that response is **identically 1 with zero standard error**, so both the Wald band and the AR set legitimately collapse to the single point `{1}` (`ar_lower == ar_upper == wald_lower == wald_upper == 1`). That cell is correct output, not a degenerate failure — do not read a zero-width interval there as a bug.
+
+Both option groups are rejected with a typed `usage/invalid` under any other `--method` — silently ignoring them would let an agent believe it received robust bands it never got.
 
 ## estimate arima
 
@@ -149,6 +440,46 @@ friedman estimate arima data.csv --column=2 --p=2 --d=0 --q=1
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** AR/MA coefficients, AIC/BIC/log-likelihood.
+
+## estimate sarima
+
+Multiplicative seasonal ARIMA, `SARIMA(p,d,q)(P,D,Q)[s]`.
+
+```bash
+# monthly data with a seasonal AR term
+friedman estimate sarima y.csv --p 1 --q 0 --P 1 --Q 0 --s 12
+
+# let the library choose the orders (and d/D) for a quarterly series
+friedman estimate sarima y.csv --s 4
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--p` | | Int | (auto) | Non-seasonal AR order — **omit to auto-select** |
+| `--d` / `--q` | | Int | 0 | Non-seasonal differencing / MA order |
+| `--P` / `--D` / `--Q` | | Int | 0 | Seasonal AR / differencing / MA order |
+| `--s` | | Int | 12 | Seasonal period (12 monthly, 4 quarterly) |
+| `--max-p`/`--max-q`/`--max-P`/`--max-Q` | | Int | 2/2/1/1 | Auto search bounds |
+| `--criterion` | | String | `aic` | `aic`, `bic` (auto selection) |
+| `--method` | | String | `css_mle` | `css_mle`, `mle`, `css` |
+| `--max-iter` | | Int | 500 | Maximum optimiser iterations |
+| `--auto` | | Flag | off | Force auto selection even when orders are given |
+| `--no-intercept` | | Flag | off | Exclude the intercept |
+| `--plot` / `--plot-save` | | Flag/String | | Plot the fitted model |
+
+**Omitting `--p` means "select automatically"** — the same convention as
+[`estimate arima`](#estimate-arima). In that mode the library also chooses `d` and `D` by
+seasonal/regular unit-root testing unless you pin them. `--auto` forces selection even when
+orders are supplied.
+
+`--s` must be ≥ 2 whenever any of `--P`/`--D`/`--Q` is positive; a seasonal order with `--s 1`
+is rejected as a data error rather than silently fitting a non-seasonal model.
+
+**Output:** coefficient table (`intercept`, `ar*`, `ma*`, `sar*`, `sma*`, `sigma2` — seasonal
+terms are labelled `sar`/`sma` to keep them distinct from their non-seasonal counterparts) and
+information criteria. `predict sarima` / `residuals sarima` give in-sample fitted values and
+residuals; [`forecast sarima`](forecast.md) forecasts through both differencing operators.
 
 ## estimate arfima
 
@@ -321,10 +652,27 @@ friedman estimate garch data.csv --column=1 --p=1 --q=1
 | `--column` | `-c` | Int | 1 | Column index (1-based) |
 | `--p` | | Int | 1 | GARCH order |
 | `--q` | | Int | 1 | ARCH order |
+| `--dist` | | String | `normal` | Conditional distribution: `normal`, `student`, `ged` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Coefficients (mu, omega, alpha, beta), persistence, half-life, unconditional variance.
+
+### Conditional distributions (`--dist`)
+
+By default the innovations are Gaussian. `--dist student` (Student's *t*) or `--dist ged`
+(generalised error distribution) fits a fat-tailed conditional likelihood instead, estimating
+the shape parameter **jointly** with the volatility parameters.
+
+Because the shape sits outside the coefficient vector, it is reported in its own
+**Conditional Distribution** table — the *t* degrees of freedom, or the GED shape — rather
+than as another coefficient row. Nothing extra is emitted under the Gaussian default.
+
+**`--dist` is only offered where the library supports it: `garch`, `egarch` and `gjr-garch`.**
+It is deliberately absent from `arch`, `sv`, `igarch`, `cgarch` and `aparch`, which take no
+conditional-distribution argument at all, and from `figarch`/`fiegarch`, which accept the
+argument but implement Gaussian QMLE only. Passing `--dist` to any of those is a usage error
+rather than a silently ignored option.
 
 ## estimate egarch
 
@@ -660,13 +1008,51 @@ friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--dep` | | String | (1st col) | Dependent variable column name |
-| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` |
+| `--cov-type` | | String | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `conley` |
 | `--weights` | | String | | Weight variable column name (for WLS) |
-| `--clusters` | | String | | Cluster variable column name |
+| `--clusters` | | String | | Cluster variable column name (required for `--cov-type cluster`) |
+| `--lat` | | String | | Latitude / first coordinate column (`conley` only) |
+| `--lon` | | String | | Longitude / second coordinate column (`conley` only) |
+| `--dist-cutoff` | | Float64 | 0.0 | Spatial cutoff: km for `haversine`, coordinate units for `euclidean` (`conley` only) |
+| `--conley-kernel` | | String | `bartlett` | `bartlett` (tapered) or `uniform` (`conley` only) |
+| `--conley-metric` | | String | `euclidean` | `euclidean` (projected coordinates) or `haversine` (degrees → km) |
+| `--time-col` | | String | | Time column for spatial **and** serial correlation (`conley` only) |
+| `--time-cutoff` | | Int | 0 | Serial-correlation lag cutoff; must accompany `--time-col` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Tidy coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) + fit statistics (R², Adj R², F-stat, AIC, BIC).
+
+### Conley (1999) spatial HAC standard errors
+
+`--cov-type conley` weights every pair of observations by a kernel in their distance, rather than assuming correlation is total within a cluster and zero across it. Use it when dependence is spatial and continuous — neighbouring counties, nearby plants, grid cells — where no clustering partition is defensible.
+
+```bash
+# Projected coordinates (metres, km, …): euclidean distance, cutoff in the same units
+friedman estimate reg plants.csv --dep=output --cov-type=conley \
+  --lat=coord_y --lon=coord_x --dist-cutoff=50
+
+# Degrees: haversine distance, cutoff in kilometres
+friedman estimate reg counties.csv --dep=wage --cov-type=conley \
+  --lat=latitude --lon=longitude --conley-metric=haversine --dist-cutoff=100
+
+# Spatial *and* serial correlation (Conley panel): add a time column and a lag cutoff
+friedman estimate reg panel.csv --dep=y --cov-type=conley \
+  --lat=lat --lon=lon --conley-metric=haversine --dist-cutoff=100 \
+  --time-col=year --time-cutoff=3
+```
+
+Under `conley` the leaf emits one extra table, **Conley Spatial HAC Settings**, recording the coordinate columns, metric, kernel and cutoff. This is deliberate: a Conley standard error is not interpretable without the cutoff that produced it, and the cutoff is a researcher choice, not a property of the data.
+
+Guards, all typed:
+
+* `--cov-type conley` without `--lat`/`--lon` → `usage/missing`; with `--dist-cutoff ≤ 0` → `usage/invalid`.
+* Any Conley option supplied under a different `--cov-type` → `usage/invalid`, never a silent no-op.
+* `--time-col` and `--time-cutoff` must be given together — a lag cutoff with no time column would silently degrade to spatial-only.
+* `--conley-metric haversine` requires latitude in `[-90, 90]` and longitude in `[-180, 180]`; out-of-range degrees would otherwise yield nonsense distances rather than an error.
+* The coordinate and time columns are **excluded from the regressor matrix**. They are ordinary numeric CSV columns, so without this they would enter the design as regressors — a wrong point estimate that no error would reveal.
+
+Choosing the cutoff is a judgement call and the result is sensitive to it: too small and the correction is negligible, too large and the estimator loses precision (and can fail to be positive semi-definite, though upstream clips the eigenvalues to keep it valid). Report the cutoff, and check that conclusions survive a range of them.
 
 ## Penalized, robust & censored regression
 
@@ -1433,6 +1819,62 @@ common = ["gov", "taxes", "lag_income"]
 | `--output` | String | | Export file path |
 
 When the instruments span every regressor, 3SLS collapses to SUR; when every equation is exactly identified it collapses to equation-by-equation 2SLS. **Output:** the same tidy coefficient table as `sur` + a system-statistics table (with instruments-per-equation).
+
+## estimate poisson
+
+Poisson regression for count outcomes, fitted by IRLS.
+
+```bash
+friedman estimate poisson data.csv --dep=claims --exposure=policy_years
+friedman estimate poisson data.csv --dep=visits --irr --conf-level=0.99
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dep` | | String | (1st col) | Dependent count column |
+| `--offset` | | String | | Offset column, already on the log scale |
+| `--exposure` | | String | | Exposure column, strictly positive; enters as `log(exposure)` |
+| `--cov-type` | | String | `robust` | `robust`, `mle`, `hc0`–`hc3`, `cluster` |
+| `--clusters` | | String | | Cluster variable column name |
+| `--maxiter` | | Int | 100 | Maximum IRLS iterations |
+| `--tol` | | Float64 | 1e-10 | Convergence tolerance |
+| `--conf-level` | | Float64 | 0.95 | Confidence level for the IRR interval |
+| `--irr` | | Flag | off | Also report incidence-rate ratios |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+
+**`--cov-type` defaults to `robust`, not `hc1`.** That mirrors the library, which reports the
+Gourieroux–Monfort–Trognon pseudo-ML sandwich by default: Poisson QMLE stays consistent for the
+conditional mean even when the equidispersion assumption fails, but only the sandwich standard
+errors remain valid in that case. Use `--cov-type mle` for the (narrower) information-matrix
+errors when equidispersion is credible — see [`test dispersion`](test.md#test-dispersion).
+
+**`--offset` and `--exposure` are mutually exclusive** (exposure *is* an offset, log-transformed
+for you); passing both is a usage error. Use `--exposure` for time-at-risk or population
+denominators, `--offset` when your column is already logged.
+
+`--irr` adds a second table of `exp(β)` with delta-method standard errors and confidence
+intervals — the multiplicative reading of each coefficient.
+
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + optional IRR table
++ fit statistics (pseudo R², log-likelihood, deviance, AIC, BIC, convergence).
+
+## estimate nbreg
+
+Negative binomial (NB2) regression for overdispersed counts, estimating `(β, log α)` jointly.
+
+```bash
+friedman estimate nbreg data.csv --dep=claims --exposure=policy_years
+```
+
+Options are the same as [`estimate poisson`](#estimate-poisson) **except `--cov-type` and
+`--clusters`, which are not offered**: the library's NB2 estimator takes neither, reporting the
+joint information-matrix covariance instead. `--maxiter` defaults to 1000.
+
+**Output:** Tidy coefficient table, a separate **overdispersion table** carrying `α` and its
+delta-method standard error (the coefficient covariance block stops at `β`, so `α` cannot ride
+the same table), an optional IRR table, and fit statistics. Each table takes a distinct
+`--output` path suffix so nothing is overwritten.
 
 ## estimate logit
 

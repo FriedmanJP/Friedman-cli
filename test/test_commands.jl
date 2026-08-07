@@ -426,8 +426,9 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-        @test length(node.subcmds) == 68
+        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +poisson/nbreg W2, +sarima W6,
+        # +tvpvar/mfvar W7)
+        @test length(node.subcmds) == 75
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -2986,7 +2987,7 @@ end  # Estimate handlers
         @test node isa NodeCommand
         @test node.name == "test"
         # 80 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 82
+        @test length(node.subcmds) == 85
         for cmd in ["llc", "ips", "breitung", "fisher-johansen", "dh-causality",
                      "white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
                      "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
@@ -3972,7 +3973,8 @@ end  # Test handlers
         node = register_irf_commands!()
         @test node isa NodeCommand
         @test node.name == "irf"
-        @test length(node.subcmds) == 7
+        # 7 + tvpvar (W7): the date-specific IRF is the point of a TVP-VAR
+        @test length(node.subcmds) == 8
         for cmd in ["var", "bvar", "lp", "vecm", "pvar", "favar", "sdfm"]
             @test haskey(node.subcmds, cmd)
         end
@@ -4439,8 +4441,8 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b)
-        @test length(node.subcmds) == 26
+        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 30
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -4975,14 +4977,14 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 68  # 67 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 75  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
 
     @testset "register_irf_commands! includes vecm" begin
         node = register_irf_commands!()
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 8
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -5000,13 +5002,13 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 26  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67)
+        @test length(node.subcmds) == 30  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101)
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 82  # 80 primary + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -5314,8 +5316,8 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        # 23 primary + 1 alias = 24 keys (C044)
-        @test length(node.subcmds) == 34
+        # 23 primary + 1 alias = 24 keys (C044; +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 39  # +poisson/nbreg (W2 #107)
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -6074,7 +6076,7 @@ end
         @test node isa NodeCommand
         @test node.name == "residuals"
         # 23 primary + 1 alias = 24 keys (C044); +#70 setar/star/ms-ar/ms => 38
-        @test length(node.subcmds) == 38
+        @test length(node.subcmds) == 41
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
@@ -6086,11 +6088,17 @@ end
         for cmd in ["setar", "star", "ms-ar", "ms"]
             @test haskey(node.subcmds, cmd)
         end
-        # ...but NOT predict — none of them defines predict/fitted, and an MS fit has no
-        # single fitted series without regime weighting. Advertising it would be a leaf that
-        # MethodErrors on every invocation (#85).
+        # W3/#101: MEMs#510 added predict/forecast for MSRegModel ONLY, so ms|ms-ar gained
+        # both verbs while SETAR/STAR still have neither upstream. Advertising a leaf whose
+        # upstream method does not exist is the #85 failure mode, so this split is asserted
+        # in both directions rather than assumed.
         pnode = register_predict_commands!()
-        for cmd in ["setar", "star", "ms-ar", "ms"]
+        fnode = register_forecast_commands!()
+        for cmd in ["ms-ar", "ms"]
+            @test haskey(pnode.subcmds, cmd)
+            @test haskey(fnode.subcmds, cmd)
+        end
+        for cmd in ["setar", "star"]
             @test !haskey(pnode.subcmds, cmd)
         end
     end
@@ -6829,14 +6837,14 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 68  # 67 primary + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 75  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
     end
 
     @testset "register_irf_commands! includes pvar" begin
         node = register_irf_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 8
     end
 
     @testset "register_fevd_commands! includes pvar" begin
@@ -6860,7 +6868,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 82  # 80 primary + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin
@@ -9162,7 +9170,9 @@ end
         @test haskey(node.subcmds, "ha")
         @test haskey(node.subcmds, "ct")
         @test haskey(node.subcmds, "olg")
-        @test length(node.subcmds) == 12
+        @test haskey(node.subcmds, "determinacy-map")   # W12/#114
+        @test haskey(node.subcmds, "moments")           # W12/#114
+        @test length(node.subcmds) == 14
         ha = node.subcmds["ha"]
         @test ha isa NodeCommand
         for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
@@ -10652,39 +10662,48 @@ end
             end
         end
 
-        @testset "_residuals_ologit — model/unsupported (no upstream residuals)" begin
+        # W4/#87: MEMs 0.7.2 (MEMs#507) defines residuals for these models, so the typed
+        # refusal these two testsets used to pin is gone. Real returns an n x J matrix; the
+        # mock now mirrors that shape exactly (it previously invented a length-n
+        # `y .- fitted[:, 1]` that real never had — the #84 trap).
+        @testset "_residuals_ologit — per-category matrix" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                e = try
-                    _capture() do
-                        _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
-                                           clusters="", output="", format="table")
-                    end
-                    nothing
-                catch err
-                    err
+                out = _capture() do
+                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                       clusters="", kind="response", generalized=false,
+                                       output="", format="csv")
                 end
-                # MEMs 0.7.0 defines no residuals for ordered models; refuse with a
-                # typed error rather than invent a definition (was exit 1).
-                @test e isa CliError
-                @test e.code == "model/unsupported"
+                @test occursin("resid_", out)
+                @test occursin("observation", out)
             end
         end
 
-        @testset "_residuals_mlogit — model/unsupported (no upstream residuals)" begin
+        @testset "_residuals_ologit — generalized is a length-n column" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=4)
-                e = try
-                    _capture() do
-                        _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
-                                           output="", format="table")
-                    end
-                    nothing
-                catch err
-                    err
+                out = _capture() do
+                    _residuals_ologit(; data=csv, dep="var1", cov_type="hc1",
+                                       clusters="", kind="response", generalized=true,
+                                       output="", format="csv")
                 end
-                @test e isa CliError
-                @test e.code == "model/unsupported"
+                @test occursin("generalized_residual", out)
+                @test !occursin("resid_", out)
+            end
+        end
+
+        @testset "_residuals_mlogit — per-category matrix, no generalized kwarg" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                out = _capture() do
+                    _residuals_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                       kind="response", output="", format="csv")
+                end
+                @test occursin("resid_", out)
+                # upstream has no generalized_residuals for mlogit, so the handler must not
+                # accept the kwarg either — declared surface and handler must agree
+                @test_throws MethodError _residuals_mlogit(; data=csv, dep="var1",
+                                                            generalized=true)
             end
         end
     end
@@ -10992,6 +11011,498 @@ end
     end
 
 end  # Diagnostic warning branches
+
+# ═══════════════════════════════════════════════════════════════
+# W10/#112: micro inference riders
+# ═══════════════════════════════════════════════════════════════
+
+@testset "W10 micro inference riders" begin
+
+    """Cross-section CSV with lat/lon coordinate columns and an optional cluster column."""
+    function _w10_csv(dir; T=120, with_coords=true, with_cluster=false, string_cluster=false)
+        rng = MersenneTwister(4)
+        d = DataFrame(y=randn(rng, T), x=randn(rng, T))
+        if with_coords
+            d.lat = 30.0 .+ 10.0 .* rand(rng, T)
+            d.lon = -100.0 .+ 10.0 .* rand(rng, T)
+        end
+        if with_cluster
+            g = repeat(1:6, inner=cld(T, 6))[1:T]
+            d.cl = string_cluster ? ["g$(v)" for v in g] : Float64.(g)
+        end
+        path = joinpath(dir, "w10_$(with_coords)_$(with_cluster)_$(string_cluster).csv")
+        CSV.write(path, d)
+        return path
+    end
+
+    @testset "_estimate_reg — conley euclidean + haversine" begin
+        mktempdir() do dir
+            csv = _w10_csv(dir)
+            for metric in ("euclidean", "haversine")
+                out = _capture() do
+                    _estimate_reg(; data=csv, dep="y", cov_type="conley",
+                                   lat="lat", lon="lon", dist_cutoff=100.0,
+                                   conley_metric=metric, format="table", output="")
+                end
+                @test occursin("Conley", out)
+            end
+        end
+    end
+
+    @testset "_estimate_reg — conley spatial+serial" begin
+        mktempdir() do dir
+            rng = MersenneTwister(5)
+            T = 100
+            d = DataFrame(y=randn(rng, T), x=randn(rng, T),
+                          lat=rand(rng, T), lon=rand(rng, T),
+                          yr=Float64.(repeat(1:10, inner=10)))
+            csv = joinpath(dir, "conley_time.csv"); CSV.write(csv, d)
+            out = _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley",
+                               lat="lat", lon="lon", dist_cutoff=0.5,
+                               time_col="yr", time_cutoff=2, format="table", output="")
+            end
+            @test occursin("Conley", out)
+        end
+    end
+
+    @testset "_estimate_reg — conley guards" begin
+        mktempdir() do dir
+            csv = _w10_csv(dir)
+            # conley without coordinates / without a cutoff
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley",
+                               lat="lat", lon="lon", format="table")
+            end
+            # coordinates supplied under another cov-type: a usage error, not a no-op
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="hc1",
+                               lat="lat", lon="lon", format="table")
+            end
+            # --time-cutoff without --time-col
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley", lat="lat",
+                               lon="lon", dist_cutoff=10.0, time_cutoff=2, format="table")
+            end
+            # unknown coordinate column
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="conley", lat="nope",
+                               lon="lon", dist_cutoff=10.0, format="table")
+            end
+            # cluster cov-type with no cluster column
+            @test_throws CliError _capture() do
+                _estimate_reg(; data=csv, dep="y", cov_type="cluster", format="table")
+            end
+        end
+    end
+
+    @testset "_estimate_preg — absorb + guards" begin
+        mktempdir() do dir
+            rng = MersenneTwister(6)
+            N, T = 8, 10
+            d = DataFrame(id=repeat(1:N, inner=T), time=repeat(1:T, N),
+                          y=randn(rng, N * T), x=randn(rng, N * T),
+                          region=Float64.(rand(rng, 1:3, N * T)))
+            csv = joinpath(dir, "hdfe.csv"); CSV.write(csv, d)
+            out = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,time",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test occursin("HDFE", out) || occursin("Absorb", out)
+            # a named panel-variable dimension resolves too
+            _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,region",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            # guards
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,time",
+                                twoway=true, id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity,entity",
+                                id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity",
+                                method="re", id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", hdfe_tol=1e-5,
+                                id_col="id", time_col="time", format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", absorb="entity",
+                                hdfe_maxiter=0, id_col="id", time_col="time", format="table")
+            end
+        end
+    end
+
+    @testset "_test_wild_cluster — numeric and string clusters" begin
+        mktempdir() do dir
+            for sc in (false, true)
+                csv = _w10_csv(dir; with_coords=false, with_cluster=true, string_cluster=sc)
+                out = _capture() do
+                    _test_wild_cluster(; data=csv, dep="y", clusters="cl",
+                                        coefficient="x", format="table", output="")
+                end
+                @test occursin("Wild Cluster", out) || occursin("bootstrap", out)
+            end
+        end
+    end
+
+    @testset "_test_wild_cluster — variants and guards" begin
+        mktempdir() do dir
+            csv = _w10_csv(dir; with_coords=false, with_cluster=true)
+            _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", coefficient="x",
+                                    boot_weights="webb", no_impose_null=true, no_ci=true,
+                                    enumerate_signs="no", format="table", output="")
+            end
+            _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", coefficient="x",
+                                    enumerate_signs="yes", format="table", output="")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl",
+                                    coefficient="nope", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", boot_reps=0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="cl", level=1.5, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_wild_cluster(; data=csv, dep="y", clusters="nope", format="table")
+            end
+        end
+    end
+
+    @testset "_test_anderson_rubin — set shapes" begin
+        mktempdir() do dir
+            rng = MersenneTwister(8)
+            T = 150
+            d = DataFrame("y" => randn(rng, T), "const" => fill(1.0, T),
+                          "x2" => randn(rng, T), "x_endog" => randn(rng, T),
+                          "z1" => randn(rng, T), "z2" => randn(rng, T))
+            csv = joinpath(dir, "ar.csv"); CSV.write(csv, d)
+            # Every degenerate set shape must render: the whole point of the leaf is that
+            # an AR set is not always `[lo, hi]`.
+            for shape in (:bounded, :unbounded, :disjoint, :whole, :empty)
+                _MOCK_FLAGS[:ar_set_shape] = shape
+                out = _capture() do
+                    _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                          instruments="z1,z2", format="table", output="")
+                end
+                @test occursin("Anderson", out)
+            end
+            _MOCK_FLAGS[:ar_set_shape] = :bounded
+
+            # --no-ci, explicit --beta0, and the clustered path
+            _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", beta0="0.5", no_ci=true,
+                                      format="table", output="")
+            end
+            dc = copy(d); dc.cl = Float64.(repeat(1:5, inner=cld(T, 5))[1:T])
+            ccsv = joinpath(dir, "arcl.csv"); CSV.write(ccsv, dc)
+            _capture() do
+                _test_anderson_rubin(; data=ccsv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", cov_type="cluster",
+                                      clusters="cl", format="table", output="")
+            end
+
+            # Two endogenous regressors: the TEST still runs, the confidence set is skipped
+            # (upstream inverts over a single coefficient only) — not an error.
+            out2 = _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog,x2",
+                                      instruments="z1,z2", format="table", output="")
+            end
+            @test occursin("Anderson", out2)
+
+            # guards
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", cov_type="cluster", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=ccsv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", clusters="cl", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", beta0="1,2", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", beta0="abc", format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", level=0.0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", n_grid=2, format="table")
+            end
+            @test_throws CliError _capture() do
+                _test_anderson_rubin(; data=csv, dep="y", endogenous="x_endog",
+                                      instruments="z1,z2", span=0.0, format="table")
+            end
+        end
+    end
+
+    @testset "_estimate_lp — iv MOP + AR bands" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            zcsv = _make_instruments_csv(dir; T=120, n_inst=1)
+            _capture() do
+                _estimate_lp(; data=csv, method="iv", shock=1, horizons=5,
+                              control_lags=2, vcov="newey_west", instruments=zcsv,
+                              mop_f=true, format="table", output="")
+            end
+            _capture() do
+                _estimate_lp(; data=csv, method="iv", shock=1, horizons=4,
+                              control_lags=2, vcov="newey_west", instruments=zcsv,
+                              ar_bands=true, ar_grid=51, format="table", output="")
+            end
+            # riders are iv-only
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="standard", mop_f=true, format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="smooth", ar_span=5.0, format="table")
+            end
+            # tau is a closed four-member set; the grid/level are validated
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments=zcsv,
+                              mop_f=true, mop_tau=0.15, format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments=zcsv,
+                              ar_bands=true, ar_grid=2, format="table")
+            end
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments=zcsv,
+                              ar_bands=true, ar_level=1.0, format="table")
+            end
+            # missing --instruments is now a typed usage error, not a bare error()
+            @test_throws CliError _capture() do
+                _estimate_lp(; data=csv, method="iv", instruments="", format="table")
+            end
+        end
+    end
+
+end  # W10 micro inference riders
+
+# ═══════════════════════════════════════════════════════════════
+# W12/#114: DSGE determinacy map, moments, prefilter
+# ═══════════════════════════════════════════════════════════════
+
+@testset "W12 DSGE riders" begin
+
+    """Minimal @dsge model file + a [determinacy] config, written to `dir`."""
+    function _w12_model(dir)
+        path = joinpath(dir, "m.jl")
+        # NO `using MacroEconometricModels` line: `_dsge_sandbox()` already injects the
+        # in-scope module plus a RELATIVE `using .MacroEconometricModels`. An absolute
+        # `using` resolves through the load path instead, which in the mock context is a
+        # different module — `UndefVarError: @dsge not defined` with an ambiguity hint.
+        # A model file is a bare @dsge block; the T3 fixtures do the same.
+        write(path, """
+        @dsge begin
+            parameters: phi_pi = 1.5, rho = 0.8
+            variables: y, pi
+            shocks: eps
+            y[t] = rho * y[t-1] + eps[t]
+            pi[t] = phi_pi * y[t]
+        end
+        """)
+        return path
+    end
+
+    function _w12_cfg(dir; params="[\"phi_pi\"]", extra="")
+        path = joinpath(dir, "det.toml")
+        write(path, """
+        [determinacy]
+        params = $params
+        lower = [0.0]
+        upper = [2.0]
+        points = [9]
+        $extra
+        """)
+        return path
+    end
+
+    @testset "get_determinacy — parsing and guards" begin
+        mktempdir() do dir
+            cfg = _w12_cfg(dir)
+            d = get_determinacy(load_config(cfg))
+            @test d.params == ["phi_pi"]
+            @test length(d.grids) == 1
+            @test length(d.grids[1]) == 9
+            @test d.grids[1][1] == 0.0 && d.grids[1][end] == 2.0
+            @test d.method == :gensys
+
+            # two parameters, explicit grids, method alias
+            p2 = joinpath(dir, "d2.toml")
+            write(p2, """
+            [determinacy]
+            params = ["phi_pi", "rho"]
+            grids = [[0.0, 1.0, 2.0], [0.1, 0.5, 0.9]]
+            method = "blanchard-kahn"
+            div = 1.001
+            """)
+            d2 = get_determinacy(load_config(p2))
+            @test length(d2.params) == 2
+            @test d2.method == :blanchard_kahn
+            @test d2.div == 1.001
+
+            # a scalar params entry is accepted where a one-element list would do
+            p3 = joinpath(dir, "d3.toml")
+            write(p3, """
+            [determinacy]
+            params = "phi_pi"
+            lower = 0.0
+            upper = 2.0
+            points = 5
+            """)
+            @test length(get_determinacy(load_config(p3)).grids[1]) == 5
+
+            for (name, body) in (
+                ("missing section", ""),
+                ("no params", "[determinacy]\nlower = [0.0]\nupper = [1.0]\n"),
+                ("three params", "[determinacy]\nparams = [\"a\",\"b\",\"c\"]\nlower=[0,0,0]\nupper=[1,1,1]\n"),
+                ("duplicate params", "[determinacy]\nparams = [\"a\",\"a\"]\nlower=[0,0]\nupper=[1,1]\n"),
+                ("lower >= upper", "[determinacy]\nparams=[\"a\"]\nlower=[1.0]\nupper=[1.0]\n"),
+                ("points < 2", "[determinacy]\nparams=[\"a\"]\nlower=[0.0]\nupper=[1.0]\npoints=[1]\n"),
+                ("shape mismatch", "[determinacy]\nparams=[\"a\",\"b\"]\nlower=[0.0]\nupper=[1.0,2.0]\n"),
+                ("bad method", "[determinacy]\nparams=[\"a\"]\nlower=[0.0]\nupper=[1.0]\nmethod=\"nope\"\n"),
+                ("short grid", "[determinacy]\nparams=[\"a\"]\ngrids=[[0.5]]\n"),
+                ("no bounds", "[determinacy]\nparams=[\"a\"]\n"),
+            )
+                bad = joinpath(dir, "bad.toml")
+                write(bad, body)
+                @test_throws CliError get_determinacy(load_config(bad))
+            end
+        end
+    end
+
+    @testset "_dsge_determinacy_map" begin
+        mktempdir() do dir
+            m = _w12_model(dir)
+            cfg = _w12_cfg(dir)
+            out = _capture() do
+                _dsge_determinacy_map(; model=m, config=cfg, format="table", output="")
+            end
+            @test occursin("Determinacy", out)
+            # A one-parameter sweep also reports the boundary.
+            @test occursin("Boundary", out) || occursin("boundary", out)
+
+            # two-parameter sweep: no boundary table (the frontier is a curve)
+            c2 = joinpath(dir, "d2.toml")
+            write(c2, """
+            [determinacy]
+            params = ["phi_pi", "rho"]
+            grids = [[0.5, 1.5], [0.1, 0.9]]
+            """)
+            _capture() do
+                _dsge_determinacy_map(; model=m, config=c2, format="table", output="")
+            end
+
+            # guards
+            @test_throws CliError _capture() do
+                _dsge_determinacy_map(; model=m, config="", format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_determinacy_map(; model=m, config=cfg, rank_rtol=0.0, format="table")
+            end
+            # an unknown parameter name is config/invalid, not an internal error
+            cbad = joinpath(dir, "dbad.toml")
+            write(cbad, """
+            [determinacy]
+            params = ["not_a_param"]
+            lower = [0.0]
+            upper = [1.0]
+            points = [3]
+            """)
+            @test_throws CliError _capture() do
+                _dsge_determinacy_map(; model=m, config=cbad, format="table")
+            end
+        end
+    end
+
+    @testset "_dsge_moments — orders and guards" begin
+        mktempdir() do dir
+            m = _w12_model(dir)
+            for ord in (2, 3)
+                out = _capture() do
+                    _dsge_moments(; model=m, method="perturbation", order=ord,
+                                   lags=2, format="table", output="")
+                end
+                @test occursin("Moments", out) || occursin("moments", out)
+            end
+            # order 1 is REFUSED: upstream's order-1 analytical moments are wrong for
+            # control variables (verified against the closed form on a linear AR(1) model).
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, order=1, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, order=0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, order=4, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_moments(; model=m, lags=0, format="table")
+            end
+        end
+    end
+
+    @testset "dsge bayes --prefilter guards" begin
+        mktempdir() do dir
+            m = _w12_model(dir)
+            csv = _make_csv(dir; T=60, n=2, colnames=["y", "pi"])
+            pri = joinpath(dir, "priors.toml")
+            write(pri, """
+            [priors.rho]
+            dist = "beta"
+            a = 2.0
+            b = 2.0
+            """)
+            common = (; model=m, data=csv, params="rho", priors=pri,
+                       observables="y,pi", n_smc=8, n_draws=8, burnin=2)
+            # A valid prefilter runs.
+            _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="demean", format="table", output="")
+            end
+            # HP needs its lambda to be the one that is used, so a lambda without hp is a
+            # usage error rather than a silent no-op.
+            @test_throws CliError _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="demean", hp_lambda=100.0, format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="bogus", format="table")
+            end
+            @test_throws CliError _capture() do
+                _dsge_bayes_estimate(; common..., prefilter="hp", hp_lambda=0.0, format="table")
+            end
+        end
+    end
+
+end  # W12 DSGE riders
+
+
 
 # ═══════════════════════════════════════════════════════════════
 # Task 6: HD verify_decomposition failure + estimate diagnostics

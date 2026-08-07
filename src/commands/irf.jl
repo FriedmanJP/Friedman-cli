@@ -29,6 +29,16 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
+                OptionSpec(name="bootstrap", type=String, default="iid",
+                           description="Bootstrap scheme (--ci bootstrap): iid|wild|block",
+                           choices=["iid", "wild", "block"]),
+                OptionSpec(name="block-length", type=Int, default=0,
+                           description="Block length for --bootstrap block (0 = library default)"),
+                OptionSpec(name="wild-dist", type=String, default="rademacher",
+                           description="Wild-bootstrap multiplier: rademacher|mammen",
+                           choices=["rademacher", "mammen"]),
+                OptionSpec(name="bias-reps", type=Int, default=0,
+                           description="Inner reps for --bias-correct (0 = same as --replications)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -38,7 +48,8 @@ function irf_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser"),
                 FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)"),
                 FlagSpec(name="identified-set", description="Return full identified set for sign restrictions"),
-                FlagSpec(name="stationary-only", description="Filter non-stationary bootstrap draws")
+                FlagSpec(name="stationary-only", description="Filter non-stationary bootstrap draws"),
+                FlagSpec(name="bias-correct", description="Kilian (1998) bias-corrected bootstrap bands")
             ],
             tables=[TableSpec(name=:irf_var, description="Compute frequentist impulse response functions")],
             category="irf",
@@ -67,6 +78,33 @@ function irf_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:irf_bvar, description="Compute Bayesian impulse response functions with credible intervals")],
             category="irf",
             handler=wrap_legacy(_irf_bvar),
+        ),
+        CommandSpec(
+            path=["irf", "tvpvar"],
+            summary="Date-specific IRF from a TVP-VAR-SV",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="date", type=Int, default=0, description="Date index in 1:T_eff to evaluate the IRF at (REQUIRED)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="Retained Gibbs draws"),
+                OptionSpec(name="burnin", type=Int, default=1000, description="Burn-in sweeps discarded"),
+                OptionSpec(name="thin", type=Int, default=1, description="Keep every k-th draw"),
+                OptionSpec(name="n-train", type=Int, default=0, description="Training sample used to calibrate priors"),
+                OptionSpec(name="k-q", type=Float64, default=0.01, description="Coefficient random-walk prior scale (> 0)"),
+                OptionSpec(name="k-s", type=Float64, default=0.1, description="Covariance random-walk prior scale (> 0)"),
+                OptionSpec(name="k-w", type=Float64, default=0.01, description="Log-volatility random-walk prior scale (> 0)"),
+                OptionSpec(name="irf-draws", type=Int, default=500, description="Posterior draws used for the IRF bands"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-tvp", description="Hold coefficients constant"),
+                   FlagSpec(name="no-sv", description="Hold volatilities constant"),
+                   FlagSpec(name="no-stationary-only", description="Include explosive draws instead of discarding them")],
+            tables=[TableSpec(name=:irf, description="Date-specific Bayesian IRF")],
+            category="irf",
+            handler=wrap_legacy(_irf_tvpvar),
         ),
         CommandSpec(
             path=["irf", "lp"],
@@ -203,6 +241,9 @@ end
 function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=20,
                    id::String="cholesky", ci::String="bootstrap", replications::Int=1000,
                    config::String="",
+                   bootstrap::String="iid", block_length::Int=0,
+                   wild_dist::String="rademacher",
+                   bias_correct::Bool=false, bias_reps::Int=0,
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    cumulative::Bool=false, identified_set::Bool=false,
@@ -246,9 +287,41 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         return
     end
 
+    # W8/#110 (MEMs#370): bootstrap scheme + Kilian (1998) bias correction. These only
+    # bite under --ci bootstrap; say so rather than letting a flag look effective.
+    boot = lowercase(strip(bootstrap))
+    boot in ("iid", "wild", "block") || throw(CliError("usage/invalid-option",
+        "invalid --bootstrap '$bootstrap'; must be iid, wild or block"))
+    # Upstream `_wild_weights` implements ONLY these two — a :normal multiplier looks
+    # plausible and is not supported, and reaches the estimator as an untyped
+    # TaskFailedException from inside the threaded bootstrap loop (exit 1).
+    wdist = lowercase(strip(wild_dist))
+    wdist in ("rademacher", "mammen") || throw(CliError("usage/invalid-option",
+        "invalid --wild-dist '$wild_dist'; must be rademacher or mammen"))
+    block_length >= 0 || throw(CliError("usage/invalid",
+        "--block-length must be ≥ 0 (got $block_length)"))
+    bias_reps >= 0 || throw(CliError("usage/invalid",
+        "--bias-reps must be ≥ 0 (got $bias_reps)"))
+    if ci != "bootstrap" && (boot != "iid" || bias_correct || block_length > 0)
+        _status("bootstrap options ignored: they apply to --ci bootstrap, not --ci $ci")
+    end
+
     kwargs = _build_identification_kwargs(id, config)
     kwargs[:ci_type] = Symbol(ci)
     kwargs[:reps] = replications
+    if ci == "bootstrap"
+        kwargs[:bootstrap] = Symbol(boot)
+        kwargs[:block_length] = block_length
+        kwargs[:wild_dist] = Symbol(wdist)
+        kwargs[:bias_correct] = bias_correct
+        kwargs[:bias_reps] = bias_reps
+        if bias_correct
+            # Kilian bootstrap-after-bootstrap: the inner loop re-estimates the VAR
+            # bias_reps times PER OUTER DRAW, so the cost is multiplicative, not additive.
+            _status("Kilian (1998) bias correction on: inner reps=" *
+                    "$(bias_reps > 0 ? bias_reps : replications) per outer draw")
+        end
+    end
     if stationary_only
         kwargs[:stationary_only] = true
     end
@@ -292,10 +365,30 @@ function _var_irf_arias(model, config::String, horizons::Int,
                         varnames::Vector{String}, shock::Int; format::String="table", output::String="")
     _, restrictions = _load_svar_restrictions(model, config, "Arias")
     result = identify_arias(model, restrictions, horizons)
-    irf_df = build_irf_table(irf_mean(result), nothing, nothing, varnames, shock)
+
+    # W8/#110 (MEMs#372): the importance weights became operative in 0.7.2, so the summary
+    # can now rest on far fewer EFFECTIVE draws than n_draws suggests. Under pure sign
+    # restrictions the weights are uniform and ess_fraction == 1; with zero restrictions a
+    # small fraction means a handful of draws carry most of the posterior mass. Reporting
+    # only the IRF would hide that entirely, so the diagnostics get their own table.
+    ess      = hasproperty(result, :ess) ? Float64(result.ess) : NaN
+    ess_frac = hasproperty(result, :ess_fraction) ? Float64(result.ess_fraction) : NaN
+    if isfinite(ess_frac) && ess_frac < 0.1
+        _status_styled("  warning: Arias importance weights are DEGENERATE — effective " *
+                       "sample $(round(ess; digits=1)) is $(round(100*ess_frac; digits=1))% " *
+                       "of the draws; the weighted IRF rests on very few of them\n";
+                       color=:yellow)
+    end
     shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(irf_mean(result), nothing, nothing, varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock (Arias et al. identification)")
+    output_kv(Pair{String,Any}[
+        "acceptance_rate" => round(Float64(result.acceptance_rate); digits=6),
+        "n_draws"         => length(result.weights),
+        "ess"             => round(ess; digits=4),
+        "ess_fraction"    => round(ess_frac; digits=6),
+    ]; format=format, title="Arias Importance-Sampling Diagnostics")
 end
 
 function _var_irf_uhlig(model, config::String, horizons::Int,

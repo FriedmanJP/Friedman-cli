@@ -2754,6 +2754,51 @@ end
     @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
 end
 
+# W8: a pretty-printer must never fail a command. `report()`/`show` output is a human
+# convenience on stderr; the stdout data is the contract. Upstream proved the point —
+# MEMs 0.7.2 `_select_horizons(H)` returns `[1, 4, 8, H]` for `5 < H <= 12`, so
+# `show(::ImpulseResponse)` indexed horizon 8 of a 6-horizon array and `irf var
+# --horizons 6|7` exited 1 with an untyped BoundsError while `long_table` produced a
+# perfectly good result. The swallow is the fix, so it is the branch worth asserting.
+@testset "_status_report swallows display failures (W8)" begin
+    prev_q = _QUIET[]
+    try
+        # --quiet: no summary at all, and `f` is never even run.
+        _QUIET[] = true
+        ran = Ref(false)
+        @test _status_report(() -> (ran[] = true)) === nothing
+        @test !ran[]
+
+        _QUIET[] = false
+        # Normal path: `f` runs, and what it writes to stdout is diverted to stderr so
+        # the data-only stdout contract holds even while a summary is printing.
+        mktemp() do path, io
+            r = redirect_stderr(io) do
+                _status_report(() -> print("SUMMARY-BODY"))
+            end
+            flush(io)
+            @test r === nothing
+            @test occursin("SUMMARY-BODY", read(path, String))
+        end
+
+        # The point of the wrapper: a throwing display is a missing summary, not a
+        # failed run — no exception escapes, and the note names the cause on stderr.
+        mktemp() do path, io
+            r = redirect_stderr(io) do
+                _status_report(() -> error("upstream show() is broken"))
+            end
+            flush(io)
+            out = read(path, String)
+            @test r === nothing
+            @test occursin("summary display failed", out)
+            @test occursin("upstream show() is broken", out)
+            @test occursin("results are unaffected", out)
+        end
+    finally
+        _QUIET[] = prev_q
+    end
+end
+
 @testset "error taxonomy" begin
     include(joinpath(dirname(@__DIR__), "src", "output", "errors.jl"))
     e = CliError("data/file-not-found", "file not found: x.csv"; hint="check the path")
@@ -3796,7 +3841,9 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "ha")
     @test haskey(dsge_node.subcmds, "ct")
     @test haskey(dsge_node.subcmds, "olg")
-    @test length(dsge_node.subcmds) == 12
+    @test haskey(dsge_node.subcmds, "determinacy-map")   # W12/#114
+    @test haskey(dsge_node.subcmds, "moments")           # W12/#114
+    @test length(dsge_node.subcmds) == 14
 
     # Nested nodes: bayes, ha, ct, olg; remaining are leaves
     for (name, cmd) in dsge_node.subcmds
@@ -3955,7 +4002,7 @@ end
     @test "config" in opt_names
 
     # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 68
+    @test length(est_node.subcmds) == 75
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4069,7 +4116,7 @@ end
 @testset "FAVAR/SDFM command structure across actions" begin
     # IRF: 7 subcommands (5 original + favar + sdfm)
     irf_node = register_irf_commands!()
-    @test length(irf_node.subcmds) == 7
+    @test length(irf_node.subcmds) == 8
     @test haskey(irf_node.subcmds, "favar")
     @test haskey(irf_node.subcmds, "sdfm")
     @test irf_node.subcmds["favar"] isa LeafCommand
@@ -4115,9 +4162,9 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b)
+    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 26
+    @test length(fc_node.subcmds) == 30
     @test haskey(fc_node.subcmds, "favar")
     @test fc_node.subcmds["favar"] isa LeafCommand
 
@@ -4128,9 +4175,9 @@ end
     fc_favar_flags = [f.name for f in fc_favar.flags]
     @test "panel-forecast" in fc_favar_flags
 
-    # Predict: 23 primary + gjr_garch alias (C044)
+    # Predict: 23 primary + gjr_garch alias (C044; +ms/ms-ar W3 #101)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 34
+    @test length(pred_node.subcmds) == 39
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
@@ -4139,7 +4186,7 @@ end
 
     # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 38
+    @test length(res_node.subcmds) == 41
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
@@ -4151,7 +4198,7 @@ end
     test_node = register_test_commands!()
 
     # 80 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-    @test length(test_node.subcmds) == 82
+    @test length(test_node.subcmds) == 85
     for leaf in ("hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                  "phillips-ouliaris", "hansen-instability", "park-added",
                  "white", "glejser", "harvey", "chow", "cusum", "cusumsq",

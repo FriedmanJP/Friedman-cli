@@ -34,8 +34,29 @@ function _status_styled(args...; kwargs...)
     end
     printstyled(stderr, args...; kwargs...)
 end
-"""Run `f` with stdout redirected to stderr unless quiet (MEMs report() dumps)."""
-_status_report(f::Function) = _QUIET[] || redirect_stdout(f, stderr)
+"""
+Run `f` with stdout redirected to stderr unless quiet (MEMs `report()` dumps).
+
+A failure inside `f` is swallowed with a note on stderr rather than propagated. This is a
+**human-readable convenience summary**; the data the agent contract promises has already
+been (or is about to be) written to stdout, so a broken pretty-printer must not fail the
+command.
+
+That is not hypothetical: at MEMs 0.7.2 `_select_horizons(H)` returns `[1, 4, 8, H]` for
+`5 < H <= 12`, so `show(::ImpulseResponse)` indexes horizon 8 of an H-horizon array and
+`irf var --horizons 6|7` died with an untyped `BoundsError` (exit 1, "likely a bug") even
+though `long_table` produced a perfectly good result. Upstream display bugs are now a
+missing summary, not a failed run.
+"""
+function _status_report(f::Function)
+    _QUIET[] && return nothing
+    try
+        redirect_stdout(f, stderr)
+    catch e
+        _status("(summary display failed: $(sprint(showerror, e)); results are unaffected)")
+    end
+    return nothing
+end
 
 """
     _extract_global_flags!(args) → (remaining, force_json)

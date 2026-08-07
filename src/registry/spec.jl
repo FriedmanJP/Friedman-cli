@@ -145,6 +145,56 @@ const REG_OPTIONS = [
 ]
 
 # Panel regression shared options
+# W6/#108 multiplicative seasonal ARIMA. `--p` has NO default so that leaving it out means
+# "select automatically" (auto_sarima), matching how `estimate arima` distinguishes the two
+# modes; `--auto` forces selection even when orders are given.
+const SARIMA_OPTIONS = [
+    OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+    OptionSpec(name="p", type=Int, default=nothing, description="Non-seasonal AR order (omit to auto-select)"),
+    OptionSpec(name="d", type=Int, default=0, description="Non-seasonal differencing order"),
+    OptionSpec(name="q", type=Int, default=0, description="Non-seasonal MA order"),
+    OptionSpec(name="P", type=Int, default=0, description="Seasonal AR order"),
+    OptionSpec(name="D", type=Int, default=0, description="Seasonal differencing order"),
+    OptionSpec(name="Q", type=Int, default=0, description="Seasonal MA order"),
+    OptionSpec(name="s", type=Int, default=12, description="Seasonal period (12 monthly, 4 quarterly)"),
+    OptionSpec(name="max-p", type=Int, default=2, description="Auto search bound for p"),
+    OptionSpec(name="max-q", type=Int, default=2, description="Auto search bound for q"),
+    OptionSpec(name="max-P", type=Int, default=1, description="Auto search bound for seasonal P"),
+    OptionSpec(name="max-Q", type=Int, default=1, description="Auto search bound for seasonal Q"),
+    OptionSpec(name="criterion", type=String, default="aic", choices=["aic", "bic"],
+               description="Auto-selection criterion"),
+    OptionSpec(name="method", type=String, default="css_mle",
+               choices=["css_mle", "mle", "css"], description="Estimation method"),
+    OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimiser iterations"),
+]
+const SARIMA_FLAGS = [
+    FlagSpec(name="auto", description="Force automatic order selection (auto_sarima)"),
+    FlagSpec(name="no-intercept", description="Exclude the intercept term"),
+]
+
+# W2/#107 count-data regression. `--offset` and `--exposure` are mutually exclusive
+# (exposure is log-transformed into the offset) and the handler rejects the pair with a
+# typed usage/invalid. `--irr` is a FlagSpec because its handler kwarg is a Bool — a String
+# OptionSpec bound to a Bool kwarg fails on EVERY invocation (#85).
+const COUNT_COMMON_OPTIONS = [
+    OptionSpec(name="dep", type=String, default="",
+               description="Dependent count column (default: first numeric column)"),
+    OptionSpec(name="offset", type=String, default="",
+               description="Offset column, already on the log scale (exclusive with --exposure)"),
+    OptionSpec(name="exposure", type=String, default="",
+               description="Exposure column, strictly positive; enters as log(exposure)"),
+]
+const COUNT_IRR_OPTIONS = [
+    OptionSpec(name="conf-level", type=Float64, default=0.95,
+               description="Confidence level for the incidence-rate-ratio CI (0 < level < 1)"),
+    OptionSpec(name="output", short="o", type=String, default="",
+               description="Export results to file"),
+    OptionSpec(name="format", short="f", type=String, default="table",
+               choices=["table", "csv", "json"], description="table, csv or json"),
+]
+const COUNT_IRR_FLAG = FlagSpec(name="irr",
+    description="Also report incidence-rate ratios exp(beta) with delta-method SEs")
+
 const PREG_OPTIONS = [
     OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
     OptionSpec(name="indep", type=String, default="", description="Independent variables (comma-separated)"),
@@ -175,6 +225,15 @@ const BAYES_OPTIONS = [
     OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
     OptionSpec(name="constraint-solver", type=String, default="",
                description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+    # W12/#114 (MEMs#339): trends in observables. Shared across the whole `dsge bayes`
+    # family because every leaf re-estimates from scratch — a prefilter available only on
+    # `bayes estimate` could not be carried into `bayes irf`/`fevd`/`hd`. NOT offered on the
+    # frequentist `dsge estimate`: `estimate_dsge` has no such kwarg upstream.
+    OptionSpec(name="prefilter", type=String, default="none",
+               choices=["none", "demean", "first-difference", "linear-detrend", "hp"],
+               description="Observable transform applied before estimation (Dynare `prefilter`)"),
+    OptionSpec(name="hp-lambda", type=Float64, default=1600.0,
+               description="HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual)"),
     OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
     OptionSpec(name="format", short="f", type=String, default="table",
                choices=["table", "csv", "json"], description="table|csv|json"),

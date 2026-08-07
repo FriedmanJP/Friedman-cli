@@ -16,7 +16,7 @@ Boosted HP filter (Phillips & Shi 2021)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter |
-| `--stopping` | — | `String` | `BIC` | `BIC`, `ADF`, `fixed` | BIC|ADF|fixed |
+| `--stopping` | — | `String` | `BIC` | `BIC`, `ADF`, `fixed` | BIC\|ADF\|fixed |
 | `--max-iter` | — | `Int64` | `100` | — | Maximum boosting iterations |
 | `--sig-p` | — | `Float64` | `0.05` | — | ADF significance level |
 | `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
@@ -68,7 +68,7 @@ Beveridge-Nelson decomposition
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `arima` | `arima`, `statespace` | arima|statespace |
+| `--method` | — | `String` | `arima` | `arima`, `statespace` | arima\|statespace |
 | `--p` | — | `Int64` | — | — | AR order (default: auto) |
 | `--q` | — | `Int64` | — | — | MA order (default: auto) |
 | `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
@@ -144,7 +144,7 @@ X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--frequency` | — | `Int64` | `12` | — | Seasonal period: 4 (quarterly) or 12 (monthly) |
-| `--method` | — | `String` | `seats` | `seats`, `x11` | Preferred decomposition: seats|x11 |
+| `--method` | — | `String` | `seats` | `seats`, `x11` | Preferred decomposition: seats\|x11 |
 | `--transform` | — | `String` | `auto` | `auto`, `log`, `none` | Pre-transformation |
 | `--critical-value` | — | `Float64` | `0.0` | — | Outlier critical value (0 = automatic) |
 | `--outliers` | — | `String` | `true` | `true`, `false` | Detect AO/LS/TC outliers (default true) |

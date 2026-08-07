@@ -16,7 +16,7 @@ Inspect a model handle (.jld2 native or .fmod interim): type, versions, dimensio
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table|csv|json |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `model_info` (Handle metadata)
 

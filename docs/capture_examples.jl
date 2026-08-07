@@ -79,7 +79,14 @@ end
 function _strip_volatile_meta!(d::AbstractDict)
     if haskey(d, "meta") && d["meta"] isa AbstractDict
         meta = Dict{String,Any}(String(k) => v for (k, v) in pairs(d["meta"]))
-        for k in ("elapsed_ms", "argv", "julia", "cli_version", "mems_version", "seed")
+        # `manifest` (C052/#345) is a reproducibility record: wall-clock timestamp,
+        # machine triple, thread count, git sha and resolved dep versions. Writing it
+        # into a committed docs capture bakes one contributor's machine into the page
+        # and churns on every regen — and the structural compare drops `meta` wholesale,
+        # so no gate would ever flag it. Strip it here, exactly as the golden
+        # normalizer pins `meta.manifest="GOLDEN"` (test/support.jl).
+        for k in ("elapsed_ms", "argv", "julia", "cli_version", "mems_version", "seed",
+                  "manifest")
             delete!(meta, k)
         end
         d["meta"] = _sort_keys(meta)
@@ -115,51 +122,77 @@ function _normalize_for_compare(s::AbstractString)
     end
 end
 
+const COMPARE_RTOL = 1e-4
+const COMPARE_ATOL = 1e-8
+
 """
-Structural equality for capture check: recursive dict/array walk with
-`isapprox` on floats (HA solvers differ across OS/BLAS beyond fixed rounding).
+First structural difference between a fresh capture and the committed one, as a
+`path: live vs committed` string — or `nothing` when they match. Floats compare with
+`isapprox` (HA solvers differ across OS/BLAS beyond fixed rounding).
+
+It returns the *reason* rather than a Bool because `--check` reports it: a bare "stale
+capture" says nothing about which field moved, and the two failure modes look identical in
+CI while having opposite fixes. A missing/extra key means a leaf gained or lost a table and
+the capture simply needs regenerating (this is what W13 did to `dsge ha steady-state`); a
+numeric drift past the tolerance means the model output actually changed, or the tolerance
+is too tight for cross-OS BLAS, and regenerating would paper over it.
 """
-function _structurally_equal(a, b; rtol=1e-4, atol=1e-8)::Bool
+function _first_difference(a, b; path::String="\$")
     if a isa Bool && b isa Bool
-        return a === b
+        return a === b ? nothing : "$path: $a vs $b"
     elseif a isa Real && b isa Real && !(a isa Bool) && !(b isa Bool)
-        return isapprox(Float64(a), Float64(b); rtol=rtol, atol=atol)
+        return isapprox(Float64(a), Float64(b); rtol=COMPARE_RTOL, atol=COMPARE_ATOL) ?
+               nothing : "$path: $(Float64(a)) vs $(Float64(b))"
     elseif a isa AbstractString && b isa AbstractString
-        return String(a) == String(b)
+        return String(a) == String(b) ? nothing : "$path: \"$a\" vs \"$b\""
     elseif a === nothing && b === nothing
-        return true
+        return nothing
     elseif (a isa AbstractDict || a isa JSON3.Object) && (b isa AbstractDict || b isa JSON3.Object)
         da = Dict{String,Any}(String(k) => v for (k, v) in pairs(a))
         db = Dict{String,Any}(String(k) => v for (k, v) in pairs(b))
         # ignore volatile meta entirely in structural compare
         delete!(da, "meta"); delete!(db, "meta")
-        Set(keys(da)) == Set(keys(db)) || return false
-        for k in keys(da)
-            _structurally_equal(da[k], db[k]; rtol=rtol, atol=atol) || return false
+        added = sort!(collect(setdiff(keys(da), keys(db))))
+        gone = sort!(collect(setdiff(keys(db), keys(da))))
+        if !isempty(added) || !isempty(gone)
+            parts = String[]
+            isempty(added) || push!(parts, "new: " * join(added, ", "))
+            isempty(gone) || push!(parts, "missing: " * join(gone, ", "))
+            return "$path: keys differ (" * join(parts, "; ") * ")"
         end
-        return true
+        for k in sort!(collect(keys(da)))
+            d = _first_difference(da[k], db[k]; path="$path.$k")
+            d === nothing || return d
+        end
+        return nothing
     elseif (a isa AbstractVector || a isa JSON3.Array) && (b isa AbstractVector || b isa JSON3.Array)
-        length(a) == length(b) || return false
+        length(a) == length(b) || return "$path: length $(length(a)) vs $(length(b))"
         for i in eachindex(a)
-            _structurally_equal(a[i], b[i]; rtol=rtol, atol=atol) || return false
+            d = _first_difference(a[i], b[i]; path="$path[$i]")
+            d === nothing || return d
         end
-        return true
+        return nothing
     else
-        return a == b
+        return a == b ? nothing : "$path: $(repr(a)) vs $(repr(b))"
     end
 end
 
-function _captures_match(actual::AbstractString, golden::AbstractString)::Bool
+"""Why a capture is stale, or `nothing` if it is current."""
+function _capture_mismatch(actual::AbstractString, golden::AbstractString)
     a = strip(replace(String(actual), "\r\n" => "\n"))
     g = strip(replace(String(golden), "\r\n" => "\n"))
-    try
-        ja = JSON3.read(a)
-        jg = JSON3.read(g)
-        return _structurally_equal(ja, jg)
+    ja, jg = try
+        (JSON3.read(a), JSON3.read(g))
     catch
-        return _normalize_for_compare(a) == _normalize_for_compare(g)
+        # Not JSON (table/CSV capture): fall back to normalized text equality.
+        return _normalize_for_compare(a) == _normalize_for_compare(g) ? nothing :
+               "capture text differs (non-JSON output)"
     end
+    return _first_difference(ja, jg)
 end
+
+_captures_match(actual::AbstractString, golden::AbstractString)::Bool =
+    _capture_mismatch(actual, golden) === nothing
 
 # ── Run one friedman command ──────────────────────────────────
 
@@ -249,8 +282,10 @@ function main()
                 fresh_raw = _run_capture(block.bash)
                 fresh = _pretty_json(fresh_raw)
                 if CHECK
-                    if !_captures_match(fresh, block.output)
-                        push!(failures, "$rel: stale capture for `$(strip(split(block.bash, '\n')[1]))`")
+                    why = _capture_mismatch(fresh, block.output)
+                    if why !== nothing
+                        push!(failures, "$rel: stale capture for " *
+                                        "`$(strip(split(block.bash, '\n')[1]))`\n      $why")
                     end
                 else
                     # Refresh when structural content drifts or pretty text differs a lot

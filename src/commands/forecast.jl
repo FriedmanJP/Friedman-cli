@@ -236,6 +236,31 @@ function forecast_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_forecast_var),
         ),
         CommandSpec(
+            path=["forecast", "scenario"],
+            summary="Waggoner-Zha conditional (scenario) forecast",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="conditions-file", type=String, default="", description="REQUIRED long-format CSV: variable,period,value[,sd]"),
+                OptionSpec(name="method", type=String, default="var", description="Model to condition: var|bvar", choices=["var","bvar"]),
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto for var, 4 for bvar)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="replications", type=Int, default=1000, description="Draws used for the conditional bands"),
+                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws (--method bvar)"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs (--method bvar)"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
+            tables=[TableSpec(name=:scenario, description="Conditional forecast path"),
+                    TableSpec(name=:shocks, description="Implied structural shocks"),
+                    TableSpec(name=:settings, description="Scenario settings")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_scenario),
+        ),
+        CommandSpec(
             path=["forecast", "bvar"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -362,6 +387,72 @@ function forecast_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:forecast_star, description="Path to CSV data file")],
             category="forecast",
             handler=wrap_legacy(_forecast_star),
+        ),
+        # W6/#108: SARIMA forecast. `forecast(::SARIMAModel, h)` returns an ARIMAForecast,
+        # which DOES have a plot_result recipe — unlike the threshold/STAR/MS forecast types
+        # — so this leaf legitimately carries the plot flags.
+        CommandSpec(
+            path=["forecast", "sarima"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[SARIMA_OPTIONS...,
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (>= 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                PLOT_OPTIONS...],
+            flags=[SARIMA_FLAGS..., PLOT_FLAGS...],
+            tables=[TableSpec(name=:forecast_sarima, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_sarima),
+        ),
+        # W3/#101: Markov-switching forecasts, un-gated by MEMs#510. The two dispatches are
+        # mutually exclusive upstream and each throws on the other's model type:
+        # `forecast(m, h)` requires :ms_ar, `forecast(m, X_new)` requires :regression with an
+        # h x k matrix of FUTURE regressors — hence `--x-future` on `forecast ms` only.
+        # NO `--plot`/`--plot-save` on either: MEMs 0.7.2 ships no `plot_result(::MSForecast)`
+        # recipe (verified on the tag, same gap as ThresholdForecast/STARForecast), so
+        # advertising them would drive `_maybe_plot` into an uncaught MethodError → exit 1.
+        CommandSpec(
+            path=["forecast", "ms-ar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (≥ 1)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            tables=[TableSpec(name=:forecast_ms_ar, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_ms_ar),
+        ),
+        CommandSpec(
+            path=["forecast", "ms"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
+                OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Max EM iterations (≥ 1)"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
+                OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon (intercept-only models; else use --x-future)"),
+                OptionSpec(name="x-future", type=String, default="", description="CSV of future regressors: h rows x k columns (required unless intercept-only)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
+                OptionSpec(name="ci-level", type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+            ],
+            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            tables=[TableSpec(name=:forecast_ms, description="Path to CSV data file")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_ms),
         ),
         CommandSpec(
             path=["forecast", "static"],
@@ -1236,4 +1327,193 @@ function _forecast_eval_combine(; data::String, actual::String="", forecasts::St
         output_result(stab; format=Symbol(format), output=output, title="Combined Forecast Series")
     end
     return r
+end
+
+# ── W8/#110: Waggoner-Zha conditional (scenario) forecasts ───────────────────
+#
+# `conditional_forecast` dispatches on VARModel and BVARPosterior, so --method picks
+# which to fit. `plot_result(::ConditionalForecast)` EXISTS (plotting/forecast.jl:262),
+# so --plot is genuinely backed here.
+
+"""
+    _load_forecast_conditions(path, varnames, horizon) -> Vector{ForecastCondition}
+
+Read a long-format conditions CSV: `variable,period,value[,sd]`.
+
+`variable` may be a name or a 1-based index; `period` is the forecast horizon the condition
+applies to (1 = first forecast period). `sd` is optional and defaults to 0, i.e. a HARD
+condition — the path is pinned exactly. A positive `sd` makes it soft.
+
+Missing cells are rejected BEFORE any numeric conversion: a blank `value` would otherwise
+reach `Float64(missing)` as an untyped MethodError (exit 1). Same for the whole file being
+empty, a duplicate (variable, period), or a period beyond the forecast horizon — all of
+which are user errors and none of which upstream reports in CLI terms.
+"""
+function _load_forecast_conditions(path::String, varnames::Vector{String}, horizon::Int)
+    _validate_input_path(path)
+    isfile(path) || throw(CliError("data/file-not-found",
+        "conditions file not found: $path"))
+    df = load_data(path)
+    cols = lowercase.(String.(names(df)))
+    for req in ("variable", "period", "value")
+        req in cols || throw(CliError("data/missing-column",
+            "conditions CSV must have columns variable, period, value (optional sd); " *
+            "got $(join(names(df), ", "))"))
+    end
+    ci = Dict(c => i for (i, c) in enumerate(cols))
+    has_sd = "sd" in cols
+    nrow(df) == 0 && throw(CliError("data/empty",
+        "conditions file has no rows: $path"))
+
+    conds = ForecastCondition{Float64}[]
+    seen = Set{Tuple{Int,Int}}()
+    for r in 1:nrow(df)
+        vraw = df[r, ci["variable"]]
+        praw = df[r, ci["period"]]
+        xraw = df[r, ci["value"]]
+        (ismissing(vraw) || ismissing(praw) || ismissing(xraw)) &&
+            throw(CliError("data/missing",
+                "conditions row $r has a blank variable, period or value"))
+
+        # A name or a 1-based index; resolve to an index so duplicates can be detected
+        # whichever form the file used.
+        vidx = if vraw isa Real
+            Int(vraw)
+        else
+            nm = strip(String(vraw))
+            k = findfirst(==(nm), varnames)
+            if k === nothing
+                pi_ = tryparse(Int, nm)
+                pi_ === nothing && throw(CliError("data/invalid",
+                    "conditions row $r: unknown variable '$nm'";
+                    hint="model variables: $(join(varnames, ", "))"))
+                pi_
+            else
+                k
+            end
+        end
+        1 <= vidx <= length(varnames) || throw(CliError("data/invalid",
+            "conditions row $r: variable index $vidx is outside 1:$(length(varnames))"))
+
+        per = praw isa Real ? Int(praw) : something(tryparse(Int, strip(String(praw))), 0)
+        1 <= per <= horizon || throw(CliError("data/invalid",
+            "conditions row $r: period $per is outside the forecast horizon 1:$horizon"))
+        (vidx, per) in seen && throw(CliError("data/invalid",
+            "conditions row $r: duplicate condition for $(varnames[vidx]) at period $per"))
+        push!(seen, (vidx, per))
+
+        val = xraw isa Real ? Float64(xraw) :
+              something(tryparse(Float64, strip(String(xraw))), NaN)
+        isfinite(val) || throw(CliError("data/invalid",
+            "conditions row $r: value is not a finite number"))
+        sd = 0.0
+        if has_sd
+            sraw = df[r, ci["sd"]]
+            if !ismissing(sraw)
+                sd = sraw isa Real ? Float64(sraw) :
+                     something(tryparse(Float64, strip(String(sraw))), NaN)
+                (isfinite(sd) && sd >= 0) || throw(CliError("data/invalid",
+                    "conditions row $r: sd must be a non-negative number"))
+            end
+        end
+        # Build with the INDEX, not the name. `_load_and_estimate_var` does not forward
+        # varnames to `estimate_var`, so the fitted model carries y1..yn while the CSV
+        # header says something else -- resolving the user's name here and passing the
+        # index makes the leaf work with the names they actually typed. (The wider
+        # cosmetic issue, that the VAR family renders y1/yn everywhere, is its own fix.)
+        push!(conds, ForecastCondition{Float64}(vidx, per, val, sd))
+    end
+    return conds
+end
+
+# NOTE: the option is `--conditions-file`, not `--conditions`. `dispatch.jl` matches
+# `"--conditions" in args` across the WHOLE argv to print the GPL notice, so a leaf option
+# of that name is swallowed before dispatch ever runs. Recorded as an engine flaw for the
+# C055 freeze; renaming here is the zero-risk fix.
+function _forecast_scenario(; data::String="", conditions_file::String="", lags=nothing,
+                             horizons::Int=12, method::String="var",
+                             draws::Int=2000, sampler::String="direct",
+                             replications::Int=1000, confidence::Float64=0.95,
+                             config::String="",
+                             output::String="", format::String="table",
+                             plot::Bool=false, plot_save::String="",
+                             model=nothing)
+    horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
+    replications >= 1 || throw(CliError("usage/invalid",
+        "--replications must be ≥ 1 (got $replications)"))
+    0 < confidence < 1 || throw(CliError("usage/invalid",
+        "--confidence must be in (0, 1) (got $confidence)"))
+    meth = lowercase(strip(method))
+    meth in ("var", "bvar") || throw(CliError("usage/invalid-option",
+        "invalid --method '$method'; must be var or bvar"))
+    isempty(strip(conditions_file)) && throw(CliError("usage/missing",
+        "forecast scenario: --conditions-file <csv> is required";
+        hint="a long-format CSV with columns variable,period,value (optional sd)"))
+
+    obj, varnames = if !isnothing(model)
+        model, (hasproperty(model, :varnames) ? model.varnames : String[])
+    elseif meth == "bvar"
+        post, _, vn, _, _ = _load_and_estimate_bvar(data, lags === nothing ? 4 : lags,
+                                                    config, draws, sampler)
+        post, vn
+    else
+        m, _, vn, _ = _load_and_estimate_var(data, lags)
+        m, vn
+    end
+
+    conds = _load_forecast_conditions(conditions_file, varnames, horizons)
+    _status("Conditional forecast ($meth): $(length(conds)) condition(s) over $horizons periods")
+    for c in conds
+        nm = c.variable isa Integer && 1 <= c.variable <= length(varnames) ?
+             varnames[c.variable] : string(c.variable)
+        _status("  $nm @ h=$(c.horizon) → $(c.value)" *
+                (c.sd > 0 ? " (sd $(c.sd))" : " (hard)"))
+    end
+
+    fc = try
+        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=confidence)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "forecast scenario"))
+    end
+
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _status_report(() -> report(fc))
+
+    # Tidy long form, with the UNCONDITIONAL path alongside: the scenario is only
+    # interpretable against the baseline it departs from, and having to run a second
+    # command to get it invites comparing paths from different draws.
+    H = fc.horizon
+    n = length(fc.varnames)
+    df = DataFrame(
+        horizon       = repeat(1:H, outer=n),
+        variable      = repeat(fc.varnames; inner=H),
+        value         = vec(Float64.(fc.forecast)),
+        lower         = vec(Float64.(fc.ci_lower)),
+        upper         = vec(Float64.(fc.ci_upper)),
+        unconditional = vec(Float64.(fc.unconditional)),
+    )
+    output_result(df; format=Symbol(format), output=output,
+                  title="Conditional Forecast ($(round(Int, 100*fc.conf_level))% interval, " *
+                        "$(fc.identification) identification)")
+
+    # The implied structural shocks are what actually delivers the scenario; a scenario
+    # requiring implausibly large shocks is not a credible one.
+    sh = fc.shocks
+    output_result(DataFrame(
+        horizon = repeat(1:size(sh, 1), outer=size(sh, 2)),
+        shock   = repeat(fc.varnames; inner=size(sh, 1)),
+        value   = vec(Float64.(sh)),
+    ); format=Symbol(format), output=_per_var_output_path(output, "shocks"),
+       title="Implied Structural Shocks")
+
+    output_kv(Pair{String,Any}[
+        "method"         => meth,
+        "horizon"        => H,
+        "conditions"     => length(fc.conditions),
+        "conf_level"     => fc.conf_level,
+        "identification" => String(fc.identification),
+        "n_draws"        => fc.n_draws,
+    ]; format=format, title="Scenario Settings")
+    return fc
 end
