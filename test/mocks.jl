@@ -161,7 +161,11 @@ struct BVARPosterior{T}
     p::Int
     n::Int
     data::Matrix{T}
+    # Real carries varnames and threads them into posterior_mean/median_model (#119).
+    varnames::Vector{String}
 end
+BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T}) where {T} =
+    BVARPosterior(B, S, nd, p, n, data, ["y$i" for i in 1:n])
 
 struct MinnesotaHyperparameters
     # `omega` is a SCALAR weight on the residual-covariance prior in real MEMs. It used to
@@ -772,7 +776,7 @@ end
 
 # ─── Mock Helper ──────────────────────────────────────────
 
-function _mock_var(Y::Matrix{Float64}, p::Int)
+function _mock_var(Y::Matrix{Float64}, p::Int; varnames=nothing)
     T_obs, n = size(Y)
     k = n * p + 1
     B = zeros(k, n)
@@ -781,20 +785,26 @@ function _mock_var(Y::Matrix{Float64}, p::Int)
     end
     U = zeros(T_obs - p, n) .+ 0.01
     Sigma = Matrix{Float64}(I(n)) * 0.01
-    VARModel(Y, p, B, U, Sigma, -100.0, -95.0, -97.0)
+    VARModel(Y, p, B, U, Sigma, -100.0, -95.0, -97.0,
+             varnames === nothing ? ["y$i" for i in 1:n] : varnames)
 end
 
 # ─── Mock Functions ───────────────────────────────────────
 
 select_lag_order(Y, max_p; criterion=:aic) = min(2, max(1, max_p))
-estimate_var(Y, p; check_stability=true) = _mock_var(Y, p)
+# varnames kwarg mirrors real estimate_var/estimate_bvar (#119) — real threads it
+# into the model / posterior and every derived rendering.
+estimate_var(Y, p; check_stability=true, varnames=nothing) = _mock_var(Y, p; varnames=varnames)
 
 estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing,
-              hyperopt::Symbol=:glp, seed=nothing) =
+              hyperopt::Symbol=:glp, varnames=nothing, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
-                  10, p, size(Y,2), Y)
-posterior_mean_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
-posterior_median_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
+                  10, p, size(Y,2), Y,
+                  varnames === nothing ? ["y$i" for i in 1:size(Y,2)] : varnames)
+posterior_mean_model(post::BVARPosterior; data=nothing) =
+    _mock_var(post.data, post.p; varnames=post.varnames)
+posterior_median_model(post::BVARPosterior; data=nothing) =
+    _mock_var(post.data, post.p; varnames=post.varnames)
 # Keep old (chain, p, n) signatures for backward compat
 posterior_mean_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
@@ -1602,7 +1612,8 @@ test_gaussian_vs_nongaussian(model::VARModel) = (statistic=18.0, pvalue=0.001)
 # ─── VECM Functions ──────────────────────────────────────
 
 function estimate_vecm(Y::AbstractMatrix, p::Int; rank=nothing, deterministic=:constant,
-                       method=:johansen, significance=0.05)
+                       method=:johansen, significance=0.05,
+                       varnames=["y$i" for i in 1:size(Y, 2)])
     T_obs, n = size(Y)
     r = isnothing(rank) ? min(1, n - 1) : rank
     alpha = ones(n, r) * 0.1
@@ -1613,14 +1624,16 @@ function estimate_vecm(Y::AbstractMatrix, p::Int; rank=nothing, deterministic=:c
     U = zeros(T_obs - p, n) .+ 0.01
     Sigma = Matrix{Float64}(I(n)) * 0.01
     VECMModel(Y, p, r, alpha, beta, Pi, Gamma, mu, U, Sigma,
-              -100.0, -95.0, -97.0, -500.0, deterministic, method)
+              -100.0, -95.0, -97.0, -500.0, deterministic, method,
+              Vector{String}(varnames))
 end
 
 select_vecm_rank(Y::AbstractMatrix, p::Int; criterion=:trace, significance=0.05) =
     min(1, size(Y, 2) - 1)
 
 function to_var(vecm::VECMModel)
-    _mock_var(vecm.Y, vecm.p)
+    # Real threads vecm.varnames into the VAR representation (#119).
+    _mock_var(vecm.Y, vecm.p; varnames=vecm.varnames)
 end
 
 cointegrating_rank(m::VECMModel) = m.rank
