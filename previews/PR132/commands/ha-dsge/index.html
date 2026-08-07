@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>HA-DSGE workflow · Friedman-cli</title><meta name="title" content="HA-DSGE workflow · Friedman-cli"/><meta property="og:title" content="HA-DSGE workflow · Friedman-cli"/><meta property="twitter:title" content="HA-DSGE workflow · Friedman-cli"/><meta name="description" content="Documentation for Friedman-cli."/><meta property="og:description" content="Documentation for Friedman-cli."/><meta property="twitter:description" content="Documentation for Friedman-cli."/><meta property="og:url" content="https://friedmanjp.github.io/Friedman-cli/commands/ha-dsge/"/><meta property="twitter:url" content="https://friedmanjp.github.io/Friedman-cli/commands/ha-dsge/"/><link rel="canonical" href="https://friedmanjp.github.io/Friedman-cli/commands/ha-dsge/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Friedman-cli</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../installation/">Installation</a></li><li><a class="tocitem" href="../../agent-guide/">Agent Guide</a></li><li><span class="tocitem">CLI Reference</span><ul><li><a class="tocitem" href="../overview/">Overview</a></li><li><a class="tocitem" href="../generated/estimate/">Generated: estimate</a></li><li><a class="tocitem" href="../generated/test/">Generated: test</a></li><li><a class="tocitem" href="../generated/irf/">Generated: irf</a></li><li><a class="tocitem" href="../generated/fevd/">Generated: fevd</a></li><li><a class="tocitem" href="../generated/hd/">Generated: hd</a></li><li><a class="tocitem" href="../generated/forecast/">Generated: forecast</a></li><li><a class="tocitem" href="../generated/predict/">Generated: predict</a></li><li><a class="tocitem" href="../generated/residuals/">Generated: residuals</a></li><li><a class="tocitem" href="../generated/filter/">Generated: filter</a></li><li><a class="tocitem" href="../generated/data/">Generated: data</a></li><li><a class="tocitem" href="../generated/io/">Generated: io</a></li><li><a class="tocitem" href="../generated/nowcast/">Generated: nowcast</a></li><li><a class="tocitem" href="../generated/dsge/">Generated: dsge</a></li><li><a class="tocitem" href="../generated/did/">Generated: did</a></li><li><a class="tocitem" href="../generated/multipliers/">Generated: multipliers</a></li><li><a class="tocitem" href="../generated/spectral/">Generated: spectral</a></li><li><a class="tocitem" href="../estimate/">estimate (guide)</a></li><li><a class="tocitem" href="../test/">test (guide)</a></li><li><a class="tocitem" href="../irf/">irf (guide)</a></li><li><a class="tocitem" href="../fevd/">fevd (guide)</a></li><li><a class="tocitem" href="../hd/">hd (guide)</a></li><li><a class="tocitem" href="../forecast/">forecast (guide)</a></li><li><a class="tocitem" href="../predict_residuals/">predict &amp; residuals (guide)</a></li><li><a class="tocitem" href="../filter/">filter (guide)</a></li><li><a class="tocitem" href="../data/">data (guide)</a></li><li><a class="tocitem" href="../io/">io (guide)</a></li><li><a class="tocitem" href="../nowcast/">nowcast (guide)</a></li><li><a class="tocitem" href="../dsge/">dsge (guide)</a></li><li class="is-active"><a class="tocitem" href>HA-DSGE workflow</a><ul class="internal"><li><a class="tocitem" href="#Goal"><span>Goal</span></a></li><li><a class="tocitem" href="#Builtins"><span>Builtins</span></a></li><li><a class="tocitem" href="#Method-choice"><span>Method choice</span></a></li><li><a class="tocitem" href="#1.-Stationary-equilibrium"><span>1. Stationary equilibrium</span></a></li><li><a class="tocitem" href="#2.-Solve-(Reiter)"><span>2. Solve (Reiter)</span></a></li><li><a class="tocitem" href="#3.-Aggregate-IRF"><span>3. Aggregate IRF</span></a></li><li><a class="tocitem" href="#4.-Distribution-and-inequality-IRFs-(Reiter-only)"><span>4. Distribution and inequality IRFs (Reiter only)</span></a></li><li><a class="tocitem" href="#5.-Panel-simulation"><span>5. Panel simulation</span></a></li><li><a class="tocitem" href="#Continuous-time-HA-and-Blanchard-OLG"><span>Continuous-time HA and Blanchard OLG</span></a></li><li><a class="tocitem" href="#6.-Bayesian-estimation"><span>6. Bayesian estimation</span></a></li><li><a class="tocitem" href="#Solution-accuracy:-dsge-ha-accuracy"><span>Solution accuracy: <code>dsge ha accuracy</code></span></a></li><li><a class="tocitem" href="#Upstream-feature-coverage-(Stage-14-audit)"><span>Upstream feature coverage (Stage-14 audit)</span></a></li><li><a class="tocitem" href="#Pitfalls"><span>Pitfalls</span></a></li><li><a class="tocitem" href="#References"><span>References</span></a></li></ul></li><li><a class="tocitem" href="../did/">did (guide)</a></li><li><a class="tocitem" href="../multipliers/">multipliers (guide)</a></li><li><a class="tocitem" href="../favar/">favar &amp; sdfm (guide)</a></li><li><a class="tocitem" href="../structural-breaks/">structural breaks (guide)</a></li><li><a class="tocitem" href="../panel-unit-root/">panel unit root (guide)</a></li><li><a class="tocitem" href="../spectral/">spectral (guide)</a></li><li><a class="tocitem" href="../panel-regression/">panel regression (guide)</a></li><li><a class="tocitem" href="../ordered-multinomial/">ordered &amp; multinomial (guide)</a></li></ul></li><li><a class="tocitem" href="../../repl/">Interactive REPL</a></li><li><a class="tocitem" href="../../configuration/">Configuration</a></li><li><a class="tocitem" href="../../api/">API Reference</a></li><li><a class="tocitem" href="../../architecture/">Architecture</a></li><li><a class="tocitem" href="../../docrule/">Documentation rules</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">CLI Reference</a></li><li class="is-active"><a href>HA-DSGE workflow</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>HA-DSGE workflow</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/FriedmanJP/Friedman-cli" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/FriedmanJP/Friedman-cli/blob/master/docs/src/commands/ha-dsge.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="HA-DSGE-workflow"><a class="docs-heading-anchor" href="#HA-DSGE-workflow">HA-DSGE workflow</a><a id="HA-DSGE-workflow-1"></a><a class="docs-heading-anchor-permalink" href="#HA-DSGE-workflow" title="Permalink"></a></h1><p>Heterogeneous-agent DSGE from the terminal: stationarity, linearization (SSJ / Reiter / Krusell–Smith), aggregate and distributional IRFs, and panel simulation. Builtins ship with MacroEconometricModels — no model file required to start.</p><p>Option tables: <a href="../generated/dsge/">generated <code>dsge</code> reference</a>. Representative-agent DSGE (gensys, OccBin, bayes): <a href="../dsge/">dsge guide</a>.</p><hr/><h2 id="Goal"><a class="docs-heading-anchor" href="#Goal">Goal</a><a id="Goal-1"></a><a class="docs-heading-anchor-permalink" href="#Goal" title="Permalink"></a></h2><p>Compute a stationary equilibrium for a small incomplete-markets economy, solve a linear HA system, inspect aggregate and distributional impulse responses, and summarize a simulated agent panel.</p><hr/><h2 id="Builtins"><a class="docs-heading-anchor" href="#Builtins">Builtins</a><a id="Builtins-1"></a><a class="docs-heading-anchor-permalink" href="#Builtins" title="Permalink"></a></h2><table><tr><th style="text-align: right">Token</th><th style="text-align: right">Model</th><th style="text-align: right">Notes</th></tr><tr><td style="text-align: right"><code>huggett</code></td><td style="text-align: right">Huggett (1993)</td><td style="text-align: right">Smallest; preferred for CI and quick starts</td></tr><tr><td style="text-align: right"><code>krusell-smith</code></td><td style="text-align: right">Krusell–Smith (1998)</td><td style="text-align: right">Aggregate capital PLM</td></tr><tr><td style="text-align: right"><code>one-asset-hank</code></td><td style="text-align: right">One-asset HANK</td><td style="text-align: right">Medium</td></tr><tr><td style="text-align: right"><code>two-asset-hank</code></td><td style="text-align: right">Two-asset HANK</td><td style="text-align: right">Largest</td></tr></table><p>Any of these tokens may be written with a leading colon (<code>:huggett</code>). A <code>.jl</code> file that evaluates to <code>HADSGESpec</code> is also accepted.</p><h3 id="Custom-models-from-a-.jl-file"><a class="docs-heading-anchor" href="#Custom-models-from-a-.jl-file">Custom models from a <code>.jl</code> file</a><a id="Custom-models-from-a-.jl-file-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-models-from-a-.jl-file" title="Permalink"></a></h3><p>An HA spec file is an <code>@dsge begin … end</code> block carrying the three heterogeneous-agent declarations. The file needs no <code>using MacroEconometricModels</code> of its own — the loader evaluates it in a sandbox where the package&#39;s exports are already in scope:</p><pre><code class="language-julia hljs"># aiyagari.jl
+@dsge begin
+    parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
+    endogenous: Y, K, r, w, Z
+    exogenous: eps_Z
+
+    heterogeneous: a in [0.0, 400.0], n_grid = 60, utility = log, discount = beta_hh, borrowing = 0.0
+    idiosyncratic: e ~ Rouwenhorst(0.966, 0.5, 5)
+    aggregation: K = sum(a)
+
+    Y[t] = Z[t] * K[t-1]^alpha
+    r[t] = alpha * Z[t] * K[t-1]^(alpha-1) - delta
+    w[t] = (1 - alpha) * Z[t] * K[t-1]^alpha
+    Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
+end</code></pre><pre><code class="language-bash hljs">friedman dsge ha steady-state aiyagari.jl</code></pre><p>Set <code>a in [0.0, a_max]</code> generously. If too much of the stationary distribution piles up at <code>a_max</code>, the asset market does not really clear and <code>excess_demand</code> cannot detect it, because it is measured on the clamped aggregate; MEMs warns about this on stderr, and the warning is worth acting on rather than ignoring.</p><div class="admonition is-info" id="Fixed-in-v0.9.1-7784944d0da8b8d"><header class="admonition-header">Fixed in v0.9.1<a class="admonition-anchor" href="#Fixed-in-v0.9.1-7784944d0da8b8d" title="Permalink"></a></header><div class="admonition-body"><p>Before v0.9.1 this path did not work at all (<a href="https://github.com/FriedmanJP/Friedman-cli/issues/80">#80</a>): every <code>.jl</code> HA model failed with <code>UndefVarError: @dsge</code>, because the loader&#39;s sandbox injected the package object but not its exports. Builtin names were unaffected.</p></div></div><hr/><h2 id="Method-choice"><a class="docs-heading-anchor" href="#Method-choice">Method choice</a><a id="Method-choice-1"></a><a class="docs-heading-anchor-permalink" href="#Method-choice" title="Permalink"></a></h2><table><tr><th style="text-align: right"><code>--method</code></th><th style="text-align: right">Use when</th><th style="text-align: right">Aggregate IRF/FEVD/sim</th><th style="text-align: right">Distribution / inequality IRF</th></tr><tr><td style="text-align: right"><code>ssj</code></td><td style="text-align: right">Sequence-space Jacobians; default for <code>solve</code></td><td style="text-align: right">yes</td><td style="text-align: right">no (no distribution basis)</td></tr><tr><td style="text-align: right"><code>reiter</code></td><td style="text-align: right">Linearized distribution + aggregates</td><td style="text-align: right">yes</td><td style="text-align: right"><strong>yes</strong> (Reiter only)</td></tr><tr><td style="text-align: right"><code>krusell-smith</code></td><td style="text-align: right">PLM fixed point for capital</td><td style="text-align: right">no linear IRF path</td><td style="text-align: right">no</td></tr></table><p><code>--n-reduced</code> controls the reduced distribution dimension for SSJ/Reiter (use a small value interactively; larger for accuracy).</p><hr/><h2 id="1.-Stationary-equilibrium"><a class="docs-heading-anchor" href="#1.-Stationary-equilibrium">1. Stationary equilibrium</a><a id="1.-Stationary-equilibrium-1"></a><a class="docs-heading-anchor-permalink" href="#1.-Stationary-equilibrium" title="Permalink"></a></h2><p>Start with the Huggett builtin. Status lines go to stderr; JSON below is stdout only.</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman dsge ha steady-state huggett --format json</code></pre><pre><code class="language-json hljs">{
+    &quot;meta&quot;: {
+    },
+    &quot;error&quot;: null,
+    &quot;status&quot;: &quot;ok&quot;,
+    &quot;command&quot;: &quot;friedman dsge ha steady-state&quot;,
+    &quot;data&quot;: {
+        &quot;ha_euler_accuracy_log10_by_convention&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;midpoints&quot;,
+                    -1.9362687,
+                    -4.5398656,
+                    584,
+                    14,
+                    0
+                ],
+                [
+                    &quot;nodes&quot;,
+                    -4.4699492,
+                    -5.6558001,
+                    585,
+                    15,
+                    0
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;convention&quot;,
+                &quot;max&quot;,
+                &quot;mean&quot;,
+                &quot;n_evaluated&quot;,
+                &quot;n_constrained&quot;,
+                &quot;n_offgrid&quot;
+            ]
+        },
+        &quot;ha_steady_state_diagnostics&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;converged&quot;,
+                    1
+                ],
+                [
+                    &quot;iterations&quot;,
+                    28
+                ],
+                [
+                    &quot;euler_error&quot;,
+                    -1.9362687
+                ],
+                [
+                    &quot;excess_demand&quot;,
+                    -5.913559e-9
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;metric&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;ha_steady_state_prices&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;w&quot;,
+                    1
+                ],
+                [
+                    &quot;r&quot;,
+                    -0.013070272
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;name&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;ha_steady_state_aggregates&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;K_demand&quot;,
+                    0
+                ],
+                [
+                    &quot;A_policy&quot;,
+                    -5.9135589e-9
+                ],
+                [
+                    &quot;A_residual&quot;,
+                    0
+                ],
+                [
+                    &quot;K&quot;,
+                    -5.913559e-9
+                ],
+                [
+                    &quot;Y&quot;,
+                    0.8826087
+                ],
+                [
+                    &quot;excess_demand&quot;,
+                    -5.913559e-9
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;name&quot;,
+                &quot;value&quot;
+            ]
+        }
+    },
+    &quot;warnings&quot;: [
+    ],
+    &quot;schema_version&quot;: 1,
+    &quot;artifacts&quot;: [
+    ]
+}</code></pre><p><strong>Interpretation.</strong> Envelope <code>status</code> is <code>ok</code>. Tables under <code>data</code> report prices (<code>w</code>, <code>r</code>), aggregates (<code>Y</code>, <code>K</code>, …), and diagnostics (<code>converged</code>, <code>iterations</code>, <code>euler_error</code>, <code>excess_demand</code>). A near-zero excess demand and <code>converged = 1</code> indicate a successful fixed point.</p><h3 id="Euler-accuracy-and-euler-points"><a class="docs-heading-anchor" href="#Euler-accuracy-and-euler-points">Euler accuracy and <code>--euler-points</code></a><a id="Euler-accuracy-and-euler-points-1"></a><a class="docs-heading-anchor-permalink" href="#Euler-accuracy-and-euler-points" title="Permalink"></a></h3><p><code>euler_error</code> is <code>log10</code> of the maximum Euler residual — <code>-2</code> means about 1%, <code>-4</code> about 0.01%; more negative is better. It is a maximum over <em>unconstrained</em> points only, since the Euler equation holds with inequality where the borrowing constraint binds.</p><p><strong>Where the residual is measured changes it by orders of magnitude.</strong> EGM solves the Euler equation essentially exactly <em>at the grid nodes</em>, so evaluating there scores the solver rather than the approximation. Measuring off-node, at the cell midpoints, exposes the interpolation error that a user of the policy function actually incurs:</p><pre><code class="language-bash hljs">friedman dsge ha steady-state huggett                       # midpoints (default)
+friedman dsge ha steady-state huggett --euler-points nodes  # the older convention</code></pre><p>On <code>huggett</code> the same steady state reports <code>-1.94</code> at midpoints and <code>-4.47</code> at nodes — a gap of 2.5 log₁₀ units, i.e. the node figure is optimistic by a factor of about 300.</p><p>Because that gap is so wide, the <code>Euler Accuracy</code> table reports <strong>both</strong> conventions regardless of which one you select, with <code>n_evaluated</code> / <code>n_constrained</code> / <code>n_offgrid</code> alongside:</p><table><tr><th style="text-align: right">convention</th><th style="text-align: right">max</th><th style="text-align: right">mean</th><th style="text-align: right">n_evaluated</th><th style="text-align: right">n_constrained</th><th style="text-align: right">n_offgrid</th></tr><tr><td style="text-align: right">midpoints</td><td style="text-align: right">-1.93627</td><td style="text-align: right">-4.53987</td><td style="text-align: right">584</td><td style="text-align: right">14</td><td style="text-align: right">0</td></tr><tr><td style="text-align: right">nodes</td><td style="text-align: right">-4.46995</td><td style="text-align: right">-5.6558</td><td style="text-align: right">585</td><td style="text-align: right">15</td><td style="text-align: right">0</td></tr></table><p><code>--euler-points</code> selects only which of the two the scalar <code>euler_error</code> diagnostic reports.</p><div class="admonition is-warning" id="Comparing-against-published-numbers-a56c50a4ec1115fe"><header class="admonition-header">Comparing against published numbers<a class="admonition-anchor" href="#Comparing-against-published-numbers-a56c50a4ec1115fe" title="Permalink"></a></header><div class="admonition-body"><p>Figures published for this package before MEMs 0.7.2 used the <strong>node</strong> convention, which is now the non-default. Check which convention a number came from before comparing; <code>midpoints</code> will look dramatically worse for the same solution without anything having got worse. The table above exists so the comparison can always be made on like terms.</p></div></div><hr/><h2 id="2.-Solve-(Reiter)"><a class="docs-heading-anchor" href="#2.-Solve-(Reiter)">2. Solve (Reiter)</a><a id="2.-Solve-(Reiter)-1"></a><a class="docs-heading-anchor-permalink" href="#2.-Solve-(Reiter)" title="Permalink"></a></h2><p>Linearize with a small reduced basis for a fast interactive solve.</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json</code></pre><pre><code class="language-json hljs">{
+    &quot;meta&quot;: {
+    },
+    &quot;error&quot;: null,
+    &quot;status&quot;: &quot;ok&quot;,
+    &quot;command&quot;: &quot;friedman dsge ha solve&quot;,
+    &quot;data&quot;: {
+        &quot;ha_euler_accuracy_log10_by_convention&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;midpoints&quot;,
+                    -1.9362687,
+                    -4.5398656,
+                    584,
+                    14,
+                    0
+                ],
+                [
+                    &quot;nodes&quot;,
+                    -4.4699492,
+                    -5.6558001,
+                    585,
+                    15,
+                    0
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;convention&quot;,
+                &quot;max&quot;,
+                &quot;mean&quot;,
+                &quot;n_evaluated&quot;,
+                &quot;n_constrained&quot;,
+                &quot;n_offgrid&quot;
+            ]
+        },
+        &quot;ha_dsge_solve_diagnostics_method_reiter&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;method&quot;,
+                    &quot;reiter&quot;
+                ],
+                [
+                    &quot;n_full_states&quot;,
+                    &quot;600&quot;
+                ],
+                [
+                    &quot;n_reduced&quot;,
+                    &quot;8&quot;
+                ],
+                [
+                    &quot;explained_variance&quot;,
+                    &quot;0.9999999999994282&quot;
+                ],
+                [
+                    &quot;obs_rows&quot;,
+                    &quot;9&quot;
+                ],
+                [
+                    &quot;obs_cols&quot;,
+                    &quot;9&quot;
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;metric&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;ha_steady_state_diagnostics&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;converged&quot;,
+                    1
+                ],
+                [
+                    &quot;iterations&quot;,
+                    28
+                ],
+                [
+                    &quot;euler_error&quot;,
+                    -1.9362687
+                ],
+                [
+                    &quot;excess_demand&quot;,
+                    -5.913559e-9
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;metric&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;ha_steady_state_prices&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;w&quot;,
+                    1
+                ],
+                [
+                    &quot;r&quot;,
+                    -0.013070272
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;name&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;ha_steady_state_aggregates&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;K_demand&quot;,
+                    0
+                ],
+                [
+                    &quot;A_policy&quot;,
+                    -5.9135589e-9
+                ],
+                [
+                    &quot;A_residual&quot;,
+                    0
+                ],
+                [
+                    &quot;K&quot;,
+                    -5.913559e-9
+                ],
+                [
+                    &quot;Y&quot;,
+                    0.8826087
+                ],
+                [
+                    &quot;excess_demand&quot;,
+                    -5.913559e-9
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;name&quot;,
+                &quot;value&quot;
+            ]
+        }
+    },
+    &quot;warnings&quot;: [
+    ],
+    &quot;schema_version&quot;: 1,
+    &quot;artifacts&quot;: [
+    ]
+}</code></pre><p><strong>Interpretation.</strong> Diagnostics name the method (<code>reiter</code>) and reduced dimension. Aggregates/prices match the steady-state block above up to solver noise. For production runs, raise <code>--n-reduced</code> (default 30).</p><hr/><h2 id="3.-Aggregate-IRF"><a class="docs-heading-anchor" href="#3.-Aggregate-IRF">3. Aggregate IRF</a><a id="3.-Aggregate-IRF-1"></a><a class="docs-heading-anchor-permalink" href="#3.-Aggregate-IRF" title="Permalink"></a></h2><p>Impulse responses on the linearized aggregate system (Reiter or SSJ).</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman dsge ha irf huggett --method reiter --n-reduced 8 --horizon 5 --format json</code></pre><pre><code class="language-json hljs">{
+    &quot;meta&quot;: {
+    },
+    &quot;error&quot;: null,
+    &quot;status&quot;: &quot;ok&quot;,
+    &quot;command&quot;: &quot;friedman dsge ha irf&quot;,
+    &quot;data&quot;: {
+        &quot;ha_dsge_irf_shock_epsilon_method_reiter_h_5&quot;: {
+            &quot;rows&quot;: [
+                [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    1,
+                    0.00011352359,
+                    0.00039011323,
+                    0.00032736955,
+                    -0.0017093784,
+                    2.3099145e-5,
+                    0.00051854147,
+                    -0.00021961882,
+                    0.00057375851,
+                    1
+                ],
+                [
+                    2,
+                    0.00017924288,
+                    0.00061151741,
+                    0.00047777205,
+                    -0.0024747127,
+                    0.00013533925,
+                    0.0002728106,
+                    1.6736213e-5,
+                    0.0003966407,
+                    0.9
+                ],
+                [
+                    3,
+                    0.00020299653,
+                    0.00068884024,
+                    0.00051007232,
+                    -0.0026145215,
+                    7.1739359e-5,
+                    -0.00028695039,
+                    2.9265911e-5,
+                    0.00034358471,
+                    0.81
+                ],
+                [
+                    4,
+                    0.0002036366,
+                    0.0006886159,
+                    0.00049284669,
+                    -0.0025114572,
+                    -0.00016252479,
+                    -0.00068615162,
+                    0.00011802344,
+                    0.00032973828,
+                    0.729
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;horizon&quot;,
+                &quot;x_1&quot;,
+                &quot;x_2&quot;,
+                &quot;x_3&quot;,
+                &quot;x_4&quot;,
+                &quot;x_5&quot;,
+                &quot;x_6&quot;,
+                &quot;x_7&quot;,
+                &quot;x_8&quot;,
+                &quot;x_9&quot;
+            ]
+        }
+    },
+    &quot;warnings&quot;: [
+    ],
+    &quot;schema_version&quot;: 1,
+    &quot;artifacts&quot;: [
+    ]
+}</code></pre><p><strong>Interpretation.</strong> The IRF table stacks horizons × observables for each aggregate shock. Horizon here is short (<code>5</code>) for a compact capture; typical analysis uses the default (<code>40</code>).</p><p>Related:</p><pre><code class="language-bash hljs">friedman dsge ha fevd huggett --method reiter --n-reduced 8 --horizon 40
+friedman dsge ha simulate huggett --method reiter --n-reduced 8 --periods 200 --seed 1</code></pre><hr/><h2 id="4.-Distribution-and-inequality-IRFs-(Reiter-only)"><a class="docs-heading-anchor" href="#4.-Distribution-and-inequality-IRFs-(Reiter-only)">4. Distribution and inequality IRFs (Reiter only)</a><a id="4.-Distribution-and-inequality-IRFs-(Reiter-only)-1"></a><a class="docs-heading-anchor-permalink" href="#4.-Distribution-and-inequality-IRFs-(Reiter-only)" title="Permalink"></a></h2><p>Wealth-distribution mass deviations and Gini / percentile paths require Reiter’s distribution basis. SSJ returns a usage error for these leaves.</p><pre><code class="language-bash hljs">friedman dsge ha distribution-irf huggett --method reiter --n-reduced 8 --horizon 40
+friedman dsge ha inequality-irf huggett --method reiter --n-reduced 8 --horizon 40</code></pre><p>Use <code>--shock-index</code> / <code>--shock-size</code> to pick the aggregate shock and scale.</p><hr/><h2 id="5.-Panel-simulation"><a class="docs-heading-anchor" href="#5.-Panel-simulation">5. Panel simulation</a><a id="5.-Panel-simulation-1"></a><a class="docs-heading-anchor-permalink" href="#5.-Panel-simulation" title="Permalink"></a></h2><p>Draw individual asset paths from steady-state policies (no linearization method required).</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman dsge ha simulate-panel huggett --n-agents 100 --periods 20 --seed 1 --format json</code></pre><pre><code class="language-json hljs">{
+    &quot;meta&quot;: {
+    },
+    &quot;error&quot;: null,
+    &quot;status&quot;: &quot;ok&quot;,
+    &quot;command&quot;: &quot;friedman dsge ha simulate-panel&quot;,
+    &quot;data&quot;: {
+        &quot;ha_panel_simulation_summary_n_100_t_20&quot;: {
+            &quot;rows&quot;: [
+                [
+                    1,
+                    -0.035992766,
+                    0.73885762,
+                    100
+                ],
+                [
+                    2,
+                    -0.030462912,
+                    0.69384416,
+                    100
+                ],
+                [
+                    3,
+                    -0.025137983,
+                    0.66307689,
+                    100
+                ],
+                [
+                    4,
+                    -0.010305077,
+                    0.66949271,
+                    100
+                ],
+                [
+                    5,
+                    -0.0010538745,
+                    0.68262336,
+                    100
+                ],
+                [
+                    6,
+                    0.021488586,
+                    0.68257806,
+                    100
+                ],
+                [
+                    7,
+                    0.063707879,
+                    0.63921679,
+                    100
+                ],
+                [
+                    8,
+                    0.046261666,
+                    0.6428119,
+                    100
+                ],
+                [
+                    9,
+                    0.061113696,
+                    0.66001583,
+                    100
+                ],
+                [
+                    10,
+                    0.037473753,
+                    0.66600819,
+                    100
+                ],
+                [
+                    11,
+                    0.050215433,
+                    0.64892452,
+                    100
+                ],
+                [
+                    12,
+                    -0.0051117798,
+                    0.6838137,
+                    100
+                ],
+                [
+                    13,
+                    0.0063927045,
+                    0.704722,
+                    100
+                ],
+                [
+                    14,
+                    0.0384567,
+                    0.70135607,
+                    100
+                ],
+                [
+                    15,
+                    0.074085061,
+                    0.66855733,
+                    100
+                ],
+                [
+                    16,
+                    0.10643318,
+                    0.65086954,
+                    100
+                ],
+                [
+                    17,
+                    0.13342213,
+                    0.63093263,
+                    100
+                ],
+                [
+                    18,
+                    0.16279669,
+                    0.59830539,
+                    100
+                ],
+                [
+                    19,
+                    0.15147237,
+                    0.56102337,
+                    100
+                ],
+                [
+                    20,
+                    0.12273524,
+                    0.59750907,
+                    100
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;period&quot;,
+                &quot;mean_assets&quot;,
+                &quot;sd_assets&quot;,
+                &quot;n_agents&quot;
+            ]
+        }
+    },
+    &quot;warnings&quot;: [
+    ],
+    &quot;schema_version&quot;: 1,
+    &quot;artifacts&quot;: [
+    ]
+}</code></pre><p><strong>Interpretation.</strong> The panel summary tracks mean (and related) asset holdings over time for <code>n-agents</code> agents. Fix <code>--seed</code> for reproducibility.</p><hr/><h2 id="Continuous-time-HA-and-Blanchard-OLG"><a class="docs-heading-anchor" href="#Continuous-time-HA-and-Blanchard-OLG">Continuous-time HA and Blanchard OLG</a><a id="Continuous-time-HA-and-Blanchard-OLG-1"></a><a class="docs-heading-anchor-permalink" href="#Continuous-time-HA-and-Blanchard-OLG" title="Permalink"></a></h2><p>Sibling nodes for continuous-time Aiyagari (optional two-asset KMV) and perpetual-youth OLG:</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman dsge ct solve --grid-size 50 --format json</code></pre><pre><code class="language-json hljs">{
+    &quot;meta&quot;: {
+    },
+    &quot;error&quot;: null,
+    &quot;status&quot;: &quot;ok&quot;,
+    &quot;command&quot;: &quot;friedman dsge ct solve&quot;,
+    &quot;data&quot;: {
+        &quot;ct_aiyagari_aggregates&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;K&quot;,
+                    1.2912617
+                ],
+                [
+                    &quot;L&quot;,
+                    0.15
+                ],
+                [
+                    &quot;converged&quot;,
+                    1
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;name&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;ct_aiyagari_prices&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;r&quot;,
+                    0.040771932
+                ],
+                [
+                    &quot;w&quot;,
+                    1.3891603
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;name&quot;,
+                &quot;value&quot;
+            ]
+        }
+    },
+    &quot;warnings&quot;: [
+    ],
+    &quot;schema_version&quot;: 1,
+    &quot;artifacts&quot;: [
+    ]
+}</code></pre><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman dsge olg solve --format json</code></pre><pre><code class="language-json hljs">{
+    &quot;meta&quot;: {
+    },
+    &quot;error&quot;: null,
+    &quot;status&quot;: &quot;ok&quot;,
+    &quot;command&quot;: &quot;friedman dsge olg solve&quot;,
+    &quot;data&quot;: {
+        &quot;blanchard_olg_steady_state&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;k&quot;,
+                    5.1239604
+                ],
+                [
+                    &quot;C&quot;,
+                    1.3908525
+                ],
+                [
+                    &quot;r&quot;,
+                    0.046518726
+                ],
+                [
+                    &quot;w&quot;,
+                    1.1524923
+                ],
+                [
+                    &quot;H&quot;,
+                    18.131809
+                ],
+                [
+                    &quot;mpc&quot;,
+                    0.0592
+                ],
+                [
+                    &quot;b&quot;,
+                    0
+                ],
+                [
+                    &quot;converged&quot;,
+                    1
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;variable&quot;,
+                &quot;value&quot;
+            ]
+        },
+        &quot;blanchard_olg_dynamics&quot;: {
+            &quot;rows&quot;: [
+                [
+                    &quot;stable_eig&quot;,
+                    0.88375665
+                ],
+                [
+                    &quot;policy_slope&quot;,
+                    0.16276208
+                ],
+                [
+                    &quot;determinate&quot;,
+                    1
+                ],
+                [
+                    &quot;eig1_mod&quot;,
+                    0.88375665
+                ],
+                [
+                    &quot;eig2_mod&quot;,
+                    1.1896865
+                ]
+            ],
+            &quot;columns&quot;: [
+                &quot;metric&quot;,
+                &quot;value&quot;
+            ]
+        }
+    },
+    &quot;warnings&quot;: [
+    ],
+    &quot;schema_version&quot;: 1,
+    &quot;artifacts&quot;: [
+    ]
+}</code></pre><pre><code class="language-bash hljs">friedman dsge ct transition --periods 40 --shock-size 0.95 --dt 0.25
+friedman dsge olg simulate --horizon 50</code></pre><p>See <a href="../dsge/#continuous-time-ha-dsge-ct--c041">dsge guide — CT and OLG</a> for options.</p><hr/><h2 id="6.-Bayesian-estimation"><a class="docs-heading-anchor" href="#6.-Bayesian-estimation">6. Bayesian estimation</a><a id="6.-Bayesian-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#6.-Bayesian-estimation" title="Permalink"></a></h2><p><code>dsge ha estimate</code> estimates HA-DSGE parameters by Random-Walk Metropolis-Hastings. This shipped in CLI v0.6.0 once upstream <strong>MEMs#228</strong> was fixed (the Kalman observation matrix <code>Z</code> is now built from the reduction <code>C</code> rows, so observables map to the right reduced states). Each RWMH draw <strong>re-solves the full HA model</strong> (steady state → linearization → Kalman likelihood), the Auclert-Bardóczy-Rognlie-Straub (2021) &quot;offline&quot; approach — so keep <code>--n-draws</code> modest and prefer small <code>--n-reduced</code> / <code>--t-horizon</code> while prototyping.</p><p>Priors live in a <code>[priors]</code> TOML; the two numbers are the distribution&#39;s constructor args (<code>normal</code> → mean, sd):</p><pre><code class="language-toml hljs">[priors]
+[priors.alpha]
+dist = &quot;normal&quot;
+a = 0.36
+b = 0.05</code></pre><pre><code class="language-bash hljs">friedman dsge ha estimate krusell-smith \
+  --data aggregates.csv --priors priors.toml \
+  --observables K --method ssj \
+  --n-draws 2000 --burnin 500 --t-horizon 300 --n-reduced 15 \
+  --seed 1 --format json</code></pre><p>Output is a posterior summary table (<code>mean</code>, <code>std</code>, <code>q05</code>, <code>median</code>, <code>q95</code> per parameter); the acceptance rate and effective draw count go to stderr. <code>--measurement-error auto</code> adds per-observable measurement error at 10% of each series&#39; variance (needed when observables exceed structural shocks). <code>--method krusell-smith</code> is rejected — the Kalman filter needs a linear state space, so use <code>ssj</code> or <code>reiter</code>.</p><hr/><h2 id="Solution-accuracy:-dsge-ha-accuracy"><a class="docs-heading-anchor" href="#Solution-accuracy:-dsge-ha-accuracy">Solution accuracy: <code>dsge ha accuracy</code></a><a id="Solution-accuracy:-dsge-ha-accuracy-1"></a><a class="docs-heading-anchor-permalink" href="#Solution-accuracy:-dsge-ha-accuracy" title="Permalink"></a></h2><p>Den Haan (2010) accuracy of the aggregate law of motion. The law is only an approximation of the true aggregate dynamics, and this is the standard way to score how far the two drift apart: it simulates the economy twice from the same shocks — once tracking the full cross-sectional distribution (the <em>reference</em> path) and once letting the law forecast the aggregate on its own — and reports the percentage deviation between them.</p><pre><code class="language-bash hljs">friedman dsge ha accuracy krusell-smith --t-sim 10000 --t-burn 1000
+friedman dsge ha accuracy krusell-smith --method reiter --t-fit 4000</code></pre><table><tr><th style="text-align: right">Option</th><th style="text-align: right">Type</th><th style="text-align: right">Default</th><th style="text-align: right">Description</th></tr><tr><td style="text-align: right"><code>--method</code></td><td style="text-align: right">String</td><td style="text-align: right"><code>krusell-smith</code></td><td style="text-align: right">Solution to score: <code>krusell-smith</code>, <code>ssj</code>, <code>reiter</code></td></tr><tr><td style="text-align: right"><code>--n-reduced</code></td><td style="text-align: right">Int</td><td style="text-align: right">30</td><td style="text-align: right">Reduced distribution states for the solve</td></tr><tr><td style="text-align: right"><code>--t-sim</code></td><td style="text-align: right">Int</td><td style="text-align: right">10000</td><td style="text-align: right">Simulation length (must exceed <code>--t-burn</code> by ≥ 10)</td></tr><tr><td style="text-align: right"><code>--t-burn</code></td><td style="text-align: right">Int</td><td style="text-align: right">1000</td><td style="text-align: right">Burn-in discarded before scoring</td></tr><tr><td style="text-align: right"><code>--t-fit</code></td><td style="text-align: right">Int</td><td style="text-align: right">4000</td><td style="text-align: right">Periods used to fit the implied law (&gt; 100; <code>ssj</code>/<code>reiter</code> only)</td></tr><tr><td style="text-align: right"><code>--rho-z</code> / <code>--sigma-z</code></td><td style="text-align: right">Float64</td><td style="text-align: right">0.95 / 0.007</td><td style="text-align: right">Aggregate shock persistence and s.d.</td></tr><tr><td style="text-align: right"><code>--seed</code></td><td style="text-align: right">Int</td><td style="text-align: right">98765</td><td style="text-align: right">Simulation seed</td></tr><tr><td style="text-align: right"><code>--plot</code> / <code>--plot-save</code></td><td style="text-align: right">Flag/String</td><td style="text-align: right"></td><td style="text-align: right">Reference vs law-only path</td></tr></table><p><strong>Output:</strong> <code>dh_max</code> and <code>dh_mean</code> (maximum and mean percentage deviation — smaller is better), the two simulation standard deviations <code>sigma_ref</code>/<code>sigma_plm</code>, the full reference and law-only aggregate paths as a second table, and the simulation settings (which record the method that produced the number).</p><p>Two different laws can be scored. Under <code>krusell-smith</code> it is the <em>fitted</em> perceived law of motion. Under <code>ssj</code>/<code>reiter</code> there is no PLM, so the implied law is <strong>recovered by regression</strong> from a <code>--t-fit</code>-period simulation of the linearized solution.</p><div class="admonition is-warning" id="Do-not-compare-across-methods-586e4d5567924f81"><header class="admonition-header">Do not compare across methods<a class="admonition-anchor" href="#Do-not-compare-across-methods-586e4d5567924f81" title="Permalink"></a></header><div class="admonition-body"><p>The linearized statistic is much larger than the Krusell–Smith one and is method-dependent. Upstream measures <code>dh_max</code> at 0.07% for the fitted Krusell–Smith PLM against <strong>12.2% for <code>ssj</code> and 5.5% for <code>reiter</code></strong> — two solutions of the <em>same</em> model differing by more than a factor of two.</p><p>Three errors are superimposed and this statistic does not separate them: a two-state aggregate law, linearization around the steady state, and a law recovered by regression rather than fitted as a fixed point. Treat it as a <strong>relative</strong> diagnostic — same model, same <code>sigma_z</code>, <code>--t-sim</code> and <code>--seed</code>, comparing a solution against itself under different settings — not as an absolute accuracy certificate.</p><p><code>sigma_ref</code> vs <code>sigma_plm</code> is the more interpretable output, and is the actual Den Haan point: a high solution <code>R²</code> routinely hides a volatility miss.</p></div></div><p><strong>Undefined for <code>huggett</code>.</strong> Its clearing rate is driven by the wealth distribution rather than the aggregate shock alone, so a meaningful test there needs a distribution-augmented law. The CLI refuses before running the (expensive) solve rather than after it.</p><h2 id="Upstream-feature-coverage-(Stage-14-audit)"><a class="docs-heading-anchor" href="#Upstream-feature-coverage-(Stage-14-audit)">Upstream feature coverage (Stage-14 audit)</a><a id="Upstream-feature-coverage-(Stage-14-audit)-1"></a><a class="docs-heading-anchor-permalink" href="#Upstream-feature-coverage-(Stage-14-audit)" title="Permalink"></a></h2><p>MacroEconometricModels 0.7.2 added a block of heterogeneous-agent / OLG / continuous-time features. Not all of them warrant CLI surface; this records where each stands, so the absence of a command is a decision rather than an oversight.</p><table><tr><th style="text-align: right">Upstream feature</th><th style="text-align: right">Status in the CLI</th></tr><tr><td style="text-align: right">Den Haan accuracy</td><td style="text-align: right"><strong>Exposed</strong> as <code>dsge ha accuracy</code> (above), for all three solution methods</td></tr><tr><td style="text-align: right">Winberry parametric distribution dynamics</td><td style="text-align: right">Reachable via the existing <code>dsge ha</code> method surface; note the library&#39;s convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines</td></tr><tr><td style="text-align: right">SSJ DAG / second-order SSJ</td><td style="text-align: right"><strong>Deferred.</strong> Block-composition types (<code>SimpleBlock</code>/<code>HetBlock</code>/<code>SSJModel</code>) are a model-<em>construction</em> API. Exposing them means a config schema for wiring blocks, which is a design task in its own right, not an option on an existing leaf</td></tr><tr><td style="text-align: right">DCEGM (discrete–continuous choice)</td><td style="text-align: right"><strong>Deferred.</strong> Needs a builtin carrying a discrete choice; none of the shipped builtins has one, so a leaf would have nothing to run</td></tr><tr><td style="text-align: right">Life-cycle OLG (age-EGM)</td><td style="text-align: right"><strong>Deferred.</strong> A distinct model class with its own steady state and distribution objects, not an option on the existing two-period <code>dsge olg</code> leaves</td></tr><tr><td style="text-align: right">Endogenous labour (GHH / separable)</td><td style="text-align: right"><strong>Deferred.</strong> A property of a model spec, so it belongs in the builtin/config surface rather than a flag</td></tr><tr><td style="text-align: right">Adaptive Smolyak / adaptive grids</td><td style="text-align: right"><strong>No new surface.</strong> Grid construction is internal to solving; the existing <code>--n-reduced</code> already governs the accuracy/cost trade-off users actually tune</td></tr><tr><td style="text-align: right">KMV two-asset GE + MIT transitions</td><td style="text-align: right"><strong>Deferred.</strong> Substantial new surface (two-asset calibration, transition paths); the existing <code>dsge ct</code> leaves cover the one-asset case</td></tr></table><p>Deferred rows are gated on a concrete use case rather than on upstream — the methods exist today and can be reached from Julia directly.</p><p>Two related items settled with the same audit:</p><ul><li><strong>Euler-error convention.</strong> Surfaced as <code>--euler-points midpoints|nodes</code> on <code>dsge ha steady-state</code>, and both statistics are reported unconditionally from <code>HASteadyState.euler</code>. See <a href="#Euler-accuracy-and---euler-points">Euler accuracy</a>.</li><li><strong><a href="https://github.com/FriedmanJP/Friedman-cli/issues/80">#80</a> — HA <code>.jl</code> loader.</strong> Fixed here rather than worked around, since <code>dsge ha accuracy</code> loads models through the same helper. See <a href="#Custom-models-from-a-.jl-file">Custom models from a <code>.jl</code> file</a>.</li></ul><hr/><h2 id="Pitfalls"><a class="docs-heading-anchor" href="#Pitfalls">Pitfalls</a><a id="Pitfalls-1"></a><a class="docs-heading-anchor-permalink" href="#Pitfalls" title="Permalink"></a></h2><ol><li><strong>Distribution / inequality IRF with SSJ</strong> — fails closed; switch to <code>--method reiter</code>.</li><li><strong>Large builtins</strong> — <code>two-asset-hank</code> is expensive; prototype on <code>huggett</code>.</li><li><strong>Agent contract</strong> — with <code>--format json</code>, stdout is one envelope; status is stderr (<a href="../../agent-guide/">Agent Guide</a>).</li><li><strong>Wrong command for HA specs</strong> — a <code>.jl</code> file returning <code>HADSGESpec</code> under <code>dsge solve|irf|…</code> raises <code>usage/wrong-command</code> (exit 2) pointing at <code>dsge ha …</code>. Conversely, a RA <code>DSGESpec</code> under <code>dsge ha</code> is rejected the same way.</li></ol><hr/><h2 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h2><ul><li>Generated options: <a href="../generated/dsge/"><code>dsge</code> reference</a></li><li>Representative-agent DSGE: <a href="../dsge/">dsge guide</a></li><li>MEMs HA docs: <a href="https://friedmanjp.github.io/MacroEconometricModels.jl/dev/">MacroEconometricModels.jl</a></li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../dsge/">« dsge (guide)</a><a class="docs-footer-nextpage" href="../did/">did (guide) »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Friday 7 August 2026 13:55">Friday 7 August 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
