@@ -865,6 +865,30 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["estimate", "midas", lf, "--hf-data", hf, "--m", "4", "--k", "6"]).code == 3            # HF shorter than m×LF (240 < 4*80=320) → data/shape
             rm(lf; force=true); rm(hf; force=true)
         end
+
+        @testset "--horizon is a REAL direct-h regression since 0.7.3 (MEMs#574, W10/#131)" begin
+            # At ≤0.7.2 the h kwarg was inert: the model claimed a direct h-step
+            # target while always fitting h=1. The adoption test is behavioral:
+            # an explicit --horizon 1 reproduces the default bit-for-bit, and
+            # --horizon 4 changes the fit (different target ⇒ different SSR/R²).
+            lf, hf, _ = dgp_midas(; Tlf=120, m=3, K=6, seed=99)
+            base = ["estimate", "midas", lf, "--hf-data", hf, "--m", "3", "--k", "6"]
+            r_def = run_json(base)
+            r_h1 = run_json([base; "--horizon"; "1"])
+            r_h4 = run_json([base; "--horizon"; "4"])
+            @test r_def.code == 0 && r_h1.code == 0 && r_h4.code == 0
+            dg(r) = named_table(r.doc, :midas_diagnostics)
+            r2v(r) = (t = dg(r); t === nothing ? nothing : metric_value(t, "r2"))
+            @test r2v(r_h1) !== nothing && r2v(r_def) !== nothing
+            @test numv(r2v(r_h1)) == numv(r2v(r_def))          # h=1 IS the default
+            @test numv(r2v(r_h4)) != numv(r2v(r_def))          # h=4 fits a different target
+            @test metric_value(dg(r_h4), "h") == 4             # …and records it
+            # nobs shrinks by h-1: the last 3 targets fall out of sample.
+            @test numv(metric_value(dg(r_h4), "nobs")) ==
+                  numv(metric_value(dg(r_def), "nobs")) - 3
+            @test run_json([base; "--horizon"; "0"]).code == 2
+            rm(lf; force=true); rm(hf; force=true)
+        end
     end
 
     @testset "estimate threshold — general two-regime threshold regression (#70)" begin
@@ -2033,6 +2057,73 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(ci; force=true); rm(nc; force=true)
         end
 
+        @testset "granger — VAR pairwise + --all matrix (#118)" begin
+            # Real granger_test_all returns an n×n Matrix{Union{GrangerCausalityResult,
+            # Nothing}} (diagonal = nothing) with cause::Vector{Int}/effect::Int — the
+            # old flat iteration into String columns made `test granger --all` exit 1
+            # on every real-MEMs invocation while the invented mock kept T1/T2 green.
+            csv = dgp_granger(; T=300, seed=141)
+            kv_with(doc, metric) = begin
+                found = nothing
+                for (_, v) in pairs(doc.data)
+                    v isa JSON3.Object && haskey(v, :columns) || continue
+                    metric_value(v, metric) === nothing || (found = v; break)
+                end
+                found
+            end
+            rf = run_json(["test", "granger", csv, "--model", "var",
+                           "--cause", "1", "--effect", "2"])
+            assert_envelope_ok(rf; label="granger x→y")
+            pxy = numv(metric_value(kv_with(rf.doc, "p-value"), "p-value"))
+            @test pxy < 0.05                        # x Granger-causes y by construction
+            rb = run_json(["test", "granger", csv, "--model", "var",
+                           "--cause", "2", "--effect", "1"])
+            assert_envelope_ok(rb; label="granger y→x")
+            pyx = numv(metric_value(kv_with(rb.doc, "p-value"), "p-value"))
+            @test pyx > pxy                         # the non-causal direction is weaker
+
+            ra = run_json(["test", "granger", csv, "--model", "var", "--all"])
+            assert_envelope_ok(ra; label="granger --all")
+            t = begin
+                found = nothing
+                for (_, v) in pairs(ra.doc.data)
+                    v isa JSON3.Object && haskey(v, :columns) || continue
+                    ("cause" in table_cols(v) && "effect" in table_cols(v)) && (found = v; break)
+                end
+                found
+            end
+            @test t !== nothing
+            rows = table_rows(t)
+            @test length(rows) == 2                 # n(n-1) ordered pairs, diagonal skipped
+            ci_ = col_index(t, "cause"); ei_ = col_index(t, "effect"); pi_ = col_index(t, "p_value")
+            pairs_seen = Set((String(collect(r)[ci_]), String(collect(r)[ei_])) for r in rows)
+            @test pairs_seen == Set([("x", "y"), ("y", "x")])   # CSV names, not y1/y2
+            p_by_pair = Dict((String(collect(r)[ci_]), String(collect(r)[ei_])) =>
+                             numv(collect(r)[pi_]) for r in rows)
+            @test p_by_pair[("x", "y")] < p_by_pair[("y", "x")]
+
+            # #119: the model itself carries the CSV names now — long_table output
+            # (variable/shock columns) must say x/y, never the y1..yn default.
+            ri = run_json(["irf", "var", csv, "--horizons", "4"])
+            assert_envelope_ok(ri; label="irf var names (#119)")
+            it = begin
+                found = nothing
+                for (_, v) in pairs(ri.doc.data)
+                    v isa JSON3.Object && haskey(v, :columns) || continue
+                    ("variable" in table_cols(v) && "shock" in table_cols(v)) && (found = v; break)
+                end
+                found
+            end
+            @test it !== nothing
+            vi_ = col_index(it, "variable"); si_ = col_index(it, "shock")
+            seen_vars = Set(String(collect(r)[vi_]) for r in table_rows(it))
+            seen_shocks = Set(String(collect(r)[si_]) for r in table_rows(it))
+            @test seen_vars == Set(["x", "y"])
+            @test seen_shocks ⊆ Set(["x", "y", "x_shock", "y_shock"])
+            @test !("y1" in seen_vars)
+            rm(csv; force=true)
+        end
+
         @testset "hansen-instability / park-added — stable cointegration" begin
             ci = dgp_coint(; T=250, β=2.0, seed=141)
             rh = run_json(["test", "hansen-instability", ci, "--dep", "y"])
@@ -2933,6 +3024,44 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         assert_envelope_ok(rf; label="fevd sdfm")
         _, tf = first_table(rf.doc)
         @test tf !== nothing && table_cols(tf) == ["horizon", "variable", "shock", "value"]
+        rm(csv; force=true)
+    end
+
+    @testset "factor family carries CSV varnames (W10/#131, MEMs#538)" begin
+        # Before the adoption, irf favar labelled key variables by panel POSITION
+        # ("X9"/"X10") and irf sdfm labelled every response "Var $i" — real names
+        # existed only in the loader and never reached the model.
+        rng = MersenneTwister(61)
+        df = DataFrame([Symbol("s$i") => randn(rng, 140) for i in 1:4]...,
+                       :infl => randn(rng, 140), :ffr => randn(rng, 140))
+        csv = write_csv(df; prefix="factor_names")
+
+        vars_of(r) = begin
+            _, t = first_table(r.doc)
+            t === nothing ? String[] :
+                sort(unique(String[string(collect(row)[col_index(t, "variable")])
+                                   for row in table_rows(t)]))
+        end
+
+        ri = run_json(["irf", "favar", csv, "--factors", "2",
+                       "--key-vars", "infl,ffr", "--horizons", "4"])
+        assert_envelope_ok(ri; label="irf favar named")
+        @test vars_of(ri) == ["F1", "F2", "ffr", "infl"]
+
+        rf = run_json(["fevd", "favar", csv, "--factors", "2",
+                       "--key-vars", "infl,ffr", "--horizons", "4"])
+        @test rf.code == 0
+        @test vars_of(rf) == ["F1", "F2", "ffr", "infl"]
+
+        rs = run_json(["irf", "sdfm", csv, "--factors", "2", "--horizons", "4"])
+        assert_envelope_ok(rs; label="irf sdfm named")
+        vs = vars_of(rs)
+        @test "infl" in vs && "ffr" in vs && "s1" in vs
+        @test !any(startswith(v, "Var ") for v in vs)
+
+        # estimate sdfm stores them on the model itself.
+        re = run_json(["estimate", "sdfm", csv, "--factors", "2"])
+        @test re.code == 0
         rm(csv; force=true)
     end
 
@@ -3936,6 +4065,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test length(table_rows(tbl)) == 2
         end
 
+        @testset "dsge solve --method perturbation --order 2 (gx over v=[states; shocks])" begin
+            # gx/hx are ny×nv with v = [states; shocks] (Stage-14 #368 layout, ≥0.7.2).
+            # The renderer labelled only the state columns → DimensionMismatch exit 1 on
+            # EVERY model with a shock. Broken through the whole v0.9.1 line because this
+            # `--method` branch had no T3 of its own (the per-BRANCH coverage lesson).
+            r = run_json(["dsge", "solve", model_jl, "--method", "perturbation", "--order", "2"])
+            assert_envelope_ok(r; label="dsge solve perturbation o2")
+            tbl = named_table(r.doc, :perturbation_policy_gx_order_2)
+            @test tbl !== nothing
+            cols = String[string(c) for c in tbl.columns]
+            # one column per state PLUS one per shock, after the leading :control
+            @test cols == ["control", "Y", "e"]
+            row = collect(table_rows(tbl)[1])
+            # C[t] = Y[t] = rho*Y[t-1] + sigma*e[t] → loadings are exactly (rho, sigma)
+            @test numv(row[2]) ≈ 0.9 atol=1e-8
+            @test numv(row[3]) ≈ 0.01 atol=1e-8
+        end
+
         @testset "dsge steady-state from TOML (compute_steady_state world-age)" begin
             r = run_json(["dsge", "steady-state", model_toml])
             assert_envelope_ok(r; label="dsge steady-state")
@@ -4575,6 +4722,76 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        @testset ":mp_shocks — NaN outside published samples (W3/#125)" begin
+            mktempdir() do dir
+                out = joinpath(dir, "mp.csv")
+                # Dash spelling normalizes to the underscore symbol.
+                @test run_json(["data", "load", ":mp-shocks", "-o", out]).code == 0
+                df = CSV.read(out, DataFrame)
+                @test size(df) == (240, 8)
+                @test names(df) == ["ygap", "infl", "ffr", "lpcom", "rr", "mp1", "ad", "bzk_ist"]
+
+                # Upstream pins (test_mp_shocks_data.jl): loading must not shift,
+                # scale, or zero-fill — NaN is NOT zero; zero is a valid shock value.
+                @test df.ffr[1] ≈ 3.93 atol = 0.01              # FRED FEDFUNDS 1960Q1
+                @test isnan(df.rr[1])                            # pre-1969Q1
+                @test count(!isnan, df.rr) == 156                # Romer-Romer window
+                @test findfirst(!isnan, df.rr) == 37             # 1969Q1
+                @test findlast(!isnan, df.rr) == 192             # 2007Q4
+                @test maximum(filter(!isnan, df.ffr)) > 15.0     # Volcker peak, % units
+
+                # data describe locates the valid window per column.
+                r = run_json(["data", "describe", ":mp_shocks"])
+                @test r.code == 0
+                tbl = named_table(r.doc, :descriptive_statistics)
+                @test tbl !== nothing
+                if tbl !== nothing
+                    cols = table_cols(tbl)
+                    vi = findfirst(==("variable"), cols)
+                    ni = findfirst(==("n"), cols)
+                    fi = findfirst(==("first_valid"), cols)
+                    li = findfirst(==("last_valid"), cols)
+                    @test fi !== nothing && li !== nothing
+                    rows = [collect(row) for row in table_rows(tbl)]
+                    rr = findfirst(rv -> string(rv[vi]) == "rr", rows)
+                    @test rr !== nothing
+                    @test rows[rr][ni] == 156
+                    @test rows[rr][fi] == 37 && rows[rr][li] == 192
+                end
+
+                # Documented prep step: subset → dropna → estimate, end to end.
+                sub = joinpath(dir, "macro3.csv")
+                @test run_json(["data", "load", ":mp_shocks",
+                                "--vars", "ygap,infl,ffr", "-o", sub]).code == 0
+                clean = joinpath(dir, "macro3_clean.csv")
+                @test run_json(["data", "dropna", sub,
+                                "--format", "csv", "-o", clean]).code == 0
+                cdf = CSV.read(clean, DataFrame)
+                @test nrow(cdf) == 187                # 1969Q1–2015Q3 jointly finite
+                @test !any(isnan, Matrix(cdf))
+                @test run_json(["estimate", "var", clean, "--lags", "4"]).code == 0
+
+                # dropna --vars: a Vector{SubString} used to TypeError against
+                # real dropna's ::Union{Vector{String},Nothing} kwarg assertion
+                # (exit 1 on EVERY --vars invocation; the old no-op mock hid it).
+                rronly = joinpath(dir, "rr_only.csv")
+                @test run_json(["data", "dropna", out, "--vars", "rr",
+                                "--format", "csv", "-o", rronly]).code == 0
+                @test nrow(CSV.read(rronly, DataFrame)) == 156
+                # Unknown --vars entry is typed data (3), not upstream's exit 1.
+                @test run_json(["data", "dropna", out, "--vars", "nope"]).code == 3
+
+                # keeprows guards: bare error()/raw parse/BoundsError all exited 1.
+                win = joinpath(dir, "win.csv")
+                @test run_json(["data", "keeprows", out, "--rows", "37:192",
+                                "--format", "csv", "-o", win]).code == 0
+                @test nrow(CSV.read(win, DataFrame)) == 156
+                @test run_json(["data", "keeprows", out, "--rows", "1:999"]).code == 2
+                @test run_json(["data", "keeprows", out, "--rows", "abc"]).code == 2
+                @test run_json(["data", "keeprows", out]).code == 2
+            end
+        end
+
         @testset "~ is expanded by the loader (the REPL has no shell)" begin
             mktempdir() do dir
                 CSV.write(joinpath(dir, "tilde.csv"), DataFrame(a=randn(20)))
@@ -4659,15 +4876,34 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["test", "gregory-hansen", uni]).code == 3
         end
 
-        @testset "test factor-break (n_factors/n_vars)" begin
+        @testset "test factor-break (n_factors/n_vars + per-series, W2/#124)" begin
             r = run_json(["test", "factor-break", multi, "--factors", "1"])
             assert_envelope_ok(r; label="factor-break")
-            _, tbl = first_table(r.doc)
+            # named, not first_table: the leaf now emits TWO tables (the standing lesson)
+            tbl = named_table(r.doc, :factor_break_test)
+            @test tbl !== nothing
             @test metric_value(tbl, "Factors") !== nothing
             @test metric_value(tbl, "Units") !== nothing
+            # Pooled default (breitung_eickmeier) carries per-series diagnostics
+            # (MEMs 0.7.3/#606): one row per series, sorted by statistic descending.
+            ps = named_table(r.doc, :per_series_break_diagnostics)
+            @test ps !== nothing
+            if ps !== nothing
+                rows = table_rows(ps)
+                nv = metric_value(tbl, "Units")
+                @test length(rows) == Int(nv)
+                si = col_index(ps, "statistic")
+                stats = [numv(collect(rw)[si]) for rw in rows]
+                @test issorted(stats; rev=true)
+            end
+            # chen_dolado_gonzalo has no per-series decomposition — table absent, exit 0.
+            rc = run_json(["test", "factor-break", multi, "--factors", "1",
+                           "--method", "chen_dolado_gonzalo"])
+            assert_envelope_ok(rc; label="factor-break cdg")
+            @test named_table(rc.doc, :per_series_break_diagnostics) === nothing
         end
 
-        @testset "fevd bvar (point_estimate, and its (h,var,shock) layout)" begin
+        @testset "fevd bvar (point_estimate, (var,shock,h) layout since MEMs 0.7.3/#527)" begin
             r = run_json(["fevd", "bvar", multi, "--lags", "1", "--horizons", "4"])
             assert_envelope_ok(r; label="fevd bvar")
             _, tbl = first_table(r.doc)
@@ -4712,6 +4948,37 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 r = run_json(vcat(["nowcast", leaf, multi], extra))
                 assert_envelope_ok(r; label="nowcast $leaf")
             end
+        end
+
+        @testset "nowcast bvar --prior litterman (W1/#123, MEMs#602)" begin
+            rl = run_json(["nowcast", "bvar", multi, "--lags", "2",
+                           "--prior", "litterman", "--theta-cross", "0.5"])
+            assert_envelope_ok(rl; label="nowcast bvar litterman")
+            # The hyperparameters table records the prior and — litterman only — the
+            # optimized theta_cross. Find it by its distinctive first column values.
+            hp = named_table(rl.doc, :nowcast_bvar_hyperparameters)
+            @test hp !== nothing
+            if hp !== nothing
+                kv = Dict(string(collect(rw)[1]) => collect(rw)[2] for rw in table_rows(hp))
+                @test kv["prior"] == "litterman"
+                @test any(startswith(k, "theta_cross") for k in keys(kv))
+            end
+            # Same data under conjugate: no theta_cross row, and a different point
+            # nowcast (the priors are genuinely different objectives — MEMs#602).
+            rc = run_json(["nowcast", "bvar", multi, "--lags", "2"])
+            assert_envelope_ok(rc; label="nowcast bvar conjugate")
+            hpc = named_table(rc.doc, :nowcast_bvar_hyperparameters)
+            @test hpc !== nothing
+            if hpc !== nothing
+                kvc = Dict(string(collect(rw)[1]) => collect(rw)[2] for rw in table_rows(hpc))
+                @test kvc["prior"] == "conjugate"
+                @test !any(startswith(k, "theta_cross") for k in keys(kvc))
+            end
+            # --theta-cross with the conjugate prior is a typed usage error (exit 2),
+            # guarded in the CLI before upstream's ArgumentError can map to exit 3.
+            @test run_json(["nowcast", "bvar", multi, "--theta-cross", "0.5"]).code == 2
+            @test run_json(["nowcast", "bvar", multi, "--prior", "litterman",
+                            "--theta-cross", "-1"]).code == 2
         end
         @testset "nowcast forecast" begin
             r = run_json(["nowcast", "forecast", multi, "--factors", "1",
@@ -4818,6 +5085,38 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     @test run_json(["residuals", leaf, ord, "--dep", "y", "--kind", k]).code == 0
                 end
                 @test run_json(["residuals", leaf, ord, "--dep", "y", "--kind", "bogus"]).code == 2
+            end
+        end
+
+        # W10/#131: --marginal-effects re-added WITH handler support (MEMs#550 gave
+        # the ordered/multinomial models delta-method SEs at 0.7.3). Two upstream
+        # shapes — ordered NamedTuple vs MultinomialMarginalEffects — render to one
+        # tidy variable|category|dydx|se table. The closed form pinning the values:
+        # probabilities sum to 1, so each variable's AMEs sum to 0 across categories
+        # (live-verified: the mlogit BASE category carries a real effect too).
+        @testset "predict --marginal-effects (W10/#131, MEMs#550)" begin
+            for (leaf, key) in [("ologit", :ordered_logit_average_marginal_effects),
+                                ("oprobit", :ordered_probit_average_marginal_effects),
+                                ("mlogit", :multinomial_logit_average_marginal_effects)]
+                r = run_json(["predict", leaf, ord, "--dep", "y", "--marginal-effects"])
+                assert_envelope_ok(r; label="predict $leaf --marginal-effects")
+                # The probability table must still be there (2nd table gets its own
+                # output path, never displaces the 1st).
+                _, ptbl = first_table(r.doc)
+                @test ptbl !== nothing
+                me = named_table(r.doc, key)
+                @test me !== nothing
+                if me !== nothing
+                    cols = table_cols(me)
+                    @test cols == ["variable", "category", "dydx", "se"]
+                    rows = [collect(row) for row in table_rows(me)]
+                    @test length(rows) == 6            # 2 vars × 3 categories
+                    @test all(isfinite(numv(r_[4])) for r_ in rows)   # SEs are REAL now
+                    for v in unique(String[string(r_[1]) for r_ in rows])
+                        s = sum(numv(r_[3]) for r_ in rows if string(r_[1]) == v)
+                        @test abs(s) < 5e-6            # renderer rounds to 6 digits
+                    end
+                end
             end
         end
 
@@ -5104,10 +5403,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             y[t] = alpha * z[t]
         end
         """)
-        # ORDER 2, not 1: upstream's order-1 analytical moments are wrong for controls (the
-        # state↔control covariance drops the contemporaneous shock term), so `dsge moments`
-        # refuses order 1. For this EXACTLY LINEAR model order 2 reproduces the first-order
-        # moments precisely, which is what makes the closed-form checks below valid.
+        # For this EXACTLY LINEAR model order 2 reproduces the first-order moments
+        # precisely, which is what makes the closed-form checks below valid. (Order 1 was
+        # refused until MEMs 0.7.3/#607 fixed the control-block covariance — its own
+        # closed-form case follows below, W9/#116.)
         r = run_json(["dsge", "moments", spec, "--order", "2", "--lags", "3"])
         assert_envelope_ok(r; label="dsge moments order 2")
 
@@ -5182,6 +5481,61 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        # ORDER 1 — re-enabled in W9/#116 (v0.9.2): MEMs 0.7.3 (#607) fixed the order-1
+        # state↔control covariance. Pre-fix this model reported corr(z,y) = rho (0.7) and
+        # autocorr(y,k) = rho^(k+2) — the assertions below are EXACTLY those numbers, so
+        # they are the proof of the fix, not a smoke test.
+        r1 = run_json(["dsge", "moments", spec, "--order", "1", "--lags", "3"])
+        assert_envelope_ok(r1; label="dsge moments order 1")
+        cv1 = nothing
+        for (_, v) in pairs(r1.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "correlation" in String[string(c) for c in v.columns]
+                cv1 = v; break
+            end
+        end
+        @test cv1 !== nothing
+        if cv1 !== nothing
+            v1_ = col_index(cv1, "variable1"); v2_ = col_index(cv1, "variable2")
+            ci1 = col_index(cv1, "correlation")
+            for rw in table_rows(cv1)
+                r_ = collect(rw)
+                # y = alpha*z ⇒ corr = 1 exactly; the pre-fix defect reported rho here.
+                string(r_[v1_]) == string(r_[v2_]) ||
+                    @test isapprox(numv(r_[ci1]), 1.0; atol=1e-6)
+            end
+        end
+        ac1 = nothing
+        for (_, v) in pairs(r1.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "autocorrelation" in String[string(c) for c in v.columns]
+                ac1 = v; break
+            end
+        end
+        @test ac1 !== nothing
+        if ac1 !== nothing
+            li1 = col_index(ac1, "lag"); ri1 = col_index(ac1, "autocorrelation")
+            for rw in table_rows(ac1)
+                r_ = collect(rw)
+                # rho^k for BOTH variables; the control was rho^(k+2) pre-fix.
+                @test isapprox(numv(r_[ri1]), rho^Int(r_[li1]); atol=1e-6)
+            end
+        end
+        m1 = nothing
+        for (_, v) in pairs(r1.doc.data)
+            if v isa JSON3.Object && haskey(v, :columns) &&
+               "std_dev" in String[string(c) for c in v.columns]
+                m1 = v; break
+            end
+        end
+        @test m1 !== nothing
+        if m1 !== nothing
+            vi1 = col_index(m1, "variable"); si1 = col_index(m1, "std_dev")
+            byv1 = Dict(string(collect(rw)[vi1]) => collect(rw) for rw in table_rows(m1))
+            @test isapprox(numv(byv1["z"][si1]), sqrt(var_z); rtol=1e-6)
+            @test isapprox(numv(byv1["y"][si1]), 0.4 * sqrt(var_z); rtol=1e-6)
+        end
+
         # Order 3 runs and stays finite (the closed-form pruned recursion).
         for ord in ("3",)
             ro = run_json(["dsge", "moments", spec, "--method", "perturbation",
@@ -5210,10 +5564,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
-        # Typed guards. --order 1 is a REFUSAL, not a silent wrong answer: upstream's
-        # order-1 path reports corr(z,y)=rho instead of 1.0 and autocorr(y,k)=rho^(k+2)
-        # instead of rho^k for control variables. Re-enable when upstream is fixed.
-        @test run_json(["dsge", "moments", spec, "--order", "1"]).code == 2
+        # Typed guards. (--order 1 is no longer a refusal — re-enabled in W9/#116 after
+        # MEMs 0.7.3/#607 fixed the control-block covariance; its closed-form case above
+        # is the proof.)
         @test run_json(["dsge", "moments", spec, "--order", "0"]).code == 2
         @test run_json(["dsge", "moments", spec, "--order", "4"]).code == 2
         @test run_json(["dsge", "moments", spec, "--lags", "0"]).code == 2
@@ -5418,6 +5771,522 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
                         "--absorb", "nosuchcol",
                         "--id-col", "id", "--time-col", "time"]).code in (2, 3)
+        rm(csv; force=true)
+    end
+
+    @testset "estimate preg ab/bb instrument controls (W10/#131)" begin
+        # Dynamic panel: y_it = 0.5 y_{i,t-1} + 0.8 x_it + fe_i + eps. The point is
+        # not the coefficient but the INSTRUMENT COUNT: --collapse and the lag
+        # window are what MEMs#549 added, and n_instruments is the observable.
+        rng = MersenneTwister(41)
+        N, T = 25, 12
+        id = Int[]; tt = Int[]; xs = Float64[]; ys = Float64[]
+        for i in 1:N
+            fe = randn(rng); ylag = randn(rng)
+            for t in 1:T
+                xv = randn(rng)
+                yv = 0.5 * ylag + 0.8 * xv + fe + 0.3 * randn(rng)
+                push!(id, i); push!(tt, t); push!(xs, xv); push!(ys, yv)
+                ylag = yv
+            end
+        end
+        csv = write_csv(DataFrame(id=id, time=tt, y=ys, x=xs); prefix="dynpanel")
+        base = ["estimate", "preg", csv, "--dep", "y", "--indep", "x",
+                "--id-col", "id", "--time-col", "time"]
+
+        n_inst(r) = begin
+            dd = named_table(r.doc, :dynamic_panel_diagnostics)
+            dd === nothing ? nothing : metric_value(dd, "n_instruments")
+        end
+
+        r_ab = run_json([base; "--method"; "ab"])
+        assert_envelope_ok(r_ab; label="estimate preg --method ab")
+        @test named_table(r_ab.doc, :panel_regression_coefficients_ab) !== nothing
+        ni_full = n_inst(r_ab)
+        @test ni_full !== nothing && Int(ni_full) > 0
+
+        # Collapse strictly shrinks the instrument matrix.
+        r_col = run_json([base; "--method"; "ab"; "--collapse"])
+        @test r_col.code == 0
+        ni_col = n_inst(r_col)
+        @test ni_col !== nothing && Int(ni_col) < Int(ni_full)
+
+        # Narrowing the lag window shrinks it too (99 → 4).
+        r_win = run_json([base; "--method"; "ab"; "--max-lag-endo"; "4"])
+        @test r_win.code == 0
+        ni_win = n_inst(r_win)
+        @test ni_win !== nothing && Int(ni_win) < Int(ni_full)
+
+        # bb (system GMM) takes the same controls.
+        r_bb = run_json([base; "--method"; "bb"; "--collapse"])
+        @test r_bb.code == 0
+        @test n_inst(r_bb) !== nothing
+
+        # A plain fe run never emits the diagnostics table…
+        r_fe = run_json(base)
+        @test r_fe.code == 0 && named_table(r_fe.doc, :dynamic_panel_diagnostics) === nothing
+        # …and the controls on a non-GMM method are refused, not silently ignored.
+        @test run_json([base; "--collapse"]).code == 2
+        @test run_json([base; "--min-lag-endo"; "3"]).code == 2
+        # Window sanity on the GMM path.
+        @test run_json([base; "--method"; "ab"; "--min-lag-endo"; "0"]).code == 2
+        @test run_json([base; "--method"; "ab"; "--min-lag-endo"; "5";
+                        "--max-lag-endo"; "3"]).code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "estimate piv weak-instrument diagnostics (W10/#131, MEMs#553)" begin
+        # This leaf had ZERO T3 coverage. Strong instruments by construction
+        # (first-stage R² ≈ 0.9), true structural coefficient 1.2 on the
+        # endogenous regressor, u in both equations = the endogeneity.
+        rng = MersenneTwister(43)
+        N, T = 30, 10
+        id = repeat(1:N, inner=T); tt = repeat(1:T, N)
+        z1 = randn(rng, N * T); z2 = randn(rng, N * T)
+        u = randn(rng, N * T)
+        endo = 0.7z1 + 0.5z2 + 0.4u + 0.3randn(rng, N * T)
+        x = randn(rng, N * T)
+        y = 1.2endo + 0.5x + u + 0.3randn(rng, N * T)
+        csv = write_csv(DataFrame(id=id, time=tt, y=y, x=x, endo=endo, z1=z1, z2=z2);
+                        prefix="pivdiag")
+        base = ["estimate", "piv", csv, "--dep", "y", "--exog", "x", "--endog", "endo",
+                "--id-col", "id", "--time-col", "time"]
+
+        r = run_json([base; "--instruments"; "z1,z2"])
+        assert_envelope_ok(r; label="estimate piv overidentified")
+        ct = named_table(r.doc, :panel_iv_coefficients)
+        @test ct !== nothing
+        if ct !== nothing
+            rows = table_rows(ct)
+            ti = col_index(ct, "term"); ei = col_index(ct, "estimate")
+            terms = [string(collect(rw)[ti]) for rw in rows]
+            @test "endo" in terms
+            be = Float64(collect(rows[findfirst(==("endo"), terms)])[ei])
+            @test isapprox(be, 1.2; atol=0.1)
+        end
+        dd = named_table(r.doc, :weak_instrument_diagnostics)
+        @test dd !== nothing
+        if dd !== nothing
+            @test numv(metric_value(dd, "first-stage F (min partial)")) > 10.0
+            @test numv(metric_value(dd, "Cragg-Donald F")) > 10.0
+            @test numv(metric_value(dd, "Kleibergen-Paap F")) > 10.0
+            # Tabulated constant for 1 endogenous / 2 instruments — a stable pin.
+            @test numv(metric_value(dd, "Stock-Yogo 10% critical value")) ≈ 19.93 atol = 0.01
+            @test metric_value(dd, "Sargan p-value") !== nothing
+            @test numv(metric_value(dd, "Sargan p-value")) <= 1.0
+        end
+
+        # Just-identified: Sargan has no dof — the cell says WHY it is missing.
+        rj = run_json([base; "--instruments"; "z1"])
+        @test rj.code == 0
+        dj = named_table(rj.doc, :weak_instrument_diagnostics)
+        @test dj !== nothing
+        if dj !== nothing
+            @test string(metric_value(dj, "Sargan statistic")) ==
+                  "unavailable (failed or underidentified)"
+        end
+
+        # Bare error() used to turn these usage mistakes into exit 1.
+        @test run_json(["estimate", "piv", csv, "--exog", "x", "--endog", "endo",
+                        "--instruments", "z1", "--id-col", "id",
+                        "--time-col", "time"]).code == 2
+        @test run_json(["estimate", "piv", csv, "--dep", "y", "--exog", "x",
+                        "--instruments", "z1", "--id-col", "id",
+                        "--time-col", "time"]).code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "policy family (W4/#126, new top-level, MEMs 0.8.0 CF module)" begin
+        rng = MersenneTwister(47)
+        T_obs = 200
+        infl = zeros(T_obs); ygap = zeros(T_obs); rate = zeros(T_obs)
+        for t in 2:T_obs
+            ygap[t] = 0.6ygap[t-1] - 0.1rate[t-1] + randn(rng)
+            infl[t] = 0.5infl[t-1] + 0.2ygap[t-1] + 0.5randn(rng)
+            rate[t] = 0.7rate[t-1] + 0.3infl[t-1] + 0.3randn(rng)
+        end
+        csv = write_csv(DataFrame(infl=infl, ygap=ygap, rate=rate); prefix="policy")
+        maps = ["--outcomes", "infl=1,ygap=2", "--instruments", "rate=3"]
+
+        cfsum(r) = begin
+            t = named_table(r.doc, :counterfactual_summary)
+            t === nothing ? Dict{String,Any}() :
+                Dict(String(collect(row)[1]) => collect(row)[2] for row in table_rows(t))
+        end
+
+        @testset "effects — one leaf per source route" begin
+            rv = run_json(vcat(["policy", "effects", "var", csv, "--shocks", "3",
+                                "--horizon", "8"], maps))
+            assert_envelope_ok(rv; label="policy effects var")
+            menu = named_table(rv.doc, :policy_causal_effects_menu)
+            @test menu !== nothing
+            @test length(table_rows(menu)) == 3 * 8      # 3 mapped vars × 1 shock × H
+            s = Dict(String(collect(r)[1]) => collect(r)[2]
+                     for r in table_rows(named_table(rv.doc, :policy_causal_effects_summary)))
+            @test s["is_square"] == false && s["source"] == "var"
+
+            rb = run_json(vcat(["policy", "effects", "bvar", csv, "--shocks", "3",
+                                "--horizon", "6", "--draws", "300"], maps))
+            @test rb.code == 0
+            sb = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rb.doc, :policy_causal_effects_summary)))
+            @test Int(sb["n_draws"]) > 0                 # posterior draws carried over
+
+            rl = run_json(vcat(["policy", "effects", "lp", csv, "--shocks", "3",
+                                "--horizon", "6", "--n-draws", "50"], maps))
+            @test rl.code == 0
+
+            # sign route needs a restrictions config
+            signtoml = tempname() * ".toml"
+            write(signtoml, """
+            [identification]
+            method = "sign"
+
+            [identification.sign_matrix]
+            matrix = [[1, 0, 0], [0, 0, 0], [0, 0, 0]]
+            horizons = [0]
+            """)
+            rs = run_json(vcat(["policy", "effects", "sign", csv, "--shocks", "1",
+                                "--horizon", "6", "--config", signtoml,
+                                "--replications", "200"], maps))
+            @test rs.code == 0
+            ss = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rs.doc, :policy_causal_effects_summary)))
+            @test ss["source"] == "sign_set" && Int(ss["n_draws"]) > 0
+            @test run_json(vcat(["policy", "effects", "sign", csv, "--shocks", "1",
+                                 "--horizon", "6"], maps)).code == 2   # no config
+            rm(signtoml; force=true)
+        end
+
+        @testset "counterfactual var — thin menu is HONEST about the shortfall" begin
+            r = run_json(vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                               "--nonpolicy-shock", "1", "--rule", "rate-peg",
+                               "--horizon", "8"], maps))
+            assert_envelope_ok(r; label="policy counterfactual var rate-peg")
+            for k in (:policy_counterfactual_paths, :enforcing_policy_shocks_nu,
+                      :implementation_error_path, :counterfactual_summary)
+                @test named_table(r.doc, k) !== nothing
+            end
+            s = cfsum(r)
+            @test s["rule"] == "rate peg"
+            @test numv(s["rel_residual"]) >= 0.0
+            @test haskey(s, "spanned")
+            # 1 policy shock cannot enforce an 8-period peg exactly
+            @test numv(s["rel_residual"]) > 1e-8
+        end
+
+        @testset "counterfactual var — SQUARE menu enforces the peg EXACTLY" begin
+            # 2 policy shocks, H=2 → n_s == H → exact solve: the pegged
+            # instrument path is identically zero and rel_residual ~0.
+            r = run_json(["policy", "counterfactual", "var", csv, "--shocks", "2,3",
+                          "--nonpolicy-shock", "1", "--outcomes", "infl=1",
+                          "--instruments", "rate=3", "--rule", "rate-peg",
+                          "--horizon", "2"])
+            @test r.code == 0
+            s = cfsum(r)
+            @test numv(s["rel_residual"]) < 1e-8 && s["spanned"] == true
+            p = named_table(r.doc, :policy_counterfactual_paths)
+            ci = col_index(p, "counterfactual"); ri = col_index(p, "role")
+            zvals = [numv(collect(row)[ci]) for row in table_rows(p)
+                     if String(collect(row)[ri]) == "instrument"]
+            @test all(abs(v) < 1e-8 for v in zvals)
+        end
+
+        @testset "counterfactual — draws, routes, rule config" begin
+            # bootstrap bands on the var route
+            rb = run_json(vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--rule", "rate-peg",
+                                "--horizon", "6", "--replications", "50"], maps))
+            @test rb.code == 0
+            p = named_table(rb.doc, :policy_counterfactual_paths)
+            @test "q16" in table_cols(p) && "q84" in table_cols(p)
+            @test Int(cfsum(rb)["n_draws_used"]) > 0
+
+            # bvar route propagates posterior draws
+            rv = run_json(vcat(["policy", "counterfactual", "bvar", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--rule", "taylor",
+                                "--horizon", "6", "--draws", "300"], maps))
+            @test rv.code == 0
+            @test Int(cfsum(rv)["n_draws_used"]) > 0
+            @test occursin("0.5", String(cfsum(rv)["rule"]))   # TEXTBOOK taylor, not CMW
+
+            # lp route + CMW taylor via TOML — the cmw trap defused end-to-end
+            ruletoml = tempname() * ".toml"
+            write(ruletoml, "[rule]\ntype = \"taylor\"\ncmw = true\n")
+            rl = run_json(vcat(["policy", "counterfactual", "lp", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--rule-config", ruletoml,
+                                "--horizon", "6", "--n-draws", "50"], maps))
+            @test rl.code == 0
+            @test occursin("0.85", String(cfsum(rl)["rule"]))
+            rm(ruletoml; force=true)
+        end
+
+        @testset "policy optimal + moments (W5/#127)" begin
+            losstoml = tempname() * ".toml"
+            write(losstoml, """
+            [loss]
+            outcomes = ["infl", "ygap"]
+            lambda = [1.0, 0.5]
+
+            [loss.smoothing]
+            lambda = 0.5
+            """)
+            ro = run_json(vcat(["policy", "optimal", "var", csv, "--shocks", "3",
+                                "--nonpolicy-shock", "1", "--loss-config", losstoml,
+                                "--horizon", "8"], maps))
+            assert_envelope_ok(ro; label="policy optimal var")
+            so = cfsum(ro)
+            # The optimality certificate: foc_norm ≈ 0 and the loss cannot rise.
+            foc_key = first(k for k in keys(so) if startswith(k, "foc_norm"))
+            @test numv(so[foc_key]) < 1e-6
+            @test numv(so["loss_cf"]) <= numv(so["loss_base"]) + 1e-10
+            @test named_table(ro.doc, :implementation_error_path) !== nothing
+            # --loss-config required; lambda-less TOML is config/missing-key (4).
+            @test run_json(vcat(["policy", "optimal", "var", csv, "--shocks", "3",
+                                 "--nonpolicy-shock", "1"], maps)).code == 2
+            badtoml = tempname() * ".toml"
+            write(badtoml, "[loss]\noutcomes = [\"infl\"]\n")
+            @test run_json(vcat(["policy", "optimal", "var", csv, "--shocks", "3",
+                                 "--nonpolicy-shock", "1", "--loss-config", badtoml],
+                                maps)).code == 4
+            rm(badtoml; force=true)
+
+            rm_ = run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "12"], maps))
+            assert_envelope_ok(rm_; label="policy moments var rate-peg")
+            sd = named_table(rm_.doc, :counterfactual_standard_deviations)
+            @test sd !== nothing
+            vi = col_index(sd, "variable"); bi = col_index(sd, "sd_base")
+            ci2 = col_index(sd, "sd_cf")
+            rrow = first(r for r in table_rows(sd)
+                         if String(collect(r)[vi]) == "rate")
+            # Pegging the rate must collapse its unconditional sd.
+            @test numv(collect(rrow)[ci2]) < numv(collect(rrow)[bi])
+            ms = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rm_.doc, :moments_summary)))
+            tail_key = first(k for k in keys(ms) if startswith(k, "tail_share"))
+            @test numv(ms[tail_key]) >= 0.0
+            @test named_table(rm_.doc, :counterfactual_correlations) !== nothing
+
+            # Band-limited variance ⊂ full variance, variable by variable.
+            rb_ = run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "12",
+                                 "--frequencies", "business-cycle"], maps))
+            @test rb_.code == 0
+            sdb = named_table(rb_.doc, :counterfactual_standard_deviations)
+            full = Dict(String(collect(r)[vi]) => numv(collect(r)[bi])
+                        for r in table_rows(sd))
+            for r in table_rows(sdb)
+                @test numv(collect(r)[bi]) <= full[String(collect(r)[vi])] + 1e-8
+            end
+
+            # moments on the bvar route (wold from the posterior)
+            @test run_json(vcat(["policy", "moments", "bvar", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "8",
+                                 "--draws", "200"], maps)).code == 0
+            # rule XOR loss; bad band; both → usage errors
+            @test run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--loss-config", losstoml],
+                                maps)).code == 2
+            @test run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3"],
+                                maps)).code == 2
+            @test run_json(vcat(["policy", "moments", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--frequencies", "2,1"],
+                                maps)).code == 2
+            rm(losstoml; force=true)
+        end
+
+        @testset "OPP family (W6/#128)" begin
+            losstoml = tempname() * ".toml"
+            write(losstoml, "[loss]\noutcomes = [\"infl\", \"ygap\"]\nlambda = [1.0, 0.5]\n")
+            ob = vcat(["policy", "opp", "var", csv, "--shocks", "3",
+                       "--loss-config", losstoml, "--horizon", "8"], maps)
+
+            r = run_json([ob; "--targets"; "infl=0,ygap=0"; "--n-sim"; "500"])
+            assert_envelope_ok(r; label="policy opp var")
+            dd = named_table(r.doc, :opp_recommendation_delta)
+            @test dd !== nothing
+            cols = table_cols(dd)
+            @test cols[1:4] == ["shock", "delta", "delta_plugin", "gradient"]
+            # BM reversed polarity bands at 60/75/90, labelled as upstream does.
+            @test "lo60" in cols && "hi90" in cols && "reject60" in cols
+            row = collect(first(table_rows(dd)))
+            @test isfinite(numv(row[2])) && isfinite(numv(row[3]))
+            s = Dict(String(collect(rw)[1]) => collect(rw)[2]
+                     for rw in table_rows(named_table(r.doc, :opp_summary)))
+            @test haskey(s, "band_polarity") && occursin("LOWER", String(s["band_polarity"]))
+            @test named_table(r.doc, :objective_gap_paths) !== nothing
+
+            # The gaps-vs-levels trap is a refusal, not a silent zero-target run.
+            @test run_json(ob).code == 2
+            @test run_json([ob; "--targets"; "infl=0"]).code == 2
+
+            # bvar route: store_draws=true is passed → posterior bands present.
+            rb = run_json(vcat(["policy", "opp", "bvar", csv, "--shocks", "3",
+                                "--loss-config", losstoml, "--horizon", "8",
+                                "--draws", "300", "--n-sim", "300",
+                                "--targets", "infl=0,ygap=0"], maps))
+            @test rb.code == 0
+            @test "lo60" in table_cols(named_table(rb.doc, :opp_recommendation_delta))
+
+            # Constrained OPP: ZLB floor + announced path → SLSQP + KKT reported;
+            # missing --instrument-path refuses.
+            constoml = tempname() * ".toml"
+            write(constoml, "[[constraint]]\ntype = \"zlb\"\nfloor = -0.1\ninstrument = \"rate\"\n")
+            rc = run_json([ob; "--targets"; "infl=0,ygap=0";
+                           "--constraints-file"; constoml; "--n-sim"; "0";
+                           "--instrument-path"; "0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0"])
+            @test rc.code == 0
+            sc = Dict(String(collect(rw)[1]) => collect(rw)[2]
+                      for rw in table_rows(named_table(rc.doc, :opp_summary)))
+            @test String(sc["method_used"]) in ("slsqp", "projection")
+            @test haskey(sc, "kkt_residual") && haskey(sc, "warm_start_feasible")
+            @test named_table(rc.doc, :instrument_paths_announced_vs_recommended) !== nothing
+            @test run_json([ob; "--targets"; "infl=0,ygap=0";
+                            "--constraints-file"; constoml]).code == 2
+
+            # opp-sequence: per-date gap files; the revision decomposition is
+            # EXACT three-part (news + pref + aging = delta_t − delta_{t−1}).
+            fdir = mktempdir()
+            for (i, d) in enumerate(["2019Q4", "2020Q1", "2020Q2"])
+                CSV.write(joinpath(fdir, "$d.csv"),
+                          DataFrame(infl=fill(0.6 - 0.15i, 8), ygap=fill(-1.0 + 0.2i, 8)))
+            end
+            rs = run_json(vcat(["policy", "opp-sequence", "var", csv, "--shocks", "3",
+                                "--loss-config", losstoml, "--forecasts-dir", fdir,
+                                "--sd", "0.5,0.5", "--horizon", "8"], maps))
+            assert_envelope_ok(rs; label="policy opp-sequence var")
+            dl = named_table(rs.doc, :opp_sequence_delta_by_date)
+            dec = named_table(rs.doc, :opp_revision_decomposition)
+            @test dl !== nothing && dec !== nothing
+            del = Dict(String(collect(rw)[1]) => numv(collect(rw)[3])
+                       for rw in table_rows(dl))
+            parts = Dict(String(collect(rw)[1]) =>
+                         numv(collect(rw)[3]) + numv(collect(rw)[4]) + numv(collect(rw)[5])
+                         for rw in table_rows(dec))
+            dates = sort(collect(keys(del)))
+            for i in 2:length(dates)
+                @test isapprox(parts[dates[i]], del[dates[i]] - del[dates[i-1]];
+                               atol=5e-6)   # renderer rounds to 6 digits
+            end
+            # --sd required on the sequence route (external containers need uncertainty)
+            @test run_json(vcat(["policy", "opp-sequence", "var", csv, "--shocks", "3",
+                                 "--loss-config", losstoml, "--forecasts-dir", fdir,
+                                 "--horizon", "8"], maps)).code == 2
+            rm(losstoml; force=true); rm(constoml; force=true)
+            rm(fdir; recursive=true, force=true)
+        end
+
+        @testset "structural routes (W7/#129)" begin
+            nk = tempname() * ".toml"
+            write(nk, """
+            [model]
+            parameters = { rho = 0.8, kappa = 0.3, phi = 1.5, sigma = 0.01 }
+            endogenous = ["ygap", "infl", "rate"]
+            exogenous = ["e", "mp"]
+            linear = true
+            [[model.equations]]
+            expr = "ygap[t] = rho * ygap[t-1] - 0.2 * rate[t] + sigma * e[t]"
+            [[model.equations]]
+            expr = "infl[t] = 0.5 * infl[t-1] + kappa * ygap[t]"
+            [[model.equations]]
+            expr = "rate[t] = phi * infl[t] + 0.01 * mp[t]"
+            """)
+
+            rn = run_json(["policy", "news", "dsge", nk, "--policy-shock", "mp",
+                           "--outcomes", "infl=infl,ygap=ygap",
+                           "--instruments", "rate=rate", "--horizon", "8"])
+            assert_envelope_ok(rn; label="policy news dsge")
+            sn = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rn.doc, :policy_causal_effects_summary)))
+            # The news menu is SQUARE by construction — the exact-solve regime.
+            @test sn["is_square"] == true && Int(sn["n_shocks"]) == 8
+            @test sn["source"] == "dsge"
+
+            # Behavioral discounting shrinks the menu; identity request refused
+            # implicitly (NaN sentinels), out-of-range refused explicitly.
+            rb = run_json(["policy", "news", "dsge", nk, "--policy-shock", "mp",
+                           "--outcomes", "infl=infl", "--horizon", "6",
+                           "--behavioral-m", "0.7"])
+            @test rb.code == 0
+            menu0 = named_table(rn.doc, :policy_causal_effects_menu)
+            @test run_json(["policy", "news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl", "--horizon", "6",
+                            "--behavioral-m", "1.5"]).code == 2
+
+            # History: forecast-revision counterfactual over a window.
+            rh = run_json(vcat(["policy", "history", "var", csv, "--shocks", "3",
+                                "--rule", "rate-peg", "--horizon", "12",
+                                "--t-range", "100:105"], maps))
+            assert_envelope_ok(rh; label="policy history var")
+            ht = named_table(rh.doc, :counterfactual_history)
+            @test ht !== nothing
+            @test length(unique(String[string(collect(r)[1]) for r in table_rows(ht)])) == 6
+            @test run_json(vcat(["policy", "history", "var", csv, "--shocks", "3",
+                                 "--rule", "rate-peg", "--horizon", "4",
+                                 "--t-range", "100:110"], maps)).code == 2  # window > H−1
+
+            # Spanning: genuine square-vs-thin pair, machine-readable verdict.
+            rs = run_json(vcat(["policy", "spanning", "var", csv, nk,
+                                "--shocks", "3", "--nonpolicy-shock", "1",
+                                "--model-outcomes", "infl=infl,ygap=ygap",
+                                "--model-instruments", "rate=rate",
+                                "--policy-shock", "mp", "--rule", "rate-peg",
+                                "--horizon", "8"], maps))
+            assert_envelope_ok(rs; label="policy spanning var")
+            sv = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rs.doc, :spanning_verdict)))
+            @test haskey(sv, "spanned") && haskey(sv, "loading_inside")
+            @test 0.0 <= numv(sv["loading_inside"]) <= 1.0 + 1e-9
+            # name-agreement guard fires typed, before upstream's untyped error
+            @test run_json(vcat(["policy", "spanning", "var", csv, nk,
+                                 "--shocks", "3", "--nonpolicy-shock", "1",
+                                 "--model-outcomes", "pi=infl,gap=ygap",
+                                 "--model-instruments", "rate=rate",
+                                 "--policy-shock", "mp", "--rule", "rate-peg",
+                                 "--horizon", "8"], maps)).code == 2
+
+            # Sufficiency: population laboratory, no data. The 3-var NK with
+            # 2 shocks and 2 observables is invertible.
+            rf = run_json(["policy", "sufficiency", "dsge", nk,
+                           "--observables", "infl,rate", "--horizon", "12"])
+            assert_envelope_ok(rf; label="policy sufficiency dsge")
+            sf = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rf.doc, :sufficiency_summary)))
+            @test sf["invertible"] == true
+            fev = named_table(rf.doc, :forecast_sufficiency_fev_ratios)
+            @test all(numv(collect(r)[3]) >= 1.0 - 1e-9 for r in table_rows(fev))
+
+            # HA routes: the .jl/builtin HA path had ZERO T3 for a year — keep
+            # these small (huggett, tiny horizons) but PRESENT.
+            rj = run_json(["policy", "jacobian", "ha", "huggett",
+                           "--jac-output", "C", "--t-horizon", "20"])
+            @test rj.code == 0
+            jt = named_table(rj.doc, :sequence_space_jacobian_dc_dr)
+            @test jt !== nothing && length(table_rows(jt)) == 400   # T² tidy rows
+            rha = run_json(["policy", "news", "ha", "huggett",
+                            "--outcomes", "c=C", "--horizon", "4",
+                            "--t-horizon", "40"])
+            @test rha.code == 0
+            rm(nk; force=true)
+        end
+
+        @testset "guards — typed, never exit 1" begin
+            b = vcat(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                      "--nonpolicy-shock", "1"], maps)
+            @test run_json([b; "--rule"; "rate-peg"; "--horizon"; "0"]).code == 2
+            @test run_json([b; "--rule"; "bogus"]).code == 2
+            @test run_json(b).code == 2                       # no rule at all
+            @test run_json([b; "--rule"; "rate-peg"; "--quantiles"; "0.16,1.5"]).code == 2
+            @test run_json([b; "--rule"; "rate-peg"; "--spanned-tol"; "-1"]).code == 2
+            # taylor builtin without infl/ygap-named outcomes → friendly usage error
+            @test run_json(["policy", "counterfactual", "var", csv, "--shocks", "3",
+                            "--nonpolicy-shock", "1", "--outcomes", "cpi=1,gap=2",
+                            "--instruments", "rate=3", "--rule", "taylor"]).code == 2
+            # unknown shock name → typed data-side error, not exit 1
+            @test run_json(vcat(["policy", "effects", "var", csv, "--shocks", "nosuch",
+                                 "--horizon", "4"], maps)).code in (3, 5)
+        end
         rm(csv; force=true)
     end
 

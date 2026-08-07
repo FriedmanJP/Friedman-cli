@@ -49,7 +49,7 @@ FAVAR historical decomposition
 | `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--horizons` | `-h` | `Int64` | `20` | — | HD horizon |
+| `--horizons` | — | `Int64` | `20` | — | HD horizon |
 | `--id` | — | `String` | `cholesky` | — | Identification method |
 | `--config` | — | `String` | `""` | — | TOML config for restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |

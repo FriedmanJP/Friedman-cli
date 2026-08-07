@@ -85,7 +85,10 @@ friedman test factor-break panel.csv --method=han_inoue --id-col=country --time-
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Test statistic, p-value, estimated break date, and method used.
+**Output:** Test statistic, p-value, estimated break date, and method used. For the two **pooled** methods (`breitung_eickmeier`, `han_inoue`) a second table, *Per-Series Break Diagnostics*, lists each series' own sup statistic and maximizing date (MEMs#606, v0.9.2), sorted by statistic descending; `chen_dolado_gonzalo` has no per-series decomposition and the table is simply absent.
+
+!!! warning "The per-series ranking assumes a modest breaking subset"
+    The ranking identifies the breaking series when a modest subset of the panel breaks. A break large enough to rotate the estimated factor space — for example, half the panel flipping sign — elevates the *stable* series' statistics too, because loading breaks are only identified relative to the factor normalization. Under a suspected large break, read the pooled verdict, not the ranking.
 
 ### Methods
 

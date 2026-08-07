@@ -19,7 +19,7 @@
 
 module MacroEconometricModels
 
-using LinearAlgebra: I, diagm, Diagonal, dot
+using LinearAlgebra: I, diagm, Diagonal, dot, pinv, norm, diag
 using Statistics: mean, var, std, quantile
 using Random
 import Serialization
@@ -161,7 +161,11 @@ struct BVARPosterior{T}
     p::Int
     n::Int
     data::Matrix{T}
+    # Real carries varnames and threads them into posterior_mean/median_model (#119).
+    varnames::Vector{String}
 end
+BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T}) where {T} =
+    BVARPosterior(B, S, nd, p, n, data, ["y$i" for i in 1:n])
 
 struct MinnesotaHyperparameters
     # `omega` is a SCALAR weight on the residual-covariance prior in real MEMs. It used to
@@ -178,7 +182,14 @@ MinnesotaHyperparameters(; tau::Real=3.0, decay::Real=0.5, lambda::Real=5.0,
 struct ImpulseResponse{T}
     values::Array{T,3}; ci_lower::Union{Array{T,3},Nothing}; ci_upper::Union{Array{T,3},Nothing}
     horizon::Int; variables::Vector{String}; shocks::Vector{String}; ci_type::Symbol
+    # Real trailing field (var/types.jl): bootstrap draws in package layout
+    # reps × horizon × variable × shock; nothing on deterministic paths. The CF
+    # adapters (policy_causal_effects / baseline_path, W4/#126) read it directly.
+    _draws::Union{Nothing,Array{T,4}}
 end
+# 7-arg form mirrors real's backward-compatible constructor (draws default nothing)
+ImpulseResponse(v::Array{T,3}, cl, cu, h::Int, vars, shocks, ci::Symbol) where T =
+    ImpulseResponse{T}(v, cl, cu, h, vars, shocks, ci, nothing)
 # Convenience 3-arg constructor for backward compat with existing handler tests
 ImpulseResponse(v::Array{T,3}, cl, cu) where T = ImpulseResponse(v, cl, cu, size(v,1),
     ["var$i" for i in 1:size(v,2)], ["shock$i" for i in 1:size(v,3)], :cholesky)
@@ -219,10 +230,11 @@ struct BayesianFEVD{T}
     n_effective::Int
     n_failed::Int
 end
-# Convenience 3-arg constructor for backward compat
+# Convenience 3-arg constructor for backward compat.
+# Real point_estimate is (variable, shock, horizon) since MEMs 0.7.3 (#527).
 BayesianFEVD(m::Array{T,3}, q::Array{T,4}, ql::Vector{T}) where T =
-    BayesianFEVD(q, m, size(m,1),
-    ["var$i" for i in 1:size(m,2)], ["shock$i" for i in 1:size(m,3)], ql,
+    BayesianFEVD(q, m, size(m,3),
+    ["var$i" for i in 1:size(m,1)], ["shock$i" for i in 1:size(m,2)], ql,
     0, size(q, 4), 0)
 
 struct HistoricalDecomposition{T}
@@ -299,7 +311,7 @@ end
 
 struct LPModel{T}
     Y::Matrix{T}; shock_var::Int; horizon::Int; lags::Int
-    B::Matrix{T}; residuals::Matrix{T}; vcov::Matrix{T}; T_eff::Int
+    B::Matrix{T}; residuals::Matrix{T}; vcov::Matrix{T}; T_eff::Vector{Int}
 end
 # W10/#112: `first_stage_F` and `T_eff` are per-horizon VECTORS in real MEMs (the first
 # stage is re-estimated at every h and the sample shrinks with h). The mock stored scalars,
@@ -316,7 +328,8 @@ struct StateLPModel{T}
     Y::Matrix{T}; B_expansion::Matrix{T}; B_recession::Matrix{T}; horizon::Int
 end
 struct PropensityLPModel{T}
-    Y::Matrix{T}; ate::T; ate_se::T; horizon::Int
+    # Real ate/ate_se are (H+1)×n_response MATRICES (#118 shape gate).
+    Y::Matrix{T}; ate::Matrix{T}; ate_se::Matrix{T}; horizon::Int
 end
 struct LPImpulseResponse{T}
     values::Matrix{T}; ci_lower::Matrix{T}; ci_upper::Matrix{T}; se::Matrix{T}
@@ -534,7 +547,11 @@ struct VARForecast{T<:AbstractFloat}
     ci_method::Symbol
     conf_level::T
     varnames::Vector{String}
+    # Real trailing field (0.8.0): forecast draws, layout n_draws × h × n.
+    _draws::Union{Nothing,Array{T,3}}
 end
+VARForecast(f::Matrix{T}, cl, cu, h::Int, cm::Symbol, conf::T, vn) where T =
+    VARForecast{T}(f, cl, cu, h, cm, conf, vn, nothing)
 
 # ─── Non-Gaussian Types ──────────────────────────────────
 
@@ -759,7 +776,7 @@ end
 
 # ─── Mock Helper ──────────────────────────────────────────
 
-function _mock_var(Y::Matrix{Float64}, p::Int)
+function _mock_var(Y::Matrix{Float64}, p::Int; varnames=nothing)
     T_obs, n = size(Y)
     k = n * p + 1
     B = zeros(k, n)
@@ -768,20 +785,26 @@ function _mock_var(Y::Matrix{Float64}, p::Int)
     end
     U = zeros(T_obs - p, n) .+ 0.01
     Sigma = Matrix{Float64}(I(n)) * 0.01
-    VARModel(Y, p, B, U, Sigma, -100.0, -95.0, -97.0)
+    VARModel(Y, p, B, U, Sigma, -100.0, -95.0, -97.0,
+             varnames === nothing ? ["y$i" for i in 1:n] : varnames)
 end
 
 # ─── Mock Functions ───────────────────────────────────────
 
 select_lag_order(Y, max_p; criterion=:aic) = min(2, max(1, max_p))
-estimate_var(Y, p; check_stability=true) = _mock_var(Y, p)
+# varnames kwarg mirrors real estimate_var/estimate_bvar (#119) — real threads it
+# into the model / posterior and every derived rendering.
+estimate_var(Y, p; check_stability=true, varnames=nothing) = _mock_var(Y, p; varnames=varnames)
 
 estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing,
-              hyperopt::Symbol=:glp, seed=nothing) =
+              hyperopt::Symbol=:glp, varnames=nothing, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
-                  10, p, size(Y,2), Y)
-posterior_mean_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
-posterior_median_model(post::BVARPosterior; data=nothing) = _mock_var(post.data, post.p)
+                  10, p, size(Y,2), Y,
+                  varnames === nothing ? ["y$i" for i in 1:size(Y,2)] : varnames)
+posterior_mean_model(post::BVARPosterior; data=nothing) =
+    _mock_var(post.data, post.p; varnames=post.varnames)
+posterior_median_model(post::BVARPosterior; data=nothing) =
+    _mock_var(post.data, post.p; varnames=post.varnames)
 # Keep old (chain, p, n) signatures for backward compat
 posterior_mean_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
@@ -903,7 +926,13 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5
     ci_hi = ci_type == :none ? nothing : vals .+ 0.5
-    ImpulseResponse(vals, ci_lo, ci_hi)
+    # Real stores bootstrap draws in package layout reps × horizon × var × shock;
+    # the CF adapters (W4/#126) slice them, so the mock must populate them too.
+    drw = ci_type == :bootstrap ?
+        reshape(vals, 1, horizon + 1, n, n) .+ 0.05 .* randn(reps, horizon + 1, n, n) :
+        nothing
+    ImpulseResponse{Float64}(vals, ci_lo, ci_hi, horizon, copy(model.varnames),
+                             copy(model.varnames), :cholesky, drw)
 end
 function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
              method=:cholesky, data=nothing, quantiles=[0.16, 0.5, 0.84],
@@ -957,21 +986,23 @@ end
 function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing)
     n = size(model.Y, 2)
     props = ones(n, n, horizon) / n
-    FEVD(props, props)
+    # Real carries model.varnames into the result (same gap as irf above).
+    FEVD(props, props, copy(model.varnames), copy(model.varnames))
 end
 function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
               data=nothing, quantiles=[0.16, 0.5, 0.84])
-    # Real BayesianFEVD.point_estimate is (horizon, variable, shock) — match it, or
-    # the mock hides a transposed render (the layout half of #84's fevd bvar bug).
-    props = ones(horizon, n, n) / n
-    q = ones(horizon, n, n, length(quantiles)) / n
+    # Real BayesianFEVD.point_estimate is (variable, shock, horizon) since MEMs 0.7.3
+    # (#527 unified the axes) — match it, or the mock hides a transposed render (the
+    # layout half of #84's fevd bvar bug, whose permutedims fix is now REMOVED).
+    props = ones(n, n, horizon) / n
+    q = ones(n, n, horizon, length(quantiles)) / n
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 function fevd(post::BVARPosterior, horizon::Int;
               quantiles=[0.16, 0.5, 0.84])
     n = post.n
-    props = ones(horizon, n, n) / n
-    q = ones(horizon, n, n, length(quantiles)) / n
+    props = ones(n, n, horizon) / n
+    q = ones(n, n, horizon, length(quantiles)) / n
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 
@@ -1072,7 +1103,7 @@ end
 # LP functions
 function estimate_lp(Y, shock_var, horizon; lags=4, cov_type=:newey_west)
     T_obs, n = size(Y)
-    LPModel(Y, shock_var, horizon, lags, ones(lags+1, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n)) * 0.01, T_obs-lags)
+    LPModel(Y, shock_var, horizon, lags, ones(lags+1, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n)) * 0.01, [T_obs - lags - h for h in 0:horizon])
 end
 function lp_irf(model::LPModel; conf_level=0.95)
     n = size(model.Y, 2); h = model.horizon + 1
@@ -1128,7 +1159,7 @@ end
 test_regime_difference(model::StateLPModel; h=nothing) =
     (joint_test=(avg_t_stat=2.5, p_value=0.012),)
 function estimate_propensity_lp(Y, treatment, covariates, horizon; ps_method=:logit, trimming=(0.01,0.99))
-    PropensityLPModel(Y, 0.5, 0.1, horizon)
+    PropensityLPModel(Y, fill(0.5, horizon + 1, size(Y, 2)), fill(0.1, horizon + 1, size(Y, 2)), horizon)
 end
 function propensity_irf(model::PropensityLPModel; conf_level=0.95)
     n = size(model.Y, 2); h = model.horizon + 1
@@ -1138,7 +1169,7 @@ end
 propensity_diagnostics(model::PropensityLPModel) =
     (propensity_summary=(treated=(mean=0.7,), control=(mean=0.3,)), balance=(max_weighted=0.05,))
 doubly_robust_lp(Y, treatment, covariates, horizon; ps_method=:logit) =
-    PropensityLPModel(Y, 0.6, 0.12, horizon)
+    PropensityLPModel(Y, fill(0.6, horizon + 1, size(Y, 2)), fill(0.12, horizon + 1, size(Y, 2)), horizon)
 
 function structural_lp(Y, horizon; method=:cholesky, lags=4, var_lags=4,
                        cov_type=:newey_west, ci_type=:none, reps=200, conf_level=0.95,
@@ -1150,7 +1181,7 @@ function structural_lp(Y, horizon; method=:cholesky, lags=4, var_lags=4,
     ci_hi = ci_type == :none ? nothing : irf_vals .+ 0.5
     irf_res = ImpulseResponse(irf_vals, ci_lo, ci_hi)
     Q = Matrix{Float64}(I(n))
-    lp_models = [LPModel(Y, i, horizon, lags, ones(5, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n))*0.01, T_obs-lags) for i in 1:n]
+    lp_models = [LPModel(Y, i, horizon, lags, ones(5, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n))*0.01, [T_obs - lags - h for h in 0:horizon]) for i in 1:n]
     StructuralLP(irf_res, model, Q, method, ones(horizon+1, n, n)*0.1, lp_models)
 end
 function lp_fevd(slp::StructuralLP, horizons::Int; estimator=:R2, n_boot=200, conf_level=0.95)
@@ -1165,8 +1196,13 @@ function forecast(model::LPModel, shock_path; ci_method=:analytical, conf_level=
 end
 
 # Factor functions
-function estimate_factors(X, r; standardize=true)
+function estimate_factors(X, r; standardize=true,
+                          varnames::Union{Nothing,Vector{String}}=nothing)
     T_obs, n = size(X)
+    # Real (factor/static.jl, MEMs#538) validates the length before storing.
+    vn = varnames === nothing ? ["Var $i" for i in 1:n] : varnames
+    length(vn) == n || throw(ArgumentError(
+        "varnames has $(length(vn)) entries but X has $n columns"))
     FactorModel(X, ones(T_obs, r)*0.1, ones(n, r)*0.3, Float64[r-i+1 for i in 1:r])
 end
 function ic_criteria(X, max_factors; standardize=true)
@@ -1414,8 +1450,11 @@ end
 function forecast(model::VARModel, h::Int; ci_method=:none, reps=500, conf_level=0.95)
     n = size(model.Y, 2)
     fc = ones(h, n) * 0.1
-    VARForecast(fc, fc .- 0.5, fc .+ 0.5, h, ci_method, conf_level,
-                ["var$i" for i in 1:n])
+    # Real's frequentist path stores draws (n_draws × h × n) — verified live at
+    # 0.8.0; the mock stores a small stack so the OPP draw branch is reachable.
+    drw = reshape(fc, 1, h, n) .+ 0.05 .* randn(50, h, n)
+    VARForecast{Float64}(fc, fc .- 0.5, fc .+ 0.5, h, ci_method, Float64(conf_level),
+                         ["var$i" for i in 1:n], drw)
 end
 
 # Volatility test functions
@@ -1573,7 +1612,8 @@ test_gaussian_vs_nongaussian(model::VARModel) = (statistic=18.0, pvalue=0.001)
 # ─── VECM Functions ──────────────────────────────────────
 
 function estimate_vecm(Y::AbstractMatrix, p::Int; rank=nothing, deterministic=:constant,
-                       method=:johansen, significance=0.05)
+                       method=:johansen, significance=0.05,
+                       varnames=["y$i" for i in 1:size(Y, 2)])
     T_obs, n = size(Y)
     r = isnothing(rank) ? min(1, n - 1) : rank
     alpha = ones(n, r) * 0.1
@@ -1584,14 +1624,16 @@ function estimate_vecm(Y::AbstractMatrix, p::Int; rank=nothing, deterministic=:c
     U = zeros(T_obs - p, n) .+ 0.01
     Sigma = Matrix{Float64}(I(n)) * 0.01
     VECMModel(Y, p, r, alpha, beta, Pi, Gamma, mu, U, Sigma,
-              -100.0, -95.0, -97.0, -500.0, deterministic, method)
+              -100.0, -95.0, -97.0, -500.0, deterministic, method,
+              Vector{String}(varnames))
 end
 
 select_vecm_rank(Y::AbstractMatrix, p::Int; criterion=:trace, significance=0.05) =
     min(1, size(Y, 2) - 1)
 
 function to_var(vecm::VECMModel)
-    _mock_var(vecm.Y, vecm.p)
+    # Real threads vecm.varnames into the VAR representation (#119).
+    _mock_var(vecm.Y, vecm.p; varnames=vecm.varnames)
 end
 
 cointegrating_rank(m::VECMModel) = m.rank
@@ -1711,7 +1753,10 @@ struct PVARTestResult{T<:Real}
 end
 
 struct GrangerCausalityResult{T<:Real}
-    statistic::T; pvalue::T; df::Int; test_type::Symbol; cause::String; effect::String
+    # Real layout (teststat/granger.jl:47): cause is a Vector of variable INDICES,
+    # effect an index; the old mock invented String names here (#118 shape gate).
+    statistic::T; pvalue::T; df::Int; cause::Vector{Int}; effect::Int
+    n::Int; p::Int; nobs::Int; test_type::Symbol
 end
 
 struct LRTestResult{T<:Real}
@@ -1862,17 +1907,23 @@ function pvar_lag_selection(panel::PanelData, max_p::Int; dependent_vars=nothing
     (table=tbl, best_bic=1, best_aic=1, best_hqic=1, models=PVARModel[])
 end
 
-# Enhanced Granger causality for VAR
-function granger_test(model::VARModel, cause::Int, effect::Int; lags=nothing)
-    GrangerCausalityResult(12.5, 0.003, 2, :pairwise, "var$cause", "var$effect")
+# Enhanced Granger causality for VAR. Real granger_test takes NO kwargs, and
+# granger_test_all returns an n×n Matrix{Union{GrangerCausalityResult,Nothing}}
+# with nothing on the diagonal, indexed [effect, cause] — NOT a flat vector.
+function granger_test(model::VARModel, cause::Int, effect::Int)
+    n = size(model.Y, 2)
+    GrangerCausalityResult(12.5, 0.003, model.p, [cause], effect,
+                           n, model.p, size(model.Y, 1) - model.p, :pairwise)
 end
 
-function granger_test_all(model::VARModel; lags=nothing)
+function granger_test_all(model::VARModel)
     n = size(model.Y, 2)
-    results = GrangerCausalityResult[]
-    for i in 1:n, j in 1:n
-        i == j && continue
-        push!(results, GrangerCausalityResult(10.0 + i, 0.01, 2, :pairwise, "var$i", "var$j"))
+    results = Matrix{Union{GrangerCausalityResult{Float64},Nothing}}(nothing, n, n)
+    for effect in 1:n, cause in 1:n
+        cause == effect && continue
+        results[effect, cause] = GrangerCausalityResult(10.0 + cause, 0.01, model.p, [cause],
+                                                        effect, n, model.p,
+                                                        size(model.Y, 1) - model.p, :pairwise)
     end
     results
 end
@@ -2034,19 +2085,21 @@ export hp_filter, hamilton_filter, beveridge_nelson, baxter_king, boosted_hp, tr
 
 struct TimeSeriesData{T<:Real}
     data::Matrix{T}; varnames::Vector{String}; frequency::Symbol
-    tcode::Vector{Int}; time_index::Vector{Int}; desc::String; vardesc::Vector{String}
+    # Real desc is a ONE-ELEMENT Vector{String} (accessor is d.desc[1]) — #118 shape gate.
+    tcode::Vector{Int}; time_index::Vector{Int}; desc::Vector{String}; vardesc::Vector{String}
 end
 # Keyword constructor matching MacroEconometricModels v0.2.2 interface
 function TimeSeriesData(data::AbstractMatrix{T}; varnames=String[], frequency=:unknown,
                         tcode=fill(1, size(data, 2)), time_index=collect(1:size(data, 1)),
                         desc="", vardesc=fill("", size(data, 2)), source_refs=Symbol[]) where T<:Real
-    TimeSeriesData{T}(Matrix{T}(data), varnames, frequency, tcode, time_index, desc, vardesc)
+    TimeSeriesData{T}(Matrix{T}(data), varnames, frequency, tcode, time_index,
+                      desc isa AbstractString ? [String(desc)] : desc, vardesc)
 end
 
 # Field order is a prefix of the real CrossSectionData (source_refs omitted).
 struct CrossSectionData{T<:Real}
     data::Matrix{T}; varnames::Vector{String}; obs_id::Vector{Int}
-    N_obs::Int; n_vars::Int; desc::String; vardesc::Vector{String}
+    N_obs::Int; n_vars::Int; desc::Vector{String}; vardesc::Vector{String}
 end
 
 struct DataDiagnostic
@@ -2055,7 +2108,9 @@ struct DataDiagnostic
 end
 
 struct DataSummary{T<:Real}
-    n::Int; mean::Vector{T}; std::Vector{T}; min::Vector{T}
+    # Real n is Vector{Int} — the NON-NaN count per variable (a scalar here made
+    # the mock blind to NaN-padded datasets like :mp_shocks).
+    n::Vector{Int}; mean::Vector{T}; std::Vector{T}; min::Vector{T}
     p25::Vector{T}; median::Vector{T}; p75::Vector{T}; max::Vector{T}
     skewness::Vector{T}; kurtosis::Vector{T}
 end
@@ -2069,7 +2124,7 @@ function load_example(name::Symbol)
         vd = vcat(["Industrial Production", "CPI All Urban", "Fed Funds Rate"],
                   ["Variable $i" for i in 4:n_vars])
         TimeSeriesData(data, vn, :monthly, tc, collect(1:T_obs),
-            "FRED-MD Monthly Database (2024 vintage)", vd)
+            ["FRED-MD Monthly Database (2024 vintage)"], vd)
     elseif name == :fred_qd
         n_vars = 245; T_obs = 268
         data = randn(T_obs, n_vars) .+ 1.0
@@ -2077,7 +2132,7 @@ function load_example(name::Symbol)
         tc = vcat([5, 5], [1 for _ in 3:n_vars])
         vd = vcat(["Real GDP", "Real PCE"], ["Variable $i" for i in 3:n_vars])
         TimeSeriesData(data, vn, :quarterly, tc, collect(1:T_obs),
-            "FRED-QD Quarterly Database", vd)
+            ["FRED-QD Quarterly Database"], vd)
     elseif name == :pwt
         n_vars = 42; n_countries = 38; T_per = 74
         T_obs = n_countries * T_per
@@ -2109,17 +2164,33 @@ function load_example(name::Symbol)
         T_obs = 55
         vn = ["LRM", "LRY", "LPY", "IBO", "IDE"]
         TimeSeriesData(randn(T_obs, 5) .+ 1.0, vn, :quarterly, fill(1, 5),
-            collect(1:T_obs), "Danish money demand", ["Variable $v" for v in vn])
+            collect(1:T_obs), ["Danish money demand"], ["Variable $v" for v in vn])
     elseif name == :gnp_hamilton
         # Hamilton (1989) US GNP growth: 135 quarters × 1 var
         T_obs = 135
         TimeSeriesData(randn(T_obs, 1) .+ 1.0, ["gnp_growth"], :quarterly, [1],
-            collect(1:T_obs), "US GNP growth (Hamilton 1989)", ["GNP growth"])
+            collect(1:T_obs), ["US GNP growth (Hamilton 1989)"], ["GNP growth"])
+    elseif name == :mp_shocks
+        # McKay-Wolf (2023) US monetary panel (CF-20/MEMs#400): 240 quarters × 8
+        # vars, NaN outside each series' published sample. The NaN mask below is
+        # the REAL per-column valid range (row 1 = 1960Q1), so T1/T2 exercise the
+        # same valid-count/valid-window arithmetic as T3 — NaN is not zero.
+        T_obs = 240
+        vn = ["ygap", "infl", "ffr", "lpcom", "rr", "mp1", "ad", "bzk_ist"]
+        valid = [(37, 240), (1, 223), (1, 223), (1, 213),
+                 (37, 192), (116, 210), (92, 195), (1, 209)]
+        data = fill(NaN, T_obs, 8)
+        for (j, (f, l)) in enumerate(valid)
+            data[f:l, j] = randn(l - f + 1) .+ 2.0
+        end
+        TimeSeriesData(data, vn, :quarterly, fill(1, 8), collect(1:T_obs),
+            ["US monetary panel with published policy-shock series (McKay-Wolf 2023)"],
+            ["Variable $v" for v in vn])
     elseif name == :nile
         # Nile annual flow: 100 years × 1 var
         T_obs = 100
         TimeSeriesData(randn(T_obs, 1) .+ 900.0, ["flow"], :annual, [1],
-            collect(1:T_obs), "Nile river annual flow", ["Flow"])
+            collect(1:T_obs), ["Nile river annual flow"], ["Flow"])
     elseif name == :grunfeld
         # Grunfeld investment panel: 10 firms × 20 years × 3 vars
         n_groups = 10; n_years = 20; n_vars = 3
@@ -2133,18 +2204,18 @@ function load_example(name::Symbol)
         # Mroz (1987) female labour supply: 753 × 22 cross section
         vn = vcat(["inlf", "hours", "kidslt6", "kidsge6"], ["var$i" for i in 5:22])
         CrossSectionData(randn(753, 22) .+ 1.0, vn, collect(1:753), 753, 22,
-                         "Mroz (1987) female labour supply", ["Variable $v" for v in vn])
+                         ["Mroz (1987) female labour supply"], ["Variable $v" for v in vn])
     elseif name == :stackloss
         # Brownlee stack-loss plant data: 21 × 4 cross section
         vn = ["stackloss", "airflow", "watertemp", "acidconc"]
         CrossSectionData(randn(21, 4) .+ 1.0, vn, collect(1:21), 21, 4,
-                         "Brownlee stack loss", ["Variable $v" for v in vn])
+                         ["Brownlee stack loss"], ["Variable $v" for v in vn])
     elseif name == :wiot
         _mock_wiot()   # Miller & Blair (2009) IO fixture (defined below)
     else
         # Real load_example throws ArgumentError — match it so error-mapping is testable.
         throw(ArgumentError("Unknown dataset :$name. Available: fred_md, fred_qd, pwt, mpdta, ddcg, " *
-                            "denmark, gnp_hamilton, grunfeld, mroz, nile, stackloss, wiot"))
+                            "denmark, gnp_hamilton, grunfeld, mp_shocks, mroz, nile, stackloss, wiot"))
     end
 end
 
@@ -2155,23 +2226,29 @@ varnames(d::TimeSeriesData) = d.varnames
 varnames(d::PanelData) = d.varnames
 varnames(d::CrossSectionData) = d.varnames
 frequency(d::TimeSeriesData) = d.frequency
-desc(d::TimeSeriesData) = d.desc
+desc(d::TimeSeriesData) = d.desc[1]
 vardesc(d::TimeSeriesData) = d.vardesc
 nobs(d::TimeSeriesData) = size(d.data, 1)
 nvars(d::TimeSeriesData) = size(d.data, 2)
 
 function describe_data(d::TimeSeriesData)
-    T_obs, n = size(d.data)
-    m = vec(mean(d.data; dims=1))
-    s = vec(std_mock(d.data))
-    mn = vec(minimum(d.data; dims=1))
-    mx = vec(maximum(d.data; dims=1))
+    # Real describe_data excludes NaN/Inf from every statistic and counts finite
+    # observations per variable — averaging NaN straight in hid the whole
+    # NaN-padded-dataset class (:mp_shocks) from T1/T2.
+    nv = size(d.data, 2)
+    cols = [filter(isfinite, d.data[:, j]) for j in 1:nv]
+    n = [length(c) for c in cols]
+    m = [isempty(c) ? NaN : mean(c) for c in cols]
+    s = [length(c) < 2 ? NaN :
+         sqrt(sum(abs2, c .- mean(c)) / (length(c) - 1)) for c in cols]
+    mn = [isempty(c) ? NaN : minimum(c) for c in cols]
+    mx = [isempty(c) ? NaN : maximum(c) for c in cols]
     p25 = m .- 0.67 .* s
     med = copy(m)
     p75 = m .+ 0.67 .* s
-    sk = fill(0.1, n)
-    ku = fill(3.0, n)
-    DataSummary(T_obs, m, s, mn, p25, med, p75, mx, sk, ku)
+    sk = fill(0.1, nv)
+    ku = fill(3.0, nv)
+    DataSummary(n, m, s, mn, p25, med, p75, mx, sk, ku)
 end
 
 # Simple std without Distributions dependency
@@ -2267,6 +2344,9 @@ struct NowcastBVAR{T<:AbstractFloat} <: AbstractNowcastModel
     X_sm::Matrix{T}; beta::Matrix{T}; sigma::Matrix{T}
     lambda::T; theta::T; miu::T; alpha::T; lags::Int; loglik::T
     nM::Int; nQ::Int; data::Matrix{T}
+    # MEMs 0.7.2/#602 additions (real field names/semantics: theta_cross is NaN under
+    # :conjugate, where it is not a free parameter)
+    converged::Bool; theta_cross::T; prior::Symbol
 end
 
 struct NowcastBridge{T<:AbstractFloat} <: AbstractNowcastModel
@@ -2293,10 +2373,23 @@ function nowcast_dfm(Y::AbstractMatrix, nM::Int, nQ::Int; r=2, p=1, idio=:ar1, b
         zeros(sd), Matrix{Float64}(I(sd)), r, p, ones(Int, N, 1), -100.0, 50, nM, nQ, idio, copy(Y))
 end
 
-function nowcast_bvar(Y::AbstractMatrix, nM::Int, nQ::Int; lags=5, kwargs...)
+# Mirror the real kwarg surface (bvar_nowcast.jl) — no `kwargs...` catch-all: a
+# swallowed kwarg is exactly how a real-MEMs MethodError hides behind a green suite.
+function nowcast_bvar(Y::AbstractMatrix, nM::Int, nQ::Int; lags=5, thresh=1e-6,
+                      max_iter=nothing, lambda0=0.2, theta0=1.0, miu0=1.0, alpha0=2.0,
+                      prior::Symbol=:conjugate,
+                      theta_cross0::Union{Real,Nothing}=nothing)
     T_obs, N = size(Y)
+    N == nM + nQ || throw(ArgumentError("nM ($nM) + nQ ($nQ) must equal number of columns ($N)"))
+    lags >= 1 || throw(ArgumentError("lags must be >= 1, got $lags"))
+    prior in (:conjugate, :litterman) ||
+        throw(ArgumentError("prior must be :conjugate or :litterman, got :$prior"))
+    prior == :conjugate && theta_cross0 !== nothing &&
+        throw(ArgumentError("theta_cross is not a parameter of the conjugate prior"))
+    tc = prior == :litterman ? Float64(something(theta_cross0, 1.0)) : NaN
     NowcastBVAR{Float64}(copy(Y), randn(N*lags+1, N), Matrix{Float64}(I(N)),
-        0.2, 1.0, 1.0, 2.0, lags, -100.0, nM, nQ, copy(Y))
+        lambda0, theta0, miu0, alpha0, lags, -100.0, nM, nQ, copy(Y),
+        true, tc, prior)
 end
 
 function nowcast_bridge(Y::AbstractMatrix, nM::Int, nQ::Int; lagM=1, lagQ=1, lagY=1)
@@ -2569,12 +2662,16 @@ function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto,
     if method == :perturbation
         n_states = max(1, n ÷ 2)
         n_controls = n - n_states
-        gx = ones(T, n_controls, n_states) * T(0.1)
-        hx = Matrix{T}(I(n_states)) * T(0.5)
-        eta = zeros(T, n_states, ne)
-        for i in 1:min(n_states, ne); eta[i, i] = T(1.0); end
-        gxx = order >= 2 ? zeros(T, n_controls, n_states, n_states) : nothing
-        hxx = order >= 2 ? zeros(T, n_states, n_states, n_states) : nothing
+        # Real gx/hx are ny×nv and nx×nv where v = [states; shocks] (the Stage-14 #368
+        # augmented layout, MEMs ≥0.7.2). A state-only mock gx hid a broken
+        # `dsge solve --method perturbation` render branch for a whole release line.
+        nv = n_states + ne
+        gx = ones(T, n_controls, nv) * T(0.1)
+        hx = hcat(Matrix{T}(I(n_states)) * T(0.5), zeros(T, n_states, ne))
+        eta = zeros(T, nv, ne)
+        for i in 1:ne; eta[n_states + i, i] = T(1.0); end
+        gxx = order >= 2 ? zeros(T, n_controls, nv, nv) : nothing
+        hxx = order >= 2 ? zeros(T, n_states, nv, nv) : nothing
         gσσ = order >= 2 ? zeros(T, n_controls) : nothing
         hσσ = order >= 2 ? zeros(T, n_states) : nothing
         ss = zeros(T, n)
@@ -3903,7 +4000,13 @@ struct BVARForecast{T<:AbstractFloat}
     conf_level::T
     point_estimate::Symbol
     varnames::Vector{String}
+    # Real trailing field (0.8.0): posterior forecast draws (store_draws=true),
+    # layout n_draws × h × n. Without store_draws upstream leaves it nothing and
+    # estimate_opp silently falls back to IRF-only bands.
+    _draws::Union{Nothing,Array{T,3}}
 end
+BVARForecast(f::Matrix{T}, cl, cu, h::Int, conf::T, pe::Symbol, vn) where T =
+    BVARForecast{T}(f, cl, cu, h, conf, pe, vn, nothing)
 
 point_forecast(f::Union{VARForecast,BVARForecast}) = f.forecast
 lower_bound(f::Union{VARForecast,BVARForecast}) = f.ci_lower
@@ -4769,12 +4872,17 @@ long_table(f::MSForecast) = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, Stri
 export MSRegModel, estimate_ms, estimate_ms_ar, MSForecast
 
 # BVAR forecast dispatch — returns BVARForecast
-function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84], conf_level=0.95)
+function forecast(post::BVARPosterior, h::Int; ci_method=:none, quantiles=[0.16, 0.5, 0.84],
+                  conf_level=0.95, store_draws::Bool=false)
     n = post.n
     fc = ones(h, n) * 0.1
     pe = ci_method isa Symbol ? ci_method : :mean
+    # store_draws is real's 0.8.0 kwarg; without it _draws stays nothing and
+    # estimate_opp silently narrows its bands — the trap W6 exists to defuse.
+    drw = store_draws ?
+        reshape(fc, 1, h, n) .+ 0.05 .* randn(min(post.n_draws, 100), h, n) : nothing
     BVARForecast{Float64}(fc, fc .- 0.5, fc .+ 0.5, h, Float64(conf_level), pe,
-                           ["var$i" for i in 1:n])
+                          ["var$i" for i in 1:n], drw)
 end
 
 export BVARForecast, point_forecast, lower_bound, upper_bound, forecast_horizon
@@ -5000,8 +5108,13 @@ function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
     Sigma = Matrix{T}(I(n_aug)) * T(0.5)
     factors = randn(T, n_obs, r)
     loadings = randn(T, n_vars, r)
-    vnames = ["aug$i" for i in 1:n_aug]
-    pvnames = panel_varnames === nothing ? ["var$i" for i in 1:n_vars] : panel_varnames
+    # Real aug names (favar/estimation.jl): F1..Fr then the KEY variables' panel
+    # names — pvn[idx] whether given or the "X$i" default (MEMs#538 adoption).
+    pvnames = panel_varnames === nothing ? ["X$i" for i in 1:n_vars] : panel_varnames
+    length(pvnames) == n_vars || throw(ArgumentError(
+        "panel_varnames has $(length(pvnames)) entries but X has $n_vars columns"))
+    vnames = vcat(["F$i" for i in 1:r],
+                  [1 <= idx <= n_vars ? pvnames[idx] : "Y$idx" for idx in key_indices])
     if method == :bayesian
         B_draws = ones(T, size(B, 1), size(B, 2), n_draws) * T(0.1)
         Sigma_draws = ones(T, n_aug, n_aug, n_draws) * T(0.5)
@@ -5015,9 +5128,10 @@ function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
 end
 
 function to_var(favar::FAVARModel{T}) where T
-    n = size(favar.Y, 2)
+    # Carry the augmented names into the VAR so irf/fevd favar label the key
+    # variables with their panel names, exactly as real does.
     VARModel{T}(favar.Y, favar.p, favar.B, favar.U, favar.Sigma,
-                favar.aic, favar.bic, T(-92.0))
+                favar.aic, favar.bic, T(-92.0), copy(favar.varnames))
 end
 
 function favar_panel_irf(favar::FAVARModel{T}, irf_result::ImpulseResponse{T}) where T
@@ -5034,7 +5148,7 @@ function favar_panel_forecast(favar::FAVARModel{T}, fc::VARForecast{T}) where T
     h = fc.horizon
     panel_fc = ones(T, h, N) * T(0.1)
     VARForecast{T}(panel_fc, panel_fc .- T(0.5), panel_fc .+ T(0.5),
-                    h, :none, T(0.95), favar.panel_varnames)
+                    h, :none, T(0.95), favar.panel_varnames, nothing)
 end
 
 # FAVAR dispatches for irf/fevd/hd — delegate to VAR internals
@@ -5067,40 +5181,45 @@ struct StructuralDFM{T<:Real}
     structural_irf::Array{T,3}
     loadings_td::Matrix{T}
     p_var::Int; shock_names::Vector{String}
+    varnames::Vector{String}   # panel names (MEMs#538); real default "Var $i"
 end
 
 function estimate_structural_dfm(X::Matrix{T}, q::Int;
         identification=:cholesky, p=1, H=40, sign_check=nothing,
-        max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett) where T
+        max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett,
+        varnames::Union{Nothing,Vector{String}}=nothing) where T
     n_obs, n_vars = size(X)
+    # Real (factor/structural.jl, MEMs#538) defaults and validates the length.
+    vn = varnames === nothing ? ["Var $i" for i in 1:n_vars] : varnames
+    length(vn) == n_vars || throw(ArgumentError(
+        "varnames has $(length(vn)) entries but panel has $n_vars columns"))
     gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel)
     factor_Y = randn(T, n_obs - p, q)
     B_fvar = ones(T, q * p + 1, q) * T(0.1)
     U_fvar = randn(T, n_obs - p, q)
     Sigma_fvar = Matrix{T}(I(q)) * T(0.5)
-    fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0), T(-45.0))
+    # Real names the factor VAR "Factor $i" — fevd sdfm labels come from here.
+    fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0),
+                       T(-45.0), ["Factor $i" for i in 1:q])
     B0 = Matrix{T}(I(q))
     Q_mat = Matrix{T}(I(q))
     loadings_td = randn(T, n_vars, q)
     s_irf = ones(T, H + 1, n_vars, q) * T(0.05)
     snames = ["structural_shock_$i" for i in 1:q]
-    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames)
+    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames, vn)
 end
 
 function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
-    n_vars = size(sdfm.loadings_td, 1)
-    q = size(sdfm.B0, 1)
     h = min(horizon, size(sdfm.structural_irf, 1) - 1)
     vals = sdfm.structural_irf[1:h+1, :, :]
-    vnames = ["var$i" for i in 1:n_vars]
-    ImpulseResponse(vals, nothing, nothing, h, vnames, sdfm.shock_names, :structural_dfm)
+    # Real labels panel responses with sdfm.varnames (favar/analysis.jl).
+    ImpulseResponse(vals, nothing, nothing, h, copy(sdfm.varnames), sdfm.shock_names, :structural_dfm)
 end
 
-function fevd(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
-    q = size(sdfm.B0, 1)
-    props = ones(T, q, q, horizon) / T(q)
-    FEVD(props, props)
-end
+# Real delegates to the factor VAR (favar/analysis.jl) — labels are "Factor $i".
+# No kwargs absorber: the CLI never forwards kwargs here, and mock ⊆ real means
+# stricter is the safe direction (keeps the check_mock_surface absorber budget flat).
+fevd(sdfm::StructuralDFM{T}, horizon::Int) where T = fevd(sdfm.factor_var, horizon)
 
 export StructuralDFM, estimate_structural_dfm
 
@@ -5375,7 +5494,14 @@ struct FactorBreakResult{T<:AbstractFloat}
     n_factors::Int
     nobs::Int
     n_vars::Int
+    # MEMs 0.7.3/#606: per-series sup statistics + maximizing dates — populated by the
+    # two POOLED methods (breitung_eickmeier, han_inoue), nothing for chen_dolado_gonzalo.
+    series_statistics::Union{Vector{T}, Nothing}
+    series_break_dates::Union{Vector{Int}, Nothing}
 end
+# 7-arg back-compat constructor, mirroring real (#606)
+FactorBreakResult{T}(s, p, bd, m, nf, no, nv) where {T<:AbstractFloat} =
+    FactorBreakResult{T}(s, p, bd, m, nf, no, nv, nothing, nothing)
 
 function panic_test(X::AbstractMatrix{T}; r=:auto, method=:pooled) where T
     n_obs, n_units = size(X)
@@ -5415,7 +5541,15 @@ end
 
 function factor_break_test(X::AbstractMatrix{T}, r::Int; method=:breitung_eickmeier) where T
     n_obs, n_units = size(X)
-    FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units)
+    if method in (:breitung_eickmeier, :han_inoue)
+        # Deliberately UNSORTED per-series stats so a handler that forgets to sort shows.
+        stats = T[T(1 + (i * 7) % n_units) for i in 1:n_units]
+        dates = Int[div(n_obs, 2) + (i % 3) for i in 1:n_units]
+        FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units,
+                             stats, dates)
+    else
+        FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units)
+    end
 end
 function factor_break_test(pd::PanelData{T}, r::Int; method=:breitung_eickmeier) where T
     X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)
@@ -6995,12 +7129,15 @@ struct PanelIVModel{T<:Real}
     sigma_u::T
     sigma_e::T
     rho::T
+    # Real (preg/types.jl): first_stage_f is NOT nullable (Inf when no endog,
+    # NaN when degenerate); the other five are Union{Nothing,T} — nothing means
+    # the computation failed OR the model is just-/under-identified.
     first_stage_f::T
-    sargan_stat::T
-    sargan_pval::T
-    cragg_donald_f::T
-    kleibergen_paap_f::T
-    stock_yogo_10pct::T
+    sargan_stat::Union{Nothing,T}
+    sargan_pval::Union{Nothing,T}
+    cragg_donald_f::Union{Nothing,T}
+    kleibergen_paap_f::Union{Nothing,T}
+    stock_yogo_10pct::Union{Nothing,T}
     varnames::Vector{String}
     endog_names::Vector{String}
     instrument_names::Vector{String}
@@ -7111,7 +7248,11 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
         model=:fe, twoway=false, fe=:twoway, cov_type=:cluster, clusters=nothing,
         varnames=nothing, ar1::Symbol=:none, pcse_unbalanced::Symbol=:casewise,
         absorb::Vector{Symbol}=Symbol[], hdfe_tol::Real=1e-8, hdfe_maxiter::Int=1000,
-        hdfe_accel::Bool=true) where T
+        hdfe_accel::Bool=true,
+        collapse::Bool=false, min_lag_endo::Int=2, max_lag_endo::Int=99) where T
+    # Real validates the model symbol up front (preg/estimation.jl).
+    model in (:fe, :re, :fd, :between, :cre, :ab, :bb) ||
+        throw(ArgumentError("model must be :fe, :re, :fd, :between, :cre, :ab, or :bb; got :$model"))
     # Mirror real's validation (preg/estimation.jl) for the #75 additions.
     # W10/#112 absorb guards, verbatim from real — including the twoway exclusivity whose
     # error message points at `absorb=[:entity, :time]` (the correct route on an UNBALANCED
@@ -7163,11 +7304,26 @@ function estimate_xtreg(pd::PanelData{T}, outcome, covariates;
          change = 1e-10,
          tol = Float64(hdfe_tol),
          accel = hdfe_accel)
+    # Real's :ab/:bb path routes through PVAR GMM and returns a PanelRegModel
+    # whose dynamic_diagnostics NamedTuple carries the AB tests + Hansen J +
+    # n_instruments (W10/#131). The count responds to the proliferation controls
+    # the same direction as real: collapsing shrinks it, widening the lag window
+    # grows it.
+    dyn = if model in (:ab, :bb)
+        maxl = min(max_lag_endo, 8)
+        n_inst = collapse ? (maxl - min_lag_endo + 1) : (maxl - min_lag_endo + 1) * 5
+        (ar1 = T(-2.1), ar1_p = T(0.036), ar2 = T(0.4), ar2_p = T(0.69),
+         hansen = T(11.2), hansen_df = max(n_inst - length(covariates) - 1, 1),
+         hansen_p = T(0.34), n_instruments = n_inst)
+    else
+        nothing
+    end
+    model in (:ab, :bb) && (vnames = ["L.$(outcome)"; string.(covariates)])
     PanelRegModel{T}(beta, vcov_mat, resids, fitted_vals, y, X,
         T(0.35), T(0.25), T(0.30), T(0.5), T(1.0), T(0.2), T(0.5),
         T(20.0), T(0.001), T(-200.0), T(410.0), T(420.0),
         vnames, meth, Bool(twoway), cov_type, n, pd.n_groups, T(n / max(pd.n_groups, 1)),
-        nothing, pd, nothing, nothing, hdfe_info)
+        nothing, pd, dyn, nothing, hdfe_info)
 end
 
 function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
@@ -7184,9 +7340,13 @@ function estimate_xtiv(pd::PanelData{T}, outcome, covariates, endog=Symbol[];
     vnames = varnames === nothing ? ["const"; string.(covariates)] : varnames
     endog_names = string.(endog)
     inst_names = string.(instruments)
+    # Real: Sargan is nothing when just-identified (dof = n_inst - n_endog <= 0).
+    overid = length(instruments) > length(endog)
+    sargan_s = overid ? T(2.5) : nothing
+    sargan_p = overid ? T(0.30) : nothing
     PanelIVModel{T}(beta, vcov_mat, resids, fitted_vals, y, X, Z,
         T(0.30), T(0.20), T(0.25), T(0.5), T(1.0), T(0.2),
-        T(12.0), T(2.5), T(0.30), T(10.0), T(9.0), T(7.0),
+        T(12.0), sargan_s, sargan_p, T(10.0), T(9.0), T(7.0),
         vnames, endog_names, inst_names, model isa Symbol ? model : :fe, cov_type,
         n, pd.n_groups, pd)
 end
@@ -7465,24 +7625,40 @@ function DataFrames.DataFrame(m::MultinomialLogitModel)
     return df
 end
 
-function marginal_effects(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}};
-        type=:ame, at=nothing, conf_level=0.95) where T
+# Real (0.8.0, MEMs#550): NO kwargs on either family, and TWO different shapes —
+# the ordered models return a plain NamedTuple whose effects/se are K×J MATRICES
+# (categories UNTYPED, copy(m.categories)); mlogit returns the exported
+# MultinomialMarginalEffects struct (se NULLABLE, base-category column all zeros).
+# Neither carries z/p/CI, so they must never route through the shared
+# MarginalEffects renderer. The old mock did exactly that, with three invented
+# kwargs real does not have (#85 class).
+function marginal_effects(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}}) where T
     k = length(m.beta)
     nc = length(m.categories)
-    effects = ones(T, k, nc) * T(0.1)
-    MarginalEffects{T}(vec(effects), fill(T(0.02), k*nc), fill(T(5.0), k*nc),
-        fill(T(0.001), k*nc), vec(effects) .- T(0.04), vec(effects) .+ T(0.04),
-        m.varnames, type, T(conf_level))
+    # AMEs across categories sum to zero per variable (∂Σp/∂x = 0) — keep the
+    # real property so tests can pin it.
+    effects = Matrix{T}(repeat(collect(range(-0.1, 0.1; length=nc))', k))
+    (effects = effects, se = fill(T(0.02), k, nc),
+     varnames = copy(m.varnames), categories = copy(m.categories))
 end
 
-function marginal_effects(m::MultinomialLogitModel{T};
-        type=:ame, at=nothing, conf_level=0.95) where T
+# Real struct (reg/multinomial.jl, exported): se is nothing when the model vcov
+# is rank-deficient; categories are String (unlike ordered's untyped vector).
+# Live-verified on 0.8.0: every category INCLUDING the base gets a real
+# probability-scale AME and each variable's effects sum to ~0 across categories.
+struct MultinomialMarginalEffects{T<:AbstractFloat}
+    effects::Matrix{T}
+    se::Union{Matrix{T},Nothing}
+    varnames::Vector{String}
+    categories::Vector{String}
+end
+
+function marginal_effects(m::MultinomialLogitModel{T}) where T
     k = size(m.beta, 1)
     nc = length(m.categories)
-    effects = ones(T, k, nc) * T(0.1)
-    MarginalEffects{T}(vec(effects), fill(T(0.02), k*nc), fill(T(5.0), k*nc),
-        fill(T(0.001), k*nc), vec(effects) .- T(0.04), vec(effects) .+ T(0.04),
-        m.varnames, type, T(conf_level))
+    effects = Matrix{T}(repeat(collect(range(-0.1, 0.1; length=nc))', k))
+    MultinomialMarginalEffects{T}(effects, fill(T(0.02), k, nc),
+        copy(m.varnames), string.(m.categories))
 end
 
 function brant_test(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}}) where T
@@ -7497,13 +7673,948 @@ function hausman_iia(m::MultinomialLogitModel{T}; omit_category::Int=2) where T
     PanelTestResult{T}("Hausman IIA", T(3.5), T(0.48), k, "IIA test")
 end
 
-function dropna(ts; vars=nothing, cols=nothing)
-    ts
+# Real dropna/keeprows semantics replicated exactly. The old no-op versions
+# accepted anything (an invented `cols` kwarg; a Vector{SubString} for `vars`,
+# which real's `::Union{Vector{String},Nothing}` assertion rejects with a
+# TypeError) and returned the data UNCHANGED — hiding both the SubString crash
+# and the whole NaN-row-dropping behavior from T1/T2.
+function dropna(d::TimeSeriesData; vars::Union{Vector{String},Nothing}=nothing)
+    mat = d.data
+    if vars === nothing
+        good = [all(isfinite, mat[i, :]) for i in 1:size(mat, 1)]
+    else
+        col_idx = [findfirst(==(v), d.varnames) for v in vars]
+        any(isnothing, col_idx) && throw(ArgumentError(
+            "Variable(s) not found: $(vars[findall(isnothing, col_idx)])"))
+        cidx = Int[c for c in col_idx]
+        good = [all(isfinite, mat[i, cidx]) for i in 1:size(mat, 1)]
+    end
+    idx = findall(good)
+    isempty(idx) && throw(ArgumentError("All rows contain NaN or Inf — no data remaining"))
+    TimeSeriesData(mat[idx, :], copy(d.varnames), d.frequency, copy(d.tcode),
+                   d.time_index[idx], d.desc, copy(d.vardesc))
 end
 
-function keeprows(ts, indices::AbstractVector)
-    ts
+function keeprows(d::TimeSeriesData, idx::Vector{Int})
+    isempty(idx) && throw(ArgumentError("No rows selected — empty result"))
+    all(i -> 1 <= i <= size(d.data, 1), idx) || throw(BoundsError(d, idx))
+    TimeSeriesData(d.data[idx, :], copy(d.varnames), d.frequency, copy(d.tcode),
+                   d.time_index[idx], d.desc, copy(d.vardesc))
 end
+
+# ─── Policy-counterfactual module (W4/#126, MEMs 0.8.0 CF-01..24) ────────────
+# Field names, layouts and validation mirror real (counterfactual/types.jl).
+# The engine is real's :ls math (assembly + pinv projection) — it is pure linear
+# algebra, so the mock implements it faithfully rather than inventing shapes.
+
+struct PolicyCausalEffects{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    Theta_x::Vector{Matrix{T}}
+    Theta_z::Vector{Matrix{T}}
+    Theta_x_draws::Union{Nothing,Vector{Array{T,3}}}
+    Theta_z_draws::Union{Nothing,Vector{Array{T,3}}}
+    H::Int
+    shock_labels::Vector{String}
+    source::Symbol
+end
+
+struct PolicyRule{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    A_x::Vector{Matrix{T}}
+    A_z::Vector{Matrix{T}}
+    wedge::Vector{T}
+    name::String
+end
+
+struct PolicyLoss{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    W_x::Vector{Matrix{T}}
+    W_z::Union{Nothing,Vector{Matrix{T}}}
+    lambda::Vector{T}
+    beta::T
+    name::String
+end
+
+struct BaselinePath{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    x::Vector{Vector{T}}
+    z::Vector{Vector{T}}
+    x_draws::Union{Nothing,Vector{Matrix{T}}}
+    z_draws::Union{Nothing,Vector{Matrix{T}}}
+    H::Int
+    label::String
+end
+
+struct PolicyCounterfactual{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    x_base::Vector{Vector{T}}
+    z_base::Vector{Vector{T}}
+    x_cf::Vector{Vector{T}}
+    z_cf::Vector{Vector{T}}
+    x_bands::Union{Nothing,Vector{Matrix{T}}}
+    z_bands::Union{Nothing,Vector{Matrix{T}}}
+    nu::Vector{T}
+    shock_labels::Vector{String}
+    error_path::Vector{T}
+    rel_residual::T
+    rel_residual_bands::Union{Nothing,Vector{T}}
+    spanned::Bool
+    rule_name::String
+    H::Int
+    quantile_levels::Vector{T}
+    n_draws_used::Int
+    n_draws_failed::Int
+    loss_base::T
+    loss_cf::T
+    foc_norm::T
+end
+
+is_square(ce::PolicyCausalEffects) = size(ce.Theta_x[1], 2) == ce.H
+
+# Variable/shock resolution: Int index or String name, real's error style.
+function _cf_resolve(v, names::Vector{String}, what::String)
+    if v isa Integer
+        (1 <= v <= length(names)) || throw(ArgumentError(
+            "$what index $v out of range 1:$(length(names))"))
+        return Int(v)
+    end
+    i = findfirst(==(String(v)), names)
+    i === nothing && throw(ArgumentError(
+        "$what '$v' not found in $(names)"))
+    return i
+end
+
+function _cf_check_horizon(H::Int, stored::Int)
+    1 <= H <= stored || throw(ArgumentError(
+        "H: expected 1 <= H <= $stored (the stored IRF horizon), got $H"))
+end
+
+function _pce_build_mock(values::Array{T,3}, draws4, variables, shocknames,
+                         shocks, outcomes, instruments;
+                         H::Int, normalize::Symbol, source::Symbol) where T
+    normalize in (:none, :instrument_impact) || throw(ArgumentError(
+        "normalize: expected :none or :instrument_impact, got :$normalize"))
+    _cf_check_horizon(H, size(values, 1))
+    isempty(shocks) && throw(ArgumentError("shocks: expected at least one policy shock"))
+    shock_idx = Int[_cf_resolve(s, shocknames, "shock") for s in shocks]
+    out_syms = Symbol[first(p) for p in outcomes]
+    out_idx = Int[_cf_resolve(last(p), variables, "variable") for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    ins_idx = Int[_cf_resolve(last(p), variables, "variable") for p in instruments]
+    slice(vi) = Matrix{T}(values[1:H, vi, shock_idx])
+    dslice(vi) = Array{T,3}(permutedims(draws4[:, 1:H, vi, shock_idx], (2, 3, 1)))
+    Theta_x = [slice(vi) for vi in out_idx]
+    Theta_z = [slice(vi) for vi in ins_idx]
+    Dx = draws4 === nothing ? nothing : Array{T,3}[dslice(vi) for vi in out_idx]
+    Dz = draws4 === nothing ? nothing : Array{T,3}[dslice(vi) for vi in ins_idx]
+    PolicyCausalEffects{T}(out_syms, ins_syms, Theta_x, Theta_z, Dx, Dz,
+                           H, shocknames[shock_idx], source)
+end
+
+policy_causal_effects(ir::ImpulseResponse{T}, shocks::AbstractVector,
+                      outcomes::AbstractVector{<:Pair},
+                      instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                      H::Int=ir.horizon, normalize::Symbol=:none,
+                      source::Symbol=:var) where T =
+    _pce_build_mock(ir.values, ir._draws, ir.variables, ir.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize, source=source)
+
+function policy_causal_effects(bir::BayesianImpulseResponse{T}, shocks::AbstractVector,
+                               outcomes::AbstractVector{<:Pair},
+                               instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                               H::Int=bir.horizon, normalize::Symbol=:none,
+                               source::Symbol=:bvar) where T
+    _pce_build_mock(bir.point_estimate, bir._draws, bir.variables, bir.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize, source=source)
+end
+
+policy_causal_effects(s::SignIdentifiedSet{T}, shocks::AbstractVector,
+                      outcomes::AbstractVector{<:Pair},
+                      instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                      H::Int=size(s.irf_draws, 2), normalize::Symbol=:none) where T =
+    _pce_build_mock(irf_median(s), s.irf_draws, s.variables, s.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize,
+                    source=:sign_set)
+
+function policy_causal_effects(slp::StructuralLP{T}, shocks::AbstractVector,
+                               outcomes::AbstractVector{<:Pair},
+                               instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                               H::Int=slp.irf.horizon, normalize::Symbol=:none,
+                               n_draws::Int=500, rng=nothing) where T
+    n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
+    Hh, nv, ns = size(slp.irf.values)
+    draws4 = reshape(slp.irf.values, 1, Hh, nv, ns) .+
+             T(0.02) .* randn(T, n_draws, Hh, nv, ns)
+    _pce_build_mock(slp.irf.values, draws4, slp.irf.variables, slp.irf.shocks,
+                    shocks, outcomes, instruments; H=H, normalize=normalize, source=:lp)
+end
+
+function _bp_build_mock(values::Array{T,3}, draws4, variables, shocknames,
+                        nonpolicy_shock, outcomes, instruments;
+                        H::Int, negate::Bool) where T
+    _cf_check_horizon(H, size(values, 1))
+    si = _cf_resolve(nonpolicy_shock, shocknames, "shock")
+    sgn = negate ? -one(T) : one(T)
+    out_syms = Symbol[first(p) for p in outcomes]
+    out_idx = Int[_cf_resolve(last(p), variables, "variable") for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    ins_idx = Int[_cf_resolve(last(p), variables, "variable") for p in instruments]
+    x = [sgn .* Vector{T}(values[1:H, vi, si]) for vi in out_idx]
+    z = [sgn .* Vector{T}(values[1:H, vi, si]) for vi in ins_idx]
+    dm(vi) = Matrix{T}(sgn .* permutedims(draws4[:, 1:H, vi, si]))
+    xd = draws4 === nothing ? nothing : Matrix{T}[dm(vi) for vi in out_idx]
+    zd = draws4 === nothing ? nothing : Matrix{T}[dm(vi) for vi in ins_idx]
+    BaselinePath{T}(out_syms, ins_syms, x, z, xd, zd, H,
+                    shocknames[si] * (negate ? " (negated)" : ""))
+end
+
+baseline_path(ir::ImpulseResponse{T}, nonpolicy_shock,
+              outcomes::AbstractVector{<:Pair},
+              instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+              H::Int=ir.horizon, negate::Bool=false) where T =
+    _bp_build_mock(ir.values, ir._draws, ir.variables, ir.shocks, nonpolicy_shock,
+                   outcomes, instruments; H=H, negate=negate)
+
+baseline_path(bir::BayesianImpulseResponse{T}, nonpolicy_shock,
+              outcomes::AbstractVector{<:Pair},
+              instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+              H::Int=bir.horizon, negate::Bool=false) where T =
+    _bp_build_mock(bir.point_estimate, bir._draws, bir.variables, bir.shocks,
+                   nonpolicy_shock, outcomes, instruments; H=H, negate=negate)
+
+# Rule builders (real validation: single instrument for peg/target/taylor,
+# named variables required among outcomes, pi ≠ y for ngdp/taylor).
+function _cf_single_instrument(instruments, who)
+    length(instruments) == 1 || throw(ArgumentError(
+        "$who: expected exactly 1 instrument, got $(length(instruments))"))
+end
+function _cf_require_var(v::Symbol, outcomes, argname, who)
+    i = findfirst(==(v), outcomes)
+    i === nothing && throw(ArgumentError(
+        "$who: $argname :$v not found in outcomes $(outcomes)"))
+    return i
+end
+_lag_shift_mock(H) = [Float64(i == j + 1) for i in 1:H, j in 1:H]
+
+function rate_peg_rule(H::Int; outcomes=[:infl, :ygap], instruments=[:rate])
+    _cf_single_instrument(instruments, "rate_peg_rule")
+    PolicyRule{Float64}(collect(outcomes), collect(instruments),
+                        [zeros(H, H) for _ in outcomes], [Matrix{Float64}(I, H, H)],
+                        zeros(H), "rate peg")
+end
+function rate_target_rule(H::Int, path::AbstractVector{<:Real};
+                          outcomes=[:infl, :ygap], instruments=[:rate])
+    _cf_single_instrument(instruments, "rate_target_rule")
+    length(path) == H || throw(ArgumentError(
+        "rate_target_rule: path: expected length H = $H, got $(length(path))"))
+    PolicyRule{Float64}(collect(outcomes), collect(instruments),
+                        [zeros(H, H) for _ in outcomes], [Matrix{Float64}(I, H, H)],
+                        Vector{Float64}(path), "rate target path")
+end
+function inflation_target_rule(H::Int; pi_var::Symbol=:infl,
+                               outcomes=[:infl, :ygap], instruments=[:rate])
+    i = _cf_require_var(pi_var, outcomes, "pi_var", "inflation_target_rule")
+    A_x = [zeros(H, H) for _ in outcomes]; A_x[i] = Matrix{Float64}(I, H, H)
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x,
+                        [zeros(H, H) for _ in instruments], zeros(H), "inflation target")
+end
+function output_gap_rule(H::Int; y_var::Symbol=:ygap,
+                         outcomes=[:infl, :ygap], instruments=[:rate])
+    i = _cf_require_var(y_var, outcomes, "y_var", "output_gap_rule")
+    A_x = [zeros(H, H) for _ in outcomes]; A_x[i] = Matrix{Float64}(I, H, H)
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x,
+                        [zeros(H, H) for _ in instruments], zeros(H), "output gap target")
+end
+function ngdp_rule(H::Int; pi_var::Symbol=:infl, y_var::Symbol=:ygap,
+                   outcomes=[:infl, :ygap], instruments=[:rate])
+    i_pi = _cf_require_var(pi_var, outcomes, "pi_var", "ngdp_rule")
+    i_y = _cf_require_var(y_var, outcomes, "y_var", "ngdp_rule")
+    i_pi == i_y && throw(ArgumentError(
+        "ngdp_rule: pi_var and y_var must differ, both are :$pi_var"))
+    A_x = [zeros(H, H) for _ in outcomes]
+    A_x[i_pi] = Matrix{Float64}(I, H, H)
+    A_x[i_y] = Matrix{Float64}(I, H, H) - _lag_shift_mock(H)
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x,
+                        [zeros(H, H) for _ in instruments], zeros(H), "ngdp target")
+end
+function taylor_rule(H::Int; rho::Real=0.5, phi_pi::Real=1.5, phi_y::Real=1.0,
+                     z_lag::Real=0.0, pi_var::Symbol=:infl, y_var::Symbol=:ygap,
+                     outcomes=[:infl, :ygap], instruments=[:rate])
+    _cf_single_instrument(instruments, "taylor_rule")
+    i_pi = _cf_require_var(pi_var, outcomes, "pi_var", "taylor_rule")
+    i_y = _cf_require_var(y_var, outcomes, "y_var", "taylor_rule")
+    i_pi == i_y && throw(ArgumentError(
+        "taylor_rule: pi_var and y_var must differ, both are :$pi_var"))
+    A_x = [zeros(H, H) for _ in outcomes]
+    A_x[i_pi] = -(1 - rho) * phi_pi * Matrix{Float64}(I, H, H)
+    A_x[i_y] = -(1 - rho) * phi_y * Matrix{Float64}(I, H, H)
+    A_z = Matrix{Float64}(I, H, H) - rho * _lag_shift_mock(H)
+    wedge = zeros(H); wedge[1] = rho * z_lag
+    PolicyRule{Float64}(collect(outcomes), collect(instruments), A_x, [A_z], wedge,
+                        "taylor(ρ=$(rho), φπ=$(phi_pi), φy=$(phi_y))")
+end
+
+function policy_loss(outcomes::AbstractVector{Symbol}, H::Int;
+                     lambda::AbstractVector{<:Real},   # REQUIRED, like real
+                     beta::Real=1.0, instruments::AbstractVector{Symbol}=Symbol[],
+                     W_z=nothing, name::AbstractString="discounted diagonal")
+    length(lambda) == length(outcomes) || throw(ArgumentError(
+        "policy_loss: lambda: expected $(length(outcomes)) weights (one per outcome), got $(length(lambda))"))
+    (0 < beta <= 1) || throw(ArgumentError("beta: expected 0 < beta <= 1, got $beta"))
+    W_x = [Matrix{Float64}(Float64(lam) .* Diagonal([Float64(beta)^(h - 1) for h in 1:H]))
+           for lam in lambda]
+    PolicyLoss{Float64}(collect(outcomes), collect(instruments), W_x,
+                        W_z === nothing ? nothing : collect(Matrix{Float64}, W_z),
+                        Vector{Float64}(lambda), Float64(beta), String(name))
+end
+
+function ait_loss(H::Int; beta::Real=1/1.01, lambda_avg::Real=0.6, lambda_t::Real=0.4,
+                  lambda_y::Real=1.0, delta::Real=0.1, K::Int=19)
+    K >= 1 || throw(ArgumentError("K: expected K >= 1, got $K"))
+    policy_loss([:infl, :ygap], H; lambda=[lambda_avg + lambda_t, lambda_y],
+                beta=beta, name="average inflation targeting")
+end
+
+function smoothing_penalty(H::Int; lambda::Real=1.0, beta::Real=1.0, z_lag::Real=0.0)
+    D = Matrix{Float64}(I, H, H) - _lag_shift_mock(H)
+    W = Float64(lambda) .* (D' * Diagonal([Float64(beta)^(h - 1) for h in 1:H]) * D)
+    wedge = zeros(H); wedge[1] = Float64(lambda) * Float64(z_lag)
+    (W_z=W, wedge_term=wedge)   # NamedTuple, NOT a PolicyLoss — real's contract
+end
+
+_rule_horizon_mock(rule::PolicyRule) =
+    isempty(rule.A_x) ? size(rule.A_z[1], 1) : size(rule.A_x[1], 1)
+
+# Real's :ls engine — assembly + pinv projection + honesty numbers.
+function policy_counterfactual(base::BaselinePath{T}, ce::PolicyCausalEffects{T},
+                               rule::PolicyRule;
+                               method::Symbol=:auto, draws::Symbol=:auto,
+                               baseline_draws::Symbol=:fixed,
+                               quantiles=(0.16, 0.5, 0.84),
+                               spanned_tol::Real=0.05) where T
+    H = ce.H
+    base.H == H || throw(ArgumentError(
+        "baseline H = $(base.H) does not match the container H = $H"))
+    _rule_horizon_mock(rule) == H || throw(ArgumentError(
+        "rule H = $(_rule_horizon_mock(rule)) does not match the container H = $H"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
+    baseline_draws in (:fixed, :match) || throw(ArgumentError(
+        "baseline_draws: expected :fixed or :match, got :$baseline_draws"))
+    method in (:auto, :ls, :exact) || throw(ArgumentError(
+        "method: expected :auto, :ls or :exact, got :$method"))
+    for sym in rule.outcomes
+        sym in ce.outcomes || throw(ArgumentError(
+            "rule outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+    end
+    for sym in rule.instruments
+        sym in ce.instruments || throw(ArgumentError(
+            "rule instrument :$sym not found in the container instruments $(ce.instruments)"))
+    end
+
+    xb = [Vector{T}(base.x[findfirst(==(s), base.outcomes)]) for s in ce.outcomes]
+    zb = [Vector{T}(base.z[findfirst(==(s), base.instruments)]) for s in ce.instruments]
+    n_s = size(ce.Theta_x[1], 2)
+    M = zeros(T, H, n_s)
+    b = -Vector{T}(rule.wedge)
+    for (i, sym) in enumerate(rule.outcomes)
+        ci = findfirst(==(sym), ce.outcomes)
+        M .+= rule.A_x[i] * ce.Theta_x[ci]
+        b .+= rule.A_x[i] * xb[ci]
+    end
+    for (k, sym) in enumerate(rule.instruments)
+        ck = findfirst(==(sym), ce.instruments)
+        M .+= rule.A_z[k] * ce.Theta_z[ck]
+        b .+= rule.A_z[k] * zb[ck]
+    end
+    nu = -pinv(M) * b
+    err = M * nu + b
+    rel = norm(err) / max(norm(b), eps(T))
+    x_cf = [xb[i] + ce.Theta_x[i] * nu for i in eachindex(ce.outcomes)]
+    z_cf = [zb[k] + ce.Theta_z[k] * nu for k in eachindex(ce.instruments)]
+
+    qlev = collect(T, quantiles)
+    nd = ce.Theta_x_draws === nothing ? 0 : size(ce.Theta_x_draws[1], 3)
+    use = draws == :on || (draws == :auto && nd > 0)
+    (draws == :on && nd == 0) && throw(ArgumentError(
+        "draws = :on requires a draws-bearing container"))
+    x_bands = nothing; z_bands = nothing; rr_bands = nothing
+    n_used = 0
+    if use
+        n_used = nd
+        nq = length(qlev)
+        band(v) = Matrix{T}(hcat([v .+ (q - T(0.5)) .* T(0.1) for q in qlev]...))
+        x_bands = [band(x_cf[i]) for i in eachindex(ce.outcomes)]
+        z_bands = [band(z_cf[k]) for k in eachindex(ce.instruments)]
+        rr_bands = [rel + (q - T(0.5)) * T(0.01) for q in qlev]
+    end
+    PolicyCounterfactual{T}(copy(ce.outcomes), copy(ce.instruments), xb, zb,
+                            x_cf, z_cf, x_bands, z_bands, nu,
+                            copy(ce.shock_labels), err, rel, rr_bands,
+                            rel < T(spanned_tol), rule.name, H, qlev,
+                            n_used, 0, T(NaN), T(NaN), T(NaN))
+end
+
+# ── W5/#127: optimal policy + second-moment counterfactuals ──────────────────
+
+struct WoldRepresentation{T<:AbstractFloat}
+    Theta::Array{T,3}
+    Sigma_u::Matrix{T}
+    varnames::Vector{String}
+    draws::Union{Nothing,Array{T,4}}
+end
+
+struct CounterfactualMoments{T<:AbstractFloat}
+    varnames::Vector{Symbol}
+    Sigma_base::Matrix{T}
+    Sigma_cf::Matrix{T}
+    sd_base::Vector{T}
+    sd_cf::Vector{T}
+    corr_base::Matrix{T}
+    corr_cf::Matrix{T}
+    sd_cf_bands::Union{Nothing,Matrix{T}}
+    Theta_cf::Array{T,3}
+    policy_name::String
+    H::Int
+    tail_share::T
+    freq_band::Union{Nothing,Tuple{T,T}}
+end
+
+function wold_representation(m::VARModel{T}; H::Int,
+                             orthogonalize::Symbol=:cholesky) where T
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    n = size(m.Y, 2)
+    Theta = zeros(T, H, n, n)
+    for h in 1:H, i in 1:n, j in 1:n
+        Theta[h, i, j] = (i == j ? T(0.5)^(h - 1) : T(0.1) * T(0.5)^h)
+    end
+    WoldRepresentation{T}(Theta, Matrix{T}(I(n)) * T(0.5), copy(m.varnames), nothing)
+end
+
+function wold_representation(post::BVARPosterior{T}; H::Int,
+                             orthogonalize::Symbol=:cholesky,
+                             max_draws::Int=post.n_draws) where T
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    n = post.n
+    Theta = zeros(T, H, n, n)
+    for h in 1:H, i in 1:n, j in 1:n
+        Theta[h, i, j] = (i == j ? T(0.5)^(h - 1) : T(0.1) * T(0.5)^h)
+    end
+    nd = min(max_draws, post.n_draws)
+    draws = reshape(Theta, H, n, n, 1) .+ T(0.02) .* randn(T, H, n, n, nd)
+    WoldRepresentation{T}(Theta, Matrix{T}(I(n)) * T(0.5),
+                          ["y$i" for i in 1:n], draws)
+end
+
+_loss_horizon_mock(loss::PolicyLoss) = size(loss.W_x[1], 1)
+
+function optimal_rule(ce::PolicyCausalEffects{T}, loss::PolicyLoss;
+                      z_wedge=nothing) where T
+    is_square(ce) || throw(ArgumentError(
+        "optimal_rule requires a square (model-implied) container: the targeting rule needs the full news menu"))
+    H = ce.H
+    _loss_horizon_mock(loss) == H || throw(ArgumentError(
+        "loss H = $(_loss_horizon_mock(loss)) does not match the container H = $H"))
+    A_x = Matrix{Float64}[]
+    for (j, sym) in enumerate(loss.outcomes)
+        i = findfirst(==(sym), ce.outcomes)
+        i === nothing && throw(ArgumentError(
+            "loss outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+        push!(A_x, Matrix{Float64}(ce.Theta_x[i]' * loss.W_x[j]))
+    end
+    A_z = Matrix{Float64}[]
+    wedge = zeros(H)
+    for (j, sym) in enumerate(loss.instruments)
+        k = findfirst(==(sym), ce.instruments)
+        push!(A_z, Matrix{Float64}(ce.Theta_z[k]' *
+            (loss.W_z === nothing ? zeros(H, H) : loss.W_z[j])))
+        z_wedge !== nothing && (wedge .+= ce.Theta_z[k]' * Vector{Float64}(z_wedge[j]))
+    end
+    # Rule symbols cover the FULL container (every path gets a counterfactual).
+    all_A_x = [any(==(s), loss.outcomes) ?
+                   A_x[findfirst(==(s), loss.outcomes)] : zeros(H, H)
+               for s in ce.outcomes]
+    all_A_z = [any(==(s), loss.instruments) ?
+                   A_z[findfirst(==(s), loss.instruments)] : zeros(H, H)
+               for s in ce.instruments]
+    PolicyRule{Float64}(copy(ce.outcomes), copy(ce.instruments), all_A_x, all_A_z,
+                        wedge, "optimal($(loss.name))")
+end
+
+function optimal_policy(base::BaselinePath{T}, ce::PolicyCausalEffects{T},
+                        loss::PolicyLoss;
+                        z_wedge=nothing, draws::Symbol=:auto,
+                        baseline_draws::Symbol=:fixed,
+                        quantiles=(0.16, 0.5, 0.84)) where T
+    H = ce.H
+    base.H == H || throw(ArgumentError(
+        "baseline H = $(base.H) does not match the container H = $H"))
+    _loss_horizon_mock(loss) == H || throw(ArgumentError(
+        "loss H = $(_loss_horizon_mock(loss)) does not match the container H = $H"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
+    for sym in loss.outcomes
+        sym in ce.outcomes || throw(ArgumentError(
+            "loss outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+    end
+    xb = [Vector{T}(base.x[findfirst(==(s), base.outcomes)]) for s in ce.outcomes]
+    zb = [Vector{T}(base.z[findfirst(==(s), base.instruments)]) for s in ce.instruments]
+    n_s = size(ce.Theta_x[1], 2)
+    # Normal equations: (Σ Θ'WΘ) ν = −Σ Θ'W x_base (+ instrument/wedge terms)
+    A = zeros(T, n_s, n_s)
+    rhs = zeros(T, n_s)
+    for (j, sym) in enumerate(loss.outcomes)
+        i = findfirst(==(sym), ce.outcomes)
+        A .+= ce.Theta_x[i]' * loss.W_x[j] * ce.Theta_x[i]
+        rhs .-= ce.Theta_x[i]' * loss.W_x[j] * xb[i]
+    end
+    for (j, sym) in enumerate(loss.instruments)
+        k = findfirst(==(sym), ce.instruments)
+        Wz = loss.W_z === nothing ? nothing : loss.W_z[j]
+        Wz === nothing || (A .+= ce.Theta_z[k]' * Wz * ce.Theta_z[k];
+                           rhs .-= ce.Theta_z[k]' * Wz * zb[k])
+        z_wedge === nothing ||
+            (rhs .+= ce.Theta_z[k]' * Vector{T}(z_wedge[j]))
+    end
+    nu = pinv(A) * rhs
+    x_cf = [xb[i] + ce.Theta_x[i] * nu for i in eachindex(ce.outcomes)]
+    z_cf = [zb[k] + ce.Theta_z[k] * nu for k in eachindex(ce.instruments)]
+    lossof(xs, zs) = begin
+        L = zero(T)
+        for (j, sym) in enumerate(loss.outcomes)
+            i = findfirst(==(sym), ce.outcomes)
+            L += xs[i]' * loss.W_x[j] * xs[i]
+        end
+        L
+    end
+    loss_base = lossof(xb, zb)
+    loss_cf = lossof(x_cf, z_cf)
+    foc = A * nu - rhs
+    err = vcat([loss.W_x[j] * x_cf[findfirst(==(sym), ce.outcomes)]
+                for (j, sym) in enumerate(loss.outcomes)]...)
+    rel = norm(err) / max(norm(vcat(xb...)), eps(T))
+    qlev = collect(T, quantiles)
+    PolicyCounterfactual{T}(copy(ce.outcomes), copy(ce.instruments), xb, zb,
+                            x_cf, z_cf, nothing, nothing, nu,
+                            copy(ce.shock_labels), err, rel, nothing,
+                            rel < T(0.05),                      # hardcoded like real
+                            "optimal($(loss.name))", H, qlev, 0, 0,
+                            loss_base, loss_cf, norm(foc))
+end
+
+function _cf_resolve_band_mock(frequencies)
+    frequencies === :none && return nothing
+    frequencies === :business_cycle && return (2π / 32, 2π / 6)
+    frequencies isa Tuple || throw(ArgumentError(
+        "frequencies: expected :none, :business_cycle or an (ω_lo, ω_hi) tuple, got $frequencies"))
+    lo, hi = frequencies
+    (0 <= lo < hi <= π + 1e-12) || throw(ArgumentError(
+        "frequencies: expected 0 <= lo < hi <= pi, got ($lo, $hi)"))
+    (Float64(lo), Float64(hi))
+end
+
+function counterfactual_moments(wold::WoldRepresentation{T}, ce::PolicyCausalEffects{T},
+                                policy::Union{PolicyRule,PolicyLoss};
+                                outcomes::AbstractVector{<:Pair},
+                                instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[],
+                                draws::Symbol=:auto, draw_source::Symbol=:ce,
+                                quantiles=(0.16, 0.5, 0.84),
+                                frequencies=:none,
+                                warn_invertibility::Bool=true) where T
+    H = ce.H
+    Hw = size(wold.Theta, 1)
+    Hw >= H || throw(ArgumentError(
+        "Wold horizon $Hw is shorter than the container H = $H; re-run wold_representation with H >= $H"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
+    draw_source in (:ce, :wold, :both) || throw(ArgumentError(
+        "draw_source: expected :ce, :wold or :both, got :$draw_source"))
+    band = _cf_resolve_band_mock(frequencies)
+    out_syms = Symbol[first(p) for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    sort(out_syms) == sort(ce.outcomes) || throw(ArgumentError(
+        "outcomes must map exactly the container outcomes $(ce.outcomes), got $(out_syms)"))
+    sort(ins_syms) == sort(ce.instruments) || throw(ArgumentError(
+        "instruments must map exactly the container instruments $(ce.instruments), got $(ins_syms)"))
+    syms = vcat(out_syms, ins_syms)
+    rows = Int[_cf_resolve(last(p), wold.varnames, "Wold variable")
+               for p in vcat(collect(outcomes), collect(instruments))]
+    nv = length(syms)
+    n = size(wold.Theta, 2)
+    Sigma_base = zeros(T, nv, nv)
+    for h in 1:H
+        Th = wold.Theta[h, rows, :]
+        Sigma_base .+= Th * Th'
+    end
+    # A stabilizing counterfactual shrinks variance; a band restricts it further.
+    scale = band === nothing ? T(0.8) : T(0.5)
+    Sigma_cf = scale .* Sigma_base
+    sd_base = sqrt.(diag(Sigma_base))
+    sd_cf = sqrt.(diag(Sigma_cf))
+    corr(M, s) = [M[i, j] / max(s[i] * s[j], eps(T)) for i in 1:nv, j in 1:nv]
+    nd = ce.Theta_x_draws === nothing ? 0 : size(ce.Theta_x_draws[1], 3)
+    use = draws == :on || (draws == :auto && nd > 0)
+    bands = use ? Matrix{T}(hcat([sd_cf .+ (q - T(0.5)) .* T(0.05)
+                                  for q in collect(T, quantiles)]...)) : nothing
+    pname = policy isa PolicyRule ? policy.name : policy.name
+    CounterfactualMoments{T}(syms, Sigma_base, Sigma_cf, sd_base, sd_cf,
+                             corr(Sigma_base, sd_base), corr(Sigma_cf, sd_cf),
+                             bands, T(0.05) .* ones(T, H, nv, n), pname, H,
+                             T(0.005),
+                             band === nothing ? nothing : (T(band[1]), T(band[2])))
+end
+
+# ── W6/#128: the OPP family (Barnichon–Mesters) ──────────────────────────────
+
+struct PolicyForecast{T<:AbstractFloat}
+    outcomes::Vector{Symbol}
+    values::Vector{Vector{T}}
+    draws::Union{Nothing,Vector{Matrix{T}}}
+    H::Int
+    origin::String
+end
+
+abstract type OPPConstraint end
+struct PathFloorConstraint{T<:AbstractFloat} <: OPPConstraint
+    instrument::Symbol
+    floor::T
+    horizons::UnitRange{Int}
+end
+zlb_constraint(; floor::Real=0.0, instrument::Symbol=:rate,
+               horizons::UnitRange{Int}=1:typemax(Int)) =
+    PathFloorConstraint{Float64}(instrument, Float64(floor), horizons)
+
+struct OPPResult{T<:AbstractFloat}
+    delta::Vector{T}
+    delta_plugin::Vector{T}
+    shock_labels::Vector{String}
+    gradient::Vector{T}
+    loss_base::T
+    loss_opp::T
+    Y_base::Vector{Vector{T}}
+    Y_opp::Vector{Vector{T}}
+    P_base::Union{Nothing,Vector{Vector{T}}}
+    P_opp::Union{Nothing,Vector{Vector{T}}}
+    outcomes::Vector{Symbol}
+    instruments::Vector{Symbol}
+    H::Int
+    origin::String
+    delta_draws::Union{Nothing,Matrix{T}}
+    bands::Union{Nothing,Dict{T,Matrix{T}}}
+    reject::Union{Nothing,Dict{T,Vector{Bool}}}
+    n_failed::Int
+end
+
+struct OPPSequence{T<:AbstractFloat}
+    dates::Vector{String}
+    delta::Matrix{T}        # n_s × n_dates — shocks are ROWS (real layout)
+    delta_tc::Matrix{T}
+    news_part::Matrix{T}
+    pref_part::Matrix{T}
+    aging_part::Matrix{T}
+    bands::Union{Nothing,Dict{T,Array{T,3}}}
+    reject::Union{Nothing,Dict{T,Matrix{Bool}}}
+    shock_labels::Vector{String}
+    loss_name::String
+end
+
+function policy_forecast(fc::Union{VARForecast{T},BVARForecast{T}},
+                         outcomes::AbstractVector{<:Pair};
+                         targets::AbstractVector{<:Pair}=Pair{Symbol,Float64}[],
+                         H::Int=fc.horizon,
+                         origin::AbstractString="") where T
+    1 <= H <= fc.horizon || throw(ArgumentError(
+        "H: expected 1 <= H <= $(fc.horizon) (the forecast horizon), got $H"))
+    isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
+    out_syms = Symbol[first(p) for p in outcomes]
+    out_idx = Int[_cf_resolve(last(p), fc.varnames, "variable") for p in outcomes]
+    tmap = Dict{Symbol,Float64}(Symbol(first(p)) => Float64(last(p)) for p in targets)
+    for k in keys(tmap)
+        k in out_syms || throw(ArgumentError(
+            "targets: :$k is not among the requested outcomes $(out_syms)"))
+    end
+    vals = [Vector{T}(fc.forecast[1:H, vi]) .- T(get(tmap, out_syms[i], 0.0))
+            for (i, vi) in enumerate(out_idx)]
+    drws = fc._draws === nothing ? nothing :
+           Matrix{T}[Matrix{T}(permutedims(fc._draws[:, 1:H, vi])) .-
+                     T(get(tmap, out_syms[i], 0.0))
+                     for (i, vi) in enumerate(out_idx)]
+    PolicyForecast{T}(out_syms, vals, drws, H, String(origin))
+end
+
+function policy_forecast(outcomes::AbstractVector{Symbol},
+                         values::AbstractVector{<:AbstractVector{<:Real}};
+                         sd=nothing, rho::Real=0.9, n_draws::Int=1000, rng=nothing,
+                         H::Int=isempty(values) ? 0 : length(first(values)),
+                         cross_corr=:independent, min_sd::Real=0.0,
+                         origin::AbstractString="")
+    isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
+    length(values) == length(outcomes) || throw(ArgumentError(
+        "values: expected $(length(outcomes)) paths (one per outcome), got $(length(values))"))
+    n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
+    (sd === nothing && cross_corr === :independent) && throw(ArgumentError(
+        "sd: per-horizon standard deviations are required unless a full cross_corr covariance is given"))
+    vals = [Vector{Float64}(v) for v in values]
+    for v in vals
+        length(v) == H || throw(ArgumentError(
+            "values: expected length H = $H paths, got $(length(v))"))
+    end
+    drws = [hcat([v .+ 0.1 .* randn(H) for _ in 1:n_draws]...) for v in vals]
+    PolicyForecast{Float64}(collect(outcomes), vals, drws, H, String(origin))
+end
+
+interp_to_quarterly(annual::AbstractVector{<:Real}, H::Int) =
+    [Float64(annual[min(cld(h, 4), length(annual))]) for h in 1:H]
+
+function _opp_core(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
+                   loss::PolicyLoss; instrument_path=nothing, z_wedge=nothing) where T
+    H = ce.H
+    pf.H == H || throw(ArgumentError(
+        "forecast H = $(pf.H) does not match the IRF container H = $H; re-build the two on a common horizon"))
+    _loss_horizon_mock(loss) == H || throw(ArgumentError(
+        "loss H = $(_loss_horizon_mock(loss)) does not match the container H = $H"))
+    for sym in loss.outcomes
+        sym in ce.outcomes || throw(ArgumentError(
+            "loss outcome :$sym not found in the container outcomes $(ce.outcomes)"))
+        sym in pf.outcomes || throw(ArgumentError(
+            "loss outcome :$sym not found in the forecast outcomes $(pf.outcomes)"))
+    end
+    is_square(ce) && @warn "full-menu OPP on a square container is ill-posed (BM design around thin subsets)"
+    n_s = size(ce.Theta_x[1], 2)
+    A = zeros(T, n_s, n_s)
+    g = zeros(T, n_s)
+    Yb = [Vector{T}(pf.values[findfirst(==(s), pf.outcomes)]) for s in ce.outcomes]
+    for (j, sym) in enumerate(loss.outcomes)
+        i = findfirst(==(sym), ce.outcomes)
+        A .+= ce.Theta_x[i]' * loss.W_x[j] * ce.Theta_x[i]
+        g .+= ce.Theta_x[i]' * loss.W_x[j] * Yb[i]
+    end
+    delta = -pinv(A) * g
+    Yo = [Yb[i] + ce.Theta_x[i] * delta for i in eachindex(ce.outcomes)]
+    lossof(Y) = sum(Y[findfirst(==(sym), ce.outcomes)]' * loss.W_x[j] *
+                    Y[findfirst(==(sym), ce.outcomes)]
+                    for (j, sym) in enumerate(loss.outcomes))
+    Pb = nothing; Po = nothing
+    if instrument_path !== nothing
+        Pb = [Vector{T}(last(p)) for p in instrument_path]
+        Po = [Pb[k] + ce.Theta_z[k] * delta for k in eachindex(Pb)]
+    end
+    (delta=delta, gradient=g, Yb=Yb, Yo=Yo, Pb=Pb, Po=Po,
+     loss_base=lossof(Yb), loss_opp=lossof(Yo))
+end
+
+function opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T}, loss::PolicyLoss;
+             instrument_path=nothing, z_wedge=nothing) where T
+    c = _opp_core(pf, ce, loss; instrument_path=instrument_path, z_wedge=z_wedge)
+    OPPResult{T}(c.delta, copy(c.delta), copy(ce.shock_labels), c.gradient,
+                 c.loss_base, c.loss_opp, c.Yb, c.Yo, c.Pb, c.Po,
+                 copy(ce.outcomes), copy(ce.instruments), ce.H, pf.origin,
+                 nothing, nothing, nothing, 0)
+end
+
+function estimate_opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
+                      loss::PolicyLoss; instrument_path=nothing, z_wedge=nothing,
+                      independent::Bool=true, levels=(0.60, 0.75, 0.90),
+                      n_sim::Int=2000, rng=nothing) where T
+    all(l -> 0 < l < 1, levels) || throw(ArgumentError(
+        "levels: expected levels in (0, 1), got $levels"))
+    (pf.draws === nothing && ce.Theta_x_draws === nothing) && throw(ArgumentError(
+        "estimate_opp requires draws on at least one source (forecast or menu)"))
+    c = _opp_core(pf, ce, loss; instrument_path=instrument_path, z_wedge=z_wedge)
+    n_s = length(c.delta)
+    dd = c.delta .+ T(0.1) .* randn(T, n_s, max(n_sim, 10))
+    med = [T(quantile(dd[k, :], 0.5)) for k in 1:n_s]
+    bands = Dict{T,Matrix{T}}()
+    rej = Dict{T,Vector{Bool}}()
+    for l in levels
+        lo = [T(quantile(dd[k, :], (1 - l) / 2)) for k in 1:n_s]
+        hi = [T(quantile(dd[k, :], 1 - (1 - l) / 2)) for k in 1:n_s]
+        bands[T(l)] = hcat(lo, hi)
+        rej[T(l)] = [!(lo[k] <= 0 <= hi[k]) for k in 1:n_s]
+    end
+    OPPResult{T}(med, c.delta, copy(ce.shock_labels), c.gradient,
+                 c.loss_base, c.loss_opp, c.Yb, c.Yo, c.Pb, c.Po,
+                 copy(ce.outcomes), copy(ce.instruments), ce.H, pf.origin,
+                 Matrix{T}(dd'), bands, rej, 0)
+end
+
+function constrained_opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
+                         loss::PolicyLoss, constraints::AbstractVector{<:OPPConstraint};
+                         instrument_path=nothing, z_wedge=nothing,
+                         method::Symbol=:auto, delta0=nothing, multistart::Int=1,
+                         rng=nothing, n_sim::Int=0, levels=(0.6, 0.75, 0.9),
+                         independent::Bool=true) where T
+    method in (:auto, :slsqp, :projection) || throw(ArgumentError(
+        "method: expected :auto, :slsqp or :projection, got :$method"))
+    instrument_path === nothing && throw(ArgumentError(
+        "constrained_opp requires instrument_path (the announced path the constraints act on)"))
+    r = opp(pf, ce, loss; instrument_path=instrument_path, z_wedge=z_wedge)
+    # Real returns a NamedTuple, NOT a result type (the #118 blind-spot class) —
+    # field list copied verbatim.
+    (; result=r, method_used=(method === :projection ? :projection : :slsqp),
+     binding=fill(false, length(constraints)), kkt_residual=0.0,
+     warm_start_feasible=true)
+end
+
+function opp_sequence(forecasts::AbstractVector, ce::PolicyCausalEffects{T},
+                      loss::PolicyLoss; dates=nothing, ce_by_date=nothing,
+                      instrument_paths=nothing, constraints=OPPConstraint[],
+                      z_wedge=nothing, n_sim::Int=0, levels=(0.6, 0.75, 0.9),
+                      independent::Bool=true, rng=nothing) where T
+    nd = length(forecasts)
+    nd >= 2 || throw(ArgumentError("opp_sequence: expected >= 2 dates, got $nd"))
+    ds = dates === nothing ? [string("t", i) for i in 1:nd] : collect(String, dates)
+    n_s = size(ce.Theta_x[1], 2)
+    delta = zeros(T, n_s, nd)
+    for (d, f) in enumerate(forecasts)
+        f === missing && continue
+        delta[:, d] = opp(f, ce, loss).delta
+    end
+    news = zeros(T, n_s, nd); pref = zeros(T, n_s, nd); aging = zeros(T, n_s, nd)
+    for d in 2:nd
+        rev = delta[:, d] - delta[:, d-1]
+        news[:, d] = T(0.9) .* rev      # exact three-part: parts SUM to the revision
+        aging[:, d] = T(0.1) .* rev
+    end
+    OPPSequence{T}(ds, delta, copy(delta), news, pref, aging,
+                   nothing, nothing, copy(ce.shock_labels), loss.name)
+end
+
+# ── W7/#129: structural routes ───────────────────────────────────────────────
+
+struct CounterfactualHistory{T<:AbstractFloat}
+    dates::Vector{String}
+    varnames::Vector{Symbol}
+    realized::Matrix{T}
+    cf::Matrix{T}
+    cf_bands::Union{Nothing,Array{T,3}}
+    nu::Matrix{T}
+    rel_residual::Vector{T}
+    policy_name::String
+    H::Int
+    quantile_levels::Vector{T}
+    n_draws_used::Int
+    n_draws_failed::Int
+end
+
+struct SpanningDiagnostic{T<:AbstractFloat}
+    gap::Vector{T}
+    gap_rel::Vector{T}
+    loading_inside::T
+    rel_residual_emp::T
+    spanned::Bool
+    outcomes::Vector{Symbol}
+    x_cf_emp::Vector{Vector{T}}
+    x_cf_full::Vector{Vector{T}}
+    bands_gap::Union{Nothing,Vector{Matrix{T}}}
+end
+
+struct ForecastSufficiency{T<:AbstractFloat}
+    observables::Vector{Symbol}
+    fev_ratio::Matrix{T}
+    one_step_ratio::Vector{T}
+    invertible::Bool
+    H::Int
+end
+
+function policy_news_matrix(spec::DSGESpec, policy_shock::Symbol,
+                            outcomes::AbstractVector{<:Pair{Symbol,Symbol}},
+                            instruments::AbstractVector{<:Pair{Symbol,Symbol}}=Pair{Symbol,Symbol}[];
+                            H::Int=100, solver::Symbol=:gensys, chunk::Int=0)
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    solver in (:gensys, :klein, :blanchard_kahn) || throw(ArgumentError(
+        "policy_news_matrix supports the linear solvers :gensys/:klein/:blanchard_kahn only (nonlinear news menus are out of scope), got :$solver"))
+    isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
+    out_syms = Symbol[first(p) for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    # SQUARE by construction: n_s = H news columns, decaying loadings.
+    mk() = [Float64(0.5)^(abs(h - k)) * 0.1 for h in 1:H, k in 1:H]
+    PolicyCausalEffects{Float64}(out_syms, ins_syms,
+        [mk() for _ in out_syms], [mk() for _ in ins_syms], nothing, nothing,
+        H, ["news $k" for k in 1:H], :dsge)
+end
+
+function behavioral(ce::PolicyCausalEffects{T}; m::Real=1.0, theta::Real=0.0) where T
+    (0 <= m <= 1 && 0 <= theta <= 1) || throw(ArgumentError(
+        "behavioral: expected m and theta in [0, 1], got m=$m, theta=$theta"))
+    is_square(ce) || throw(ArgumentError(
+        "behavioral operators need a square (model news) container; empirical thin menus are already behavior-inclusive"))
+    scale = T(m) * (1 - T(theta) / 2)
+    PolicyCausalEffects{T}(copy(ce.outcomes), copy(ce.instruments),
+        [scale .* M for M in ce.Theta_x], [scale .* M for M in ce.Theta_z],
+        nothing, nothing, ce.H, copy(ce.shock_labels), ce.source)
+end
+
+function counterfactual_history(mdl::Union{VARModel{T},BVARPosterior{T}},
+                                data::AbstractMatrix{<:Real},
+                                t_range::AbstractUnitRange{Int},
+                                ce::PolicyCausalEffects,
+                                policy::Union{PolicyRule,PolicyLoss};
+                                outcomes::AbstractVector{<:Pair},
+                                instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[],
+                                H::Int=ce.H, dates=nothing, wedge_builder=nothing,
+                                draws::Symbol=:auto,
+                                quantiles=(0.16, 0.5, 0.84)) where T
+    H == ce.H || throw(ArgumentError(
+        "H = $H must equal the container H = $(ce.H)"))
+    length(t_range) <= H - 1 || throw(ArgumentError(
+        "window length $(length(t_range)) must be <= H - 1 = $(H - 1)"))
+    syms = vcat(Symbol[first(p) for p in outcomes], Symbol[first(p) for p in instruments])
+    nd = length(t_range); nv = length(syms)
+    ds = dates === nothing ? [string("t", t) for t in t_range] : collect(String, dates)
+    realized = Matrix{Float64}(data[collect(t_range), 1:nv])
+    pname = policy isa PolicyRule ? policy.name : policy.name
+    CounterfactualHistory{Float64}(ds, syms, realized, 0.9 .* realized, nothing,
+        zeros(nd, size(ce.Theta_x[1], 2)), fill(0.02, nd), pname, H,
+        collect(Float64, quantiles), 0, 0)
+end
+
+function spanning_diagnostic(base::BaselinePath, ce_emp::PolicyCausalEffects,
+                             ce_full::PolicyCausalEffects,
+                             policy::Union{PolicyRule,PolicyLoss};
+                             draws::Symbol=:auto, tol::Real=0.1, n_sim::Int=200,
+                             quantiles=(0.16, 0.5, 0.84), rng=nothing)
+    is_square(ce_full) || throw(ArgumentError(
+        "ce_full must be a square (model-implied) container"))
+    ce_emp.H == ce_full.H || throw(ArgumentError(
+        "container horizons differ: emp H = $(ce_emp.H) vs full H = $(ce_full.H)"))
+    ce_emp.outcomes == ce_full.outcomes || throw(ArgumentError(
+        "container outcomes differ: $(ce_emp.outcomes) vs $(ce_full.outcomes)"))
+    H = ce_emp.H
+    xe = [0.1 .* ones(H) for _ in ce_emp.outcomes]
+    xf = [0.12 .* ones(H) for _ in ce_emp.outcomes]
+    gap = fill(0.02, H)
+    SpanningDiagnostic{Float64}(gap, fill(0.05, H), 0.95, 0.04,
+        maximum(fill(0.05, H)) < Float64(tol), copy(ce_emp.outcomes), xe, xf, nothing)
+end
+
+function forecast_sufficiency(sol::Union{DSGESolution,PerturbationSolution},
+                              observables::AbstractVector{Symbol}; H::Int=40)
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    isempty(observables) && throw(ArgumentError(
+        "observables: expected at least one observable"))
+    n = length(observables)
+    ForecastSufficiency{Float64}(collect(observables),
+        ones(H, n) .+ 0.01, fill(1.01, n), true, H)
+end
+
+export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterfactual,
+       is_square, policy_causal_effects, baseline_path, policy_counterfactual,
+       rate_peg_rule, rate_target_rule, inflation_target_rule, output_gap_rule,
+       ngdp_rule, taylor_rule, policy_loss, ait_loss, smoothing_penalty,
+       WoldRepresentation, CounterfactualMoments, wold_representation,
+       optimal_policy, optimal_rule, counterfactual_moments,
+       PolicyForecast, OPPResult, OPPSequence, OPPConstraint, PathFloorConstraint,
+       policy_forecast, interp_to_quarterly, opp, estimate_opp, constrained_opp,
+       zlb_constraint, opp_sequence,
+       CounterfactualHistory, SpanningDiagnostic, ForecastSufficiency,
+       policy_news_matrix, sequence_jacobian, behavioral, counterfactual_history,
+       spanning_diagnostic, forecast_sufficiency
 
 # NOTE: this mock deliberately defines NO `Base.getproperty` compat aliases.
 #
@@ -8332,7 +9443,8 @@ function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
     CTTwoAssetSolution{T}(b, a, V, c, d, sb, sa, g, T(1.0), T(5.0), nothing, true)
 end
 
-export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel
+export OrderedLogitModel, OrderedProbitModel, MultinomialLogitModel,
+       MultinomialMarginalEffects
 export generalized_residuals   # MEMs#507: ordered-model score residual (W4/#87)
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
@@ -8721,7 +9833,7 @@ function dynamic_multipliers(m::NARDLModel{T}, H::Int; bootstrap::Bool=true, nre
 end
 
 export ARDLLongRun, ARDLModel, ARDLBoundsTest, NARDLModel, NARDLSymmetryTest, NARDLMultipliers
-export estimate_ardl, estimate_nardl, long_run, bounds_test, symmetry_test, dynamic_multipliers
+export estimate_ardl, estimate_nardl, long_run, ecm_form, bounds_test, symmetry_test, dynamic_multipliers
 
 # ─── C062c: dynamic heterogeneous-panel ARDL (PMG / MG / DFE) ────────────────
 # PMGModel mirrors the real MEMs 0.7.0 field NAMES/ORDER (a subset is fine — check_mock_surface
@@ -8952,6 +10064,7 @@ function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
     m >= 1 || throw(ArgumentError("m must be ≥ 1 (got m=$m)"))
     K >= 1 || throw(ArgumentError("K must be ≥ 1"))
     p_ar >= 0 || throw(ArgumentError("p_ar must be ≥ 0"))
+    h >= 1 || throw(ArgumentError("h must be ≥ 1 (got h=$h)"))
     (weights ∈ (:beta2, :beta3) && K < 2) && throw(ArgumentError("Beta weights require K ≥ 2 (got K=$K)"))
     T = Float64
     yv = collect(T, y_lf); xv = collect(T, X_hf)
@@ -8966,16 +10079,20 @@ function estimate_midas(y_lf::AbstractVector, X_hf::AbstractVector;
     end
     isempty(retained) && throw(ArgumentError(
         "no complete high-frequency blocks: need ≥ $K HF obs before a low-frequency period"))
-    # AR block: keep periods with p_ar available own-lags.
-    keep = Int[i for (i, t) in enumerate(retained) if t - p_ar >= 1]
-    isempty(keep) && throw(ArgumentError("no periods with $p_ar autoregressive lags available"))
+    # AR block: keep periods with p_ar available own-lags AND the direct-h
+    # target in sample. h was INERT upstream at ≤0.7.2 and implemented at 0.7.3
+    # (MEMs#574: regress y_{t+h-1} on information dated t) — the mock must not
+    # stay on the old inert behavior or T1/T2 can never see h change anything.
+    keep = Int[i for (i, t) in enumerate(retained) if t - p_ar >= 1 && t + h - 1 <= Tlf]
+    isempty(keep) && throw(ArgumentError(
+        "no periods with $p_ar autoregressive lags and direct horizon h=$h available"))
     n = length(keep)
     Xlags = reduce(vcat, [reshape(blocks[i], 1, K) for i in keep])
     Wlin = Matrix{T}(undef, n, 1 + p_ar); yv_used = Vector{T}(undef, n)
     for (r, i) in enumerate(keep)
         t = retained[i]; Wlin[r, 1] = one(T)
         for j in 1:p_ar; Wlin[r, 1 + j] = yv[t - j]; end
-        yv_used[r] = yv[t]
+        yv_used[r] = yv[t + h - 1]   # direct-h target (h=1 ≡ nowcast of y_t)
     end
     # Concentrated OLS at a documented default θ (no NLS — genuine-ish fit for shape/error tests).
     if weights === :umidas
@@ -9797,5 +10914,37 @@ const _SERIALIZABLE_TYPES = Dict{String,Type}(
     n => getfield(@__MODULE__, Symbol(n))
     for n in _SERIALIZABLE_TYPE_NAMES if isdefined(@__MODULE__, Symbol(n))
 )
+
+
+# W7 HA-typed mocks live BELOW the HA type definitions — mocks.jl is one
+# flat top-to-bottom module and a typed signature is resolved at include time
+# (the standing forward-reference lesson).
+function policy_causal_effects(spec::HADSGESpec, ss::HASteadyState;
+                               outcomes::AbstractVector{<:Pair{Symbol,Symbol}},
+                               instruments::AbstractVector{<:Pair{Symbol,Symbol}}=[:rate => :r],
+                               H::Int=100, T_horizon::Int=300,
+                               rule_closure::Symbol=:administered, dx::Real=1e-4)
+    rule_closure in (:administered, :market) || throw(ArgumentError(
+        "rule_closure: expected :administered or :market, got :$rule_closure"))
+    H >= 1 || throw(ArgumentError("H: expected H >= 1, got $H"))
+    T_horizon >= H || throw(ArgumentError(
+        "T_horizon = $T_horizon must be >= H = $H"))
+    out_syms = Symbol[first(p) for p in outcomes]
+    ins_syms = Symbol[first(p) for p in instruments]
+    mk() = [Float64(0.6)^(abs(h - k)) * 0.05 for h in 1:H, k in 1:H]
+    PolicyCausalEffects{Float64}(out_syms, ins_syms,
+        [mk() for _ in out_syms], [mk() for _ in ins_syms], nothing, nothing,
+        H, ["news $k" for k in 1:H], :ha)
+end
+
+function sequence_jacobian(spec::HADSGESpec, ss::HASteadyState,
+                           input::Symbol, output::Symbol;
+                           T_horizon::Int=300, dx::Real=1e-4)
+    input in (:r, :w) || throw(ArgumentError(
+        "input: expected :r or :w, got :$input"))
+    T_horizon >= 1 || throw(ArgumentError("T_horizon: expected >= 1, got $T_horizon"))
+    [Float64(0.7)^(abs(i - j)) * 0.1 for i in 1:T_horizon, j in 1:T_horizon]
+end
+
 
 end # module

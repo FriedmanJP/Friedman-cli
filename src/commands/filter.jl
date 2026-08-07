@@ -43,7 +43,7 @@ function filter_specs()::Vector{CommandSpec}
             summary="Hamilton (2018) regression filter",
             args=data_arg,
             options=[
-                OptionSpec(name="horizon", short="h", type=Int, default=8, description="Forecast horizon"),
+                OptionSpec(name="horizon", type=Int, default=8, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags in regression"),
                 col, plot_opts...,
             ],

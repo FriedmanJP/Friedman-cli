@@ -61,7 +61,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
             order_opts[vol.order]...,
         ]
         if with_horizons
-            push!(opts, OptionSpec(name="horizons", short="h", type=Int, default=12, description="Forecast horizon"))
+            push!(opts, OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"))
         end
         # W11/#113: only the three estimators that actually take a conditional distribution
         # upstream get --dist. arch/sv have no `dist` kwarg at all, so declaring it there
@@ -228,7 +228,7 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="method", type=String, default="standard", description="standard|iv|smooth|state|propensity|robust"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
-                OptionSpec(name="horizons", short="h", type=Int, default=20, description="IRF horizon"),
+                OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
                 OptionSpec(name="control-lags", type=Int, default=4, description="Number of control lags"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="instruments", type=String, default="", description="Path to instruments CSV (iv only)"),
@@ -892,7 +892,8 @@ function estimate_specs()::Vector{CommandSpec}
         # BOTH inputs go through the hardened `load_univariate_series`, and the aligned
         # len(HF)>=m×len(LF) rule is a typed `data/shape`, leading ragged edge dropped). `MidasModel` is a StatsAPI model but NOT
         # in MEMs `_COEF_TABLE_TYPES` → hand-built weight-curve + coef tables (C051 exception).
-        # `forecast midas` is DEFERRED (needs a fresh-HF-block UX + non-native .fmod round-trip; v1.1).
+        # `--horizon` (the direct h-step target y_{t+h-1}) was INERT upstream at ≤0.7.2
+        # and is real since 0.7.3 (MEMs#574, adopted W10/#131). `forecast midas` exists.
         CommandSpec(
             path=["estimate", "midas"],
             summary="Path to CSV data file",
@@ -1167,7 +1168,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
-                OptionSpec(name="horizon", short="h", type=Int, default=40, description="Structural IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral bandwidth (0=auto)"),
                 OptionSpec(name="kernel", type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),
@@ -1399,10 +1400,19 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="hdfe-tol", type=Float64, default=1e-8,
                            description="Absorption convergence tolerance");
                 OptionSpec(name="hdfe-maxiter", type=Int, default=1000,
-                           description="Maximum alternating-projection iterations")
+                           description="Maximum alternating-projection iterations");
+                # W10/#131 Roodman/xtabond2 instrument-proliferation controls
+                # (MEMs#549). --method ab|bb only: upstream IGNORES them silently
+                # for every other method, so the handler refuses instead.
+                OptionSpec(name="min-lag-endo", type=Int, default=2,
+                           description="First instrument lag for endogenous regressors (--method ab|bb)");
+                OptionSpec(name="max-lag-endo", type=Int, default=99,
+                           description="Last instrument lag for endogenous regressors (--method ab|bb)")
             ],
             flags=[
-                FlagSpec(name="twoway", description="Include time fixed effects")
+                FlagSpec(name="twoway", description="Include time fixed effects"),
+                FlagSpec(name="collapse",
+                         description="Collapse the GMM instrument matrix (--method ab|bb)")
             ],
             tables=[TableSpec(name=:estimate_preg, description="Path to CSV panel data file")],
             category="estimate",
@@ -2488,7 +2498,7 @@ function _estimate_static(; data::String, nfactors=nothing, criterion::String="i
     _status("Estimating static factor model: $r factors, $(size(X, 2)) variables, $(size(X, 1)) observations")
     _status()
 
-    model = estimate_factors(X, r)
+    model = estimate_factors(X, r; varnames=varnames)   # carried on the model since MEMs#538
     _maybe_plot(model; plot=plot, plot_save=plot_save)
 
     scree = scree_plot_data(model)
@@ -3028,7 +3038,8 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
 
     sdfm = estimate_structural_dfm(Y, q;
         identification=Symbol(id), p=var_lags, H=horizon,
-        sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel))
+        sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel),
+        varnames=varnames)   # panel names on the model (MEMs#538) → irf sdfm labels
 
     _status("  Identification: $(sdfm.identification)")
     _status("  Factor VAR lags: $(sdfm.p_var)")
@@ -3645,6 +3656,7 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
                          cov_type::String="cluster", ar1::String="none",
                          pcse_unbalanced::String="casewise",
                          absorb::String="", hdfe_tol::Float64=1e-8, hdfe_maxiter::Int=1000,
+                         collapse::Bool=false, min_lag_endo::Int=2, max_lag_endo::Int=99,
                          id_col::String="", time_col::String="",
                          output::String="", format::String="table")
     # was a bare error() -> internal/error exit 1 for an ordinary usage mistake
@@ -3678,6 +3690,21 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
             "estimate preg: --hdfe-tol/--hdfe-maxiter apply only with --absorb"))
     end
 
+    # ── W10/#131: instrument-proliferation controls (MEMs#549) ──────────────
+    # Upstream accepts these on every method but only the :ab/:bb GMM path reads
+    # them — a silent no-op elsewhere, so refuse rather than pass through.
+    is_gmm = method in ("ab", "bb")
+    if is_gmm
+        min_lag_endo >= 1 || throw(CliError("usage/invalid",
+            "estimate preg: --min-lag-endo must be ≥ 1 (got $min_lag_endo)"))
+        max_lag_endo >= min_lag_endo || throw(CliError("usage/invalid",
+            "estimate preg: --max-lag-endo must be ≥ --min-lag-endo (got $max_lag_endo < $min_lag_endo)"))
+    elseif collapse || min_lag_endo != 2 || max_lag_endo != 99
+        throw(CliError("usage/invalid",
+            "estimate preg: --collapse/--min-lag-endo/--max-lag-endo apply only to --method ab|bb (got --method $method)";
+            hint="these shape the dynamic-panel GMM instrument matrix; use --method ab or bb"))
+    end
+
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -3687,6 +3714,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     ar1 == "none" || _status("  Prais-Winsten AR(1): $ar1")
     cov_type == "pcse" && _status("  PCSE unbalanced handling: $pcse_unbalanced")
     isempty(absorb_dims) || _status("  Absorbing FE: $(join(absorb_dims, " × "))")
+    is_gmm && _status("  GMM instruments: lags $min_lag_endo:$max_lag_endo" *
+                      (collapse ? ", collapsed" : ""))
     _status()
 
     # Previously unwrapped: an upstream ArgumentError surfaced as exit 1.
@@ -3699,7 +3728,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
             absorb=Symbol[Symbol(d) for d in absorb_dims],
             hdfe_tol=hdfe_tol, hdfe_maxiter=hdfe_maxiter,
             ar1=_to_sym(replace(ar1, '-' => '_')),
-            pcse_unbalanced=_to_sym(pcse_unbalanced))
+            pcse_unbalanced=_to_sym(pcse_unbalanced),
+            collapse=collapse, min_lag_endo=min_lag_endo, max_lag_endo=max_lag_endo)
     catch e
         throw(_garch_variant_error(e, "panel regression"))
     end
@@ -3720,6 +3750,27 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
         "N groups"     => model.n_groups,
     ]
     output_kv(pairs; format=format, title="Model Statistics")
+
+    # Emitted ONLY for --method ab|bb (dynamic_diagnostics is nothing elsewhere),
+    # so no other preg envelope changes. n_instruments is the headline: it is what
+    # --collapse/--min-lag-endo/--max-lag-endo exist to control, and Hansen J is
+    # unreliable exactly when it proliferates (Roodman 2009).
+    dd = hasproperty(model, :dynamic_diagnostics) ? model.dynamic_diagnostics : nothing
+    if dd !== nothing
+        dpairs = Pair{String,Any}[
+            "AR(1) statistic" => round(dd.ar1; digits=4),
+            "AR(1) p-value"   => round(dd.ar1_p; digits=4),
+            "AR(2) statistic" => round(dd.ar2; digits=4),
+            "AR(2) p-value"   => round(dd.ar2_p; digits=4),
+            "Hansen J"        => round(dd.hansen; digits=4),
+            "Hansen df"       => dd.hansen_df,
+            "Hansen p-value"  => round(dd.hansen_p; digits=4),
+            "n_instruments"   => dd.n_instruments,
+            "collapse"        => collapse,
+            "instrument lag window" => "$min_lag_endo:$max_lag_endo",
+        ]
+        output_kv(dpairs; format=format, title="Dynamic Panel Diagnostics")
+    end
 
     # Emitted ONLY under --absorb, so a plain `estimate preg` envelope is unchanged. The
     # absorbed-parameter count is not decoration: it is the degrees of freedom the within
@@ -3751,8 +3802,11 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
                         method::String="fe", cov_type::String="cluster",
                         id_col::String="", time_col::String="",
                         output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
-    isempty(endog) && error("--endog is required")
+    # were bare error() → internal exit 1 for ordinary usage mistakes
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+        hint="name the endogenous regressor(s), e.g. --endog investment"))
     pd = _load_panel_for_preg(data, id_col, time_col)
 
     exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
@@ -3769,6 +3823,29 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
     all_vars = [string.(exog_syms); string.(endog_syms)]
     coef_df = _preg_coef_table(model, all_vars)
     output_result(coef_df; format=Symbol(format), output=output, title="Panel IV Coefficients")
+
+    # ── W10/#131 (MEMs#553): weak-instrument diagnostics, populated since 0.7.3.
+    # A `nothing` upstream means the computation FAILED or the model is
+    # underidentified (bare try/catch in _panel_weak_iv_diagnostics; Sargan is
+    # nothing when just-identified) — say so rather than a clean "N/A".
+    _status()
+    fmt_d(x) = x === nothing ? "unavailable (failed or underidentified)" :
+               round(Float64(x); digits=4)
+    dpairs = Pair{String,Any}[
+        "first-stage F (min partial)"    => fmt_d(model.first_stage_f),
+        "Cragg-Donald F"                 => fmt_d(model.cragg_donald_f),
+        "Kleibergen-Paap F"              => fmt_d(model.kleibergen_paap_f),
+        "Stock-Yogo 10% critical value"  => fmt_d(model.stock_yogo_10pct),
+        "Sargan statistic"               => fmt_d(model.sargan_stat),
+        "Sargan p-value"                 => fmt_d(model.sargan_pval),
+    ]
+    output_kv(dpairs; format=format, title="Weak-Instrument Diagnostics")
+    # Upstream computes KP with HC1 even under --cov-type cluster (a
+    # cluster-robust rk statistic is not implemented) — flag it, or the number
+    # reads as cluster-robust when it is not.
+    cov_type == "cluster" && _status_styled(
+        "  Note: Kleibergen-Paap F ignores within-entity dependence (HC1, not cluster-robust)\n";
+        color=:yellow)
     return model
 end
 
@@ -5795,7 +5872,7 @@ function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::Str
     output_result(_ardl_longrun_table(lr); format=Symbol(format),
                   output=_per_var_output_path(output, "longrun"),
                   title="ARDL Long-Run Coefficients ($dep_name)")
-    ecm = MacroEconometricModels.ecm_form(m)   # ecm_form is not exported → qualify
+    ecm = ecm_form(m)   # exported since MEMs 0.8.0
     output_kv(Pair{String,Any}[
         "p"             => m.p,
         "q"             => join(m.q, ","),
@@ -6021,6 +6098,8 @@ function _forecast_midas(; data::String, column::Int=1, hf_data::String="", hf_c
         "forecast midas: --level must be in (0, 1) (got $level)"))
     poly_degree >= 0 || throw(CliError("usage/invalid",
         "forecast midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "forecast midas: --horizon must be ≥ 1 (got $horizon)"))
     (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
         "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
     y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
@@ -6071,6 +6150,9 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
     m >= 1 || throw(CliError("usage/invalid", "--m (HF/LF frequency ratio) must be ≥ 1, got $m"))
     k >= 1 || throw(CliError("usage/invalid", "--k (number of high-frequency lags) must be ≥ 1, got $k"))
     p_ar >= 0 || throw(CliError("usage/invalid", "--p-ar must be ≥ 0, got $p_ar"))
+    # h was INERT upstream at ≤0.7.2; implemented at 0.7.3 (MEMs#574) — the guard
+    # keeps a bad value a usage error rather than upstream's ArgumentError.
+    horizon >= 1 || throw(CliError("usage/invalid", "--horizon must be ≥ 1, got $horizon"))
     max_iter >= 1 || throw(CliError("usage/invalid", "--max-iter must be ≥ 1, got $max_iter"))
     # --poly-degree feeds the `:almon` polynomial (real `_n_theta(:almon, d)=d+1`); a negative degree
     # is never meaningful and, unguarded, reaches `_midas_theta_starts` OUTSIDE the estimator try/catch

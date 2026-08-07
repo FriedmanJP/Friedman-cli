@@ -87,6 +87,7 @@ include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
 include(joinpath(project_root, "src", "commands", "multipliers.jl"))
+include(joinpath(project_root, "src", "commands", "policy.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
@@ -129,6 +130,25 @@ end
 # ═══════════════════════════════════════════════════════════════
 # Shared utilities (shared.jl)
 # ═══════════════════════════════════════════════════════════════
+
+@testset "registry reserved names/shorts guard (#117)" begin
+    # `-h`/`--help` fire before tokenization and `--version`/`-V`, `--warranty`,
+    # `--conditions` are leading-only globals — a spec claiming one is refused at
+    # build_app time. 48 leaves once shipped an unreachable `-h` horizon short.
+    # (Sources are included directly here — no `Friedman.` module in T1/T2; the
+    # real build_app-under-guard case lives in T3's test_entry.jl.)
+    @test_throws ErrorException _to_option(
+        OptionSpec(name="horizon", short="h", type=Int, default=1, description="dead"))
+    @test_throws ErrorException _to_option(
+        OptionSpec(name="conditions", type=String, default="", description="swallowed"))
+    @test_throws ErrorException _to_flag(
+        FlagSpec(name="warranty", description="swallowed"))
+    @test_throws ErrorException _to_flag(
+        FlagSpec(name="verbose", short="V", description="dead"))
+    # sane specs still pass
+    @test _to_option(
+        OptionSpec(name="horizons", type=Int, default=20, description="ok")) isa Option
+end
 
 @testset "Shared utilities" begin
 
@@ -1643,6 +1663,294 @@ end  # Shared utilities
         end
     end
 
+    @testset "policy — effects + counterfactual (W4/#126, new top-level)" begin
+        # McKay-Wolf policy counterfactuals. The mock CF layer implements real's
+        # :ls math (assembly + pinv), so the closed forms hold in T1/T2 too.
+        _pdoc(args) = begin
+            out = _capture() do
+                _dispatch_via_app(vcat(String["policy"], collect(String, args),
+                                       String["--format", "json"]))
+            end
+            JSON3.read(out[findfirst('{', out):end])
+        end
+        _perr(args) = begin
+            e = nothing
+            try
+                _capture() do
+                    _dispatch_via_app(vcat(String["policy"], collect(String, args)))
+                end
+            catch ex
+                e = ex
+            end
+            e
+        end
+
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=3, colnames=["infl", "ygap", "rate"])
+            base = ["counterfactual", "var", csv, "--shocks", "3",
+                    "--nonpolicy-shock", "1", "--outcomes", "infl=1,ygap=2",
+                    "--instruments", "rate=3", "--horizon", "6"]
+
+            @testset "structure: 19th top-level, 7 leaves" begin
+                node = register_policy_commands!()
+                @test node isa NodeCommand
+                eff = node.subcmds["effects"]; cf = node.subcmds["counterfactual"]
+                @test sort(collect(keys(eff.subcmds))) == ["bvar", "lp", "sign", "var"]
+                @test sort(collect(keys(cf.subcmds))) == ["bvar", "lp", "var"]
+            end
+
+            @testset "effects var — tidy menu + honest summary" begin
+                doc = _pdoc(["effects", "var", csv, "--shocks", "3",
+                             "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                             "--horizon", "6"])
+                @test doc.status == "ok"
+                menu = doc.data[:policy_causal_effects_menu]
+                @test String.(menu.columns) == ["variable", "role", "shock", "horizon", "value"]
+                @test length(collect(menu.rows)) == 3 * 1 * 6   # 3 vars × 1 shock × H
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:policy_causal_effects_summary].rows)
+                @test s["is_square"] == false && s["n_draws"] == 0
+            end
+
+            @testset "counterfactual var — rate peg, honesty in the DATA" begin
+                doc = _pdoc([base; "--rule"; "rate-peg"])
+                @test doc.status == "ok"
+                @test haskey(doc.data, :policy_counterfactual_paths)
+                @test haskey(doc.data, :enforcing_policy_shocks_nu)
+                @test haskey(doc.data, :implementation_error_path)
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                @test s["rule"] == "rate peg"
+                @test haskey(s, "rel_residual") && haskey(s, "spanned")
+            end
+
+            @testset "counterfactual var — bootstrap draws → band columns" begin
+                doc = _pdoc([base; "--rule"; "rate-peg"; "--replications"; "30"])
+                p = doc.data[:policy_counterfactual_paths]
+                @test "q16" in String.(p.columns) && "q84" in String.(p.columns)
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                @test s["n_draws_used"] == 30
+            end
+
+            @testset "guards — typed usage errors, builtin-rule contract" begin
+                @test (_perr([base..., "--rule", "rate-peg", "--horizon", "0"])).code == "usage/invalid"
+                @test (_perr([base..., "--rule", "bogus"])).code == "usage/invalid-option"
+                # --rule + --rule-config together
+                @test (_perr([base..., "--rule", "rate-peg", "--rule-config", "x.toml"])).code == "usage/invalid"
+                # neither
+                @test (_perr(collect(base))).code == "usage/missing"
+                # taylor builtin needs outcomes NAMED infl/ygap
+                e = _perr(["counterfactual", "var", csv, "--shocks", "3",
+                           "--nonpolicy-shock", "1", "--outcomes", "cpi=1,gap=2",
+                           "--instruments", "rate=3", "--rule", "taylor"])
+                @test e isa CliError && e.code == "usage/invalid"
+                # malformed pair spec
+                e2 = _perr(["effects", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl", "--horizon", "4"])
+                @test e2 isa CliError && e2.code == "usage/invalid"
+                # missing shocks
+                e3 = _perr(["effects", "var", csv,
+                            "--outcomes", "infl=1", "--horizon", "4"])
+                @test e3 isa CliError && e3.code == "usage/missing"
+            end
+
+            @testset "optimal + moments (W5/#127)" begin
+                losstoml = joinpath(dir, "loss.toml")
+                write(losstoml, """
+                [loss]
+                outcomes = ["infl", "ygap"]
+                lambda = [1.0, 0.5]
+                """)
+                doc = _pdoc(["optimal", "var", csv, "--shocks", "3",
+                             "--nonpolicy-shock", "1", "--outcomes", "infl=1,ygap=2",
+                             "--instruments", "rate=3", "--loss-config", losstoml,
+                             "--horizon", "6"])
+                @test doc.status == "ok"
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                # Loss accounting is DATA; the optimum cannot lose to the baseline.
+                @test haskey(s, "loss_base") && haskey(s, "loss_cf")
+                @test Float64(s["loss_cf"]) <= Float64(s["loss_base"]) + 1e-10
+                @test any(startswith(k, "foc_norm") for k in keys(s))
+                # --loss-config is REQUIRED; --spanned-tol is NOT declared (#85 class:
+                # upstream optimal_policy hardcodes 0.05).
+                e = _perr(["optimal", "var", csv, "--shocks", "3",
+                           "--nonpolicy-shock", "1", "--outcomes", "infl=1",
+                           "--instruments", "rate=3"])
+                @test e isa CliError && e.code == "usage/missing"
+                node = register_policy_commands!()
+                opt_leaf = node.subcmds["optimal"].subcmds["var"]
+                @test !any(o -> o.name == "spanned-tol", opt_leaf.options)
+
+                dm = _pdoc(["moments", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--horizon", "8"])
+                @test dm.status == "ok"
+                sd = dm.data[:counterfactual_standard_deviations]
+                @test String.(sd.columns)[1:3] == ["variable", "sd_base", "sd_cf"]
+                rows = [collect(r) for r in sd.rows]
+                # Stabilizing counterfactual: sd shrinks (mock mirrors the direction).
+                @test all(Float64(r[3]) < Float64(r[2]) for r in rows)
+                ms = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dm.data[:moments_summary].rows)
+                @test any(startswith(k, "tail_share") for k in keys(ms))
+
+                # rule XOR loss; bad frequency band.
+                e2 = _perr(["moments", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--loss-config", losstoml])
+                @test e2 isa CliError && e2.code == "usage/invalid"
+                e3 = _perr(["moments", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--frequencies", "2,1"])
+                @test e3 isa CliError && e3.code == "usage/invalid"
+            end
+
+            @testset "opp family (W6/#128)" begin
+                losstoml = joinpath(dir, "opp_loss.toml")
+                write(losstoml, """
+                [loss]
+                outcomes = ["infl", "ygap"]
+                lambda = [1.0, 0.5]
+                """)
+                ob = ["opp", "var", csv, "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                      "--instruments", "rate=3", "--loss-config", losstoml,
+                      "--horizon", "6"]
+                doc = _pdoc([ob; "--targets"; "infl=0,ygap=0"])
+                @test doc.status == "ok"
+                dd = doc.data[:opp_recommendation_delta]
+                @test String.(dd.columns)[1:4] == ["shock", "delta", "delta_plugin", "gradient"]
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:opp_summary].rows)
+                @test haskey(s, "loss_base") && haskey(s, "loss_opp")
+                @test haskey(s, "band_polarity")   # reversed polarity is a DATA field
+                @test haskey(doc.data, :objective_gap_paths)
+
+                # The gaps-vs-levels trap: no targets / partial targets refuse.
+                e = _perr(collect(ob))
+                @test e isa CliError && e.code == "usage/missing"
+                e2 = _perr([ob..., "--targets", "infl=0"])
+                @test e2 isa CliError && e2.code == "usage/missing"
+
+                # Constrained: TOML + announced path; missing path refuses.
+                constoml = joinpath(dir, "cons.toml")
+                write(constoml, """
+                [[constraint]]
+                type = "zlb"
+                floor = 0.0
+                instrument = "rate"
+                """)
+                dc = _pdoc([ob; "--targets"; "infl=0,ygap=0";
+                            "--constraints-file"; constoml;
+                            "--instrument-path"; "0.1,0.1,0.1,0.1,0.1,0.1"])
+                sc = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dc.data[:opp_summary].rows)
+                @test haskey(sc, "method_used") && haskey(sc, "kkt_residual")
+                e3 = _perr([ob..., "--targets", "infl=0,ygap=0",
+                            "--constraints-file", constoml])
+                @test e3 isa CliError && e3.code == "usage/missing"
+
+                # opp-sequence: per-date gap files + required --sd.
+                fdir = joinpath(dir, "fc"); mkpath(fdir)
+                for (i, d) in enumerate(["2020Q1", "2020Q2"])
+                    CSV.write(joinpath(fdir, "$d.csv"),
+                              DataFrame(infl=fill(0.5 - 0.1i, 6), ygap=fill(-1.0, 6)))
+                end
+                ds = _pdoc(["opp-sequence", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--loss-config", losstoml, "--forecasts-dir", fdir,
+                            "--sd", "0.5,0.5", "--horizon", "6"])
+                @test ds.status == "ok"
+                @test haskey(ds.data, :opp_sequence_delta_by_date)
+                dec = ds.data[:opp_revision_decomposition]
+                @test String.(dec.columns) == ["date", "shock", "news", "pref", "aging"]
+                e4 = _perr(["opp-sequence", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--loss-config", losstoml, "--forecasts-dir", fdir,
+                            "--horizon", "6"])
+                @test e4 isa CliError && e4.code == "usage/missing"   # --sd required
+            end
+
+            @testset "structural routes (W7/#129)" begin
+                nk = joinpath(dir, "nk.toml")
+                write(nk, """
+                [model]
+                parameters = { rho = 0.8 }
+                endogenous = ["ygap", "infl", "rate"]
+                exogenous = ["e", "mp"]
+                linear = true
+                [[model.equations]]
+                expr = "ygap[t] = rho * ygap[t-1] + e[t]"
+                [[model.equations]]
+                expr = "infl[t] = 0.3 * ygap[t]"
+                [[model.equations]]
+                expr = "rate[t] = 1.5 * infl[t] + mp[t]"
+                """)
+                dn = _pdoc(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl,ygap=ygap",
+                            "--instruments", "rate=rate", "--horizon", "6"])
+                @test dn.status == "ok"
+                sn = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dn.data[:policy_causal_effects_summary].rows)
+                @test sn["is_square"] == true && sn["n_shocks"] == 6
+
+                # Behavioral is an option on the news leaves; values guarded [0,1].
+                db = _pdoc(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl", "--horizon", "4",
+                            "--behavioral-m", "0.8"])
+                sb = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in db.data[:policy_causal_effects_summary].rows)
+                @test haskey(sb, "behavioral")
+                eb = _perr(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl=infl", "--horizon", "4",
+                            "--behavioral-m", "1.5"])
+                @test eb isa CliError && eb.code == "usage/invalid"
+                # Sym-pair parser: an integer column spec is the WRONG shape here.
+                es = _perr(["news", "dsge", nk, "--policy-shock", "mp",
+                            "--outcomes", "infl", "--horizon", "4"])
+                @test es isa CliError && es.code == "usage/invalid"
+
+                dh = _pdoc(["history", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--horizon", "8",
+                            "--t-range", "50:54"])
+                @test dh.status == "ok"
+                @test haskey(dh.data, :counterfactual_history)
+                # window must fit inside H−1
+                eh = _perr(["history", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1", "--rule", "rate-peg",
+                            "--horizon", "4", "--t-range", "50:60"])
+                @test eh isa CliError && eh.code == "usage/invalid"
+
+                dsuf = _pdoc(["sufficiency", "dsge", nk,
+                              "--observables", "infl,rate", "--horizon", "6"])
+                @test dsuf.status == "ok"
+                ss2 = Dict(String(collect(r)[1]) => collect(r)[2]
+                           for r in dsuf.data[:sufficiency_summary].rows)
+                @test haskey(ss2, "invertible")
+            end
+
+            @testset "square container → exact solve enforces the peg" begin
+                # 2 policy shocks with H=2 makes the menu square: the pegged
+                # instrument path must be EXACTLY zero and rel_residual ~0.
+                doc = _pdoc(["counterfactual", "var", csv, "--shocks", "2,3",
+                             "--nonpolicy-shock", "1", "--outcomes", "infl=1",
+                             "--instruments", "rate=3", "--rule", "rate-peg",
+                             "--horizon", "2"])
+                s = Dict(String(collect(r)[1]) => collect(r)[2]
+                         for r in doc.data[:counterfactual_summary].rows)
+                @test s["spanned"] == true
+                p = doc.data[:policy_counterfactual_paths]
+                ci = findfirst(==("counterfactual"), String.(p.columns))
+                ri = findfirst(==("role"), String.(p.columns))
+                zvals = [collect(r)[ci] for r in p.rows
+                         if String(collect(r)[ri]) == "instrument"]
+                @test all(abs(Float64(v)) < 1e-8 for v in zvals)
+            end
+        end
+    end
+
     @testset "estimate pmg + test pmg-hausman (C062c)" begin
         # Dynamic heterogeneous-panel ARDL. estimate pmg renders a hand-built long-run θ table
         # + a short-run/EC (φ) table + diagnostics kv (PMGModel is not Tables.jl-registered).
@@ -1772,6 +2080,23 @@ end  # Shared utilities
                 doc = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--weights", "expalmon", "--p-ar", "1"])
                 @test doc.status == "ok"
                 @test _has_tbl(doc, "term", "estimate")
+            end
+
+            @testset "--horizon: direct-h is real since 0.7.3 (MEMs#574, W10/#131)" begin
+                # The mock now shifts the target like real (y_{t+h-1}), so h=4
+                # must change the fit and drop h-1 tail targets from the sample.
+                _metric(doc, name) = begin
+                    t = first(t for t in _tables(doc) if "metric" in String.(t.columns))
+                    d = Dict(String(collect(r)[1]) => collect(r)[2] for r in t.rows)
+                    d[name]
+                end
+                d1 = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6"])
+                d4 = _doc([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "4"])
+                @test _metric(d4, "h") == 4
+                @test _metric(d4, "nobs") == _metric(d1, "nobs") - 3
+                @test _metric(d4, "r2") != _metric(d1, "r2")
+                eh = _err([lf, "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "0"])
+                @test eh isa CliError && eh.code == "usage/invalid"
             end
 
             @testset "bad input → typed classes, never uncaught exit-1" begin
@@ -7440,6 +7765,42 @@ end  # Enhanced Granger handlers
         end
     end
 
+    @testset "_data_load — :mp-shocks NaN survives the round-trip (W3/#125)" begin
+        # NaN is NOT zero: zero is a valid shock value, so any loader that
+        # coerced NaN→0 would silently fabricate shocks. The mock carries the
+        # real per-column valid ranges, so these counts match T3 exactly.
+        mktempdir() do dir
+            out = joinpath(dir, "mp.csv")
+            _capture() do
+                _data_load(; name=":mp-shocks", output=out)   # dash spelling normalizes
+            end
+            df = CSV.read(out, DataFrame)
+            @test size(df) == (240, 8)
+            @test names(df) == ["ygap", "infl", "ffr", "lpcom", "rr", "mp1", "ad", "bzk_ist"]
+            @test isnan(df.rr[1])                  # pre-1969Q1: outside published sample
+            @test count(!isnan, df.rr) == 156      # Romer-Romer 1969Q1–2007Q4
+            @test count(!isnan, df.mp1) == 95      # Gertler-Karadi 1988Q4–2012Q2
+        end
+    end
+
+    @testset "_data_describe — NaN-padded valid windows (:mp_shocks)" begin
+        mktempdir() do dir
+            outfile = joinpath(dir, "desc.json")
+            _capture() do
+                _data_describe(; data=":mp_shocks", format="json", output=outfile)
+            end
+            rows = JSON3.read(read(outfile, String))
+            byvar = Dict(String(r.variable) => r for r in rows)
+            # n counts FINITE observations; first/last_valid bound the window.
+            @test byvar["rr"].n == 156
+            @test byvar["rr"].first_valid == 37 && byvar["rr"].last_valid == 192
+            @test byvar["ygap"].first_valid == 37 && byvar["ygap"].last_valid == 240
+            @test byvar["ffr"].n == 223
+            # Statistics exclude the NaN padding rather than propagating it.
+            @test isfinite(byvar["rr"].mean) && isfinite(byvar["rr"].std)
+        end
+    end
+
     @testset "_data_load — mpdta with --vars" begin
         mktempdir() do dir
             out = cd(dir) do
@@ -7846,7 +8207,7 @@ end  # Data handlers
     @testset "option counts" begin
         node = register_nowcast_commands!()
         @test length(node.subcmds["dfm"].options) == 10
-        @test length(node.subcmds["bvar"].options) == 6
+        @test length(node.subcmds["bvar"].options) == 12   # +6 in W1/#123 (prior, theta-cross, 4 hyperparameters)
         @test length(node.subcmds["bridge"].options) == 8
         @test length(node.subcmds["news"].options) == 12
         @test length(node.subcmds["forecast"].options) == 10
@@ -7902,6 +8263,44 @@ end  # Data handlers
             csv = _make_csv(dir; T=100, n=5)
             out = _capture() do
                 _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1, lags=3)
+            end
+        end
+    end
+
+    @testset "_nowcast_bvar — litterman prior + theta-cross (W1/#123)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                               prior="litterman", theta_cross="0.5")
+            end
+            @test occursin("litterman", out)
+            @test occursin("theta_cross", out)
+            # conjugate output must NOT carry a theta_cross row (it is NaN there)
+            out_c = _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1)
+            end
+            @test !occursin("theta_cross", out_c)
+            # --theta-cross under conjugate is a TYPED usage error, guarded before the
+            # estimator (upstream's ArgumentError would be data/invalid — wrong class)
+            err = try
+                _capture() do
+                    _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                                   theta_cross="0.5")
+                end
+                nothing
+            catch e; e; end
+            @test err isa CliError && err.code == "usage/invalid"
+            @test_throws CliError _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                               prior="litterman", theta_cross="not-a-number")
+            end
+            @test_throws CliError _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1,
+                               prior="litterman", theta_cross="-1.0")
+            end
+            @test_throws CliError _capture() do
+                _nowcast_bvar(; data=csv, monthly_vars=4, quarterly_vars=1, lambda0=0.0)
             end
         end
     end
@@ -9672,6 +10071,26 @@ end
         end
     end
 
+    @testset "factor family carries CSV varnames (W10/#131, MEMs#538)" begin
+        # The mock replicates real's naming: FAVAR key variables take their panel
+        # names inside the augmented VAR; sdfm responses take the panel names.
+        mktempdir() do dir
+            csv = joinpath(dir, "named.csv")
+            CSV.write(csv, DataFrame(s1=randn(80), s2=randn(80), s3=randn(80),
+                                     infl=randn(80), ffr=randn(80)))
+            out_f = _capture() do
+                _irf_favar(; data=csv, factors=2, lags=1, key_vars="infl,ffr",
+                             horizons=6, id="cholesky", format="table")
+            end
+            @test occursin("infl", out_f) && occursin("ffr", out_f)
+            out_s = _capture() do
+                _irf_sdfm(; data=csv, factors=2, horizons=6, format="table")
+            end
+            @test occursin("infl", out_s)
+            @test !occursin("Var 1", out_s)
+        end
+    end
+
     @testset "_fevd_favar" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
@@ -9807,6 +10226,14 @@ end
                 _test_factor_break(; data=csv, factors=2, method="breitung_eickmeier",
                                      id_col="", time_col="", format="table")
             end
+            # W2/#124: pooled methods emit the per-series table…
+            @test occursin("Per-Series Break Diagnostics", out)
+            # …and chen_dolado_gonzalo (series fields = nothing) silently omits it.
+            out_cdg = _capture() do
+                _test_factor_break(; data=csv, factors=2, method="chen_dolado_gonzalo",
+                                     id_col="", time_col="", format="table")
+            end
+            @test !occursin("Per-Series Break Diagnostics", out_cdg)
         end
     end
 
@@ -10481,11 +10908,67 @@ end
             end
         end
 
+        @testset "_data_dropna — drops NaN rows, --vars scopes the check (W3/#125)" begin
+            mktempdir() do dir
+                csv = joinpath(dir, "nan.csv")
+                a = randn(20); a[1:5] .= NaN
+                CSV.write(csv, DataFrame(a=a, b=randn(20)))
+
+                out_csv = joinpath(dir, "clean.csv")
+                _capture() do
+                    _data_dropna(; data=csv, format="csv", output=out_csv)
+                end
+                @test nrow(CSV.read(out_csv, DataFrame)) == 15   # NaN rows actually dropped
+
+                # --vars used to pass Vector{SubString} into real dropna's
+                # ::Union{Vector{String},Nothing} assertion → TypeError exit 1.
+                out_b = joinpath(dir, "clean_b.csv")
+                _capture() do
+                    _data_dropna(; data=csv, vars="b", format="csv", output=out_b)
+                end
+                @test nrow(CSV.read(out_b, DataFrame)) == 20     # b is fully finite
+
+                # Unknown --vars entry is typed, not upstream's raw ArgumentError.
+                err = try
+                    _capture() do
+                        _data_dropna(; data=csv, vars="nope", format="table", output="")
+                    end
+                catch e
+                    e
+                end
+                @test err isa CliError && err.code == "data/column-range"
+            end
+        end
+
         @testset "_data_keeprows" begin
             mktempdir() do dir
                 csv = _make_csv(dir; T=50, n=3)
                 out = _capture() do
                     _data_keeprows(; data=csv, rows="1:20", format="table", output="")
+                end
+            end
+        end
+
+        @testset "_data_keeprows — typed guards (W3/#125)" begin
+            mktempdir() do dir
+                csv = _make_csv(dir; T=50, n=3)
+                for (rows, code) in [("", "usage/missing"),          # was a bare error() → exit 1
+                                     ("abc", "usage/invalid"),       # was raw parse ArgumentError
+                                     ("1:2:3", "usage/invalid"),
+                                     ("40:900", "usage/invalid"),    # was upstream BoundsError
+                                     ("20:10", "usage/invalid")]     # empty selection
+                    err = try
+                        _capture() do
+                            _data_keeprows(; data=csv, rows=rows, format="table", output="")
+                        end
+                    catch e
+                        e
+                    end
+                    @test err isa CliError && err.code == code
+                end
+                # 1:end still resolves to the full sample.
+                _capture() do
+                    _data_keeprows(; data=csv, rows="1:end", format="table", output="")
                 end
             end
         end
@@ -10514,6 +10997,32 @@ end
                     _estimate_piv(; data=csv, dep="var1", exog="var2", endog="var3",
                         instruments="var4", method="fe", cov_type="cluster",
                         id_col="group", time_col="time", format="table", output="")
+                end
+                # W10/#131 (MEMs#553): diagnostics table always emitted; the mock is
+                # just-identified here (1 endog, 1 instrument) so Sargan says why
+                # it is missing rather than a bare N/A.
+                @test occursin("Weak-Instrument Diagnostics", out)
+                @test occursin("unavailable (failed or underidentified)", out)
+                # Overidentified (2 instruments): Sargan carries a number.
+                csv5 = _make_panel_csv(dir; G=5, T_per=20, n=5)
+                out2 = _capture() do
+                    _estimate_piv(; data=csv5, dep="var1", exog="var2", endog="var3",
+                        instruments="var4,var5", method="fe", cov_type="cluster",
+                        id_col="group", time_col="time", format="table", output="")
+                end
+                @test occursin("Weak-Instrument Diagnostics", out2)
+                @test !occursin("unavailable", out2)
+                # Missing --dep/--endog: bare error() used to make these exit 1.
+                for kw in [(; exog="var2", endog="var3"), (; dep="var1", exog="var2")]
+                    err = try
+                        _capture() do
+                            _estimate_piv(; data=csv, id_col="group", time_col="time",
+                                          format="table", kw...)
+                        end
+                    catch e
+                        e
+                    end
+                    @test err isa CliError && err.code == "usage/missing"
                 end
             end
         end
@@ -10658,6 +11167,34 @@ end
                 out = _capture() do
                     _predict_mlogit(; data=csv, dep="var1", cov_type="ols",
                                      output="", format="table")
+                end
+            end
+        end
+
+        @testset "predict --marginal-effects re-added w/ handler support (W10/#131, MEMs#550)" begin
+            # #85 removed the flag because no handler accepted it; MEMs#550 (0.7.3)
+            # added delta-method SEs upstream. The mock returns the REAL shapes:
+            # ordered → NamedTuple (K×J matrices), mlogit → MultinomialMarginalEffects.
+            mktempdir() do dir
+                csv = _make_csv(dir; T=100, n=4)
+                for f in (_predict_ologit, _predict_oprobit)
+                    out = _capture() do
+                        f(; data=csv, dep="var1", marginal_effects=true,
+                          output="", format="table")
+                    end
+                    @test occursin("Average Marginal Effects", out)
+                    @test occursin("dydx", out) && occursin("se", out)
+                end
+                out_m = _capture() do
+                    _predict_mlogit(; data=csv, dep="var1", cov_type="ols",
+                                     marginal_effects=true, output="", format="table")
+                end
+                @test occursin("Average Marginal Effects", out_m)
+                # …and the flag is DECLARED on all three predict leaves (registry ↔
+                # handler agreement in both directions).
+                for leaf in ("ologit", "oprobit", "mlogit")
+                    fl = [f.name for f in _flags_for_kind(Symbol(leaf), :predict)]
+                    @test "marginal-effects" in fl
                 end
             end
         end
@@ -11141,6 +11678,70 @@ end  # Diagnostic warning branches
         end
     end
 
+    @testset "_estimate_preg — ab/bb instrument controls (W10/#131)" begin
+        mktempdir() do dir
+            rng = MersenneTwister(7)
+            N, T = 10, 8
+            d = DataFrame(id=repeat(1:N, inner=T), time=repeat(1:T, N),
+                          y=randn(rng, N * T), x=randn(rng, N * T))
+            csv = joinpath(dir, "dyn.csv"); CSV.write(csv, d)
+
+            # ab emits the Dynamic Panel Diagnostics table; collapse shrinks the
+            # instrument count (mock mirrors the real direction).
+            out_full = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="ab",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test occursin("Dynamic Panel Diagnostics", out_full)
+            @test occursin("n_instruments", out_full)
+            out_col = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="ab",
+                                collapse=true, id_col="id", time_col="time",
+                                format="table", output="")
+            end
+            @test occursin("collapsed", out_col)   # stderr status notes the collapse
+            # bb routes too, and a plain fe run emits NO diagnostics table.
+            out_bb = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="bb",
+                                min_lag_endo=2, max_lag_endo=4,
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test occursin("Dynamic Panel Diagnostics", out_bb)
+            out_fe = _capture() do
+                _estimate_preg(; data=csv, dep="y", indep="x", method="fe",
+                                id_col="id", time_col="time", format="table", output="")
+            end
+            @test !occursin("Dynamic Panel Diagnostics", out_fe)
+
+            # Guards: controls on a non-GMM method refuse (upstream would silently
+            # ignore them); window sanity on the GMM path.
+            for kw in [(; collapse=true), (; min_lag_endo=3), (; max_lag_endo=5)]
+                err = try
+                    _capture() do
+                        _estimate_preg(; data=csv, dep="y", indep="x", method="fe",
+                                        id_col="id", time_col="time", format="table",
+                                        kw...)
+                    end
+                catch e
+                    e
+                end
+                @test err isa CliError && err.code == "usage/invalid"
+            end
+            for kw in [(; min_lag_endo=0), (; min_lag_endo=5, max_lag_endo=3)]
+                err = try
+                    _capture() do
+                        _estimate_preg(; data=csv, dep="y", indep="x", method="ab",
+                                        id_col="id", time_col="time", format="table",
+                                        kw...)
+                    end
+                catch e
+                    e
+                end
+                @test err isa CliError && err.code == "usage/invalid"
+            end
+        end
+    end
+
     @testset "_test_wild_cluster — numeric and string clusters" begin
         mktempdir() do dir
             for sc in (false, true)
@@ -11445,17 +12046,14 @@ end  # W10 micro inference riders
     @testset "_dsge_moments — orders and guards" begin
         mktempdir() do dir
             m = _w12_model(dir)
-            for ord in (2, 3)
+            # order 1 re-enabled in W9/#116 (MEMs 0.7.3/#607 fixed the control-block
+            # covariance); the closed-form proof lives in T3 — here all three orders run.
+            for ord in (1, 2, 3)
                 out = _capture() do
                     _dsge_moments(; model=m, method="perturbation", order=ord,
                                    lags=2, format="table", output="")
                 end
                 @test occursin("Moments", out) || occursin("moments", out)
-            end
-            # order 1 is REFUSED: upstream's order-1 analytical moments are wrong for
-            # control variables (verified against the closed form on a linear AR(1) model).
-            @test_throws CliError _capture() do
-                _dsge_moments(; model=m, order=1, format="table")
             end
             @test_throws CliError _capture() do
                 _dsge_moments(; model=m, order=0, format="table")

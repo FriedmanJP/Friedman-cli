@@ -552,8 +552,47 @@ end
 _choice_prob_table(probs::AbstractVector, categories) =
     DataFrame(observation=1:length(probs), fitted_prob=round.(probs; digits=6))
 
+"""
+    _choice_me_table(me) → (DataFrame, has_se)
+
+Tidy average marginal effects for the ordered/multinomial models (MEMs#550,
+W10/#131): one row per variable × category, columns `variable|category|dydx[|se]`.
+
+Both upstream shapes land here — the ordered models return a NamedTuple and
+mlogit the exported `MultinomialMarginalEffects` struct — but the four fields
+read identically. Notes: mlogit's `varnames` EXCLUDE intercept rows;
+"SE unavailable" is spelled `nothing` on mlogit but a NaN-filled matrix on the
+ordered models, so both are checked. Every variable's effects sum to ~0 across
+categories (∂Σp/∂x = 0), base category included. Neither family carries
+z/p/CI — deliberately NOT routed through the shared `MarginalEffects` renderer.
+"""
+function _choice_me_table(me)
+    K, J = size(me.effects)
+    labels = length(me.categories) == J ? string.(me.categories) : string.(1:J)
+    df = DataFrame(variable=repeat(String.(me.varnames); inner=J),
+                   category=repeat(labels; outer=K),
+                   dydx=round.(vec(permutedims(me.effects)); digits=6))
+    has_se = me.se !== nothing && !all(isnan, me.se)
+    has_se && (df[!, :se] = round.(vec(permutedims(me.se)); digits=6))
+    return df, has_se
+end
+
+"""Emit the AME table for a discrete-choice predict leaf (2nd table → distinct
+output path, or `--output` would silently drop the probabilities)."""
+function _output_choice_me(model, model_label::String;
+                           format::String="table", output::String="")
+    me = MacroEconometricModels.marginal_effects(model)
+    me_df, has_se = _choice_me_table(me)
+    has_se || _status_styled(
+        "  Note: standard errors unavailable (model covariance missing)\n"; color=:yellow)
+    _status()
+    output_result(me_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "marginal_effects"),
+                  title="$model_label Average Marginal Effects")
+end
+
 function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
-                          clusters::String="",
+                          clusters::String="", marginal_effects::Bool=false,
                           output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     cl = _load_clusters(data, clusters)
@@ -568,10 +607,12 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Logit Predicted Probabilities")
+    marginal_effects && _output_choice_me(model, "Ordered Logit";
+                                          format=format, output=output)
 end
 
 function _predict_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
-                           clusters::String="",
+                           clusters::String="", marginal_effects::Bool=false,
                            output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     cl = _load_clusters(data, clusters)
@@ -586,10 +627,12 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Probit Predicted Probabilities")
+    marginal_effects && _output_choice_me(model, "Ordered Probit";
+                                          format=format, output=output)
 end
 
 function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ols",
-                          clusters::String="",
+                          clusters::String="", marginal_effects::Bool=false,
                           output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     cl = _load_clusters(data, clusters)
@@ -604,6 +647,8 @@ function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ol
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Multinomial Logit Predicted Probabilities")
+    marginal_effects && _output_choice_me(model, "Multinomial Logit";
+                                          format=format, output=output)
 end
 
 
@@ -1175,13 +1220,17 @@ const _LOGIT_EXTRA_FLAGS = [
     FlagSpec(name="odds-ratio", description="Report odds ratios (logit)"),
     FlagSpec(name="classification-table", description="Report the classification table"),
 ]
-# NOTE: no extras for the ordered/multinomial leaves. `_predict_ologit`,
-# `_predict_oprobit` and `_predict_mlogit` accept no `marginal_effects`,
-# `category` or `base_category` kwargs, so declaring them produced a
-# MethodError -> exit 1 on every call. Add the options back only together with
-# handler support.
+# #85 removed `--marginal-effects`/`--category`/`--base-category` here because the
+# handlers accepted none of them (MethodError → exit 1 on every call). W10/#131
+# re-adds `--marginal-effects` WITH handler support, now that MEMs#550 (0.7.3)
+# gives the ordered/multinomial models delta-method SEs. `--category`/
+# `--base-category` stay out — upstream marginal_effects takes NO kwargs.
 const _ORDERED_EXTRA = OptionSpec[]
 const _MLOGIT_EXTRA = OptionSpec[]
+const _CHOICE_ME_FLAGS = [
+    FlagSpec(name="marginal-effects",
+             description="Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none)"),
+]
 
 # W4/#87: MEMs 0.7.2 settled the ordered/multinomial residual question upstream
 # (MEMs#507), which is what these three leaves were gated on. `residuals(m; kind=)`
@@ -1210,6 +1259,7 @@ function _flags_for_kind(kind::Symbol, verb::Symbol)
     verb === :predict || return FlagSpec[]
     kind === :logit && return _LOGIT_EXTRA_FLAGS
     kind === :probit && return filter(f -> f.name != "odds-ratio", _LOGIT_EXTRA_FLAGS)
+    (kind === :ologit || kind === :oprobit || kind === :mlogit) && return _CHOICE_ME_FLAGS
     return FlagSpec[]
 end
 

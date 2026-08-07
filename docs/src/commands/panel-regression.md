@@ -63,3 +63,51 @@ friedman test hausman panel.csv --dep gdp --indep investment,trade
 # Panel IV
 friedman estimate piv panel.csv --dep gdp --exog trade --endog investment --instruments lag_inv
 ```
+
+## Dynamic panel GMM (`--method ab|bb`)
+
+`--method ab` (Arellano–Bond difference GMM) and `--method bb` (Blundell–Bond system
+GMM) regress the dependent variable on its own first lag plus `--indep`, instrumenting
+the lag with its deeper history. Since v0.9.2 (MEMs#549) the Roodman/`xtabond2`
+instrument-proliferation controls are exposed:
+
+```bash
+friedman estimate preg panel.csv --dep y --indep x --method ab --collapse
+friedman estimate preg panel.csv --dep y --indep x --method bb --min-lag-endo 2 --max-lag-endo 4
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--collapse` | Flag | off | Collapse the GMM instrument matrix (one column per lag distance) |
+| `--min-lag-endo` | Int | 2 | First instrument lag for endogenous regressors |
+| `--max-lag-endo` | Int | 99 | Last instrument lag for endogenous regressors |
+
+They apply **only** to `--method ab|bb`; on any other method the CLI refuses with a
+typed `usage/invalid` (upstream would silently ignore them). The GMM run emits an extra
+**Dynamic Panel Diagnostics** table: Arellano–Bond AR(1)/AR(2) tests on the
+first-difference residuals, Hansen J with df and p-value, `n_instruments`, and the
+settings that produced it (`collapse`, the instrument lag window).
+
+!!! warning "Too many instruments"
+    With the default `2:99` window the instrument count grows quadratically in T and
+    quickly exceeds the number of groups — which overfits the endogenous regressors and
+    pushes the Hansen J toward spurious non-rejection (Roodman 2009). Upstream warns on
+    stderr when `n_instruments > N`; `--collapse` (or a narrow `--max-lag-endo`) is the
+    standard fix, and `n_instruments` in the diagnostics table is how you verify it worked.
+
+## Panel IV weak-instrument diagnostics (v0.9.2)
+
+`estimate piv` always emits a **Weak-Instrument Diagnostics** table (populated upstream
+since MEMs#553): the minimum excluded-instrument partial first-stage F across the
+endogenous regressors, Cragg–Donald F, Kleibergen–Paap F, the Stock–Yogo 10% critical
+value, and the Sargan overidentification statistic with its p-value.
+
+Two honest-labelling notes baked into the output:
+
+- A cell reading `unavailable (failed or underidentified)` means exactly that — upstream
+  wraps Cragg–Donald and Kleibergen–Paap in a bare try/catch, and Sargan has no degrees
+  of freedom in a just-identified model, so `nothing` cannot be distinguished into a
+  clean "N/A".
+- Under `--cov-type cluster` the Kleibergen–Paap F is computed with an HC1 covariance
+  (upstream implements no cluster-robust rk statistic), so it ignores within-entity
+  dependence — a stderr note flags this on every clustered run.

@@ -47,7 +47,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -111,7 +111,7 @@ Path to CSV data file
 | `--max-d` | — | `Int64` | `2` | — | Max differencing order for auto selection |
 | `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
 | `--criterion` | — | `String` | `bic` | — | aic\|bic |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
 | `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -138,7 +138,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
@@ -195,7 +195,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
 | `--method` | — | `String` | `twostep` | — | twostep\|em |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -224,7 +224,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -251,7 +251,7 @@ Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: sma
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast columns: small (restricted), big (unrestricted) |
-| `--horizon` | `-h` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--horizon` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `greater` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -297,7 +297,7 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
 | `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) \| ad (absolute) |
-| `--horizon` | `-h` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--horizon` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -390,7 +390,7 @@ Path to CSV data file
 | `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -480,7 +480,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -538,7 +538,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | `-r` | `Int64` | — | — | Number of static factors (default: auto) |
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -565,7 +565,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -619,7 +619,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Impulse shock size |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
@@ -682,7 +682,7 @@ Path to CSV data file
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
 | `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (intercept-only models; else use --x-future) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (intercept-only models; else use --x-future) |
 | `--x-future` | — | `String` | `""` | — | CSV of future regressors: h rows x k columns (required unless intercept-only) |
 | `--reps` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
 | `--ci-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
@@ -712,7 +712,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
 | `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
 | `--reps` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
 | `--ci-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -752,7 +752,7 @@ Path to CSV data file
 | `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion |
 | `--method` | — | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (>= 1) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (>= 1) |
 | `--ci-level` | — | `Float64` | `0.95` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -782,7 +782,7 @@ Waggoner-Zha conditional (scenario) forecast
 | `--conditions-file` | — | `String` | `""` | — | REQUIRED long-format CSV: variable,period,value[,sd] |
 | `--method` | — | `String` | `var` | `var`, `bvar` | Model to condition: var\|bvar |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto for var, 4 for bvar) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--replications` | — | `Int64` | `1000` | — | Draws used for the conditional bands |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws (--method bvar) |
@@ -817,7 +817,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
 | `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
 | `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -842,7 +842,7 @@ Path to CSV data file
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
 | `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
 | `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
 | `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -864,7 +864,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -892,7 +892,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -917,7 +917,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -946,7 +946,7 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--horizons` | `-h` | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
 | `--replications` | — | `Int64` | `500` | — | Bootstrap replications |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |

@@ -207,17 +207,13 @@ friedman dsge moments rbc.toml --order=2 --lags=4
 friedman dsge moments rbc.toml --order=3 --lags=8 -f json
 ```
 
-!!! warning "`--order 1` is disabled (upstream defect)"
-    MacroEconometricModels' **order-1** analytical moments are wrong for **control** variables. The state↔control covariance is computed as `Var(z)·gx'`, which is `Cov(z_{t-1}, y_t)` — it neither applies the transition `hx` nor adds the contemporaneous `η_x·η_y'` term, so the true `Cov(z_t, y_t) = hx·Var(z)·gx' + η_x·η_y'` comes out short by a factor of the persistence. The same lagged map is then squared into the autocovariance recursion.
-
-    Measured on `y = 0.4·z` with `z` an AR(1) at ρ = 0.7: `corr(z, y)` was reported as **0.7 instead of 1.0**, and a control's autocorrelation at lag `k` as **ρ^(k+2) instead of ρ^k**. Variances and the entire state block are correct — only blocks involving controls are affected, which in a typical DSGE is most of the variables of interest.
-
-    Orders 2 and 3 go through a different routine and reproduce the closed form exactly, so `dsge moments` refuses order 1 with a typed usage error rather than emitting a wrong table. Tracked in [issue #116](https://github.com/FriedmanJP/Friedman-cli/issues/116); filed upstream as [MEMs#607](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/607). **For a linear model `--order 2` reproduces the first-order moments precisely** (the second-order blocks are zero), so nothing is lost there.
+!!! note "`--order 1` supported since v0.9.2"
+    Order 1 was refused through v0.9.1: upstream's order-1 analytical moments dropped the contemporaneous shock term from the state↔control covariance, reporting `corr(z, y)` as **ρ instead of 1.0** on an exactly-scaled control and control autocorrelations as **ρ^(k+2) instead of ρ^k** ([issue #116](https://github.com/FriedmanJP/Friedman-cli/issues/116), fixed upstream in MEMs 0.7.3 as [MEMs#607](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/607)). The re-enabled path is proven by a closed-form AR(1) integration test asserting exactly those numbers. `--order 2` remains the default — for a linear model it reproduces the first-order moments precisely, and at higher order the risk-adjusted mean is the headline result.
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--method` | | String | `perturbation` | Solution method (moments need a perturbation solution) |
-| `--order` | | Int | 2 | Perturbation order: 2 or 3 (1 is disabled — see above) |
+| `--order` | | Int | 2 | Perturbation order: 1, 2 or 3 (see note above) |
 | `--lags` | | Int | 1 | Autocovariance lags to report (≥ 1) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |

@@ -36,7 +36,7 @@ Download an IO/MRIO table (network); respects --offline
 |--------|-------|------|---------|---------|-------------|
 | `--source` | — | `String` | `""` | `oecd`, `wiod`, `exiobase3`, `eora26`, `gloria` | oecd\|wiod\|exiobase3\|eora26\|gloria |
 | `--storage` | — | `String` | `""` | — | Destination folder for downloaded archives (required) |
-| `--version` | — | `String` | `""` | — | Source version (e.g. OECD v2023) |
+| `--source-version` | — | `String` | `""` | — | Source version (e.g. OECD v2023) |
 | `--years` | — | `String` | `""` | — | Comma-separated year filter (default: all) |
 | `--system` | — | `String` | `pxp` | `pxp`, `ixi` | EXIOBASE product-by-product\|industry-by-industry |
 | `--email` | — | `String` | `""` | — | Account email (EORA26 only) |

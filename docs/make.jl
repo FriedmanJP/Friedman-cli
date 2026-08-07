@@ -27,6 +27,7 @@ makedocs(;
             "Generated: dsge" => "commands/generated/dsge.md",
             "Generated: did" => "commands/generated/did.md",
             "Generated: multipliers" => "commands/generated/multipliers.md",
+            "Generated: policy" => "commands/generated/policy.md",
             "Generated: spectral" => "commands/generated/spectral.md",
             # Workflow guides (hand-written)
             "estimate (guide)" => "commands/estimate.md",
@@ -44,6 +45,7 @@ makedocs(;
             "HA-DSGE workflow" => "commands/ha-dsge.md",
             "did (guide)" => "commands/did.md",
             "multipliers (guide)" => "commands/multipliers.md",
+            "policy (guide)" => "commands/policy.md",
             "favar & sdfm (guide)" => "commands/favar.md",
             "structural breaks (guide)" => "commands/structural-breaks.md",
             "panel unit root (guide)" => "commands/panel-unit-root.md",

@@ -47,10 +47,11 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Ordered & Multinomial** | Ordered logit/probit, multinomial logit | `estimate ologit`, `estimate oprobit`, `estimate mlogit` |
 | **Discrete Choice Tests** | Brant parallel regression test, Hausman-McFadden IIA test | `test brant`, `test hausman-iia` |
 | **DSGE HD** | Historical decomposition from solved/Bayesian DSGE | `dsge hd`, `dsge bayes hd` |
+| **Policy Counterfactuals** | McKay-Wolf causal-effect menus, rule counterfactuals, optimal policy, second moments, Barnichon-Mesters OPP | `policy effects`, `policy counterfactual`, `policy optimal`, `policy moments`, `policy opp`, ... |
 | **Spectral Analysis** | ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function | `spectral acf`, `spectral density`, ... |
 | **Data Utilities** | Drop rows with missing values, keep rows by condition | `data dropna`, `data keeprows` |
 
-**18 top-level commands, 387 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `multipliers`, ...) rather than by model type.
+**19 top-level commands, 410 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `policy`, ...) rather than by model type.
 
 ## Quick Start
 
@@ -116,6 +117,7 @@ Pages = [
     "commands/dsge.md",
     "commands/did.md",
     "commands/multipliers.md",
+    "commands/policy.md",
     "commands/favar.md",
     "commands/structural-breaks.md",
     "commands/panel-unit-root.md",

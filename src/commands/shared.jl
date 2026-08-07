@@ -646,7 +646,9 @@ function _load_and_estimate_var(data::String, lags)
         lags
     end
 
-    model = estimate_var(Y, p)
+    # Forward the CSV column names (#119): without this the model renders y1..yn
+    # and every downstream IRF/FEVD/forecast table loses the user's names.
+    model = estimate_var(Y, p; varnames=varnames)
     return model, Y, varnames, p
 end
 
@@ -682,7 +684,8 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
     # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj, hyperopt=Symbol(hopt), seed=_SEED[])
+        prior=prior_sym, hyper=prior_obj, hyperopt=Symbol(hopt),
+        varnames=varnames, seed=_SEED[])
 
     return post, Y, varnames, p, n
 end
@@ -714,7 +717,10 @@ function _build_prior(config_path::String, Y::AbstractMatrix, p::Int)
             # `gen_dummy_obs`, so there is nothing for the CLI to compute here.
             #
             # The config schema exposes only lambda1/2/3, so `mu` and `omega` keep upstream's
-            # defaults rather than being invented from the data.
+            # defaults rather than being invented from the data. NOTE (MEMs 0.7.3, #529):
+            # `omega` is now the REPLICATION WEIGHT of the diag(σ̂) covariance dummy
+            # (default moved 2.0 → 1.0), no longer an on/off switch — config-minnesota
+            # results shifted at that bump for exactly this reason.
             return MinnesotaHyperparameters(;
                 tau=prior_cfg["lambda1"],
                 decay=prior_cfg["lambda3"],
@@ -868,7 +874,8 @@ function _load_and_estimate_vecm(data::String, lags::Int, rank::String,
     end
 
     vecm = estimate_vecm(Y, lags; rank=r, deterministic=Symbol(deterministic),
-                         method=Symbol(method), significance=significance)
+                         method=Symbol(method), significance=significance,
+                         varnames=varnames)
     return vecm, Y, varnames, lags
 end
 
@@ -1148,9 +1155,13 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
 
     _status("Estimating FAVAR: $r factors, $lags lags, method=$method, $(length(key_indices)) key variables")
 
+    # panel_varnames (W10/#131, MEMs#538): the key variables inside the augmented
+    # VAR take their CSV column names, so irf/fevd/forecast favar label them
+    # "infl"/"ffr" instead of the positional "X9"/"X10".
     favar = estimate_favar(Y, key_indices, r, lags;
                            method=Symbol(method),
-                           n_draws=draws)
+                           n_draws=draws,
+                           panel_varnames=varnames)
     return favar, Y, varnames
 end
 

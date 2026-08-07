@@ -59,7 +59,7 @@ Download an IO/MRIO archive. **Network-touching.** Respects `--offline` (and the
 checksum mismatch maps to `env/checksum-mismatch` (exit 6).
 
 ```bash
-friedman io download --source oecd --storage ./io_data --version v2023 --years 2018
+friedman io download --source oecd --storage ./io_data --source-version v2023 --years 2018
 friedman io download --source exiobase3 --storage ./io_data --system pxp
 friedman io download --source eora26 --storage ./io_data --email you@example.com --password ***
 ```
@@ -68,7 +68,7 @@ friedman io download --source eora26 --storage ./io_data --email you@example.com
 |--------|------|---------|-------------|
 | `--source` | String | | `oecd`\|`wiod`\|`exiobase3`\|`eora26`\|`gloria` (required) |
 | `--storage` | String | | Destination folder (required) |
-| `--version` | String | | Source version (e.g. OECD `v2023`) |
+| `--source-version` | String | | Source version (e.g. OECD `v2023`) — not `--version`, which is the reserved CLI global |
 | `--years` | String | | Comma-separated year filter |
 | `--system` | String | `pxp` | EXIOBASE `pxp` (product×product) or `ixi` (industry×industry) |
 | `--email` / `--password` | String | | EORA26 credentials |

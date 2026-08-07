@@ -27,12 +27,24 @@ friedman data list
 | `denmark` | Time Series | 55 x 5 | Danish money-demand data (Johansen-Juselius cointegration) |
 | `gnp_hamilton` | Time Series | 135 x 1 | US GNP growth (Hamilton 1989 Markov-switching example) |
 | `grunfeld` | Panel | 10 x 20 x 3 | Grunfeld investment panel (10 firms, 20 years) |
+| `mp_shocks` | Time Series | 240 x 8 | US monetary panel + policy-shock series (McKay-Wolf 2023; NaN outside published samples) |
 | `mroz` | Cross Section | 753 x 22 | Mroz (1987) female labour supply |
 | `nile` | Time Series | 100 x 1 | Nile river annual flow (local-level state space) |
 | `stackloss` | Cross Section | 21 x 4 | Brownlee stack-loss plant data (robust regression) |
 
 The `wiot` input-output table is not listed here: it is an IO archive served by the
 [`io`](io.md) family rather than a rectangular dataset.
+
+!!! warning "NaN-padded series: NaN is not zero"
+    `mp_shocks` (quarterly, 1960Q1–2019Q4) keeps each policy-shock series `NaN` outside
+    its published sample: `rr` (Romer–Romer/Wieland–Yang) covers 1969Q1–2007Q4, `mp1`
+    (Gertler–Karadi) 1988Q4–2012Q2, `ad` (Aruoba–Drechsel) 1982Q4–2008Q3, `bzk_ist`
+    (Ben Zeev–Khan) through 2012Q1, and `ygap` starts in 1969Q1. Loading preserves the
+    `NaN` cells — zero is a valid shock value, so they are never zero-filled (zero-filling
+    is an estimation-time IV convention, not a property of the data). Use
+    `data describe` to see each column's valid window (`first_valid`/`last_valid`), then
+    `data dropna --vars ...` or `data keeprows --rows ...` to cut a finite sample before
+    estimation.
 
 ### Referring to a dataset
 
@@ -93,7 +105,11 @@ friedman data describe data.csv --format=csv --output=stats.csv
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Per-variable: n, mean, std, min, p25, median, p75, max, skewness, kurtosis.
+**Output:** Per-variable: n, first\_valid, last\_valid, mean, std, min, p25, median, p75,
+max, skewness, kurtosis. `n` counts finite observations and the statistics exclude
+NaN/Inf; `first_valid`/`last_valid` are the row indices of the first and last finite
+value (0 if none), which locate the usable window of NaN-padded series such as the
+`mp_shocks` shock columns.
 
 ## data diagnose
 
@@ -212,7 +228,15 @@ Drop all rows containing NaN or missing values from a dataset.
 ```bash
 friedman data dropna data.csv
 friedman data dropna data.csv --output=data_clean.csv
+friedman data dropna macro.csv --vars=ygap,infl,ffr   # check only these columns
 ```
+
+With `--vars`, only the listed columns are checked for NaN/Inf (a row with NaN in an
+*unlisted* column is kept). This is the prep step for NaN-padded datasets like
+`mp_shocks`: subset the variables of interest, drop their jointly-invalid rows, and
+estimate on the result. An unknown column name is a typed data error; if every row
+contains NaN/Inf the command fails with `data/invalid` rather than emitting an empty
+dataset.
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|

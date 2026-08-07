@@ -790,7 +790,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `standard` | — | standard\|iv\|smooth\|state\|propensity\|robust |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | `-h` | `Int64` | `20` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--control-lags` | — | `Int64` | `4` | — | Number of control lags |
 | `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--instruments` | — | `String` | `""` | — | Path to instruments CSV (iv only) |
@@ -1219,11 +1219,14 @@ Path to CSV panel data file
 | `--absorb` | — | `String` | `""` | — | Comma-separated high-dimensional FE dimensions to absorb (entity, time, cohort, or a column name); --method fe only |
 | `--hdfe-tol` | — | `Float64` | `1.0e-8` | — | Absorption convergence tolerance |
 | `--hdfe-maxiter` | — | `Int64` | `1000` | — | Maximum alternating-projection iterations |
+| `--min-lag-endo` | — | `Int64` | `2` | — | First instrument lag for endogenous regressors (--method ab\|bb) |
+| `--max-lag-endo` | — | `Int64` | `99` | — | Last instrument lag for endogenous regressors (--method ab\|bb) |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--twoway` | — | Include time fixed effects |
+| `--collapse` | — | Collapse the GMM instrument matrix (--method ab\|bb) |
 
 **Output tables:** `estimate_preg` (Path to CSV panel data file)
 
@@ -1460,7 +1463,7 @@ Path to CSV data file
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto) |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--horizon` | `-h` | `Int64` | `40` | — | Structural IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | Structural IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--bandwidth` | — | `Int64` | `0` | — | Spectral bandwidth (0=auto) |
 | `--kernel` | — | `String` | `bartlett` | — | bartlett\|parzen\|quadratic_spectral |

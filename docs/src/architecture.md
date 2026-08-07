@@ -127,6 +127,7 @@ src/
     dsge.jl               # DSGE subcommands + bayes node (13 sub-leaves) + HA/CT/OLG nodes
     did.jl                # 7 DID subcommands (3 estimation + 4 test)
     multipliers.jl        # multipliers nardl — new top-level (C062b, action-first)
+    policy.jl             # policy counterfactuals — new top-level (W4/#126, MEMs 0.8.0 CF module)
 ```
 
 The ARDL/NARDL family (`estimate ardl`/`nardl` in `estimate.jl`, `test ardl-bounds`/`nardl-symmetry`
@@ -170,4 +171,4 @@ leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `haus
 
 ## Totals
 
-18 top-level commands, 387 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+19 top-level commands, 410 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).

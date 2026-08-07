@@ -4075,6 +4075,9 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
         _status("VAR Granger Causality Test (all pairwise): VAR($p), $n variables")
         _status()
 
+        # granger_test_all returns an n×n Matrix{Union{GrangerCausalityResult,Nothing}}
+        # (nothing on the diagonal), and each result carries variable INDICES:
+        # cause::Vector{Int}, effect::Int (#118).
         results = granger_test_all(model)
 
         test_df = DataFrame(
@@ -4085,10 +4088,13 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
             p_value=Float64[]
         )
         for r in results
-            push!(test_df, (cause=r.cause, effect=r.effect,
+            r === nothing && continue
+            cause_name = join((_var_name(varnames, i) for i in r.cause), "+")
+            push!(test_df, (cause=cause_name, effect=_var_name(varnames, r.effect),
                            statistic=round(r.statistic; digits=4),
                            df=r.df, p_value=round(r.pvalue; digits=4)))
         end
+        sort!(test_df, [:cause, :effect])
 
         output_result(test_df; format=Symbol(format), output=output,
                       title="VAR Granger Causality (all pairwise)")
@@ -4458,6 +4464,23 @@ function _test_factor_break(; data::String, factors::Int=2,
         "Units" => result.n_vars,
     ]
     output_kv(pairs; format=format, output=output, title="Factor Break Test")
+
+    # W2/#124 (MEMs 0.7.3/#606): the pooled methods (breitung_eickmeier, han_inoue) carry
+    # each series' own sup statistic and maximizing date; chen_dolado_gonzalo legitimately
+    # does not (nothing) — the table is simply absent then, never an error. Caveat (docs):
+    # the ranking identifies the breakers when a MODEST subset breaks; a break large
+    # enough to rotate the factor space elevates stable series' statistics too.
+    if result.series_statistics !== nothing
+        ord = sortperm(result.series_statistics; rev=true)
+        per_df = DataFrame(
+            series=ord,
+            statistic=round.(Float64.(result.series_statistics[ord]); digits=4),
+            break_date=result.series_break_dates[ord],
+        )
+        output_result(per_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "series"),
+                      title="Per-Series Break Diagnostics")
+    end
 
     interpret_test_result(result.pvalue,
         "Reject H0: factor structure instability detected at index $(result.break_date)",

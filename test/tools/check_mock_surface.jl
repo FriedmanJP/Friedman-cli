@@ -70,6 +70,182 @@ end
 _count_kwargs_absorbers(src::String) = length(collect(eachmatch(r";\s*kwargs\.\.\.\)", src)))
 
 """
+    _mock_struct_field_types(src, name) → Dict{String,String}
+
+Field name → declared type string for a mock struct (source text, may contain `{}`).
+"""
+function _mock_struct_field_types(src::String, name::String)
+    m = match(Regex("(?s)struct\\s+" * name * "(?:\\{[^}]*\\})?\\s*(.*?)\\nend"), src)
+    m === nothing && return Dict{String,String}()
+    out = Dict{String,String}()
+    for line in split(m.captures[1], '\n')
+        s = strip(line)
+        (isempty(s) || startswith(s, "#")) && continue
+        s = replace(s, r"#.*$" => "")
+        # mocks pack several fields per line: `Y::Matrix{T}; horizon::Int; …`
+        for seg in split(s, ';')
+            fm = match(r"^\s*([A-Za-z_][\w]*)\s*::\s*(.+?)\s*$", seg)
+            fm === nothing && continue
+            out[fm.captures[1]] = fm.captures[2]
+        end
+    end
+    return out
+end
+
+"""Type params declared on a mock struct (`struct Name{T,S<:Real}` → ["T","S"])."""
+function _mock_struct_typeparams(src::String, name::String)
+    m = match(Regex("struct\\s+" * name * "\\{([^}]*)\\}"), src)
+    m === nothing && return String[]
+    return [String(strip(first(split(p, "<:")))) for p in split(m.captures[1], ",")]
+end
+
+"""Classify a mock field's SOURCE type string as :array, :scalar or :unknown.
+
+A bare type param (`x::T`) classifies as :scalar — mock params are element
+types (`Float64`) throughout, so `x::T` against a real `Vector` field is
+exactly the LPIV `first_stage_F` drift this check exists to catch."""
+function _mock_shape_class(tstr::AbstractString, typeparams::Vector{String})
+    t = strip(tstr)
+    occursin(r"^(Abstract)?(Vector|Matrix|Array|VecOrMat|BitVector|BitMatrix|UnitRange|StepRange|Range)\b", t) && return :array
+    (t == "Any" || startswith(t, "Union{") || startswith(t, "Dict") ||
+     startswith(t, "Tuple") || startswith(t, "NamedTuple") || startswith(t, "Function") ||
+     t == "Nothing") && return :unknown
+    return :scalar
+end
+
+"""Classify a real fieldtype as :array, :scalar or :unknown."""
+function _real_shape_class(ft)
+    ft isa TypeVar && return :unknown
+    ft isa Type || return :unknown
+    ft === Any && return :unknown
+    ft isa Union && return :unknown
+    T = Base.unwrap_unionall(ft)
+    T isa DataType || return :unknown
+    try
+        ft <: AbstractArray && return :array
+        (ft <: Function || ft <: AbstractDict || ft <: Tuple || ft <: NamedTuple) && return :unknown
+    catch
+        return :unknown
+    end
+    return :scalar
+end
+
+# --- NamedTuple-return conformance (#118) -------------------------------------
+#
+# A mock function that returns a NamedTuple literal can invent keys real MEMs
+# never produces — invisible to the struct/getproperty checks because an NT is
+# neither. `estimate lp --method iv` shipped dead this way (mock invented
+# `F_stat`/`is_weak`; real returns `(F_stats, weak_horizons, min_F,
+# passes_threshold, threshold)`).
+
+"""
+    _nt_keys_at(s, i) → Vector{String} or nothing
+
+Top-level keys of a NamedTuple literal whose `(` is at index `i` (paren-depth
+scan, so kwargs in nested calls are not mistaken for keys). Returns nothing for
+a non-NT parenthesized expression.
+"""
+function _nt_keys_at(s::AbstractString, i::Int)
+    keys = String[]
+    depth = 0
+    expecting = true
+    j = i
+    n = lastindex(s)
+    while j <= n
+        c = s[j]
+        if c == '('
+            depth += 1
+        elseif c == ')'
+            depth -= 1
+            depth == 0 && return (isempty(keys) ? nothing : keys)
+        elseif depth == 1
+            if c == ','
+                expecting = true
+            elseif expecting && (isletter(c) || c == '_')
+                m = match(r"\G([A-Za-z_]\w*)\s*=(?!=)", s, j)
+                m !== nothing && push!(keys, String(m.captures[1]))
+                expecting = false
+            elseif !isspace(c)
+                expecting = false
+            end
+        end
+        j = nextind(s, j)
+    end
+    return nothing
+end
+
+"""
+    _mock_namedtuple_returns(src) → Dict{String,Set{String}}
+
+Function name → union of keys over every NamedTuple literal it returns
+(`return (k=…,…)` inside long-form bodies, and `f(args) = (k=…,…)` one-liners).
+"""
+function _mock_namedtuple_returns(src::String)
+    out = Dict{String,Set{String}}()
+    add!(name, keys) = union!(get!(out, name, Set{String}()), keys)
+    # long form: body up to the first column-0 `end`
+    for m in eachmatch(r"(?ms)^function\s+([A-Za-z_][\w!]*)\s*\(.*?^end", src)
+        name = String(m.captures[1])
+        startswith(name, "_") && continue
+        body = m.match
+        for rm in eachmatch(r"return\s*\(", body)
+            keys = _nt_keys_at(body, rm.offset + length(rm.match) - 1)
+            keys !== nothing && add!(name, keys)
+        end
+    end
+    # short form one-liners (possibly line-wrapped after `=`)
+    for m in eachmatch(r"(?m)^([A-Za-z_][\w!]*)\s*\([^)\n]*\)\s*=\s*(\()", src)
+        name = String(m.captures[1])
+        startswith(name, "_") && continue
+        keys = _nt_keys_at(src, m.offsets[2])
+        keys !== nothing && add!(name, keys)
+    end
+    return out
+end
+
+"""
+    _real_field_surface(f) → (keys::Set{String}, informative::Bool)
+
+Union of field/key names a real function can return, from non-executing
+inference (`Base.return_types`): NamedTuple names, or fieldnames for a concrete
+struct return. `informative=false` when inference says nothing usable (Any /
+abstract), in which case the caller must not hard-fail.
+"""
+function _real_field_surface(f)
+    keys = Set{String}()
+    informative = false
+    rts = try
+        Base.return_types(f)
+    catch
+        return (keys, false)
+    end
+    for rt in rts
+        for u in Base.uniontypes(rt)
+            t = Base.unwrap_unionall(u)
+            t isa DataType || continue
+            if t <: NamedTuple
+                if length(t.parameters) >= 1 && t.parameters[1] isa Tuple
+                    for s in t.parameters[1]
+                        push!(keys, string(s))
+                    end
+                    informative = true
+                end
+            elseif t === Any || isabstracttype(t)
+                # uninformative for this method
+            elseif isstructtype(t)
+                for s in fieldnames(t)
+                    push!(keys, string(s))
+                end
+                informative = true
+            else
+                informative = true  # concrete non-fielded return (Bool, Float64, …)
+            end
+        end
+    end
+    return (keys, informative)
+end
+
+"""
     _mock_getproperty_aliases(src) → Dict{String,Vector{String}}
 
 Type name → the property symbols a mock `Base.getproperty` method special-cases.
@@ -155,8 +331,49 @@ function main()
             else
                 println("OK struct $sname (fields ⊆ real)")
             end
+            # Scalar-vs-collection drift (#118 item 2): a mock scalar where real
+            # declares Vector/Matrix (or vice versa) ships shape bugs T1/T2 can't
+            # see (LPIVModel.first_stage_F was a scalar in the mock, a per-horizon
+            # Vector upstream). Hard everywhere when both sides classify cleanly.
+            tparams = _mock_struct_typeparams(MOCK_SRC, sname)
+            for (fname, tstr) in _mock_struct_field_types(MOCK_SRC, sname)
+                fname in real_fields || continue
+                mc = _mock_shape_class(tstr, tparams)
+                mc === :unknown && continue
+                rc = _real_shape_class(fieldtype(real_T, Symbol(fname)))
+                rc === :unknown && continue
+                if mc !== rc
+                    push!(hard, "struct $sname.$fname: mock is $(mc) ($tstr) but real is $(rc) " *
+                                "($(fieldtype(real_T, Symbol(fname)))) — handlers written against " *
+                                "the mock shape crash or mis-render on real MEMs")
+                end
+            end
         catch e
             println("SKIP struct $sname fields: $e")
+        end
+    end
+
+    # NamedTuple-return conformance (#118 item 1): a mock may return NT keys only
+    # if real's inferred return surface (NT names / struct fieldnames) has them.
+    nt_returns = _mock_namedtuple_returns(MOCK_SRC)
+    for fname in sort!(collect(keys(nt_returns)))
+        haskey(MOCK_ALLOWLIST, fname) && continue
+        isdefined(real_mod, Symbol(fname)) || continue  # function-existence check reports it
+        real_f = getfield(real_mod, Symbol(fname))
+        real_f isa Function || continue
+        surface, informative = _real_field_surface(real_f)
+        if !informative
+            push!(soft, "namedtuple $fname: real return not inferrable — verify keys by hand: " *
+                        "$(join(sort!(collect(nt_returns[fname])), ", "))")
+            continue
+        end
+        bogus = sort!([k for k in nt_returns[fname] if !(k in surface)])
+        if isempty(bogus)
+            println("OK namedtuple $fname (keys ⊆ real return surface)")
+        else
+            push!(hard, "namedtuple $fname: mock returns keys real never produces: " *
+                        "$(join(bogus, ", ")) — a handler reading these is dead on real MEMs " *
+                        "(real surface: $(isempty(surface) ? "<no fields — non-fielded return>" : join(sort!(collect(surface)), ", ")))")
         end
     end
 

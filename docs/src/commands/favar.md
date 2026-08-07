@@ -6,6 +6,17 @@ Factor-Augmented VAR (FAVAR) and Structural Dynamic Factor Model (SDFM) commands
 
 FAVAR (Bernanke, Boivin & Eliasz 2005) augments a standard VAR with latent factors extracted from a large panel of macroeconomic variables. A small number of "key" variables (e.g., the federal funds rate) enter the VAR directly alongside the extracted factors.
 
+!!! note "Variable labels carry the CSV column names (v0.9.2 / MEMs#538)"
+    The CSV column names are threaded onto the estimated models, so output labels are
+    real names rather than positions: `irf|fevd|forecast favar` label the key variables
+    inside the augmented VAR by their column names (`F1, F2, infl, ffr` — previously the
+    positional `X9`/`X10`), and `irf sdfm` labels every panel response by its column
+    name (previously `Var 1`, `Var 2`, …). `fevd sdfm` decomposes in **factor space**
+    and keeps its `Factor i` labels. `estimate static` stores the names on the
+    `FactorModel` as well. `estimate gdfm` and `estimate dynamic` are unchanged — their
+    upstream estimators accept no variable names at MEMs 0.8.0 (their loadings tables
+    were already labelled CLI-side).
+
 ### estimate favar
 
 Estimate a FAVAR model. Supports two-step (PCA + VAR) and Bayesian (one-step MCMC) estimation.

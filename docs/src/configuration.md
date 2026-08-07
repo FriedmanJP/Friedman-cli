@@ -27,11 +27,11 @@ enabled = true       # auto-optimize hyperparameters via grid search
 | `lambda1` | `tau` | Overall tightness of the prior | 0.01 -- 1.0 |
 | `lambda2` | `lambda` | Cross-variable shrinkage (how much other variables' lags matter) | 0.1 -- 1.0 |
 | `lambda3` | `decay` | Lag decay rate (higher = faster decay of lag importance) | 0.5 -- 2.0 |
-| `lambda4` | `omega` | Constant term variance (large = uninformative) | 10000 -- 1e6 |
+| `lambda4` | — | Accepted for backward compatibility but **not forwarded** — `mu` and `omega` keep MEMs' own defaults | — |
 
 When `optimization.enabled = true`, Friedman ignores the manual hyperparameters and uses `optimize_hyperparameters()` to find optimal values via grid search over tau.
 
-When optimization is disabled, AR(1) residual standard deviations are estimated from the data and used for the `omega` parameter (per-variable scale).
+When optimization is disabled, `lambda1`/`lambda2`/`lambda3` map to MEMs' `tau`/`lambda`/`decay`; `mu` and `omega` are left at upstream defaults. Note (MEMs 0.7.3): `omega` is the replication weight of the `diag(σ̂)` residual-covariance dummy — its default moved from 2.0 to 1.0, so config-Minnesota results shifted at the v0.9.2 bump.
 
 ## Sign Restrictions
 
@@ -384,6 +384,36 @@ b = [[1.0], [-1.0]]   # β = b   (p×r, exactly r columns)
 | `H` | `[vecm_restriction]` | `β = Hφ` matrix (`p × s`, `s ≥ r`; `beta`/`joint`) |
 | `A` | `[vecm_restriction]` | `α = Aψ` matrix (`p × a`, `a ≥ r`; `alpha`/`joint`) |
 | `b` | `[vecm_restriction]` | Known cointegrating space (`p × r`, exactly `r` cols; `known-beta`) |
+
+## Policy Rule & Loss (`policy` family)
+
+`policy counterfactual --rule-config` reads a `[rule]` section; the `[loss]` section
+feeds the optimal-policy leaves built on the same family.
+
+```toml
+[rule]
+type = "taylor"     # rate-peg | rate-target | inflation-target | output-gap | ngdp | taylor
+cmw = true          # taylor: rho=0.85, phi_pi=2.0, phi_y=0.25 — refuses partial overrides
+# rho/phi_pi/phi_y/z_lag   # taylor, textbook defaults (0.5/1.5/1.0/0.0) when cmw absent
+# pi_var/y_var             # variable names among the outcomes
+# path = [4.0, 4.0]        # rate-target: pegged instrument path, length --horizon
+# outcomes/instruments     # default ["infl","ygap"] / ["rate"]
+
+[loss]
+outcomes = ["infl", "ygap"]
+lambda = [1.0, 0.5]  # REQUIRED — upstream has no default; one weight per outcome
+beta = 1.0           # discount, (0, 1]
+# type = "ait"       # average-inflation targeting: beta defaults to 1/1.01 (MW
+#                    # replication value, NOT 0.99); lambda_avg/lambda_t/lambda_y/delta/K
+
+[loss.smoothing]     # optional Δz penalty — parsed as ONE unit: its W_z part feeds
+lambda = 1.0         # policy_loss(W_z=...), its wedge_term the engines' z_wedge=
+beta = 1.0
+z_lag = 0.0
+```
+
+Rules are stabilization around the model's fixed steady state; different target
+*levels* are out of scope by construction. See the [`policy` guide](commands/policy.md).
 
 ## Output Formats
 
