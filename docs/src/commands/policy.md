@@ -242,6 +242,19 @@ decomposition** — news + preference + aging sum to `δ_t − δ_{t−1}` exact
 deliberate finite-H deviation from BM eq. 32). With constraints the per-date SLSQP
 cost compounds.
 
+## Not wrapped: the closure-taking entry points
+
+Five upstream entry points take a **Julia function argument** and are deliberately not
+scriptable from flags or TOML: `irf_match` (`menu_builder`, and with it the whole
+model-bank strand — `posterior_model_probs`/`model_average`/`stacked_irf_target`/
+`ctw_covariance`), `opp_sensitivity` (`build_loss`), `robust_weights` (`seq_builder`),
+`FunctionConstraint` pledges in `constrained_opp`, and `counterfactual_history`'s
+`wedge_builder`. Use the Julia API directly for these; the CLI refuses the reachable
+combinations with a pointer. Disposition and rationale per case are recorded in the
+v0.9.2 W8 decision record (Friedman-cli#130) — `opp_sensitivity` is earmarked as the
+first candidate for TOML specialization (a loss template swept over `--lambda-grid`
+needs no closure).
+
 ## Statelessness and reproducibility
 
 None of the counterfactual containers is serializable — there is **no
