@@ -8,9 +8,14 @@ on:
     branches: [master, dev]
   workflow_dispatch:
 
+# master pushes deploy the dev docs and tag pushes deploy the version dirs — at
+# release time both fire on the same commit and race on the gh-pages push (the
+# loser dies with "! [rejected] ... fetch first", which is how the v0.9.2 master
+# run failed). Deploying refs share ONE queued group; PR/dev builds keep per-ref
+# cancellation.
 concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
+  group: docs-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))) && 'deploy' || github.ref }}
+  cancel-in-progress: ${{ !(github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))) }}
 
 jobs:
   docs:

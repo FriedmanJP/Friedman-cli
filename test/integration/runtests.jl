@@ -4795,7 +4795,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "~ is expanded by the loader (the REPL has no shell)" begin
             mktempdir() do dir
                 CSV.write(joinpath(dir, "tilde.csv"), DataFrame(a=randn(20)))
-                withenv("HOME" => dir) do
+                # expanduser goes through libuv's uv_os_homedir: HOME on Unix,
+                # USERPROFILE on Windows — set both or the Windows nightly fails.
+                withenv("HOME" => dir, "USERPROFILE" => dir) do
                     @test nrow(Friedman.load_data("~/tilde.csv")) == 20
                 end
             end
