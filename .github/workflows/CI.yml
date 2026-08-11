@@ -61,6 +61,12 @@ jobs:
       - name: Mock surface vs real MEMs (TS-3 / F32)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         run: julia --project test/tools/check_mock_surface.jl
+      # W8/#143: plot-recipe drift vs the committed baseline (#95). Was a
+      # CLAUDE.md-listed gate that NO workflow ran — a baseline drift could
+      # ship silently. Read-only check; `--update` is a local, reviewed action.
+      - name: Plot coverage drift (vs baseline)
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        run: julia --project test/tools/check_plot_coverage.jl
       # W3/#138: envelope data keys must be registry-declared (goldens here;
       # the T3 job re-runs it over the full envelope dump)
       - name: Table-key drift gate (goldens)

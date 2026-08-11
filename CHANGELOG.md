@@ -4,6 +4,78 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.10.0] — 2026-08-12
+
+CLI v0.10.0 is the **Agent-Contract Hardening** release (program index #135,
+waves #136–#143): every machine-facing property of the CLI — the envelope, its
+addresses, its failures, its self-description, and its latency — becomes an
+enforced, externally-validated contract. The MEMs baseline stays **0.8.0**;
+the surface grows 410 → **411 leaves / 20 top-level** with the new `serve`
+command.
+
+### Added
+
+- **`friedman serve --mcp`** (#61/#142): the whole registry as a Model Context
+  Protocol server over stdio — JSON-RPC 2.0, no external dependency.
+  `tools/list` mirrors all 411 leaves with full input schemas; `tools/call`
+  reconstructs the exact argv and returns the JSON envelope **verbatim**
+  (`isError` mirrors the exit class); in-memory `model://` session handles let
+  one session estimate once and run downstream commands against the fit with
+  no files and no re-estimation. Warm calls run in ~2 ms — no per-call process
+  spawn.
+- **Machine-actionable `friedman schema`** (#63/#140): per-leaf draft-07
+  `input_schema` (kebab names, enums, defaults, required positionals, and
+  `x-cli` argv annotations), per-leaf `tables` (the declared stable keys),
+  a root `contract` block (the embedded envelope schema + exit-code taxonomy),
+  and `--docs` (the agent guide, baked into the binary). CI metaschema-checks
+  every emitted input schema with python-jsonschema.
+- **Error envelopes everywhere** (#137): when the argv asks for JSON, every
+  failure — including usage/parse errors that die before a command resolves —
+  emits exactly one schema-valid error envelope with `error.code`
+  (`class/code`) and `error.exit_code` always equal to the process exit.
+- **Two new typed domain mappings** (#81/#139):
+  `StochasticSingularityError` → `model/stochastic-singularity` and
+  `DSGESolveError` → `model/solve` (both exit 5), with actionable hints; the
+  `_domain_or_data_error` wrapper no longer shadows specific classes.
+- **Latency budgets gate the release** (#79/#141): `tools/bench_release.py`
+  runs after the smoke battery on all 3 OSes — `--version` < 3000 ms and first
+  `estimate var` < 3500 ms, min of 3 cold runs, enforced on ubuntu. The
+  budgets are calibrated to the measured ubuntu cold-start floor of the
+  bundled sysimage (~2.3 s runtime boot per invocation, unchanged since
+  v0.9.2) plus regression headroom; from these numbers they are never relaxed
+  to green a red run.
+
+### Changed
+
+- **Stable envelope `data` keys** (#138): keys are now registry-declared
+  addresses, predictable before the command runs — `var_coefficients`, never
+  `var_2_coefficients`; option values, data-derived tokens, and estimated
+  parameters moved from keys into human-readable titles. Per-variable families
+  are keyed `<declared>_<your-variable-slug>`. A CI drift gate
+  (`check_table_keys`) validates every emitted key against the declarations —
+  over the goldens and over the full T3 envelope dump.
+- **Envelope schema v1 hardened** (#136): `data` values are strictly table
+  objects (`columns` + `rows`; the dead scalar path is deleted), `meta`
+  requires the version trio, `status`/`error` co-occurrence is a top-level
+  `oneOf`, `error.code` is pattern-checked. The schema now validates under any
+  conformant draft-07 validator; CI cross-validates schema, goldens, and every
+  T3-captured envelope with python-jsonschema — the in-repo subset validator
+  is fixed (its `additionalProperties` blind spot had cancelled the old
+  schema's ambiguous `oneOf` for the repo's whole life) and deduplicated into
+  one shared file.
+- **Stability policy declared**: the machine surface is the API; envelope
+  schema v1 is additive-only from v0.10.0 (a breaking change means
+  `schema_version: 2` and a major); 0.x minors are additive-only. The hidden
+  snake_case aliases and `FRIEDMAN_LEGACY_OUTPUT` are scheduled for removal at
+  v1.0.0.
+
+### Fixed
+
+- The `schema --docs` splitter no longer consumes a path token after a flag.
+- The factor-family stale-key class in T3 lookups (12 pre-rename keys) and the
+  `build_release.jl` build env missing `schema/` (a precompile failure caught
+  by the first latency dispatch runs).
+
 ## [0.9.2] — 2026-08-07
 
 CLI v0.9.2 adopts **MacroEconometricModels 0.8.0** (exact pin `=0.7.2` → `=0.8.0`,

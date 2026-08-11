@@ -169,6 +169,18 @@ leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `haus
 | Julia | `>= 1.12` |
 | MacroEconometricModels | `0.7.0` |
 
+## Stability policy
+
+Declared at v0.10.0: the machine surface is the API — the command tree, the
+option/flag surface, the envelope schema (`schema/envelope-v1.json`), the
+stable `data` table keys, the error-code taxonomy, and the exit codes.
+Envelope schema v1 is **additive-only from v0.10.0** (a breaking envelope
+change bumps `schema_version` to 2 and is a major release; the formal freeze
+declaration lands at v1.0.0). 0.x minors are additive-only; removals and
+renames happen only at majors after at least one minor of deprecation alias.
+The hidden snake_case aliases and `FRIEDMAN_LEGACY_OUTPUT` are scheduled for
+removal at v1.0.0.
+
 ## Totals
 
 20 top-level commands, 411 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
