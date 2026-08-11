@@ -169,7 +169,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         csv = dgp_var2(; T=180, seed=7)
         r = run_json(["estimate", "var", csv, "--lags", "2"])
         assert_envelope_ok(r; label="estimate var")
-        coef = named_table(r.doc, :var_2_coefficients)
+        coef = named_table(r.doc, :var_coefficients)
         @test coef !== nothing
         if coef !== nothing
             # C051: MEMs' uniform tidy coefficient table via DataFrame(model)
@@ -4090,7 +4090,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # `--method` branch had no T3 of its own (the per-BRANCH coverage lesson).
             r = run_json(["dsge", "solve", model_jl, "--method", "perturbation", "--order", "2"])
             assert_envelope_ok(r; label="dsge solve perturbation o2")
-            tbl = named_table(r.doc, :perturbation_policy_gx_order_2)
+            tbl = named_table(r.doc, :perturbation_policy_gx)
             @test tbl !== nothing
             cols = String[string(c) for c in tbl.columns]
             # one column per state PLUS one per shock, after the leading :control
@@ -5294,7 +5294,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         r = run_json(["dsge", "determinacy-map", spec, "--config", cfg])
         assert_envelope_ok(r; label="dsge determinacy-map 1-D")
 
-        tbl = named_table(r.doc, :dsge_determinacy_map_phi_pi)
+        tbl = named_table(r.doc, :dsge_determinacy_map)
         if tbl === nothing
             for (_, v) in pairs(r.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -5350,7 +5350,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         # One-parameter sweeps also report the boundary, and it must sit near phi_pi = 1.
-        bnd = named_table(r.doc, :determinacy_boundary_phi_pi)
+        bnd = named_table(r.doc, :determinacy_boundary)
         if bnd === nothing
             for (_, v) in pairs(r.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -5430,7 +5430,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         r = run_json(["dsge", "moments", spec, "--order", "2", "--lags", "3"])
         assert_envelope_ok(r; label="dsge moments order 2")
 
-        mt = named_table(r.doc, :dsge_theoretical_moments_order_2)
+        mt = named_table(r.doc, :dsge_theoretical_moments)
         if mt === nothing
             for (_, v) in pairs(r.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -5638,7 +5638,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
                        "--dist-cutoff", "200"])
         assert_envelope_ok(rc; label="estimate reg conley")
-        tblc = named_table(rc.doc, :ols_regression_coefficients)
+        tblc = named_table(rc.doc, :reg_coefficients)
         @test tblc !== nothing
         if tblc !== nothing
             cols = table_cols(tblc)
@@ -5668,7 +5668,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # the check that `--cov-type conley` is not quietly altering the estimator.
         rh = run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "hc1"])
         assert_envelope_ok(rh; label="estimate reg hc1 baseline")
-        tblh = named_table(rh.doc, :ols_regression_coefficients)
+        tblh = named_table(rh.doc, :reg_coefficients)
         if tblh !== nothing && tblc !== nothing
             th = [string(collect(r)[col_index(tblh, "term")]) for r in table_rows(tblh)]
             # hc1 has NO --lat/--lon to exclude, so lat/lon ARE regressors here — that
@@ -5708,7 +5708,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                         "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
                         "--dist-cutoff", "200", "--time-col", "yr", "--time-cutoff", "2"])
         assert_envelope_ok(rt2; label="estimate reg conley spatial+serial")
-        tt2 = named_table(rt2.doc, :ols_regression_coefficients)
+        tt2 = named_table(rt2.doc, :reg_coefficients)
         if tt2 !== nothing
             terms2 = [string(collect(r)[col_index(tt2, "term")]) for r in table_rows(tt2)]
             @test !("yr" in terms2)     # the time column is excluded from X too
@@ -5741,7 +5741,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         ra = run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
                        "--absorb", "entity,time", "--id-col", "id", "--time-col", "time"])
         assert_envelope_ok(ra; label="estimate preg --absorb entity,time")
-        tbl = named_table(ra.doc, :panel_regression_coefficients_fe)
+        tbl = named_table(ra.doc, :panel_regression_coefficients)
         @test tbl !== nothing
         if tbl !== nothing
             rows = table_rows(tbl)
@@ -5765,8 +5765,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--id-col", "id", "--time-col", "time"])
         assert_envelope_ok(r1; label="estimate preg --absorb entity")
         assert_envelope_ok(r0; label="estimate preg plain fe")
-        t1 = named_table(r1.doc, :panel_regression_coefficients_fe)
-        t0 = named_table(r0.doc, :panel_regression_coefficients_fe)
+        t1 = named_table(r1.doc, :panel_regression_coefficients)
+        t0 = named_table(r0.doc, :panel_regression_coefficients)
         if t1 !== nothing && t0 !== nothing
             e1 = Float64(collect(table_rows(t1)[1])[col_index(t1, "estimate")])
             e0 = Float64(collect(table_rows(t0)[1])[col_index(t0, "estimate")])
@@ -5821,7 +5821,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         r_ab = run_json([base; "--method"; "ab"])
         assert_envelope_ok(r_ab; label="estimate preg --method ab")
-        @test named_table(r_ab.doc, :panel_regression_coefficients_ab) !== nothing
+        @test named_table(r_ab.doc, :panel_regression_coefficients) !== nothing
         ni_full = n_inst(r_ab)
         @test ni_full !== nothing && Int(ni_full) > 0
 
@@ -6282,7 +6282,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rj = run_json(["policy", "jacobian", "ha", "huggett",
                            "--jac-output", "C", "--t-horizon", "20"])
             @test rj.code == 0
-            jt = named_table(rj.doc, :sequence_space_jacobian_dc_dr)
+            jt = named_table(rj.doc, :sequence_space_jacobian)
             @test jt !== nothing && length(table_rows(jt)) == 400   # T² tidy rows
             rha = run_json(["policy", "news", "ha", "huggett",
                             "--outcomes", "c=C", "--horizon", "4",
@@ -6488,7 +6488,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--endogenous", "x_endog", "--instruments", "z1,z2",
                        "--beta0", "2.0", "--no-ci"])
         assert_envelope_ok(rt; label="test anderson-rubin --beta0 --no-ci")
-        tt = named_table(rt.doc, :anderson_rubin_test_y)
+        tt = named_table(rt.doc, :anderson_rubin_test)
         tt === nothing && (tt = first_table(rt.doc)[2])
         if tt !== nothing
             p = metric_value(tt, "p_value")
@@ -6503,7 +6503,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--endogenous", "x_endog", "--instruments", "z1,z2",
                        "--beta0", "-3.0", "--no-ci"])
         assert_envelope_ok(rf; label="test anderson-rubin false null")
-        tf = named_table(rf.doc, :anderson_rubin_test_y)
+        tf = named_table(rf.doc, :anderson_rubin_test)
         tf === nothing && (tf = first_table(rf.doc)[2])
         tf === nothing || @test Float64(metric_value(tf, "p_value")) < 0.05
 
@@ -6516,7 +6516,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--endogenous", "x_endog", "--instruments", "z1,z2",
                        "--cov-type", "cluster", "--clusters", "cl"])
         assert_envelope_ok(rc; label="test anderson-rubin clustered")
-        tc = named_table(rc.doc, :anderson_rubin_test_y)
+        tc = named_table(rc.doc, :anderson_rubin_test)
         tc === nothing && (tc = first_table(rc.doc)[2])
         if tc !== nothing
             @test string(metric_value(tc, "ar_cov_type")) == "cluster"
@@ -6567,7 +6567,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         r = run_json(["estimate", "lp", ycsv, "--method", "iv", "--shock", "1",
                       "--horizons", "6", "--control-lags", "2", "--instruments", zcsv])
         assert_envelope_ok(r; label="estimate lp --method iv")
-        sm = named_table(r.doc, :lp_iv_estimation_summary)
+        sm = named_table(r.doc, :lp_estimation_summary)
         @test sm !== nothing
         if sm !== nothing
             # The per-horizon F is reported as a MINIMUM, and T_eff as endpoints — neither
@@ -6610,7 +6610,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--horizons", "4", "--control-lags", "2", "--instruments", zcsv,
                        "--ar-bands", "--ar-grid", "101", "--ar-level", "0.95"])
         assert_envelope_ok(ra; label="estimate lp iv --ar-bands")
-        ab = named_table(ra.doc, :lp_iv_anderson_rubin_bands_95)
+        ab = named_table(ra.doc, :lp_iv_anderson_rubin_bands)
         if ab === nothing
             for (k, v) in pairs(ra.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
