@@ -91,7 +91,7 @@
         { "type": "null" },
         {
           "type": "object",
-          "required": ["code", "message"],
+          "required": ["code", "message", "exit_code"],
           "additionalProperties": false,
           "properties": {
             "code": {

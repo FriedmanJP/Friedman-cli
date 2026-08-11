@@ -132,6 +132,62 @@ injectable so tests can capture the stream.
 """
 _mems_logger(io::IO=stderr) = ConsoleLogger(io, _QUIET[] ? Warn : Info)
 
+"""Best-effort `command` for a net-emitted error envelope: resolve the raw
+argv's non-dash tokens against the registry tree, stopping at the first token
+that is not a subcommand (so data paths/values never leak into `command`)."""
+function _net_command(args::Vector{String})
+    node = APP.root
+    path = String["friedman"]
+    for tok in args
+        startswith(tok, "-") && continue
+        if node isa NodeCommand && haskey(node.subcmds, tok)
+            push!(path, tok)
+            sub = node.subcmds[tok]
+            sub isa LeafCommand && break
+            node = sub
+        else
+            break
+        end
+    end
+    return join(path, " ")
+end
+
+"""
+    _emit_error_net(args, err, t0, wants_json)
+
+W2/#137 usage-error net: when the raw argv asked for JSON but no envelope has
+been rendered — usage/parse/pre-dispatch failures throw BEFORE dispatch_leaf's
+envelope exists — emit ONE minimal schema-valid error envelope on stdout, so
+`--format json` never yields empty stdout on failure. dispatch_leaf's
+render-then-rethrow path sets `_ENVELOPE_EMITTED`, so handler errors are never
+double-emitted. stderr text and exit codes are unchanged. The net itself must
+never throw (it runs inside the error path), so it swallows its own failures.
+"""
+function _emit_error_net(args::Vector{String}, err::CliError, t0::UInt64, wants_json::Bool)
+    (wants_json && !_ENVELOPE_EMITTED[]) || return nothing
+    try
+        env = Envelope(command=_net_command(args))
+        env.meta = Dict{String,Any}(
+            "cli_version" => string(FRIEDMAN_VERSION),
+            "julia"       => string(VERSION),
+            "seed"        => _SEED[],
+            "argv"        => copy(args),
+            "elapsed_ms"  => (time_ns() - t0) / 1e6,
+        )
+        try
+            env.meta["mems_version"] = string(pkgversion(MacroEconometricModels))
+        catch
+            env.meta["mems_version"] = "unknown"
+        end
+        set_error!(env, err.code, err.message; hint=err.hint)
+        render(env, :json, stdout)
+        _ENVELOPE_EMITTED[] = true
+    catch
+        # the net is best-effort by construction
+    end
+    return nothing
+end
+
 """
     run_cli(args)::Cint
 
@@ -146,6 +202,12 @@ function run_cli(args::Vector{String})::Cint
     end
 
     app = APP
+    # W2/#137: decide the error-net format from the RAW argv, before anything
+    # that can throw a usage error runs — tokenize/bind_args, and even
+    # _extract_global_flags! (a bad --seed throws inside it).
+    _ENVELOPE_EMITTED[] = false
+    wants_json = _argv_wants_json(args)
+    t0 = time_ns()
     try
         remaining = _extract_global_flags!(copy(args))
         _LAST_ARGV[] = copy(args)
@@ -159,10 +221,13 @@ function run_cli(args::Vector{String})::Cint
         if e isa CliError
             _status_styled("Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
+            _emit_error_net(args, e, t0, wants_json)
             return Cint(exit_class(e))
         elseif e isa ParseError || e isa DispatchError
             _status_styled("Error: "; bold=true, color=:red)
             println(stderr, e.message)
+            code = e isa DispatchError ? "usage/unknown-command" : "usage/parse"
+            _emit_error_net(args, CliError(code, e.message), t0, wants_json)
             return Cint(2)  # usage
         else
             # MEMs domain error (MacroModelError hierarchy) → typed exit (C050)
@@ -170,11 +235,13 @@ function run_cli(args::Vector{String})::Cint
             if mapped !== nothing
                 _status_styled("Error: "; bold=true, color=:red)
                 println(stderr, sprint(showerror, mapped))
+                _emit_error_net(args, mapped, t0, wants_json)
                 return Cint(exit_class(mapped))
             end
             _status_styled("Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
             println(stderr, "this is likely a bug — please report")
+            _emit_error_net(args, CliError("internal/error", sprint(showerror, e)), t0, wants_json)
             return Cint(1)
         end
     finally

@@ -111,6 +111,42 @@ function _extract_global_flags!(args::Vector{String})
     return remaining
 end
 
+"""
+    _argv_wants_json(args) → Bool
+
+True when the RAW argv asks for JSON output: an exact `--format json` /
+`--format=json` / `-f json` / `-f=json` token (pair) anywhere, or a `--json`
+global in the LEADING global region (the same region `_extract_global_flags!`
+consumes). Exact-token matching only (W2/#137): a false negative degrades to
+today's stderr-only usage error, while a false positive would wrongly print
+JSON — so no fuzzy matching. Used by `run_cli`'s error net, which must decide
+BEFORE tokenize/bind_args run (they are exactly what throws on a usage error)
+and even before `_extract_global_flags!` (a bad `--seed` throws inside it).
+"""
+function _argv_wants_json(args::Vector{String})
+    n = length(args)
+    for (i, tok) in enumerate(args)
+        (tok == "--format=json" || tok == "-f=json") && return true
+        (tok == "--format" || tok == "-f") && i + 1 <= n && args[i+1] == "json" && return true
+    end
+    i = 1
+    while i <= n
+        tok = args[i]
+        if tok == "--quiet" || tok == "-q" || tok == "--no-color"
+            i += 1
+        elseif tok == "--json"
+            return true
+        elseif tok == "--seed"
+            i += 2
+        elseif startswith(tok, "--seed=")
+            i += 1
+        else
+            break
+        end
+    end
+    return false
+end
+
 # ── Path Validation ──────────────────────────────────────
 
 """

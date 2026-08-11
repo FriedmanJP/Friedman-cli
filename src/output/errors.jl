@@ -29,11 +29,13 @@ const _EXIT_CLASSES = Dict(
     "env" => 6,
 )
 
+"""Map an error-code string to its process exit code (2–6, or 1 for unprefixed).
+Shared by `exit_class(::CliError)` and `set_error!`'s `exit_code` field (W2/#137)
+so the envelope's `error.exit_code` can never disagree with the process exit."""
+exit_class(code::AbstractString) = get(_EXIT_CLASSES, first(split(code, '/'; limit=2)), 1)
+
 """Map a CliError to its process exit code (2–6, or 1 for unprefixed)."""
-function exit_class(e::CliError)
-    prefix = first(split(e.code, '/'; limit=2))
-    return get(_EXIT_CLASSES, prefix, 1)
-end
+exit_class(e::CliError) = exit_class(e.code)
 
 function Base.showerror(io::IO, e::CliError)
     print(io, e.code, ": ", e.message)

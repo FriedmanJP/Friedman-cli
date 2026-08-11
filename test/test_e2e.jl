@@ -158,4 +158,57 @@ end
             rm(fix; force=true)
         end
     end
+
+    # W2/#137: when the raw argv asks for JSON, EVERY failure emits exactly one
+    # schema-valid error envelope on stdout — including usage/parse errors that
+    # throw before dispatch_leaf's envelope exists (they used to yield EMPTY
+    # stdout + exit 2, the worst agent failure mode). Byte-level, subprocess.
+    @testset "error envelopes when JSON was asked (W2/#137)" begin
+        fix = _make_fixture()
+        try
+            # data-class handler error → dispatch_leaf's envelope (not the net)
+            r = _e2e_run(["estimate", "var", "/nope/does/not/exist.csv", "--format", "json"])
+            @test r.code == 3
+            @test _exactly_one_json(r.out)
+            doc = JSON3.read(strip(r.out))
+            @test string(doc.status) == "error"
+            @test startswith(string(doc.error.code), "data/")
+            @test doc.error.exit_code == 3
+
+            # unknown option → ParseError → the run_cli net (usage/parse)
+            r = _e2e_run(["estimate", "var", fix, "--lgas", "2", "--format", "json"])
+            @test r.code == 2
+            @test _exactly_one_json(r.out)
+            doc = JSON3.read(strip(r.out))
+            @test string(doc.status) == "error"
+            @test string(doc.error.code) == "usage/parse"
+            @test doc.error.exit_code == 2
+            @test string(doc.command) == "friedman estimate var"
+
+            # unknown command → DispatchError → usage/unknown-command
+            r = _e2e_run(["definitely-not-a-command", "--format", "json"])
+            @test r.code == 2
+            @test _exactly_one_json(r.out)
+            doc = JSON3.read(strip(r.out))
+            @test string(doc.error.code) == "usage/unknown-command"
+
+            # the leading --json global reaches the net too
+            r = _e2e_run(["--json", "estimate", "var", fix, "--lgas", "2"])
+            @test r.code == 2
+            @test _exactly_one_json(r.out)
+
+            # bad --seed throws INSIDE _extract_global_flags! — net still fires
+            r = _e2e_run(["--seed", "abc", "estimate", "var", fix, "--format", "json"])
+            @test r.code == 2
+            doc = JSON3.read(strip(r.out))
+            @test string(doc.error.code) == "usage/bad-seed"
+
+            # table format: usage errors keep stdout EMPTY (no envelope leak)
+            r = _e2e_run(["estimate", "var", fix, "--lgas", "2"])
+            @test r.code == 2
+            @test isempty(strip(r.out))
+        finally
+            rm(fix; force=true)
+        end
+    end
 end

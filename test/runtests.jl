@@ -2766,6 +2766,38 @@ end
     @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
 end
 
+# W2/#137: the raw-argv JSON pre-scan feeding run_cli's usage-error net.
+@testset "_argv_wants_json forms (W2/#137)" begin
+    @test _argv_wants_json(["estimate", "var", "d.csv", "--format", "json"])
+    @test _argv_wants_json(["estimate", "var", "--format=json"])
+    @test _argv_wants_json(["estimate", "var", "-f", "json"])
+    @test _argv_wants_json(["estimate", "var", "-f=json"])
+    @test _argv_wants_json(["--json", "estimate", "var"])
+    @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "var"])
+    @test !_argv_wants_json(["estimate", "var", "d.csv"])
+    @test !_argv_wants_json(["estimate", "var", "--format", "csv"])
+    # --json is a LEADING global; mid-argv it belongs to the leaf parser (#117)
+    @test !_argv_wants_json(["estimate", "var", "--json"])
+    @test !_argv_wants_json(["estimate", "var", "-f", "table"])
+    @test !_argv_wants_json(["--seed=42", "estimate", "var"])
+end
+
+# W2/#137: error objects carry exit_code from the SAME prefix map as the
+# process exit; empty hints are omitted, not serialized as "".
+@testset "set_error! exit_code + hint omission (W2/#137)" begin
+    env = Envelope(command="x")
+    set_error!(env, "data/not-found", "gone")
+    @test env.error["exit_code"] == 3
+    @test !haskey(env.error, "hint")
+    set_error!(env, "usage/parse", "bad"; hint="h")
+    @test env.error["exit_code"] == 2
+    @test env.error["hint"] == "h"
+    set_error!(env, "internal/error", "boom")
+    @test env.error["exit_code"] == 1
+    @test exit_class("model/anything") == 5
+    @test exit_class("noslash") == 1
+end
+
 # W8: a pretty-printer must never fail a command. `report()`/`show` output is a human
 # convenience on stderr; the stdout data is the contract. Upstream proved the point —
 # MEMs 0.7.2 `_select_horizons(H)` returns `[1, 4, 8, H]` for `5 < H <= 12`, so

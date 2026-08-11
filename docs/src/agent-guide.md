@@ -58,6 +58,38 @@ validator (CI cross-checks every golden and every T3-captured envelope with
 python-jsonschema), so you can validate responses with ajv / jsonschema
 directly.
 
+## Every failure is an envelope too (v0.10.0)
+
+When the argv asks for JSON (`--format json` / `-f json`, or the leading
+`--json` global), **every failure also emits exactly one envelope on stdout** —
+including usage/parse errors that fail before a command resolves, which used to
+leave stdout empty. `status` is `"error"`, `data` is `{}`, and the `error`
+object carries the machine-readable failure:
+
+```json
+{
+  "schema_version": 1,
+  "command": "friedman estimate var",
+  "status": "error",
+  "data": {},
+  "error": {
+    "code": "usage/parse",
+    "message": "friedman estimate var: unknown option --lgas — did you mean --lags?",
+    "exit_code": 2
+  }
+}
+```
+
+- `error.code` is `class/code` from the taxonomy below; `error.exit_code`
+  **always equals the process exit code** — both derive from the same class
+  mapping, so they cannot disagree.
+- `error.hint` is present only when there is something to say; it is omitted
+  rather than emitted empty.
+- Under `--format table`/`csv`, failures keep stdout **empty** — human-readable
+  error text goes to stderr, as always.
+- The interactive REPL dispatches outside this path and is not part of the
+  agent contract.
+
 ## Exit codes
 
 | Code | Class | Example |

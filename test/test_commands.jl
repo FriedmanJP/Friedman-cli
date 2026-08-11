@@ -12564,6 +12564,39 @@ end  # Command Handlers
             errs = validate_envelope_json(js)
             @test isempty(errs) || (@info "schema errs" errs; false)
         end
+
+        # W2/#137: dispatch-path ERROR envelope goldens. dispatch_leaf renders
+        # the error envelope and THEN rethrows for the exit code — and _capture
+        # does not swallow throws — so the dispatch call is wrapped. (The
+        # usage/parse net lives in run_cli, which this harness bypasses via
+        # dispatch(); the T4 battery in test_e2e.jl byte-asserts that path.)
+        err_cases = [
+            (["filter", "hp", "/nope.csv", "--format", "json"],
+             ["filter", "hp", "error"], "data/file-not-found", 3),
+            (["estimate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "bvar", "config-error"], "config/file-not-found", 4),
+        ]
+        for (argv, gkeys, code, ec) in err_cases
+            Random.seed!(42)
+            out = _capture() do
+                try
+                    _dispatch_via_app(String[string(a) for a in argv])
+                catch e
+                    e isa CliError || rethrow()
+                end
+            end
+            js = _extract_json_object(out)
+            @test js !== nothing
+            doc = JSON3.read(js)
+            @test string(doc.status) == "error"
+            @test string(doc.error.code) == code
+            @test doc.error.exit_code == ec
+            gpath = _golden_path(gkeys)
+            @test isfile(gpath)
+            @test _golden_compare(js, gpath)
+            errs = validate_envelope_json(js)
+            @test isempty(errs) || (@info "schema errs" errs; false)
+        end
     end
 
     # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)

@@ -146,6 +146,7 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
             if use_env && _ENVELOPE[] !== nothing
                 _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 render(_ENVELOPE[], :json, stdout)
+                _ENVELOPE_EMITTED[] = true
             end
             return result
         catch e
@@ -154,10 +155,20 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
                 if e isa CliError
                     set_error!(_ENVELOPE[], e.code, e.message; hint=e.hint)
                 else
-                    set_error!(_ENVELOPE[], "internal/error", sprint(showerror, e))
+                    # W2/#137 (D-4): consult the MEMs domain mapping FIRST so the
+                    # envelope's error.code agrees with the exit class run_cli
+                    # derives from the same mapping — a raw ConvergenceError used
+                    # to be enveloped internal/error while the process exited 5.
+                    mapped = _domain_error_class(e)
+                    if mapped !== nothing
+                        set_error!(_ENVELOPE[], mapped.code, mapped.message; hint=mapped.hint)
+                    else
+                        set_error!(_ENVELOPE[], "internal/error", sprint(showerror, e))
+                    end
                 end
                 _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 render(_ENVELOPE[], :json, stdout)
+                _ENVELOPE_EMITTED[] = true
             end
             rethrow()
         finally

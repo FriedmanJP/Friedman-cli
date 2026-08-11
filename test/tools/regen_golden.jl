@@ -130,6 +130,34 @@ function main()
             _write_golden(js, dest)
             println("wrote $dest")
         end
+        # W2/#137: dispatch-path ERROR envelope goldens. dispatch_leaf renders the
+        # error envelope to stdout and THEN rethrows for the exit code — and
+        # _capture does not swallow throws — so the dispatch call is wrapped here.
+        # (The usage/parse net lives in run_cli, which this harness bypasses via
+        # dispatch(); that path is byte-asserted by the T4 battery instead.)
+        err_cases = [
+            (["filter", "hp", "/nope.csv", "--format", "json"],
+             ["filter", "hp", "error"]),
+            (["estimate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "bvar", "config-error"]),
+        ]
+        for (argv, gpath) in err_cases
+            Random.seed!(42)
+            out = _capture() do
+                try
+                    _dispatch_via_app(String[string(a) for a in argv])
+                catch e
+                    e isa CliError || rethrow()
+                end
+            end
+            js = _extract_json_object(out)
+            js === nothing && error("no JSON in output for $argv\n$out")
+            errs = validate_envelope_json(js)
+            isempty(errs) || @warn "schema warnings for $gpath" errs
+            dest = _golden_path(gpath)
+            _write_golden(js, dest)
+            println("wrote $dest")
+        end
     end
     # Renderer text goldens (table + csv) — centralized output path
     mktempdir() do dir
