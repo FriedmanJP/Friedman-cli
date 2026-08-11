@@ -40,7 +40,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 
-**Output tables:** `bayes_compare` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_model_comparison` (Log marginal likelihood and acceptance rate for each of the two models)
 
 ---
 
@@ -76,7 +76,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH (Christen & Fox 2005) |
 
-**Output tables:** `bayes_estimate` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_dsge_posterior` (Posterior mean, std, median and 5/95% quantiles per estimated parameter)
 
 ---
 
@@ -115,7 +115,7 @@ Path to DSGE model file (.toml or .jl)
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `bayes_fevd` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_dsge_fevd_*` (Posterior-mean variance shares by shock across horizons, one table per variable)
 
 ---
 
@@ -157,7 +157,7 @@ Path to DSGE model file (.toml or .jl)
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `bayes_hd` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_dsge_historical_decomposition_*` (Posterior-mean per-variable contribution path of one shock, one table per shock)
 
 ---
 
@@ -179,7 +179,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `bayes_identification` (Iskrev (2010) local-identification rank test)
+**Output tables:** `identification_diagnostics` (Iskrev rank test: rank, parameter/moment counts, tolerance and the identified verdict); `singular_values` (Singular values of the moment Jacobian, in order)
 
 ---
 
@@ -218,7 +218,7 @@ Path to DSGE model file (.toml or .jl)
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `bayes_irf` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_dsge_irf_*` (Posterior-mean responses of every variable to one shock, one table per shock)
 
 ---
 
@@ -257,7 +257,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 
-**Output tables:** `bayes_learning_rate` (Koop-Pesaran-Smith (2013) learning-rate check)
+**Output tables:** `learning_rate_check` (Per-parameter Koop-Pesaran-Smith learning rate and its flag); `learning_rate_summary` (Flag threshold and the nested subsample sizes)
 
 ---
 
@@ -295,7 +295,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 
-**Output tables:** `bayes_marginal_lik` (Marginal likelihood via bridge sampling (Meng-Wong 1996))
+**Output tables:** `marginal_likelihood_bridge_sampling` (Bridge-sampling and SMC log marginal likelihoods with the proposal settings)
 
 ---
 
@@ -331,7 +331,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 
-**Output tables:** `bayes_mcmc_diag` (MCMC convergence diagnostics (R-hat / ESS / Geweke))
+**Output tables:** `mcmc_convergence_diagnostics` (Per-parameter R-hat, bulk/tail ESS and Geweke z and p-value); `mcmc_diagnostics_summary` (Draw count and sampler behind the diagnostics)
 
 ---
 
@@ -369,7 +369,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 
-**Output tables:** `bayes_overlap` (Prior/posterior overlap (weak-identification signal))
+**Output tables:** `prior_posterior_overlap` (Per-parameter prior/posterior overlap and weak-identification flag); `overlap_summary` (Flag threshold applied to the overlap)
 
 ---
 
@@ -395,7 +395,7 @@ Path to DSGE model file (.toml or .jl)
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations (≥ 1) |
 | `--f-reltol` | — | `Float64` | `1.0e-8` | — | Relative function tolerance (> 0) |
 
-**Output tables:** `bayes_posterior_mode` (Posterior mode with Laplace standard errors)
+**Output tables:** `posterior_mode` (Posterior mode and Laplace standard error per parameter); `posterior_mode_diagnostics` (Log posterior/likelihood, Laplace log ML, convergence flag and iteration count)
 
 ---
 
@@ -435,7 +435,7 @@ Path to DSGE model file (.toml or .jl)
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `bayes_predictive` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `posterior_predictive_summary` (Mean, std, min and max of each variable across the predictive simulations)
 
 ---
 
@@ -460,7 +460,7 @@ Path to DSGE model file (.toml or .jl)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--periods` | — | `Int64` | `200` | — | Periods to simulate per draw (≥ 1) |
 
-**Output tables:** `bayes_prior_predictive` (Prior predictive distribution of summary statistics)
+**Output tables:** `prior_predictive_distribution` (Mean, std, median and 5/95% quantiles of each summary statistic across prior draws); `prior_predictive_summary` (Draws requested, draws that solved and periods simulated per draw)
 
 ---
 
@@ -499,7 +499,7 @@ Path to DSGE model file (.toml or .jl)
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `bayes_simulate` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_dsge_simulation` (Posterior-mean simulated path of every variable)
 
 ---
 
@@ -535,7 +535,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--delayed-acceptance` | — | Use delayed acceptance for MH |
 
-**Output tables:** `bayes_summary` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `bayesian_dsge_posterior_summary` (Posterior mean, median, std and 5/95% quantiles per parameter); `prior_vs_posterior_comparison` (Prior mean/std against posterior mean/std and quantiles per parameter)
 
 ---
 
@@ -562,7 +562,7 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 |------|-------|-------------|
 | `--two-asset` | — | Solve Kaplan-Moll-Violante two-asset model instead |
 
-**Output tables:** `prices` (Equilibrium r, w); `aggregates` (K, L and convergence)
+**Output tables:** `ct_aiyagari_prices` (Equilibrium interest rate and wage); `ct_aiyagari_aggregates` (Equilibrium capital, labour and the convergence flag); `ct_two_asset_solution` (Liquid/illiquid holdings, distribution mass and HJB convergence (--two-asset))
 
 ---
 
@@ -592,7 +592,7 @@ MIT-shock perfect-foresight transition (ct_mit_shock)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `transition` (MIT-shock path (t, Z, K, r, w, C))
+**Output tables:** `ct_mit_shock_transition` (MIT-shock transition path of t, Z, K, r, w and C)
 
 ---
 
@@ -618,7 +618,7 @@ Path to DSGE model file (.toml or .jl)
 | `--verbose-solver` | — | Do NOT suppress per-grid-point solver warnings |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `determinacy_map` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_determinacy_map` (One row per grid cell: swept parameter values, verdict code/label and the Sims existence/uniqueness pair); `determinacy_region_summary` (Grid-point counts per determinacy region plus the solver settings); `determinacy_boundary` (Parameter values where the verdict changes (one-parameter sweeps only))
 
 ---
 
@@ -645,7 +645,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `estimate` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_estimation` (Estimated structural parameters with standard errors, t-stats and p-values)
 
 ---
 
@@ -671,7 +671,7 @@ Path to DSGE model file (.toml or .jl)
 | `--unconditional` | — | Unconditional (asymptotic) FEVD for order≥2 perturbation (Andreasen et al. 2018) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `fevd` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_fevd_*` (Variance shares by shock across horizons, one table per variable)
 
 ---
 
@@ -701,7 +701,7 @@ Den Haan (2010) accuracy of the aggregate law of motion
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `accuracy` (Den Haan accuracy metrics)
+**Output tables:** `den_haan_accuracy` (Max/mean percentage deviation plus the reference and PLM standard deviations); `reference_vs_plm_only_aggregate_path` (Simulated reference and PLM-only aggregate paths side by side); `den_haan_simulation_settings` (Solution method, scored aggregate, simulation lengths and seed)
 
 ---
 
@@ -723,7 +723,7 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `distribution_irf` (Distribution mass deviations (summary moments))
+**Output tables:** `ha_distribution_irf` (Per-horizon L1 and max wealth-distribution mass deviation with the grid sizes)
 
 ---
 
@@ -752,7 +752,7 @@ Bayesian estimation of HA-DSGE parameters (RWMH; MEMs#228 fixed in 0.6.7)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `posterior` (Posterior summary (mean, std, quantiles per parameter))
+**Output tables:** `ha_dsge_bayesian_posterior` (RWMH posterior mean, std, median and 5/95% quantiles per parameter)
 
 ---
 
@@ -777,7 +777,7 @@ Aggregate FEVD from linearized HA-DSGE solution
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `fevd` (Forecast error variance decomposition)
+**Output tables:** `ha_dsge_fevd_*` (Aggregate variance shares by shock across horizons, one table per variable)
 
 ---
 
@@ -804,7 +804,7 @@ Gini and wealth-percentile IRFs after an aggregate shock
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `inequality_irf` (Gini and percentile paths)
+**Output tables:** `ha_inequality_irf` (Per-horizon Gini and wealth-percentile (p10-p90) responses)
 
 ---
 
@@ -829,7 +829,7 @@ Aggregate IRFs from linearized HA-DSGE solution
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `irf` (Aggregate impulse responses)
+**Output tables:** `ha_dsge_irf_*` (Aggregate responses of every variable to one shock, one table per shock)
 
 ---
 
@@ -855,7 +855,7 @@ Simulate aggregate paths from linearized HA-DSGE
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `simulate` (Simulated aggregate deviations)
+**Output tables:** `ha_dsge_simulation` (Simulated path of every aggregate deviation)
 
 ---
 
@@ -875,7 +875,7 @@ Simulate individual asset holdings from steady-state policies
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `panel` (Panel summary (mean assets over time))
+**Output tables:** `ha_panel_simulation_summary` (Cross-sectional mean and sd of assets per period with the agent count)
 
 ---
 
@@ -895,7 +895,7 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `diagnostics` (Solution diagnostics); `aggregates` (Steady-state aggregates); `prices` (Steady-state prices)
+**Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
 
 ---
 
@@ -913,7 +913,7 @@ Compute HA-DSGE stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `aggregates` (Steady-state aggregates); `prices` (Steady-state prices); `diagnostics` (Convergence diagnostics); `euler` (Euler accuracy by convention)
+**Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
 
 ---
 
@@ -939,7 +939,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `hd` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_historical_decomposition_*` (Per-variable contribution path of one shock, one table per shock)
 
 ---
 
@@ -967,7 +967,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `irf` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_irf_*` (Responses of every variable to one shock, one table per shock); `occbin_irf_*` (Linear vs piecewise OccBin response of one variable, one table per variable (--constraints))
 
 ---
 
@@ -987,7 +987,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `moments` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_theoretical_moments` (Per-variable steady state, unconditional mean, risk correction and standard deviation); `variance_covariance` (Pairwise covariance and correlation for every variable pair); `autocovariances` (Own autocovariance and autocorrelation at each reported lag)
 
 ---
 
@@ -1013,7 +1013,7 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `path` (Transition paths k, C, r, w)
+**Output tables:** `blanchard_olg_transition` (Transition paths of k, C, r and w from the initial capital stock)
 
 ---
 
@@ -1032,7 +1032,7 @@ Blanchard perpetual-youth OLG: steady state + saddle path
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `steady_state` (Steady-state levels); `dynamics` (Saddle-path diagnostics)
+**Output tables:** `blanchard_olg_steady_state` (Steady-state k, C, r, w, human wealth, MPC, debt and convergence); `blanchard_olg_dynamics` (Stable eigenvalue, policy slope, determinacy verdict and both eigenvalue moduli)
 
 ---
 
@@ -1058,7 +1058,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `perfect_foresight` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `perfect_foresight_path` (Deterministic transition path of every endogenous variable)
 
 ---
 
@@ -1086,7 +1086,7 @@ Path to DSGE model file (.toml or .jl)
 | `--antithetic` | — | Use antithetic sampling for variance reduction |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `simulate` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_simulation` (Simulated path of every endogenous variable, burn-in dropped)
 
 ---
 
@@ -1116,7 +1116,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `solve` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI basis coefficients, one row per control); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
 
 ---
 
@@ -1135,7 +1135,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `steady_state` (Path to DSGE model file (.toml or .jl))
+**Output tables:** `dsge_steady_state` (Steady-state level of every endogenous variable)
 
 ---
 

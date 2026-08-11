@@ -31,7 +31,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_aparch` (Path to CSV data file)
+**Output tables:** `aparch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
 
 ---
 
@@ -57,7 +57,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_arch` (Path to CSV data file)
+**Output tables:** `arch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
 
 ---
 
@@ -89,7 +89,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_arfima` (Path to CSV data file)
+**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | forecast | lower | upper)
 
 ---
 
@@ -123,7 +123,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_arima` (Path to CSV data file)
+**Output tables:** `arima_forecast` (Point forecasts with interval bounds, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -154,7 +154,7 @@ Path to CSV data file
 | `--plot` | — | Display an interactive plot |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `forecast_bvar` (Path to CSV data file)
+**Output tables:** `bvar_forecast` (Posterior-mean forecasts with 68% credible bands, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -180,7 +180,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_cgarch` (Path to CSV data file)
+**Output tables:** `cgarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
 
 ---
 
@@ -207,7 +207,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_dynamic` (Path to CSV data file)
+**Output tables:** `dynamic_factor_forecast` (Observable forecasts reconstructed from the factors, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -235,7 +235,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_egarch` (Path to CSV data file)
+**Output tables:** `egarch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
 
 ---
 
@@ -256,7 +256,7 @@ Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: sma
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `clark_west_test` (CW statistic / one-sided p-value)
+**Output tables:** `clark_west_test` (CW statistic, p-value, mean adjusted difference and long-run variance)
 
 ---
 
@@ -280,7 +280,7 @@ Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 fo
 |------|-------|-------------|
 | `--emit-series` | — | Also emit the combined forecast series (index\|combined) |
 
-**Output tables:** `forecast_combination_weights` (model | weight | mse)
+**Output tables:** `forecast_combination_weights` (Combination weights summing to 1: model | weight | mse); `combined_forecast_series` (The combined forecast itself (--emit-series): index | combined)
 
 ---
 
@@ -306,7 +306,7 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 |------|-------|-------------|
 | `--no-hln` | — | Disable the Harvey-Leybourne-Newbold small-sample correction (use N(0,1)) |
 
-**Output tables:** `diebold_mariano_test` (DM statistic / p-value)
+**Output tables:** `diebold_mariano_test` (DM statistic, p-value, mean loss differential, long-run variance and HLN setting)
 
 ---
 
@@ -327,7 +327,7 @@ Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `forecast_encompassing_test` (b1, b2, t-stat on b2)
+**Output tables:** `forecast_encompassing_test` (Combination weights b1/b2 with the HAC t-test of b2=0)
 
 ---
 
@@ -352,7 +352,7 @@ Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil deco
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_accuracy_metrics` (Point accuracy metrics, one row per forecast)
+**Output tables:** `forecast_accuracy_metrics` (Point accuracy metrics, one row per forecast: model | ME | MAE | RMSE | MAPE | sMAPE | MASE | U1 | U2); `theil_mse_decomposition` (Theil MSE proportions summing to 1: model | bias | variance | covariance)
 
 ---
 
@@ -373,7 +373,7 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `mincer_zarnowitz_test` (a, b, HAC SEs, joint Wald/F)
+**Output tables:** `mincer_zarnowitz_efficiency_test` (Intercept a, slope b, HAC standard errors and the joint Wald/F test of (a,b)=(0,1))
 
 ---
 
@@ -401,7 +401,7 @@ Path to CSV data file
 | `--panel-forecast` | — | Output panel-wide forecast instead of factor-level |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_favar` (Path to CSV data file)
+**Output tables:** `favar_forecast` (Factor-level (or panel-wide under --panel-forecast) forecasts, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -432,7 +432,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_fiegarch` (Path to CSV data file)
+**Output tables:** `fiegarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
 
 ---
 
@@ -463,7 +463,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_figarch` (Path to CSV data file)
+**Output tables:** `figarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
 
 ---
 
@@ -491,7 +491,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_garch` (Path to CSV data file)
+**Output tables:** `garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
 
 ---
 
@@ -522,7 +522,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `forecast_garch_midas` (Path to CSV data file)
+**Output tables:** `garch_midas_volatility_forecast` (Variance path split into its components: horizon | total_variance | long_run | short_run | volatility)
 
 ---
 
@@ -548,7 +548,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_gdfm` (Path to CSV data file)
+**Output tables:** `gdfm_forecast` (Observable forecasts from the generalized dynamic factor model, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -576,7 +576,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_gjr_garch` (Path to CSV data file)
+**Output tables:** `gjr_garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
 
 ---
 
@@ -604,7 +604,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `forecast_igarch` (Path to CSV data file)
+**Output tables:** `igarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
 
 ---
 
@@ -635,7 +635,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_lp` (Path to CSV data file)
+**Output tables:** `lp_forecast` (Local-projection forecast along the shock path, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -664,7 +664,7 @@ Path to low-frequency target CSV
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `forecast_midas` (Path to low-frequency target CSV)
+**Output tables:** `midas_forecast` (Direct h-step forecast of the low-frequency target: horizon | forecast | lower | upper | se); `midas_forecast_summary` (Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level)
 
 ---
 
@@ -694,7 +694,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
 
-**Output tables:** `forecast_ms` (Path to CSV data file)
+**Output tables:** `ms_regression_forecast` (Regime-averaged forecasts with simulated bands, tidy long form: horizon | variable | value | lower | upper); `ms_regression_predicted_regime_probabilities` (Predicted regime probabilities: horizon | one column per regime)
 
 ---
 
@@ -723,7 +723,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
 
-**Output tables:** `forecast_ms_ar` (Path to CSV data file)
+**Output tables:** `ms_ar_forecast` (Regime-averaged forecasts with simulated bands, tidy long form: horizon | variable | value | lower | upper); `ms_ar_predicted_regime_probabilities` (Predicted regime probabilities: horizon | one column per regime)
 
 ---
 
@@ -765,7 +765,7 @@ Path to CSV data file
 | `--no-intercept` | — | Exclude the intercept term |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_sarima` (Path to CSV data file)
+**Output tables:** `sarima_forecast` (Point forecasts with interval bounds, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -800,7 +800,7 @@ Waggoner-Zha conditional (scenario) forecast
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `scenario` (Conditional forecast path); `shocks` (Implied structural shocks); `settings` (Scenario settings)
+**Output tables:** `conditional_forecast` (Conditioned path beside the unconditional baseline: horizon | variable | value | lower | upper | unconditional); `implied_structural_shocks` (Shocks that deliver the scenario: horizon | shock | value); `scenario_settings` (Model, horizon, condition count, confidence level, identification and draws used)
 
 ---
 
@@ -824,7 +824,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `forecast_setar` (Path to CSV data file)
+**Output tables:** `setar_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -849,7 +849,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `forecast_star` (Path to CSV data file)
+**Output tables:** `star_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -876,7 +876,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_static` (Path to CSV data file)
+**Output tables:** `static_factor_forecast` (Observable forecasts reconstructed from the factors, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -902,7 +902,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_sv` (Path to CSV data file)
+**Output tables:** `sv_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
 
 ---
 
@@ -929,7 +929,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_var` (Path to CSV data file)
+**Output tables:** `var_forecast` (Point forecasts with interval bounds, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
@@ -959,7 +959,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `forecast_vecm` (Path to CSV data file)
+**Output tables:** `vecm_forecast` (Level forecasts with optional interval bounds, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 

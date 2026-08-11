@@ -40,7 +40,7 @@ Path to CSV data file
 | `--negate` | — | Flip the non-policy shock's sign (e.g. the contractionary version) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_counterfactual_bvar` (McKay-Wolf rule counterfactual)
+**Output tables:** `policy_counterfactual_paths` (Baseline vs counterfactual path per variable and horizon, with draw bands when propagated); `enforcing_policy_shocks_nu` (The date-0 policy-shock vector nu* that enforces the rule); `implementation_error_path` (Per-component residual of the rule's least-squares implementation); `counterfactual_summary` (Rule, horizon, rel_residual, spanned flag and draw counts)
 
 ---
 
@@ -79,7 +79,7 @@ Path to CSV data file
 | `--negate` | — | Flip the non-policy shock's sign (e.g. the contractionary version) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_counterfactual_lp` (McKay-Wolf rule counterfactual)
+**Output tables:** `policy_counterfactual_paths` (Baseline vs counterfactual path per variable and horizon, with draw bands when propagated); `enforcing_policy_shocks_nu` (The date-0 policy-shock vector nu* that enforces the rule); `implementation_error_path` (Per-component residual of the rule's least-squares implementation); `counterfactual_summary` (Rule, horizon, rel_residual, spanned flag and draw counts)
 
 ---
 
@@ -117,7 +117,7 @@ Path to CSV data file
 | `--negate` | — | Flip the non-policy shock's sign (e.g. the contractionary version) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_counterfactual_var` (McKay-Wolf rule counterfactual)
+**Output tables:** `policy_counterfactual_paths` (Baseline vs counterfactual path per variable and horizon, with draw bands when propagated); `enforcing_policy_shocks_nu` (The date-0 policy-shock vector nu* that enforces the rule); `implementation_error_path` (Per-component residual of the rule's least-squares implementation); `counterfactual_summary` (Rule, horizon, rel_residual, spanned flag and draw counts)
 
 ---
 
@@ -142,7 +142,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_effects_bvar` (Policy causal-effects menu)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
 
 ---
 
@@ -167,7 +167,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML identification config |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_effects_lp` (Policy causal-effects menu)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
 
 ---
 
@@ -192,7 +192,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML sign-restriction config (REQUIRED) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_effects_sign` (Policy causal-effects menu)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
 
 ---
 
@@ -216,7 +216,7 @@ Path to CSV data file
 | `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_effects_var` (Policy causal-effects menu)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
 
 ---
 
@@ -252,7 +252,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_history_bvar` (Historical counterfactual from forecast revisions)
+**Output tables:** `counterfactual_history` (Realized vs counterfactual value per date and variable, with bands when propagated); `history_summary` (Rule, window, spanned flag and draw counts for the historical re-run)
 
 ---
 
@@ -287,7 +287,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_history_var` (Historical counterfactual from forecast revisions)
+**Output tables:** `counterfactual_history` (Realized vs counterfactual value per date and variable, with bands when propagated); `history_summary` (Rule, window, spanned flag and draw counts for the historical re-run)
 
 ---
 
@@ -308,7 +308,7 @@ HA model (builtin name or .jl HADSGESpec)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `policy_jacobian_ha` (Sequence-space household jacobian)
+**Output tables:** `sequence_space_jacobian` (Sequence-space household jacobian in tidy row/column/value form)
 
 ---
 
@@ -345,7 +345,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_moments_bvar` (Second moments under a counterfactual rule/loss)
+**Output tables:** `counterfactual_standard_deviations` (Baseline vs counterfactual standard deviation per variable, with draw bands); `counterfactual_correlations` (Baseline vs counterfactual correlation per variable pair (needs at least two variables)); `moments_summary` (Policy name, horizon, VMA tail_share, draw source and frequency band)
 
 ---
 
@@ -381,7 +381,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_moments_var` (Second moments under a counterfactual rule/loss)
+**Output tables:** `counterfactual_standard_deviations` (Baseline vs counterfactual standard deviation per variable, with draw bands); `counterfactual_correlations` (Baseline vs counterfactual correlation per variable pair (needs at least two variables)); `moments_summary` (Policy name, horizon, VMA tail_share, draw source and frequency band)
 
 ---
 
@@ -406,7 +406,7 @@ DSGE model file (TOML or .jl DSGESpec)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `policy_news_dsge` (Square DSGE news menu)
+**Output tables:** `policy_causal_effects_menu` (Square DSGE news menu by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and solver diagnostics)
 
 ---
 
@@ -431,7 +431,7 @@ HA model (builtin name or .jl HADSGESpec)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `policy_news_ha` (HA news menu via sequence-space jacobians)
+**Output tables:** `policy_causal_effects_menu` (HA news menu by outcome, instrument and horizon, built from sequence-space jacobians); `policy_causal_effects_summary` (Menu shape, normalization and rule-closure diagnostics)
 
 ---
 
@@ -477,7 +477,7 @@ Path to CSV data file
 | `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_opp_bvar` (Barnichon-Mesters optimal policy perturbation)
+**Output tables:** `opp_recommendation_delta` (Recommended policy perturbation delta and gradient by horizon, with bands and rejections); `objective_gap_paths` (Objective gap per outcome and horizon, before vs after the perturbation); `instrument_paths_announced_vs_recommended` (Announced vs recommended instrument path by horizon (when instrument paths are available)); `opp_summary` (Baseline/OPP loss, horizon, forecast origin, failure count and constrained-solver diagnostics)
 
 ---
 
@@ -522,7 +522,7 @@ Path to CSV data file
 | `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_opp_var` (Barnichon-Mesters optimal policy perturbation)
+**Output tables:** `opp_recommendation_delta` (Recommended policy perturbation delta and gradient by horizon, with bands and rejections); `objective_gap_paths` (Objective gap per outcome and horizon, before vs after the perturbation); `instrument_paths_announced_vs_recommended` (Announced vs recommended instrument path by horizon (when instrument paths are available)); `opp_summary` (Baseline/OPP loss, horizon, forecast origin, failure count and constrained-solver diagnostics)
 
 ---
 
@@ -560,7 +560,7 @@ Path to CSV data file
 | `--matched-draws` | — | Pair draw d across sources (independent=false) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_opp_sequence_bvar` (Barnichon-Mesters OPP sequence with revision decomposition)
+**Output tables:** `opp_sequence_delta_by_date` (Recommended perturbation delta per forecast date and shock); `opp_revision_decomposition` (Per-date split of the revision into news, preference and aging components); `opp_sequence_summary` (Sequence span, loss path and draw/failure counts across dates)
 
 ---
 
@@ -597,7 +597,7 @@ Path to CSV data file
 | `--matched-draws` | — | Pair draw d across sources (independent=false) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_opp_sequence_var` (Barnichon-Mesters OPP sequence with revision decomposition)
+**Output tables:** `opp_sequence_delta_by_date` (Recommended perturbation delta per forecast date and shock); `opp_revision_decomposition` (Per-date split of the revision into news, preference and aging components); `opp_sequence_summary` (Sequence span, loss path and draw/failure counts across dates)
 
 ---
 
@@ -633,7 +633,7 @@ Path to CSV data file
 | `--negate` | — | Flip the non-policy shock's sign |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_optimal_bvar` (Optimal policy under a quadratic loss)
+**Output tables:** `policy_counterfactual_paths` (Baseline vs optimal-policy path per variable and horizon, with draw bands when propagated); `enforcing_policy_shocks_nu` (The date-0 policy-shock vector nu* implementing the optimum); `implementation_error_path` (Per-component residual of the stacked outcome/instrument FOC blocks); `counterfactual_summary` (Horizon, rel_residual, spanned flag, baseline/optimal loss and FOC norm)
 
 ---
 
@@ -669,7 +669,7 @@ Path to CSV data file
 | `--negate` | — | Flip the non-policy shock's sign |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_optimal_lp` (Optimal policy under a quadratic loss)
+**Output tables:** `policy_counterfactual_paths` (Baseline vs optimal-policy path per variable and horizon, with draw bands when propagated); `enforcing_policy_shocks_nu` (The date-0 policy-shock vector nu* implementing the optimum); `implementation_error_path` (Per-component residual of the stacked outcome/instrument FOC blocks); `counterfactual_summary` (Horizon, rel_residual, spanned flag, baseline/optimal loss and FOC norm)
 
 ---
 
@@ -704,7 +704,7 @@ Path to CSV data file
 | `--negate` | — | Flip the non-policy shock's sign |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_optimal_var` (Optimal policy under a quadratic loss)
+**Output tables:** `policy_counterfactual_paths` (Baseline vs optimal-policy path per variable and horizon, with draw bands when propagated); `enforcing_policy_shocks_nu` (The date-0 policy-shock vector nu* implementing the optimum); `implementation_error_path` (Per-component residual of the stacked outcome/instrument FOC blocks); `counterfactual_summary` (Horizon, rel_residual, spanned flag, baseline/optimal loss and FOC norm)
 
 ---
 
@@ -743,7 +743,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_spanning_var` (Does the model choice matter for THIS counterfactual?)
+**Output tables:** `spanning_thin_vs_full_counterfactual_paths` (Counterfactual path per variable and horizon under the thin empirical menu vs the full model menu); `spanning_verdict` (Relative gap between the two menus against --tol, and the spanned verdict)
 
 ---
 
@@ -768,7 +768,7 @@ DSGE model file (TOML or .jl DSGESpec)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `policy_sufficiency_dsge` (Population forecast-sufficiency laboratory (no data))
+**Output tables:** `forecast_sufficiency_fev_ratios` (Forecast-error-variance ratio per observable and horizon); `sufficiency_summary` (Observable set, horizon and the overall sufficiency verdict)
 
 ---
 

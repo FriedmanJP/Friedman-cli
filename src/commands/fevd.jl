@@ -36,7 +36,9 @@ function fevd_specs()::Vector{CommandSpec}
                 FlagSpec(name="generalized", description="Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1)"),
                 FlagSpec(name="normalize", description="Rescale generalized shares to sum to 1 per variable")
             ],
-            tables=[TableSpec(name=:fevd_var, description="Compute forecast error variance decomposition")],
+            tables=[TableSpec(name=:fevd, description="Variance shares in tidy long form: horizon | variable | shock | value"),
+                    TableSpec(name=:generalized_fevd, description="Pesaran-Shin generalized variance shares (--generalized); tidy long form"),
+                    TableSpec(name=:fevd_by_variable, family=true, description="One wide table per variable (horizon | one column per shock) under --id arias|uhlig")],
             category="fevd",
             handler=wrap_legacy(_fevd_var),
         ),
@@ -58,7 +60,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd_bvar, description="Compute Bayesian forecast error variance decomposition")],
+            tables=[TableSpec(name=:bayesian_fevd, family=true, description="Posterior-mean variance shares, one wide table per variable (horizon | one column per shock)")],
             category="fevd",
             handler=wrap_legacy(_fevd_bvar),
         ),
@@ -80,7 +82,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd_lp, description="Compute forecast error variance decomposition via structural LP")],
+            tables=[TableSpec(name=:lp_fevd, family=true, description="Bias-corrected LP variance shares, one wide table per variable (horizon | one column per shock)")],
             category="fevd",
             handler=wrap_legacy(_fevd_lp),
         ),
@@ -102,7 +104,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd_vecm, description="Compute FEVD via VECM → VAR representation")],
+            tables=[TableSpec(name=:vecm_fevd, description="Variance shares of the VECM's VAR representation, tidy long form: horizon | variable | shock | value")],
             category="fevd",
             handler=wrap_legacy(_fevd_vecm),
         ),
@@ -122,7 +124,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd_pvar, description="Compute Panel VAR forecast error variance decomposition")],
+            tables=[TableSpec(name=:panel_var_fevd, family=true, description="Panel VAR variance shares, one wide table per variable (horizon | one column per shock)")],
             category="fevd",
             handler=wrap_legacy(_fevd_pvar),
         ),
@@ -144,7 +146,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd_favar, description="FAVAR forecast error variance decomposition")],
+            tables=[TableSpec(name=:favar_fevd, description="FAVAR variance shares, tidy long form: horizon | variable | shock | value")],
             category="fevd",
             handler=wrap_legacy(_fevd_favar),
         ),
@@ -164,7 +166,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd_sdfm, description="Structural DFM forecast error variance decomposition")],
+            tables=[TableSpec(name=:sdfm_fevd, description="Structural DFM variance shares in factor space, tidy long form: horizon | variable | shock | value")],
             category="fevd",
             handler=wrap_legacy(_fevd_sdfm),
         )
@@ -228,7 +230,8 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
             end
         end
         _output_fevd_tables(proportions, varnames, n_h;
-                            id="arias", title_prefix="FEVD", format=format, output=output)
+                            id="arias", title_prefix="FEVD", format=format, output=output,
+                            key_prefix="fevd_by_variable")
         return
     end
 
@@ -267,7 +270,8 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
             end
         end
         _output_fevd_tables(proportions, varnames, n_h;
-                            id="uhlig", title_prefix="FEVD", format=format, output=output)
+                            id="uhlig", title_prefix="FEVD", format=format, output=output,
+                            key_prefix="fevd_by_variable")
         return
     end
 
@@ -289,7 +293,7 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         # decomposition.
         note = normalize ? "normalized to sum to 1" : "shares do NOT sum to 1 across shocks"
         output_result(long_table(fevd_result); format=Symbol(format), output=output,
-                      title="Generalized FEVD (Pesaran-Shin, $note)")
+                      title="Generalized FEVD (Pesaran-Shin, $note)", key="generalized_fevd")
         return
     end
 
@@ -304,7 +308,7 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
     # replacing the wide per-variable _output_fevd_tables. (Arias/Uhlig branches above
     # build proportions by hand with no FEVD result type, so they keep the wide helper.)
     output_result(long_table(fevd_result); format=Symbol(format), output=output,
-                  title="FEVD ($id identification)")
+                  title="FEVD ($id identification)", key="fevd")
 end
 
 # ── BVAR FEVD ────────────────────────────────────────────
@@ -338,7 +342,8 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
     # BayesianFEVD.point_estimate is (variable, shock, horizon) since MEMs 0.7.3 (#527
     # unified it with FEVD/LPFEVD) — exactly the order the shared renderer indexes.
     _output_fevd_tables(bfevd.point_estimate, varnames, horizons;
-                        id=id, title_prefix="Bayesian FEVD", format=format, output=output)
+                        id=id, title_prefix="Bayesian FEVD", format=format, output=output,
+                        key_prefix="bayesian_fevd")
 end
 
 # ── LP FEVD ──────────────────────────────────────────────
@@ -366,7 +371,8 @@ function _fevd_lp(; data::String="", horizons::Int=20, lags::Int=4, var_lags=not
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
     _output_fevd_tables(fevd_result.bias_corrected, varnames, horizons;
-                        id=id, title_prefix="LP FEVD", format=format, output=output)
+                        id=id, title_prefix="LP FEVD", format=format, output=output,
+                        key_prefix="lp_fevd")
 end
 
 # ── VECM FEVD ───────────────────────────────────────────
@@ -401,7 +407,7 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
 
     # C051: tidy long_table (see fevd var).
     output_result(long_table(fevd_result); format=Symbol(format), output=output,
-                  title="VECM FEVD ($id identification)")
+                  title="VECM FEVD ($id identification)", key="vecm_fevd")
 end
 
 # ── Panel VAR FEVD ─────────────────────────────────────────
@@ -433,7 +439,7 @@ function _fevd_pvar(; data::String="", id_col::String="", time_col::String="",
     proportions = permutedims(fevd_arr[2:end, :, :], (2, 3, 1))
     _output_fevd_tables(proportions, varnames, horizons;
                         id="cholesky", title_prefix="Panel VAR FEVD",
-                        format=format, output=output)
+                        format=format, output=output, key_prefix="panel_var_fevd")
 end
 
 # ── FAVAR FEVD ─────────────────────────────────────────
@@ -462,7 +468,7 @@ function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
     # fevd(to_var(favar),...) — the same FEVD type as fevd var.
     fevd_df = long_table(result)
     output_result(fevd_df; format=Symbol(format), output=output,
-                  title="FAVAR FEVD ($id identification)")
+                  title="FAVAR FEVD ($id identification)", key="favar_fevd")
 end
 
 # ── Structural DFM FEVD ──────────────────────────────

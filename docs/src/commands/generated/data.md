@@ -21,7 +21,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `data_balance` (Path to CSV data file)
+**Output tables:** `balanced_panel` (Balanced data matrix, one column per variable)
 
 ---
 
@@ -38,7 +38,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `data_describe` (Path to CSV data file)
+**Output tables:** `descriptive_statistics` (Per-variable count, first/last valid row, moments and quantiles)
 
 ---
 
@@ -55,7 +55,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `data_diagnose` (Path to CSV data file)
+**Output tables:** `data_diagnostics` (Per-variable NaN and Inf counts and constant-series flag)
 
 ---
 
@@ -73,7 +73,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `data_dropna` (Path to CSV data file)
+**Output tables:** `cleaned_data` (Rows surviving the NaN/Inf drop, one column per variable)
 
 ---
 
@@ -96,7 +96,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `data_filter` (Path to CSV data file)
+**Output tables:** `data_filter` (Selected filter component by time index, one column per variable)
 
 ---
 
@@ -114,8 +114,6 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `data_fix` (Path to CSV data file)
-
 ---
 
 ### `friedman data keeprows`
@@ -132,7 +130,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `data_keeprows` (Path to CSV data file)
+**Output tables:** `filtered_data` (Rows selected by --rows, one column per variable)
 
 ---
 
@@ -145,7 +143,7 @@ table|csv|json
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `data_list` (table|csv|json)
+**Output tables:** `available_datasets` (Bundled example datasets with type, dimensions and description)
 
 ---
 
@@ -170,8 +168,6 @@ Example dataset name (see 'data list'), or omit and pass --path for a CSV
 |------|-------|-------------|
 | `--transform` | `-t` | Apply FRED transformation codes |
 
-**Output tables:** `data_load` (Example dataset name (see 'data list'), or omit and pass --path for a CSV)
-
 ---
 
 ### `friedman data transform`
@@ -188,8 +184,6 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `data_transform` (Path to CSV data file)
-
 ---
 
 ### `friedman data validate`
@@ -205,8 +199,6 @@ Path to CSV data file
 | `--model` | — | `String` | `""` | — | Model type (var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-
-**Output tables:** `data_validate` (Path to CSV data file)
 
 ---
 

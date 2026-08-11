@@ -21,7 +21,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `adf` (Path to CSV data file)
+**Output tables:** `adf_test` (Augmented Dickey-Fuller statistic, selected lag order and p-value)
 
 ---
 
@@ -43,7 +43,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `adf_2break` (Path to CSV data file)
+**Output tables:** `adf_2_break_test` (Two-break ADF statistic, p-value and both break indices and fractions)
 
 ---
 
@@ -73,7 +73,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-ci` | — | Report only the AR test at --beta0, skipping the inverted confidence set |
 
-**Output tables:** `anderson_rubin` (Path to CSV data file)
+**Output tables:** `anderson_rubin_test` (AR statistic, p-value, df and the covariance estimators used); `anderson_rubin_confidence_set` (One row per connected component of the inverted AR set (absent under --no-ci or with several endogenous regressors)); `anderson_rubin_set_summary` (Shape of the AR set, its grid and critical value, and the 2SLS Wald interval for comparison)
 
 ---
 
@@ -98,7 +98,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `andrews` (Path to CSV data file)
+**Output tables:** `andrews_break_test` (sup-Wald or sup-LM statistic, p-value and the estimated break index)
 
 ---
 
@@ -117,7 +117,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `arch_lm` (Path to CSV data file)
+**Output tables:** `arch_lm_test` (ARCH-LM statistic, p-value and lag order)
 
 ---
 
@@ -144,7 +144,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `ardl_bounds` (Path to CSV data file)
+**Output tables:** `ardl_bounds_test_i_0_i_1_bounds_no_p_value` (F and t statistics against the I(0)/I(1) bounds with a decision each (the test has no p-value)); `ardl_bounds_test_summary` (Statistics, case, level, both decisions and sample size)
 
 ---
 
@@ -170,7 +170,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `bai_perron` (Path to CSV data file)
+**Output tables:** `bai_perron_test` (Number of breaks, the break dates, trimming and sample size)
 
 ---
 
@@ -188,7 +188,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `bartlett_wn` (Path to CSV data file)
+**Output tables:** `bartlett_white_noise_test` (Bartlett white-noise statistic, p-value and sample size)
 
 ---
 
@@ -208,7 +208,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `bds` (Path to CSV data file)
+**Output tables:** `bds_test` (BDS statistic and p-value by embedding dimension)
 
 ---
 
@@ -227,7 +227,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `box_pierce` (Path to CSV data file)
+**Output tables:** `box_pierce_test` (Box-Pierce Q statistic, p-value, df and sample size)
 
 ---
 
@@ -246,7 +246,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `brant` (Path to CSV data file)
+**Output tables:** `brant_test` (Chi-square statistic, p-value, df and the parallel-regression decision)
 
 ---
 
@@ -269,7 +269,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--cs-demean` | — | Subtract the cross-sectional mean at each t |
 
-**Output tables:** `breitung` (Path to CSV data file)
+**Output tables:** `breitung_panel_unit_root_test` (Breitung statistic, p-value, lag order and panel dimensions)
 
 ---
 
@@ -290,7 +290,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `breusch_pagan` (Path to CSV panel data file)
+**Output tables:** `breusch_pagan_lm_test` (LM statistic, p-value, df and the RE-vs-pooled-OLS decision)
 
 ---
 
@@ -312,7 +312,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `chow` (Path to CSV data file)
+**Output tables:** `chow_test` (Chow structural-break statistic, p-value and df at the requested break(s))
 
 ---
 
@@ -333,7 +333,7 @@ Path to CSV data file (rows=T, cols=N)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `cips` (Path to CSV data file (rows=T, cols=N))
+**Output tables:** `pesaran_cips_test` (CIPS statistic, p-value, lag order and panel dimensions)
 
 ---
 
@@ -353,7 +353,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `cusum` (Path to CSV data file)
+**Output tables:** `cusum_path` (Recursive CUSUM statistic with its lower and upper band by observation); `cusum_summary` (Whether the path leaves the band, the first crossing and the band level)
 
 ---
 
@@ -373,7 +373,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `cusumsq` (Path to CSV data file)
+**Output tables:** `cusumsq_path` (CUSUM-of-squares statistic with its lower and upper band by observation); `cusumsq_summary` (Whether the path leaves the band, the first crossing and the band level)
 
 ---
 
@@ -394,7 +394,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `dfgls` (Path to CSV data file)
+**Output tables:** `df_gls_test` (DF-GLS tau and PT statistics with p-value, lag order and the M-GLS statistics)
 
 ---
 
@@ -418,7 +418,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `dh_causality` (Path to CSV data file)
+**Output tables:** `dumitrescu_hurlin_panel_causality` (W-bar, Z-bar and Z-tilde statistics with p-values for the tested direction)
 
 ---
 
@@ -443,7 +443,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `dispersion` (Path to CSV data file)
+**Output tables:** `overdispersion_test_cameron_trivedi_1990` (NB1 and NB2 auxiliary-regression alpha with SE, t-statistic, p-value and a directional decision); `dispersion_summary` (Sample size, test level and the recommended count model)
 
 ---
 
@@ -461,7 +461,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `durbin_watson` (Path to CSV data file)
+**Output tables:** `durbin_watson_test` (Durbin-Watson statistic, p-value and sample size)
 
 ---
 
@@ -483,7 +483,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `edf` (Path to CSV data file)
+**Output tables:** `edf_test` (EDF goodness-of-fit statistic, p-value, fitted parameters and critical values)
 
 ---
 
@@ -504,7 +504,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `engle_granger` (Path to CSV data file)
+**Output tables:** `engle_granger_test` (Residual ADF statistic, p-value and lag order (H0 = no cointegration))
 
 ---
 
@@ -526,7 +526,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--trend` | — | Include a linear trend (default: constant only) |
 
-**Output tables:** `ers` (Path to CSV data file)
+**Output tables:** `ers_point_optimal_test` (ERS point-optimal P_T statistic, p-value and critical values)
 
 ---
 
@@ -547,7 +547,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `f_fe` (Path to CSV panel data file)
+**Output tables:** `f_test_for_fixed_effects` (F statistic, p-value, df and the FE-vs-pooled-OLS decision)
 
 ---
 
@@ -568,7 +568,7 @@ Path to CSV data file (rows=T, cols=N)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `factor_break` (Path to CSV data file (rows=T, cols=N))
+**Output tables:** `factor_break_test` (Break statistic, p-value and the estimated break index of the factor structure); `per_series_break_diagnostics` (Per-series sup statistic and maximizing date, ranked (pooled methods only))
 
 ---
 
@@ -586,7 +586,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `fisher` (Path to CSV data file)
+**Output tables:** `fisher_s_test` (Fisher periodicity statistic, p-value and sample size)
 
 ---
 
@@ -609,7 +609,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `fisher_johansen` (Path to CSV data file)
+**Output tables:** `fisher_johansen_panel_cointegration_test` (Combined trace and max-eigenvalue statistics with p-values by rank); `fisher_johansen_summary` (Selected rank, combination rule, deterministic terms and lag order)
 
 ---
 
@@ -632,7 +632,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `fourier_adf` (Path to CSV data file)
+**Output tables:** `fourier_adf_test` (Fourier ADF statistic, p-value, optimal frequency and the Fourier F-test)
 
 ---
 
@@ -653,7 +653,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `fourier_kpss` (Path to CSV data file)
+**Output tables:** `fourier_kpss_test` (Fourier KPSS statistic, p-value, optimal frequency and the Fourier F-test)
 
 ---
 
@@ -672,7 +672,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `glejser` (Path to CSV data file)
+**Output tables:** `glejser_test` (Glejser heteroskedasticity statistic, p-value, df and auxiliary R2)
 
 ---
 
@@ -692,7 +692,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `gph` (Path to CSV data file)
+**Output tables:** `gph_test` (GPH estimate of d with standard error, z-statistic, p-value and bandwidth)
 
 ---
 
@@ -719,7 +719,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--all` | — | Test all pairwise combinations (VAR only) |
 
-**Output tables:** `granger` (Path to CSV data file)
+**Output tables:** `granger_causality` (Causality result for the requested direction (short-run/long-run/joint rows under --model vecm)); `var_granger_causality_all_pairwise` (Statistic, df and p-value for every ordered variable pair (--all only))
 
 ---
 
@@ -740,7 +740,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `gregory_hansen` (Path to CSV data file)
+**Output tables:** `gregory_hansen_test` (ADF*, Zt* and Za* statistics with p-values and their break indices)
 
 ---
 
@@ -763,7 +763,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `gsadf` (Path to CSV data file)
+**Output tables:** `explosive_episodes_gsadf` (Start and end index of each date-stamped explosive episode); `gsadf_summary` (GSADF statistic, p-value, critical values and the window/critical-value settings)
 
 ---
 
@@ -781,7 +781,7 @@ Path to CSV data file (rows=T, cols=N units)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `hadri` (Path to CSV data file (rows=T, cols=N units))
+**Output tables:** `hadri_panel_stationarity_test` (Hadri statistic and p-value (H0 = every unit stationary))
 
 ---
 
@@ -805,7 +805,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `hansen_instability` (Path to CSV data file)
+**Output tables:** `hansen_instability_test` (Hansen L_c statistic and p-value (H0 = stable cointegration))
 
 ---
 
@@ -827,7 +827,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `test_hansen_linearity` (Path to CSV data file)
+**Output tables:** `hansen_1996_linearity_test` (sup-LM and sup-Wald statistics with fixed-regressor bootstrap p-values)
 
 ---
 
@@ -846,7 +846,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `harvey` (Path to CSV data file)
+**Output tables:** `harvey_test` (Harvey multiplicative-heteroskedasticity statistic, p-value, df and auxiliary R2)
 
 ---
 
@@ -867,7 +867,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `hausman` (Path to CSV panel data file)
+**Output tables:** `hausman_specification_test` (Chi-square statistic, p-value, df and the FE-vs-RE decision)
 
 ---
 
@@ -886,7 +886,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `hausman_iia` (Path to CSV data file)
+**Output tables:** `hausman_mcfadden_iia_test` (Chi-square statistic, p-value, df and the IIA decision)
 
 ---
 
@@ -907,7 +907,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `hegy` (Path to CSV data file)
+**Output tables:** `hegy_seasonal_unit_root_test` (Statistic, 5% critical value and decision at each seasonal frequency); `hegy_summary` (Joint seasonal F statistics, deterministic terms and lag order)
 
 ---
 
@@ -934,7 +934,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `heteroskedasticity` (Path to CSV data file)
+**Output tables:** `structural_impact_matrix_b0` (Structural impact matrix B0, one row per equation (identification chosen by --method))
 
 ---
 
@@ -955,7 +955,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `identifiability` (Path to CSV data file)
+**Output tables:** `identifiability_test_results` (One row per identifiability test: statistic, p-value and conclusion)
 
 ---
 
@@ -974,7 +974,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `influence` (Path to CSV data file)
+**Output tables:** `influence_diagnostics` (Per-observation leverage, studentized residuals, DFFITS and Cook's D); `influence_summary` (Residual scale plus the flagged high-leverage and influential observations)
 
 ---
 
@@ -999,7 +999,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--cs-demean` | — | Subtract the cross-sectional mean at each t |
 
-**Output tables:** `ips` (Path to CSV data file)
+**Output tables:** `ips_per_unit_adf_statistics` (ADF t-statistic and lag order for each panel unit); `im_pesaran_shin_test` (W[t-bar] statistic, p-value and the mean-group t-bar)
 
 ---
 
@@ -1018,7 +1018,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `johansen` (Path to CSV data file)
+**Output tables:** `johansen_trace_test` (Trace statistic, p-value and 5% decision by cointegrating rank); `johansen_max_eigenvalue_test` (Maximum-eigenvalue statistic, p-value and 5% decision by cointegrating rank)
 
 ---
 
@@ -1039,7 +1039,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `kao` (Path to CSV panel data file)
+**Output tables:** `kao_cointegration` (One row per Kao statistic with its value and p-value); `kao_cointegration_summary` (Panel dimensions: units, regressors and observations)
 
 ---
 
@@ -1058,7 +1058,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `kpss` (Path to CSV data file)
+**Output tables:** `kpss_test` (KPSS stationarity statistic (H0 = stationary))
 
 ---
 
@@ -1077,7 +1077,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `ljung_box` (Path to CSV data file)
+**Output tables:** `ljung_box_squared_test` (Ljung-Box Q statistic on squared residuals, with p-value and lag order)
 
 ---
 
@@ -1102,7 +1102,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--cs-demean` | — | Subtract the cross-sectional mean at each t (mitigates cross-sectional dependence) |
 
-**Output tables:** `llc` (Path to CSV data file)
+**Output tables:** `levin_lin_chu_test` (Levin-Lin-Chu adjusted t statistic, p-value and per-unit lag orders)
 
 ---
 
@@ -1122,7 +1122,7 @@ Path to CSV data file for restricted model
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `lm` (Path to CSV data file for restricted model)
+**Output tables:** `lagrange_multiplier_test` (LM statistic, p-value, df and sample size)
 
 ---
 
@@ -1145,7 +1145,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `lm_unitroot` (Path to CSV data file)
+**Output tables:** `lm_unit_root_test` (LM unit-root statistic, p-value and any estimated break dates)
 
 ---
 
@@ -1164,7 +1164,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `local-whittle` (Path to CSV data file)
+**Output tables:** `local_whittle_test` (Local Whittle estimate of d with standard error, z-statistic and objective value)
 
 ---
 
@@ -1184,7 +1184,7 @@ Path to CSV data file for restricted model
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `lr` (Path to CSV data file for restricted model)
+**Output tables:** `likelihood_ratio_test` (LR statistic, p-value, df and both log-likelihoods)
 
 ---
 
@@ -1205,7 +1205,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `modified_wald` (Path to CSV panel data file)
+**Output tables:** `modified_wald_test` (Chi-square statistic, p-value, df and the groupwise-heteroskedasticity decision)
 
 ---
 
@@ -1225,7 +1225,7 @@ Path to CSV data file (rows=T, cols=N)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `moon_perron` (Path to CSV data file (rows=T, cols=N))
+**Output tables:** `moon_perron_test` (t_a* and t_b* statistics with their p-values and the number of factors)
 
 ---
 
@@ -1250,7 +1250,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `nardl_symmetry` (Path to CSV data file)
+**Output tables:** `nardl_symmetry_tests_h0_long_run_short_run` (Long-run and short-run symmetry Wald tests, one row per asymmetric regressor); `nardl_symmetry_test_summary` (Degrees of freedom, residual df and the number of asymmetric regressors)
 
 ---
 
@@ -1268,7 +1268,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `normality` (Path to CSV data file)
+**Output tables:** `normality_tests_for_var_residuals` (One row per normality test of the VAR residuals: statistic, p-value and df)
 
 ---
 
@@ -1287,7 +1287,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `np` (Path to CSV data file)
+**Output tables:** `ng_perron_test` (Ng-Perron MZa, MZt, MSB and MPT statistics)
 
 ---
 
@@ -1308,7 +1308,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `nyblom` (Path to CSV data file)
+**Output tables:** `nyblom_individual_stability` (Per-parameter Nyblom L statistic against the 5% critical value); `nyblom_joint_stability` (Joint Nyblom LC statistic, its critical value and the 5% decision)
 
 ---
 
@@ -1329,7 +1329,7 @@ Path to CSV data file (rows=T, cols=N)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `panic` (Path to CSV data file (rows=T, cols=N))
+**Output tables:** `panic_test_bai_ng` (Pooled PANIC statistic, p-value and the number of common factors)
 
 ---
 
@@ -1356,7 +1356,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `park_added` (Path to CSV data file)
+**Output tables:** `park_added_variables_test` (Park H(p,q) statistic, p-value and the number of superfluous trends)
 
 ---
 
@@ -1378,7 +1378,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pedroni` (Path to CSV panel data file)
+**Output tables:** `pedroni_cointegration` (One row per Pedroni statistic with its value and p-value); `pedroni_cointegration_summary` (Panel dimensions: units, regressors and observations)
 
 ---
 
@@ -1399,7 +1399,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `pesaran_cd` (Path to CSV panel data file)
+**Output tables:** `pesaran_cd_test` (CD statistic, p-value and the cross-sectional dependence decision)
 
 ---
 
@@ -1420,7 +1420,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `phillips_ouliaris` (Path to CSV data file)
+**Output tables:** `phillips_ouliaris_test` (Z_t and Z_alpha statistics with their p-values); `phillips_ouliaris_summary` (Deterministic terms, HAC kernel and bandwidth, and sample size)
 
 ---
 
@@ -1447,7 +1447,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pmg_hausman` (Path to CSV data file)
+**Output tables:** `pmg_hausman_specification_test` (Hausman statistic, p-value and df for PMG/DFE against Mean Group)
 
 ---
 
@@ -1466,7 +1466,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pp` (Path to CSV data file)
+**Output tables:** `phillips_perron_test` (Phillips-Perron statistic and p-value)
 
 ---
 
@@ -1486,7 +1486,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pvar_hansen_j` (Path to CSV panel data file)
+**Output tables:** `hansen_j_test` (Hansen J statistic, p-value, df and the instrument and parameter counts)
 
 ---
 
@@ -1507,7 +1507,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pvar_lagselect` (Path to CSV panel data file)
+**Output tables:** `lag_selection_results` (BIC, AIC and HQIC by candidate lag order)
 
 ---
 
@@ -1528,7 +1528,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pvar_mmsc` (Path to CSV panel data file)
+**Output tables:** `mmsc_results` (BIC, AIC and HQIC by candidate lag order)
 
 ---
 
@@ -1548,7 +1548,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `pvar_stability` (Path to CSV panel data file)
+**Output tables:** `panel_var_companion_matrix_eigenvalues` (Companion-matrix eigenvalue and its modulus, one row per root)
 
 ---
 
@@ -1567,7 +1567,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `recursive_residuals` (Path to CSV data file)
+**Output tables:** `recursive_residuals` (Brown-Durbin-Evans recursive residual by recursion step and observation); `recursive_residuals_summary` (Count and mean of the recursive residuals, and the number of regressors)
 
 ---
 
@@ -1590,7 +1590,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `sadf` (Path to CSV data file)
+**Output tables:** `explosive_episodes_sadf` (Start and end index of each date-stamped explosive episode); `sadf_summary` (SADF statistic, p-value, critical values and the window/critical-value settings)
 
 ---
 
@@ -1611,7 +1611,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `sign_bias` (Path to CSV data file)
+**Output tables:** `sign_bias_test` (Engle-Ng sign-bias and size-bias t-statistics with the joint test)
 
 ---
 
@@ -1632,7 +1632,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `test_star_linearity` (Path to CSV data file)
+**Output tables:** `star_linearity_test_lm3` (LM3 chi-square and F statistics with their p-values and df)
 
 ---
 
@@ -1651,7 +1651,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `var_lagselect` (Path to CSV data file)
+**Output tables:** `lag_order_selection` (AIC, BIC and HQC for every candidate lag order); `optimal_lag` (Selected lag order and the criterion that chose it (JSON output only))
 
 ---
 
@@ -1669,7 +1669,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `var_stability` (Path to CSV data file)
+**Output tables:** `companion_matrix_eigenvalues` (Companion-matrix eigenvalue and its modulus, one row per root)
 
 ---
 
@@ -1689,7 +1689,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `variance_ratio` (Path to CSV data file)
+**Output tables:** `variance_ratio_test` (Variance ratio, robust z* statistic and p-value by holding period q); `joint_random_walk_test` (Chow-Denning joint statistic and p-value across all horizons)
 
 ---
 
@@ -1718,7 +1718,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `test_vecm_alpha` (Path to CSV data file)
+**Output tables:** `vecm_restriction_a` (LR statistic, df and p-value for alpha = A*psi, with the fitted rank)
 
 ---
 
@@ -1747,7 +1747,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `test_vecm_beta` (Path to CSV data file)
+**Output tables:** `vecm_restriction_h` (LR statistic, df and p-value for beta = H*phi, with the fitted rank)
 
 ---
 
@@ -1776,7 +1776,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `test_vecm_joint` (Path to CSV data file)
+**Output tables:** `vecm_joint_h_a` (LR statistic, df and p-value for the joint beta and alpha restriction)
 
 ---
 
@@ -1805,7 +1805,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `test_vecm_known_beta` (Path to CSV data file)
+**Output tables:** `vecm_known_b` (LR statistic, df and p-value for a fully specified beta = b)
 
 ---
 
@@ -1828,7 +1828,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `test_vecm_weak_exog` (Path to CSV data file)
+**Output tables:** `vecm_weak_exogeneity` (LR statistic, df and p-value for weak exogeneity of the selected variables)
 
 ---
 
@@ -1847,7 +1847,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `vif` (Path to CSV data file)
+**Output tables:** `variance_inflation_factors` (Variance inflation factor and tolerance for each regressor)
 
 ---
 
@@ -1869,7 +1869,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `weak_instrument` (Path to CSV data file)
+**Output tables:** `weak_instrument_diagnostics` (First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict)
 
 ---
 
@@ -1891,7 +1891,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `westerlund` (Path to CSV panel data file)
+**Output tables:** `westerlund_cointegration` (One row per Westerlund statistic with its value and p-value); `westerlund_cointegration_summary` (Panel dimensions: units, regressors and observations)
 
 ---
 
@@ -1914,7 +1914,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-cross-terms` | — | Omit the cross-product terms from the auxiliary regression |
 
-**Output tables:** `white` (Path to CSV data file)
+**Output tables:** `white_test` (White heteroskedasticity statistic, p-value, df and auxiliary R2)
 
 ---
 
@@ -1945,7 +1945,7 @@ Path to CSV data file
 | `--no-impose-null` | — | Use the unrestricted WCU variant instead of the default restricted WCR |
 | `--no-ci` | — | Skip the inverted-test confidence interval |
 
-**Output tables:** `wild_cluster` (Path to CSV data file)
+**Output tables:** `wild_cluster_bootstrap` (Bootstrap and cluster-robust p-values for the tested coefficient, with the bootstrap settings)
 
 ---
 
@@ -1966,7 +1966,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `wooldridge_ar` (Path to CSV panel data file)
+**Output tables:** `wooldridge_ar_test` (F statistic, p-value, df and the serial-correlation decision)
 
 ---
 
@@ -1986,7 +1986,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Output tables:** `za` (Path to CSV data file)
+**Output tables:** `zivot_andrews_test` (Zivot-Andrews statistic and the estimated break observation)
 
 ---
 

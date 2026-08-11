@@ -34,7 +34,8 @@ function filter_specs()::Vector{CommandSpec}
                 col, plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            tables=[TableSpec(name=:hp_filter,
+                              description="Per-variable HP trend and cycle by time index")],
             category="filter",
             handler=wrap_legacy(_filter_hp),
         ),
@@ -48,7 +49,8 @@ function filter_specs()::Vector{CommandSpec}
                 col, plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            tables=[TableSpec(name=:hamilton_filter,
+                              description="Per-variable Hamilton trend and cycle over the valid range")],
             category="filter",
             handler=wrap_legacy(_filter_hamilton),
         ),
@@ -64,7 +66,8 @@ function filter_specs()::Vector{CommandSpec}
                 col, plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            tables=[TableSpec(name=:beveridge_nelson_decomposition,
+                              description="Per-variable permanent (trend) and transitory (cycle) components")],
             category="filter",
             handler=wrap_legacy(_filter_bn),
         ),
@@ -79,7 +82,8 @@ function filter_specs()::Vector{CommandSpec}
                 col, plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            tables=[TableSpec(name=:baxter_king_filter,
+                              description="Per-variable band-pass trend and cycle over the untrimmed range")],
             category="filter",
             handler=wrap_legacy(_filter_bk),
         ),
@@ -96,7 +100,8 @@ function filter_specs()::Vector{CommandSpec}
                 col, plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:filter_result, description="Trend/cycle")],
+            tables=[TableSpec(name=:boosted_hp_filter,
+                              description="Per-variable boosted-HP trend and cycle by time index")],
             category="filter",
             handler=wrap_legacy(_filter_bhp),
         ),
@@ -127,11 +132,16 @@ function filter_specs()::Vector{CommandSpec}
                 plot_flags...,
             ],
             tables=[
-                TableSpec(name=:adjusted, description="Seasonally adjusted series"),
-                TableSpec(name=:trend, description="Trend-cycle"),
-                TableSpec(name=:seasonal_factors, description="Seasonal component"),
-                TableSpec(name=:irregular, description="Irregular component"),
-                TableSpec(name=:diagnostics, description="ARIMA order, AIC, outliers"),
+                TableSpec(name=:x_13_seasonally_adjusted,
+                          description="Seasonally adjusted series, one column per variable"),
+                TableSpec(name=:x_13_trend,
+                          description="Trend-cycle component, one column per variable"),
+                TableSpec(name=:x_13_seasonal_factors,
+                          description="Seasonal component, one column per variable"),
+                TableSpec(name=:x_13_irregular,
+                          description="Irregular component, one column per variable"),
+                TableSpec(name=:x_13_diagnostics,
+                          description="Per-variable ARIMA order, AIC, sigma2, outlier count and T"),
             ],
             category="filter",
             handler=wrap_legacy(_filter_x13),
@@ -214,7 +224,7 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
 
     sel_names = [varnames[ci] for ci in col_idx]
     output_result(result_df; format=Symbol(format), output=output,
-                  title="HP Filter (λ=$(lambda))")
+                  title="HP Filter (λ=$(lambda))", key="hp_filter")
     _print_variance_ratios(sel_names, cycles, originals)
 end
 
@@ -270,7 +280,7 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
 
     sel_names = [varnames[ci] for ci in col_idx]
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Hamilton Filter (h=$horizon, p=$lags)")
+                  title="Hamilton Filter (h=$horizon, p=$lags)", key="hamilton_filter")
     _print_variance_ratios(sel_names, cycles, originals)
 end
 
@@ -377,7 +387,7 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
 
     sel_names = [varnames[ci] for ci in col_idx]
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Baxter-King Filter (pl=$pl, pu=$pu, K=$K)")
+                  title="Baxter-King Filter (pl=$pl, pu=$pu, K=$K)", key="baxter_king_filter")
     _print_variance_ratios(sel_names, cycles, originals)
 end
 
@@ -421,7 +431,7 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
 
     sel_names = [varnames[ci] for ci in col_idx]
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Boosted HP Filter (λ=$(lambda), stopping=$stopping)")
+                  title="Boosted HP Filter (λ=$(lambda), stopping=$stopping)", key="boosted_hp_filter")
     _print_variance_ratios(sel_names, cycles, originals)
 end
 

@@ -32,7 +32,7 @@ Compute Bayesian historical decomposition
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `hd_bvar` (Compute Bayesian historical decomposition)
+**Output tables:** `bayesian_hd_*` (One table per variable: period | initial | posterior-mean contribution of each shock)
 
 ---
 
@@ -64,7 +64,7 @@ FAVAR historical decomposition
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `hd_favar` (FAVAR historical decomposition)
+**Output tables:** `favar_historical_decomposition_*` (One table per variable: period | actual | initial | one shock-contribution column per shock)
 
 ---
 
@@ -95,7 +95,7 @@ Compute historical decomposition via structural LP
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `hd_lp` (Compute historical decomposition via structural LP)
+**Output tables:** `lp_historical_decomposition_*` (One table per variable: period | actual | initial | one shock-contribution column per shock)
 
 ---
 
@@ -124,7 +124,7 @@ Compute historical decomposition of shocks
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `hd_var` (Compute historical decomposition of shocks)
+**Output tables:** `historical_decomposition_*` (One table per variable: period | actual | initial | one shock-contribution column per shock)
 
 ---
 
@@ -155,7 +155,7 @@ Compute historical decomposition via VECM → VAR representation
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `hd_vecm` (Compute historical decomposition via VECM → VAR representation)
+**Output tables:** `vecm_historical_decomposition_*` (One table per variable: period | actual | initial | one shock-contribution column per shock)
 
 ---
 

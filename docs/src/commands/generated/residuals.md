@@ -28,7 +28,7 @@ Path to CSV data file
 | `--no-intercept` | — | Do not add an intercept to each equation |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `residuals_3sls` (Path to CSV data file)
+**Output tables:** `3sls_residuals_per_equation` (Long per-equation residuals: one row per (equation, observation))
 
 ---
 
@@ -51,7 +51,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_aparch` (Path to CSV data file)
+**Output tables:** `aparch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -70,7 +70,7 @@ Model residuals (arch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_arch` (Model residuals)
+**Output tables:** `arch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -94,7 +94,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_arfima` (Path to CSV data file)
+**Output tables:** `arfima_residuals` (ARFIMA residuals, one row per period)
 
 ---
 
@@ -113,7 +113,7 @@ Model residuals (arima)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_arima` (Model residuals)
+**Output tables:** `arima_residuals` (ARIMA residuals, one row per period)
 
 ---
 
@@ -141,7 +141,7 @@ Model residuals (bvar)
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `residuals_bvar` (Model residuals)
+**Output tables:** `bvar_residuals` (BVAR residuals at the posterior mean, one column per variable)
 
 ---
 
@@ -160,7 +160,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_cgarch` (Path to CSV data file)
+**Output tables:** `cgarch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -180,7 +180,7 @@ Model residuals (dynamic)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_dynamic` (Model residuals)
+**Output tables:** `dynamic_factor_idiosyncratic_component` (Idiosyncratic component of the dynamic factor model, one column per series)
 
 ---
 
@@ -199,7 +199,7 @@ Model residuals (egarch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_egarch` (Model residuals)
+**Output tables:** `egarch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -220,7 +220,7 @@ Model residuals (favar)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_favar` (Model residuals)
+**Output tables:** `favar_residuals` (FAVAR residuals, one column per factor and observed variable)
 
 ---
 
@@ -244,7 +244,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_fiegarch` (Path to CSV data file)
+**Output tables:** `fiegarch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -268,7 +268,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_figarch` (Path to CSV data file)
+**Output tables:** `figarch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -287,7 +287,7 @@ Model residuals (garch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_garch` (Model residuals)
+**Output tables:** `garch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -317,7 +317,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `residuals_garch_midas` (Path to CSV data file)
+**Output tables:** `garch_midas_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -337,7 +337,7 @@ Model residuals (gdfm)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_gdfm` (Model residuals)
+**Output tables:** `gdfm_idiosyncratic_component` (Idiosyncratic component of the generalized dynamic factor model, one column per series)
 
 ---
 
@@ -356,7 +356,7 @@ Model residuals (gjr-garch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_gjr_garch` (Model residuals)
+**Output tables:** `gjr_garch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -377,7 +377,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_igarch` (Path to CSV data file)
+**Output tables:** `igarch_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -398,7 +398,7 @@ Model residuals (logit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_logit` (Model residuals)
+**Output tables:** `logit_residuals` (Response residuals y - p, one row per observation)
 
 ---
 
@@ -420,7 +420,7 @@ Model residuals (mlogit)
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_mlogit` (Model residuals)
+**Output tables:** `multinomial_logit_residuals` (Per-alternative residuals (response, pearson or deviance per --kind))
 
 ---
 
@@ -446,7 +446,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
 
-**Output tables:** `residuals_ms` (Path to CSV data file)
+**Output tables:** `ms_regression_residuals` (MS regression residuals (smoothed-probability weighted), one row per observation)
 
 ---
 
@@ -472,7 +472,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
 
-**Output tables:** `residuals_ms_ar` (Path to CSV data file)
+**Output tables:** `ms_ar_residuals` (MS-AR residuals (smoothed-probability weighted), one row per effective period)
 
 ---
 
@@ -495,7 +495,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_nbreg` (Path to CSV data file)
+**Output tables:** `negative_binomial_residuals` (Negative binomial residuals, one row per observation)
 
 ---
 
@@ -521,7 +521,7 @@ Model residuals (ologit)
 |------|-------|-------------|
 | `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
 
-**Output tables:** `residuals_ologit` (Model residuals)
+**Output tables:** `ordered_logit_residuals` (Per-category residuals (response, pearson or deviance per --kind)); `ordered_logit_generalized_residuals` (Length-n Chesher-Irish score residual (--generalized))
 
 ---
 
@@ -547,7 +547,7 @@ Model residuals (oprobit)
 |------|-------|-------------|
 | `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
 
-**Output tables:** `residuals_oprobit` (Model residuals)
+**Output tables:** `ordered_probit_residuals` (Per-category residuals (response, pearson or deviance per --kind)); `ordered_probit_generalized_residuals` (Length-n Chesher-Irish score residual (--generalized))
 
 ---
 
@@ -571,7 +571,7 @@ Model residuals (piv)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_piv` (Model residuals)
+**Output tables:** `panel_iv_residuals` (Panel IV residuals, one row per observation)
 
 ---
 
@@ -595,7 +595,7 @@ Model residuals (plogit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_plogit` (Model residuals)
+**Output tables:** `panel_logit_residuals` (Panel logit residuals, one row per observation)
 
 ---
 
@@ -620,7 +620,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_poisson` (Path to CSV data file)
+**Output tables:** `poisson_residuals` (Poisson residuals, one row per observation)
 
 ---
 
@@ -644,7 +644,7 @@ Model residuals (pprobit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_pprobit` (Model residuals)
+**Output tables:** `panel_probit_residuals` (Panel probit residuals, one row per observation)
 
 ---
 
@@ -668,7 +668,7 @@ Model residuals (preg)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_preg` (Model residuals)
+**Output tables:** `panel_regression_residuals` (Panel regression residuals, one row per observation)
 
 ---
 
@@ -689,7 +689,7 @@ Model residuals (probit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_probit` (Model residuals)
+**Output tables:** `probit_residuals` (Response residuals y - p, one row per observation)
 
 ---
 
@@ -711,7 +711,7 @@ Model residuals (reg)
 | `--weights` | — | `String` | `""` | — | Weights column |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_reg` (Model residuals)
+**Output tables:** `reg_residuals` (OLS/WLS residuals, one row per observation)
 
 ---
 
@@ -749,7 +749,7 @@ Path to CSV data file
 | `--auto` | — | Force automatic order selection (auto_sarima) |
 | `--no-intercept` | — | Exclude the intercept term |
 
-**Output tables:** `residuals_sarima` (Path to CSV data file)
+**Output tables:** `sarima_residuals` (SARIMA residuals, one row per period)
 
 ---
 
@@ -771,7 +771,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_setar` (Path to CSV data file)
+**Output tables:** `setar_residuals` (SETAR residuals, one row per effective period)
 
 ---
 
@@ -796,7 +796,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_star` (Path to CSV data file)
+**Output tables:** `star_residuals` (STAR residuals, one row per effective period)
 
 ---
 
@@ -822,7 +822,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--standardized` | — | Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t |
 
-**Output tables:** `residuals_statespace` (Path to CSV data file)
+**Output tables:** `state_space_innovations` (Long one-step prediction errors: one row per (period, series), raw or standardized)
 
 ---
 
@@ -842,7 +842,7 @@ Model residuals (static)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_static` (Model residuals)
+**Output tables:** `static_factor_idiosyncratic_component` (Idiosyncratic component of the static factor model, one column per series)
 
 ---
 
@@ -869,7 +869,7 @@ Path to CSV data file
 | `--no-intercept` | — | Do not add an intercept to each equation |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `residuals_sur` (Path to CSV data file)
+**Output tables:** `sur_residuals_per_equation` (Long per-equation residuals: one row per (equation, observation))
 
 ---
 
@@ -888,7 +888,7 @@ Model residuals (sv)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_sv` (Model residuals)
+**Output tables:** `sv_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 
@@ -907,7 +907,7 @@ Model residuals (var)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_var` (Model residuals)
+**Output tables:** `var_residuals` (VAR residuals, one column per variable)
 
 ---
 
@@ -927,7 +927,7 @@ Model residuals (vecm)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `residuals_vecm` (Model residuals)
+**Output tables:** `vecm_residuals` (VECM residuals (via the VAR representation), one column per variable)
 
 ---
 

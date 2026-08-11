@@ -27,7 +27,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_list, description="table|csv|json")],
+            tables=[TableSpec(name=:available_datasets,
+                              description="Bundled example datasets with type, dimensions and description")],
             category="data",
             handler=wrap_legacy(_data_list),
         ),
@@ -44,7 +45,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="path", type=String, default="", description="Path to CSV file (alternative to named dataset)")
             ],
             flags=[FlagSpec(name="transform", short="t", description="Apply FRED transformation codes")],
-            tables=[TableSpec(name=:data_load, description="Example dataset name (see 'data list'), or omit and pass --path for a CSV")],
+            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
+            tables=TableSpec[],
             category="data",
             handler=wrap_legacy(_data_load),
         ),
@@ -57,7 +59,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_describe, description="Path to CSV data file")],
+            tables=[TableSpec(name=:descriptive_statistics,
+                              description="Per-variable count, first/last valid row, moments and quantiles")],
             category="data",
             handler=wrap_legacy(_data_describe),
         ),
@@ -70,7 +73,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_diagnose, description="Path to CSV data file")],
+            tables=[TableSpec(name=:data_diagnostics,
+                              description="Per-variable NaN and Inf counts and constant-series flag")],
             category="data",
             handler=wrap_legacy(_data_diagnose),
         ),
@@ -84,7 +88,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_fix, description="Path to CSV data file")],
+            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
+            tables=TableSpec[],
             category="data",
             handler=wrap_legacy(_data_fix),
         ),
@@ -98,7 +103,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_transform, description="Path to CSV data file")],
+            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
+            tables=TableSpec[],
             category="data",
             handler=wrap_legacy(_data_transform),
         ),
@@ -117,7 +123,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_filter, description="Path to CSV data file")],
+            tables=[TableSpec(name=:data_filter,
+                              description="Selected filter component by time index, one column per variable")],
             category="data",
             handler=wrap_legacy(_data_filter),
         ),
@@ -131,7 +138,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_validate, description="Path to CSV data file")],
+            # Emits no envelope table — stderr report only; gate-exempt, see check_table_keys.jl
+            tables=TableSpec[],
             category="data",
             handler=wrap_legacy(_data_validate),
         ),
@@ -147,7 +155,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_balance, description="Path to CSV data file")],
+            tables=[TableSpec(name=:balanced_panel,
+                              description="Balanced data matrix, one column per variable")],
             category="data",
             handler=wrap_legacy(_data_balance),
         ),
@@ -161,7 +170,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_dropna, description="Path to CSV data file")],
+            tables=[TableSpec(name=:cleaned_data,
+                              description="Rows surviving the NaN/Inf drop, one column per variable")],
             category="data",
             handler=wrap_legacy(_data_dropna),
         ),
@@ -175,7 +185,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:data_keeprows, description="Path to CSV data file")],
+            tables=[TableSpec(name=:filtered_data,
+                              description="Rows selected by --rows, one column per variable")],
             category="data",
             handler=wrap_legacy(_data_keeprows),
         )
@@ -539,7 +550,7 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
     end
 
     title = "Data Filter: $method ($component component)"
-    output_result(result_df; format=Symbol(format), output=output, title=title)
+    output_result(result_df; format=Symbol(format), output=output, title=title, key="data_filter")
 end
 
 function _data_validate(; data::String, model::String="", format::String="table", output::String="")
@@ -580,7 +591,7 @@ function _data_balance(; data::String, method::String="dfm", factors::Int=3,
     bal_Y = hasproperty(balanced, :data) ? balanced.data : Y
     result_df = DataFrame(bal_Y, vn)
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Balanced Panel (method=$method, r=$factors, p=$lags)")
+                  title="Balanced Panel (method=$method, r=$factors, p=$lags)", key="balanced_panel")
 end
 
 function _data_dropna(; data::String, vars::String="",

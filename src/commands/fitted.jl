@@ -30,7 +30,8 @@ function _predict_var(; data::String="", lags=nothing,
     end
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="VAR($p) In-Sample Predictions (T_eff=$T_eff)")
+                  title="VAR($p) In-Sample Predictions (T_eff=$T_eff)",
+                  key="var_predictions")
 end
 
 # ── BVAR Predict ────────────────────────────────────────
@@ -63,7 +64,8 @@ function _predict_bvar(; data::String="", lags::Int=4, draws::Int=2000,
     end
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="BVAR($p) In-Sample Predictions (posterior mean, T_eff=$T_eff)")
+                  title="BVAR($p) In-Sample Predictions (posterior mean, T_eff=$T_eff)",
+                  key="bvar_predictions")
 end
 
 # ── ARIMA Predict ───────────────────────────────────────
@@ -110,7 +112,8 @@ function _predict_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q
     )
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="$label In-Sample Predictions for $vname")
+                  title="$label In-Sample Predictions for $vname",
+                  key="arima_predictions")
 end
 
 # ── VECM Predict ───────────────────────────────────────
@@ -142,7 +145,8 @@ function _predict_vecm(; data::String="", lags::Int=2, rank::String="auto",
     end
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="VECM In-Sample Predictions (rank=$r, T_eff=$T_eff)")
+                  title="VECM In-Sample Predictions (rank=$r, T_eff=$T_eff)",
+                  key="vecm_predictions")
 end
 
 # ── Static Factor Predict ─────────────────────────────
@@ -178,7 +182,8 @@ function _predict_static(; data::String="", nfactors=nothing,
     end
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="Static Factor Common Component ($r factors, T=$T)")
+                  title="Static Factor Common Component ($r factors, T=$T)",
+                  key="static_factor_common_component")
 end
 
 # ── Dynamic Factor Predict ────────────────────────────
@@ -215,7 +220,8 @@ function _predict_dynamic(; data::String="", nfactors=nothing, factor_lags::Int=
     end
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="Dynamic Factor Common Component ($r factors, p=$factor_lags, T=$T)")
+                  title="Dynamic Factor Common Component ($r factors, p=$factor_lags, T=$T)",
+                  key="dynamic_factor_common_component")
 end
 
 # ── GDFM Predict ──────────────────────────────────────
@@ -251,7 +257,8 @@ function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing
     end
 
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="GDFM Common Component (q=$q, T=$T)")
+                  title="GDFM Common Component (q=$q, T=$T)",
+                  key="gdfm_common_component")
 end
 
 # Volatility predict handlers live in shared.jl (VOL_MODELS / _VOL_PREDICT_HANDLERS).
@@ -283,7 +290,8 @@ function _predict_favar(; data::String="", factors=nothing, lags::Int=2,
         pred_df[!, vname] = round.(fitted[:, v]; digits=6)
     end
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="FAVAR In-Sample Predictions (T_eff=$T_eff)")
+                  title="FAVAR In-Sample Predictions (T_eff=$T_eff)",
+                  key="favar_predictions")
 end
 
 # ── Regression Predict ────────────────────────────────────
@@ -309,7 +317,8 @@ function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
 
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
-    output_result(pred_df; format=Symbol(format), output=output, title="$wls_tag Fitted Values")
+    output_result(pred_df; format=Symbol(format), output=output, title="$wls_tag Fitted Values",
+                  key="reg_fitted_values")
 end
 
 # ── Logit Predict ─────────────────────────────────────────
@@ -359,7 +368,8 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
             end
         end
         output_kv(scalars; format=format, output=output,
-                  title="Classification Metrics (threshold=$threshold)")
+                  title="Classification Metrics (threshold=$threshold)",
+                  key="classification_metrics")
         if confusion !== nothing
             conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
                                 makeunique=true)
@@ -420,7 +430,8 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
             end
         end
         output_kv(scalars; format=format, output=output,
-                  title="Classification Metrics (threshold=$threshold)")
+                  title="Classification Metrics (threshold=$threshold)",
+                  key="classification_metrics")
         if confusion !== nothing
             conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
                                 makeunique=true)
@@ -459,7 +470,8 @@ function _predict_preg(; data::String, dep::String="", indep::String="",
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="Panel Regression Fitted Values ($method)")
+                  title="Panel Regression Fitted Values ($method)",
+                  key="panel_regression_fitted_values")
 end
 
 function _predict_piv(; data::String, dep::String="", exog::String="",
@@ -484,7 +496,8 @@ function _predict_piv(; data::String, dep::String="", exog::String="",
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="Panel IV Fitted Values ($method)")
+                  title="Panel IV Fitted Values ($method)",
+                  key="panel_iv_fitted_values")
 end
 
 function _predict_plogit(; data::String, dep::String="", indep::String="",
@@ -504,7 +517,8 @@ function _predict_plogit(; data::String, dep::String="", indep::String="",
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="Panel Logit Fitted Probabilities ($method)")
+                  title="Panel Logit Fitted Probabilities ($method)",
+                  key="panel_logit_fitted_probabilities")
 end
 
 function _predict_pprobit(; data::String, dep::String="", indep::String="",
@@ -524,7 +538,8 @@ function _predict_pprobit(; data::String, dep::String="", indep::String="",
     fitted = predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
     output_result(pred_df; format=Symbol(format), output=output,
-                  title="Panel Probit Fitted Probabilities ($method)")
+                  title="Panel Probit Fitted Probabilities ($method)",
+                  key="panel_probit_fitted_probabilities")
 end
 
 # ── Ordered/Multinomial Predict ─────────────────────────
@@ -578,8 +593,9 @@ function _choice_me_table(me)
 end
 
 """Emit the AME table for a discrete-choice predict leaf (2nd table → distinct
-output path, or `--output` would silently drop the probabilities)."""
-function _output_choice_me(model, model_label::String;
+output path, or `--output` would silently drop the probabilities). `key_stem` is the
+caller's registry-declared table stem (W3/#138)."""
+function _output_choice_me(model, model_label::String, key_stem::String;
                            format::String="table", output::String="")
     me = MacroEconometricModels.marginal_effects(model)
     me_df, has_se = _choice_me_table(me)
@@ -588,7 +604,8 @@ function _output_choice_me(model, model_label::String;
     _status()
     output_result(me_df; format=Symbol(format),
                   output=_per_var_output_path(output, "marginal_effects"),
-                  title="$model_label Average Marginal Effects")
+                  title="$model_label Average Marginal Effects",
+                  key="$(key_stem)_average_marginal_effects")
 end
 
 function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
@@ -607,7 +624,7 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Logit Predicted Probabilities")
-    marginal_effects && _output_choice_me(model, "Ordered Logit";
+    marginal_effects && _output_choice_me(model, "Ordered Logit", "ordered_logit";
                                           format=format, output=output)
 end
 
@@ -627,7 +644,7 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Probit Predicted Probabilities")
-    marginal_effects && _output_choice_me(model, "Ordered Probit";
+    marginal_effects && _output_choice_me(model, "Ordered Probit", "ordered_probit";
                                           format=format, output=output)
 end
 
@@ -647,7 +664,7 @@ function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ol
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Multinomial Logit Predicted Probabilities")
-    marginal_effects && _output_choice_me(model, "Multinomial Logit";
+    marginal_effects && _output_choice_me(model, "Multinomial Logit", "multinomial_logit";
                                           format=format, output=output)
 end
 
@@ -677,7 +694,8 @@ function _residuals_var(; data::String="", lags=nothing,
     end
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="VAR($p) Residuals (T_eff=$T_eff)")
+                  title="VAR($p) Residuals (T_eff=$T_eff)",
+                  key="var_residuals")
 end
 
 # ── BVAR Residuals ──────────────────────────────────────
@@ -710,7 +728,8 @@ function _residuals_bvar(; data::String="", lags::Int=4, draws::Int=2000,
     end
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="BVAR($p) Residuals (posterior mean, T_eff=$T_eff)")
+                  title="BVAR($p) Residuals (posterior mean, T_eff=$T_eff)",
+                  key="bvar_residuals")
 end
 
 # ── ARIMA Residuals ─────────────────────────────────────
@@ -756,7 +775,8 @@ function _residuals_arima(; data::String="", column::Int=1, p=nothing, d::Int=0,
     )
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="$label Residuals for $vname")
+                  title="$label Residuals for $vname",
+                  key="arima_residuals")
 end
 
 # ── VECM Residuals ─────────────────────────────────────
@@ -788,7 +808,8 @@ function _residuals_vecm(; data::String="", lags::Int=2, rank::String="auto",
     end
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="VECM Residuals (rank=$r, T_eff=$T_eff)")
+                  title="VECM Residuals (rank=$r, T_eff=$T_eff)",
+                  key="vecm_residuals")
 end
 
 # ── Static Factor Residuals ───────────────────────────
@@ -824,7 +845,8 @@ function _residuals_static(; data::String="", nfactors=nothing,
     end
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="Static Factor Idiosyncratic Component ($r factors, T=$T)")
+                  title="Static Factor Idiosyncratic Component ($r factors, T=$T)",
+                  key="static_factor_idiosyncratic_component")
 end
 
 # ── Dynamic Factor Residuals ──────────────────────────
@@ -861,7 +883,8 @@ function _residuals_dynamic(; data::String="", nfactors=nothing, factor_lags::In
     end
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="Dynamic Factor Idiosyncratic Component ($r factors, p=$factor_lags, T=$T)")
+                  title="Dynamic Factor Idiosyncratic Component ($r factors, p=$factor_lags, T=$T)",
+                  key="dynamic_factor_idiosyncratic_component")
 end
 
 # ── GDFM Residuals ────────────────────────────────────
@@ -897,7 +920,8 @@ function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothi
     end
 
     output_result(res_df; format=Symbol(format), output=output,
-                  title="GDFM Idiosyncratic Component (q=$q, T=$T)")
+                  title="GDFM Idiosyncratic Component (q=$q, T=$T)",
+                  key="gdfm_idiosyncratic_component")
 end
 
 # Volatility residual handlers live in shared.jl (VOL_MODELS / _VOL_RESIDUALS_HANDLERS).
@@ -929,7 +953,8 @@ function _residuals_favar(; data::String="", factors=nothing, lags::Int=2,
         res_df[!, vname] = round.(resid[:, v]; digits=6)
     end
     output_result(res_df; format=Symbol(format), output=output,
-                  title="FAVAR Residuals (T_eff=$T_eff)")
+                  title="FAVAR Residuals (T_eff=$T_eff)",
+                  key="favar_residuals")
 end
 
 # ── Regression Residuals ──────────────────────────────────
@@ -955,7 +980,8 @@ function _residuals_reg(; data::String="", dep::String="", cov_type::String="hc1
 
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
-    output_result(res_df; format=Symbol(format), output=output, title="$wls_tag Residuals")
+    output_result(res_df; format=Symbol(format), output=output, title="$wls_tag Residuals",
+                  key="reg_residuals")
 end
 
 # ── Logit Residuals ───────────────────────────────────────
@@ -1023,7 +1049,8 @@ function _residuals_preg(; data::String="", dep::String="", indep::String="",
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
-                  title="Panel Regression Residuals ($method)")
+                  title="Panel Regression Residuals ($method)",
+                  key="panel_regression_residuals")
 end
 
 function _residuals_piv(; data::String="", dep::String="", exog::String="",
@@ -1048,7 +1075,8 @@ function _residuals_piv(; data::String="", dep::String="", exog::String="",
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
-                  title="Panel IV Residuals ($method)")
+                  title="Panel IV Residuals ($method)",
+                  key="panel_iv_residuals")
 end
 
 function _residuals_plogit(; data::String="", dep::String="", indep::String="",
@@ -1068,7 +1096,8 @@ function _residuals_plogit(; data::String="", dep::String="", indep::String="",
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
-                  title="Panel Logit Residuals ($method)")
+                  title="Panel Logit Residuals ($method)",
+                  key="panel_logit_residuals")
 end
 
 function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
@@ -1088,7 +1117,8 @@ function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
     resid = residuals(model)
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
-                  title="Panel Probit Residuals ($method)")
+                  title="Panel Probit Residuals ($method)",
+                  key="panel_probit_residuals")
 end
 
 # ── Ordered/Multinomial Residuals ───────────────────────
@@ -1111,7 +1141,7 @@ function _choice_resid_table(resid::AbstractMatrix, categories)
 end
 
 """
-    _choice_residuals_output(model, label, kind, generalized; format, output)
+    _choice_residuals_output(model, label, key_stem, kind, generalized; format, output)
 
 Shared renderer for `residuals ologit|oprobit|mlogit` (W4/#87, un-gated by MEMs#507).
 
@@ -1119,8 +1149,14 @@ Shared renderer for `residuals ologit|oprobit|mlogit` (W4/#87, un-gated by MEMs#
 not declared on mlogit). Otherwise emits the `n x J` per-category matrix selected by
 `kind`. Every upstream call is wrapped: these are the raw MEMs entry points, and an
 untyped exception here would surface as `internal/error` (exit 1) on ordinary bad input.
+
+`key_stem` is the caller's registry-declared table stem (W3/#138): `--kind` selects a
+different residual DEFINITION but the same table shape, so all three kinds share one
+envelope key; the generalized residual is a different table (one length-n column) and
+gets its own.
 """
-function _choice_residuals_output(model, label::String, kind::String, generalized::Bool;
+function _choice_residuals_output(model, label::String, key_stem::String,
+                                  kind::String, generalized::Bool;
                                   format::String, output::String)
     if generalized
         g = try
@@ -1133,7 +1169,8 @@ function _choice_residuals_output(model, label::String, kind::String, generalize
         df = DataFrame(observation=1:length(g),
                        generalized_residual=round.(g; digits=6))
         return output_result(df; format=Symbol(format), output=output,
-                             title="$label Generalized Residuals")
+                             title="$label Generalized Residuals",
+                             key="$(key_stem)_generalized_residuals")
     end
     R = try
         residuals(model; kind=Symbol(kind))
@@ -1145,7 +1182,8 @@ function _choice_residuals_output(model, label::String, kind::String, generalize
     df = R isa AbstractMatrix ? _choice_resid_table(R, model.categories) :
          DataFrame(observation=1:length(R), residual=round.(R; digits=6))
     return output_result(df; format=Symbol(format), output=output,
-                         title="$label Residuals ($kind)")
+                         title="$label Residuals ($kind)",
+                         key="$(key_stem)_residuals")
 end
 
 function _residuals_ologit(; data::String="", dep::String="", cov_type::String="hc1",
@@ -1161,7 +1199,7 @@ function _residuals_ologit(; data::String="", dep::String="", cov_type::String="
     _status("Ordered Logit Residuals: $dep_name")
     _status()
 
-    return _choice_residuals_output(model, "Ordered Logit", kind, generalized;
+    return _choice_residuals_output(model, "Ordered Logit", "ordered_logit", kind, generalized;
                                     format=format, output=output)
 end
 
@@ -1178,7 +1216,7 @@ function _residuals_oprobit(; data::String="", dep::String="", cov_type::String=
     _status("Ordered Probit Residuals: $dep_name")
     _status()
 
-    return _choice_residuals_output(model, "Ordered Probit", kind, generalized;
+    return _choice_residuals_output(model, "Ordered Probit", "ordered_probit", kind, generalized;
                                     format=format, output=output)
 end
 
@@ -1197,13 +1235,222 @@ function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="
     # generalized_residuals for ordered models only, so the flag is not declared for mlogit
     # and must not be accepted here either (a declared option and its handler kwarg have to
     # agree in both directions).
-    return _choice_residuals_output(model, "Multinomial Logit", kind, false;
+    return _choice_residuals_output(model, "Multinomial Logit", "multinomial_logit", kind, false;
                                     format=format, output=output)
 end
 
 
 function _fitted_data_arg()
     return [ArgSpec(name="data", description="Path to CSV data file")]
+end
+
+# ── W3/#138: declared envelope table keys ────────────────────────────────────
+#
+# The `data` key of every `predict`/`residuals` leaf, keyed by model name. Keys are
+# STATIC: the run-varying parts that used to reach the key through the title slug —
+# lag order, cointegrating rank, T_eff, factor count, the SELECTED ARIMA/SARIMA/ARFIMA
+# orders, the CSV column name, and the `--method`/`--probs`/`--kind`/`--threshold`
+# option values — stay in the human-facing title and are kept out of the address an
+# agent has to predict. None of these leaves loops over shocks or variables, so there
+# are NO families here: every table is a singleton per invocation.
+#
+# Several tables are conditional (a flag or option selects the branch); all of them are
+# declared, because the gate validates emitted ⊆ declared per leaf.
+
+_vol_predict_tables(m::AbstractString) = [TableSpec(name=Symbol("$(m)_conditional_variance"),
+    description="In-sample conditional variance and implied volatility, one row per period")]
+_vol_resid_tables(m::AbstractString) = [TableSpec(name=Symbol("$(m)_standardized_residuals"),
+    description="Standardized residuals, one row per period")]
+
+const _PREDICT_TABLES = Dict{String,Vector{TableSpec}}(
+    "var" => [TableSpec(name=:var_predictions,
+        description="In-sample VAR fitted values, one column per variable")],
+    "bvar" => [TableSpec(name=:bvar_predictions,
+        description="In-sample BVAR fitted values at the posterior mean, one column per variable")],
+    "arima" => [TableSpec(name=:arima_predictions,
+        description="In-sample ARIMA fitted values, one row per period")],
+    "vecm" => [TableSpec(name=:vecm_predictions,
+        description="In-sample VECM fitted values (via the VAR representation), one column per variable")],
+    "static" => [TableSpec(name=:static_factor_common_component,
+        description="Common component of the static factor model, one column per observed series")],
+    "dynamic" => [TableSpec(name=:dynamic_factor_common_component,
+        description="Common component of the dynamic factor model, one column per observed series")],
+    "gdfm" => [TableSpec(name=:gdfm_common_component,
+        description="Common component of the generalized dynamic factor model, one column per series")],
+    "arch" => _vol_predict_tables("arch"),
+    "garch" => _vol_predict_tables("garch"),
+    "egarch" => _vol_predict_tables("egarch"),
+    "gjr-garch" => _vol_predict_tables("gjr_garch"),
+    "sv" => [TableSpec(name=:sv_conditional_variance,
+        description="Posterior-mean stochastic-volatility path (variance and volatility) per period")],
+    "favar" => [TableSpec(name=:favar_predictions,
+        description="In-sample FAVAR fitted values, one column per factor and observed variable")],
+    "reg" => [TableSpec(name=:reg_fitted_values,
+        description="OLS/WLS fitted values, one row per observation")],
+    "logit" => [
+        TableSpec(name=:logit_fitted_probabilities,
+            description="Fitted success probabilities, one row per observation"),
+        TableSpec(name=:average_marginal_effects_logit,
+            description="Average marginal effects with SEs, z, p and CI (--marginal-effects)"),
+        TableSpec(name=:odds_ratios_logit,
+            description="Odds ratios with confidence bounds, one row per regressor (--odds-ratio)"),
+        TableSpec(name=:classification_metrics,
+            description="Accuracy/sensitivity/specificity at the chosen threshold (--classification-table)"),
+        TableSpec(name=:confusion_matrix,
+            description="Predicted-vs-actual counts at the chosen threshold (--classification-table)"),
+    ],
+    "probit" => [
+        TableSpec(name=:probit_fitted_probabilities,
+            description="Fitted success probabilities, one row per observation"),
+        TableSpec(name=:average_marginal_effects_probit,
+            description="Average marginal effects with SEs, z, p and CI (--marginal-effects)"),
+        TableSpec(name=:classification_metrics,
+            description="Accuracy/sensitivity/specificity at the chosen threshold (--classification-table)"),
+        TableSpec(name=:confusion_matrix,
+            description="Predicted-vs-actual counts at the chosen threshold (--classification-table)"),
+    ],
+    "preg" => [TableSpec(name=:panel_regression_fitted_values,
+        description="Panel regression fitted values, one row per observation")],
+    "piv" => [TableSpec(name=:panel_iv_fitted_values,
+        description="Panel IV fitted values, one row per observation")],
+    "plogit" => [TableSpec(name=:panel_logit_fitted_probabilities,
+        description="Panel logit fitted probabilities, one row per observation")],
+    "pprobit" => [TableSpec(name=:panel_probit_fitted_probabilities,
+        description="Panel probit fitted probabilities, one row per observation")],
+    "ologit" => [
+        TableSpec(name=:ordered_logit_predicted_probabilities,
+            description="Predicted probability of each ordered category, one row per observation"),
+        TableSpec(name=:ordered_logit_average_marginal_effects,
+            description="Average marginal effect per variable x category (--marginal-effects)"),
+    ],
+    "oprobit" => [
+        TableSpec(name=:ordered_probit_predicted_probabilities,
+            description="Predicted probability of each ordered category, one row per observation"),
+        TableSpec(name=:ordered_probit_average_marginal_effects,
+            description="Average marginal effect per variable x category (--marginal-effects)"),
+    ],
+    "mlogit" => [
+        TableSpec(name=:multinomial_logit_predicted_probabilities,
+            description="Predicted probability of each alternative, one row per observation"),
+        TableSpec(name=:multinomial_logit_average_marginal_effects,
+            description="Average marginal effect per variable x alternative (--marginal-effects)"),
+    ],
+    "sarima" => [TableSpec(name=:sarima_predictions,
+        description="In-sample SARIMA fitted values, one row per period")],
+    "poisson" => [TableSpec(name=:poisson_conditional_means,
+        description="Fitted conditional means exp(x'b + offset), one row per observation")],
+    "nbreg" => [TableSpec(name=:negative_binomial_conditional_means,
+        description="Fitted conditional means exp(x'b + offset), one row per observation")],
+    "ms-ar" => [TableSpec(name=:ms_ar_fitted_values,
+        description="Regime-probability-weighted fitted values, one row per period")],
+    "ms" => [TableSpec(name=:ms_regression_fitted_values,
+        description="Regime-probability-weighted fitted values, one row per observation")],
+    "statespace" => [TableSpec(name=:state_space_state_paths,
+        description="Long state paths: one row per (period, state) with the filtered and/or smoothed level")],
+    "sur" => [TableSpec(name=:sur_fitted_values_per_equation,
+        description="Long per-equation fitted values: one row per (equation, observation)")],
+    "3sls" => [TableSpec(name=Symbol("3sls_fitted_values_per_equation"),
+        description="Long per-equation fitted values: one row per (equation, observation)")],
+    "arfima" => [TableSpec(name=:arfima_predictions,
+        description="In-sample ARFIMA fitted values, one row per period")],
+    "igarch" => _vol_predict_tables("igarch"),
+    "cgarch" => _vol_predict_tables("cgarch"),
+    "aparch" => _vol_predict_tables("aparch"),
+    "figarch" => _vol_predict_tables("figarch"),
+    "fiegarch" => _vol_predict_tables("fiegarch"),
+    "garch-midas" => _vol_predict_tables("garch_midas"),
+)
+
+const _RESIDUALS_TABLES = Dict{String,Vector{TableSpec}}(
+    "var" => [TableSpec(name=:var_residuals,
+        description="VAR residuals, one column per variable")],
+    "bvar" => [TableSpec(name=:bvar_residuals,
+        description="BVAR residuals at the posterior mean, one column per variable")],
+    "arima" => [TableSpec(name=:arima_residuals,
+        description="ARIMA residuals, one row per period")],
+    "vecm" => [TableSpec(name=:vecm_residuals,
+        description="VECM residuals (via the VAR representation), one column per variable")],
+    "static" => [TableSpec(name=:static_factor_idiosyncratic_component,
+        description="Idiosyncratic component of the static factor model, one column per series")],
+    "dynamic" => [TableSpec(name=:dynamic_factor_idiosyncratic_component,
+        description="Idiosyncratic component of the dynamic factor model, one column per series")],
+    "gdfm" => [TableSpec(name=:gdfm_idiosyncratic_component,
+        description="Idiosyncratic component of the generalized dynamic factor model, one column per series")],
+    "arch" => _vol_resid_tables("arch"),
+    "garch" => _vol_resid_tables("garch"),
+    "egarch" => _vol_resid_tables("egarch"),
+    "gjr-garch" => _vol_resid_tables("gjr_garch"),
+    "sv" => _vol_resid_tables("sv"),
+    "favar" => [TableSpec(name=:favar_residuals,
+        description="FAVAR residuals, one column per factor and observed variable")],
+    "reg" => [TableSpec(name=:reg_residuals,
+        description="OLS/WLS residuals, one row per observation")],
+    "logit" => [TableSpec(name=:logit_residuals,
+        description="Response residuals y - p, one row per observation")],
+    "probit" => [TableSpec(name=:probit_residuals,
+        description="Response residuals y - p, one row per observation")],
+    "preg" => [TableSpec(name=:panel_regression_residuals,
+        description="Panel regression residuals, one row per observation")],
+    "piv" => [TableSpec(name=:panel_iv_residuals,
+        description="Panel IV residuals, one row per observation")],
+    "plogit" => [TableSpec(name=:panel_logit_residuals,
+        description="Panel logit residuals, one row per observation")],
+    "pprobit" => [TableSpec(name=:panel_probit_residuals,
+        description="Panel probit residuals, one row per observation")],
+    # --kind picks a different residual DEFINITION but the same n x J shape, so the three
+    # kinds share one key; --generalized is a different table (one length-n column).
+    "ologit" => [
+        TableSpec(name=:ordered_logit_residuals,
+            description="Per-category residuals (response, pearson or deviance per --kind)"),
+        TableSpec(name=:ordered_logit_generalized_residuals,
+            description="Length-n Chesher-Irish score residual (--generalized)"),
+    ],
+    "oprobit" => [
+        TableSpec(name=:ordered_probit_residuals,
+            description="Per-category residuals (response, pearson or deviance per --kind)"),
+        TableSpec(name=:ordered_probit_generalized_residuals,
+            description="Length-n Chesher-Irish score residual (--generalized)"),
+    ],
+    "mlogit" => [TableSpec(name=:multinomial_logit_residuals,
+        description="Per-alternative residuals (response, pearson or deviance per --kind)")],
+    "setar" => [TableSpec(name=:setar_residuals,
+        description="SETAR residuals, one row per effective period")],
+    "star" => [TableSpec(name=:star_residuals,
+        description="STAR residuals, one row per effective period")],
+    "ms-ar" => [TableSpec(name=:ms_ar_residuals,
+        description="MS-AR residuals (smoothed-probability weighted), one row per effective period")],
+    "ms" => [TableSpec(name=:ms_regression_residuals,
+        description="MS regression residuals (smoothed-probability weighted), one row per observation")],
+    "sarima" => [TableSpec(name=:sarima_residuals,
+        description="SARIMA residuals, one row per period")],
+    "poisson" => [TableSpec(name=:poisson_residuals,
+        description="Poisson residuals, one row per observation")],
+    "nbreg" => [TableSpec(name=:negative_binomial_residuals,
+        description="Negative binomial residuals, one row per observation")],
+    # --standardized divides by sqrt(F_t); same columns, so one key covers both.
+    "statespace" => [TableSpec(name=:state_space_innovations,
+        description="Long one-step prediction errors: one row per (period, series), raw or standardized")],
+    "sur" => [TableSpec(name=:sur_residuals_per_equation,
+        description="Long per-equation residuals: one row per (equation, observation)")],
+    "3sls" => [TableSpec(name=Symbol("3sls_residuals_per_equation"),
+        description="Long per-equation residuals: one row per (equation, observation)")],
+    "arfima" => [TableSpec(name=:arfima_residuals,
+        description="ARFIMA residuals, one row per period")],
+    "igarch" => _vol_resid_tables("igarch"),
+    "cgarch" => _vol_resid_tables("cgarch"),
+    "aparch" => _vol_resid_tables("aparch"),
+    "figarch" => _vol_resid_tables("figarch"),
+    "fiegarch" => _vol_resid_tables("fiegarch"),
+    "garch-midas" => _vol_resid_tables("garch_midas"),
+)
+
+"""Registry table declarations for one fitted leaf. A missing entry is an internal
+invariant failure (a leaf added without declaring its keys), not a user error."""
+function _fitted_tables(verb::Symbol, name::String)
+    d = verb === :predict ? _PREDICT_TABLES : _RESIDUALS_TABLES
+    haskey(d, name) || error("no table declaration for `$verb $name` (add it to " *
+                             "_PREDICT_TABLES/_RESIDUALS_TABLES in fitted.jl)")
+    return copy(d[name])
 end
 
 # Extra option sets for discrete choice / special leaves
@@ -1356,14 +1603,13 @@ function _specs_for_verb(verb::Symbol, title_prefix::String)
         handler = verb === :predict ? m.pred : m.res
         path0 = verb === :predict ? "predict" : "residuals"
         aliases = get(_FITTED_CLI_ALIASES, m.name, String[])
-        tbl = replace(m.name, "-" => "_")
         push!(specs, CommandSpec(
             path=[path0, m.name],
             summary="$title_prefix ($(m.name))",
             args=_fitted_data_arg(),
             options=_opts_for_kind(m.kind, verb),
             flags=_flags_for_kind(m.kind, verb),
-            tables=[TableSpec(name=Symbol("$(path0)_$tbl"), description=title_prefix)],
+            tables=_fitted_tables(verb, m.name),
             category=path0,
             aliases=aliases,
             handler=wrap_legacy(handler),
@@ -1385,7 +1631,7 @@ function predict_specs()::Vector{CommandSpec}
             options=[SARIMA_OPTIONS...,
                 OUTPUT_OPTIONS...],
             flags=copy(SARIMA_FLAGS),
-            tables=[TableSpec(name=:predict_sarima, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "sarima"),
             category="predict",
             handler=wrap_legacy(_predict_sarima),
         ),
@@ -1406,7 +1652,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_poisson, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "poisson"),
             category="predict",
             handler=wrap_legacy(_predict_poisson),
         ),
@@ -1419,7 +1665,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_nbreg, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "nbreg"),
             category="predict",
             handler=wrap_legacy(_predict_nbreg),
         ),
@@ -1442,7 +1688,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
-            tables=[TableSpec(name=:predict_ms_ar, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "ms-ar"),
             category="predict",
             handler=wrap_legacy(_predict_ms_ar),
         ),
@@ -1460,7 +1706,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
-            tables=[TableSpec(name=:predict_ms, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "ms"),
             category="predict",
             handler=wrap_legacy(_predict_ms),
         ),
@@ -1482,7 +1728,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_statespace, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "statespace"),
             category="predict",
             handler=wrap_legacy(_predict_statespace),
         ),
@@ -1500,7 +1746,7 @@ function predict_specs()::Vector{CommandSpec}
             ],
             flags=[FlagSpec(name="iterate", description="Iterate the SUR feasible-GLS step to convergence"),
                    FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
-            tables=[TableSpec(name=:predict_sur, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "sur"),
             category="predict",
             handler=wrap_legacy(_predict_sur),
         ),
@@ -1515,7 +1761,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
-            tables=[TableSpec(name=:predict_3sls, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "3sls"),
             category="predict",
             handler=wrap_legacy(_predict_3sls),
         ),
@@ -1536,7 +1782,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_arfima, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "arfima"),
             category="predict",
             handler=wrap_legacy(_predict_arfima),
         ),
@@ -1552,7 +1798,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_igarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "igarch"),
             category="predict",
             handler=wrap_legacy(_predict_igarch),
         ),
@@ -1566,7 +1812,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_cgarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "cgarch"),
             category="predict",
             handler=wrap_legacy(_predict_cgarch),
         ),
@@ -1584,7 +1830,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_aparch, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "aparch"),
             category="predict",
             handler=wrap_legacy(_predict_aparch),
         ),
@@ -1603,7 +1849,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_figarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "figarch"),
             category="predict",
             handler=wrap_legacy(_predict_figarch),
         ),
@@ -1622,7 +1868,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_fiegarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "fiegarch"),
             category="predict",
             handler=wrap_legacy(_predict_fiegarch),
         ),
@@ -1641,7 +1887,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:predict_garch_midas, description="Path to CSV data file")],
+            tables=_fitted_tables(:predict, "garch-midas"),
             category="predict",
             handler=wrap_legacy(_predict_garch_midas),
         ),
@@ -1672,7 +1918,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_setar, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "setar"),
             category="residuals",
             handler=wrap_legacy(_residuals_setar),
         ),
@@ -1692,7 +1938,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_star, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "star"),
             category="residuals",
             handler=wrap_legacy(_residuals_star),
         ),
@@ -1711,7 +1957,7 @@ function residuals_specs()::Vector{CommandSpec}
             # NOTE the OPPOSITE default from `residuals ms` below — ms-ar's switching_variance
             # is FALSE upstream (Hamilton form), ms regression's is TRUE. Do not unify them.
             flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
-            tables=[TableSpec(name=:residuals_ms_ar, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "ms-ar"),
             category="residuals",
             handler=wrap_legacy(_residuals_ms_ar),
         ),
@@ -1728,7 +1974,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
-            tables=[TableSpec(name=:residuals_ms, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "ms"),
             category="residuals",
             handler=wrap_legacy(_residuals_ms),
         ),
@@ -1740,7 +1986,7 @@ function residuals_specs()::Vector{CommandSpec}
             options=[SARIMA_OPTIONS...,
                 OUTPUT_OPTIONS...],
             flags=copy(SARIMA_FLAGS),
-            tables=[TableSpec(name=:residuals_sarima, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "sarima"),
             category="residuals",
             handler=wrap_legacy(_residuals_sarima),
         ),
@@ -1760,7 +2006,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_poisson, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "poisson"),
             category="residuals",
             handler=wrap_legacy(_residuals_poisson),
         ),
@@ -1773,7 +2019,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_nbreg, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "nbreg"),
             category="residuals",
             handler=wrap_legacy(_residuals_nbreg),
         ),
@@ -1794,7 +2040,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="standardized", description="Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t")],
-            tables=[TableSpec(name=:residuals_statespace, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "statespace"),
             category="residuals",
             handler=wrap_legacy(_residuals_statespace),
         ),
@@ -1812,7 +2058,7 @@ function residuals_specs()::Vector{CommandSpec}
             ],
             flags=[FlagSpec(name="iterate", description="Iterate the SUR feasible-GLS step to convergence"),
                    FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
-            tables=[TableSpec(name=:residuals_sur, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "sur"),
             category="residuals",
             handler=wrap_legacy(_residuals_sur),
         ),
@@ -1827,7 +2073,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
-            tables=[TableSpec(name=:residuals_3sls, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "3sls"),
             category="residuals",
             handler=wrap_legacy(_residuals_3sls),
         ),
@@ -1848,7 +2094,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_arfima, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "arfima"),
             category="residuals",
             handler=wrap_legacy(_residuals_arfima),
         ),
@@ -1864,7 +2110,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_igarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "igarch"),
             category="residuals",
             handler=wrap_legacy(_residuals_igarch),
         ),
@@ -1878,7 +2124,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_cgarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "cgarch"),
             category="residuals",
             handler=wrap_legacy(_residuals_cgarch),
         ),
@@ -1896,7 +2142,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_aparch, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "aparch"),
             category="residuals",
             handler=wrap_legacy(_residuals_aparch),
         ),
@@ -1915,7 +2161,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_figarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "figarch"),
             category="residuals",
             handler=wrap_legacy(_residuals_figarch),
         ),
@@ -1934,7 +2180,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_fiegarch, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "fiegarch"),
             category="residuals",
             handler=wrap_legacy(_residuals_fiegarch),
         ),
@@ -1953,7 +2199,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:residuals_garch_midas, description="Path to CSV data file")],
+            tables=_fitted_tables(:residuals, "garch-midas"),
             category="residuals",
             handler=wrap_legacy(_residuals_garch_midas),
         ),

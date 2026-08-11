@@ -61,6 +61,11 @@ jobs:
       - name: Mock surface vs real MEMs (TS-3 / F32)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         run: julia --project test/tools/check_mock_surface.jl
+      # W3/#138: envelope data keys must be registry-declared (goldens here;
+      # the T3 job re-runs it over the full envelope dump)
+      - name: Table-key drift gate (goldens)
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        run: julia --project test/tools/check_table_keys.jl
       - name: Docs generation --check (P2-6 / C028)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
         run: |
@@ -131,6 +136,10 @@ jobs:
         run: |
           pip install --quiet jsonschema
           python3 test/tools/validate_envelopes.py --dump "${{ runner.temp }}/envelopes"
+      # W3/#138: every key in every T3-captured envelope must be declared by
+      # its leaf's TableSpec (or extend a family prefix)
+      - name: Table-key drift gate (T3 dump)
+        run: julia --project test/tools/check_table_keys.jl "${{ runner.temp }}/envelopes"
       - name: Process coverage
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
         with:

@@ -44,7 +44,12 @@ function multipliers_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-bootstrap", description="Skip bootstrap bands (point multipliers only)")],
-            tables=[TableSpec(name=:multipliers_nardl, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:nardl_cumulative_dynamic_multipliers,
+                          description="Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested"),
+                TableSpec(name=:nardl_multipliers_summary,
+                          description="Multiplier settings and long-run theta+/theta- of the underlying NARDL"),
+            ],
             category="multipliers",
             handler=wrap_legacy(_multipliers_nardl),
         ),
@@ -121,7 +126,8 @@ function _multipliers_nardl(; data::String, dep::String="", asymmetric::String="
         throw(_garch_variant_error(e, "NARDL dynamic multipliers"))
     end
     output_result(_nardl_multipliers_table(mm); format=Symbol(format), output=output,
-                  title="NARDL Cumulative Dynamic Multipliers (m⁺ / m⁻ / m⁺−m⁻) ($dep_name)")
+                  title="NARDL Cumulative Dynamic Multipliers (m⁺ / m⁻ / m⁺−m⁻) ($dep_name)",
+                  key="nardl_cumulative_dynamic_multipliers")
     output_kv(Pair{String,Any}[
         "horizon"   => last(mm.horizons),
         "n_asym"    => length(mm.reg_names),

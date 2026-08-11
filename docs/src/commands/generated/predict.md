@@ -28,7 +28,7 @@ Path to CSV data file
 | `--no-intercept` | — | Do not add an intercept to each equation |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `predict_3sls` (Path to CSV data file)
+**Output tables:** `3sls_fitted_values_per_equation` (Long per-equation fitted values: one row per (equation, observation))
 
 ---
 
@@ -51,7 +51,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_aparch` (Path to CSV data file)
+**Output tables:** `aparch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -70,7 +70,7 @@ In-sample fitted values (arch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_arch` (In-sample fitted values)
+**Output tables:** `arch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -94,7 +94,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_arfima` (Path to CSV data file)
+**Output tables:** `arfima_predictions` (In-sample ARFIMA fitted values, one row per period)
 
 ---
 
@@ -113,7 +113,7 @@ In-sample fitted values (arima)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_arima` (In-sample fitted values)
+**Output tables:** `arima_predictions` (In-sample ARIMA fitted values, one row per period)
 
 ---
 
@@ -141,7 +141,7 @@ In-sample fitted values (bvar)
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `predict_bvar` (In-sample fitted values)
+**Output tables:** `bvar_predictions` (In-sample BVAR fitted values at the posterior mean, one column per variable)
 
 ---
 
@@ -160,7 +160,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_cgarch` (Path to CSV data file)
+**Output tables:** `cgarch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -180,7 +180,7 @@ In-sample fitted values (dynamic)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_dynamic` (In-sample fitted values)
+**Output tables:** `dynamic_factor_common_component` (Common component of the dynamic factor model, one column per observed series)
 
 ---
 
@@ -199,7 +199,7 @@ In-sample fitted values (egarch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_egarch` (In-sample fitted values)
+**Output tables:** `egarch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -220,7 +220,7 @@ In-sample fitted values (favar)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_favar` (In-sample fitted values)
+**Output tables:** `favar_predictions` (In-sample FAVAR fitted values, one column per factor and observed variable)
 
 ---
 
@@ -244,7 +244,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_fiegarch` (Path to CSV data file)
+**Output tables:** `fiegarch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -268,7 +268,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_figarch` (Path to CSV data file)
+**Output tables:** `figarch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -287,7 +287,7 @@ In-sample fitted values (garch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_garch` (In-sample fitted values)
+**Output tables:** `garch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -317,7 +317,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `predict_garch_midas` (Path to CSV data file)
+**Output tables:** `garch_midas_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -337,7 +337,7 @@ In-sample fitted values (gdfm)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_gdfm` (In-sample fitted values)
+**Output tables:** `gdfm_common_component` (Common component of the generalized dynamic factor model, one column per series)
 
 ---
 
@@ -356,7 +356,7 @@ In-sample fitted values (gjr-garch)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_gjr_garch` (In-sample fitted values)
+**Output tables:** `gjr_garch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -377,7 +377,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_igarch` (Path to CSV data file)
+**Output tables:** `igarch_conditional_variance` (In-sample conditional variance and implied volatility, one row per period)
 
 ---
 
@@ -405,7 +405,7 @@ In-sample fitted values (logit)
 | `--odds-ratio` | — | Report odds ratios (logit) |
 | `--classification-table` | — | Report the classification table |
 
-**Output tables:** `predict_logit` (In-sample fitted values)
+**Output tables:** `logit_fitted_probabilities` (Fitted success probabilities, one row per observation); `average_marginal_effects_logit` (Average marginal effects with SEs, z, p and CI (--marginal-effects)); `odds_ratios_logit` (Odds ratios with confidence bounds, one row per regressor (--odds-ratio)); `classification_metrics` (Accuracy/sensitivity/specificity at the chosen threshold (--classification-table)); `confusion_matrix` (Predicted-vs-actual counts at the chosen threshold (--classification-table))
 
 ---
 
@@ -430,7 +430,7 @@ In-sample fitted values (mlogit)
 |------|-------|-------------|
 | `--marginal-effects` | — | Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none) |
 
-**Output tables:** `predict_mlogit` (In-sample fitted values)
+**Output tables:** `multinomial_logit_predicted_probabilities` (Predicted probability of each alternative, one row per observation); `multinomial_logit_average_marginal_effects` (Average marginal effect per variable x alternative (--marginal-effects))
 
 ---
 
@@ -457,7 +457,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
 
-**Output tables:** `predict_ms` (Path to CSV data file)
+**Output tables:** `ms_regression_fitted_values` (Regime-probability-weighted fitted values, one row per observation)
 
 ---
 
@@ -484,7 +484,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
 
-**Output tables:** `predict_ms_ar` (Path to CSV data file)
+**Output tables:** `ms_ar_fitted_values` (Regime-probability-weighted fitted values, one row per period)
 
 ---
 
@@ -507,7 +507,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_nbreg` (Path to CSV data file)
+**Output tables:** `negative_binomial_conditional_means` (Fitted conditional means exp(x'b + offset), one row per observation)
 
 ---
 
@@ -532,7 +532,7 @@ In-sample fitted values (ologit)
 |------|-------|-------------|
 | `--marginal-effects` | — | Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none) |
 
-**Output tables:** `predict_ologit` (In-sample fitted values)
+**Output tables:** `ordered_logit_predicted_probabilities` (Predicted probability of each ordered category, one row per observation); `ordered_logit_average_marginal_effects` (Average marginal effect per variable x category (--marginal-effects))
 
 ---
 
@@ -557,7 +557,7 @@ In-sample fitted values (oprobit)
 |------|-------|-------------|
 | `--marginal-effects` | — | Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none) |
 
-**Output tables:** `predict_oprobit` (In-sample fitted values)
+**Output tables:** `ordered_probit_predicted_probabilities` (Predicted probability of each ordered category, one row per observation); `ordered_probit_average_marginal_effects` (Average marginal effect per variable x category (--marginal-effects))
 
 ---
 
@@ -581,7 +581,7 @@ In-sample fitted values (piv)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_piv` (In-sample fitted values)
+**Output tables:** `panel_iv_fitted_values` (Panel IV fitted values, one row per observation)
 
 ---
 
@@ -605,7 +605,7 @@ In-sample fitted values (plogit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_plogit` (In-sample fitted values)
+**Output tables:** `panel_logit_fitted_probabilities` (Panel logit fitted probabilities, one row per observation)
 
 ---
 
@@ -630,7 +630,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_poisson` (Path to CSV data file)
+**Output tables:** `poisson_conditional_means` (Fitted conditional means exp(x'b + offset), one row per observation)
 
 ---
 
@@ -654,7 +654,7 @@ In-sample fitted values (pprobit)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_pprobit` (In-sample fitted values)
+**Output tables:** `panel_probit_fitted_probabilities` (Panel probit fitted probabilities, one row per observation)
 
 ---
 
@@ -678,7 +678,7 @@ In-sample fitted values (preg)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_preg` (In-sample fitted values)
+**Output tables:** `panel_regression_fitted_values` (Panel regression fitted values, one row per observation)
 
 ---
 
@@ -705,7 +705,7 @@ In-sample fitted values (probit)
 | `--marginal-effects` | — | Report average marginal effects |
 | `--classification-table` | — | Report the classification table |
 
-**Output tables:** `predict_probit` (In-sample fitted values)
+**Output tables:** `probit_fitted_probabilities` (Fitted success probabilities, one row per observation); `average_marginal_effects_probit` (Average marginal effects with SEs, z, p and CI (--marginal-effects)); `classification_metrics` (Accuracy/sensitivity/specificity at the chosen threshold (--classification-table)); `confusion_matrix` (Predicted-vs-actual counts at the chosen threshold (--classification-table))
 
 ---
 
@@ -727,7 +727,7 @@ In-sample fitted values (reg)
 | `--weights` | — | `String` | `""` | — | Weights column |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_reg` (In-sample fitted values)
+**Output tables:** `reg_fitted_values` (OLS/WLS fitted values, one row per observation)
 
 ---
 
@@ -765,7 +765,7 @@ Path to CSV data file
 | `--auto` | — | Force automatic order selection (auto_sarima) |
 | `--no-intercept` | — | Exclude the intercept term |
 
-**Output tables:** `predict_sarima` (Path to CSV data file)
+**Output tables:** `sarima_predictions` (In-sample SARIMA fitted values, one row per period)
 
 ---
 
@@ -788,7 +788,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_statespace` (Path to CSV data file)
+**Output tables:** `state_space_state_paths` (Long state paths: one row per (period, state) with the filtered and/or smoothed level)
 
 ---
 
@@ -808,7 +808,7 @@ In-sample fitted values (static)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_static` (In-sample fitted values)
+**Output tables:** `static_factor_common_component` (Common component of the static factor model, one column per observed series)
 
 ---
 
@@ -835,7 +835,7 @@ Path to CSV data file
 | `--no-intercept` | — | Do not add an intercept to each equation |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `predict_sur` (Path to CSV data file)
+**Output tables:** `sur_fitted_values_per_equation` (Long per-equation fitted values: one row per (equation, observation))
 
 ---
 
@@ -854,7 +854,7 @@ In-sample fitted values (sv)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_sv` (In-sample fitted values)
+**Output tables:** `sv_conditional_variance` (Posterior-mean stochastic-volatility path (variance and volatility) per period)
 
 ---
 
@@ -873,7 +873,7 @@ In-sample fitted values (var)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_var` (In-sample fitted values)
+**Output tables:** `var_predictions` (In-sample VAR fitted values, one column per variable)
 
 ---
 
@@ -893,7 +893,7 @@ In-sample fitted values (vecm)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
 
-**Output tables:** `predict_vecm` (In-sample fitted values)
+**Output tables:** `vecm_predictions` (In-sample VECM fitted values (via the VAR representation), one column per variable)
 
 ---
 

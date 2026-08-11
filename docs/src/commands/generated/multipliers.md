@@ -33,7 +33,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-bootstrap` | — | Skip bootstrap bands (point multipliers only) |
 
-**Output tables:** `multipliers_nardl` (Path to CSV data file)
+**Output tables:** `nardl_cumulative_dynamic_multipliers` (Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested); `nardl_multipliers_summary` (Multiplier settings and long-run theta+/theta- of the underlying NARDL)
 
 ---
 

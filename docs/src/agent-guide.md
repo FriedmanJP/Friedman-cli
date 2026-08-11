@@ -58,6 +58,26 @@ validator (CI cross-checks every golden and every T3-captured envelope with
 python-jsonschema), so you can validate responses with ajv / jsonschema
 directly.
 
+## Stable table keys (v0.10.0)
+
+`data` keys are **predictable before you run the command**: they come from each
+leaf's registry-declared table names, never from runtime values.
+
+- **Singleton tables** use the declared name verbatim: `estimate var` always
+  answers under `var_coefficients` + `information_criteria` — regardless of
+  `--lags`, your column names, or anything estimated. (Before v0.10.0 the same
+  table was `var_2_coefficients` — the lag order baked into the address.)
+- **Family tables** appear when one invocation emits several sibling tables
+  (per-shock IRFs, per-variable historical decompositions). Their keys are
+  `<declared-name>_<variable-slug>` — e.g. `irf var` on columns `gdp,cpi`
+  answers under `irf_gdp` and `irf_cpi`. The declared name is the stable
+  prefix; the suffix is a slug of *your own* variable name, so you can still
+  compute every key in advance.
+- Option values, horizons, CI levels, method names, and estimated parameters
+  never appear in keys — they stay in the human-readable table titles.
+- A CI drift gate (`check_table_keys`) validates every emitted key against the
+  registry declarations, so this contract cannot silently rot.
+
 ## Every failure is an envelope too (v0.10.0)
 
 When the argv asks for JSON (`--format json` / `-f json`, or the leading

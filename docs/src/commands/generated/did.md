@@ -36,7 +36,7 @@ Path to panel CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate` (Path to panel CSV data file)
+**Output tables:** `did_estimation` (ATT with standard error and confidence band by event time); `group_time_att_callaway_sant_anna` (Cohort-by-event-time ATT matrix (Callaway-Sant'Anna estimators only))
 
 ---
 
@@ -68,7 +68,7 @@ Path to panel CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `event_study` (Path to panel CSV data file)
+**Output tables:** `event_study_lp` (Local-projection event-study coefficient, SE and confidence band by event time)
 
 ---
 
@@ -112,7 +112,7 @@ Path to panel CSV data file
 | `--only-pooled` | — | Only report pooled estimates |
 | `--only-event` | — | Only report event-time estimates |
 
-**Output tables:** `lp_did` (Path to panel CSV data file)
+**Output tables:** `lp_did_dube_et_al_2023` (LP-DiD coefficient, SE, confidence band and observation count by event time)
 
 ---
 
@@ -138,7 +138,7 @@ Path to panel CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `test_bacon` (Path to panel CSV data file)
+**Output tables:** `bacon_decomposition_goodman_bacon_2021` (Estimate and weight of every 2x2 DiD comparison by cohort pair and type)
 
 ---
 
@@ -172,7 +172,7 @@ Path to panel CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `test_honest` (Path to panel CSV data file)
+**Output tables:** `honestdid_sensitivity_rambachan_roth_2023` (Post-treatment ATT with robust and original confidence bands by event time)
 
 ---
 
@@ -192,7 +192,7 @@ Path to panel CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `test_negweight` (Path to panel CSV data file)
+**Output tables:** `negative_weight_check_de_chaisemartin_d_haultfoeuille_2020` (Whether TWFE assigns negative weights, how many, and their total); `weight_details` (The offending cohort-time cells and their weights (only when negative weights exist))
 
 ---
 
@@ -220,7 +220,7 @@ Path to panel CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `test_pretrend` (Path to panel CSV data file)
+**Output tables:** `pre_trend_test` (Joint pre-trend test type, statistic, p-value, degrees of freedom and verdict)
 
 ---
 

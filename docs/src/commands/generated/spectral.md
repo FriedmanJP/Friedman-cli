@@ -26,7 +26,7 @@ Autocorrelation / partial autocorrelation / cross-correlation
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `acf_pacf` (ACF / PACF table)
+**Output tables:** `acf_pacf` (Autocorrelation, partial autocorrelation, Ljung-Box Q and p-value by lag); `cross_correlation` (Cross-correlation by lag against --ccf-with (only with that option))
 
 ---
 
@@ -50,7 +50,7 @@ Cross-spectral analysis (coherence, phase, gain)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `cross_spectral` (Cross-spectrum)
+**Output tables:** `cross_spectral_analysis` (Co-/quadrature spectrum, coherence, phase and gain by frequency)
 
 ---
 
@@ -75,7 +75,7 @@ Spectral density estimation
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `spectral_density` (Spectral density)
+**Output tables:** `spectral_density` (Estimated spectral density with confidence band by frequency)
 
 ---
 
@@ -98,7 +98,7 @@ Raw periodogram
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `periodogram` (Periodogram)
+**Output tables:** `periodogram` (Raw periodogram power by Fourier frequency)
 
 ---
 
@@ -119,7 +119,7 @@ Filter transfer function (theoretical frequency response)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `transfer` (Transfer function)
+**Output tables:** `filter_transfer_function` (Theoretical filter gain and phase by frequency)
 
 ---
 

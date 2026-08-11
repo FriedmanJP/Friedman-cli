@@ -27,6 +27,11 @@ end
 Base.@kwdef struct TableSpec
     name::Symbol
     description::String = ""
+    # W3/#138: true when one invocation can emit MULTIPLE sibling tables of this
+    # kind (per-shock IRFs, per-variable HDs). The envelope data key is then
+    # `<name>_<variable-slug>` and `name` is validated as a PREFIX by
+    # test/tools/check_table_keys.jl; singleton tables use `name` verbatim.
+    family::Bool = false
 end
 
 Base.@kwdef struct CommandSpec

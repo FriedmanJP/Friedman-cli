@@ -49,7 +49,8 @@ function io_specs()::Vector{CommandSpec}
             summary="List downloadable IO/MRIO sources (offline catalog)",
             args=ArgSpec[],
             options=copy(OUTPUT_OPTIONS),
-            tables=[TableSpec(name=:io_sources, description="Known IO/MRIO sources, versions, credentials")],
+            tables=[TableSpec(name=:io_mrio_sources,
+                              description="Known IO/MRIO sources with available versions and credential requirements")],
             category="io", handler=wrap_legacy(_io_sources),
         ),
         CommandSpec(
@@ -83,7 +84,12 @@ function io_specs()::Vector{CommandSpec}
                 FlagSpec(name="overwrite", description="Re-download files that already exist"),
                 FlagSpec(name="no-verify", description="Skip SHA-256 checksum verification"),
             ],
-            tables=[TableSpec(name=:io_download, description="Download log (url → local filename)")],
+            tables=[
+                TableSpec(name=:download_summary,
+                          description="Source, resolved version and number of files fetched"),
+                TableSpec(name=:download_log,
+                          description="One row per fetched file: source URL and local filename"),
+            ],
             category="io", handler=wrap_legacy(_io_download),
         ),
         CommandSpec(
@@ -91,8 +97,10 @@ function io_specs()::Vector{CommandSpec}
             summary="Parse/inspect an IO table: dimensions, balance, per-sector totals",
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS..., OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:io_summary, description="Table dimensions and provenance"),
-                    TableSpec(name=:io_sectors, description="Per-sector gross output / final demand / value added")],
+            tables=[TableSpec(name=:io_table_summary,
+                              description="Sector/region/category counts, year, unit, source, extensions and total output"),
+                    TableSpec(name=:sectors,
+                              description="Per-sector gross output, final demand and value added")],
             category="io", handler=wrap_legacy(_io_load),
         ),
         CommandSpec(
@@ -103,7 +111,12 @@ function io_specs()::Vector{CommandSpec}
                 OptionSpec(name="matrix", type=String, default="L", choices=["L", "A", "both"],
                            description="L = Leontief inverse | A = technical coefficients | both"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:leontief, description="Leontief inverse / technical coefficients (sector×sector)")],
+            tables=[
+                TableSpec(name=:technical_coefficients_a,
+                          description="Technical coefficient matrix A, sector by sector (--matrix A|both)"),
+                TableSpec(name=:leontief_inverse_l,
+                          description="Leontief inverse L, sector by sector (--matrix L|both)"),
+            ],
             category="io", handler=wrap_legacy(_io_leontief),
         ),
         CommandSpec(
@@ -114,7 +127,12 @@ function io_specs()::Vector{CommandSpec}
                 OptionSpec(name="matrix", type=String, default="G", choices=["G", "B", "both"],
                            description="G = Ghosh inverse | B = allocation coefficients | both"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:ghosh, description="Ghosh inverse / allocation coefficients (sector×sector)")],
+            tables=[
+                TableSpec(name=:allocation_coefficients_b,
+                          description="Allocation coefficient matrix B, sector by sector (--matrix B|both)"),
+                TableSpec(name=:ghosh_inverse_g,
+                          description="Ghosh inverse G, sector by sector (--matrix G|both)"),
+            ],
             category="io", handler=wrap_legacy(_io_ghosh),
         ),
         CommandSpec(
@@ -128,7 +146,8 @@ function io_specs()::Vector{CommandSpec}
                 OptionSpec(name="type", type=String, default="I", choices=["I", "II"],
                            description="Type I (open) | Type II (household-closed)"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:io_multipliers, description="Per-sector multipliers")],
+            tables=[TableSpec(name=:io_multipliers,
+                              description="Per-sector multiplier of the requested kind and type")],
             category="io", handler=wrap_legacy(_io_multipliers),
         ),
         CommandSpec(
@@ -140,7 +159,8 @@ function io_specs()::Vector{CommandSpec}
                            choices=["ghosh", "leontief"],
                            description="Forward linkage basis: ghosh (row sums of G) | leontief"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:io_linkages, description="Per-sector backward/forward linkages, Ui/Uj, class")],
+            tables=[TableSpec(name=:linkages,
+                              description="Per-sector backward and forward linkages, Rasmussen Ui/Uj and class")],
             category="io", handler=wrap_legacy(_io_linkages),
         ),
         CommandSpec(
@@ -152,7 +172,8 @@ function io_specs()::Vector{CommandSpec}
                            choices=["ghosh", "leontief"],
                            description="Forward linkage basis: ghosh | leontief"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:io_key_sectors, description="Per-sector key/forward/backward/weak classification")],
+            tables=[TableSpec(name=:key_sectors,
+                              description="Per-sector key/forward/backward/weak quadrant classification")],
             category="io", handler=wrap_legacy(_io_key_sectors),
         ),
         CommandSpec(
@@ -166,7 +187,8 @@ function io_specs()::Vector{CommandSpec}
                            choices=["additive", "multiplicative"],
                            description="additive (exact, zero residual) | multiplicative"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:io_sda, description="Per-sector technology (L) and final-demand (Y) effects")],
+            tables=[TableSpec(name=:structural_decomposition,
+                              description="Per-sector technology (L) and final-demand (Y) effects, total and residual")],
             category="io", handler=wrap_legacy(_io_sda),
         ),
         CommandSpec(
@@ -177,7 +199,8 @@ function io_specs()::Vector{CommandSpec}
                 OptionSpec(name="sectors-extract", type=String, default="",
                            description="Sector(s) to extract: names or 1-based indices, comma-separated (required)"),
                 OUTPUT_OPTIONS...],
-            tables=[TableSpec(name=:io_extract, description="Per-sector output loss from the extraction")],
+            tables=[TableSpec(name=:hypothetical_extraction_loss,
+                              description="Per-sector output loss caused by extracting the target sector(s)")],
             category="io", handler=wrap_legacy(_io_extract),
         ),
         CommandSpec(
@@ -190,8 +213,14 @@ function io_specs()::Vector{CommandSpec}
                 OUTPUT_OPTIONS...],
             flags=[FlagSpec(name="detail",
                             description="Also emit intensities (S) and emission multipliers (M=SL)")],
-            tables=[TableSpec(name=:io_footprint, description="Consumption-based footprint totals per stressor"),
-                    TableSpec(name=:io_footprint_by_sector, description="Per-sector footprint contribution")],
+            tables=[TableSpec(name=:footprint,
+                              description="Consumption-based footprint total per stressor"),
+                    TableSpec(name=:footprint_by_sector,
+                              description="Per-sector footprint contribution, one column per stressor"),
+                    TableSpec(name=:intensities_s,
+                              description="Direct stressor intensities S by sector (--detail only)"),
+                    TableSpec(name=:emission_multipliers,
+                              description="Total emission multipliers M=SL by sector (--detail only)")],
             category="io", handler=wrap_legacy(_io_footprint),
         ),
         CommandSpec(
@@ -206,7 +235,10 @@ function io_specs()::Vector{CommandSpec}
                 OUTPUT_OPTIONS...],
             flags=[FlagSpec(name="second-order",
                             description="Also emit the second-order 'beyond Hulten' Hessian (sector×sector)")],
-            tables=[TableSpec(name=:io_baqaee_farhi, description="Per-sector Domar weight, influence, up/down-streamness")],
+            tables=[TableSpec(name=:baqaee_farhi_2019_decomposition,
+                              description="Per-sector Domar weight, influence, upstreamness and downstreamness"),
+                    TableSpec(name=:second_order_hessian_beyond_hulten,
+                              description="Second-order 'beyond Hulten' Hessian, sector by sector (--second-order only)")],
             category="io", handler=wrap_legacy(_io_baqaee_farhi),
         ),
     ]
@@ -434,7 +466,7 @@ function _io_multipliers(; data::String="", n_sectors::Int=0, n_fd::Int=1, secto
     end
     df = DataFrame(sector=m.sectors, multiplier=round.(m.values; digits=6))
     output_result(df; format=Symbol(format), output=output,
-                  title="Type $(type) $(kind) multipliers")
+                  title="Type $(type) $(kind) multipliers", key="io_multipliers")
     return m
 end
 
@@ -449,7 +481,7 @@ function _io_linkages(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors:
                    Uj=round.(lk.Uj; digits=6),
                    class=string.(lk.classification))
     output_result(df; format=Symbol(format), output=output,
-                  title="Linkages (forward=$forward)")
+                  title="Linkages (forward=$forward)", key="linkages")
     return lk
 end
 
@@ -482,7 +514,7 @@ function _io_sda(; data::String="", data2::String="", n_sectors::Int=0, n_fd::In
                    total=round.(r.total; digits=6),
                    residual=round.(r.residual; digits=6))
     output_result(df; format=Symbol(format), output=output,
-                  title="Structural Decomposition ($method)")
+                  title="Structural Decomposition ($method)", key="structural_decomposition")
     return r
 end
 
@@ -537,16 +569,19 @@ function _io_footprint(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors
     # Total footprint per stressor (summed over final-demand categories).
     tot = vec(sum(fp.total; dims=2))
     output_result(DataFrame(stressor=fp.stressors, footprint=round.(tot; digits=6));
-                  format=Symbol(format), output=output, title="Footprint ($name)")
+                  format=Symbol(format), output=output, title="Footprint ($name)", key="footprint")
     # Per-sector contribution: sector × stressor(s).
     output_result(_io_matrix_df(permutedims(fp.by_sector), io.sectors, fp.stressors);
-                  format=Symbol(format), output=output, title="Footprint by Sector ($name)")
+                  format=Symbol(format), output=output, title="Footprint by Sector ($name)",
+                  key="footprint_by_sector")
 
     if detail
         output_result(_io_matrix_df(permutedims(intensities(io, name)), io.sectors, fp.stressors);
-                      format=Symbol(format), output=output, title="Intensities S ($name)")
+                      format=Symbol(format), output=output, title="Intensities S ($name)",
+                      key="intensities_s")
         output_result(_io_matrix_df(permutedims(emission_multipliers(io, name)), io.sectors, fp.stressors);
-                      format=Symbol(format), output=output, title="Emission Multipliers M=SL ($name)")
+                      format=Symbol(format), output=output, title="Emission Multipliers M=SL ($name)",
+                      key="emission_multipliers")
     end
     return fp
 end
