@@ -66,6 +66,15 @@ jobs:
         run: |
           julia --project docs/generate_cli_reference.jl --check
           julia --project docs/capture_examples.jl --check
+      # W1/#136: a CONFORMANT draft-07 validator, independent of the in-repo
+      # subset — metaschema-checks the schema document and validates every
+      # golden envelope. The in-repo validator once had a blind spot that let a
+      # broken schema pass every tier; a second implementation is the guard.
+      - name: Conformant envelope validation (schema + goldens)
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        run: |
+          pip install --quiet jsonschema
+          python3 test/tools/validate_envelopes.py
       - name: Run engine/unit tests (T0/T1/T2)
         shell: bash
         run: julia --code-coverage=user --project test/runtests.jl
@@ -114,7 +123,14 @@ jobs:
       # hardest exactly where the tests are strongest. Codecov merges the two reports for
       # the commit, so the engine job's upload is unaffected.
       - name: Run integration-core
+        env:
+          # W1/#136: dump every captured envelope for post-run conformant validation
+          FRIEDMAN_T3_DUMP_ENVELOPES: ${{ runner.temp }}/envelopes
         run: julia --code-coverage=user --project=test/integration test/integration/runtests.jl
+      - name: Conformant envelope validation (T3 dump)
+        run: |
+          pip install --quiet jsonschema
+          python3 test/tools/validate_envelopes.py --dump "${{ runner.temp }}/envelopes"
       - name: Process coverage
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
         with:

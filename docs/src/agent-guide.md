@@ -18,8 +18,8 @@ Example shape (fields abbreviated):
   "command": "friedman estimate var",
   "status": "ok",
   "meta": {
-    "cli_version": "0.9.1",
-    "mems_version": "0.7.0",
+    "cli_version": "0.9.2",
+    "mems_version": "0.8.0",
     "julia": "1.12.x",
     "seed": null,
     "argv": ["estimate", "var", "data.csv", "--lags", "1", "--format", "json"],
@@ -37,9 +37,26 @@ Example shape (fields abbreviated):
 }
 ```
 
-Non-finite floats appear as strings (`"NaN"`, `"Inf"`, `"-Inf"`), never silent JSON `null`.
+The shape is strict (v0.10.0, W1/#136):
 
-Envelope schema v1 is **draft until CLI v1.0**. Normative JSON Schema: `schema/envelope-v1.json`.
+- **Every `data` value is a table** — an object with exactly `columns` (array of
+  string) and `rows` (array of arrays). Cell values are number, string, boolean,
+  or null; non-finite floats appear as the strings `"NaN"`/`"Inf"`/`"-Inf"`,
+  never silent JSON `null`; `missing` cells appear as `null`.
+- `meta` always carries `cli_version`, `julia`, and `mems_version`; `seed`,
+  `argv`, `elapsed_ms`, and `manifest` are typed-optional, and new meta keys may
+  be added over time (additive).
+- `status` and `error` co-occur: `"ok"` implies `error: null`; `"error"` implies
+  an error object whose `code` matches `class/code` from the exit-code taxonomy
+  below.
+
+Envelope schema v1 is **draft until CLI v1.0** and **additive-only from
+v0.10.0**: no key is removed or retyped within `schema_version` 1; a breaking
+change bumps `schema_version` to 2 and is a major release. Normative JSON
+Schema: `schema/envelope-v1.json` — it validates under any conformant draft-07
+validator (CI cross-checks every golden and every T3-captured envelope with
+python-jsonschema), so you can validate responses with ajv / jsonschema
+directly.
 
 ## Exit codes
 

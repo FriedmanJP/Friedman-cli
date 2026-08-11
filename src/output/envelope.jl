@@ -12,14 +12,16 @@ Base.@kwdef mutable struct Envelope
     status::Symbol = :ok
     meta::Dict{String,Any} = Dict{String,Any}()
     tables::Vector{Pair{Symbol,DataFrame}} = Pair{Symbol,DataFrame}[]  # ordered; first = primary
-    scalars::Dict{String,Any} = Dict{String,Any}()
     warnings::Vector{Dict{String,String}} = Dict{String,String}[]
     artifacts::Vector{Dict{String,String}} = Dict{String,String}[]
     error::Union{Nothing,Dict{String,Any}} = nothing
 end
+# `data` values are tables ONLY (envelope-v1 contract, W1/#136). The old
+# add_scalar!/scalars sibling path never gained a caller (output_kv renders a
+# metric/value table instead) and was deleted so emission cannot drift under
+# the strict schema.
 
 add_table!(env::Envelope, name::Symbol, df::DataFrame) = (push!(env.tables, name => df); env)
-add_scalar!(env::Envelope, key::String, value) = (env.scalars[key] = value; env)
 add_warning!(env::Envelope, code::String, msg::String) =
     (push!(env.warnings, Dict("code" => code, "message" => msg)); env)
 

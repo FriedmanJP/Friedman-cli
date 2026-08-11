@@ -10,19 +10,11 @@ function _table_payload(df::DataFrame)
 end
 
 function _envelope_to_dict(env::Envelope)
+    # Every `data` value is a table payload — the envelope-v1 schema enforces
+    # exactly this shape (columns × rows), so nothing else may land here.
     data = Dict{String,Any}()
-    # Preserve table insertion order via ordered insertion into Dict (Julia 1.12
-    # Dict preserves insertion order for small docs; schema treats as object).
     for (name, df) in env.tables
         data[string(name)] = _table_payload(df)
-    end
-    # Scalars land under data as single-value tables only when no table name
-    # collides; also expose as top-level meta-adjacent `scalars` key? Spec:
-    # master report §4.3 — scalars as sibling of table entries under data.
-    for (k, v) in env.scalars
-        if !haskey(data, k)
-            data[k] = _json_safe(v)
-        end
     end
 
     doc = Dict{String,Any}(
@@ -70,12 +62,6 @@ function render(env::Envelope, fmt::Symbol, out::IO)
     else  # :table
         for (name, df) in env.tables
             pretty_table(out, df; title=string(name), alignment=:c)
-        end
-        if !isempty(env.scalars) && isempty(env.tables)
-            # fallback: show scalars as a small table
-            ks = collect(keys(env.scalars))
-            vs = [env.scalars[k] for k in ks]
-            pretty_table(out, DataFrame(metric=ks, value=vs); title=env.command, alignment=:c)
         end
     end
     return nothing

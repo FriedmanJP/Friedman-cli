@@ -12569,7 +12569,6 @@ end  # Command Handlers
     # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)
     env = Envelope(command="estimate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
-    add_scalar!(env, "lags", 2)
     buf = IOBuffer(); render(env, :csv, buf)
     csv_out = replace(String(take!(buf)), "\r\n" => "\n")
     golden_csv = replace(read(joinpath(_GOLDEN_DIR, "render.csv.txt"), String), "\r\n" => "\n")
@@ -12581,6 +12580,91 @@ end  # Command Handlers
     bad = replace(read(joinpath(_GOLDEN_DIR, "spectral.acf.json"), String), "acf_pacf" => "renamed_table")
     @test !_golden_compare(bad, joinpath(_GOLDEN_DIR, "spectral.acf.json"))
 end
+
+# W1/#136: negative tests for the schema VALIDATOR itself. Until W1, the
+# additionalProperties branch was nested inside the `properties` loop, so a
+# schema carrying only additionalProperties (the envelope's `data`/`meta`) was
+# never validated — and the then-ambiguous `data` oneOf went unnoticed by every
+# tier because the two defects cancelled. These tests make that class loud.
+@testset "schema validator subset (W1/#136)" begin
+    # additionalProperties WITHOUT properties must validate every value (the
+    # exact blind-spot shape).
+    ap_only = Dict("type" => "object",
+                   "additionalProperties" => Dict("type" => "integer"))
+    @test isempty(validate_json_schema(Dict("a" => 1, "b" => 2), ap_only))
+    @test !isempty(validate_json_schema(Dict("a" => "not-an-int"), ap_only))
+
+    # additionalProperties: false rejects unlisted keys (with and without
+    # properties present).
+    closed = Dict("type" => "object",
+                  "properties" => Dict("x" => Dict("type" => "integer")),
+                  "additionalProperties" => false)
+    @test isempty(validate_json_schema(Dict("x" => 1), closed))
+    @test !isempty(validate_json_schema(Dict("x" => 1, "y" => 2), closed))
+    @test !isempty(validate_json_schema(Dict("y" => 2),
+                                        Dict("additionalProperties" => false)))
+
+    # pattern: strings only; non-strings ignore it (draft-07 semantics).
+    pat = Dict("pattern" => "^[a-z-]+/[a-z0-9-]+\$")
+    @test isempty(validate_json_schema("data/not-found", pat))
+    @test !isempty(validate_json_schema("Bad_Code", pat))
+    @test isempty(validate_json_schema(42, pat))
+
+    # The live envelope schema, exercised end-to-end through the validator.
+    schema = JSON3.read(read(_ENVELOPE_SCHEMA_PATH, String))
+    table = Dict("columns" => ["a", "b"], "rows" => [[1, "x"], [2.5, nothing]])
+    base = Dict{String,Any}(
+        "schema_version" => 1, "command" => "estimate var", "status" => "ok",
+        "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.12.0",
+                                   "mems_version" => "0.8.0", "seed" => 42),
+        "data" => Dict{String,Any}("coefficients" => table),
+        "warnings" => Any[], "artifacts" => Any[], "error" => nothing)
+    @test isempty(validate_json_schema(base, schema))
+
+    # A malformed table must FAIL — this is what the pre-W1 stack silently
+    # accepted (broken validator × broken schema).
+    bad = deepcopy(base)
+    bad["data"]["broken"] = Dict("columns" => ["a"])            # rows missing
+    @test !isempty(validate_json_schema(bad, schema))
+    bad = deepcopy(base)
+    bad["data"]["broken"] = Dict("columns" => ["a"], "rows" => [[1]],
+                                 "extra" => true)               # closed object
+    @test !isempty(validate_json_schema(bad, schema))
+    bad = deepcopy(base)
+    bad["data"]["broken"] = Dict("columns" => ["a"], "rows" => [[[1, 2]]])  # array cell
+    @test !isempty(validate_json_schema(bad, schema))
+    bad = deepcopy(base)
+    bad["data"]["broken"] = 3.14                                # bare scalar under data
+    @test !isempty(validate_json_schema(bad, schema))
+
+    # status/error co-occurrence via the top-level oneOf.
+    ok_with_err = deepcopy(base)
+    ok_with_err["error"] = Dict("code" => "model/error", "message" => "m")
+    @test !isempty(validate_json_schema(ok_with_err, schema))
+    err_doc = deepcopy(base)
+    err_doc["status"] = "error"
+    err_doc["error"] = Dict("code" => "data/not-found", "message" => "gone",
+                            "hint" => "check the path", "exit_code" => 3)
+    @test isempty(validate_json_schema(err_doc, schema))
+    err_null = deepcopy(err_doc)
+    err_null["error"] = nothing
+    @test !isempty(validate_json_schema(err_null, schema))
+
+    # error.code taxonomy pattern + exit_code enum.
+    bad_code = deepcopy(err_doc)
+    bad_code["error"] = Dict("code" => "NotAClass", "message" => "m")
+    @test !isempty(validate_json_schema(bad_code, schema))
+    bad_exit = deepcopy(err_doc)
+    bad_exit["error"] = Dict("code" => "data/not-found", "message" => "m",
+                             "exit_code" => 9)
+    @test !isempty(validate_json_schema(bad_exit, schema))
+
+    # meta requires the version trio.
+    no_meta = deepcopy(base)
+    no_meta["meta"] = Dict{String,Any}("cli_version" => "0.0.0")
+    @test !isempty(validate_json_schema(no_meta, schema))
+end
+
 
 # ═══════════════════════════════════════════════════════════════
 # Input-Output analysis command family (C049)

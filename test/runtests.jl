@@ -2718,13 +2718,13 @@ end
     env = Envelope(command="estimate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
     add_table!(env, :criteria, DataFrame(metric=["aic"], value=[NaN]))
-    add_scalar!(env, "lags", 2)
     buf = IOBuffer(); render(env, :json, buf)
     doc = JSON3.read(String(take!(buf)))
     @test doc.schema_version == 1
     @test doc.status == "ok"
     @test doc.data.criteria.rows[1][2] == "NaN"          # F20: no silent null
-    @test length(collect(keys(doc.data))) == 2 || length(collect(keys(doc.data))) == 3  # tables + optional scalar
+    # data carries tables ONLY (W1/#136 — the scalar sibling path is deleted)
+    @test length(collect(keys(doc.data))) == 2
     # primary table columns present
     @test "coefficients" in string.(keys(doc.data))
     @test "criteria" in string.(keys(doc.data))

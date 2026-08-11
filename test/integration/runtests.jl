@@ -19,6 +19,23 @@ include(joinpath(@__DIR__, "schema_validate.jl"))
 
 # ── Runner ────────────────────────────────────────────────────
 
+# W1/#136: when FRIEDMAN_T3_DUMP_ENVELOPES names a directory, every captured
+# stdout that parses as a JSON object is written there — the CI post-step
+# validates the whole dump with a CONFORMANT draft-07 validator
+# (test/tools/validate_envelopes.py), independent of the in-repo subset.
+const _T3_DUMP_DIR = get(ENV, "FRIEDMAN_T3_DUMP_ENVELOPES", "")
+const _T3_DUMP_N = Ref(0)
+
+function _dump_envelope(raw::AbstractString, doc)
+    (isempty(_T3_DUMP_DIR) || doc === nothing) && return
+    doc isa JSON3.Object || return
+    isdir(_T3_DUMP_DIR) || mkpath(_T3_DUMP_DIR)
+    _T3_DUMP_N[] += 1
+    write(joinpath(_T3_DUMP_DIR, string(lpad(_T3_DUMP_N[], 5, '0'), ".json")),
+          string(strip(raw)))
+    return
+end
+
 """Run friedman args with --quiet --format=json; return (code, doc, raw)."""
 function run_json(args::Vector{String}; quiet::Bool=true)
     argv = String[]
@@ -49,6 +66,7 @@ function run_json(args::Vector{String}; quiet::Bool=true)
     catch
         nothing
     end
+    _dump_envelope(raw, doc)
     return (code=Int(code), doc=doc, raw=raw)
 end
 

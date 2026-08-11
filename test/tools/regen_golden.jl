@@ -135,7 +135,6 @@ function main()
     mktempdir() do dir
         env = Envelope(command="estimate var")
         add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
-        add_scalar!(env, "lags", 2)
         # table
         buf = IOBuffer(); render(env, :table, buf)
         open(joinpath(_GOLDEN_DIR, "render.table.txt"), "w") do io
