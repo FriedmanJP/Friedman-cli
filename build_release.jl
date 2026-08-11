@@ -36,6 +36,10 @@ mkpath(build_project_dir)
 
 # Copy source files (launcher is regenerated later — do not copy bin/)
 cp(joinpath(project_dir, "src"), joinpath(build_project_dir, "src"))
+# schema/ is read at PRECOMPILE time (W5/#140: envelope-v1.json baked into the
+# `friedman schema` contract const via include_dependency) — without it the
+# build_env precompile fails "No such file or directory".
+cp(joinpath(project_dir, "schema"), joinpath(build_project_dir, "schema"))
 
 # Read original Project.toml. Friedman declares no weakdeps/extensions of its own;
 # these deletes are defensive so a future weak dep never forces an extension into
@@ -146,6 +150,8 @@ if isfile(joinpath(build_project_dir, "Manifest.toml"))
     cp(joinpath(build_project_dir, "Manifest.toml"), joinpath(app_dir, "Manifest.toml"))
 end
 cp(joinpath(build_project_dir, "src"), joinpath(app_dir, "src"))
+# Ship schema/ beside src/ so a non-sysimage fallback load can precompile too
+cp(joinpath(build_project_dir, "schema"), joinpath(app_dir, "schema"))
 
 # --- Step 5a: Create platform-appropriate launcher ---
 if Sys.iswindows()

@@ -6738,6 +6738,65 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(ycsv; force=true); rm(zcsv; force=true)
     end
 
+    # ── W7/#142: serve --mcp — the five canned sessions (#61 acceptance) ────
+    # In-process through Friedman._serve_loop (no per-call process spawn — the
+    # whole point of the server). tools/call goes through the REAL run_cli, so
+    # results are the envelope verbatim and isError mirrors the exit class.
+    @testset "serve --mcp canned sessions (W7/#142)" begin
+        csv = dgp_var2(; T=120, seed=17)
+        function mcp_session(msgs::Vector{String})
+            input = IOBuffer(join(msgs, "\n") * "\n")
+            output = IOBuffer()
+            Friedman._serve_loop(input, output)
+            [JSON3.read(l) for l in split(String(take!(output)), '\n') if !isempty(strip(l))]
+        end
+        argsjson(d) = JSON3.write(d)
+
+        rs = mcp_session([
+            # 1. initialize
+            """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""",
+            """{"jsonrpc":"2.0","method":"notifications/initialized"}""",
+            # 2. tools/list
+            """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""",
+            # 3. estimate_var, saving to a session handle
+            """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"estimate_var","arguments":$(argsjson(Dict("data"=>csv,"lags"=>1,"save-model"=>"model://m1")))}}""",
+            # 4. irf_var against the in-memory handle — NO data file
+            """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"irf_var","arguments":$(argsjson(Dict("model"=>"model://m1","horizons"=>4,"ci"=>"none")))}}""",
+            # 5. typed error: missing data file → data envelope, isError
+            """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"estimate_var","arguments":$(argsjson(Dict("data"=>"/nope/missing.csv")))}}""",
+        ])
+        @test length(rs) == 5
+
+        @test String(rs[1].result.serverInfo.name) == "friedman"
+        tools = rs[2].result.tools
+        @test length(tools) > 400
+        @test any(t -> t.name == "estimate_var", tools)
+        @test !any(t -> t.name == "serve", tools)
+
+        est = rs[3].result
+        @test est.isError == false
+        est_env = JSON3.read(est.content[1].text)
+        @test String(est_env.status) == "ok"
+        @test haskey(est_env.data, :var_coefficients)
+
+        irf_r = rs[4].result
+        @test irf_r.isError == false
+        irf_env = JSON3.read(irf_r.content[1].text)
+        @test String(irf_env.status) == "ok"
+        @test !isempty(irf_env.data)
+
+        bad = rs[5].result
+        @test bad.isError == true
+        bad_env = JSON3.read(bad.content[1].text)
+        @test String(bad_env.status) == "error"
+        @test startswith(String(bad_env.error.code), "data/")
+        @test Int(bad_env.error.exit_code) == 3
+
+        # store is session-scoped: gone after the loop
+        @test Friedman._SERVE_MODEL_STORE[] === nothing
+        rm(csv; force=true)
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

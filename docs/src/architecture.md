@@ -171,4 +171,4 @@ leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `haus
 
 ## Totals
 
-19 top-level commands, 410 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+20 top-level commands, 411 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).

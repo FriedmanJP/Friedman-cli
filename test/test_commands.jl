@@ -13032,3 +13032,110 @@ end
     _walkschema(APP.root, String[])
     @test nchecked[] > 400   # the full 410-leaf surface (+ schema itself)
 end
+
+# W7/#142: serve --mcp — the registry projected as MCP tools. run_cli only
+# exists inside the Friedman module, so tools/call sessions live in T3; here we
+# pin the pure pieces (tool enumeration, argv reconstruction, model:// store)
+# and the protocol loop's non-tool methods end-to-end via IOBuffers.
+include(joinpath(project_root, "src", "commands", "serve.jl"))
+
+@testset "W7/#142: serve --mcp projection" begin
+    @testset "_mcp_tools naming" begin
+        tools = _mcp_tools()
+        names = [t[1] for t in tools]
+        @test "estimate_var" in names
+        @test "dsge_bayes_estimate" in names
+        @test length(names) == length(unique(names))
+        @test !("serve" in names)             # never serves itself
+        @test all(n -> occursin(r"^[a-z0-9_-]+$", n), names)
+    end
+
+    @testset "_mcp_argv reconstruction" begin
+        leaf = LeafCommand("var", identity;
+            args=[Argument("data"; type=String, required=true)],
+            options=[Option("lags"; type=Int, default=0),
+                     Option("format"; type=String, default="table"),
+                     Option("output"; type=String, default="")],
+            flags=[Flag("plot")],
+            description="t")
+        p = ["estimate", "var"]
+        # full surface: positional + option + true flag + forced json
+        argv = _mcp_argv(leaf, p, Dict{Symbol,Any}(
+            :data => "x.csv", :lags => 2, :plot => true))
+        @test argv == ["estimate", "var", "x.csv", "--lags", "2", "--plot",
+                       "--format", "json"]
+        # false flag omitted; user format overridden by the forced json
+        argv2 = _mcp_argv(leaf, p, Dict{Symbol,Any}(
+            :data => "x.csv", :plot => false, :format => "csv"))
+        @test argv2 == ["estimate", "var", "x.csv", "--format", "json"]
+        # unknown key → forwarded so the strict parser rejects with a hint
+        argv3 = _mcp_argv(leaf, p, Dict{Symbol,Any}(:data => "x.csv", :lgas => 2))
+        @test "--lgas" in argv3
+        # a leaf without --format gets NO forced json (completions-style)
+        bare = LeafCommand("bash", identity;
+            options=[Option("output"; type=String, default="")], description="t")
+        @test _mcp_argv(bare, ["completions", "bash"], Dict{Symbol,Any}()) ==
+              ["completions", "bash"]
+    end
+
+    @testset "model:// store semantics" begin
+        # outside a serve session: typed usage error, both directions
+        @test_throws CliError save_model_dispatch("model://m1", (a=1,))
+        @test_throws CliError load_model_dispatch("model://m1")
+        err = try; load_model_dispatch("model://m1"); catch e; e; end
+        @test err.code == "usage/invalid"
+        # inside: round-trip + typed miss
+        _SERVE_MODEL_STORE[] = Dict{String,Any}()
+        try
+            obj = (theta = [1.0, 2.0],)
+            @test save_model_dispatch("model://m1", obj) == "model://m1"
+            @test load_model_dispatch("model://m1") === obj
+            miss = try; load_model_dispatch("model://nope"); catch e; e; end
+            @test miss isa CliError && miss.code == "data/file-not-found"
+        finally
+            _SERVE_MODEL_STORE[] = nothing
+        end
+    end
+
+    @testset "protocol loop (non-tool methods)" begin
+        function session(lines...)
+            input = IOBuffer(join(lines, "\n") * "\n")
+            output = IOBuffer()
+            _serve_loop(input, output)
+            [JSON3.read(l) for l in split(String(take!(output)), '\n') if !isempty(strip(l))]
+        end
+        rs = session(
+            """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""",
+            """{"jsonrpc":"2.0","method":"notifications/initialized"}""",
+            """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""",
+            """{"jsonrpc":"2.0","id":3,"method":"ping"}""",
+            "this is not json",
+            """{"jsonrpc":"2.0","id":4,"method":"no/such"}""",
+            """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"no_such_tool","arguments":{}}}""",
+        )
+        @test length(rs) == 6            # notification got no response
+        init = rs[1]
+        @test init.id == 1
+        @test haskey(init.result, :protocolVersion)
+        @test haskey(init.result.capabilities, :tools)
+        tl = rs[2]
+        @test tl.id == 2
+        tools = tl.result.tools
+        @test length(tools) > 400
+        est = only(t for t in tools if t.name == "estimate_var")
+        @test haskey(est, :inputSchema)
+        @test String(est.inputSchema.type) == "object"
+        @test "data" in String.(est.inputSchema.required)
+        @test rs[3].id == 3                          # ping
+        @test rs[4].error.code == -32700             # parse error
+        @test rs[5].error.code == -32601             # method not found
+        @test rs[6].error.code == -32602             # unknown tool
+        # the store is cleared when the loop ends
+        @test _SERVE_MODEL_STORE[] === nothing
+    end
+
+    @testset "serve leaf guard" begin
+        err = try; _serve(; mcp=false); catch e; e; end
+        @test err isa CliError && err.code == "usage/missing"
+    end
+end

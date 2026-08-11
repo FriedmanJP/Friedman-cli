@@ -192,6 +192,30 @@ The `schema` command itself is deliberately absent from the command inventory
 (its variable-length path does not fit the leaf model); it is discoverable from
 the top-level help and from this guide.
 
+## MCP server: `friedman serve --mcp`
+
+```bash
+friedman serve --mcp    # JSON-RPC 2.0 / Model Context Protocol on stdio
+```
+
+Every command becomes an MCP **tool** — one process, no per-call spawn:
+
+- **`tools/list`** mirrors the registry: tool name = command path joined with
+  `_` (`estimate_var`, `dsge_bayes_estimate`); `inputSchema` is the same
+  draft-07 schema `friedman schema` reports.
+- **`tools/call`** reconstructs the exact argv from your arguments object,
+  forces `--format json`, and returns the **envelope verbatim** as text
+  content — same bytes as the CLI, same stable `data` keys, same typed
+  `error.code`/`exit_code` on failure (`isError` mirrors a nonzero exit
+  class). Everything in this guide about envelopes applies unchanged.
+- **`model://` handles**: within a serve session, `--save-model model://name`
+  stores the fitted model **in memory** and `--model model://name` reuses it —
+  estimate once, then run irf/fevd/forecast against the handle with no
+  re-estimation and no files. Handles live exactly as long as the session;
+  file handles (`.jld2`/`.fmod`) also work as usual.
+- Requests are handled **serially** (handlers are not thread-audited); stdout
+  carries only the JSON-RPC stream — status and library logs stay on stderr.
+
 ## Determinism & reproducibility
 
 ```bash

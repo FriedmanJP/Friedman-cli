@@ -69,6 +69,7 @@ include(joinpath(ROOT, "src", "commands", "spectral.jl"))
 include(joinpath(ROOT, "src", "commands", "schema.jl"))
 include(joinpath(ROOT, "src", "commands", "model.jl"))
 include(joinpath(ROOT, "src", "commands", "completions.jl"))
+include(joinpath(ROOT, "src", "commands", "serve.jl"))
 
 # Populate REGISTRY (register! runs inside each register function)
 register_estimate_commands!()
@@ -90,6 +91,7 @@ register_policy_commands!()
 register_spectral_commands!()
 register_model_commands!()
 register_completions_commands!()
+register_serve_commands!()
 
 # Dedup by path (last wins — matches generate_cli_reference.jl)
 const SPECS = Dict{String,CommandSpec}()
@@ -105,10 +107,12 @@ for (path, spec) in sort!(collect(SPECS); by=first)
         # Documented no-table leaves (W3/#138): completions emit shell scripts;
         # estimate sdfm is status-only today (pre-existing gap noted on #138 —
         # tables come via irf/fevd sdfm); data load/fix/transform write CSV
-        # directly and data validate reports on stderr only. An explicitly
-        # empty declaration on these means "emits nothing", not "forgot".
+        # directly and data validate reports on stderr only; serve owns stdout
+        # as a JSON-RPC channel (W7/#142). An explicitly empty declaration on
+        # these means "emits nothing", not "forgot".
         startswith(path, "completions") && continue
-        path in ("estimate sdfm", "data load", "data fix", "data transform", "data validate") && continue
+        path in ("estimate sdfm", "data load", "data fix", "data transform",
+                 "data validate", "serve") && continue
         push!(violations, "$path: declares NO tables (every envelope-emitting leaf must declare its tables)")
         continue
     end
