@@ -4,9 +4,27 @@ on:
   push:
     tags:
       - 'v*'
+  # W6/#141 (C074/#79): dispatch runs build + smoke + latency bench WITHOUT
+  # releasing (the release job and archive/upload steps are tag-guarded).
+  # The budget inputs exist for the documented failure-path demonstration —
+  # never lower budgets to make a red run green.
+  workflow_dispatch:
+    inputs:
+      budget_version_ms:
+        description: "--version budget in ms (default 500)"
+        required: false
+        default: "500"
+      budget_estimate_ms:
+        description: "first estimate var budget in ms (default 1500)"
+        required: false
+        default: "1500"
 
 permissions:
   contents: write
+
+env:
+  BUDGET_VERSION_MS: ${{ github.event.inputs.budget_version_ms || '500' }}
+  BUDGET_ESTIMATE_MS: ${{ github.event.inputs.budget_estimate_ms || '1500' }}
 
 jobs:
   build:
@@ -114,26 +132,44 @@ jobs:
           test "$ec" -eq 3 || { echo "expected exit 3 for missing file, got $ec"; exit 1; }
           echo "exit-code checks ok"
 
+      # C074/#79 (W6/#141): latency budgets gate the release. Cold process
+      # start is the metric (min of 3 cold runs). Enforced on ubuntu; macOS
+      # and Windows report to the job summary only (runner variance). A real
+      # breach is fixed by expanding the build_release.jl precompile workload
+      # — budgets are never relaxed.
+      - name: Latency budgets (C074/#79)
+        shell: bash
+        run: |
+          BIN=build/friedman/bin/friedman
+          [ "$RUNNER_OS" = "Windows" ] && BIN=build/friedman/bin/friedman.cmd
+          ENFORCE=""
+          [ "$RUNNER_OS" = "Linux" ] && ENFORCE="--enforce"
+          python3 tools/bench_release.py --bin "$BIN" --data smoke.csv \
+            --budget-version-ms "$BUDGET_VERSION_MS" \
+            --budget-estimate-ms "$BUDGET_ESTIMATE_MS" \
+            $ENFORCE
+
       - name: Get version
         id: version
         shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Archive (tar.gz)
-        if: matrix.archive_ext == 'tar.gz'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.archive_ext == 'tar.gz'
         shell: bash
         run: |
           cd build
           tar -czf friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz friedman/
 
       - name: Archive (zip)
-        if: matrix.archive_ext == 'zip'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.archive_ext == 'zip'
         shell: pwsh
         run: |
           cd build
           Compress-Archive -Path friedman -DestinationPath "friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip"
 
       - name: Upload artifact
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: friedman-${{ matrix.platform }}
@@ -142,6 +178,7 @@ jobs:
   release:
     name: Create Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
