@@ -4,6 +4,103 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.9.2] — 2026-08-07
+
+CLI v0.9.2 adopts **MacroEconometricModels 0.8.0** (exact pin `=0.7.2` → `=0.8.0`,
+program index #121) and wraps its monetary/fiscal policy-analysis surface, taking
+the CLI from **387 to 410 leaves** and adding the 19th top-level command.
+
+### Added
+
+- **New top-level `policy`** (W4–W7, #126–#129): structural policy analysis on
+  VAR/BVAR/LP/DSGE/HA backends — `policy effects` (incl. sign-identified),
+  `policy counterfactual`, `policy optimal`, `policy moments`, the OPP family
+  (`opp`, `opp-sequence` — Barnichon-Mesters optimal policy perturbations),
+  `policy news`, `policy jacobian ha`, `policy history`, `policy spanning`, and
+  `policy sufficiency dsge`. Policy rules/losses are TOML-driven
+  (`get_policy_rule`/`get_policy_loss`), and honesty diagnostics
+  (rel_residual/spanned/error_path/n_draws_used) are part of the stdout DATA
+  tables.
+- `nowcast bvar --prior litterman` + hyperparameter knobs (W1, #123).
+- `test factor-break` per-series diagnostics (W2, #124).
+- `:mp_shocks` bundled dataset (EXAMPLE_DATASETS 11→12) and `data describe`
+  first/last-valid columns (W3, #125).
+- Dynamic-panel hardening (W10, #131): `estimate preg` Arellano-Bond/
+  Blundell-Bond `--collapse`/`--min|max-lag-endo` with load-bearing guards +
+  Dynamic Panel Diagnostics table; `estimate piv` Weak-Instrument Diagnostics;
+  `predict ologit|oprobit|mlogit --marginal-effects` re-added with real SEs.
+- Order-1 `dsge moments` re-enabled (W9, #116) — upstream MEMs#607 fixed the
+  order-1 control-covariance defect at 0.7.3.
+
+### Fixed
+
+- **`dsge solve --method perturbation` was dead on every shocked model since
+  MEMs 0.7.2** (gx is ny×nv with v=[states; shocks]) — caught and fixed at the
+  0.8.0 bump (W0, #122).
+- `data dropna --vars` was a TypeError on real MEMs (Vector{SubString}); NaN-not-
+  zero policy enforced across the data family (W3, #125).
+- `midas --horizon` was inert; factor varnames adopted upstream (MEMs#538) (W10,
+  #131).
+- Post-exit engine fixes: pre-dispatch globals are leading-only with `-h`
+  reserved for help everywhere + a registry reservation guard (#117);
+  `check_mock_surface` now sees NamedTuple returns and shape drift — its first
+  run caught 6 live drifts including `test granger --all` exiting 1 on every
+  real invocation (#118); plot-recipe drift gate + 0.8.0 receiver baseline
+  (#95); CSV column names forwarded through the VAR family so IRF/FEVD/forecast
+  tables carry the user's variable names (#119).
+
+### Deferred
+
+- The five closure-taking MEMs policy entry points (irf_match, opp_sensitivity,
+  robust_weights, FunctionConstraint, counterfactual_history) are recorded as
+  deliberate v0.9.2 non-goals in #130; opp_sensitivity is earmarked first for
+  TOML specialization at v1.1.
+
+## [0.9.1] — 2026-08-07
+
+CLI v0.9.1 adopts **MacroEconometricModels 0.7.2** (exact pin `=0.7.0` → `=0.7.2`,
+program index #104), closing all 14 C053 upstream rider gates in one release and
+taking the CLI from **361 to 387 leaves**.
+
+### Added
+
+- **Stage-14 riders un-gated by 0.7.2** (W6–W10): `estimate sarima` +
+  `forecast sarima`; `estimate tvpvar`/`mfvar` with `irf tvpvar` and
+  `bvar --hyperopt`; `forecast scenario` (Waggoner-Zha conditional forecasts);
+  IRF wild/block bootstrap + Kilian bias-corrected bands; `fevd --generalized`
+  (Pesaran-Shin); Arias effective sample size; `estimate qreg`/`rdd`.
+- **Micro-inference wave** (W10, #112): `estimate reg --cov-type conley`
+  (spatial SEs), `estimate preg --absorb` (HDFE), `test wild-cluster`,
+  `test anderson-rubin`, and LP-IV MOP effective-F + AR confidence bands.
+- `estimate poisson`/`nbreg` + `test dispersion` (W2, #107); GARCH
+  `--dist normal|student|ged` (W11, #113).
+- `predict`/`forecast ms|ms-ar` (W3, #101); `residuals ologit|oprobit|mlogit`
+  re-enabled on MEMs#507 with `--generalized` on the ordered models (W4, #87).
+- Native save/load derived from the upstream serialization registry — 6 → **56
+  types** (W1, #106).
+- HA/OLG/CT Stage-14 audit: `dsge ha accuracy`, `--euler-points` (0.7.2 made
+  midpoints the default Euler-accuracy convention), Den Haan on HADSGE (W13,
+  #115 — also fixed the broken `.jl` HA model loader, #80).
+- `dsge determinacy-map` (config-driven), `dsge moments` closed-form order-2/3,
+  `--prefilter` across the `dsge bayes` family, Sims existence/uniqueness on
+  `dsge solve` (W12, #114).
+
+### Changed
+
+- **Headline behavior drift at the pin bump** (W0, #105): `estimate_bvar` now
+  defaults `hyperopt=:glp`, so every config-less BVAR result changed.
+- `estimate lp --method iv` exit-1 fixed (the mock had invented a
+  `weak_instrument_test` return surface real MEMs never had).
+
+### Fixed
+
+- `dsge moments --order 1` refused with a typed usage error while upstream
+  MEMs#607 was open (order-1 control covariances were provably wrong; orders
+  2/3 exact) — re-enabled in v0.9.2 after the upstream fix.
+- Plot-coverage audit against the real recipe list (W5, #95): `_maybe_plot` net
+  maps a missing `plot_result` method to a typed `model/unsupported` instead of
+  an untyped exit 1.
+
 ## [0.9.0] — 2026-07-31
 
 CLI v0.9.0 closes milestone **M5c — Surface Expansion**. All twelve wave issues
