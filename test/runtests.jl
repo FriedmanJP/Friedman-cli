@@ -2873,6 +2873,22 @@ end
     @test ser.code == "data/serialization"
     @test exit_class(ser) == 3
 
+    # W4/#139 (#81): the two direct-Exception domain types OUTSIDE MacroModelError.
+    ss = _domain_error_class(MacroEconometricModels.StochasticSingularityError(
+        "3 observables exceed 1 structural shocks"))
+    @test ss isa CliError
+    @test ss.code == "model/stochastic-singularity"
+    @test exit_class(ss) == 5
+    @test occursin("observables exceed", ss.message)
+    @test occursin("measurement", ss.hint)
+
+    dse = _domain_error_class(MacroEconometricModels.DSGESolveError(
+        "Numerical steady state did not satisfy the equilibrium conditions"))
+    @test dse isa CliError
+    @test dse.code == "model/solve"
+    @test exit_class(dse) == 5
+    @test occursin("steady-state", dse.hint)
+
     # C054 #142: MEMs `_orient_data` ArgumentError → data/orientation (exit 3).
     orient = _domain_error_class(ArgumentError(
         "data has shape (3, 100) but neither dimension equals the number of " *

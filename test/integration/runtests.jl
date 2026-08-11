@@ -4347,6 +4347,58 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        # W4/#139 (#81): the two direct-Exception domain types OUTSIDE MacroModelError
+        # must map to their SPECIFIC typed classes — envelope code AND process exit
+        # agree (the W2 machinery). Verified against the real throw sites on the
+        # resolved 0.8.0 copy: bayes_estimation.jl (eager guard), steady_state.jl.
+        @testset "W4/#139: direct-Exception domain types → typed classes" begin
+            # StochasticSingularityError: 2 observables, 1 structural shock, no
+            # measurement error. The guard is EAGER (fires before sampling), so the
+            # tiny chain settings are never reached — this case is cheap.
+            pri4 = joinpath(dir, "priors_w4.toml")
+            write(pri4, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            """)
+            dat4 = joinpath(dir, "data_w4.csv")
+            open(dat4, "w") do io
+                println(io, "Y,C"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, "$y,$y"); end
+            end
+            rs = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                           "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                           "--sampler", "rwmh", "--n-draws", "50", "--burnin", "10"])
+            @test rs.code == 5
+            @test rs.doc !== nothing && String(rs.doc.status) == "error"
+            @test String(rs.doc.error.code) == "model/stochastic-singularity"
+            @test Int(rs.doc.error.exit_code) == 5
+            @test occursin("observables exceed", String(rs.doc.error.message))
+
+            # DSGESolveError: y = y² + 2 has no real steady state, so the residual
+            # gate in compute_steady_state throws. Per-BRANCH coverage: both leaves
+            # that reach the numerical steady-state path.
+            bad4 = joinpath(dir, "bad_w4.jl")
+            write(bad4, """
+            @dsge begin
+                parameters: sigma = 0.01
+                endogenous: Y
+                exogenous: e
+
+                Y[t] = Y[t-1]^2 + 2 + sigma * e[t]
+            end
+            """)
+            for leaf in (["dsge", "solve", bad4], ["dsge", "steady-state", bad4])
+                rb = run_json(String[leaf...])
+                @test rb.code == 5
+                @test rb.doc !== nothing && String(rb.doc.status) == "error"
+                @test String(rb.doc.error.code) == "model/solve"
+                @test Int(rb.doc.error.exit_code) == 5
+            end
+        end
+
         rm(dir; force=true, recursive=true)
     end
 

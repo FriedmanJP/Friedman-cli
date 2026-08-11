@@ -4451,10 +4451,17 @@ end
 """Map a raw estimator exception to a typed class. An `ArgumentError` from these estimators
 is always a statement about the DATA (bad response, mismatched offset), so it maps to
 `data/invalid` rather than the generic model class; everything else defers to
-`_domain_error_class` via CliError so it can never surface as internal/error."""
+`_domain_error_class` via CliError so it can never surface as internal/error.
+
+W4/#139: `_domain_error_class` is consulted BEFORE the generic fallbacks so the
+direct-`Exception` domain types outside `MacroModelError` (`StochasticSingularityError`,
+`DSGESolveError`) keep their specific classes on wrapped paths — the old fallback
+collapsed them into `model/error`."""
 function _domain_or_data_error(e, label::String)
     e isa CliError && return e
     _has_supertype_named(typeof(e), :MacroModelError) && return e
+    cli = _domain_error_class(e)
+    cli === nothing || return cli
     e isa ArgumentError && return CliError("data/invalid",
         "$label: $(sprint(showerror, e))")
     return CliError("model/error", "$label failed"; hint=sprint(showerror, e))

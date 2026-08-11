@@ -12893,3 +12893,31 @@ end
         @test occursin("Agriculture", out) && occursin("Manufacturing", out)
     end
 end
+
+# W4/#139 (#81): the direct-Exception domain types must keep their SPECIFIC classes
+# through the `_domain_or_data_error` wrap — its old fallback collapsed anything
+# outside MacroModelError into generic model/error (the shadow the wave audit found).
+@testset "W4/#139: _domain_or_data_error consults _domain_error_class" begin
+    ss = _domain_or_data_error(
+        MacroEconometricModels.StochasticSingularityError("2 observables exceed 1 structural shocks"),
+        "bayes estimation")
+    @test ss isa CliError
+    @test ss.code == "model/stochastic-singularity"
+    @test exit_class(ss) == 5
+
+    dse = _domain_or_data_error(
+        MacroEconometricModels.DSGESolveError("Numerical steady state did not satisfy"),
+        "dsge solve")
+    @test dse isa CliError
+    @test dse.code == "model/solve"
+    @test exit_class(dse) == 5
+
+    # MacroModelError subtypes still pass through RAW — the central mapper owns them.
+    conv = _domain_or_data_error(MacroEconometricModels.ConvergenceError("nc"), "x")
+    @test !(conv isa CliError)
+    @test nameof(typeof(conv)) === :ConvergenceError
+
+    # Generic fallbacks unchanged (a plain ArgumentError is a DATA statement here).
+    @test _domain_or_data_error(ArgumentError("bad response"), "x").code == "data/invalid"
+    @test _domain_or_data_error(ErrorException("boom"), "x").code == "model/error"
+end

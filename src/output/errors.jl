@@ -84,6 +84,12 @@ falls back to the generic internal-error path (exit 1).
 - `SingularSystemError`  → `model/singular` (5)
 - `SerializationError`   → `data/serialization` (3) — a saved artifact/handle is
   unreadable or version-incompatible, i.e. a bad input artifact, not a model bug.
+- `StochasticSingularityError` → `model/stochastic-singularity` (5) — W4/#139:
+  a direct `Exception` (NOT under `MacroModelError`), thrown by the DSGE Kalman
+  likelihood when observables exceed structural shocks with no measurement error.
+- `DSGESolveError`       → `model/solve` (5) — W4/#139: also a direct `Exception`;
+  thrown when the numerical steady state fails the equilibrium conditions or the
+  constrained NLopt solver does not converge.
 - any other `MacroModelError` subtype → `model/error` (5)
 """
 function _domain_error_class(e)
@@ -101,6 +107,14 @@ function _domain_error_class(e)
     elseif tn === :SerializationError
         return CliError("data/serialization", _err_message(e);
                         hint="the saved artifact is unreadable or version-incompatible")
+    elseif tn === :StochasticSingularityError
+        return CliError("model/stochastic-singularity", _err_message(e);
+                        hint="the state-space is stochastically singular — add measurement " *
+                             "error or reduce the number of observables")
+    elseif tn === :DSGESolveError
+        return CliError("model/solve", _err_message(e);
+                        hint="no valid solution at these parameters — check the steady-state " *
+                             "guess/bounds, or the parameterization (try `dsge determinacy-map`)")
     elseif _has_supertype_named(typeof(e), :MacroModelError)
         return CliError("model/error", _err_message(e))
     elseif e isa ArgumentError && _is_orientation_error(_err_message(e))
