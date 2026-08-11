@@ -140,6 +140,12 @@ jobs:
       # its leaf's TableSpec (or extend a family prefix)
       - name: Table-key drift gate (T3 dump)
         run: julia --project test/tools/check_table_keys.jl "${{ runner.temp }}/envelopes"
+      # W5/#140: every leaf's emitted input_schema must be a valid draft-07
+      # schema under a CONFORMANT validator (same division of labor as W1)
+      - name: Input-schema metaschema check
+        run: |
+          julia --project=test/integration test/tools/dump_input_schemas.jl "${{ runner.temp }}/input_schemas"
+          python3 test/tools/validate_envelopes.py --input-schemas "${{ runner.temp }}/input_schemas"
       - name: Process coverage
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
         with:

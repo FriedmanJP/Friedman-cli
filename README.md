@@ -18,7 +18,10 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 ```bash
 # install (see below), then:
 friedman estimate var data.csv --lags 1 --format json | jq .
-friedman schema estimate var | jq '.options[].name'
+friedman schema estimate var | jq '.input_schema'   # draft-07 invocation schema
+friedman schema estimate var | jq '.tables'         # stable result-table keys
+friedman schema | jq '.contract.exit_codes'         # the whole output contract
+friedman schema --docs | jq -r '.docs'              # the full agent guide
 echo $?   # 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal
 ```
 
@@ -81,7 +84,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `did` | `estimate` `event-study` `lp-did` + `test` (`bacon` `pretrend` `negweight` `honest`) | Difference-in-differences (3 + 4 nested) |
 | `multipliers` | `nardl` | NARDL cumulative asymmetric dynamic multipliers (m⁺/m⁻ response curves + bootstrap bands) |
 | `policy` | `effects` (`var` `bvar` `lp` `sign`) + `counterfactual` (`var` `bvar` `lp`) + `optimal` (`var` `bvar` `lp`) + `moments` (`var` `bvar`) + `opp` / `opp-sequence` (`var` `bvar`) + `history` (`var` `bvar`) + `news` (`dsge` `ha`) + `jacobian` (`ha`) + `spanning` (`var`) + `sufficiency` (`dsge`) | Policy counterfactuals & optimal policy (McKay-Wolf causal-effect menus, Barnichon-Mesters OPP, rule counterfactuals, structural news/Jacobian routes; 23 leaves) |
-| `schema` | — | Machine-readable self-description (raw JSON) |
+| `schema` | — | Machine-readable self-description (raw JSON): per-leaf draft-07 `input_schema` + declared result-table keys; root `contract` (embedded envelope schema + exit codes); `--docs` embeds the agent guide |
 
 All commands support `--format` (`table`|`csv`|`json`) and `--output` (file path) options.
 

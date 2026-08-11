@@ -10,7 +10,10 @@ suite (FRIEDMAN_T3_DUMP_ENVELOPES).
 
 Usage:
     python3 test/tools/validate_envelopes.py [--schema schema/envelope-v1.json]
-        [--goldens test/golden] [--dump <dir>]
+        [--goldens test/golden] [--dump <dir>] [--input-schemas <dir>]
+
+--input-schemas (W5/#140): metaschema-check every emitted per-leaf input_schema
+(dumped by test/tools/dump_input_schemas.jl) as a valid draft-07 schema.
 
 Exit non-zero on any failure, printing per-file JSON-pointer paths.
 Requires: pip install jsonschema
@@ -52,6 +55,8 @@ def main() -> int:
     ap.add_argument("--schema", default="schema/envelope-v1.json")
     ap.add_argument("--goldens", default="test/golden")
     ap.add_argument("--dump", default=None, help="directory of raw envelope dumps (optional)")
+    ap.add_argument("--input-schemas", default=None,
+                    help="directory of per-leaf input_schema dumps to metaschema-check (optional)")
     args = ap.parse_args()
 
     schema_path = pathlib.Path(args.schema)
@@ -88,7 +93,28 @@ def main() -> int:
             n_files += 1
             n_errors += validate_file(validator, path)
 
-    print(f"validated {n_files} envelope file(s): {n_errors} error(s)")
+    # 4. Per-leaf input schemas (W5/#140): each must itself be a valid draft-07
+    # schema. An empty directory is a harness defect, not a pass.
+    if args.input_schemas:
+        is_dir = pathlib.Path(args.input_schemas)
+        schemas = sorted(is_dir.glob("*.json")) if is_dir.is_dir() else []
+        if not schemas:
+            fail(f"{is_dir}: no input schemas found")
+            return 1
+        for path in schemas:
+            n_files += 1
+            try:
+                doc = json.loads(path.read_text(encoding="utf-8"))
+                Draft7Validator.check_schema(doc)
+            except json.JSONDecodeError as e:
+                fail(f"{path}: not valid JSON: {e}")
+                n_errors += 1
+            except jsonschema.SchemaError as e:
+                fail(f"{path}: not a valid draft-07 schema: {e.message}")
+                n_errors += 1
+        print(f"ok   {len(schemas)} input schema(s) metaschema-checked")
+
+    print(f"validated {n_files} file(s): {n_errors} error(s)")
     return 1 if n_errors else 0
 
 

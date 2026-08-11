@@ -12921,3 +12921,114 @@ end
     @test _domain_or_data_error(ArgumentError("bad response"), "x").code == "data/invalid"
     @test _domain_or_data_error(ErrorException("boom"), "x").code == "model/error"
 end
+
+# W5/#140: `friedman schema` — machine-actionable self-description (closes #63).
+# schema.jl is NOT in the standard include block above because it needs the full
+# registry populated; included here with a test APP so _schema_cmd resolves it.
+include(joinpath(project_root, "src", "commands", "schema.jl"))
+if !@isdefined(APP)
+    const APP = Entry("friedman",
+        NodeCommand("friedman", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "estimate" => register_estimate_commands!(),
+            "test"     => register_test_commands!(),
+            "irf"      => register_irf_commands!(),
+            "fevd"     => register_fevd_commands!(),
+            "hd"       => register_hd_commands!(),
+            "forecast"  => register_forecast_commands!(),
+            "predict"   => register_predict_commands!(),
+            "residuals" => register_residuals_commands!(),
+            "filter"    => register_filter_commands!(),
+            "data"      => register_data_commands!(),
+            "io"        => register_io_commands!(),
+            "nowcast"   => register_nowcast_commands!(),
+            "dsge"      => register_dsge_commands!(),
+            "did"       => register_did_commands!(),
+            "multipliers" => register_multipliers_commands!(),
+            "policy"    => register_policy_commands!(),
+            "spectral"  => register_spectral_commands!(),
+            "model"     => register_model_commands!(),
+            "completions" => register_completions_commands!(),
+            "schema"    => register_schema_command!(),
+        ), "test tree"); version=v"0.0.0-test")
+end
+
+@testset "W5/#140: schema — input_schema, tables, contract, --docs" begin
+    getdoc(args...) = JSON3.read(strip(_capture() do
+        dispatch_schema(String[args...])
+    end))
+
+    # ── Leaf doc: draft-07 input_schema with x-cli annotations ──
+    doc = getdoc("estimate", "var")
+    is = doc.input_schema
+    @test String(is[Symbol("\$schema")]) == "http://json-schema.org/draft-07/schema#"
+    @test String(is.type) == "object"
+    @test is.additionalProperties === false
+    @test "data" in String.(is.required)
+    props = is.properties
+    @test String(props.data.type) == "string"
+    @test String(props.data[Symbol("x-cli")].kind) == "argument"
+    @test Int(props.data[Symbol("x-cli")].position) == 1
+    @test String(props.lags.type) == "integer"
+    @test String(props.lags[Symbol("x-cli")].kind) == "option"
+    @test String(props.lags[Symbol("x-cli")].long) == "--lags"
+    @test "json" in String.(props.format.enum)
+    @test String(props.format[Symbol("x-cli")].short) == "-f"
+
+    # ── Leaf doc: registry-declared tables (the W3 key contract) ──
+    tnames = Set(String(t.name) for t in doc.tables)
+    @test "var_coefficients" in tnames
+    @test "information_criteria" in tnames
+    @test all(haskey(t, :family) for t in doc.tables)
+    # a family declaration surfaces as family=true (hd var: per-shock sibling
+    # tables; NOT irf var — W3 made that one static)
+    hddoc = getdoc("hd", "var")
+    @test any(t -> t.family === true, hddoc.tables)
+
+    # ── Root doc: contract block ──
+    root = getdoc()
+    @test haskey(root, :contract)
+    env_schema = root.contract.envelope_schema
+    @test occursin("draft-07", String(env_schema[Symbol("\$schema")]))
+    @test haskey(env_schema.properties, :data)   # the embedded normative schema
+    @test length(root.contract.exit_codes) == 7
+    codes = Dict(Int(e.exit_code) => String(e.class) for e in root.contract.exit_codes)
+    @test codes[5] == "model" && codes[2] == "usage" && codes[0] == "ok"
+    # a non-root doc has no contract
+    @test !haskey(doc, :contract)
+
+    # ── --docs: guide embedded; flag NEVER eats a path token (D-6) ──
+    r1 = getdoc("--docs")
+    @test haskey(r1, :docs) && occursin("# Agent Guide", String(r1.docs))
+    r2 = getdoc("--docs", "estimate", "var")   # D-6: `estimate` must survive
+    @test String.(r2.path) == ["estimate", "var"]
+    @test haskey(r2, :docs)
+    r3 = getdoc("estimate", "var", "--docs")
+    @test String.(r3.path) == ["estimate", "var"]
+    @test haskey(r3, :docs)
+    @test !haskey(doc, :docs)                  # absent without the flag
+    # the guide the schema serves is byte-identical to the baked const
+    @test String(r1.docs) == _AGENT_GUIDE_MD
+
+    # ── Every leaf emits a structurally sound input_schema ──
+    nchecked = Ref(0)
+    function _walkschema(node, path)
+        for (name, sub) in node.subcmds
+            is_hidden_alias(name, sub) && continue
+            p = vcat(path, [name])
+            if sub isa LeafCommand
+                s = _input_schema(sub, p)
+                @test s["additionalProperties"] === false
+                @test issubset(Set(s["required"]), Set(keys(s["properties"])))
+                for (_, pv) in s["properties"]
+                    @test pv["type"] in ("string", "integer", "number", "boolean")
+                    @test haskey(pv, "x-cli")
+                end
+                nchecked[] += 1
+            else
+                _walkschema(sub, p)
+            end
+        end
+    end
+    _walkschema(APP.root, String[])
+    @test nchecked[] > 400   # the full 410-leaf surface (+ schema itself)
+end

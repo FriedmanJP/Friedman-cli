@@ -1,6 +1,8 @@
 # Agent Guide
 
-Contract for agents driving Friedman-cli (CLI v0.5.0+; package v0.7.0 targets MEMs v0.7.0).
+Contract for agents driving Friedman-cli. This document is the single source: it
+ships inside the binary and is served verbatim by `friedman schema --docs`, and
+the documentation site renders the same file.
 
 ## One envelope on stdout
 
@@ -26,9 +28,9 @@ Example shape (fields abbreviated):
     "elapsed_ms": 12.3
   },
   "data": {
-    "var_1_coefficients": {
-      "columns": ["variable", "..."],
-      "rows": [["y1", 0.5]]
+    "var_coefficients": {
+      "columns": ["equation", "term", "estimate", "..."],
+      "rows": [["y1", "y1.l1", 0.5]]
     }
   },
   "warnings": [],
@@ -127,6 +129,23 @@ friedman nosuchcmd; echo $?          # 2
 friedman estimate var /nope.csv; echo $?   # 3
 ```
 
+Domain failures carry **typed codes** where the underlying failure mode is
+recognized (all are stable identifiers; the set only grows):
+
+| `error.code` | Exit | Meaning |
+|--------------|------|---------|
+| `model/convergence` | 5 | estimator failed to converge |
+| `model/identification` | 5 | identifying restrictions/instruments insufficient |
+| `model/singular` | 5 | near-singular system |
+| `model/stochastic-singularity` | 5 | more observables than shocks with no measurement error (DSGE likelihood) |
+| `model/solve` | 5 | DSGE steady state / solver failure |
+| `model/error` | 5 | other recognized domain failure |
+| `data/serialization` | 3 | saved model handle unreadable or version-incompatible |
+| `data/orientation` | 3 | data matrix transposed relative to the observables |
+
+Anything else surfaces as `usage/*`, `data/*`, `config/*`, or `env/*` per the
+class table above; `internal/error` (exit 1) means a CLI bug — report it.
+
 ## Strict parsing & self-correction
 
 Unknown options throw with a suggestion when the edit distance is small:
@@ -140,11 +159,38 @@ Error: friedman estimate var: unknown option --lgas — did you mean --lags?
 ## Self-description: `friedman schema`
 
 ```bash
-friedman schema | jq '.commands | length'          # top-level command count
+friedman schema | jq '.commands | length'            # top-level command count
 friedman schema estimate var | jq '.options[].name'  # leaf options
+friedman schema estimate var | jq '.input_schema'    # draft-07 invocation schema
+friedman schema estimate var | jq '.tables'          # declared result-table keys
+friedman schema | jq '.contract.exit_codes'          # exit-code taxonomy
+friedman schema | jq -r '.docs'                      # this guide (--docs)
 ```
 
-Output is **raw JSON** (not wrapped in an envelope).
+Output is **raw JSON** (not wrapped in an envelope). Since v0.10.0 (W5/#140)
+the document is fully machine-actionable:
+
+- **`input_schema`** (leaf docs): a draft-07 JSON Schema over the invocation
+  surface — one property per argument/option/flag under the CLI's kebab-case
+  names (`string`/`integer`/`number`/`boolean`, `enum` from declared choices,
+  defaults, `required` = required positionals, `additionalProperties: false`).
+  Each property carries an **`x-cli`** annotation (`kind`:
+  `argument|option|flag`, `position` for positionals, `long`/`short` spellings)
+  so an exact argv can be reconstructed from a validated object.
+- **`tables`** (leaf docs): the registry-declared result-table keys — `name`,
+  `description`, and `family` (`true` means keys are `<name>_<variable-slug>`,
+  one per variable/shock; see *Stable table keys*). This is the same
+  declaration set the CI drift gate enforces, so it is exactly what the
+  envelope's `data` will use.
+- **`contract`** (root doc): `envelope_schema` embeds the full normative
+  `envelope-v1.json`, and `exit_codes` lists the class taxonomy — an agent can
+  bootstrap the entire output contract from one call.
+- **`--docs`**: adds this guide verbatim as a `docs` markdown string (works on
+  the root and on any command path).
+
+The `schema` command itself is deliberately absent from the command inventory
+(its variable-length path does not fit the leaf model); it is discoverable from
+the top-level help and from this guide.
 
 ## Determinism & reproducibility
 
