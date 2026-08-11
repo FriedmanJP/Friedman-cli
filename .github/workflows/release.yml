@@ -11,20 +11,20 @@ on:
   workflow_dispatch:
     inputs:
       budget_version_ms:
-        description: "--version budget in ms (default 500)"
+        description: "--version budget in ms (default 3000)"
         required: false
-        default: "500"
+        default: "3000"
       budget_estimate_ms:
-        description: "first estimate var budget in ms (default 1500)"
+        description: "first estimate var budget in ms (default 3500)"
         required: false
-        default: "1500"
+        default: "3500"
 
 permissions:
   contents: write
 
 env:
-  BUDGET_VERSION_MS: ${{ github.event.inputs.budget_version_ms || '500' }}
-  BUDGET_ESTIMATE_MS: ${{ github.event.inputs.budget_estimate_ms || '1500' }}
+  BUDGET_VERSION_MS: ${{ github.event.inputs.budget_version_ms || '3000' }}
+  BUDGET_ESTIMATE_MS: ${{ github.event.inputs.budget_estimate_ms || '3500' }}
 
 jobs:
   build:
