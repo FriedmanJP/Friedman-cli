@@ -168,6 +168,7 @@ function _predict_static(; data::String="", nfactors=nothing,
     else
         fm = model
         varnames = fm.varnames
+        r = fm.r
     end
     fitted = predict(fm)
     T = size(fitted, 1)
@@ -205,7 +206,10 @@ function _predict_dynamic(; data::String="", nfactors=nothing, factor_lags::Int=
         fm = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
     else
         fm = model
-        varnames = fm.varnames
+        r = fm.r
+        factor_lags = fm.p
+        # DynamicFactorModel carries no varnames upstream — use real's own default naming
+        varnames = ["Var $i" for i in 1:size(fm.X, 2)]
     end
     fitted = predict(fm)
     T = size(fitted, 1)
@@ -242,7 +246,9 @@ function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing
         gm = estimate_gdfm(X, q)
     else
         gm = model
-        varnames = gm.varnames
+        q = gm.q
+        # GeneralizedDynamicFactorModel carries no varnames upstream
+        varnames = ["Var $i" for i in 1:size(gm.X, 2)]
     end
     fitted = predict(gm)
     T = size(fitted, 1)
@@ -831,6 +837,7 @@ function _residuals_static(; data::String="", nfactors=nothing,
     else
         fm = model
         varnames = fm.varnames
+        r = fm.r
     end
     resid = residuals(fm)
     T = size(resid, 1)
@@ -868,7 +875,10 @@ function _residuals_dynamic(; data::String="", nfactors=nothing, factor_lags::In
         fm = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
     else
         fm = model
-        varnames = fm.varnames
+        r = fm.r
+        factor_lags = fm.p
+        # DynamicFactorModel carries no varnames upstream — use real's own default naming
+        varnames = ["Var $i" for i in 1:size(fm.X, 2)]
     end
     resid = residuals(fm)
     T = size(resid, 1)
@@ -905,7 +915,9 @@ function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothi
         gm = estimate_gdfm(X, q)
     else
         gm = model
-        varnames = gm.varnames
+        q = gm.q
+        # GeneralizedDynamicFactorModel carries no varnames upstream
+        varnames = ["Var $i" for i in 1:size(gm.X, 2)]
     end
     resid = residuals(gm)
     T = size(resid, 1)
@@ -1516,9 +1528,9 @@ const FITTED_MODEL_KINDS = [
     (; name="bvar",       pred=_predict_bvar,       res=_residuals_bvar,       kind=:bvar),
     (; name="arima",      pred=_predict_arima,      res=_residuals_arima,      kind=:arima),
     (; name="vecm",       pred=_predict_vecm,       res=_residuals_vecm,       kind=:vecm),
-    (; name="static",     pred=_predict_static,     res=_residuals_static,     kind=:factor),
-    (; name="dynamic",    pred=_predict_dynamic,    res=_residuals_dynamic,    kind=:factor),
-    (; name="gdfm",       pred=_predict_gdfm,       res=_residuals_gdfm,       kind=:factor),
+    (; name="static",     pred=_predict_static,     res=_residuals_static,     kind=:factor_static),
+    (; name="dynamic",    pred=_predict_dynamic,    res=_residuals_dynamic,    kind=:factor_dynamic),
+    (; name="gdfm",       pred=_predict_gdfm,       res=_residuals_gdfm,       kind=:factor_gdfm),
     (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol),
     (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol),
     (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol),
@@ -1551,10 +1563,32 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
             OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
             OUTPUT_OPTIONS...,
         ]
-    elseif kind === :factor
+    elseif kind === :factor_static
+        # #144: options MUST mirror the handler kwargs exactly (#85). The old shared
+        # :factor block declared --lags, which NO factor handler accepts — the bound
+        # default made every predict|residuals static|dynamic|gdfm invocation a
+        # MethodError (exit 1), hidden by zero coverage on the whole sub-family.
         return [
-            OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors"),
-            OptionSpec(name="lags", short="p", type=Int, default=1, description="Lags"),
+            OptionSpec(name="nfactors", short="r", type=Int, default=nothing,
+                       description="Number of factors (default: auto via IC)"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :factor_dynamic
+        return [
+            OptionSpec(name="nfactors", short="r", type=Int, default=nothing,
+                       description="Number of factors (default: auto via IC)"),
+            OptionSpec(name="factor-lags", short="p", type=Int, default=1,
+                       description="Factor VAR lag order"),
+            OptionSpec(name="method", type=String, default="twostep",
+                       description="twostep|qml estimation method"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :factor_gdfm
+        return [
+            OptionSpec(name="nfactors", type=Int, default=nothing,
+                       description="Number of static factors (unused when --dynamic-rank set)"),
+            OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing,
+                       description="Dynamic rank (default: auto)"),
             OUTPUT_OPTIONS...,
         ]
     elseif kind === :logit

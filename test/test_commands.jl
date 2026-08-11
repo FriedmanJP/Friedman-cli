@@ -12550,6 +12550,8 @@ end  # Command Handlers
             (["spectral", "density", fix, "--method", "welch", "--format", "json"], ["spectral", "density"]),
             (["spectral", "cross", fix, "--var1", "1", "--var2", "2", "--format", "json"], ["spectral", "cross"]),
             (["spectral", "transfer", "--filter", "hp", "--lambda", "1600.0", "--nobs", "200", "--format", "json"], ["spectral", "transfer"]),
+            # #147: estimate sdfm estimation-record table
+            (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
         ]
         for (argv, gkeys) in cases
             Random.seed!(42)

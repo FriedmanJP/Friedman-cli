@@ -174,8 +174,9 @@ In-sample fitted values (dynamic)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | — | `Int64` | — | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `1` | — | Lags |
+| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
+| `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
@@ -331,8 +332,8 @@ In-sample fitted values (gdfm)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | — | `Int64` | — | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `1` | — | Lags |
+| `--nfactors` | — | `Int64` | — | — | Number of static factors (unused when --dynamic-rank set) |
+| `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
@@ -802,8 +803,7 @@ In-sample fitted values (static)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | — | `Int64` | — | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `1` | — | Lags |
+| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |

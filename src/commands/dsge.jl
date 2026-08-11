@@ -1561,7 +1561,8 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         n_draws::Int, burnin::Int, ess_target::Float64, observables::String,
         solver::String, order::Int, delayed_acceptance::Bool,
         constraint_solver::String="",
-        prefilter::String="none", hp_lambda::Float64=1600.0)
+        prefilter::String="none", hp_lambda::Float64=1600.0,
+        measurement_error::String="none")
     inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
                              constraint_solver)
     spec, Y, theta0 = inp.spec, inp.Y, inp.theta0
@@ -1593,6 +1594,30 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     pf === :none || _status("  Prefilter: $prefilter" *
         (pf === :hp ? " (lambda=$hp_lambda)" : ""))
 
+    # #148: measurement error (none|auto|comma-separated SDs, one per observable).
+    # Upstream default is NONE — with n_obs > n_shocks the likelihood is then
+    # stochastically singular (model/stochastic-singularity), and this option is
+    # the in-CLI remedy the error hint points at.
+    me = if measurement_error in ("", "none")
+        nothing
+    elseif measurement_error == "auto"
+        :auto
+    else
+        try
+            [parse(Float64, strip(v)) for v in split(measurement_error, ",")]
+        catch
+            throw(CliError("usage/invalid-option",
+                "dsge bayes: --measurement-error must be none|auto|comma-separated numbers, " *
+                "got '$measurement_error'"))
+        end
+    end
+    # Guard the vector form up front (usage/invalid) — upstream raises an untyped
+    # ArgumentError on a length mismatch, which would surface as internal/error.
+    me isa Vector && length(me) != size(Y, 2) && throw(CliError("usage/invalid",
+        "dsge bayes: --measurement-error has $(length(me)) value(s) but there are " *
+        "$(size(Y, 2)) observables — give one SD per observable, or use auto"))
+    me === nothing || _status("  Measurement error: $measurement_error")
+
     solver_obj_kw = isempty(constraint_solver) ? (;) : (; solver_obj=Symbol(constraint_solver))
     # World-age barrier: estimate_dsge_bayes re-solves the spec (evaluating its @dsge
     # residual fns) on every posterior draw — must run at the latest world age.
@@ -1603,6 +1628,7 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         n_draws=n_draws, burnin=burnin, ess_target=ess_target,
         solver=Symbol(solver), solver_kwargs=solver_kwargs,
         delayed_acceptance=delayed_acceptance,
+        measurement_error=me,
         prefilter=pf, hp_lambda=hp_lambda, solver_obj_kw...)
 
     return result
@@ -1617,10 +1643,11 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
                                constraint_solver::String="",
                                delayed_acceptance::Bool=false,
                                prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     # Posterior summary table
     draws = result.theta_draws
@@ -1651,12 +1678,13 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
                           constraint_solver::String="",
                           delayed_acceptance::Bool=false,
                           prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                           horizon::Int=40,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1695,11 +1723,12 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
                            delayed_acceptance::Bool=false,
                            horizon::Int=40,
                            prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1738,12 +1767,13 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
                                constraint_solver::String="",
                                delayed_acceptance::Bool=false,
                                prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                periods::Int=200,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1775,10 +1805,11 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
                               constraint_solver::String="",
                               delayed_acceptance::Bool=false,
                               prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                               output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     summary = posterior_summary(result)
     pp_table = prior_posterior_table(result)
@@ -1826,6 +1857,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
                               delayed_acceptance::Bool=false,
                               model2::String="", params2::String="", priors2::String="",
                               prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                               output::String="", format::String="table")
     isempty(model2) && error("--model2 is required for model comparison")
     isempty(params2) && error("--params2 is required for model comparison")
@@ -1834,7 +1866,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     _status("Estimating Model 1...")
     r1 = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Estimating Model 2...")
     r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
@@ -1878,11 +1910,12 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
                                  delayed_acceptance::Bool=false,
                                  n_sim::Int=500, periods::Int=100,
                                  prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                  output::String="", format::String="table",
                                  plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
@@ -1944,7 +1977,8 @@ function _dsge_hd(; model::String, data::String="", observables::String="",
         contrib = hd.contributions[:, :, si]
         contrib_df = DataFrame(contrib, hd.variables)
         insertcols!(contrib_df, 1, :t => 1:hd.T_eff)
-        output_result(contrib_df; format=Symbol(format), output=output,
+        output_result(contrib_df; format=Symbol(format),
+            output=_per_var_output_path(output, string(sname)),
             title="Shock: $sname contributions",
             key=_table_key("dsge_historical_decomposition", sname))
     end
@@ -1966,13 +2000,14 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          delayed_acceptance::Bool=false,
                          horizon::Int=40,
                          prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
     isempty(observables) && error("--observables is required (comma-separated variable names)")
 
     bd = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     df = load_data(data)
     Y = df_to_matrix(df)
@@ -1990,7 +2025,8 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
         pe = hd.point_estimate[:, :, si]
         pe_df = DataFrame(pe, hd.variables)
         insertcols!(pe_df, 1, :t => 1:hd.T_eff)
-        output_result(pe_df; format=Symbol(format), output=output,
+        output_result(pe_df; format=Symbol(format),
+            output=_per_var_output_path(output, string(sname)),
             title="Shock: $sname (posterior mean)",
             key=_table_key("bayesian_dsge_historical_decomposition", sname))
     end
@@ -2013,10 +2049,11 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
                                 constraint_solver::String="",
                                 delayed_acceptance::Bool=false,
                                 prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                 output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Computing MCMC convergence diagnostics (R-hat / ESS / Geweke)")
     # Pure post-processing of theta_draws, but wrapped for world-age consistency.
@@ -2036,7 +2073,8 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
     output_kv(Pair{String,Any}[
         "n_draws" => d.n_draws,
         "method"  => string(d.method),
-    ]; format=format, title="MCMC Diagnostics Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="MCMC Diagnostics Summary")
     return nothing
 end
 
@@ -2106,7 +2144,9 @@ function _dsge_bayes_identification(; model::String, params::String="",
         index = collect(1:length(idr.singular_values)),
         singular_value = round.(idr.singular_values; sigdigits=6),
     )
-    output_result(sv_df; format=Symbol(format), title="Singular Values")
+    output_result(sv_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "singular_values"),
+                  title="Singular Values")
     return nothing
 end
 
@@ -2121,6 +2161,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
                                     fractions::String="0.5,1.0", threshold::Float64=0.2,
                                     refit_n_smc::Int=100,
                                     prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                     output::String="", format::String="table")
     frac_vec = try
         Float64[parse(Float64, strip(s)) for s in split(fractions, ",") if !isempty(strip(s))]
@@ -2133,7 +2174,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
 
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Koop-Pesaran-Smith learning-rate check (refit n_smc=$refit_n_smc)")
     # Re-runs SMC on nested subsamples (evaluates the spec) → world-age barrier.
@@ -2151,7 +2192,8 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
     output_kv(Pair{String,Any}[
         "threshold"    => threshold,
         "sample_sizes" => string(lr.sample_sizes),
-    ]; format=format, title="Learning-Rate Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Learning-Rate Summary")
     return nothing
 end
 
@@ -2165,10 +2207,11 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
                               delayed_acceptance::Bool=false,
                               threshold::Float64=0.8, n_grid::Int=0,
                               prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                               output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Prior/posterior overlap (weak-identification signal)")
     ov = _dsge_call(prior_posterior_overlap, result; n_grid=n_grid, threshold=threshold)
@@ -2183,7 +2226,8 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
 
     output_kv(Pair{String,Any}[
         "threshold" => threshold,
-    ]; format=format, title="Overlap Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Overlap Summary")
     return nothing
 end
 
@@ -2234,7 +2278,8 @@ function _dsge_bayes_posterior_mode(; model::String, data::String="", params::St
         "Laplace log ML" => round(Float64(res.laplace_log_ml); digits=6),
         "converged" => res.converged,
         "iterations" => res.n_iterations];
-        format=format, title="Posterior Mode Diagnostics")
+        format=format, output=_per_var_output_path(output, "diagnostics"),
+        title="Posterior Mode Diagnostics")
     res.converged || _status_styled("-> optimizer did NOT converge — treat the mode and its Laplace ML with caution\n"; color=:yellow)
     return res
 end
@@ -2276,7 +2321,8 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
         "draws requested" => res.n_draws,
         "draws that solved" => res.n_effective,
         "periods simulated" => res.T_periods];
-        format=format, title="Prior Predictive Summary")
+        format=format, output=_per_var_output_path(output, "summary"),
+        title="Prior Predictive Summary")
     res.n_effective < res.n_draws && _status_styled(
         "-> $(res.n_draws - res.n_effective) prior draw(s) failed to solve and were dropped\n"; color=:yellow)
     return res
@@ -2292,12 +2338,13 @@ function _dsge_bayes_marginal_lik(; model::String, data::String="", params::Stri
                                    delayed_acceptance::Bool=false,
                                    proposal::String="normal", df::Float64=5.0,
                                    prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                    output::String="", format::String="table")
     proposal in ("normal", "t") || throw(CliError("usage/invalid",
         "--proposal must be normal|t, got '$proposal'"))
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Bridge-sampling marginal likelihood (proposal=$proposal)")
     # Re-evaluates the likelihood over the spec → world-age barrier. Returns a scalar
@@ -2486,7 +2533,9 @@ function _dsge_ha_accuracy(; model::String, method::String="krusell-smith",
         "seed"      => seed,
     ]
     meth === :krusell_smith || push!(settings, "T_fit" => t_fit)
-    output_kv(settings; format=format, title="Den Haan Simulation Settings")
+    output_kv(settings; format=format,
+              output=_per_var_output_path(output, "settings"),
+              title="Den Haan Simulation Settings")
     _maybe_plot(acc; plot=plot, plot_save=plot_save)
     return acc
 end
@@ -2511,10 +2560,12 @@ function _dsge_ha_solve(; model::String, method::String="ssj",
             metric = ["method", "r_squared", "converged", "iterations"],
             value = [String(meth), string(sol.r_squared), string(sol.converged), string(sol.iterations)],
         )
-        output_result(diag_df; format=Symbol(format), output=output,
+        output_result(diag_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "solve_diagnostics"),
                       title="HA-DSGE Solve Diagnostics (krusell-smith)",
                       key="ha_dsge_solve_diagnostics")
-        output_result(plm_df; format=Symbol(format), output=output,
+        output_result(plm_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "plm"),
                       title="Krusell–Smith PLM Coefficients")
         _ha_ss_tables(sol.steady_state; format=format, output=output, title_prefix="HA")
         return sol
@@ -2537,7 +2588,8 @@ function _dsge_ha_solve(; model::String, method::String="ssj",
             string(size(sol.C_obs, 2)),
         ],
     )
-    output_result(diag_df; format=Symbol(format), output=output,
+    output_result(diag_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "solve_diagnostics"),
                   title="HA-DSGE Solve Diagnostics (method=$(sol.method))",
                   key="ha_dsge_solve_diagnostics")
     _ha_ss_tables(sol.steady_state; format=format, output=output, title_prefix="HA")
@@ -2856,7 +2908,8 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
     price_df = DataFrame(name=["r", "w"], value=[ss.r, ss.w])
     agg_df = DataFrame(name=["K", "L", "converged"],
                        value=[ss.K, ss.L, Float64(ss.converged ? 1.0 : 0.0)])
-    output_result(price_df; format=Symbol(format), output=output, title="CT Aiyagari Prices")
+    output_result(price_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "prices"), title="CT Aiyagari Prices")
     output_result(agg_df; format=Symbol(format), output=output, title="CT Aiyagari Aggregates")
     return ss
 end

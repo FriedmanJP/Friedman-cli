@@ -1479,6 +1479,8 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
+**Output tables:** `sdfm_estimation_summary` (Structural DFM estimation record: panel dimensions, factor counts, identification, factor-VAR lags, shock names and the average common variance share)
+
 ---
 
 ### `friedman estimate select`

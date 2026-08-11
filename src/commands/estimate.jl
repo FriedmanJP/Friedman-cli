@@ -19,21 +19,19 @@
 # C044: kebab primary CLI name; snake kept as hidden alias where renamed
 const _VOL_CLI_NAMES = Dict("gjr_garch" => ("gjr-garch", ["gjr_garch"]))
 
-"""Generate CommandSpecs for the volatility family (estimate / forecast / predict / residuals)."""
+"""Generate CommandSpecs for the volatility family — `:estimate` and `:forecast`
+ONLY. The predict/residuals leaves are registered by fitted.jl (#145): wiring
+those verbs here would double-register leaves fitted.jl owns, and registration
+dedup is last-wins, so the W3 table declarations would silently flip."""
 function _vol_specs(verb::Symbol)::Vector{CommandSpec}
     handlers = if verb === :estimate
         _VOL_ESTIMATE_HANDLERS
     elseif verb === :forecast
         _VOL_FORECAST_HANDLERS
-    elseif verb === :predict
-        _VOL_PREDICT_HANDLERS
-    elseif verb === :residuals
-        _VOL_RESIDUALS_HANDLERS
     else
-        error("unknown vol verb: $verb")
+        error("_vol_specs handles only :estimate|:forecast (fitted.jl owns predict/residuals); got :$verb")
     end
     with_horizons = verb === :forecast
-    with_plot = verb === :estimate || verb === :forecast
     order_opts = Dict{Symbol,Vector{OptionSpec}}(
         :q_only => [OptionSpec(name="q", type=Int, default=1, description="ARCH order")],
         :pq => [
@@ -42,18 +40,13 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         ],
         :sv => [OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws")],
     )
-    # estimate/forecast keep historical option order: output before format, then plot-save
-    out_opts = if with_plot
-        [
-            OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-            OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
-        ]
-    else
-        # predict/residuals: format then output (OUTPUT_OPTIONS order)
-        collect(OUTPUT_OPTIONS)
-    end
-    flags = with_plot ? [FlagSpec(name="plot", description="Open interactive plot in browser")] : FlagSpec[]
+    # historical option order: output before format, then plot-save
+    out_opts = [
+        OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+        OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+        OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+    ]
+    flags = [FlagSpec(name="plot", description="Open interactive plot in browser")]
     specs = CommandSpec[]
     for vol in VOL_MODELS
         opts = OptionSpec[
@@ -1383,11 +1376,11 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            # W3/#138: this leaf emits NO table — `_estimate_sdfm` writes only stderr status and
-            # returns the model, so `--format json` yields an empty `data` and `--output`
-            # writes nothing. Declaring a table here would be a declaration of something
-            # that never appears. Tracked for the orchestrator; do not paper over it.
-            tables=TableSpec[],
+            # #147 (closed the W3/#138 gap): the leaf now emits an estimation record —
+            # dimensions, identification, per-shock names, variance shares. The
+            # structural arrays still live on `irf sdfm`/`fevd sdfm`.
+            tables=[TableSpec(name=:sdfm_estimation_summary,
+                              description="Structural DFM estimation record: panel dimensions, factor counts, identification, factor-VAR lags, shock names and the average common variance share")],
             category="estimate",
             handler=wrap_legacy(_estimate_sdfm),
         ),
@@ -3340,6 +3333,21 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
     _status("  Identification: $(sdfm.identification)")
     _status("  Factor VAR lags: $(sdfm.p_var)")
     _status("  Shocks: $(join(sdfm.shock_names, ", "))")
+
+    # #147: the leaf was status-only — a success exit with nothing addressable.
+    # The structural results live on `irf sdfm`/`fevd sdfm`; this table is the
+    # estimation record (dimensions, identification, variance shares).
+    summary_df = DataFrame(
+        metric = ["n_vars", "T", "dynamic_factors", "static_rank", "identification",
+                  "factor_var_lags", "horizon", "shocks", "avg_common_variance_share"],
+        value = [string(n), string(size(Y, 1)), string(sdfm.gdfm.q), string(sdfm.gdfm.r),
+                 String(sdfm.identification), string(sdfm.p_var), string(horizon),
+                 join(sdfm.shock_names, ", "),
+                 string(round(mean(sdfm.gdfm.variance_explained); digits=4))],
+    )
+    output_result(summary_df; format=Symbol(format), output=output,
+                  title="Structural DFM Estimation Summary",
+                  key="sdfm_estimation_summary")
 
     _maybe_plot(sdfm; plot=plot, plot_save=plot_save)
     return sdfm

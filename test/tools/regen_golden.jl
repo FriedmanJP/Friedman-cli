@@ -115,6 +115,8 @@ function main()
             (["filter", "bn", fix, "--method", "arima", "--format", "json"], ["filter", "bn"]),
             (["filter", "bk", fix, "--pl", "6", "--pu", "32", "--K", "12", "--format", "json"], ["filter", "bk"]),
             (["filter", "bhp", fix, "--lambda", "1600.0", "--stopping", "BIC", "--format", "json"], ["filter", "bhp"]),
+            # #147: estimate sdfm emits an estimation-record table (was status-only)
+            (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
         ]
         for (argv, gpath) in cases
             Random.seed!(42)

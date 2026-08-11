@@ -18,7 +18,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -30,6 +30,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model2` | — | `String` | `""` | — | Path to second DSGE model file |
@@ -57,7 +58,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -69,6 +70,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -93,7 +95,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -105,6 +107,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
@@ -132,7 +135,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -144,6 +147,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--n-hd-draws` | — | `Int64` | `200` | — | Number of posterior draws for HD |
@@ -196,7 +200,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -208,6 +212,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
@@ -235,7 +240,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -247,6 +252,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--fractions` | — | `String` | `0.5,1.0` | — | Nested subsample fractions (comma-separated, in (0,1]) |
@@ -274,7 +280,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -286,6 +292,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--proposal` | — | `String` | `normal` | `normal`, `t` | Bridge proposal family: normal\|t |
@@ -312,7 +319,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -324,6 +331,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -348,7 +356,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -360,6 +368,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.8` | — | Flag threshold on the prior/posterior overlap |
@@ -412,7 +421,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -424,6 +433,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--n-sim` | — | `Int64` | `500` | — | Number of predictive simulations |
@@ -477,7 +487,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -489,6 +499,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--periods` | — | `Int64` | `200` | — | Simulation periods |
@@ -516,7 +527,7 @@ Path to DSGE model file (.toml or .jl)
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
-| `--sampler` | — | `String` | `smc` | — | smc\|smc2\|mh |
+| `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
@@ -528,6 +539,7 @@ Path to DSGE model file (.toml or .jl)
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

@@ -3077,9 +3077,20 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test "infl" in vs && "ffr" in vs && "s1" in vs
         @test !any(startswith(v, "Var ") for v in vs)
 
-        # estimate sdfm stores them on the model itself.
+        # estimate sdfm stores them on the model itself. #147: the leaf now emits
+        # an estimation-record table (it was status-only — a success exit with
+        # nothing addressable).
         re = run_json(["estimate", "sdfm", csv, "--factors", "2"])
         @test re.code == 0
+        sm = named_table(re.doc, :sdfm_estimation_summary)
+        @test sm !== nothing
+        if sm !== nothing
+            mets = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                        for r in table_rows(sm))
+            @test mets["dynamic_factors"] == "2"
+            @test mets["identification"] == "cholesky"
+            @test parse(Int, mets["n_vars"]) >= 3
+        end
         rm(csv; force=true)
     end
 
@@ -4370,12 +4381,42 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
             rs = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
                            "--params", "rho", "--priors", pri4, "--observables", "Y,C",
-                           "--sampler", "rwmh", "--n-draws", "50", "--burnin", "10"])
+                           "--sampler", "mh", "--n-draws", "50", "--burnin", "10"])
             @test rs.code == 5
             @test rs.doc !== nothing && String(rs.doc.status) == "error"
             @test String(rs.doc.error.code) == "model/stochastic-singularity"
             @test Int(rs.doc.error.exit_code) == 5
             @test occursin("observables exceed", String(rs.doc.error.message))
+
+            # #148: --measurement-error is the in-CLI remedy the hint points at —
+            # the SAME invocation with auto must estimate, not error.
+            rok = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                            "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                            "--sampler", "mh", "--n-draws", "50", "--burnin", "10",
+                            "--measurement-error", "auto"])
+            @test rok.code == 0
+            @test rok.doc !== nothing && String(rok.doc.status) == "ok"
+            # vector form is guarded up front: wrong length → usage, not exit 1
+            rbad = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                             "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                             "--sampler", "mh", "--n-draws", "50", "--burnin", "10",
+                             "--measurement-error", "0.1"])
+            @test rbad.code == 2
+            rgarbage = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                                 "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                                 "--measurement-error", "0.1,x"])
+            @test rgarbage.code == 2
+
+            # #146: multi-table --output — the per-shock HD loop used to write every
+            # shock to the SAME file (last one wins). Each shock now gets its own
+            # suffixed path; the bare path is never written by the loop. This is
+            # also the first T3 coverage `dsge hd` has ever had.
+            hdout = joinpath(dir, "hd_out.csv")
+            rhd = run_json(["dsge", "hd", model_jl, "--data", dat4,
+                            "--observables", "Y", "--output", hdout])
+            @test rhd.code == 0
+            @test isfile(joinpath(dir, "hd_out_e.csv"))   # per-shock (shock `e`) file
+            @test !isfile(hdout)                          # bare path not clobbered
 
             # DSGESolveError: y = y² + 2 has no real steady state, so the residual
             # gate in compute_steady_state throws. Per-BRANCH coverage: both leaves
@@ -6736,6 +6777,40 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                         "--ar-bands", "--ar-level", "0"]).code == 2
         @test run_json(["estimate", "lp", ycsv, "--method", "iv"]).code == 2   # no instruments
         rm(ycsv; force=true); rm(zcsv; force=true)
+    end
+
+    # ── #144: factor family --model handles — the branch that shipped dead ──
+    # r/factor_lags/varnames were bound only in the estimate branch, so every
+    # `predict|residuals static|dynamic|gdfm --model <handle>` exited 1 with an
+    # untyped UndefVarError (and dynamic/gdfm would have followed with a
+    # varnames FieldError — those types carry no varnames upstream). Zero T3
+    # coverage of the --model path existed; per-BRANCH coverage, both verbs.
+    @testset "factor family --model handles (#144)" begin
+        rng = MersenneTwister(29)
+        F = randn(rng, 140, 2) * [1.0 0.4 0.7 0.2; 0.3 0.9 0.1 0.6]
+        fdf = DataFrame(F .+ 0.3 .* randn(rng, 140, 4), ["a", "b", "c", "d"])
+        fcsv = write_csv(fdf; prefix="factor144")
+        cases = [
+            ("static",  ["--nfactors", "2"]),
+            ("dynamic", ["--nfactors", "2", "--factor-lags", "1"]),
+            ("gdfm",    ["--dynamic-rank", "1"]),
+        ]
+        for (kind, est_args) in cases
+            h = tempname() * ".fmod"
+            r_est = run_json(vcat(["estimate", kind, fcsv], est_args,
+                                  ["--save-model", h]))
+            @test r_est.code == 0
+            for verb in ("predict", "residuals")
+                rr = run_json([verb, kind, "--model", h])
+                @test rr.code == 0
+                if rr.code == 0
+                    @test String(rr.doc.status) == "ok"
+                    @test !isempty(rr.doc.data)
+                end
+            end
+            rm(h; force=true)
+        end
+        rm(fcsv; force=true)
     end
 
     # ── W7/#142: serve --mcp — the five canned sessions (#61 acceptance) ────

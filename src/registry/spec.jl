@@ -219,7 +219,10 @@ const BAYES_OPTIONS = [
     OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
     OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names"),
     OptionSpec(name="priors", type=String, default="", description="Path to priors TOML file"),
-    OptionSpec(name="sampler", type=String, default="smc", description="smc|smc2|mh"),
+    # #148 rider: choices enforced — an unknown sampler used to reach upstream as an
+    # untyped ArgumentError (exit 1); now it is a usage error at parse (exit 2).
+    OptionSpec(name="sampler", type=String, default="smc", choices=["smc", "smc2", "mh"],
+               description="smc|smc2|mh"),
     OptionSpec(name="n-smc", type=Int, default=5000, description="SMC particles"),
     OptionSpec(name="n-particles", type=Int, default=500, description="Particle filter particles (smc2)"),
     OptionSpec(name="n-draws", type=Int, default=10000, description="Total posterior draws"),
@@ -239,6 +242,12 @@ const BAYES_OPTIONS = [
                description="Observable transform applied before estimation (Dynare `prefilter`)"),
     OptionSpec(name="hp-lambda", type=Float64, default=1600.0,
                description="HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual)"),
+    # #148: measurement error for the DSGE likelihood. Shared across the whole family
+    # for the same reason as --prefilter (every leaf re-estimates from scratch). With
+    # more observables than structural shocks the likelihood is stochastically
+    # singular (model/stochastic-singularity, exit 5) unless this is set.
+    OptionSpec(name="measurement-error", type=String, default="none",
+               description="Measurement error std devs: none|auto|comma-separated values (one per observable)"),
     OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
     OptionSpec(name="format", short="f", type=String, default="table",
                choices=["table", "csv", "json"], description="table|csv|json"),
