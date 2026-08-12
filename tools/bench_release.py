@@ -54,13 +54,17 @@ def main() -> int:
                     help="exit non-zero on budget breach (release CI: ubuntu only)")
     args = ap.parse_args()
 
-    # Windows ships friedman.cmd — CreateProcess cannot exec a .cmd directly.
-    prefix = ["cmd", "/c"] if args.bin.lower().endswith((".cmd", ".bat")) else []
+    # Windows ships friedman.cmd — CreateProcess cannot exec a .cmd directly,
+    # and cmd.exe does not resolve forward-slash paths (the CI step passes
+    # build/friedman/bin/friedman.cmd from bash) — normpath converts to
+    # backslashes on Windows and is a no-op elsewhere.
+    bin_path = os.path.normpath(args.bin)
+    prefix = ["cmd", "/c"] if bin_path.lower().endswith((".cmd", ".bat")) else []
 
     cases = [
-        ("--version", prefix + [args.bin, "--version"], args.budget_version_ms),
+        ("--version", prefix + [bin_path, "--version"], args.budget_version_ms),
         ("first estimate var",
-         prefix + [args.bin, "--quiet", "estimate", "var", args.data, "--lags", "1"],
+         prefix + [bin_path, "--quiet", "estimate", "var", args.data, "--lags", "1"],
          args.budget_estimate_ms),
     ]
 
