@@ -36,7 +36,12 @@ function spectral_specs()::Vector{CommandSpec}
                 plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:acf_pacf, description="ACF / PACF table")],
+            tables=[
+                TableSpec(name=:acf_pacf,
+                          description="Autocorrelation, partial autocorrelation, Ljung-Box Q and p-value by lag"),
+                TableSpec(name=:cross_correlation,
+                          description="Cross-correlation by lag against --ccf-with (only with that option)"),
+            ],
             category="spectral",
             handler=wrap_legacy(_spectral_acf),
         ),
@@ -50,7 +55,8 @@ function spectral_specs()::Vector{CommandSpec}
                 plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:periodogram, description="Periodogram")],
+            tables=[TableSpec(name=:periodogram,
+                              description="Raw periodogram power by Fourier frequency")],
             category="spectral",
             handler=wrap_legacy(_spectral_periodogram),
         ),
@@ -69,7 +75,8 @@ function spectral_specs()::Vector{CommandSpec}
                 plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:spectral_density, description="Spectral density")],
+            tables=[TableSpec(name=:spectral_density,
+                              description="Estimated spectral density with confidence band by frequency")],
             category="spectral",
             handler=wrap_legacy(_spectral_density),
         ),
@@ -85,7 +92,8 @@ function spectral_specs()::Vector{CommandSpec}
                 plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:cross_spectral, description="Cross-spectrum")],
+            tables=[TableSpec(name=:cross_spectral_analysis,
+                              description="Co-/quadrature spectrum, coherence, phase and gain by frequency")],
             category="spectral",
             handler=wrap_legacy(_spectral_cross),
         ),
@@ -104,7 +112,8 @@ function spectral_specs()::Vector{CommandSpec}
                 plot_opts...,
             ],
             flags=plot_flags,
-            tables=[TableSpec(name=:transfer, description="Transfer function")],
+            tables=[TableSpec(name=:filter_transfer_function,
+                              description="Theoretical filter gain and phase by frequency")],
             category="spectral",
             handler=wrap_legacy(_spectral_transfer),
         ),
@@ -156,7 +165,7 @@ function _spectral_acf(; data::String, column::Int=1,
         )
         _status()
         output_result(ccf_df; format=Symbol(format), output="",
-            title="CCF: $(vnames[column]) x $(vnames[ccf_with])")
+            title="CCF: $(vnames[column]) x $(vnames[ccf_with])", key="cross_correlation")
     end
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)

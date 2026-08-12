@@ -51,7 +51,11 @@ function irf_specs()::Vector{CommandSpec}
                 FlagSpec(name="stationary-only", description="Filter non-stationary bootstrap draws"),
                 FlagSpec(name="bias-correct", description="Kilian (1998) bias-corrected bootstrap bands")
             ],
-            tables=[TableSpec(name=:irf_var, description="Compute frequentist impulse response functions")],
+            # One IRF table per invocation — the tidy output is filtered to the single
+            # --shock, so this is NOT a family.
+            tables=[TableSpec(name=:irf, description="Responses to the selected shock: horizon | variable | shock | value | lower | upper (wide horizon-by-variable under --id arias|uhlig)"),
+                    TableSpec(name=:irf_identified_set, description="Median and bounds over the sign-identified set (--identified-set with --id sign)"),
+                    TableSpec(name=:arias_importance_sampling_diagnostics, description="Acceptance rate, draws, ESS and ESS fraction of the Arias importance sampler (--id arias)")],
             category="irf",
             handler=wrap_legacy(_irf_var),
         ),
@@ -75,7 +79,7 @@ function irf_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser"),
                 FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)")
             ],
-            tables=[TableSpec(name=:irf_bvar, description="Compute Bayesian impulse response functions with credible intervals")],
+            tables=[TableSpec(name=:bayesian_irf, description="Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_bvar),
         ),
@@ -102,7 +106,7 @@ function irf_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="no-tvp", description="Hold coefficients constant"),
                    FlagSpec(name="no-sv", description="Hold volatilities constant"),
                    FlagSpec(name="no-stationary-only", description="Include explosive draws instead of discarding them")],
-            tables=[TableSpec(name=:irf, description="Date-specific Bayesian IRF")],
+            tables=[TableSpec(name=:tvpvar_irf, description="Date-t responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_tvpvar),
         ),
@@ -130,7 +134,7 @@ function irf_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser"),
                 FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)")
             ],
-            tables=[TableSpec(name=:irf_lp, description="Compute structural LP impulse response functions")],
+            tables=[TableSpec(name=:lp_irf, description="Local-projection responses to every selected shock in one tidy table: horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_lp),
         ),
@@ -155,7 +159,7 @@ function irf_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:irf_vecm, description="Compute impulse response functions via VECM → VAR representation")],
+            tables=[TableSpec(name=:vecm_irf, description="Responses of the VECM's VAR representation to the selected shock: horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_vecm),
         ),
@@ -178,7 +182,10 @@ function irf_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:irf_pvar, description="Compute Panel VAR impulse response functions (OIRF/GIRF)")],
+            # One table per shock. Orthogonalized and generalized responses are different
+            # statistics, so each gets its own family (cf. fevd / generalized_fevd).
+            tables=[TableSpec(name=:panel_var_oirf, family=true, description="Orthogonalized responses to one shock (--irf-type oirf): horizon | one column per variable, with bootstrap bands"),
+                    TableSpec(name=:panel_var_girf, family=true, description="Generalized responses to one shock (--irf-type girf): horizon | one column per variable, with bootstrap bands")],
             category="irf",
             handler=wrap_legacy(_irf_pvar),
         ),
@@ -201,7 +208,7 @@ function irf_specs()::Vector{CommandSpec}
                 FlagSpec(name="panel-irf", description="Output panel-wide IRFs (N variables) instead of factor-level"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:irf_favar, description="FAVAR impulse response functions")],
+            tables=[TableSpec(name=:favar_irf, description="FAVAR responses to every shock in one tidy table (panel-wide under --panel-irf): horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_favar),
         ),
@@ -222,7 +229,7 @@ function irf_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:irf_sdfm, description="Structural DFM impulse response functions (panel-wide)")],
+            tables=[TableSpec(name=:sdfm_irf, description="Panel-wide structural DFM responses to every shock: horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_sdfm),
         )
@@ -283,7 +290,8 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         irf_df = build_irf_table(med, lower, upper, varnames, shock, horizons)
         shock_name = _shock_name(varnames, shock)
         output_result(irf_df; format=Symbol(format), output=output,
-                      title="IRF Identified Set (sign, $shock_name shock)")
+                      title="IRF Identified Set (sign, $shock_name shock)",
+                      key="irf_identified_set")
         return
     end
 
@@ -345,7 +353,7 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     irf_df = long_table(irf_result)
     irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="IRF to $shock_name shock ($id identification)")
+                  title="IRF to $shock_name shock ($id identification)", key="irf")
 end
 
 function _load_svar_restrictions(model, config::String, method_label::String)
@@ -382,7 +390,7 @@ function _var_irf_arias(model, config::String, horizons::Int,
     shock_name = _shock_name(varnames, shock)
     irf_df = build_irf_table(irf_mean(result), nothing, nothing, varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="IRF to $shock_name shock (Arias et al. identification)")
+                  title="IRF to $shock_name shock (Arias et al. identification)", key="irf")
     output_kv(Pair{String,Any}[
         "acceptance_rate" => round(Float64(result.acceptance_rate); digits=6),
         "n_draws"         => length(result.weights),
@@ -407,7 +415,7 @@ function _var_irf_uhlig(model, config::String, horizons::Int,
     irf_df = build_irf_table(result.irf, nothing, nothing, varnames, shock)
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="IRF to $shock_name shock (Uhlig identification)")
+                  title="IRF to $shock_name shock (Uhlig identification)", key="irf")
 end
 
 # ── BVAR IRF ─────────────────────────────────────────────
@@ -464,7 +472,8 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
     irf_df = long_table(birf)
     irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)")
+                  title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)",
+                  key="bayesian_irf")
 end
 
 # ── LP IRF ───────────────────────────────────────────────
@@ -522,7 +531,7 @@ function _irf_lp(; data::String="", shock::Int=1, shocks::String="",
     title = length(shock_names) == 1 ?
         "LP IRF to $(shock_names[1]) shock ($id identification)" :
         "LP IRF to shocks $(join(shock_names, ", ")) ($id identification)"
-    output_result(irf_df; format=Symbol(format), output=output, title=title)
+    output_result(irf_df; format=Symbol(format), output=output, title=title, key="lp_irf")
 end
 
 # ── VECM IRF ────────────────────────────────────────────
@@ -566,7 +575,7 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
     irf_df = long_table(irf_result)
     irf_df = irf_df[irf_df.shock .== shock_name, :]
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="VECM IRF to $shock_name shock ($id identification)")
+                  title="VECM IRF to $shock_name shock ($id identification)", key="vecm_irf")
 end
 
 # ── Panel VAR IRF ──────────────────────────────────────────
@@ -600,14 +609,16 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
-    # Output per-shock IRF tables
+    # Output per-shock IRF tables (W3/#138 family keys `panel_var_<oirf|girf>_<shock>`)
+    key_prefix = irf_type == "girf" ? "panel_var_girf" : "panel_var_oirf"
     for shock in 1:n
         shock_name = _shock_name(varnames, shock)
         irf_df = build_irf_table(irf_result.irf, irf_result.lower, irf_result.upper,
                                  varnames, shock)
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
-                      title="Panel VAR $(uppercase(irf_type)) to $shock_name shock")
+                      title="Panel VAR $(uppercase(irf_type)) to $shock_name shock",
+                      key=_table_key(key_prefix, shock_name))
         _status()
     end
 end
@@ -647,7 +658,8 @@ function _irf_favar(; data::String="", factors=nothing, lags::Int=2,
     # so one tidy table covers every shock (no more per-shock output files).
     irf_df = long_table(irf_result)
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="FAVAR IRF ($id identification)" * (panel_irf ? ", panel-wide" : ""))
+                  title="FAVAR IRF ($id identification)" * (panel_irf ? ", panel-wide" : ""),
+                  key="favar_irf")
 end
 
 # ── Structural DFM IRF ────────────────────────────────
@@ -679,5 +691,5 @@ function _irf_sdfm(; data::String="", factors=nothing, id::String="cholesky",
     # schema as irf var — one tidy table covers every shock.
     irf_df = long_table(irf_result)
     output_result(irf_df; format=Symbol(format), output=output,
-                  title="SDFM IRF ($id identification)")
+                  title="SDFM IRF ($id identification)", key="sdfm_irf")
 end

@@ -28,7 +28,7 @@ Path to CSV data file
 | `--no-intercept` | — | Do not add a per-equation constant |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_3sls` (Path to CSV data file)
+**Output tables:** `3sls_coefficients` (System coefficients, one row per equation x term, with standard errors and p-values); `3sls_system_statistics` (Equation and observation counts, det(Sigma), McElroy R-squared and instruments per equation)
 
 ---
 
@@ -51,7 +51,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_aparch` (Path to CSV data file)
+**Output tables:** `aparch_coefficients` (APARCH parameter estimates including the power delta and asymmetry gamma); `aparch_diagnostics` (Log-likelihood, AIC/BIC, persistence, estimated delta and parameter count)
 
 ---
 
@@ -76,7 +76,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_arch` (Path to CSV data file)
+**Output tables:** `arch_coefficients` (ARCH(1) parameter estimates with standard errors, z-statistics and p-values)
 
 ---
 
@@ -102,7 +102,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_ardl` (Path to CSV data file)
+**Output tables:** `ardl_coefficients` (Levels-form ARDL coefficients with standard errors, z-statistics and p-values); `ardl_long_run_coefficients` (Long-run level multipliers with delta-method standard errors); `ardl_diagnostics` (Selected p/q, case, trend, information criterion, fit statistics and the ECM speed alpha)
 
 ---
 
@@ -126,7 +126,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_arfima` (Path to CSV data file)
+**Output tables:** `arfima_coefficients` (Constant, fractional-integration d, AR and MA estimates with standard errors); `arfima_diagnostics` (Estimated d with its standard error, log-likelihood, AIC/BIC and convergence)
 
 ---
 
@@ -153,7 +153,7 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_arima` (Path to CSV data file)
+**Output tables:** `arima_coefficients` (AR / MA / constant estimates with standard errors, z-statistics and p-values); `information_criteria` (AIC, BIC and the log-likelihood of the fitted ARIMA)
 
 ---
 
@@ -172,7 +172,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_bekk` (Path to CSV data file)
+**Output tables:** `bekk_conditional_correlation` (Conditional-correlation matrix at the last observation, series x series); `bekk_dynamics_parameters` (BEKK dynamics parameters with standard errors); `bekk_diagnostics` (Log-likelihood, AIC/BIC, series and observation counts, and the BEKK parameterisation)
 
 ---
 
@@ -203,7 +203,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_bvar` (Path to CSV data file); `hyper` (Selected Minnesota hyperparameters)
+**Output tables:** `bvar_coefficients` (Posterior mean (or median) BVAR coefficients, one row per equation x regressor); `minnesota_hyperparameters` (Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the posterior point model)
 
 ---
 
@@ -223,7 +223,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_ccc` (Path to CSV data file)
+**Output tables:** `ccc_garch_conditional_correlation` (Constant conditional-correlation matrix, series x series); `ccc_garch_diagnostics` (Log-likelihood, AIC/BIC, series and observation counts, convergence)
 
 ---
 
@@ -242,7 +242,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_cgarch` (Path to CSV data file)
+**Output tables:** `cgarch_coefficients` (Component-GARCH permanent/transitory parameter estimates with standard errors); `cgarch_diagnostics` (Log-likelihood, AIC/BIC, transitory persistence and unconditional variance)
 
 ---
 
@@ -269,7 +269,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_cointreg` (Path to CSV data file)
+**Output tables:** `cointegrating_regression_coefficients` (FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors); `cointegrating_regression_diagnostics` (Method, trend, kernel, bandwidth, omega_uv and sample dimensions)
 
 ---
 
@@ -290,7 +290,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_dcc` (Path to CSV data file)
+**Output tables:** `dcc_garch_conditional_correlation` (Conditional-correlation matrix at the last observation, series x series); `dcc_garch_dynamics_parameters` (Second-stage DCC dynamics parameters with standard errors); `dcc_garch_diagnostics` (Log-likelihood, AIC/BIC, correction scheme and correlation persistence)
 
 ---
 
@@ -316,7 +316,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_dynamic` (Path to CSV data file)
+**Output tables:** `dynamic_factor_loadings` (Estimated dynamic-factor loadings, one row per observed variable)
 
 ---
 
@@ -343,7 +343,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_egarch` (Path to CSV data file)
+**Output tables:** `egarch_coefficients` (EGARCH(1,1) parameter estimates with standard errors, z-statistics and p-values); `conditional_distribution` (Estimated shape parameter of the non-Gaussian innovation distribution (--dist student|ged only))
 
 ---
 
@@ -365,7 +365,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_elastic_net` (Path to CSV data file)
+**Output tables:** `elastic_net_coefficients` (Intercept and slope estimates with an active-set (non-zero) indicator); `elastic_net_diagnostics` (Mixing alpha, selected lambda, active-set size, R-squared and information criteria)
 
 ---
 
@@ -386,7 +386,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_fastica` (Path to CSV data file)
+**Output tables:** `structural_impact_matrix_b0` (Identified structural impact matrix B0, one row per equation); `structural_shocks` (First observations of the recovered structural shocks)
 
 ---
 
@@ -414,7 +414,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_favar` (Path to CSV data file)
+**Output tables:** `favar_coefficients` (FAVAR coefficients over factors and key variables, one row per equation x regressor); `bayesian_favar` (Factor, key-variable, lag and draw counts of a --method bayesian fit)
 
 ---
 
@@ -438,7 +438,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_fiegarch` (Path to CSV data file)
+**Output tables:** `fiegarch_coefficients` (FIEGARCH parameter estimates including the fractional-integration d); `fiegarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d and the truncation lag)
 
 ---
 
@@ -462,7 +462,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_figarch` (Path to CSV data file)
+**Output tables:** `figarch_coefficients` (FIGARCH parameter estimates including the fractional-integration d); `figarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d, truncation lag and negative-lambda count)
 
 ---
 
@@ -489,7 +489,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_garch` (Path to CSV data file)
+**Output tables:** `garch_coefficients` (GARCH(1,1) parameter estimates with standard errors, z-statistics and p-values); `conditional_distribution` (Estimated shape parameter of the non-Gaussian innovation distribution (--dist student|ged only))
 
 ---
 
@@ -519,7 +519,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_garch_midas` (Path to CSV data file)
+**Output tables:** `garch_midas_coefficients` (GARCH-MIDAS short-run and long-run (MIDAS weight) parameter estimates); `garch_midas_diagnostics` (Log-likelihood, AIC/BIC, variance ratio, K, m_freq and the block count)
 
 ---
 
@@ -539,7 +539,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_gdfm` (Path to CSV data file)
+**Output tables:** `gdfm_common_variance_shares` (Share of each variable variance explained by the common component)
 
 ---
 
@@ -566,7 +566,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_gjr_garch` (Path to CSV data file)
+**Output tables:** `gjr_garch_coefficients` (GJR-GARCH(1,1) parameter estimates with standard errors, z-statistics and p-values); `conditional_distribution` (Estimated shape parameter of the non-Gaussian innovation distribution (--dist student|ged only))
 
 ---
 
@@ -592,7 +592,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_gmm` (Path to CSV data file)
+**Output tables:** `gmm_estimates` (GMM parameter estimates with standard errors (written only when --output is given))
 
 ---
 
@@ -615,7 +615,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_heckman` (Path to CSV data file)
+**Output tables:** `heckman_coefficients_outcome_selection` (Outcome- and selection-equation coefficients in one tidy table); `heckman_diagnostics` (rho, sigma and lambda with SEs, log-likelihood, AIC/BIC and selected/total counts)
 
 ---
 
@@ -636,7 +636,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_igarch` (Path to CSV data file)
+**Output tables:** `igarch_coefficients` (IGARCH parameter estimates with standard errors, z-statistics and p-values); `igarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, convergence and iteration count)
 
 ---
 
@@ -661,7 +661,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_iv` (Path to CSV data file)
+**Output tables:** `iv_coefficients` (Instrumental-variables coefficients with standard errors, t-statistics and p-values); `iv_diagnostics` (R-squared, the k-class constant, first-stage F and the Sargan overidentification test)
 
 ---
 
@@ -684,7 +684,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_kde` (Path to CSV data file)
+**Output tables:** `kernel_density_estimate` (Evaluation grid and the estimated density at each grid point); `kernel_density_diagnostics` (Kernel, bandwidth rule, selected bandwidth and the observation count)
 
 ---
 
@@ -708,7 +708,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_kernel_reg` (Path to CSV data file)
+**Output tables:** `kernel_regression_fit` (Evaluation grid with the fitted conditional mean and its standard error); `kernel_regression_diagnostics` (Method, polynomial degree, kernel, bandwidth rule and selected bandwidth)
 
 ---
 
@@ -729,7 +729,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_lasso` (Path to CSV data file)
+**Output tables:** `lasso_coefficients` (Intercept and slope estimates with an active-set (non-zero) indicator); `lasso_diagnostics` (Selected lambda, active-set size, R-squared, AIC/BIC/EBIC and the selection rule)
 
 ---
 
@@ -752,7 +752,7 @@ Path to CSV data file
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_logit` (Path to CSV data file)
+**Output tables:** `logit_regression_coefficients` (Logit coefficients with standard errors, z-statistics, p-values and CIs); `fit_statistics` (Pseudo R-squared, log-likelihood (fitted and null), AIC/BIC and convergence)
 
 ---
 
@@ -774,7 +774,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_lowess` (Path to CSV data file)
+**Output tables:** `lowess_fit` (Sorted x with the locally-weighted smoothed fit); `lowess_diagnostics` (Smoothing span, robustness iterations and the observation count)
 
 ---
 
@@ -815,7 +815,7 @@ Path to CSV data file
 | `--mop-f` | — | Report the Montiel Olea-Pflueger effective first-stage F (LP-IV) |
 | `--ar-bands` | — | Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV) |
 
-**Output tables:** `estimate_lp` (Path to CSV data file)
+**Output tables:** `lp_coefficients` (Impulse responses by horizon with standard errors and t-statistics, one column per response variable); `lp_coefficients_expansion` (Expansion-regime responses (--method state only)); `lp_coefficients_recession` (Recession-regime responses (--method state only)); `lp_estimation_summary` (Effective sample size, covariance estimator and, for LP-IV, the first-stage F); `montiel_olea_pflueger_effective_f` (Montiel Olea-Pflueger effective first-stage F against its critical value (--mop-f)); `lp_iv_anderson_rubin_bands` (Weak-instrument-robust Anderson-Rubin bands per horizon x response (--ar-bands))
 
 ---
 
@@ -840,7 +840,7 @@ Mixed-frequency VAR (Schorfheide-Song 2015)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `latent` (Latent high-frequency path); `spec` (MF-VAR specification)
+**Output tables:** `mf_var_latent_high_frequency_path_68_credible_band` (Posterior mean and 16/50/84 quantiles of the latent high-frequency path); `mf_var_specification` (Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation)
 
 ---
 
@@ -868,7 +868,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_midas` (Path to CSV data file)
+**Output tables:** `midas_weight_curve` (Estimated MIDAS lag weights, most recent lag first); `midas_coefficients` (MIDAS regression coefficients with standard errors); `midas_diagnostics` (Weight scheme, m/K/p_ar, horizon, fit statistics and convergence)
 
 ---
 
@@ -888,7 +888,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_ml` (Path to CSV data file)
+**Output tables:** `structural_impact_matrix_b0` (Identified structural impact matrix B0, one row per equation); `model_fit` (Non-Gaussian and Gaussian log-likelihoods, AIC/BIC and the assumed distribution); `parameter_estimates_with_standard_errors` (B0 elements with standard errors, when the estimator returns them)
 
 ---
 
@@ -908,7 +908,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_mlogit` (Path to CSV data file)
+**Output tables:** `multinomial_logit_coefficients` (Coefficients for every alternative in one tidy table, with standard errors and CIs); `fit_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC and the category count)
 
 ---
 
@@ -936,7 +936,7 @@ Path to CSV data file
 | `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_ms` (Path to CSV data file)
+**Output tables:** `ms_regression_regime_coefficients` (Per-regime switching regression coefficients with standard errors); `ms_regression_regime_variances` (Per-regime innovation variance with its standard error); `ms_regression_transition_matrix` (Markov transition matrix P, one row per originating regime); `ms_regression_regime_probabilities` (Filtered and smoothed regime probabilities, one row per period x regime); `ms_regression_diagnostics` (Log-likelihood, AIC/BIC, ergodic probabilities, expected durations and convergence)
 
 ---
 
@@ -964,7 +964,7 @@ Path to CSV data file
 | `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_ms_ar` (Path to CSV data file)
+**Output tables:** `ms_ar_regime_coefficients` (Per-regime switching means plus the common AR block, with standard errors); `ms_ar_regime_variances` (Per-regime innovation variance with its standard error); `ms_ar_transition_matrix` (Markov transition matrix P, one row per originating regime); `ms_ar_regime_probabilities` (Filtered and smoothed regime probabilities, one row per period x regime); `ms_ar_diagnostics` (Log-likelihood, AIC/BIC, ergodic probabilities, expected durations and convergence)
 
 ---
 
@@ -990,7 +990,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_nardl` (Path to CSV data file)
+**Output tables:** `nardl_coefficients` (Levels-form NARDL coefficients on the split (positive/negative) regressor set); `nardl_asymmetric_long_run_coefficients` (Asymmetric long-run multipliers theta+ and theta- with standard errors); `nardl_diagnostics` (Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision)
 
 ---
 
@@ -1018,7 +1018,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--irr` | — | Also report incidence-rate ratios exp(beta) with delta-method SEs |
 
-**Output tables:** `estimate_nbreg` (Path to CSV data file)
+**Output tables:** `negative_binomial_regression_coefficients` (NB2 coefficients with standard errors, z-statistics, p-values and CIs); `overdispersion_parameter` (The NB2 dispersion parameter alpha with its delta-method standard error); `incidence_rate_ratios` (exp(beta) incidence-rate ratios with delta-method SEs and CIs (--irr)); `fit_statistics` (Log-likelihood, deviance, pseudo R-squared and AIC/BIC)
 
 ---
 
@@ -1039,7 +1039,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_ologit` (Path to CSV data file)
+**Output tables:** `ordered_logit_coefficients` (Ordered-logit slope coefficients with standard errors, p-values and CIs); `cutpoints` (Estimated category cutpoints of the latent index); `fit_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC and the category count)
 
 ---
 
@@ -1060,7 +1060,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_oprobit` (Path to CSV data file)
+**Output tables:** `ordered_probit_coefficients` (Ordered-probit slope coefficients with standard errors, p-values and CIs); `cutpoints` (Estimated category cutpoints of the latent index); `fit_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC and the category count)
 
 ---
 
@@ -1086,7 +1086,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_piv` (Path to CSV panel data file)
+**Output tables:** `panel_iv_coefficients` (Panel IV coefficients with standard errors, t-statistics and p-values); `weak_instrument_diagnostics` (First-stage F, Cragg-Donald and Kleibergen-Paap F, Stock-Yogo bound and Sargan test)
 
 ---
 
@@ -1110,7 +1110,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_plogit` (Path to CSV panel data file)
+**Output tables:** `panel_logit_coefficients` (Panel logit coefficients with standard errors, z-statistics and p-values); `model_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC, convergence and observation/group counts)
 
 ---
 
@@ -1138,7 +1138,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_pmg` (Path to CSV data file)
+**Output tables:** `panel_ardl_long_run_coefficients` (Pooled or averaged long-run coefficients theta with standard errors); `panel_ardl_short_run_ec_coefficients` (Error-correction speed phi and the short-run coefficient block); `panel_ardl_diagnostics` (Estimator, unit count, orders, phi with its SE, log-likelihood and convergence)
 
 ---
 
@@ -1168,7 +1168,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--irr` | — | Also report incidence-rate ratios exp(beta) with delta-method SEs |
 
-**Output tables:** `estimate_poisson` (Path to CSV data file)
+**Output tables:** `poisson_regression_coefficients` (Poisson coefficients with standard errors, z-statistics, p-values and CIs); `incidence_rate_ratios` (exp(beta) incidence-rate ratios with delta-method SEs and CIs (--irr)); `fit_statistics` (Log-likelihood, deviance, pseudo R-squared and AIC/BIC)
 
 ---
 
@@ -1192,7 +1192,7 @@ Path to CSV panel data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_pprobit` (Path to CSV panel data file)
+**Output tables:** `panel_probit_coefficients` (Panel probit coefficients with standard errors, z-statistics and p-values); `model_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC, convergence and observation/group counts)
 
 ---
 
@@ -1228,7 +1228,7 @@ Path to CSV panel data file
 | `--twoway` | — | Include time fixed effects |
 | `--collapse` | — | Collapse the GMM instrument matrix (--method ab\|bb) |
 
-**Output tables:** `estimate_preg` (Path to CSV panel data file)
+**Output tables:** `panel_regression_coefficients` (Panel coefficients with standard errors, t-statistics and p-values); `model_statistics` (Within/between/overall R-squared, F-statistic, and observation and group counts); `dynamic_panel_diagnostics` (AR(1)/AR(2) tests, Hansen J and the instrument count (--method ab|bb)); `hdfe_absorption` (Absorbed dimensions, level counts and the projection-loop convergence (--absorb))
 
 ---
 
@@ -1251,7 +1251,7 @@ Path to CSV data file
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_probit` (Path to CSV data file)
+**Output tables:** `probit_regression_coefficients` (Probit coefficients with standard errors, z-statistics, p-values and CIs); `fit_statistics` (Pseudo R-squared, log-likelihood (fitted and null), AIC/BIC and convergence)
 
 ---
 
@@ -1285,7 +1285,7 @@ Path to CSV panel data file
 | `--system` | — | Use system GMM (adds level equations) |
 | `--collapse` | — | Collapse instruments to limit count |
 
-**Output tables:** `estimate_pvar` (Path to CSV panel data file)
+**Output tables:** `panel_var_coefficients` (Panel VAR coefficients, one row per equation x lagged regressor); `panel_summary` (Group and observation counts, instrument count, estimator and transformation)
 
 ---
 
@@ -1308,7 +1308,7 @@ Quantile regression (Koenker-Bassett)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `qreg` (Quantile regression coefficients); `fit` (Per-quantile fit diagnostics)
+**Output tables:** `quantile_regression_coefficients` (One row per quantile x term with standard errors, p-values and confidence bounds); `quantile_fit_diagnostics` (Per-quantile objective value, pseudo R-squared and convergence flag)
 
 ---
 
@@ -1335,7 +1335,7 @@ Regression discontinuity (Calonico-Cattaneo-Titiunik)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `rdd` (Conventional / bias-corrected / robust treatment effect); `settings` (Bandwidths, effective N and robust inference)
+**Output tables:** `rdd_treatment_effect` (Conventional, bias-corrected and robust treatment effects with standard errors and CIs); `rdd_settings_diagnostics` (Design, cutoff, kernel, bandwidths, effective counts and the robust z and p-value)
 
 ---
 
@@ -1364,7 +1364,7 @@ Path to CSV data file
 | `--time-cutoff` | — | `Int64` | `0` | — | Conley serial-correlation lag cutoff (0 = spatial only) |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_reg` (Path to CSV data file)
+**Output tables:** `reg_coefficients` (OLS/WLS coefficients with standard errors, t-statistics, p-values and CIs); `fit_statistics` (R-squared, adjusted R-squared, F-statistic with p-value, log-likelihood and AIC/BIC); `conley_spatial_hac_settings` (Coordinate columns, metric, kernel and cutoffs behind a --cov-type conley fit)
 
 ---
 
@@ -1385,7 +1385,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_ridge` (Path to CSV data file)
+**Output tables:** `ridge_coefficients` (Intercept and slope estimates with an active-set (non-zero) indicator); `ridge_diagnostics` (Selected lambda, active-set size, R-squared, AIC/BIC/EBIC and the selection rule)
 
 ---
 
@@ -1406,7 +1406,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_robust` (Path to CSV data file)
+**Output tables:** `robust_regression_coefficients` (M-estimator coefficients with standard errors, z-statistics and p-values); `robust_regression_diagnostics` (psi function, estimator, robust scale, robust R-squared, tuning and convergence)
 
 ---
 
@@ -1446,7 +1446,7 @@ Path to CSV data file
 | `--no-intercept` | — | Exclude the intercept term |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_sarima` (Path to CSV data file)
+**Output tables:** `sarima_coefficients` (Non-seasonal and seasonal AR/MA estimates plus the innovation variance); `information_criteria` (AIC, BIC, log-likelihood and effective sample size)
 
 ---
 
@@ -1479,7 +1479,7 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_sdfm` (Path to CSV data file)
+**Output tables:** `sdfm_estimation_summary` (Structural DFM estimation record: panel dimensions, factor counts, identification, factor-VAR lags, shock names and the average common variance share)
 
 ---
 
@@ -1503,7 +1503,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_select` (Path to CSV data file)
+**Output tables:** `selected_model_coefficients` (Coefficients of the refitted model on the selected regressors); `selection_path` (The search trail: step, add/drop action, variable and the deciding statistic); `selection_summary` (Method, criterion, selected and forced variables, and any encompassing test)
 
 ---
 
@@ -1534,7 +1534,7 @@ Path to CSV data file
 | `--no-linearity` | — | Skip the attached Hansen (1996) linearity test |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_setar` (Path to CSV data file)
+**Output tables:** `setar_coefficients` (Per-regime SETAR coefficients with standard errors, z-statistics and p-values); `setar_diagnostics` (Threshold gamma with its Hansen CI, regime counts, p/d, fit statistics and the linearity test)
 
 ---
 
@@ -1562,7 +1562,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_smm` (Path to CSV data file)
+**Output tables:** `smm_estimates` (SMM parameter estimates with standard errors, t-statistics and p-values)
 
 ---
 
@@ -1592,7 +1592,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_star` (Path to CSV data file)
+**Output tables:** `star_regime_coefficients` (Coefficients of the two regime blocks with standard errors and p-values); `star_transition_parameters` (Smoothness gamma and location c of the transition function, with standard errors); `star_diagnostics` (Transition type, fit statistics, the LM3 linearity test and any sequential-selection p-values)
 
 ---
 
@@ -1621,7 +1621,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_statespace` (Path to CSV data file)
+**Output tables:** `state_space_hyper_parameters` (Estimated hyper-parameters of a canned local-level / local-linear-trend system); `state_space_system_general` (Dimensions of each system matrix for a --config general system); `state_space_diagnostics` (Model kind, log-likelihood, state and period counts, and the estimation method)
 
 ---
 
@@ -1646,7 +1646,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_static` (Path to CSV data file)
+**Output tables:** `scree_data_eigenvalues_variance_shares` (Eigenvalue, explained-variance and cumulative-variance share per component); `factor_loadings` (Estimated factor loadings, one row per observed variable)
 
 ---
 
@@ -1673,7 +1673,7 @@ Path to CSV data file
 | `--no-intercept` | — | Do not add a per-equation constant |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `estimate_sur` (Path to CSV data file)
+**Output tables:** `sur_coefficients` (System coefficients, one row per equation x term, with standard errors and p-values); `sur_system_statistics` (Estimator, equation and observation counts, det(Sigma), McElroy R-squared and log-likelihood)
 
 ---
 
@@ -1698,7 +1698,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `estimate_sv` (Path to CSV data file)
+**Output tables:** `sv_coefficients` (SV parameter estimates with standard errors, z-statistics and p-values)
 
 ---
 
@@ -1728,7 +1728,7 @@ Path to CSV data file
 | `--no-linearity` | — | Skip the Hansen (1996) linearity test |
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `estimate_threshold` (Path to CSV data file)
+**Output tables:** `threshold_regression_coefficients` (Per-regime coefficients with standard errors, z-statistics and p-values); `threshold_regression_diagnostics` (Threshold gamma with its Hansen CI, per-regime counts, fit statistics and the linearity test)
 
 ---
 
@@ -1749,7 +1749,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_tobit` (Path to CSV data file)
+**Output tables:** `tobit_coefficients` (Censored-regression coefficients with standard errors, z-statistics and p-values); `tobit_diagnostics` (sigma, log-likelihood, AIC/BIC, censoring bounds and left/right censored counts)
 
 ---
 
@@ -1770,7 +1770,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_truncreg` (Path to CSV data file)
+**Output tables:** `truncated_regression_coefficients` (Truncated-normal coefficients with standard errors, z-statistics and p-values); `truncated_regression_diagnostics` (sigma and its SE, log-likelihood, AIC/BIC, bounds and the truncated count)
 
 ---
 
@@ -1795,7 +1795,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--no-intercept` | — | Do NOT prepend a time-varying intercept coefficient |
 
-**Output tables:** `estimate_tvp` (Path to CSV data file)
+**Output tables:** `tvp_hyper_parameters` (Estimated state-space hyper-parameters of the TVP regression); `tvp_coefficient_paths` (Smoothed time-varying coefficient path, one row per period x coefficient); `tvp_diagnostics` (Log-likelihood, convergence, coefficient count and whether an intercept was included)
 
 ---
 
@@ -1826,7 +1826,7 @@ TVP-VAR with stochastic volatility (Primiceri 2005)
 | `--no-tvp` | — | Hold coefficients constant (drop the time variation) |
 | `--no-sv` | — | Hold volatilities constant (drop stochastic volatility) |
 
-**Output tables:** `volatility` (Stochastic volatility path); `spec` (TVP-VAR specification)
+**Output tables:** `tvp_var_stochastic_volatility_path_posterior_sd_68_band` (Posterior mean and 16/50/84 quantiles of the stochastic-volatility path, one row per period x variable); `tvp_var_specification` (Lags, variable count, effective sample, training sample, draws and the tvp/sv switches)
 
 ---
 
@@ -1846,7 +1846,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_var` (Path to CSV data file)
+**Output tables:** `var_coefficients` (Tidy VAR coefficient table: one row per equation x term with SEs, t-stats, p-values and CIs); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VAR)
 
 ---
 
@@ -1869,7 +1869,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_vecm` (Path to CSV data file)
+**Output tables:** `cointegrating_vectors_beta` (Cointegrating vectors beta, one row per variable and one column per relation); `adjustment_coefficients_alpha` (Adjustment coefficients alpha, one row per equation); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VECM)
 
 ---
 
@@ -1900,7 +1900,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `estimate_xtcointreg` (Path to CSV data file)
+**Output tables:** `panel_cointegrating_regression_coefficients` (Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling)); `panel_cointegrating_regression_diagnostics` (Method, pooling, trend, kernel, unit count and per-unit sample lengths)
 
 ---
 

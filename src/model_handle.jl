@@ -174,8 +174,28 @@ What is left on `.fmod` is now a deliberate carve-out rather than a coverage gap
 and heterogeneous-agent SOLUTION types hold compiled `@dsge` residual closures, which do
 not round-trip through JLD2, so upstream keeps them out of its registry on purpose.
 """
+# W7/#142: in-memory model handles for `friedman serve --mcp`. Semantics match
+# `.fmod` (any model type; no type registry), but the store lives exactly as
+# long as the serve session (`_serve_loop` sets and clears it) — outside serve,
+# a `model://` path is a typed usage error, never a filesystem access.
+const _SERVE_MODEL_STORE = Ref{Union{Nothing,Dict{String,Any}}}(nothing)
+
+function _serve_store_or_throw(path::String)
+    store = _SERVE_MODEL_STORE[]
+    store === nothing && throw(CliError("usage/invalid",
+        "$path: model:// handles are only available inside `friedman serve --mcp`";
+        hint="use a .jld2 or .fmod file path outside a serve session"))
+    return store
+end
+
 function save_model_dispatch(path::String, model)
     isempty(path) && return nothing
+    if startswith(path, "model://")
+        store = _serve_store_or_throw(path)
+        store[path] = model
+        _status("Model stored in session as $path ($(nameof(typeof(model))))")
+        return path
+    end
     lc = lowercase(path)
     if endswith(lc, ".jld2")
         _is_native_saveable(model) || throw(CliError(
@@ -209,6 +229,13 @@ raises `SerializationError` → exit 3 via `_domain_error_class`). Any other han
 suffix → the interim `.fmod` loader (version mismatch → env/model-version, exit 6).
 """
 function load_model_dispatch(path::String)
+    if startswith(path, "model://")
+        store = _serve_store_or_throw(path)
+        haskey(store, path) || throw(CliError("data/file-not-found",
+            "no session model stored at $path";
+            hint="save one first with --save-model $path"))
+        return store[path]
+    end
     isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
                                    hint="check --model path"))
     if endswith(lowercase(path), ".jld2")

@@ -12550,6 +12550,8 @@ end  # Command Handlers
             (["spectral", "density", fix, "--method", "welch", "--format", "json"], ["spectral", "density"]),
             (["spectral", "cross", fix, "--var1", "1", "--var2", "2", "--format", "json"], ["spectral", "cross"]),
             (["spectral", "transfer", "--filter", "hp", "--lambda", "1600.0", "--nobs", "200", "--format", "json"], ["spectral", "transfer"]),
+            # #147: estimate sdfm estimation-record table
+            (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
         ]
         for (argv, gkeys) in cases
             Random.seed!(42)
@@ -12564,12 +12566,44 @@ end  # Command Handlers
             errs = validate_envelope_json(js)
             @test isempty(errs) || (@info "schema errs" errs; false)
         end
+
+        # W2/#137: dispatch-path ERROR envelope goldens. dispatch_leaf renders
+        # the error envelope and THEN rethrows for the exit code — and _capture
+        # does not swallow throws — so the dispatch call is wrapped. (The
+        # usage/parse net lives in run_cli, which this harness bypasses via
+        # dispatch(); the T4 battery in test_e2e.jl byte-asserts that path.)
+        err_cases = [
+            (["filter", "hp", "/nope.csv", "--format", "json"],
+             ["filter", "hp", "error"], "data/file-not-found", 3),
+            (["estimate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "bvar", "config-error"], "config/file-not-found", 4),
+        ]
+        for (argv, gkeys, code, ec) in err_cases
+            Random.seed!(42)
+            out = _capture() do
+                try
+                    _dispatch_via_app(String[string(a) for a in argv])
+                catch e
+                    e isa CliError || rethrow()
+                end
+            end
+            js = _extract_json_object(out)
+            @test js !== nothing
+            doc = JSON3.read(js)
+            @test string(doc.status) == "error"
+            @test string(doc.error.code) == code
+            @test doc.error.exit_code == ec
+            gpath = _golden_path(gkeys)
+            @test isfile(gpath)
+            @test _golden_compare(js, gpath)
+            errs = validate_envelope_json(js)
+            @test isempty(errs) || (@info "schema errs" errs; false)
+        end
     end
 
     # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)
     env = Envelope(command="estimate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
-    add_scalar!(env, "lags", 2)
     buf = IOBuffer(); render(env, :csv, buf)
     csv_out = replace(String(take!(buf)), "\r\n" => "\n")
     golden_csv = replace(read(joinpath(_GOLDEN_DIR, "render.csv.txt"), String), "\r\n" => "\n")
@@ -12581,6 +12615,91 @@ end  # Command Handlers
     bad = replace(read(joinpath(_GOLDEN_DIR, "spectral.acf.json"), String), "acf_pacf" => "renamed_table")
     @test !_golden_compare(bad, joinpath(_GOLDEN_DIR, "spectral.acf.json"))
 end
+
+# W1/#136: negative tests for the schema VALIDATOR itself. Until W1, the
+# additionalProperties branch was nested inside the `properties` loop, so a
+# schema carrying only additionalProperties (the envelope's `data`/`meta`) was
+# never validated — and the then-ambiguous `data` oneOf went unnoticed by every
+# tier because the two defects cancelled. These tests make that class loud.
+@testset "schema validator subset (W1/#136)" begin
+    # additionalProperties WITHOUT properties must validate every value (the
+    # exact blind-spot shape).
+    ap_only = Dict("type" => "object",
+                   "additionalProperties" => Dict("type" => "integer"))
+    @test isempty(validate_json_schema(Dict("a" => 1, "b" => 2), ap_only))
+    @test !isempty(validate_json_schema(Dict("a" => "not-an-int"), ap_only))
+
+    # additionalProperties: false rejects unlisted keys (with and without
+    # properties present).
+    closed = Dict("type" => "object",
+                  "properties" => Dict("x" => Dict("type" => "integer")),
+                  "additionalProperties" => false)
+    @test isempty(validate_json_schema(Dict("x" => 1), closed))
+    @test !isempty(validate_json_schema(Dict("x" => 1, "y" => 2), closed))
+    @test !isempty(validate_json_schema(Dict("y" => 2),
+                                        Dict("additionalProperties" => false)))
+
+    # pattern: strings only; non-strings ignore it (draft-07 semantics).
+    pat = Dict("pattern" => "^[a-z-]+/[a-z0-9-]+\$")
+    @test isempty(validate_json_schema("data/not-found", pat))
+    @test !isempty(validate_json_schema("Bad_Code", pat))
+    @test isempty(validate_json_schema(42, pat))
+
+    # The live envelope schema, exercised end-to-end through the validator.
+    schema = JSON3.read(read(_ENVELOPE_SCHEMA_PATH, String))
+    table = Dict("columns" => ["a", "b"], "rows" => [[1, "x"], [2.5, nothing]])
+    base = Dict{String,Any}(
+        "schema_version" => 1, "command" => "estimate var", "status" => "ok",
+        "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.12.0",
+                                   "mems_version" => "0.8.0", "seed" => 42),
+        "data" => Dict{String,Any}("coefficients" => table),
+        "warnings" => Any[], "artifacts" => Any[], "error" => nothing)
+    @test isempty(validate_json_schema(base, schema))
+
+    # A malformed table must FAIL — this is what the pre-W1 stack silently
+    # accepted (broken validator × broken schema).
+    bad = deepcopy(base)
+    bad["data"]["broken"] = Dict("columns" => ["a"])            # rows missing
+    @test !isempty(validate_json_schema(bad, schema))
+    bad = deepcopy(base)
+    bad["data"]["broken"] = Dict("columns" => ["a"], "rows" => [[1]],
+                                 "extra" => true)               # closed object
+    @test !isempty(validate_json_schema(bad, schema))
+    bad = deepcopy(base)
+    bad["data"]["broken"] = Dict("columns" => ["a"], "rows" => [[[1, 2]]])  # array cell
+    @test !isempty(validate_json_schema(bad, schema))
+    bad = deepcopy(base)
+    bad["data"]["broken"] = 3.14                                # bare scalar under data
+    @test !isempty(validate_json_schema(bad, schema))
+
+    # status/error co-occurrence via the top-level oneOf.
+    ok_with_err = deepcopy(base)
+    ok_with_err["error"] = Dict("code" => "model/error", "message" => "m")
+    @test !isempty(validate_json_schema(ok_with_err, schema))
+    err_doc = deepcopy(base)
+    err_doc["status"] = "error"
+    err_doc["error"] = Dict("code" => "data/not-found", "message" => "gone",
+                            "hint" => "check the path", "exit_code" => 3)
+    @test isempty(validate_json_schema(err_doc, schema))
+    err_null = deepcopy(err_doc)
+    err_null["error"] = nothing
+    @test !isempty(validate_json_schema(err_null, schema))
+
+    # error.code taxonomy pattern + exit_code enum.
+    bad_code = deepcopy(err_doc)
+    bad_code["error"] = Dict("code" => "NotAClass", "message" => "m")
+    @test !isempty(validate_json_schema(bad_code, schema))
+    bad_exit = deepcopy(err_doc)
+    bad_exit["error"] = Dict("code" => "data/not-found", "message" => "m",
+                             "exit_code" => 9)
+    @test !isempty(validate_json_schema(bad_exit, schema))
+
+    # meta requires the version trio.
+    no_meta = deepcopy(base)
+    no_meta["meta"] = Dict{String,Any}("cli_version" => "0.0.0")
+    @test !isempty(validate_json_schema(no_meta, schema))
+end
+
 
 # ═══════════════════════════════════════════════════════════════
 # Input-Output analysis command family (C049)
@@ -12774,5 +12893,251 @@ end
             _dispatch_via_app(String["io", "linkages"])
         end
         @test occursin("Agriculture", out) && occursin("Manufacturing", out)
+    end
+end
+
+# W4/#139 (#81): the direct-Exception domain types must keep their SPECIFIC classes
+# through the `_domain_or_data_error` wrap — its old fallback collapsed anything
+# outside MacroModelError into generic model/error (the shadow the wave audit found).
+@testset "W4/#139: _domain_or_data_error consults _domain_error_class" begin
+    ss = _domain_or_data_error(
+        MacroEconometricModels.StochasticSingularityError("2 observables exceed 1 structural shocks"),
+        "bayes estimation")
+    @test ss isa CliError
+    @test ss.code == "model/stochastic-singularity"
+    @test exit_class(ss) == 5
+
+    dse = _domain_or_data_error(
+        MacroEconometricModels.DSGESolveError("Numerical steady state did not satisfy"),
+        "dsge solve")
+    @test dse isa CliError
+    @test dse.code == "model/solve"
+    @test exit_class(dse) == 5
+
+    # MacroModelError subtypes still pass through RAW — the central mapper owns them.
+    conv = _domain_or_data_error(MacroEconometricModels.ConvergenceError("nc"), "x")
+    @test !(conv isa CliError)
+    @test nameof(typeof(conv)) === :ConvergenceError
+
+    # Generic fallbacks unchanged (a plain ArgumentError is a DATA statement here).
+    @test _domain_or_data_error(ArgumentError("bad response"), "x").code == "data/invalid"
+    @test _domain_or_data_error(ErrorException("boom"), "x").code == "model/error"
+end
+
+# W5/#140: `friedman schema` — machine-actionable self-description (closes #63).
+# schema.jl is NOT in the standard include block above because it needs the full
+# registry populated; included here with a test APP so _schema_cmd resolves it.
+include(joinpath(project_root, "src", "commands", "schema.jl"))
+if !@isdefined(APP)
+    const APP = Entry("friedman",
+        NodeCommand("friedman", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "estimate" => register_estimate_commands!(),
+            "test"     => register_test_commands!(),
+            "irf"      => register_irf_commands!(),
+            "fevd"     => register_fevd_commands!(),
+            "hd"       => register_hd_commands!(),
+            "forecast"  => register_forecast_commands!(),
+            "predict"   => register_predict_commands!(),
+            "residuals" => register_residuals_commands!(),
+            "filter"    => register_filter_commands!(),
+            "data"      => register_data_commands!(),
+            "io"        => register_io_commands!(),
+            "nowcast"   => register_nowcast_commands!(),
+            "dsge"      => register_dsge_commands!(),
+            "did"       => register_did_commands!(),
+            "multipliers" => register_multipliers_commands!(),
+            "policy"    => register_policy_commands!(),
+            "spectral"  => register_spectral_commands!(),
+            "model"     => register_model_commands!(),
+            "completions" => register_completions_commands!(),
+            "schema"    => register_schema_command!(),
+        ), "test tree"); version=v"0.0.0-test")
+end
+
+@testset "W5/#140: schema — input_schema, tables, contract, --docs" begin
+    getdoc(args...) = JSON3.read(strip(_capture() do
+        dispatch_schema(String[args...])
+    end))
+
+    # ── Leaf doc: draft-07 input_schema with x-cli annotations ──
+    doc = getdoc("estimate", "var")
+    is = doc.input_schema
+    @test String(is[Symbol("\$schema")]) == "http://json-schema.org/draft-07/schema#"
+    @test String(is.type) == "object"
+    @test is.additionalProperties === false
+    @test "data" in String.(is.required)
+    props = is.properties
+    @test String(props.data.type) == "string"
+    @test String(props.data[Symbol("x-cli")].kind) == "argument"
+    @test Int(props.data[Symbol("x-cli")].position) == 1
+    @test String(props.lags.type) == "integer"
+    @test String(props.lags[Symbol("x-cli")].kind) == "option"
+    @test String(props.lags[Symbol("x-cli")].long) == "--lags"
+    @test "json" in String.(props.format.enum)
+    @test String(props.format[Symbol("x-cli")].short) == "-f"
+
+    # ── Leaf doc: registry-declared tables (the W3 key contract) ──
+    tnames = Set(String(t.name) for t in doc.tables)
+    @test "var_coefficients" in tnames
+    @test "information_criteria" in tnames
+    @test all(haskey(t, :family) for t in doc.tables)
+    # a family declaration surfaces as family=true (hd var: per-shock sibling
+    # tables; NOT irf var — W3 made that one static)
+    hddoc = getdoc("hd", "var")
+    @test any(t -> t.family === true, hddoc.tables)
+
+    # ── Root doc: contract block ──
+    root = getdoc()
+    @test haskey(root, :contract)
+    env_schema = root.contract.envelope_schema
+    @test occursin("draft-07", String(env_schema[Symbol("\$schema")]))
+    @test haskey(env_schema.properties, :data)   # the embedded normative schema
+    @test length(root.contract.exit_codes) == 7
+    codes = Dict(Int(e.exit_code) => String(e.class) for e in root.contract.exit_codes)
+    @test codes[5] == "model" && codes[2] == "usage" && codes[0] == "ok"
+    # a non-root doc has no contract
+    @test !haskey(doc, :contract)
+
+    # ── --docs: guide embedded; flag NEVER eats a path token (D-6) ──
+    r1 = getdoc("--docs")
+    @test haskey(r1, :docs) && occursin("# Agent Guide", String(r1.docs))
+    r2 = getdoc("--docs", "estimate", "var")   # D-6: `estimate` must survive
+    @test String.(r2.path) == ["estimate", "var"]
+    @test haskey(r2, :docs)
+    r3 = getdoc("estimate", "var", "--docs")
+    @test String.(r3.path) == ["estimate", "var"]
+    @test haskey(r3, :docs)
+    @test !haskey(doc, :docs)                  # absent without the flag
+    # the guide the schema serves is byte-identical to the baked const
+    @test String(r1.docs) == _AGENT_GUIDE_MD
+
+    # ── Every leaf emits a structurally sound input_schema ──
+    nchecked = Ref(0)
+    function _walkschema(node, path)
+        for (name, sub) in node.subcmds
+            is_hidden_alias(name, sub) && continue
+            p = vcat(path, [name])
+            if sub isa LeafCommand
+                s = _input_schema(sub, p)
+                @test s["additionalProperties"] === false
+                @test issubset(Set(s["required"]), Set(keys(s["properties"])))
+                for (_, pv) in s["properties"]
+                    @test pv["type"] in ("string", "integer", "number", "boolean")
+                    @test haskey(pv, "x-cli")
+                end
+                nchecked[] += 1
+            else
+                _walkschema(sub, p)
+            end
+        end
+    end
+    _walkschema(APP.root, String[])
+    @test nchecked[] > 400   # the full 410-leaf surface (+ schema itself)
+end
+
+# W7/#142: serve --mcp — the registry projected as MCP tools. run_cli only
+# exists inside the Friedman module, so tools/call sessions live in T3; here we
+# pin the pure pieces (tool enumeration, argv reconstruction, model:// store)
+# and the protocol loop's non-tool methods end-to-end via IOBuffers.
+include(joinpath(project_root, "src", "commands", "serve.jl"))
+
+@testset "W7/#142: serve --mcp projection" begin
+    @testset "_mcp_tools naming" begin
+        tools = _mcp_tools()
+        names = [t[1] for t in tools]
+        @test "estimate_var" in names
+        @test "dsge_bayes_estimate" in names
+        @test length(names) == length(unique(names))
+        @test !("serve" in names)             # never serves itself
+        @test all(n -> occursin(r"^[a-z0-9_-]+$", n), names)
+    end
+
+    @testset "_mcp_argv reconstruction" begin
+        leaf = LeafCommand("var", identity;
+            args=[Argument("data"; type=String, required=true)],
+            options=[Option("lags"; type=Int, default=0),
+                     Option("format"; type=String, default="table"),
+                     Option("output"; type=String, default="")],
+            flags=[Flag("plot")],
+            description="t")
+        p = ["estimate", "var"]
+        # full surface: positional + option + true flag + forced json
+        argv = _mcp_argv(leaf, p, Dict{Symbol,Any}(
+            :data => "x.csv", :lags => 2, :plot => true))
+        @test argv == ["estimate", "var", "x.csv", "--lags", "2", "--plot",
+                       "--format", "json"]
+        # false flag omitted; user format overridden by the forced json
+        argv2 = _mcp_argv(leaf, p, Dict{Symbol,Any}(
+            :data => "x.csv", :plot => false, :format => "csv"))
+        @test argv2 == ["estimate", "var", "x.csv", "--format", "json"]
+        # unknown key → forwarded so the strict parser rejects with a hint
+        argv3 = _mcp_argv(leaf, p, Dict{Symbol,Any}(:data => "x.csv", :lgas => 2))
+        @test "--lgas" in argv3
+        # a leaf without --format gets NO forced json (completions-style)
+        bare = LeafCommand("bash", identity;
+            options=[Option("output"; type=String, default="")], description="t")
+        @test _mcp_argv(bare, ["completions", "bash"], Dict{Symbol,Any}()) ==
+              ["completions", "bash"]
+    end
+
+    @testset "model:// store semantics" begin
+        # outside a serve session: typed usage error, both directions
+        @test_throws CliError save_model_dispatch("model://m1", (a=1,))
+        @test_throws CliError load_model_dispatch("model://m1")
+        err = try; load_model_dispatch("model://m1"); catch e; e; end
+        @test err.code == "usage/invalid"
+        # inside: round-trip + typed miss
+        _SERVE_MODEL_STORE[] = Dict{String,Any}()
+        try
+            obj = (theta = [1.0, 2.0],)
+            @test save_model_dispatch("model://m1", obj) == "model://m1"
+            @test load_model_dispatch("model://m1") === obj
+            miss = try; load_model_dispatch("model://nope"); catch e; e; end
+            @test miss isa CliError && miss.code == "data/file-not-found"
+        finally
+            _SERVE_MODEL_STORE[] = nothing
+        end
+    end
+
+    @testset "protocol loop (non-tool methods)" begin
+        function session(lines...)
+            input = IOBuffer(join(lines, "\n") * "\n")
+            output = IOBuffer()
+            _serve_loop(input, output)
+            [JSON3.read(l) for l in split(String(take!(output)), '\n') if !isempty(strip(l))]
+        end
+        rs = session(
+            """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""",
+            """{"jsonrpc":"2.0","method":"notifications/initialized"}""",
+            """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""",
+            """{"jsonrpc":"2.0","id":3,"method":"ping"}""",
+            "this is not json",
+            """{"jsonrpc":"2.0","id":4,"method":"no/such"}""",
+            """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"no_such_tool","arguments":{}}}""",
+        )
+        @test length(rs) == 6            # notification got no response
+        init = rs[1]
+        @test init.id == 1
+        @test haskey(init.result, :protocolVersion)
+        @test haskey(init.result.capabilities, :tools)
+        tl = rs[2]
+        @test tl.id == 2
+        tools = tl.result.tools
+        @test length(tools) > 400
+        est = only(t for t in tools if t.name == "estimate_var")
+        @test haskey(est, :inputSchema)
+        @test String(est.inputSchema.type) == "object"
+        @test "data" in String.(est.inputSchema.required)
+        @test rs[3].id == 3                          # ping
+        @test rs[4].error.code == -32700             # parse error
+        @test rs[5].error.code == -32601             # method not found
+        @test rs[6].error.code == -32602             # unknown tool
+        # the store is cleared when the loop ends
+        @test _SERVE_MODEL_STORE[] === nothing
+    end
+
+    @testset "serve leaf guard" begin
+        err = try; _serve(; mcp=false); catch e; e; end
+        @test err isa CliError && err.code == "usage/missing"
     end
 end

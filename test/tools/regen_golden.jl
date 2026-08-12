@@ -115,6 +115,8 @@ function main()
             (["filter", "bn", fix, "--method", "arima", "--format", "json"], ["filter", "bn"]),
             (["filter", "bk", fix, "--pl", "6", "--pu", "32", "--K", "12", "--format", "json"], ["filter", "bk"]),
             (["filter", "bhp", fix, "--lambda", "1600.0", "--stopping", "BIC", "--format", "json"], ["filter", "bhp"]),
+            # #147: estimate sdfm emits an estimation-record table (was status-only)
+            (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
         ]
         for (argv, gpath) in cases
             Random.seed!(42)
@@ -130,12 +132,39 @@ function main()
             _write_golden(js, dest)
             println("wrote $dest")
         end
+        # W2/#137: dispatch-path ERROR envelope goldens. dispatch_leaf renders the
+        # error envelope to stdout and THEN rethrows for the exit code — and
+        # _capture does not swallow throws — so the dispatch call is wrapped here.
+        # (The usage/parse net lives in run_cli, which this harness bypasses via
+        # dispatch(); that path is byte-asserted by the T4 battery instead.)
+        err_cases = [
+            (["filter", "hp", "/nope.csv", "--format", "json"],
+             ["filter", "hp", "error"]),
+            (["estimate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "bvar", "config-error"]),
+        ]
+        for (argv, gpath) in err_cases
+            Random.seed!(42)
+            out = _capture() do
+                try
+                    _dispatch_via_app(String[string(a) for a in argv])
+                catch e
+                    e isa CliError || rethrow()
+                end
+            end
+            js = _extract_json_object(out)
+            js === nothing && error("no JSON in output for $argv\n$out")
+            errs = validate_envelope_json(js)
+            isempty(errs) || @warn "schema warnings for $gpath" errs
+            dest = _golden_path(gpath)
+            _write_golden(js, dest)
+            println("wrote $dest")
+        end
     end
     # Renderer text goldens (table + csv) — centralized output path
     mktempdir() do dir
         env = Envelope(command="estimate var")
         add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
-        add_scalar!(env, "lags", 2)
         # table
         buf = IOBuffer(); render(env, :table, buf)
         open(joinpath(_GOLDEN_DIR, "render.table.txt"), "w") do io

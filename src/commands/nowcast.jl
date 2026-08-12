@@ -36,6 +36,8 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
             ],
+            tables=[TableSpec(name=:nowcast_dfm,
+                              description="Nowcast, forecast, log-likelihood and EM iteration count")],
             flags=copy(PLOT_FLAGS), category="nowcast", handler=wrap_legacy(_nowcast_dfm)),
         CommandSpec(path=["nowcast", "bvar"], summary="Nowcast via Bayesian VAR",
             args=data_arg,
@@ -54,6 +56,12 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="alpha0", type=Float64, default=2.0, description="Initial co-persistence weight α"),
                 out_fmt...,
             ],
+            tables=[
+                TableSpec(name=:nowcast_bvar,
+                          description="Nowcast, forecast and log-likelihood"),
+                TableSpec(name=:nowcast_bvar_hyperparameters,
+                          description="Optimized prior hyperparameters (lambda, theta, miu, alpha, theta_cross)"),
+            ],
             category="nowcast", handler=wrap_legacy(_nowcast_bvar)),
         CommandSpec(path=["nowcast", "bridge"], summary="Nowcast via bridge equations",
             args=data_arg,
@@ -66,6 +74,8 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt...,
             ],
+            tables=[TableSpec(name=:nowcast_bridge,
+                              description="Nowcast, forecast and number of bridge equations")],
             category="nowcast", handler=wrap_legacy(_nowcast_bridge)),
         CommandSpec(path=["nowcast", "news"], summary="Nowcast news decomposition (Banbura & Modugno 2014)",
             args=ArgSpec[],
@@ -81,6 +91,8 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
             ],
+            tables=[TableSpec(name=:nowcast_news_decomposition,
+                              description="Per-variable news impact on the nowcast revision")],
             flags=copy(PLOT_FLAGS), category="nowcast", handler=wrap_legacy(_nowcast_news)),
         CommandSpec(path=["nowcast", "forecast"], summary="Forecast from a nowcasting model",
             args=data_arg,
@@ -94,6 +106,8 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
             ],
+            tables=[TableSpec(name=:nowcast_forecast,
+                              description="Forecast path by horizon, one column per variable")],
             flags=copy(PLOT_FLAGS), category="nowcast", handler=wrap_legacy(_nowcast_forecast)),
     ]
 end
@@ -157,7 +171,7 @@ function _nowcast_dfm(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0
                round(model.loglik; digits=2), model.n_iter]
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast DFM (r=$factors, p=$lags, target=$target_name)")
+                  title="Nowcast DFM (r=$factors, p=$lags, target=$target_name)", key="nowcast_dfm")
 end
 
 function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
@@ -213,7 +227,7 @@ function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=
                round(model.loglik; digits=2)]
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast BVAR (lags=$lags, prior=$prior, target=$target_name)")
+                  title="Nowcast BVAR (lags=$lags, prior=$prior, target=$target_name)", key="nowcast_bvar")
 
     # Optimized hyperparameters (Nelder-Mead), not the initial values. loglik is NOT
     # comparable across priors (conjugate integrates Σ out; Litterman holds it fixed) —
@@ -261,7 +275,8 @@ function _nowcast_bridge(; data::String, monthly_vars::Int=0, quarterly_vars::In
                model.n_equations]
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast Bridge (lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y, target=$target_name)")
+                  title="Nowcast Bridge (lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y, target=$target_name)",
+                  key="nowcast_bridge")
 end
 
 function _nowcast_news(; data_new::String="", data_old::String="",
@@ -325,7 +340,7 @@ function _nowcast_news(; data_new::String="", data_old::String="",
         news_impact=round.(news.impact_news; digits=6)
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast News Decomposition (method=$method)")
+                  title="Nowcast News Decomposition (method=$method)", key="nowcast_news_decomposition")
 end
 
 function _nowcast_forecast(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
@@ -366,5 +381,5 @@ function _nowcast_forecast(; data::String, monthly_vars::Int=0, quarterly_vars::
     end
 
     output_result(fc_df; format=Symbol(format), output=output,
-                  title="Nowcast Forecast ($method, h=$horizons)")
+                  title="Nowcast Forecast ($method, h=$horizons)", key="nowcast_forecast")
 end

@@ -111,6 +111,42 @@ function _extract_global_flags!(args::Vector{String})
     return remaining
 end
 
+"""
+    _argv_wants_json(args) → Bool
+
+True when the RAW argv asks for JSON output: an exact `--format json` /
+`--format=json` / `-f json` / `-f=json` token (pair) anywhere, or a `--json`
+global in the LEADING global region (the same region `_extract_global_flags!`
+consumes). Exact-token matching only (W2/#137): a false negative degrades to
+today's stderr-only usage error, while a false positive would wrongly print
+JSON — so no fuzzy matching. Used by `run_cli`'s error net, which must decide
+BEFORE tokenize/bind_args run (they are exactly what throws on a usage error)
+and even before `_extract_global_flags!` (a bad `--seed` throws inside it).
+"""
+function _argv_wants_json(args::Vector{String})
+    n = length(args)
+    for (i, tok) in enumerate(args)
+        (tok == "--format=json" || tok == "-f=json") && return true
+        (tok == "--format" || tok == "-f") && i + 1 <= n && args[i+1] == "json" && return true
+    end
+    i = 1
+    while i <= n
+        tok = args[i]
+        if tok == "--quiet" || tok == "-q" || tok == "--no-color"
+            i += 1
+        elseif tok == "--json"
+            return true
+        elseif tok == "--seed"
+            i += 2
+        elseif startswith(tok, "--seed=")
+            i += 1
+        else
+            break
+        end
+    end
+    return false
+end
+
 # ── Path Validation ──────────────────────────────────────
 
 """
@@ -348,9 +384,10 @@ Route output to table (terminal), CSV, or JSON based on `format`.
 - `title`: table title for terminal display
 """
 function output_result(result::AbstractMatrix, varnames::Vector{String};
-                       format::Union{String,Symbol}="table", output::String="", title::String="Results")
+                       format::Union{String,Symbol}="table", output::String="", title::String="Results",
+                       key::AbstractString="")
     df = DataFrame(result, varnames)
-    output_result(df; format=format, output=output, title=title)
+    output_result(df; format=format, output=output, title=title, key=key)
 end
 
 """Slug a table title for envelope keys: lowercase, non-alnum → `_`."""
@@ -362,13 +399,27 @@ function _slug(title::String)
     return isempty(s) ? "table" : s
 end
 
-function output_result(df::DataFrame; format::Union{String,Symbol}=:table, output::String="", title::String="Results")
+"""
+    _table_key(prefix, discriminator) → String
+
+W3/#138 family key: `<declared-prefix>_<discriminator-slug>` for leaves whose
+one invocation emits multiple sibling tables (per-shock IRFs, per-variable
+HDs). `prefix` must be the leaf's registry-declared `TableSpec` name with
+`family=true`; the discriminator is a runtime variable name.
+"""
+_table_key(prefix::AbstractString, discriminator) = string(prefix, "_", _slug(string(discriminator)))
+
+function output_result(df::DataFrame; format::Union{String,Symbol}=:table, output::String="", title::String="Results",
+                       key::AbstractString="")
     fmt = _parse_format(format)
     _validate_output_path(output)
     # Accumulate into active JSON envelope instead of printing (C010 / F17)
     if envelope_active() && fmt == :json
         if isempty(output)
-            add_table!(_ENVELOPE[], Symbol(_slug(title)), df)
+            # W3/#138: `key` is the stable, registry-declared envelope address;
+            # when empty, fall back to the title slug (legal only when the title
+            # is a run-invariant literal — check_table_keys.jl enforces this).
+            add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
             return
         else
             _write_json(df, output)
@@ -390,13 +441,14 @@ end
 
 Output key-value results (e.g., test statistics).
 """
-function output_kv(pairs::Vector{<:Pair{String}}; format::Union{String,Symbol}="table", output::String="", title::String="Results")
+function output_kv(pairs::Vector{<:Pair{String}}; format::Union{String,Symbol}="table", output::String="", title::String="Results",
+                   key::AbstractString="")
     fmt = _parse_format(format)
     _validate_output_path(output)
     if envelope_active() && fmt == :json
         df = DataFrame(; metric=first.(pairs), value=last.(pairs))
         if isempty(output)
-            add_table!(_ENVELOPE[], Symbol(_slug(title)), df)
+            add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
             return
         else
             _write_json(df, output)

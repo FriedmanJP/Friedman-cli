@@ -40,7 +40,7 @@ function hd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:hd_var, description="Compute historical decomposition of shocks")],
+            tables=[TableSpec(name=:historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
             category="hd",
             handler=wrap_legacy(_hd_var),
         ),
@@ -61,7 +61,7 @@ function hd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:hd_bvar, description="Compute Bayesian historical decomposition")],
+            tables=[TableSpec(name=:bayesian_hd, family=true, description="One table per variable: period | initial | posterior-mean contribution of each shock")],
             category="hd",
             handler=wrap_legacy(_hd_bvar),
         ),
@@ -82,7 +82,7 @@ function hd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:hd_lp, description="Compute historical decomposition via structural LP")],
+            tables=[TableSpec(name=:lp_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
             category="hd",
             handler=wrap_legacy(_hd_lp),
         ),
@@ -103,7 +103,7 @@ function hd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:hd_vecm, description="Compute historical decomposition via VECM → VAR representation")],
+            tables=[TableSpec(name=:vecm_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
             category="hd",
             handler=wrap_legacy(_hd_vecm),
         ),
@@ -125,7 +125,7 @@ function hd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:hd_favar, description="FAVAR historical decomposition")],
+            tables=[TableSpec(name=:favar_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
             category="hd",
             handler=wrap_legacy(_hd_favar),
         )
@@ -182,7 +182,8 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
         _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                           id="arias", title_prefix="Historical Decomposition",
                           format=format, output=output,
-                          actual=hd_result.actual, initial=hd_result.initial_conditions)
+                          actual=hd_result.actual, initial=hd_result.initial_conditions,
+                          key_prefix="historical_decomposition")
         return
     end
 
@@ -214,7 +215,8 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
         _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                           id="uhlig", title_prefix="Historical Decomposition",
                           format=format, output=output,
-                          actual=hd_result.actual, initial=hd_result.initial_conditions)
+                          actual=hd_result.actual, initial=hd_result.initial_conditions,
+                          key_prefix="historical_decomposition")
         return
     end
 
@@ -235,7 +237,8 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="Historical Decomposition",
                       format=format, output=output,
-                      actual=hd_result.actual, initial=hd_result.initial_conditions)
+                      actual=hd_result.actual, initial=hd_result.initial_conditions,
+                      key_prefix="historical_decomposition")
 end
 
 # ── BVAR HD ──────────────────────────────────────────────
@@ -275,7 +278,8 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
     _output_hd_tables((vi, si) -> mean_contrib[:, vi, si], varnames, T_eff;
                       id=id, title_prefix="Bayesian HD",
                       format=format, output=output,
-                      initial=bhd.initial_point_estimate)
+                      initial=bhd.initial_point_estimate,
+                      key_prefix="bayesian_hd")
 end
 
 # ── LP HD ────────────────────────────────────────────────
@@ -328,7 +332,8 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="LP Historical Decomposition",
                       format=format, output=output,
-                      actual=hd_result.actual, initial=hd_result.initial_conditions)
+                      actual=hd_result.actual, initial=hd_result.initial_conditions,
+                      key_prefix="lp_historical_decomposition")
 end
 
 # ── VECM HD ─────────────────────────────────────────────
@@ -373,7 +378,8 @@ function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
                       id=id, title_prefix="VECM Historical Decomposition",
                       format=format, output=output,
-                      actual=hd_result.actual, initial=hd_result.initial_conditions)
+                      actual=hd_result.actual, initial=hd_result.initial_conditions,
+                      key_prefix="vecm_historical_decomposition")
 end
 
 # ── FAVAR HD ──────────────────────────────────────────────
@@ -411,5 +417,6 @@ function _hd_favar(; data::String="", factors=nothing, lags::Int=2,
     _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), favar.varnames, hd_result.T_eff;
                       id=id, title_prefix="FAVAR Historical Decomposition",
                       format=format, output=output,
-                      actual=hd_result.actual, initial=hd_result.initial_conditions)
+                      actual=hd_result.actual, initial=hd_result.initial_conditions,
+                      key_prefix="favar_historical_decomposition")
 end

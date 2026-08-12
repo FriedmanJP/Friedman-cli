@@ -284,38 +284,6 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
                 "n_offgrid"
             ]
         },
-        "ha_dsge_solve_diagnostics_method_reiter": {
-            "rows": [
-                [
-                    "method",
-                    "reiter"
-                ],
-                [
-                    "n_full_states",
-                    "600"
-                ],
-                [
-                    "n_reduced",
-                    "8"
-                ],
-                [
-                    "explained_variance",
-                    "0.9999999999994282"
-                ],
-                [
-                    "obs_rows",
-                    "9"
-                ],
-                [
-                    "obs_cols",
-                    "9"
-                ]
-            ],
-            "columns": [
-                "metric",
-                "value"
-            ]
-        },
         "ha_steady_state_diagnostics": {
             "rows": [
                 [
@@ -387,6 +355,38 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
                 "name",
                 "value"
             ]
+        },
+        "ha_dsge_solve_diagnostics": {
+            "rows": [
+                [
+                    "method",
+                    "reiter"
+                ],
+                [
+                    "n_full_states",
+                    "600"
+                ],
+                [
+                    "n_reduced",
+                    "8"
+                ],
+                [
+                    "explained_variance",
+                    "0.9999999999994282"
+                ],
+                [
+                    "obs_rows",
+                    "9"
+                ],
+                [
+                    "obs_cols",
+                    "9"
+                ]
+            ],
+            "columns": [
+                "metric",
+                "value"
+            ]
         }
     },
     "warnings": [
@@ -417,7 +417,7 @@ friedman dsge ha irf huggett --method reiter --n-reduced 8 --horizon 5 --format 
     "status": "ok",
     "command": "friedman dsge ha irf",
     "data": {
-        "ha_dsge_irf_shock_epsilon_method_reiter_h_5": {
+        "ha_dsge_irf_epsilon": {
             "rows": [
                 [
                     0,
@@ -542,7 +542,7 @@ friedman dsge ha simulate-panel huggett --n-agents 100 --periods 20 --seed 1 --f
     "status": "ok",
     "command": "friedman dsge ha simulate-panel",
     "data": {
-        "ha_panel_simulation_summary_n_100_t_20": {
+        "ha_panel_simulation_summary": {
             "rows": [
                 [
                     1,

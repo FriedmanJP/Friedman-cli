@@ -61,7 +61,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
     )
     fmt = Symbol(lowercase(format))
     output_result(att_df; format=fmt, output=output,
-        title="DID Estimation — $(uppercase(method))")
+        title="DID Estimation — $(uppercase(method))", key="did_estimation")
 
     _status()
     _status_styled("  Overall ATT: "; bold=true)
@@ -112,7 +112,7 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
     )
     fmt = Symbol(lowercase(format))
     output_result(coef_df; format=fmt, output=output,
-        title="Event Study LP — $(result.outcome_var)")
+        title="Event Study LP — $(result.outcome_var)", key="event_study_lp")
 
     _status()
     _status_styled("  N: "; bold=true)
@@ -184,7 +184,7 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
     )
     fmt = Symbol(lowercase(format))
     output_result(coef_df; format=fmt, output=output,
-        title="LP-DiD (Dube et al. 2023) — $(result.outcome_var)")
+        title="LP-DiD (Dube et al. 2023) — $(result.outcome_var)", key="lp_did_dube_et_al_2023")
 
     _status()
     _status_styled("  Specification: "; bold=true)
@@ -345,7 +345,8 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     )
     fmt = Symbol(lowercase(format))
     output_result(hon_df; format=fmt, output=output,
-        title="HonestDiD Sensitivity (Rambachan-Roth 2023, M̄=$(mbar))")
+        title="HonestDiD Sensitivity (Rambachan-Roth 2023, M̄=$(mbar))",
+        key="honestdid_sensitivity_rambachan_roth_2023")
 
     _status()
     _status_styled("  Breakdown value: "; bold=true)
@@ -382,7 +383,12 @@ function did_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:estimate, description="Path to panel CSV data file")],
+            tables=[
+                TableSpec(name=:did_estimation,
+                          description="ATT with standard error and confidence band by event time"),
+                TableSpec(name=:group_time_att_callaway_sant_anna,
+                          description="Cohort-by-event-time ATT matrix (Callaway-Sant'Anna estimators only)"),
+            ],
             category="did",
             handler=wrap_legacy(_did_estimate),
         ),
@@ -407,7 +413,8 @@ function did_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:event_study, description="Path to panel CSV data file")],
+            tables=[TableSpec(name=:event_study_lp,
+                              description="Local-projection event-study coefficient, SE and confidence band by event time")],
             category="did",
             handler=wrap_legacy(_did_event_study),
         ),
@@ -444,7 +451,8 @@ function did_specs()::Vector{CommandSpec}
                 FlagSpec(name="only-pooled", description="Only report pooled estimates"),
                 FlagSpec(name="only-event", description="Only report event-time estimates")
             ],
-            tables=[TableSpec(name=:lp_did, description="Path to panel CSV data file")],
+            tables=[TableSpec(name=:lp_did_dube_et_al_2023,
+                              description="LP-DiD coefficient, SE, confidence band and observation count by event time")],
             category="did",
             handler=wrap_legacy(_did_lp_did),
         ),
@@ -463,7 +471,8 @@ function did_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:test_bacon, description="Path to panel CSV data file")],
+            tables=[TableSpec(name=:bacon_decomposition_goodman_bacon_2021,
+                              description="Estimate and weight of every 2x2 DiD comparison by cohort pair and type")],
             category="did",
             handler=wrap_legacy(_did_test_bacon),
         ),
@@ -486,7 +495,8 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_pretrend, description="Path to panel CSV data file")],
+            tables=[TableSpec(name=:pre_trend_test,
+                              description="Joint pre-trend test type, statistic, p-value, degrees of freedom and verdict")],
             category="did",
             handler=wrap_legacy(_did_test_pretrend),
         ),
@@ -501,7 +511,12 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_negweight, description="Path to panel CSV data file")],
+            tables=[
+                TableSpec(name=:negative_weight_check_de_chaisemartin_d_haultfoeuille_2020,
+                          description="Whether TWFE assigns negative weights, how many, and their total"),
+                TableSpec(name=:weight_details,
+                          description="The offending cohort-time cells and their weights (only when negative weights exist)"),
+            ],
             category="did",
             handler=wrap_legacy(_did_test_negweight),
         ),
@@ -528,7 +543,8 @@ function did_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:test_honest, description="Path to panel CSV data file")],
+            tables=[TableSpec(name=:honestdid_sensitivity_rambachan_roth_2023,
+                              description="Post-treatment ATT with robust and original confidence bands by event time")],
             category="did",
             handler=wrap_legacy(_did_test_honest),
         )

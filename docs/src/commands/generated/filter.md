@@ -28,7 +28,7 @@ Boosted HP filter (Phillips & Shi 2021)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `filter_result` (Trend/cycle)
+**Output tables:** `boosted_hp_filter` (Per-variable boosted-HP trend and cycle by time index)
 
 ---
 
@@ -54,7 +54,7 @@ Baxter-King band-pass filter
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `filter_result` (Trend/cycle)
+**Output tables:** `baxter_king_filter` (Per-variable band-pass trend and cycle over the untrimmed range)
 
 ---
 
@@ -80,7 +80,7 @@ Beveridge-Nelson decomposition
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `filter_result` (Trend/cycle)
+**Output tables:** `beveridge_nelson_decomposition` (Per-variable permanent (trend) and transitory (cycle) components)
 
 ---
 
@@ -105,7 +105,7 @@ Hamilton (2018) regression filter
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `filter_result` (Trend/cycle)
+**Output tables:** `hamilton_filter` (Per-variable Hamilton trend and cycle over the valid range)
 
 ---
 
@@ -129,7 +129,7 @@ Hodrick-Prescott filter
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `filter_result` (Trend/cycle)
+**Output tables:** `hp_filter` (Per-variable HP trend and cycle by time index)
 
 ---
 
@@ -159,7 +159,7 @@ X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)
 | `--easter` | — | Include Easter effect regressor |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `adjusted` (Seasonally adjusted series); `trend` (Trend-cycle); `seasonal_factors` (Seasonal component); `irregular` (Irregular component); `diagnostics` (ARIMA order, AIC, outliers)
+**Output tables:** `x_13_seasonally_adjusted` (Seasonally adjusted series, one column per variable); `x_13_trend` (Trend-cycle component, one column per variable); `x_13_seasonal_factors` (Seasonal component, one column per variable); `x_13_irregular` (Irregular component, one column per variable); `x_13_diagnostics` (Per-variable ARIMA order, AIC, sigma2, outlier count and T)
 
 ---
 

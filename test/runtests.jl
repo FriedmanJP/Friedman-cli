@@ -2718,13 +2718,13 @@ end
     env = Envelope(command="estimate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
     add_table!(env, :criteria, DataFrame(metric=["aic"], value=[NaN]))
-    add_scalar!(env, "lags", 2)
     buf = IOBuffer(); render(env, :json, buf)
     doc = JSON3.read(String(take!(buf)))
     @test doc.schema_version == 1
     @test doc.status == "ok"
     @test doc.data.criteria.rows[1][2] == "NaN"          # F20: no silent null
-    @test length(collect(keys(doc.data))) == 2 || length(collect(keys(doc.data))) == 3  # tables + optional scalar
+    # data carries tables ONLY (W1/#136 — the scalar sibling path is deleted)
+    @test length(collect(keys(doc.data))) == 2
     # primary table columns present
     @test "coefficients" in string.(keys(doc.data))
     @test "criteria" in string.(keys(doc.data))
@@ -2764,6 +2764,38 @@ end
     end
 
     @test isfile(joinpath(dirname(@__DIR__), "schema", "envelope-v1.json"))
+end
+
+# W2/#137: the raw-argv JSON pre-scan feeding run_cli's usage-error net.
+@testset "_argv_wants_json forms (W2/#137)" begin
+    @test _argv_wants_json(["estimate", "var", "d.csv", "--format", "json"])
+    @test _argv_wants_json(["estimate", "var", "--format=json"])
+    @test _argv_wants_json(["estimate", "var", "-f", "json"])
+    @test _argv_wants_json(["estimate", "var", "-f=json"])
+    @test _argv_wants_json(["--json", "estimate", "var"])
+    @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "var"])
+    @test !_argv_wants_json(["estimate", "var", "d.csv"])
+    @test !_argv_wants_json(["estimate", "var", "--format", "csv"])
+    # --json is a LEADING global; mid-argv it belongs to the leaf parser (#117)
+    @test !_argv_wants_json(["estimate", "var", "--json"])
+    @test !_argv_wants_json(["estimate", "var", "-f", "table"])
+    @test !_argv_wants_json(["--seed=42", "estimate", "var"])
+end
+
+# W2/#137: error objects carry exit_code from the SAME prefix map as the
+# process exit; empty hints are omitted, not serialized as "".
+@testset "set_error! exit_code + hint omission (W2/#137)" begin
+    env = Envelope(command="x")
+    set_error!(env, "data/not-found", "gone")
+    @test env.error["exit_code"] == 3
+    @test !haskey(env.error, "hint")
+    set_error!(env, "usage/parse", "bad"; hint="h")
+    @test env.error["exit_code"] == 2
+    @test env.error["hint"] == "h"
+    set_error!(env, "internal/error", "boom")
+    @test env.error["exit_code"] == 1
+    @test exit_class("model/anything") == 5
+    @test exit_class("noslash") == 1
 end
 
 # W8: a pretty-printer must never fail a command. `report()`/`show` output is a human
@@ -2840,6 +2872,22 @@ end
     ser = _domain_error_class(MacroEconometricModels.SerializationError("bad handle version"))
     @test ser.code == "data/serialization"
     @test exit_class(ser) == 3
+
+    # W4/#139 (#81): the two direct-Exception domain types OUTSIDE MacroModelError.
+    ss = _domain_error_class(MacroEconometricModels.StochasticSingularityError(
+        "3 observables exceed 1 structural shocks"))
+    @test ss isa CliError
+    @test ss.code == "model/stochastic-singularity"
+    @test exit_class(ss) == 5
+    @test occursin("observables exceed", ss.message)
+    @test occursin("measurement", ss.hint)
+
+    dse = _domain_error_class(MacroEconometricModels.DSGESolveError(
+        "Numerical steady state did not satisfy the equilibrium conditions"))
+    @test dse isa CliError
+    @test dse.code == "model/solve"
+    @test exit_class(dse) == 5
+    @test occursin("steady-state", dse.hint)
 
     # C054 #142: MEMs `_orient_data` ArgumentError → data/orientation (exit 3).
     orient = _domain_error_class(ArgumentError(

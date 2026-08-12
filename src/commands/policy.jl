@@ -1228,7 +1228,8 @@ function _policy_jacobian(; model::String, input::String="r", jac_output::String
     end
     output_result(DataFrame(row=rows, col=cols, value=vals);
                   format=Symbol(format), output=output,
-                  title="Sequence-Space Jacobian d$(jac_output)/d$(input)")
+                  title="Sequence-Space Jacobian d$(jac_output)/d$(input)",
+                  key="sequence_space_jacobian")
 end
 
 function _policy_history(route::String; data::String, lags=nothing, horizon::Int=20,
@@ -1510,8 +1511,10 @@ function register_policy_commands!()
                                 choices=["none", "instrument-impact"],
                                 description="none | instrument-impact (rescale so the first instrument's impact is +1)")],
             flags=FlagSpec[],   # PolicyCausalEffects has NO plot_result recipe
-            tables=[TableSpec(name=Symbol("policy_effects_$route"),
-                              description="Policy causal-effects menu")],
+            tables=[TableSpec(name=:policy_causal_effects_menu,
+                              description="Causal-effect menu entries by outcome, instrument and horizon"),
+                    TableSpec(name=:policy_causal_effects_summary,
+                              description="Menu shape, normalization and dropped-draw honesty counts")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_effects(route; kw...)),
         ))
@@ -1531,8 +1534,14 @@ function register_policy_commands!()
             flags=[FlagSpec(name="negate",
                             description="Flip the non-policy shock's sign (e.g. the contractionary version)"),
                    FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=Symbol("policy_counterfactual_$route"),
-                              description="McKay-Wolf rule counterfactual")],
+            tables=[TableSpec(name=:policy_counterfactual_paths,
+                              description="Baseline vs counterfactual path per variable and horizon, with draw bands when propagated"),
+                    TableSpec(name=:enforcing_policy_shocks_nu,
+                              description="The date-0 policy-shock vector nu* that enforces the rule"),
+                    TableSpec(name=:implementation_error_path,
+                              description="Per-component residual of the rule's least-squares implementation"),
+                    TableSpec(name=:counterfactual_summary,
+                              description="Rule, horizon, rel_residual, spanned flag and draw counts")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_counterfactual(route; kw...)),
         ))
@@ -1565,8 +1574,14 @@ function register_policy_commands!()
             flags=[FlagSpec(name="negate",
                             description="Flip the non-policy shock's sign"),
                    FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=Symbol("policy_optimal_$route"),
-                              description="Optimal policy under a quadratic loss")],
+            tables=[TableSpec(name=:policy_counterfactual_paths,
+                              description="Baseline vs optimal-policy path per variable and horizon, with draw bands when propagated"),
+                    TableSpec(name=:enforcing_policy_shocks_nu,
+                              description="The date-0 policy-shock vector nu* implementing the optimum"),
+                    TableSpec(name=:implementation_error_path,
+                              description="Per-component residual of the stacked outcome/instrument FOC blocks"),
+                    TableSpec(name=:counterfactual_summary,
+                              description="Horizon, rel_residual, spanned flag, baseline/optimal loss and FOC norm")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_optimal(route; kw...)),
         ))
@@ -1599,8 +1614,12 @@ function register_policy_commands!()
                                 description="Plot panel: sd | corr");
                      PLOT_OPTIONS...],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=Symbol("policy_moments_$route"),
-                              description="Second moments under a counterfactual rule/loss")],
+            tables=[TableSpec(name=:counterfactual_standard_deviations,
+                              description="Baseline vs counterfactual standard deviation per variable, with draw bands"),
+                    TableSpec(name=:counterfactual_correlations,
+                              description="Baseline vs counterfactual correlation per variable pair (needs at least two variables)"),
+                    TableSpec(name=:moments_summary,
+                              description="Policy name, horizon, VMA tail_share, draw source and frequency band")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_moments(route; kw...)),
         ))
@@ -1655,8 +1674,14 @@ function register_policy_commands!()
                    FlagSpec(name="interp-quarterly",
                             description="External route: interpolate annual SEP paths to quarterly"),
                    FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=Symbol("policy_opp_$route"),
-                              description="Barnichon-Mesters optimal policy perturbation")],
+            tables=[TableSpec(name=:opp_recommendation_delta,
+                              description="Recommended policy perturbation delta and gradient by horizon, with bands and rejections"),
+                    TableSpec(name=:objective_gap_paths,
+                              description="Objective gap per outcome and horizon, before vs after the perturbation"),
+                    TableSpec(name=:instrument_paths_announced_vs_recommended,
+                              description="Announced vs recommended instrument path by horizon (when instrument paths are available)"),
+                    TableSpec(name=:opp_summary,
+                              description="Baseline/OPP loss, horizon, forecast origin, failure count and constrained-solver diagnostics")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_opp(route; kw...)),
         ))
@@ -1688,8 +1713,12 @@ function register_policy_commands!()
             flags=[FlagSpec(name="matched-draws",
                             description="Pair draw d across sources (independent=false)"),
                    FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=Symbol("policy_opp_sequence_$route"),
-                              description="Barnichon-Mesters OPP sequence with revision decomposition")],
+            tables=[TableSpec(name=:opp_sequence_delta_by_date,
+                              description="Recommended perturbation delta per forecast date and shock"),
+                    TableSpec(name=:opp_revision_decomposition,
+                              description="Per-date split of the revision into news, preference and aging components"),
+                    TableSpec(name=:opp_sequence_summary,
+                              description="Sequence span, loss path and draw/failure counts across dates")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_opp_sequence(route; kw...)),
         ))
@@ -1727,7 +1756,10 @@ function register_policy_commands!()
                             description="Shock columns per solve (0 = all at once)");
                  _BEH...; _FMT...],
         flags=FlagSpec[],   # PolicyCausalEffects has no plot recipe
-        tables=[TableSpec(name=:policy_news_dsge, description="Square DSGE news menu")],
+        tables=[TableSpec(name=:policy_causal_effects_menu,
+                          description="Square DSGE news menu by outcome, instrument and horizon"),
+                TableSpec(name=:policy_causal_effects_summary,
+                          description="Menu shape, normalization and solver diagnostics")],
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_news("dsge"; kw...)),
     ))
@@ -1751,7 +1783,10 @@ function register_policy_commands!()
                             description="Finite-difference step");
                  _BEH...; _FMT...],
         flags=FlagSpec[],
-        tables=[TableSpec(name=:policy_news_ha, description="HA news menu via sequence-space jacobians")],
+        tables=[TableSpec(name=:policy_causal_effects_menu,
+                          description="HA news menu by outcome, instrument and horizon, built from sequence-space jacobians"),
+                TableSpec(name=:policy_causal_effects_summary,
+                          description="Menu shape, normalization and rule-closure diagnostics")],
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_news("ha"; kw...)),
     ))
@@ -1770,7 +1805,8 @@ function register_policy_commands!()
                             description="Finite-difference step");
                  _FMT...],
         flags=FlagSpec[],   # bare Matrix upstream — no report/plot
-        tables=[TableSpec(name=:policy_jacobian_ha, description="Sequence-space household jacobian")],
+        tables=[TableSpec(name=:sequence_space_jacobian,
+                          description="Sequence-space household jacobian in tidy row/column/value form")],
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_jacobian(; kw...)),
     ))
@@ -1799,8 +1835,10 @@ function register_policy_commands!()
                                 description="none | instrument-impact");
                      PLOT_OPTIONS...],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=Symbol("policy_history_$route"),
-                              description="Historical counterfactual from forecast revisions")],
+            tables=[TableSpec(name=:counterfactual_history,
+                              description="Realized vs counterfactual value per date and variable, with bands when propagated"),
+                    TableSpec(name=:history_summary,
+                              description="Rule, window, spanned flag and draw counts for the historical re-run")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_history(route; kw...)),
         ))
@@ -1840,8 +1878,10 @@ function register_policy_commands!()
                             description="Band quantiles in (0,1)");
                  PLOT_OPTIONS...],
         flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-        tables=[TableSpec(name=:policy_spanning_var,
-                          description="Does the model choice matter for THIS counterfactual?")],
+        tables=[TableSpec(name=:spanning_thin_vs_full_counterfactual_paths,
+                          description="Counterfactual path per variable and horizon under the thin empirical menu vs the full model menu"),
+                TableSpec(name=:spanning_verdict,
+                          description="Relative gap between the two menus against --tol, and the spanned verdict")],
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_spanning(; kw...)),
     ))
@@ -1858,8 +1898,10 @@ function register_policy_commands!()
                             description="DSGE solve method");
                  _FMT...; PLOT_OPTIONS...],
         flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-        tables=[TableSpec(name=:policy_sufficiency_dsge,
-                          description="Population forecast-sufficiency laboratory (no data)")],
+        tables=[TableSpec(name=:forecast_sufficiency_fev_ratios,
+                          description="Forecast-error-variance ratio per observable and horizon"),
+                TableSpec(name=:sufficiency_summary,
+                          description="Observable set, horizon and the overall sufficiency verdict")],
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_sufficiency(; kw...)),
     ))

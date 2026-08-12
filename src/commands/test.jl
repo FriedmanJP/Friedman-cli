@@ -35,7 +35,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:adf, description="Path to CSV data file")],
+            tables=[TableSpec(name=:adf_test,
+                              description="Augmented Dickey-Fuller statistic, selected lag order and p-value")],
             category="test",
             handler=wrap_legacy(_test_adf),
         ),
@@ -50,7 +51,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:kpss, description="Path to CSV data file")],
+            tables=[TableSpec(name=:kpss_test,
+                              description="KPSS stationarity statistic (H0 = stationary)")],
             category="test",
             handler=wrap_legacy(_test_kpss),
         ),
@@ -65,7 +67,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pp, description="Path to CSV data file")],
+            tables=[TableSpec(name=:phillips_perron_test,
+                              description="Phillips-Perron statistic and p-value")],
             category="test",
             handler=wrap_legacy(_test_pp),
         ),
@@ -81,7 +84,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:za, description="Path to CSV data file")],
+            tables=[TableSpec(name=:zivot_andrews_test,
+                              description="Zivot-Andrews statistic and the estimated break observation")],
             category="test",
             handler=wrap_legacy(_test_za),
         ),
@@ -96,7 +100,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:np, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ng_perron_test,
+                              description="Ng-Perron MZa, MZt, MSB and MPT statistics")],
             category="test",
             handler=wrap_legacy(_test_np),
         ),
@@ -112,7 +117,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:gph, description="Path to CSV data file")],
+            tables=[TableSpec(name=:gph_test,
+                              description="GPH estimate of d with standard error, z-statistic, p-value and bandwidth")],
             category="test",
             handler=wrap_legacy(_test_gph),
         ),
@@ -127,7 +133,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=Symbol("local-whittle"), description="Path to CSV data file")],
+            tables=[TableSpec(name=:local_whittle_test,
+                              description="Local Whittle estimate of d with standard error, z-statistic and objective value")],
             category="test",
             handler=wrap_legacy(_test_local_whittle),
         ),
@@ -142,7 +149,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:johansen, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:johansen_trace_test,
+                          description="Trace statistic, p-value and 5% decision by cointegrating rank"),
+                TableSpec(name=:johansen_max_eigenvalue_test,
+                          description="Maximum-eigenvalue statistic, p-value and 5% decision by cointegrating rank"),
+            ],
             category="test",
             handler=wrap_legacy(_test_johansen),
         ),
@@ -156,7 +168,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:normality, description="Path to CSV data file")],
+            tables=[TableSpec(name=:normality_tests_for_var_residuals,
+                              description="One row per normality test of the VAR residuals: statistic, p-value and df")],
             category="test",
             handler=wrap_legacy(_test_normality),
         ),
@@ -173,7 +186,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:identifiability, description="Path to CSV data file")],
+            tables=[TableSpec(name=:identifiability_test_results,
+                              description="One row per identifiability test: statistic, p-value and conclusion")],
             category="test",
             handler=wrap_legacy(_test_identifiability),
         ),
@@ -190,7 +204,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:heteroskedasticity, description="Path to CSV data file")],
+            tables=[TableSpec(name=:structural_impact_matrix_b0,
+                              description="Structural impact matrix B0, one row per equation (identification chosen by --method)")],
             category="test",
             handler=wrap_legacy(_test_heteroskedasticity),
         ),
@@ -205,7 +220,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:arch_lm, description="Path to CSV data file")],
+            tables=[TableSpec(name=:arch_lm_test,
+                              description="ARCH-LM statistic, p-value and lag order")],
             category="test",
             aliases=["arch_lm"],
             handler=wrap_legacy(_test_arch_lm),
@@ -221,7 +237,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:ljung_box, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ljung_box_squared_test,
+                              description="Ljung-Box Q statistic on squared residuals, with p-value and lag order")],
             category="test",
             aliases=["ljung_box"],
             handler=wrap_legacy(_test_ljung_box),
@@ -240,7 +257,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:sign_bias, description="Path to CSV data file")],
+            tables=[TableSpec(name=:sign_bias_test,
+                              description="Engle-Ng sign-bias and size-bias t-statistics with the joint test")],
             category="test",
             handler=wrap_legacy(_test_sign_bias),
         ),
@@ -257,7 +275,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:nyblom, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:nyblom_individual_stability,
+                          description="Per-parameter Nyblom L statistic against the 5% critical value"),
+                TableSpec(name=:nyblom_joint_stability,
+                          description="Joint Nyblom LC statistic, its critical value and the 5% decision"),
+            ],
             category="test",
             handler=wrap_legacy(_test_nyblom),
         ),
@@ -276,7 +299,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:variance_ratio, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:variance_ratio_test,
+                          description="Variance ratio, robust z* statistic and p-value by holding period q"),
+                TableSpec(name=:joint_random_walk_test,
+                          description="Chow-Denning joint statistic and p-value across all horizons"),
+            ],
             category="test",
             handler=wrap_legacy(_test_variance_ratio),
         ),
@@ -292,7 +320,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:bds, description="Path to CSV data file")],
+            tables=[TableSpec(name=:bds_test,
+                              description="BDS statistic and p-value by embedding dimension")],
             category="test",
             handler=wrap_legacy(_test_bds),
         ),
@@ -312,7 +341,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:hegy, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:hegy_seasonal_unit_root_test,
+                          description="Statistic, 5% critical value and decision at each seasonal frequency"),
+                TableSpec(name=:hegy_summary,
+                          description="Joint seasonal F statistics, deterministic terms and lag order"),
+            ],
             category="test",
             handler=wrap_legacy(_test_hegy),
         ),
@@ -326,7 +360,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=[FlagSpec(name="trend", description="Include a linear trend (default: constant only)")],
-            tables=[TableSpec(name=:ers, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ers_point_optimal_test,
+                              description="ERS point-optimal P_T statistic, p-value and critical values")],
             category="test",
             handler=wrap_legacy(_test_ers),
         ),
@@ -345,7 +380,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:sadf, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:explosive_episodes_sadf,
+                          description="Start and end index of each date-stamped explosive episode"),
+                TableSpec(name=:sadf_summary,
+                          description="SADF statistic, p-value, critical values and the window/critical-value settings"),
+            ],
             category="test",
             handler=wrap_legacy(_test_sadf),
         ),
@@ -364,7 +404,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:gsadf, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:explosive_episodes_gsadf,
+                          description="Start and end index of each date-stamped explosive episode"),
+                TableSpec(name=:gsadf_summary,
+                          description="GSADF statistic, p-value, critical values and the window/critical-value settings"),
+            ],
             category="test",
             handler=wrap_legacy(_test_gsadf),
         ),
@@ -382,7 +427,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:edf, description="Path to CSV data file")],
+            tables=[TableSpec(name=:edf_test,
+                              description="EDF goodness-of-fit statistic, p-value, fitted parameters and critical values")],
             category="test",
             handler=wrap_legacy(_test_edf),
         ),
@@ -399,7 +445,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:engle_granger, description="Path to CSV data file")],
+            tables=[TableSpec(name=:engle_granger_test,
+                              description="Residual ADF statistic, p-value and lag order (H0 = no cointegration)")],
             category="test",
             handler=wrap_legacy(_test_engle_granger),
         ),
@@ -416,7 +463,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:phillips_ouliaris, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:phillips_ouliaris_test,
+                          description="Z_t and Z_alpha statistics with their p-values"),
+                TableSpec(name=:phillips_ouliaris_summary,
+                          description="Deterministic terms, HAC kernel and bandwidth, and sample size"),
+            ],
             category="test",
             handler=wrap_legacy(_test_phillips_ouliaris),
         ),
@@ -436,7 +488,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:hansen_instability, description="Path to CSV data file")],
+            tables=[TableSpec(name=:hansen_instability_test,
+                              description="Hansen L_c statistic and p-value (H0 = stable cointegration)")],
             category="test",
             handler=wrap_legacy(_test_hansen_instability),
         ),
@@ -459,7 +512,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:park_added, description="Path to CSV data file")],
+            tables=[TableSpec(name=:park_added_variables_test,
+                              description="Park H(p,q) statistic, p-value and the number of superfluous trends")],
             category="test",
             handler=wrap_legacy(_test_park_added),
         ),
@@ -482,7 +536,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t (mitigates cross-sectional dependence)")],
-            tables=[TableSpec(name=:llc, description="Path to CSV data file")],
+            tables=[TableSpec(name=:levin_lin_chu_test,
+                              description="Levin-Lin-Chu adjusted t statistic, p-value and per-unit lag orders")],
             category="test",
             handler=wrap_legacy(_test_llc),
         ),
@@ -499,7 +554,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t")],
-            tables=[TableSpec(name=:ips, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:ips_per_unit_adf_statistics,
+                          description="ADF t-statistic and lag order for each panel unit"),
+                TableSpec(name=:im_pesaran_shin_test,
+                          description="W[t-bar] statistic, p-value and the mean-group t-bar"),
+            ],
             category="test",
             handler=wrap_legacy(_test_ips),
         ),
@@ -514,7 +574,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=[FlagSpec(name="cs-demean", description="Subtract the cross-sectional mean at each t")],
-            tables=[TableSpec(name=:breitung, description="Path to CSV data file")],
+            tables=[TableSpec(name=:breitung_panel_unit_root_test,
+                              description="Breitung statistic, p-value, lag order and panel dimensions")],
             category="test",
             handler=wrap_legacy(_test_breitung),
         ),
@@ -533,7 +594,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:fisher_johansen, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:fisher_johansen_panel_cointegration_test,
+                          description="Combined trace and max-eigenvalue statistics with p-values by rank"),
+                TableSpec(name=:fisher_johansen_summary,
+                          description="Selected rank, combination rule, deterministic terms and lag order"),
+            ],
             category="test",
             handler=wrap_legacy(_test_fisher_johansen),
         ),
@@ -553,7 +619,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:dh_causality, description="Path to CSV data file")],
+            tables=[TableSpec(name=:dumitrescu_hurlin_panel_causality,
+                              description="W-bar, Z-bar and Z-tilde statistics with p-values for the tested direction")],
             category="test",
             handler=wrap_legacy(_test_dh_causality),
         ),
@@ -568,7 +635,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=[FlagSpec(name="no-cross-terms", description="Omit the cross-product terms from the auxiliary regression")],
-            tables=[TableSpec(name=:white, description="Path to CSV data file")],
+            tables=[TableSpec(name=:white_test,
+                              description="White heteroskedasticity statistic, p-value, df and auxiliary R2")],
             category="test",
             handler=wrap_legacy(_test_white),
         ),
@@ -583,7 +651,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:glejser, description="Path to CSV data file")],
+            tables=[TableSpec(name=:glejser_test,
+                              description="Glejser heteroskedasticity statistic, p-value, df and auxiliary R2")],
             category="test",
             handler=wrap_legacy(_test_glejser),
         ),
@@ -598,7 +667,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:harvey, description="Path to CSV data file")],
+            tables=[TableSpec(name=:harvey_test,
+                              description="Harvey multiplicative-heteroskedasticity statistic, p-value, df and auxiliary R2")],
             category="test",
             handler=wrap_legacy(_test_harvey),
         ),
@@ -617,7 +687,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:chow, description="Path to CSV data file")],
+            tables=[TableSpec(name=:chow_test,
+                              description="Chow structural-break statistic, p-value and df at the requested break(s)")],
             category="test",
             handler=wrap_legacy(_test_chow),
         ),
@@ -633,7 +704,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:cusum, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:cusum_path,
+                          description="Recursive CUSUM statistic with its lower and upper band by observation"),
+                TableSpec(name=:cusum_summary,
+                          description="Whether the path leaves the band, the first crossing and the band level"),
+            ],
             category="test",
             handler=wrap_legacy(_test_cusum),
         ),
@@ -649,7 +725,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:cusumsq, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:cusumsq_path,
+                          description="CUSUM-of-squares statistic with its lower and upper band by observation"),
+                TableSpec(name=:cusumsq_summary,
+                          description="Whether the path leaves the band, the first crossing and the band level"),
+            ],
             category="test",
             handler=wrap_legacy(_test_cusumsq),
         ),
@@ -664,7 +745,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:recursive_residuals, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:recursive_residuals,
+                          description="Brown-Durbin-Evans recursive residual by recursion step and observation"),
+                TableSpec(name=:recursive_residuals_summary,
+                          description="Count and mean of the recursive residuals, and the number of regressors"),
+            ],
             category="test",
             handler=wrap_legacy(_test_recursive_residuals),
         ),
@@ -679,7 +765,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:influence, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:influence_diagnostics,
+                          description="Per-observation leverage, studentized residuals, DFFITS and Cook's D"),
+                TableSpec(name=:influence_summary,
+                          description="Residual scale plus the flagged high-leverage and influential observations"),
+            ],
             category="test",
             handler=wrap_legacy(_test_influence),
         ),
@@ -700,7 +791,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_hansen_linearity, description="Path to CSV data file")],
+            tables=[TableSpec(name=:hansen_1996_linearity_test,
+                              description="sup-LM and sup-Wald statistics with fixed-regressor bootstrap p-values")],
             category="test",
             handler=wrap_legacy(_test_hansen_linearity),
         ),
@@ -720,7 +812,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_star_linearity, description="Path to CSV data file")],
+            tables=[TableSpec(name=:star_linearity_test_lm3,
+                              description="LM3 chi-square and F statistics with their p-values and df")],
             category="test",
             handler=wrap_legacy(_test_star_linearity),
         ),
@@ -734,7 +827,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:hadri, description="Path to CSV data file (rows=T, cols=N units)")],
+            tables=[TableSpec(name=:hadri_panel_stationarity_test,
+                              description="Hadri statistic and p-value (H0 = every unit stationary)")],
             category="test",
             handler=wrap_legacy(_test_hadri),
         ),
@@ -752,7 +846,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pedroni, description="Path to CSV panel data file")],
+            tables=[
+                TableSpec(name=:pedroni_cointegration,
+                          description="One row per Pedroni statistic with its value and p-value"),
+                TableSpec(name=:pedroni_cointegration_summary,
+                          description="Panel dimensions: units, regressors and observations"),
+            ],
             category="test",
             handler=wrap_legacy(_test_pedroni),
         ),
@@ -769,7 +868,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:kao, description="Path to CSV panel data file")],
+            tables=[
+                TableSpec(name=:kao_cointegration,
+                          description="One row per Kao statistic with its value and p-value"),
+                TableSpec(name=:kao_cointegration_summary,
+                          description="Panel dimensions: units, regressors and observations"),
+            ],
             category="test",
             handler=wrap_legacy(_test_kao),
         ),
@@ -787,7 +891,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:westerlund, description="Path to CSV panel data file")],
+            tables=[
+                TableSpec(name=:westerlund_cointegration,
+                          description="One row per Westerlund statistic with its value and p-value"),
+                TableSpec(name=:westerlund_cointegration_summary,
+                          description="Panel dimensions: units, regressors and observations"),
+            ],
             category="test",
             handler=wrap_legacy(_test_westerlund),
         ),
@@ -808,7 +917,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:weak_instrument, description="Path to CSV data file")],
+            tables=[TableSpec(name=:weak_instrument_diagnostics,
+                              description="First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict")],
             category="test",
             handler=wrap_legacy(_test_weak_instrument),
         ),
@@ -840,7 +950,14 @@ function test_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="no-ci", description="Report only the AR test at --beta0, skipping the inverted confidence set")
             ],
-            tables=[TableSpec(name=:anderson_rubin, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:anderson_rubin_test,
+                          description="AR statistic, p-value, df and the covariance estimators used"),
+                TableSpec(name=:anderson_rubin_confidence_set,
+                          description="One row per connected component of the inverted AR set (absent under --no-ci or with several endogenous regressors)"),
+                TableSpec(name=:anderson_rubin_set_summary,
+                          description="Shape of the AR set, its grid and critical value, and the 2SLS Wald interval for comparison"),
+            ],
             category="test",
             handler=wrap_legacy(_test_anderson_rubin),
         ),
@@ -870,7 +987,8 @@ function test_specs()::Vector{CommandSpec}
                 FlagSpec(name="no-impose-null", description="Use the unrestricted WCU variant instead of the default restricted WCR"),
                 FlagSpec(name="no-ci", description="Skip the inverted-test confidence interval")
             ],
-            tables=[TableSpec(name=:wild_cluster, description="Path to CSV data file")],
+            tables=[TableSpec(name=:wild_cluster_bootstrap,
+                              description="Bootstrap and cluster-robust p-values for the tested coefficient, with the bootstrap settings")],
             category="test",
             handler=wrap_legacy(_test_wild_cluster),
         ),
@@ -897,7 +1015,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:ardl_bounds, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:ardl_bounds_test_i_0_i_1_bounds_no_p_value,
+                          description="F and t statistics against the I(0)/I(1) bounds with a decision each (the test has no p-value)"),
+                TableSpec(name=:ardl_bounds_test_summary,
+                          description="Statistics, case, level, both decisions and sample size"),
+            ],
             category="test",
             handler=wrap_legacy(_test_ardl_bounds),
         ),
@@ -918,7 +1041,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:nardl_symmetry, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:nardl_symmetry_tests_h0_long_run_short_run,
+                          description="Long-run and short-run symmetry Wald tests, one row per asymmetric regressor"),
+                TableSpec(name=:nardl_symmetry_test_summary,
+                          description="Degrees of freedom, residual df and the number of asymmetric regressors"),
+            ],
             category="test",
             handler=wrap_legacy(_test_nardl_symmetry),
         ),
@@ -945,7 +1073,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pmg_hausman, description="Path to CSV data file")],
+            tables=[TableSpec(name=:pmg_hausman_specification_test,
+                              description="Hausman statistic, p-value and df for PMG/DFE against Mean Group")],
             category="test",
             handler=wrap_legacy(_test_pmg_hausman),
         ),
@@ -967,7 +1096,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_vecm_beta, description="Path to CSV data file")],
+            tables=[TableSpec(name=:vecm_restriction_h,
+                              description="LR statistic, df and p-value for beta = H*phi, with the fitted rank")],
             category="test",
             handler=wrap_legacy(_test_vecm_beta),
         ),
@@ -986,7 +1116,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_vecm_alpha, description="Path to CSV data file")],
+            tables=[TableSpec(name=:vecm_restriction_a,
+                              description="LR statistic, df and p-value for alpha = A*psi, with the fitted rank")],
             category="test",
             handler=wrap_legacy(_test_vecm_alpha),
         ),
@@ -1005,7 +1136,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_vecm_weak_exog, description="Path to CSV data file")],
+            tables=[TableSpec(name=:vecm_weak_exogeneity,
+                              description="LR statistic, df and p-value for weak exogeneity of the selected variables")],
             category="test",
             handler=wrap_legacy(_test_vecm_weak_exog),
         ),
@@ -1024,7 +1156,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_vecm_known_beta, description="Path to CSV data file")],
+            tables=[TableSpec(name=:vecm_known_b,
+                              description="LR statistic, df and p-value for a fully specified beta = b")],
             category="test",
             handler=wrap_legacy(_test_vecm_known_beta),
         ),
@@ -1043,7 +1176,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:test_vecm_joint, description="Path to CSV data file")],
+            tables=[TableSpec(name=:vecm_joint_h_a,
+                              description="LR statistic, df and p-value for the joint beta and alpha restriction")],
             category="test",
             handler=wrap_legacy(_test_vecm_joint),
         ),
@@ -1058,7 +1192,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:var_lagselect, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:lag_order_selection,
+                          description="AIC, BIC and HQC for every candidate lag order"),
+                TableSpec(name=:optimal_lag,
+                          description="Selected lag order and the criterion that chose it (JSON output only)"),
+            ],
             category="test",
             handler=wrap_legacy(_test_var_lagselect),
         ),
@@ -1072,7 +1211,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:var_stability, description="Path to CSV data file")],
+            tables=[TableSpec(name=:companion_matrix_eigenvalues,
+                              description="Companion-matrix eigenvalue and its modulus, one row per root")],
             category="test",
             handler=wrap_legacy(_test_var_stability),
         ),
@@ -1093,7 +1233,12 @@ function test_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="all", description="Test all pairwise combinations (VAR only)")
             ],
-            tables=[TableSpec(name=:granger, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:granger_causality,
+                          description="Causality result for the requested direction (short-run/long-run/joint rows under --model vecm)"),
+                TableSpec(name=:var_granger_causality_all_pairwise,
+                          description="Statistic, df and p-value for every ordered variable pair (--all only)"),
+            ],
             category="test",
             handler=wrap_legacy(_test_granger),
         ),
@@ -1109,7 +1254,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pvar_hansen_j, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:hansen_j_test,
+                              description="Hansen J statistic, p-value, df and the instrument and parameter counts")],
             category="test",
             aliases=["hansen_j"],
             handler=wrap_legacy(_test_pvar_hansen_j),
@@ -1127,7 +1273,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pvar_mmsc, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:mmsc_results,
+                              description="BIC, AIC and HQIC by candidate lag order")],
             category="test",
             handler=wrap_legacy(_test_pvar_mmsc),
         ),
@@ -1144,7 +1291,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pvar_lagselect, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:lag_selection_results,
+                              description="BIC, AIC and HQIC by candidate lag order")],
             category="test",
             handler=wrap_legacy(_test_pvar_lagselect),
         ),
@@ -1160,7 +1308,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pvar_stability, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:panel_var_companion_matrix_eigenvalues,
+                              description="Companion-matrix eigenvalue and its modulus, one row per root")],
             category="test",
             handler=wrap_legacy(_test_pvar_stability),
         ),
@@ -1175,7 +1324,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:lr, description="Path to CSV data file for restricted model")],
+            tables=[TableSpec(name=:likelihood_ratio_test,
+                              description="LR statistic, p-value, df and both log-likelihoods")],
             category="test",
             handler=wrap_legacy(_test_lr),
         ),
@@ -1190,7 +1340,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:lm, description="Path to CSV data file for restricted model")],
+            tables=[TableSpec(name=:lagrange_multiplier_test,
+                              description="LM statistic, p-value, df and sample size")],
             category="test",
             handler=wrap_legacy(_test_lm),
         ),
@@ -1209,7 +1360,8 @@ function test_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:andrews, description="Path to CSV data file")],
+            tables=[TableSpec(name=:andrews_break_test,
+                              description="sup-Wald or sup-LM statistic, p-value and the estimated break index")],
             category="test",
             handler=wrap_legacy(_test_andrews),
         ),
@@ -1229,7 +1381,8 @@ function test_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bai_perron, description="Path to CSV data file")],
+            tables=[TableSpec(name=:bai_perron_test,
+                              description="Number of breaks, the break dates, trimming and sample size")],
             category="test",
             handler=wrap_legacy(_test_bai_perron),
         ),
@@ -1246,7 +1399,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:panic, description="Path to CSV data file (rows=T, cols=N)")],
+            tables=[TableSpec(name=:panic_test_bai_ng,
+                              description="Pooled PANIC statistic, p-value and the number of common factors")],
             category="test",
             handler=wrap_legacy(_test_panic),
         ),
@@ -1263,7 +1417,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:cips, description="Path to CSV data file (rows=T, cols=N)")],
+            tables=[TableSpec(name=:pesaran_cips_test,
+                              description="CIPS statistic, p-value, lag order and panel dimensions")],
             category="test",
             handler=wrap_legacy(_test_cips),
         ),
@@ -1279,7 +1434,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:moon_perron, description="Path to CSV data file (rows=T, cols=N)")],
+            tables=[TableSpec(name=:moon_perron_test,
+                              description="t_a* and t_b* statistics with their p-values and the number of factors")],
             category="test",
             handler=wrap_legacy(_test_moon_perron),
         ),
@@ -1296,7 +1452,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:factor_break, description="Path to CSV data file (rows=T, cols=N)")],
+            tables=[
+                TableSpec(name=:factor_break_test,
+                          description="Break statistic, p-value and the estimated break index of the factor structure"),
+                TableSpec(name=:per_series_break_diagnostics,
+                          description="Per-series sup statistic and maximizing date, ranked (pooled methods only)"),
+            ],
             category="test",
             handler=wrap_legacy(_test_factor_break),
         ),
@@ -1315,7 +1476,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:fourier_adf, description="Path to CSV data file")],
+            tables=[TableSpec(name=:fourier_adf_test,
+                              description="Fourier ADF statistic, p-value, optimal frequency and the Fourier F-test")],
             category="test",
             handler=wrap_legacy(_test_fourier_adf),
         ),
@@ -1332,7 +1494,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:fourier_kpss, description="Path to CSV data file")],
+            tables=[TableSpec(name=:fourier_kpss_test,
+                              description="Fourier KPSS statistic, p-value, optimal frequency and the Fourier F-test")],
             category="test",
             handler=wrap_legacy(_test_fourier_kpss),
         ),
@@ -1349,7 +1512,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:dfgls, description="Path to CSV data file")],
+            tables=[TableSpec(name=:df_gls_test,
+                              description="DF-GLS tau and PT statistics with p-value, lag order and the M-GLS statistics")],
             category="test",
             handler=wrap_legacy(_test_dfgls),
         ),
@@ -1368,7 +1532,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:lm_unitroot, description="Path to CSV data file")],
+            tables=[TableSpec(name=:lm_unit_root_test,
+                              description="LM unit-root statistic, p-value and any estimated break dates")],
             category="test",
             handler=wrap_legacy(_test_lm_unitroot),
         ),
@@ -1386,7 +1551,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:adf_2break, description="Path to CSV data file")],
+            tables=[TableSpec(name=:adf_2_break_test,
+                              description="Two-break ADF statistic, p-value and both break indices and fractions")],
             category="test",
             handler=wrap_legacy(_test_adf_2break),
         ),
@@ -1403,7 +1569,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:gregory_hansen, description="Path to CSV data file")],
+            tables=[TableSpec(name=:gregory_hansen_test,
+                              description="ADF*, Zt* and Za* statistics with p-values and their break indices")],
             category="test",
             handler=wrap_legacy(_test_gregory_hansen),
         ),
@@ -1426,7 +1593,12 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:dispersion, description="Path to CSV data file")],
+            tables=[
+                TableSpec(name=:overdispersion_test_cameron_trivedi_1990,
+                          description="NB1 and NB2 auxiliary-regression alpha with SE, t-statistic, p-value and a directional decision"),
+                TableSpec(name=:dispersion_summary,
+                          description="Sample size, test level and the recommended count model"),
+            ],
             category="test",
             handler=wrap_legacy(_test_dispersion),
         ),
@@ -1441,7 +1613,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:vif, description="Path to CSV data file")],
+            tables=[TableSpec(name=:variance_inflation_factors,
+                              description="Variance inflation factor and tolerance for each regressor")],
             category="test",
             handler=wrap_legacy(_test_vif),
         ),
@@ -1451,7 +1624,8 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:hausman, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:hausman_specification_test,
+                              description="Chi-square statistic, p-value, df and the FE-vs-RE decision")],
             category="test",
             handler=wrap_legacy(_test_hausman),
         ),
@@ -1461,7 +1635,8 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:breusch_pagan, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:breusch_pagan_lm_test,
+                              description="LM statistic, p-value, df and the RE-vs-pooled-OLS decision")],
             category="test",
             handler=wrap_legacy(_test_breusch_pagan),
         ),
@@ -1471,7 +1646,8 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:f_fe, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:f_test_for_fixed_effects,
+                              description="F statistic, p-value, df and the FE-vs-pooled-OLS decision")],
             category="test",
             handler=wrap_legacy(_test_f_fe),
         ),
@@ -1481,7 +1657,8 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:pesaran_cd, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:pesaran_cd_test,
+                              description="CD statistic, p-value and the cross-sectional dependence decision")],
             category="test",
             handler=wrap_legacy(_test_pesaran_cd),
         ),
@@ -1491,7 +1668,8 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:wooldridge_ar, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:wooldridge_ar_test,
+                              description="F statistic, p-value, df and the serial-correlation decision")],
             category="test",
             handler=wrap_legacy(_test_wooldridge_ar),
         ),
@@ -1501,7 +1679,8 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:modified_wald, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:modified_wald_test,
+                              description="Chi-square statistic, p-value, df and the groupwise-heteroskedasticity decision")],
             category="test",
             handler=wrap_legacy(_test_modified_wald),
         ),
@@ -1515,7 +1694,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:fisher, description="Path to CSV data file")],
+            tables=[TableSpec(name=:fisher_s_test,
+                              description="Fisher periodicity statistic, p-value and sample size")],
             category="test",
             handler=wrap_legacy(_test_fisher),
         ),
@@ -1529,7 +1709,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:bartlett_wn, description="Path to CSV data file")],
+            tables=[TableSpec(name=:bartlett_white_noise_test,
+                              description="Bartlett white-noise statistic, p-value and sample size")],
             category="test",
             handler=wrap_legacy(_test_bartlett_wn),
         ),
@@ -1544,7 +1725,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:box_pierce, description="Path to CSV data file")],
+            tables=[TableSpec(name=:box_pierce_test,
+                              description="Box-Pierce Q statistic, p-value, df and sample size")],
             category="test",
             handler=wrap_legacy(_test_box_pierce),
         ),
@@ -1558,7 +1740,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:durbin_watson, description="Path to CSV data file")],
+            tables=[TableSpec(name=:durbin_watson_test,
+                              description="Durbin-Watson statistic, p-value and sample size")],
             category="test",
             handler=wrap_legacy(_test_durbin_watson),
         ),
@@ -1573,7 +1756,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:brant, description="Path to CSV data file")],
+            tables=[TableSpec(name=:brant_test,
+                              description="Chi-square statistic, p-value, df and the parallel-regression decision")],
             category="test",
             handler=wrap_legacy(_test_brant),
         ),
@@ -1588,7 +1772,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:hausman_iia, description="Path to CSV data file")],
+            tables=[TableSpec(name=:hausman_mcfadden_iia_test,
+                              description="Chi-square statistic, p-value, df and the IIA decision")],
             category="test",
             handler=wrap_legacy(_test_hausman_iia),
         )
@@ -1622,7 +1807,8 @@ function _test_adf(; data::String, column::Int=1, max_lags=nothing,
         "p-value" => round(result.pvalue; digits=4),
     ]
 
-    output_kv(pairs; format=format, output=output, title="ADF Test: $vname")
+    output_kv(pairs; format=format, output=output, title="ADF Test: $vname",
+              key="adf_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% level -- series appears stationary",
@@ -1644,7 +1830,8 @@ function _test_kpss(; data::String, column::Int=1, trend::String="constant",
         "Test statistic" => round(result.statistic; digits=4),
     ]
 
-    output_kv(pairs; format=format, output=output, title="KPSS Test: $vname")
+    output_kv(pairs; format=format, output=output, title="KPSS Test: $vname",
+              key="kpss_test")
 
     # KPSS: reversed interpretation (H0 = stationarity)
     pval = hasproperty(result, :pvalue) ? result.pvalue : 1.0
@@ -1671,7 +1858,8 @@ function _test_pp(; data::String, column::Int=1, trend::String="constant",
         "p-value" => round(result.pvalue; digits=4),
     ]
 
-    output_kv(pairs; format=format, output=output, title="Phillips-Perron Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Phillips-Perron Test: $vname",
+              key="phillips_perron_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary",
@@ -1693,7 +1881,8 @@ function _test_za(; data::String, column::Int=1, trend::String="both",
         "Break date" => result.break_index,
     ]
 
-    output_kv(pairs; format=format, output=output, title="Zivot-Andrews Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Zivot-Andrews Test: $vname",
+              key="zivot_andrews_test")
 
     _status()
     _status("Estimated structural break at observation $(result.break_index)")
@@ -1716,7 +1905,8 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
         "MPT statistic" => round(result.MPT; digits=4),
     ]
 
-    output_kv(pairs; format=format, output=output, title="Ng-Perron Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Ng-Perron Test: $vname",
+              key="ng_perron_test")
 end
 
 # ── Long-Memory (fractional integration) ─────────────────
@@ -1747,7 +1937,8 @@ function _test_gph(; data::String, column::Int=1, bandwidth=nothing, trim::Int=0
         "Observations" => result.n,
     ]
 
-    output_kv(pairs; format=format, output=output, title="GPH Test: $vname")
+    output_kv(pairs; format=format, output=output, title="GPH Test: $vname",
+              key="gph_test")
 
     interpret_test_result(result.pval,
         "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
@@ -1778,7 +1969,8 @@ function _test_local_whittle(; data::String, column::Int=1, bandwidth=nothing,
         "Objective R(d)" => round(result.objective; digits=4),
     ]
 
-    output_kv(pairs; format=format, output=output, title="Local Whittle Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Local Whittle Test: $vname",
+              key="local_whittle_test")
 
     interpret_test_result(result.pval,
         "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
@@ -2011,7 +2203,8 @@ function _test_heteroskedasticity(; data::String, lags=nothing, method::String="
     b0_df = DataFrame(result.B0, varnames)
     insertcols!(b0_df, 1, :equation => varnames)
     output_result(b0_df; format=Symbol(format), output=output,
-                  title="Structural Impact Matrix (B0) -- $method identification")
+                  title="Structural Impact Matrix (B0) -- $method identification",
+                  key="structural_impact_matrix_b0")
 end
 
 # ── ARCH-LM Test ─────────────────────────────────────────
@@ -2031,7 +2224,8 @@ function _test_arch_lm(; data::String, column::Int=1, lags::Int=4,
         "Lags" => lags,
     ]
 
-    output_kv(pairs; format=format, output=output, title="ARCH-LM Test: $vname")
+    output_kv(pairs; format=format, output=output, title="ARCH-LM Test: $vname",
+              key="arch_lm_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (no ARCH effects) at 5% -- ARCH effects detected",
@@ -2055,7 +2249,8 @@ function _test_ljung_box(; data::String, column::Int=1, lags::Int=10,
         "Lags" => lags,
     ]
 
-    output_kv(pairs; format=format, output=output, title="Ljung-Box Squared Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Ljung-Box Squared Test: $vname",
+              key="ljung_box_squared_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (no serial correlation in squared residuals) at 5%",
@@ -2105,7 +2300,8 @@ function _test_sign_bias(; data::String, column::Int=1, model::String="garch",
         "joint_pvalue" => round(result.joint_pvalue; digits=4),
         "dof" => result.dof,
     ]
-    output_kv(pairs; format=format, output=output, title="Sign-Bias Test: $vname ($model)")
+    output_kv(pairs; format=format, output=output, title="Sign-Bias Test: $vname ($model)",
+              key="sign_bias_test")
     interpret_test_result(result.joint_pvalue,
         "Reject H0 (no remaining asymmetry) at 5% -- leverage/asymmetry present; consider EGARCH/GJR",
         "Cannot reject H0 (no remaining asymmetry) at 5%")
@@ -2132,14 +2328,16 @@ function _test_nyblom(; data::String, column::Int=1, model::String="garch",
                    cv_5pct=fill(round(Float64(result.cv_individual); digits=3), length(result.individual)),
                    reject_5pct=Float64.(result.individual) .> Float64(result.cv_individual))
     output_result(df; format=Symbol(format), output=output,
-                  title="Nyblom Individual Stability: $vname ($model)")
+                  title="Nyblom Individual Stability: $vname ($model)",
+                  key="nyblom_individual_stability")
     reject_joint = Float64(result.joint) > Float64(result.cv_joint)
     output_kv(Pair{String,Any}[
         "joint_LC" => round(Float64(result.joint); digits=4),
         "cv_joint_5pct" => round(Float64(result.cv_joint); digits=4),
         "n_params" => result.k,
         "reject_joint_5pct" => reject_joint,
-    ]; format=format, title="Nyblom Joint Stability: $vname ($model)")
+    ]; format=format, title="Nyblom Joint Stability: $vname ($model)",
+       key="nyblom_joint_stability")
     # nyblom_test is a critical-value test (no p-value); synthesize a decision-consistent
     # pseudo p-value so the standard interpretation line prints (stdout stays data-only).
     interpret_test_result(reject_joint ? 0.01 : 0.5,
@@ -2203,7 +2401,8 @@ function _test_weak_instrument(; data::String, dep::String="", endogenous::Strin
     end
     push!(pairs, "weak" => weak)
     output_kv(pairs; format=format, output=output,
-              title="Weak-Instrument Diagnostics: $(d.dep_col)")
+              title="Weak-Instrument Diagnostics: $(d.dep_col)",
+              key="weak_instrument_diagnostics")
 
     if degenerate
         interpret_test_result(0.5, "",
@@ -2300,7 +2499,8 @@ function _test_anderson_rubin(; data::String, dep::String="", endogenous::String
         "distribution"          => string(art.distribution),
         "ar_cov_type"           => string(art.cov_type),
         "wald_cov_type"         => fit_cov,
-    ]; format=format, output=output, title="Anderson-Rubin Test: $(d.dep_col)")
+    ]; format=format, output=output, title="Anderson-Rubin Test: $(d.dep_col)",
+       key="anderson_rubin_test")
 
     if !no_ci
         if n_endog != 1
@@ -2319,7 +2519,8 @@ function _test_anderson_rubin(; data::String, dep::String="", endogenous::String
             _status()
             output_result(_ar_set_table(ci);
                 format=Symbol(format), output=_per_var_output_path(output, "ar_set"),
-                title="Anderson-Rubin Confidence Set ($(round(Int, 100 * level))%): $(ci.endog_name)")
+                title="Anderson-Rubin Confidence Set ($(round(Int, 100 * level))%): $(ci.endog_name)",
+                key="anderson_rubin_confidence_set")
             _status()
             output_kv(Pair{String,Any}[
                 "shape"           => _ar_shape(ci),
@@ -2461,7 +2662,8 @@ function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
         push!(pairs, "ci_upper" => round(Float64(b.ci_upper); digits=6))
     end
     output_kv(pairs; format=format, output=output,
-              title="Wild Cluster Bootstrap: $(b.coefname)")
+              title="Wild Cluster Bootstrap: $(b.coefname)",
+              key="wild_cluster_bootstrap")
 
     b.enumerated && _status_styled(
         "  All 2^$(b.n_clusters) sign vectors were enumerated: the bootstrap p-value is exact " *
@@ -2514,8 +2716,9 @@ end
 
 """Render a `VECMRestrictionTest`: a kv block (LR statistic / df / p-value / rank /
 converged / restriction) plus a decision line. H0 = the restriction holds, so a low
-p-value rejects the imposed restriction."""
-function _vecm_restriction_output(res, label, vname; format, output)
+p-value rejects the imposed restriction. `key` is the caller leaf's registry-declared
+table name — the title carries the series list, which must not reach the envelope key."""
+function _vecm_restriction_output(res, label, vname; key, format, output)
     pairs = Pair{String,Any}[
         "LR statistic" => round(Float64(res.lr_stat); digits=4),
         "df"           => res.df,
@@ -2524,7 +2727,7 @@ function _vecm_restriction_output(res, label, vname; format, output)
         "converged"    => res.converged,
         "restriction"  => res.description,
     ]
-    output_kv(pairs; format=format, output=output, title="$label: $vname")
+    output_kv(pairs; format=format, output=output, title="$label: $vname", key=key)
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (restriction holds) at 5% -- the imposed cointegration restriction is rejected",
         "Cannot reject H0 at 5% -- the restriction is consistent with the data")
@@ -2544,7 +2747,8 @@ function _test_vecm_beta(; data::String, config::String="", lags::Int=2, rank::S
     catch e
         throw(_vecm_restriction_error(e, "β restriction"))
     end
-    _vecm_restriction_output(res, "VECM β-restriction (β = Hφ)", join(varnames, ","); format=format, output=output)
+    _vecm_restriction_output(res, "VECM β-restriction (β = Hφ)", join(varnames, ",");
+                             key="vecm_restriction_h", format=format, output=output)
     return res
 end
 
@@ -2562,7 +2766,8 @@ function _test_vecm_alpha(; data::String, config::String="", lags::Int=2, rank::
     catch e
         throw(_vecm_restriction_error(e, "α restriction"))
     end
-    _vecm_restriction_output(res, "VECM α-restriction (α = Aψ)", join(varnames, ","); format=format, output=output)
+    _vecm_restriction_output(res, "VECM α-restriction (α = Aψ)", join(varnames, ",");
+                             key="vecm_restriction_a", format=format, output=output)
     return res
 end
 
@@ -2580,7 +2785,8 @@ function _test_vecm_known_beta(; data::String, config::String="", lags::Int=2, r
     catch e
         throw(_vecm_restriction_error(e, "known-β restriction"))
     end
-    _vecm_restriction_output(res, "VECM known-β (β = b)", join(varnames, ","); format=format, output=output)
+    _vecm_restriction_output(res, "VECM known-β (β = b)", join(varnames, ",");
+                             key="vecm_known_b", format=format, output=output)
     return res
 end
 
@@ -2599,7 +2805,8 @@ function _test_vecm_joint(; data::String, config::String="", lags::Int=2, rank::
     catch e
         throw(_vecm_restriction_error(e, "joint restriction"))
     end
-    _vecm_restriction_output(res, "VECM joint (β=Hφ, α=Aψ)", join(varnames, ","); format=format, output=output)
+    _vecm_restriction_output(res, "VECM joint (β=Hφ, α=Aψ)", join(varnames, ",");
+                             key="vecm_joint_h_a", format=format, output=output)
     return res
 end
 
@@ -2640,7 +2847,8 @@ function _test_vecm_weak_exog(; data::String, vars::String="", lags::Int=2, rank
     catch e
         throw(_vecm_restriction_error(e, "weak-exogeneity"))
     end
-    _vecm_restriction_output(res, "VECM weak-exogeneity", join([varnames[i] for i in idxs], ","); format=format, output=output)
+    _vecm_restriction_output(res, "VECM weak-exogeneity", join([varnames[i] for i in idxs], ",");
+                             key="vecm_weak_exogeneity", format=format, output=output)
     return res
 end
 
@@ -2695,7 +2903,8 @@ function _test_variance_ratio(; data::String, column::Int=1, horizons::String="2
     df = DataFrame(horizon=res.q, variance_ratio=round.(Float64.(res.vr); digits=4),
                    z_star=round.(Float64.(res.z_star); digits=4),
                    p_value=round.(Float64.(res.z_star_pvalue); digits=4))
-    output_result(df; format=Symbol(format), output=output, title="Variance-Ratio Test: $vname")
+    output_result(df; format=Symbol(format), output=output, title="Variance-Ratio Test: $vname",
+                  key="variance_ratio_test")
     output_kv(Pair{String,Any}[
         "Chow-Denning stat" => round(Float64(res.cd_star_stat); digits=4),
         "Chow-Denning p-value" => round(Float64(res.cd_star_pvalue); digits=4),
@@ -2724,7 +2933,8 @@ function _test_bds(; data::String, column::Int=1, max_dim::Int=6, eps_frac::Floa
     df = DataFrame(embed_dim=res.m,
                    statistic=round.(Float64.(vec(res.statistic)); digits=4),
                    p_value=round.(Float64.(vec(res.pvalue)); digits=4))
-    output_result(df; format=Symbol(format), output=output, title="BDS Test: $vname")
+    output_result(df; format=Symbol(format), output=output, title="BDS Test: $vname",
+                  key="bds_test")
     interpret_test_result(minimum(Float64.(res.pvalue)),
         "Reject H0 (iid) at 5% -- nonlinear dependence / structure detected",
         "Cannot reject H0 (iid) at 5%")
@@ -2815,7 +3025,8 @@ function _test_hegy(; data::String, column::Int=1, frequency::Int=4,
                             cv_5pct=[isfinite(c) ? round(c; digits=4) : "n/a" for c in cvs],
                             decision=decs);
                   format=Symbol(format), output=output,
-                  title="HEGY Seasonal Unit-Root Test: $vname")
+                  title="HEGY Seasonal Unit-Root Test: $vname",
+                  key="hegy_seasonal_unit_root_test")
     output_kv(Pair{String,Any}[
         "F (seasonal, joint)" => round(Float64(res.F_seasonal); digits=4),
         "F (all roots)" => round(Float64(res.F_all); digits=4),
@@ -2855,7 +3066,8 @@ function _test_ers(; data::String, column::Int=1, trend::Bool=false,
         "observations" => res.nobs,
     ]
     append!(pairs, _cv_pairs(res.critical_values))
-    output_kv(pairs; format=format, output=output, title="ERS Point-Optimal Test: $vname")
+    output_kv(pairs; format=format, output=output, title="ERS Point-Optimal Test: $vname",
+              key="ers_point_optimal_test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (unit root) at 5% -- series is stationary",
         "Cannot reject H0 (unit root) at 5%")
@@ -2863,8 +3075,10 @@ function _test_ers(; data::String, column::Int=1, trend::Bool=false,
 end
 
 """Shared body for the PSY bubble pair (`sadf`/`gsadf`) — identical options and
-rendering, only the upstream entry point and the label differ."""
-function _bubble_leaf(fn, label::String; data::String, column::Int, r0::String,
+rendering, only the upstream entry point, the label and the episode table's
+registry-declared `key` differ (the title also carries the series name, which must
+not reach the envelope key)."""
+function _bubble_leaf(fn, label::String; key::String, data::String, column::Int, r0::String,
         adflag::Int, mc_reps::Int, cv::String, seed::Int, format::String, output::String)
     adflag >= 0 || throw(CliError("usage/invalid", "test $label: --adflag must be ≥ 0 (got $adflag)"))
     mc_reps >= 1 || throw(CliError("usage/invalid", "test $label: --mc-reps must be ≥ 1 (got $mc_reps)"))
@@ -2890,7 +3104,7 @@ function _bubble_leaf(fn, label::String; data::String, column::Int, r0::String,
                   start_index=[e[1] for e in res.episodes],
                   end_index=[e[2] for e in res.episodes])
     output_result(eps_df; format=Symbol(format), output=output,
-                  title="Explosive Episodes ($(uppercase(label))): $vname")
+                  title="Explosive Episodes ($(uppercase(label))): $vname", key=key)
     pairs = Pair{String,Any}[
         "statistic" => round(Float64(res.statistic); digits=4),
         "p-value" => round(Float64(res.pvalue); digits=4),
@@ -2913,14 +3127,16 @@ end
 function _test_sadf(; data::String, column::Int=1, r0::String="auto", adflag::Int=0,
         mc_reps::Int=999, cv::String="asymptotic", seed::Int=20240716,
         format::String="table", output::String="")
-    return _bubble_leaf(sadf_test, "sadf"; data=data, column=column, r0=r0, adflag=adflag,
+    return _bubble_leaf(sadf_test, "sadf"; key="explosive_episodes_sadf",
+        data=data, column=column, r0=r0, adflag=adflag,
         mc_reps=mc_reps, cv=cv, seed=seed, format=format, output=output)
 end
 
 function _test_gsadf(; data::String, column::Int=1, r0::String="auto", adflag::Int=0,
         mc_reps::Int=999, cv::String="asymptotic", seed::Int=20240716,
         format::String="table", output::String="")
-    return _bubble_leaf(gsadf_test, "gsadf"; data=data, column=column, r0=r0, adflag=adflag,
+    return _bubble_leaf(gsadf_test, "gsadf"; key="explosive_episodes_gsadf",
+        data=data, column=column, r0=r0, adflag=adflag,
         mc_reps=mc_reps, cv=cv, seed=seed, format=format, output=output)
 end
 
@@ -2964,7 +3180,8 @@ function _test_edf(; data::String, column::Int=1, dist::String="normal", test::S
         "observations" => res.nobs,
     ]
     append!(pairs, _cv_pairs(res.critical_values))
-    output_kv(pairs; format=format, output=output, title="EDF Test: $vname")
+    output_kv(pairs; format=format, output=output, title="EDF Test: $vname",
+              key="edf_test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 at 5% -- the series does not follow the $dist distribution",
         "Cannot reject H0 at 5% -- consistent with the $dist distribution")
@@ -2999,7 +3216,8 @@ function _test_engle_granger(; data::String, dep::String="", trend::String="cons
         "regressors (k)" => res.k,
         "I(1) series (N)" => res.N,
         "observations" => res.nobs];
-        format=format, output=output, title="Engle-Granger Test: $dep_name")
+        format=format, output=output, title="Engle-Granger Test: $dep_name",
+        key="engle_granger_test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (no cointegration) at 5% -- the series are cointegrated",
         "Cannot reject H0 (no cointegration) at 5%")
@@ -3026,7 +3244,7 @@ function _test_phillips_ouliaris(; data::String, dep::String="", trend::String="
             value=round.(Float64[res.statistic, res.z_alpha]; digits=4),
             p_value=round.(Float64[res.pvalue, res.z_alpha_pvalue]; digits=4));
         format=Symbol(format), output=output,
-        title="Phillips-Ouliaris Test: $dep_name")
+        title="Phillips-Ouliaris Test: $dep_name", key="phillips_ouliaris_test")
     output_kv(Pair{String,Any}[
         "regression" => String(res.regression),
         "kernel" => String(res.kernel),
@@ -3084,7 +3302,8 @@ function _test_hansen_instability(; data::String, dep::String="", method::String
         "parameters" => res.nparam,
         "regressors (k)" => res.k,
         "observations" => res.nobs];
-        format=format, output=output, title="Hansen Instability Test: $dep_name")
+        format=format, output=output, title="Hansen Instability Test: $dep_name",
+        key="hansen_instability_test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (stable cointegration) at 5% -- parameter instability / no stable cointegrating vector",
         "Cannot reject H0 (stable cointegration) at 5%")
@@ -3119,7 +3338,8 @@ function _test_park_added(; data::String, dep::String="", method::String="fmols"
         "trend" => String(res.trend),
         "regressors (k)" => res.k,
         "observations" => res.nobs];
-        format=format, output=output, title="Park Added-Variables Test: $dep_name")
+        format=format, output=output, title="Park Added-Variables Test: $dep_name",
+        key="park_added_variables_test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (genuine cointegration) at 5% -- evidence of a spurious regression",
         "Cannot reject H0 (genuine cointegration) at 5%")
@@ -3164,8 +3384,10 @@ end
 
 """Render a `RegDiagnosticResult` as a kv block. `df` is an Int or an (Int,Int)
 tuple depending on the test, and the F-form fields are `nothing` for the chi-square-
-only tests — both are handled here so each leaf stays a few lines."""
-function _reg_diagnostic_kv(res, title::String, format::String, output::String)
+only tests — both are handled here so each leaf stays a few lines. `key` is the
+calling leaf's registry-declared table name (the title carries the dependent
+variable, which must not reach the envelope key)."""
+function _reg_diagnostic_kv(res, title::String, key::String, format::String, output::String)
     pairs = Pair{String,Any}[
         "test" => res.test_name,
         "H0" => res.h0,
@@ -3180,7 +3402,7 @@ function _reg_diagnostic_kv(res, title::String, format::String, output::String)
     end
     push!(pairs, "auxiliary R2" => _finite_or_str(Float64(res.aux_r2)))
     push!(pairs, "observations" => res.n)
-    output_kv(pairs; format=format, output=output, title=title)
+    output_kv(pairs; format=format, output=output, title=title, key=key)
     return nothing
 end
 
@@ -3194,7 +3416,7 @@ function _test_white(; data::String, dep::String="", cov_type::String="hc1",
     catch e
         throw(_teststat_error(e, "White test"))
     end
-    _reg_diagnostic_kv(res, "White Test: $dep_name", format, output)
+    _reg_diagnostic_kv(res, "White Test: $dep_name", "white_test", format, output)
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (homoskedasticity) at 5% -- errors are heteroskedastic (use a robust --cov-type)",
         "Cannot reject H0 (homoskedasticity) at 5%")
@@ -3211,7 +3433,7 @@ function _test_glejser(; data::String, dep::String="", cov_type::String="hc1",
     catch e
         throw(_teststat_error(e, "Glejser test"))
     end
-    _reg_diagnostic_kv(res, "Glejser Test: $dep_name", format, output)
+    _reg_diagnostic_kv(res, "Glejser Test: $dep_name", "glejser_test", format, output)
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (homoskedasticity) at 5% -- errors are heteroskedastic",
         "Cannot reject H0 (homoskedasticity) at 5%")
@@ -3228,7 +3450,7 @@ function _test_harvey(; data::String, dep::String="", cov_type::String="hc1",
     catch e
         throw(_teststat_error(e, "Harvey test"))
     end
-    _reg_diagnostic_kv(res, "Harvey Test: $dep_name", format, output)
+    _reg_diagnostic_kv(res, "Harvey Test: $dep_name", "harvey_test", format, output)
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (homoskedasticity) at 5% -- multiplicative heteroskedasticity detected",
         "Cannot reject H0 (homoskedasticity) at 5%")
@@ -3259,7 +3481,7 @@ function _test_chow(; data::String, dep::String="", cov_type::String="hc1",
     catch e
         throw(_teststat_error(e, "Chow test"))
     end
-    _reg_diagnostic_kv(res, "Chow Test: $dep_name", format, output)
+    _reg_diagnostic_kv(res, "Chow Test: $dep_name", "chow_test", format, output)
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (no structural break) at 5% -- coefficients differ across the break",
         "Cannot reject H0 (no structural break) at 5%")
@@ -3269,8 +3491,9 @@ end
 """Shared body for the CUSUM pair. `StabilityResult` carries a PATH and a
 significance band, NOT a p-value — the verdict is whether the path crosses the band,
 so these leaves render a decision and never call `interpret_test_result` (same rule
-as the ARDL bounds test and HEGY)."""
-function _cusum_leaf(fn, label::String, statcol::String; data::String, dep::String,
+as the ARDL bounds test and HEGY). `key` is the calling leaf's registry-declared name
+for the path table (its title carries the dependent variable)."""
+function _cusum_leaf(fn, label::String, statcol::String; key::String, data::String, dep::String,
         cov_type::String, level::Float64, format::String, output::String)
     (0.0 < level < 1.0) || throw(CliError("usage/invalid",
         "test $label: --level must be in (0, 1) (got $level)"))
@@ -3291,7 +3514,7 @@ function _cusum_leaf(fn, label::String, statcol::String; data::String, dep::Stri
             "lower" => round.(Float64.(res.lower); digits=6),
             "upper" => round.(Float64.(res.upper); digits=6));
         format=Symbol(format), output=output,
-        title="$(uppercase(label)) Path: $dep_name")
+        title="$(uppercase(label)) Path: $dep_name", key=key)
     output_kv(Pair{String,Any}[
         "kind" => String(res.kind),
         "crossed band" => res.crossed,
@@ -3311,13 +3534,13 @@ end
 
 function _test_cusum(; data::String, dep::String="", cov_type::String="hc1",
         level::Float64=0.05, format::String="table", output::String="")
-    return _cusum_leaf(cusum_test, "cusum", "cusum"; data=data, dep=dep,
+    return _cusum_leaf(cusum_test, "cusum", "cusum"; key="cusum_path", data=data, dep=dep,
         cov_type=cov_type, level=level, format=format, output=output)
 end
 
 function _test_cusumsq(; data::String, dep::String="", cov_type::String="hc1",
         level::Float64=0.05, format::String="table", output::String="")
-    return _cusum_leaf(cusumsq_test, "cusumsq", "cusumsq"; data=data, dep=dep,
+    return _cusum_leaf(cusumsq_test, "cusumsq", "cusumsq"; key="cusumsq_path", data=data, dep=dep,
         cov_type=cov_type, level=level, format=format, output=output)
 end
 
@@ -3339,7 +3562,7 @@ function _test_recursive_residuals(; data::String, dep::String="", cov_type::Str
                             observation=collect((k + 1):(k + length(wv))),
                             recursive_residual=round.(wv; digits=6));
         format=Symbol(format), output=output,
-        title="Recursive Residuals: $dep_name")
+        title="Recursive Residuals: $dep_name", key="recursive_residuals")
     output_kv(Pair{String,Any}[
         "count" => length(wv),
         "mean" => _finite_or_str(isempty(wv) ? NaN : sum(wv) / length(wv)),
@@ -3369,7 +3592,7 @@ function _test_influence(; data::String, dep::String="", cov_type::String="hc1",
             dffits = round.(Float64.(res.dffits); digits=6),
             cooksd = round.(Float64.(res.cooksd); digits=6));
         format=Symbol(format), output=output,
-        title="Influence Diagnostics: $dep_name")
+        title="Influence Diagnostics: $dep_name", key="influence_diagnostics")
     output_kv(Pair{String,Any}[
         "sigma" => _finite_or_str(Float64(res.sigma)),
         "high-leverage count" => length(res.high_leverage),
@@ -3413,7 +3636,8 @@ function _test_hansen_linearity(; data::String, column::Int=1, p::Int=1, d::Int=
         "reps"        => res.reps,
         "trim"        => round(Float64(res.trim); digits=4),
         "n_grid"      => res.n_grid,
-    ]; format=format, output=output, title="Hansen (1996) Linearity Test: $vname")
+    ]; format=format, output=output, title="Hansen (1996) Linearity Test: $vname",
+       key="hansen_1996_linearity_test")
     interpret_test_result(Float64(res.pvalue_lm),
         "Reject H0 (linearity) at 5% -- evidence of two-regime threshold nonlinearity",
         "Cannot reject H0 (linearity) at 5%")
@@ -3452,7 +3676,8 @@ function _test_star_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
         "fstat"    => round(Float64(res.fstat); digits=4),
         "fpvalue"  => round(Float64(res.fpvalue); digits=4),
         "df"       => res.df,
-    ]; format=format, output=output, title="STAR Linearity Test (LM3): $vname")
+    ]; format=format, output=output, title="STAR Linearity Test (LM3): $vname",
+       key="star_linearity_test_lm3")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (linearity) at 5% -- evidence of smooth-transition nonlinearity",
         "Cannot reject H0 (linearity) at 5%")
@@ -3727,12 +3952,12 @@ end
 """Render a Pedroni/Kao/Westerlund result: statistic|value|p_value table + metadata
 kv (all three share the `.names`/`.statistics`/`.pvalues`/`.n_units`/`.n_regressors`/
 `.nobs` output triple). H0 = no cointegration; any p-value < 0.05 rejects."""
-function _panel_coint_output(res, label, depc, indeps; format, output)
+function _panel_coint_output(res, label, depc, indeps; key, format, output)
     df = DataFrame(statistic=String.(res.names),
                    value=round.(Float64.(res.statistics); digits=4),
                    p_value=round.(Float64.(res.pvalues); digits=4))
     output_result(df; format=Symbol(format), output=output,
-                  title="$label: $depc ~ $(join(indeps, " + "))")
+                  title="$label: $depc ~ $(join(indeps, " + "))", key=key)
     output_kv(Pair{String,Any}[
         "n_units" => res.n_units,
         "n_regressors" => res.n_regressors,
@@ -3755,7 +3980,8 @@ function _test_pedroni(; data::String, id_col::String="", time_col::String="",
     catch e
         throw(_teststat_error(e, "Pedroni test"))
     end
-    _panel_coint_output(res, "Pedroni cointegration", depc, indeps; format=format, output=output)
+    _panel_coint_output(res, "Pedroni cointegration", depc, indeps;
+                        key="pedroni_cointegration", format=format, output=output)
     return res
 end
 
@@ -3768,7 +3994,8 @@ function _test_kao(; data::String, id_col::String="", time_col::String="",
     catch e
         throw(_teststat_error(e, "Kao test"))
     end
-    _panel_coint_output(res, "Kao cointegration", depc, indeps; format=format, output=output)
+    _panel_coint_output(res, "Kao cointegration", depc, indeps;
+                        key="kao_cointegration", format=format, output=output)
     return res
 end
 
@@ -3784,7 +4011,8 @@ function _test_westerlund(; data::String, id_col::String="", time_col::String=""
     catch e
         throw(_teststat_error(e, "Westerlund test"))
     end
-    _panel_coint_output(res, "Westerlund cointegration", depc, indeps; format=format, output=output)
+    _panel_coint_output(res, "Westerlund cointegration", depc, indeps;
+                        key="westerlund_cointegration", format=format, output=output)
     return res
 end
 
@@ -4060,7 +4288,8 @@ function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, form
     )
 
     output_result(test_df; format=Symbol(format), output=output,
-                  title="Granger Causality: $cause_name → $effect_name")
+                  title="Granger Causality: $cause_name → $effect_name",
+                  key="granger_causality")
 
     interpret_test_result(result.strong_pvalue,
         "Reject H0: $cause_name Granger-causes $effect_name (joint short+long-run)",
@@ -4115,7 +4344,8 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
         ]
 
         output_kv(pairs; format=format, output=output,
-                  title="Granger Causality: $cause_name → $effect_name")
+                  title="Granger Causality: $cause_name → $effect_name",
+                  key="granger_causality")
 
         interpret_test_result(result.pvalue,
             "Reject H0: $cause_name Granger-causes $effect_name at 5%",
@@ -4516,7 +4746,8 @@ function _test_fourier_adf(; data::String, column::Int=1,
         "Observations" => result.nobs,
     ]
 
-    output_kv(pairs; format=format, output=output, title="Fourier ADF Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Fourier ADF Test: $vname",
+              key="fourier_adf_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary (with smooth breaks)",
@@ -4555,7 +4786,8 @@ function _test_fourier_kpss(; data::String, column::Int=1,
         "Observations" => result.nobs,
     ]
 
-    output_kv(pairs; format=format, output=output, title="Fourier KPSS Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Fourier KPSS Test: $vname",
+              key="fourier_kpss_test")
 
     # KPSS: reversed interpretation (H0 = stationarity)
     _status()
@@ -4597,7 +4829,8 @@ function _test_dfgls(; data::String, column::Int=1,
         push!(pairs, "M-GLS $k" => round(getfield(result, k); digits=4))
     end
 
-    output_kv(pairs; format=format, output=output, title="DF-GLS Test: $vname")
+    output_kv(pairs; format=format, output=output, title="DF-GLS Test: $vname",
+              key="df_gls_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary",
@@ -4636,7 +4869,8 @@ function _test_lm_unitroot(; data::String, column::Int=1,
         push!(pairs, "Break fractions" => join(round.(result.break_fractions; digits=4), ", "))
     end
 
-    output_kv(pairs; format=format, output=output, title="LM Unit Root Test: $vname")
+    output_kv(pairs; format=format, output=output, title="LM Unit Root Test: $vname",
+              key="lm_unit_root_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary",
@@ -4673,7 +4907,8 @@ function _test_adf_2break(; data::String, column::Int=1,
         "Observations" => result.nobs,
     ]
 
-    output_kv(pairs; format=format, output=output, title="ADF 2-Break Test: $vname")
+    output_kv(pairs; format=format, output=output, title="ADF 2-Break Test: $vname",
+              key="adf_2_break_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary (with two breaks)",
@@ -4925,7 +5160,8 @@ function _test_fisher(; data::String, column::Int=1,
         "p-value" => round(result.pvalue; digits=4),
         "Observations" => result.nobs,
     ]
-    output_kv(pairs; format=format, output=output, title="Fisher's Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Fisher's Test: $vname",
+              key="fisher_s_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (no periodicity): significant periodic component detected",
@@ -4946,7 +5182,8 @@ function _test_bartlett_wn(; data::String, column::Int=1,
         "p-value" => round(result.pvalue; digits=4),
         "Observations" => result.nobs,
     ]
-    output_kv(pairs; format=format, output=output, title="Bartlett White Noise Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Bartlett White Noise Test: $vname",
+              key="bartlett_white_noise_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (white noise): series is not white noise",
@@ -4968,7 +5205,8 @@ function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
         "df" => result.df,
         "Observations" => result.nobs,
     ]
-    output_kv(pairs; format=format, output=output, title="Box-Pierce Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Box-Pierce Test: $vname",
+              key="box_pierce_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0 (white noise): significant autocorrelation detected",
@@ -4991,7 +5229,8 @@ function _test_durbin_watson(; data::String, column::Int=1,
         "p-value" => round(result.pvalue; digits=4),
         "Observations" => result.nobs,
     ]
-    output_kv(pairs; format=format, output=output, title="Durbin-Watson Test: $vname")
+    output_kv(pairs; format=format, output=output, title="Durbin-Watson Test: $vname",
+              key="durbin_watson_test")
 
     interpret_test_result(result.pvalue,
         "Reject H0: residuals are autocorrelated",

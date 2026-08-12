@@ -24,7 +24,7 @@ Baqaee & Farhi (2019) nonlinear IO: Domar weights, centralities
 |------|-------|-------------|
 | `--second-order` | — | Also emit the second-order 'beyond Hulten' Hessian (sector×sector) |
 
-**Output tables:** `io_baqaee_farhi` (Per-sector Domar weight, influence, up/down-streamness)
+**Output tables:** `baqaee_farhi_2019_decomposition` (Per-sector Domar weight, influence, upstreamness and downstreamness); `second_order_hessian_beyond_hulten` (Second-order 'beyond Hulten' Hessian, sector by sector (--second-order only))
 
 ---
 
@@ -50,7 +50,7 @@ Download an IO/MRIO table (network); respects --offline
 | `--overwrite` | — | Re-download files that already exist |
 | `--no-verify` | — | Skip SHA-256 checksum verification |
 
-**Output tables:** `io_download` (Download log (url → local filename))
+**Output tables:** `download_summary` (Source, resolved version and number of files fetched); `download_log` (One row per fetched file: source URL and local filename)
 
 ---
 
@@ -68,7 +68,7 @@ Hypothetical extraction: output loss from removing sector(s)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_extract` (Per-sector output loss from the extraction)
+**Output tables:** `hypothetical_extraction_loss` (Per-sector output loss caused by extracting the target sector(s))
 
 ---
 
@@ -90,7 +90,7 @@ Consumption-based footprint of a satellite (environmental) account
 |------|-------|-------------|
 | `--detail` | — | Also emit intensities (S) and emission multipliers (M=SL) |
 
-**Output tables:** `io_footprint` (Consumption-based footprint totals per stressor); `io_footprint_by_sector` (Per-sector footprint contribution)
+**Output tables:** `footprint` (Consumption-based footprint total per stressor); `footprint_by_sector` (Per-sector footprint contribution, one column per stressor); `intensities_s` (Direct stressor intensities S by sector (--detail only)); `emission_multipliers` (Total emission multipliers M=SL by sector (--detail only))
 
 ---
 
@@ -108,7 +108,7 @@ Ghosh (supply-driven) representation: B and inverse G
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `ghosh` (Ghosh inverse / allocation coefficients (sector×sector))
+**Output tables:** `allocation_coefficients_b` (Allocation coefficient matrix B, sector by sector (--matrix B|both)); `ghosh_inverse_g` (Ghosh inverse G, sector by sector (--matrix G|both))
 
 ---
 
@@ -126,7 +126,7 @@ Key-sector classification (Rasmussen quadrants)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_key_sectors` (Per-sector key/forward/backward/weak classification)
+**Output tables:** `key_sectors` (Per-sector key/forward/backward/weak quadrant classification)
 
 ---
 
@@ -144,7 +144,7 @@ Leontief (demand-driven) representation: A and inverse L
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `leontief` (Leontief inverse / technical coefficients (sector×sector))
+**Output tables:** `technical_coefficients_a` (Technical coefficient matrix A, sector by sector (--matrix A|both)); `leontief_inverse_l` (Leontief inverse L, sector by sector (--matrix L|both))
 
 ---
 
@@ -162,7 +162,7 @@ Backward/forward linkages + Rasmussen dispersion indices
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_linkages` (Per-sector backward/forward linkages, Ui/Uj, class)
+**Output tables:** `linkages` (Per-sector backward and forward linkages, Rasmussen Ui/Uj and class)
 
 ---
 
@@ -179,7 +179,7 @@ Parse/inspect an IO table: dimensions, balance, per-sector totals
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_summary` (Table dimensions and provenance); `io_sectors` (Per-sector gross output / final demand / value added)
+**Output tables:** `io_table_summary` (Sector/region/category counts, year, unit, source, extensions and total output); `sectors` (Per-sector gross output, final demand and value added)
 
 ---
 
@@ -198,7 +198,7 @@ Sectoral output/income/employment multipliers (Type I & II)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_multipliers` (Per-sector multipliers)
+**Output tables:** `io_multipliers` (Per-sector multiplier of the requested kind and type)
 
 ---
 
@@ -217,7 +217,7 @@ Structural decomposition of Δoutput between two periods
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_sda` (Per-sector technology (L) and final-demand (Y) effects)
+**Output tables:** `structural_decomposition` (Per-sector technology (L) and final-demand (Y) effects, total and residual)
 
 ---
 
@@ -230,7 +230,7 @@ List downloadable IO/MRIO sources (offline catalog)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `io_sources` (Known IO/MRIO sources, versions, credentials)
+**Output tables:** `io_mrio_sources` (Known IO/MRIO sources with available versions and credential requirements)
 
 ---
 

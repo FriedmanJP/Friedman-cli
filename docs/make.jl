@@ -1,6 +1,13 @@
 using Documenter
 using Friedman
 
+# Agent guide single source (W5/#140): src/commands/agent_guide.md is baked into
+# the binary and served by `friedman schema --docs`; the site renders the SAME
+# file. Copied here at build time — docs/src/agent-guide.md is generated, never
+# hand-edited (it is untracked; edit src/commands/agent_guide.md).
+cp(normpath(joinpath(@__DIR__, "..", "src", "commands", "agent_guide.md")),
+   joinpath(@__DIR__, "src", "agent-guide.md"); force=true)
+
 makedocs(;
     modules = [Friedman],
     sitename = "Friedman-cli",
@@ -29,6 +36,7 @@ makedocs(;
             "Generated: multipliers" => "commands/generated/multipliers.md",
             "Generated: policy" => "commands/generated/policy.md",
             "Generated: spectral" => "commands/generated/spectral.md",
+            "Generated: serve" => "commands/generated/serve.md",
             # Workflow guides (hand-written)
             "estimate (guide)" => "commands/estimate.md",
             "test (guide)" => "commands/test.md",

@@ -64,7 +64,8 @@ function wrap_legacy(handler::Function)
         delete!(kwargs, :save_model)
 
         # --model PATH → loaded object; empty → drop so handler default applies.
-        # `.jld2` (native, C052) and `.fmod` (interim, C029) paths are model handles.
+        # `.jld2` (native, C052) and `.fmod` (interim, C029) paths are model
+        # handles; `model://` (W7/#142) is the in-memory serve-session handle.
         # Builtin names and .jl/.toml model files (e.g. `dsge ha huggett`,
         # `dsge solve rbc.toml`) must pass through as strings (C040).
         if haskey(kwargs, :model)
@@ -73,7 +74,8 @@ function wrap_legacy(handler::Function)
                 if isempty(mp)
                     delete!(kwargs, :model)
                 elseif endswith(lowercase(String(mp)), ".fmod") ||
-                       endswith(lowercase(String(mp)), ".jld2")
+                       endswith(lowercase(String(mp)), ".jld2") ||
+                       startswith(String(mp), "model://")
                     kwargs[:model] = load_model_dispatch(String(mp))
                     # allow missing data positional when handle supplies the model
                     get!(kwargs, :data, "")

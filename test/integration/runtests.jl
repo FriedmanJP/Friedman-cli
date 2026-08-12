@@ -19,6 +19,23 @@ include(joinpath(@__DIR__, "schema_validate.jl"))
 
 # ── Runner ────────────────────────────────────────────────────
 
+# W1/#136: when FRIEDMAN_T3_DUMP_ENVELOPES names a directory, every captured
+# stdout that parses as a JSON object is written there — the CI post-step
+# validates the whole dump with a CONFORMANT draft-07 validator
+# (test/tools/validate_envelopes.py), independent of the in-repo subset.
+const _T3_DUMP_DIR = get(ENV, "FRIEDMAN_T3_DUMP_ENVELOPES", "")
+const _T3_DUMP_N = Ref(0)
+
+function _dump_envelope(raw::AbstractString, doc)
+    (isempty(_T3_DUMP_DIR) || doc === nothing) && return
+    doc isa JSON3.Object || return
+    isdir(_T3_DUMP_DIR) || mkpath(_T3_DUMP_DIR)
+    _T3_DUMP_N[] += 1
+    write(joinpath(_T3_DUMP_DIR, string(lpad(_T3_DUMP_N[], 5, '0'), ".json")),
+          string(strip(raw)))
+    return
+end
+
 """Run friedman args with --quiet --format=json; return (code, doc, raw)."""
 function run_json(args::Vector{String}; quiet::Bool=true)
     argv = String[]
@@ -49,6 +66,7 @@ function run_json(args::Vector{String}; quiet::Bool=true)
     catch
         nothing
     end
+    _dump_envelope(raw, doc)
     return (code=Int(code), doc=doc, raw=raw)
 end
 
@@ -151,7 +169,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         csv = dgp_var2(; T=180, seed=7)
         r = run_json(["estimate", "var", csv, "--lags", "2"])
         assert_envelope_ok(r; label="estimate var")
-        coef = named_table(r.doc, :var_2_coefficients)
+        coef = named_table(r.doc, :var_coefficients)
         @test coef !== nothing
         if coef !== nothing
             # C051: MEMs' uniform tidy coefficient table via DataFrame(model)
@@ -3059,9 +3077,20 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test "infl" in vs && "ffr" in vs && "s1" in vs
         @test !any(startswith(v, "Var ") for v in vs)
 
-        # estimate sdfm stores them on the model itself.
+        # estimate sdfm stores them on the model itself. #147: the leaf now emits
+        # an estimation-record table (it was status-only — a success exit with
+        # nothing addressable).
         re = run_json(["estimate", "sdfm", csv, "--factors", "2"])
         @test re.code == 0
+        sm = named_table(re.doc, :sdfm_estimation_summary)
+        @test sm !== nothing
+        if sm !== nothing
+            mets = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                        for r in table_rows(sm))
+            @test mets["dynamic_factors"] == "2"
+            @test mets["identification"] == "cholesky"
+            @test parse(Int, mets["n_vars"]) >= 3
+        end
         rm(csv; force=true)
     end
 
@@ -4072,7 +4101,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # `--method` branch had no T3 of its own (the per-BRANCH coverage lesson).
             r = run_json(["dsge", "solve", model_jl, "--method", "perturbation", "--order", "2"])
             assert_envelope_ok(r; label="dsge solve perturbation o2")
-            tbl = named_table(r.doc, :perturbation_policy_gx_order_2)
+            tbl = named_table(r.doc, :perturbation_policy_gx)
             @test tbl !== nothing
             cols = String[string(c) for c in tbl.columns]
             # one column per state PLUS one per shock, after the leading :control
@@ -4326,6 +4355,88 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     @test metric_value(kv, "log_marginal_likelihood_bridge") !== nothing
                     @test metric_value(kv, "log_marginal_likelihood_smc") !== nothing
                 end
+            end
+        end
+
+        # W4/#139 (#81): the two direct-Exception domain types OUTSIDE MacroModelError
+        # must map to their SPECIFIC typed classes — envelope code AND process exit
+        # agree (the W2 machinery). Verified against the real throw sites on the
+        # resolved 0.8.0 copy: bayes_estimation.jl (eager guard), steady_state.jl.
+        @testset "W4/#139: direct-Exception domain types → typed classes" begin
+            # StochasticSingularityError: 2 observables, 1 structural shock, no
+            # measurement error. The guard is EAGER (fires before sampling), so the
+            # tiny chain settings are never reached — this case is cheap.
+            pri4 = joinpath(dir, "priors_w4.toml")
+            write(pri4, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            """)
+            dat4 = joinpath(dir, "data_w4.csv")
+            open(dat4, "w") do io
+                println(io, "Y,C"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, "$y,$y"); end
+            end
+            rs = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                           "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                           "--sampler", "mh", "--n-draws", "50", "--burnin", "10"])
+            @test rs.code == 5
+            @test rs.doc !== nothing && String(rs.doc.status) == "error"
+            @test String(rs.doc.error.code) == "model/stochastic-singularity"
+            @test Int(rs.doc.error.exit_code) == 5
+            @test occursin("observables exceed", String(rs.doc.error.message))
+
+            # #148: --measurement-error is the in-CLI remedy the hint points at —
+            # the SAME invocation with auto must estimate, not error.
+            rok = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                            "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                            "--sampler", "mh", "--n-draws", "50", "--burnin", "10",
+                            "--measurement-error", "auto"])
+            @test rok.code == 0
+            @test rok.doc !== nothing && String(rok.doc.status) == "ok"
+            # vector form is guarded up front: wrong length → usage, not exit 1
+            rbad = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                             "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                             "--sampler", "mh", "--n-draws", "50", "--burnin", "10",
+                             "--measurement-error", "0.1"])
+            @test rbad.code == 2
+            rgarbage = run_json(["dsge", "bayes", "estimate", model_jl, "--data", dat4,
+                                 "--params", "rho", "--priors", pri4, "--observables", "Y,C",
+                                 "--measurement-error", "0.1,x"])
+            @test rgarbage.code == 2
+
+            # #146: multi-table --output — the per-shock HD loop used to write every
+            # shock to the SAME file (last one wins). Each shock now gets its own
+            # suffixed path; the bare path is never written by the loop. This is
+            # also the first T3 coverage `dsge hd` has ever had.
+            hdout = joinpath(dir, "hd_out.csv")
+            rhd = run_json(["dsge", "hd", model_jl, "--data", dat4,
+                            "--observables", "Y", "--output", hdout])
+            @test rhd.code == 0
+            @test isfile(joinpath(dir, "hd_out_e.csv"))   # per-shock (shock `e`) file
+            @test !isfile(hdout)                          # bare path not clobbered
+
+            # DSGESolveError: y = y² + 2 has no real steady state, so the residual
+            # gate in compute_steady_state throws. Per-BRANCH coverage: both leaves
+            # that reach the numerical steady-state path.
+            bad4 = joinpath(dir, "bad_w4.jl")
+            write(bad4, """
+            @dsge begin
+                parameters: sigma = 0.01
+                endogenous: Y
+                exogenous: e
+
+                Y[t] = Y[t-1]^2 + 2 + sigma * e[t]
+            end
+            """)
+            for leaf in (["dsge", "solve", bad4], ["dsge", "steady-state", bad4])
+                rb = run_json(String[leaf...])
+                @test rb.code == 5
+                @test rb.doc !== nothing && String(rb.doc.status) == "error"
+                @test String(rb.doc.error.code) == "model/solve"
+                @test Int(rb.doc.error.exit_code) == 5
             end
         end
 
@@ -5276,7 +5387,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         r = run_json(["dsge", "determinacy-map", spec, "--config", cfg])
         assert_envelope_ok(r; label="dsge determinacy-map 1-D")
 
-        tbl = named_table(r.doc, :dsge_determinacy_map_phi_pi)
+        tbl = named_table(r.doc, :dsge_determinacy_map)
         if tbl === nothing
             for (_, v) in pairs(r.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -5332,7 +5443,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         # One-parameter sweeps also report the boundary, and it must sit near phi_pi = 1.
-        bnd = named_table(r.doc, :determinacy_boundary_phi_pi)
+        bnd = named_table(r.doc, :determinacy_boundary)
         if bnd === nothing
             for (_, v) in pairs(r.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -5412,7 +5523,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         r = run_json(["dsge", "moments", spec, "--order", "2", "--lags", "3"])
         assert_envelope_ok(r; label="dsge moments order 2")
 
-        mt = named_table(r.doc, :dsge_theoretical_moments_order_2)
+        mt = named_table(r.doc, :dsge_theoretical_moments)
         if mt === nothing
             for (_, v) in pairs(r.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -5620,7 +5731,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
                        "--dist-cutoff", "200"])
         assert_envelope_ok(rc; label="estimate reg conley")
-        tblc = named_table(rc.doc, :ols_regression_coefficients)
+        tblc = named_table(rc.doc, :reg_coefficients)
         @test tblc !== nothing
         if tblc !== nothing
             cols = table_cols(tblc)
@@ -5650,7 +5761,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # the check that `--cov-type conley` is not quietly altering the estimator.
         rh = run_json(["estimate", "reg", csv, "--dep", "y", "--cov-type", "hc1"])
         assert_envelope_ok(rh; label="estimate reg hc1 baseline")
-        tblh = named_table(rh.doc, :ols_regression_coefficients)
+        tblh = named_table(rh.doc, :reg_coefficients)
         if tblh !== nothing && tblc !== nothing
             th = [string(collect(r)[col_index(tblh, "term")]) for r in table_rows(tblh)]
             # hc1 has NO --lat/--lon to exclude, so lat/lon ARE regressors here — that
@@ -5690,7 +5801,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                         "--lat", "lat", "--lon", "lon", "--conley-metric", "haversine",
                         "--dist-cutoff", "200", "--time-col", "yr", "--time-cutoff", "2"])
         assert_envelope_ok(rt2; label="estimate reg conley spatial+serial")
-        tt2 = named_table(rt2.doc, :ols_regression_coefficients)
+        tt2 = named_table(rt2.doc, :reg_coefficients)
         if tt2 !== nothing
             terms2 = [string(collect(r)[col_index(tt2, "term")]) for r in table_rows(tt2)]
             @test !("yr" in terms2)     # the time column is excluded from X too
@@ -5723,7 +5834,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         ra = run_json(["estimate", "preg", csv, "--dep", "y", "--indep", "x",
                        "--absorb", "entity,time", "--id-col", "id", "--time-col", "time"])
         assert_envelope_ok(ra; label="estimate preg --absorb entity,time")
-        tbl = named_table(ra.doc, :panel_regression_coefficients_fe)
+        tbl = named_table(ra.doc, :panel_regression_coefficients)
         @test tbl !== nothing
         if tbl !== nothing
             rows = table_rows(tbl)
@@ -5747,8 +5858,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--id-col", "id", "--time-col", "time"])
         assert_envelope_ok(r1; label="estimate preg --absorb entity")
         assert_envelope_ok(r0; label="estimate preg plain fe")
-        t1 = named_table(r1.doc, :panel_regression_coefficients_fe)
-        t0 = named_table(r0.doc, :panel_regression_coefficients_fe)
+        t1 = named_table(r1.doc, :panel_regression_coefficients)
+        t0 = named_table(r0.doc, :panel_regression_coefficients)
         if t1 !== nothing && t0 !== nothing
             e1 = Float64(collect(table_rows(t1)[1])[col_index(t1, "estimate")])
             e0 = Float64(collect(table_rows(t0)[1])[col_index(t0, "estimate")])
@@ -5803,7 +5914,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         r_ab = run_json([base; "--method"; "ab"])
         assert_envelope_ok(r_ab; label="estimate preg --method ab")
-        @test named_table(r_ab.doc, :panel_regression_coefficients_ab) !== nothing
+        @test named_table(r_ab.doc, :panel_regression_coefficients) !== nothing
         ni_full = n_inst(r_ab)
         @test ni_full !== nothing && Int(ni_full) > 0
 
@@ -6264,7 +6375,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rj = run_json(["policy", "jacobian", "ha", "huggett",
                            "--jac-output", "C", "--t-horizon", "20"])
             @test rj.code == 0
-            jt = named_table(rj.doc, :sequence_space_jacobian_dc_dr)
+            jt = named_table(rj.doc, :sequence_space_jacobian)
             @test jt !== nothing && length(table_rows(jt)) == 400   # T² tidy rows
             rha = run_json(["policy", "news", "ha", "huggett",
                             "--outcomes", "c=C", "--horizon", "4",
@@ -6470,7 +6581,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--endogenous", "x_endog", "--instruments", "z1,z2",
                        "--beta0", "2.0", "--no-ci"])
         assert_envelope_ok(rt; label="test anderson-rubin --beta0 --no-ci")
-        tt = named_table(rt.doc, :anderson_rubin_test_y)
+        tt = named_table(rt.doc, :anderson_rubin_test)
         tt === nothing && (tt = first_table(rt.doc)[2])
         if tt !== nothing
             p = metric_value(tt, "p_value")
@@ -6485,7 +6596,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--endogenous", "x_endog", "--instruments", "z1,z2",
                        "--beta0", "-3.0", "--no-ci"])
         assert_envelope_ok(rf; label="test anderson-rubin false null")
-        tf = named_table(rf.doc, :anderson_rubin_test_y)
+        tf = named_table(rf.doc, :anderson_rubin_test)
         tf === nothing && (tf = first_table(rf.doc)[2])
         tf === nothing || @test Float64(metric_value(tf, "p_value")) < 0.05
 
@@ -6498,7 +6609,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--endogenous", "x_endog", "--instruments", "z1,z2",
                        "--cov-type", "cluster", "--clusters", "cl"])
         assert_envelope_ok(rc; label="test anderson-rubin clustered")
-        tc = named_table(rc.doc, :anderson_rubin_test_y)
+        tc = named_table(rc.doc, :anderson_rubin_test)
         tc === nothing && (tc = first_table(rc.doc)[2])
         if tc !== nothing
             @test string(metric_value(tc, "ar_cov_type")) == "cluster"
@@ -6549,7 +6660,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         r = run_json(["estimate", "lp", ycsv, "--method", "iv", "--shock", "1",
                       "--horizons", "6", "--control-lags", "2", "--instruments", zcsv])
         assert_envelope_ok(r; label="estimate lp --method iv")
-        sm = named_table(r.doc, :lp_iv_estimation_summary)
+        sm = named_table(r.doc, :lp_estimation_summary)
         @test sm !== nothing
         if sm !== nothing
             # The per-horizon F is reported as a MINIMUM, and T_eff as endpoints — neither
@@ -6592,7 +6703,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--horizons", "4", "--control-lags", "2", "--instruments", zcsv,
                        "--ar-bands", "--ar-grid", "101", "--ar-level", "0.95"])
         assert_envelope_ok(ra; label="estimate lp iv --ar-bands")
-        ab = named_table(ra.doc, :lp_iv_anderson_rubin_bands_95)
+        ab = named_table(ra.doc, :lp_iv_anderson_rubin_bands)
         if ab === nothing
             for (k, v) in pairs(ra.doc.data)
                 if v isa JSON3.Object && haskey(v, :columns) &&
@@ -6666,6 +6777,99 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                         "--ar-bands", "--ar-level", "0"]).code == 2
         @test run_json(["estimate", "lp", ycsv, "--method", "iv"]).code == 2   # no instruments
         rm(ycsv; force=true); rm(zcsv; force=true)
+    end
+
+    # ── #144: factor family --model handles — the branch that shipped dead ──
+    # r/factor_lags/varnames were bound only in the estimate branch, so every
+    # `predict|residuals static|dynamic|gdfm --model <handle>` exited 1 with an
+    # untyped UndefVarError (and dynamic/gdfm would have followed with a
+    # varnames FieldError — those types carry no varnames upstream). Zero T3
+    # coverage of the --model path existed; per-BRANCH coverage, both verbs.
+    @testset "factor family --model handles (#144)" begin
+        rng = MersenneTwister(29)
+        F = randn(rng, 140, 2) * [1.0 0.4 0.7 0.2; 0.3 0.9 0.1 0.6]
+        fdf = DataFrame(F .+ 0.3 .* randn(rng, 140, 4), ["a", "b", "c", "d"])
+        fcsv = write_csv(fdf; prefix="factor144")
+        cases = [
+            ("static",  ["--nfactors", "2"]),
+            ("dynamic", ["--nfactors", "2", "--factor-lags", "1"]),
+            ("gdfm",    ["--dynamic-rank", "1"]),
+        ]
+        for (kind, est_args) in cases
+            h = tempname() * ".fmod"
+            r_est = run_json(vcat(["estimate", kind, fcsv], est_args,
+                                  ["--save-model", h]))
+            @test r_est.code == 0
+            for verb in ("predict", "residuals")
+                rr = run_json([verb, kind, "--model", h])
+                @test rr.code == 0
+                if rr.code == 0
+                    @test String(rr.doc.status) == "ok"
+                    @test !isempty(rr.doc.data)
+                end
+            end
+            rm(h; force=true)
+        end
+        rm(fcsv; force=true)
+    end
+
+    # ── W7/#142: serve --mcp — the five canned sessions (#61 acceptance) ────
+    # In-process through Friedman._serve_loop (no per-call process spawn — the
+    # whole point of the server). tools/call goes through the REAL run_cli, so
+    # results are the envelope verbatim and isError mirrors the exit class.
+    @testset "serve --mcp canned sessions (W7/#142)" begin
+        csv = dgp_var2(; T=120, seed=17)
+        function mcp_session(msgs::Vector{String})
+            input = IOBuffer(join(msgs, "\n") * "\n")
+            output = IOBuffer()
+            Friedman._serve_loop(input, output)
+            [JSON3.read(l) for l in split(String(take!(output)), '\n') if !isempty(strip(l))]
+        end
+        argsjson(d) = JSON3.write(d)
+
+        rs = mcp_session([
+            # 1. initialize
+            """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""",
+            """{"jsonrpc":"2.0","method":"notifications/initialized"}""",
+            # 2. tools/list
+            """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""",
+            # 3. estimate_var, saving to a session handle
+            """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"estimate_var","arguments":$(argsjson(Dict("data"=>csv,"lags"=>1,"save-model"=>"model://m1")))}}""",
+            # 4. irf_var against the in-memory handle — NO data file
+            """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"irf_var","arguments":$(argsjson(Dict("model"=>"model://m1","horizons"=>4,"ci"=>"none")))}}""",
+            # 5. typed error: missing data file → data envelope, isError
+            """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"estimate_var","arguments":$(argsjson(Dict("data"=>"/nope/missing.csv")))}}""",
+        ])
+        @test length(rs) == 5
+
+        @test String(rs[1].result.serverInfo.name) == "friedman"
+        tools = rs[2].result.tools
+        @test length(tools) > 400
+        @test any(t -> t.name == "estimate_var", tools)
+        @test !any(t -> t.name == "serve", tools)
+
+        est = rs[3].result
+        @test est.isError == false
+        est_env = JSON3.read(est.content[1].text)
+        @test String(est_env.status) == "ok"
+        @test haskey(est_env.data, :var_coefficients)
+
+        irf_r = rs[4].result
+        @test irf_r.isError == false
+        irf_env = JSON3.read(irf_r.content[1].text)
+        @test String(irf_env.status) == "ok"
+        @test !isempty(irf_env.data)
+
+        bad = rs[5].result
+        @test bad.isError == true
+        bad_env = JSON3.read(bad.content[1].text)
+        @test String(bad_env.status) == "error"
+        @test startswith(String(bad_env.error.code), "data/")
+        @test Int(bad_env.error.exit_code) == 3
+
+        # store is session-scoped: gone after the loop
+        @test Friedman._SERVE_MODEL_STORE[] === nothing
+        rm(csv; force=true)
     end
 
 end

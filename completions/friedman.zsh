@@ -20,6 +20,7 @@ _friedman() {
     'policy'
     'predict'
     'residuals'
+    'serve'
     'spectral'
     'test'
     'repl'

@@ -105,7 +105,10 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         println(io)
     end
     if !isempty(spec.tables)
-        println(io, "**Output tables:** ", join(["`$(t.name)` ($(t.description))" for t in spec.tables], "; "))
+        # W3/#138: family tables render as `name_*` — one invocation emits
+        # multiple sibling tables keyed `<name>_<variable-slug>`
+        println(io, "**Output tables:** ",
+                join(["`$(t.name)$(t.family ? "_*" : "")` ($(t.description))" for t in spec.tables], "; "))
         println(io)
     end
     return String(take!(io))

@@ -19,21 +19,19 @@
 # C044: kebab primary CLI name; snake kept as hidden alias where renamed
 const _VOL_CLI_NAMES = Dict("gjr_garch" => ("gjr-garch", ["gjr_garch"]))
 
-"""Generate CommandSpecs for the volatility family (estimate / forecast / predict / residuals)."""
+"""Generate CommandSpecs for the volatility family — `:estimate` and `:forecast`
+ONLY. The predict/residuals leaves are registered by fitted.jl (#145): wiring
+those verbs here would double-register leaves fitted.jl owns, and registration
+dedup is last-wins, so the W3 table declarations would silently flip."""
 function _vol_specs(verb::Symbol)::Vector{CommandSpec}
     handlers = if verb === :estimate
         _VOL_ESTIMATE_HANDLERS
     elseif verb === :forecast
         _VOL_FORECAST_HANDLERS
-    elseif verb === :predict
-        _VOL_PREDICT_HANDLERS
-    elseif verb === :residuals
-        _VOL_RESIDUALS_HANDLERS
     else
-        error("unknown vol verb: $verb")
+        error("_vol_specs handles only :estimate|:forecast (fitted.jl owns predict/residuals); got :$verb")
     end
     with_horizons = verb === :forecast
-    with_plot = verb === :estimate || verb === :forecast
     order_opts = Dict{Symbol,Vector{OptionSpec}}(
         :q_only => [OptionSpec(name="q", type=Int, default=1, description="ARCH order")],
         :pq => [
@@ -42,18 +40,13 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         ],
         :sv => [OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws")],
     )
-    # estimate/forecast keep historical option order: output before format, then plot-save
-    out_opts = if with_plot
-        [
-            OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-            OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-            OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
-        ]
-    else
-        # predict/residuals: format then output (OUTPUT_OPTIONS order)
-        collect(OUTPUT_OPTIONS)
-    end
-    flags = with_plot ? [FlagSpec(name="plot", description="Open interactive plot in browser")] : FlagSpec[]
+    # historical option order: output before format, then plot-save
+    out_opts = [
+        OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+        OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+        OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
+    ]
+    flags = [FlagSpec(name="plot", description="Open interactive plot in browser")]
     specs = CommandSpec[]
     for vol in VOL_MODELS
         opts = OptionSpec[
@@ -80,13 +73,34 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
             ]
         end
         cli_name, aliases = get(_VOL_CLI_NAMES, vol.name, (vol.name, String[]))
+        label = vol.label(1, 1)
+        # W3/#138: the four verbs share the shared.jl emitters, so their keys are
+        # `<vol.name>_<what>` — `<label>` (which carries p/q) stays in the title only.
+        tables = if verb === :estimate
+            t = TableSpec[TableSpec(name=Symbol("$(vol.name)_coefficients"),
+                    description="$label parameter estimates with standard errors, z-statistics and p-values")]
+            # Only emitted when --dist selects a non-Gaussian innovation law; the shape
+            # parameter is estimated jointly but lives outside coef(model).
+            vol.supports_dist && push!(t, TableSpec(name=:conditional_distribution,
+                    description="Estimated shape parameter of the non-Gaussian innovation distribution (--dist student|ged only)"))
+            t
+        elseif verb === :forecast
+            [TableSpec(name=Symbol("$(vol.name)_volatility_forecast"),
+                       description="Per-horizon forecast conditional variance and volatility")]
+        elseif verb === :predict
+            [TableSpec(name=Symbol("$(vol.name)_conditional_variance"),
+                       description="In-sample conditional variance and volatility, one row per period")]
+        else
+            [TableSpec(name=Symbol("$(vol.name)_standardized_residuals"),
+                       description="Standardized residuals, one row per period")]
+        end
         push!(specs, CommandSpec(
             path=[string(verb), cli_name],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=opts,
             flags=flags,
-            tables=[TableSpec(name=Symbol("$(verb)_$(replace(cli_name, "-" => "_"))"), description="Path to CSV data file")],
+            tables=tables,
             category=string(verb),
             aliases=aliases,
             handler=wrap_legacy(handlers[vol.name]),
@@ -108,7 +122,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_var, description="Path to CSV data file")],
+            tables=[TableSpec(name=:var_coefficients,
+                              description="Tidy VAR coefficient table: one row per equation x term with SEs, t-stats, p-values and CIs"),
+                    TableSpec(name=:information_criteria,
+                              description="AIC / BIC / HQC and the log-likelihood of the fitted VAR")],
             category="estimate",
             handler=wrap_legacy(_estimate_var),
         ),
@@ -130,8 +147,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_bvar, description="Path to CSV data file"),
-                    TableSpec(name=:hyper, description="Selected Minnesota hyperparameters")],
+            tables=[TableSpec(name=:bvar_coefficients,
+                              description="Posterior mean (or median) BVAR coefficients, one row per equation x regressor"),
+                    TableSpec(name=:minnesota_hyperparameters,
+                              description="Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics"),
+                    TableSpec(name=:information_criteria,
+                              description="AIC / BIC / HQC and the log-likelihood of the posterior point model")],
             category="estimate",
             handler=wrap_legacy(_estimate_bvar),
         ),
@@ -149,8 +170,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:qreg, description="Quantile regression coefficients"),
-                    TableSpec(name=:fit, description="Per-quantile fit diagnostics")],
+            tables=[TableSpec(name=:quantile_regression_coefficients,
+                              description="One row per quantile x term with standard errors, p-values and confidence bounds"),
+                    TableSpec(name=:quantile_fit_diagnostics,
+                              description="Per-quantile objective value, pseudo R-squared and convergence flag")],
             category="estimate",
             handler=wrap_legacy(_estimate_qreg),
         ),
@@ -172,8 +195,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:rdd, description="Conventional / bias-corrected / robust treatment effect"),
-                    TableSpec(name=:settings, description="Bandwidths, effective N and robust inference")],
+            tables=[TableSpec(name=:rdd_treatment_effect,
+                              description="Conventional, bias-corrected and robust treatment effects with standard errors and CIs"),
+                    TableSpec(name=:rdd_settings_diagnostics,
+                              description="Design, cutoff, kernel, bandwidths, effective counts and the robust z and p-value")],
             category="estimate",
             handler=wrap_legacy(_estimate_rdd),
         ),
@@ -195,8 +220,10 @@ function estimate_specs()::Vector{CommandSpec}
             ],
             flags=[FlagSpec(name="no-tvp", description="Hold coefficients constant (drop the time variation)"),
                    FlagSpec(name="no-sv", description="Hold volatilities constant (drop stochastic volatility)")],
-            tables=[TableSpec(name=:volatility, description="Stochastic volatility path"),
-                    TableSpec(name=:spec, description="TVP-VAR specification")],
+            tables=[TableSpec(name=:tvp_var_stochastic_volatility_path_posterior_sd_68_band,
+                              description="Posterior mean and 16/50/84 quantiles of the stochastic-volatility path, one row per period x variable"),
+                    TableSpec(name=:tvp_var_specification,
+                              description="Lags, variable count, effective sample, training sample, draws and the tvp/sv switches")],
             category="estimate",
             handler=wrap_legacy(_estimate_tvpvar),
         ),
@@ -216,8 +243,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:latent, description="Latent high-frequency path"),
-                    TableSpec(name=:spec, description="MF-VAR specification")],
+            tables=[TableSpec(name=:mf_var_latent_high_frequency_path_68_credible_band,
+                              description="Posterior mean and 16/50/84 quantiles of the latent high-frequency path"),
+                    TableSpec(name=:mf_var_specification,
+                              description="Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation")],
             category="estimate",
             handler=wrap_legacy(_estimate_mfvar),
         ),
@@ -260,7 +289,18 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="mop-f", description="Report the Montiel Olea-Pflueger effective first-stage F (LP-IV)"),
                 FlagSpec(name="ar-bands", description="Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV)")
             ],
-            tables=[TableSpec(name=:estimate_lp, description="Path to CSV data file")],
+            tables=[TableSpec(name=:lp_coefficients,
+                              description="Impulse responses by horizon with standard errors and t-statistics, one column per response variable"),
+                    TableSpec(name=:lp_coefficients_expansion,
+                              description="Expansion-regime responses (--method state only)"),
+                    TableSpec(name=:lp_coefficients_recession,
+                              description="Recession-regime responses (--method state only)"),
+                    TableSpec(name=:lp_estimation_summary,
+                              description="Effective sample size, covariance estimator and, for LP-IV, the first-stage F"),
+                    TableSpec(name=:montiel_olea_pflueger_effective_f,
+                              description="Montiel Olea-Pflueger effective first-stage F against its critical value (--mop-f)"),
+                    TableSpec(name=:lp_iv_anderson_rubin_bands,
+                              description="Weak-instrument-robust Anderson-Rubin bands per horizon x response (--ar-bands)")],
             category="estimate",
             handler=wrap_legacy(_estimate_lp),
         ),
@@ -282,7 +322,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_arima, description="Path to CSV data file")],
+            tables=[TableSpec(name=:arima_coefficients,
+                              description="AR / MA / constant estimates with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:information_criteria,
+                              description="AIC, BIC and the log-likelihood of the fitted ARIMA")],
             category="estimate",
             handler=wrap_legacy(_estimate_arima),
         ),
@@ -301,7 +344,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_arfima, description="Path to CSV data file")],
+            tables=[TableSpec(name=:arfima_coefficients,
+                              description="Constant, fractional-integration d, AR and MA estimates with standard errors"),
+                    TableSpec(name=:arfima_diagnostics,
+                              description="Estimated d with its standard error, log-likelihood, AIC/BIC and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_arfima),
         ),
@@ -316,7 +362,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_gmm, description="Path to CSV data file")],
+            tables=[TableSpec(name=:gmm_estimates,
+                              description="GMM parameter estimates with standard errors (written only when --output is given)")],
             category="estimate",
             handler=wrap_legacy(_estimate_gmm),
         ),
@@ -334,7 +381,10 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:estimate_static, description="Path to CSV data file")],
+            tables=[TableSpec(name=:scree_data_eigenvalues_variance_shares,
+                              description="Eigenvalue, explained-variance and cumulative-variance share per component"),
+                    TableSpec(name=:factor_loadings,
+                              description="Estimated factor loadings, one row per observed variable")],
             category="estimate",
             handler=wrap_legacy(_estimate_static),
         ),
@@ -353,7 +403,8 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:estimate_dynamic, description="Path to CSV data file")],
+            tables=[TableSpec(name=:dynamic_factor_loadings,
+                              description="Estimated dynamic-factor loadings, one row per observed variable")],
             category="estimate",
             handler=wrap_legacy(_estimate_dynamic),
         ),
@@ -368,7 +419,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_gdfm, description="Path to CSV data file")],
+            tables=[TableSpec(name=:gdfm_common_variance_shares,
+                              description="Share of each variable variance explained by the common component")],
             category="estimate",
             handler=wrap_legacy(_estimate_gdfm),
         ),
@@ -389,7 +441,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_igarch, description="Path to CSV data file")],
+            tables=[TableSpec(name=:igarch_coefficients,
+                              description="IGARCH parameter estimates with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:igarch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, persistence, convergence and iteration count")],
             category="estimate",
             handler=wrap_legacy(_estimate_igarch),
         ),
@@ -403,7 +458,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_cgarch, description="Path to CSV data file")],
+            tables=[TableSpec(name=:cgarch_coefficients,
+                              description="Component-GARCH permanent/transitory parameter estimates with standard errors"),
+                    TableSpec(name=:cgarch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, transitory persistence and unconditional variance")],
             category="estimate",
             handler=wrap_legacy(_estimate_cgarch),
         ),
@@ -421,7 +479,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_aparch, description="Path to CSV data file")],
+            tables=[TableSpec(name=:aparch_coefficients,
+                              description="APARCH parameter estimates including the power delta and asymmetry gamma"),
+                    TableSpec(name=:aparch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, persistence, estimated delta and parameter count")],
             category="estimate",
             handler=wrap_legacy(_estimate_aparch),
         ),
@@ -440,7 +501,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_figarch, description="Path to CSV data file")],
+            tables=[TableSpec(name=:figarch_coefficients,
+                              description="FIGARCH parameter estimates including the fractional-integration d"),
+                    TableSpec(name=:figarch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, persistence, d, truncation lag and negative-lambda count")],
             category="estimate",
             handler=wrap_legacy(_estimate_figarch),
         ),
@@ -459,7 +523,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_fiegarch, description="Path to CSV data file")],
+            tables=[TableSpec(name=:fiegarch_coefficients,
+                              description="FIEGARCH parameter estimates including the fractional-integration d"),
+                    TableSpec(name=:fiegarch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, persistence, d and the truncation lag")],
             category="estimate",
             handler=wrap_legacy(_estimate_fiegarch),
         ),
@@ -478,7 +545,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_garch_midas, description="Path to CSV data file")],
+            tables=[TableSpec(name=:garch_midas_coefficients,
+                              description="GARCH-MIDAS short-run and long-run (MIDAS weight) parameter estimates"),
+                    TableSpec(name=:garch_midas_diagnostics,
+                              description="Log-likelihood, AIC/BIC, variance ratio, K, m_freq and the block count")],
             category="estimate",
             handler=wrap_legacy(_estimate_garch_midas),
         ),
@@ -495,7 +565,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_ccc, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ccc_garch_conditional_correlation,
+                              description="Constant conditional-correlation matrix, series x series"),
+                    TableSpec(name=:ccc_garch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, series and observation counts, convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_ccc),
         ),
@@ -511,7 +584,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_dcc, description="Path to CSV data file")],
+            tables=[TableSpec(name=:dcc_garch_conditional_correlation,
+                              description="Conditional-correlation matrix at the last observation, series x series"),
+                    TableSpec(name=:dcc_garch_dynamics_parameters,
+                              description="Second-stage DCC dynamics parameters with standard errors"),
+                    TableSpec(name=:dcc_garch_diagnostics,
+                              description="Log-likelihood, AIC/BIC, correction scheme and correlation persistence")],
             category="estimate",
             handler=wrap_legacy(_estimate_dcc),
         ),
@@ -525,7 +603,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_bekk, description="Path to CSV data file")],
+            tables=[TableSpec(name=:bekk_conditional_correlation,
+                              description="Conditional-correlation matrix at the last observation, series x series"),
+                    TableSpec(name=:bekk_dynamics_parameters,
+                              description="BEKK dynamics parameters with standard errors"),
+                    TableSpec(name=:bekk_diagnostics,
+                              description="Log-likelihood, AIC/BIC, series and observation counts, and the BEKK parameterisation")],
             category="estimate",
             handler=wrap_legacy(_estimate_bekk),
         ),
@@ -544,7 +627,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_lasso, description="Path to CSV data file")],
+            tables=[TableSpec(name=:lasso_coefficients,
+                              description="Intercept and slope estimates with an active-set (non-zero) indicator"),
+                    TableSpec(name=:lasso_diagnostics,
+                              description="Selected lambda, active-set size, R-squared, AIC/BIC/EBIC and the selection rule")],
             category="estimate",
             handler=wrap_legacy(_estimate_lasso),
         ),
@@ -560,7 +646,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_ridge, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ridge_coefficients,
+                              description="Intercept and slope estimates with an active-set (non-zero) indicator"),
+                    TableSpec(name=:ridge_diagnostics,
+                              description="Selected lambda, active-set size, R-squared, AIC/BIC/EBIC and the selection rule")],
             category="estimate",
             handler=wrap_legacy(_estimate_ridge),
         ),
@@ -577,7 +666,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_elastic_net, description="Path to CSV data file")],
+            tables=[TableSpec(name=:elastic_net_coefficients,
+                              description="Intercept and slope estimates with an active-set (non-zero) indicator"),
+                    TableSpec(name=:elastic_net_diagnostics,
+                              description="Mixing alpha, selected lambda, active-set size, R-squared and information criteria")],
             category="estimate",
             handler=wrap_legacy(_estimate_elastic_net),
         ),
@@ -593,7 +685,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_robust, description="Path to CSV data file")],
+            tables=[TableSpec(name=:robust_regression_coefficients,
+                              description="M-estimator coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:robust_regression_diagnostics,
+                              description="psi function, estimator, robust scale, robust R-squared, tuning and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_robust),
         ),
@@ -609,7 +704,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_tobit, description="Path to CSV data file")],
+            tables=[TableSpec(name=:tobit_coefficients,
+                              description="Censored-regression coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:tobit_diagnostics,
+                              description="sigma, log-likelihood, AIC/BIC, censoring bounds and left/right censored counts")],
             category="estimate",
             handler=wrap_legacy(_estimate_tobit),
         ),
@@ -628,7 +726,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_truncreg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:truncated_regression_coefficients,
+                              description="Truncated-normal coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:truncated_regression_diagnostics,
+                              description="sigma and its SE, log-likelihood, AIC/BIC, bounds and the truncated count")],
             category="estimate",
             handler=wrap_legacy(_estimate_truncreg),
         ),
@@ -652,7 +753,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_heckman, description="Path to CSV data file")],
+            tables=[TableSpec(name=:heckman_coefficients_outcome_selection,
+                              description="Outcome- and selection-equation coefficients in one tidy table"),
+                    TableSpec(name=:heckman_diagnostics,
+                              description="rho, sigma and lambda with SEs, log-likelihood, AIC/BIC and selected/total counts")],
             category="estimate",
             handler=wrap_legacy(_estimate_heckman),
         ),
@@ -677,7 +781,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_statespace, description="Path to CSV data file")],
+            tables=[TableSpec(name=:state_space_hyper_parameters,
+                              description="Estimated hyper-parameters of a canned local-level / local-linear-trend system"),
+                    TableSpec(name=:state_space_system_general,
+                              description="Dimensions of each system matrix for a --config general system"),
+                    TableSpec(name=:state_space_diagnostics,
+                              description="Model kind, log-likelihood, state and period counts, and the estimation method")],
             category="estimate",
             handler=wrap_legacy(_estimate_statespace),
         ),
@@ -693,7 +802,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-intercept", description="Do NOT prepend a time-varying intercept coefficient")],
-            tables=[TableSpec(name=:estimate_tvp, description="Path to CSV data file")],
+            tables=[TableSpec(name=:tvp_hyper_parameters,
+                              description="Estimated state-space hyper-parameters of the TVP regression"),
+                    TableSpec(name=:tvp_coefficient_paths,
+                              description="Smoothed time-varying coefficient path, one row per period x coefficient"),
+                    TableSpec(name=:tvp_diagnostics,
+                              description="Log-likelihood, convergence, coefficient count and whether an intercept was included")],
             category="estimate",
             handler=wrap_legacy(_estimate_tvp),
         ),
@@ -711,7 +825,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_kde, description="Path to CSV data file")],
+            tables=[TableSpec(name=:kernel_density_estimate,
+                              description="Evaluation grid and the estimated density at each grid point"),
+                    TableSpec(name=:kernel_density_diagnostics,
+                              description="Kernel, bandwidth rule, selected bandwidth and the observation count")],
             category="estimate",
             handler=wrap_legacy(_estimate_kde),
         ),
@@ -730,7 +847,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_kernel_reg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:kernel_regression_fit,
+                              description="Evaluation grid with the fitted conditional mean and its standard error"),
+                    TableSpec(name=:kernel_regression_diagnostics,
+                              description="Method, polynomial degree, kernel, bandwidth rule and selected bandwidth")],
             category="estimate",
             handler=wrap_legacy(_estimate_kernel_reg),
         ),
@@ -747,7 +867,9 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_lowess, description="Path to CSV data file")],
+            tables=[TableSpec(name=:lowess_fit, description="Sorted x with the locally-weighted smoothed fit"),
+                    TableSpec(name=:lowess_diagnostics,
+                              description="Smoothing span, robustness iterations and the observation count")],
             category="estimate",
             handler=wrap_legacy(_estimate_lowess),
         ),
@@ -775,7 +897,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_cointreg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:cointegrating_regression_coefficients,
+                              description="FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors"),
+                    TableSpec(name=:cointegrating_regression_diagnostics,
+                              description="Method, trend, kernel, bandwidth, omega_uv and sample dimensions")],
             category="estimate",
             handler=wrap_legacy(_estimate_cointreg),
         ),
@@ -801,7 +926,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_xtcointreg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:panel_cointegrating_regression_coefficients,
+                              description="Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling)"),
+                    TableSpec(name=:panel_cointegrating_regression_diagnostics,
+                              description="Method, pooling, trend, kernel, unit count and per-unit sample lengths")],
             category="estimate",
             handler=wrap_legacy(_estimate_xtcointreg),
         ),
@@ -830,7 +958,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_ardl, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ardl_coefficients,
+                              description="Levels-form ARDL coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:ardl_long_run_coefficients,
+                              description="Long-run level multipliers with delta-method standard errors"),
+                    TableSpec(name=:ardl_diagnostics,
+                              description="Selected p/q, case, trend, information criterion, fit statistics and the ECM speed alpha")],
             category="estimate",
             handler=wrap_legacy(_estimate_ardl),
         ),
@@ -851,7 +984,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_nardl, description="Path to CSV data file")],
+            tables=[TableSpec(name=:nardl_coefficients,
+                              description="Levels-form NARDL coefficients on the split (positive/negative) regressor set"),
+                    TableSpec(name=:nardl_asymmetric_long_run_coefficients,
+                              description="Asymmetric long-run multipliers theta+ and theta- with standard errors"),
+                    TableSpec(name=:nardl_diagnostics,
+                              description="Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision")],
             category="estimate",
             handler=wrap_legacy(_estimate_nardl),
         ),
@@ -880,7 +1018,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_pmg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:panel_ardl_long_run_coefficients,
+                              description="Pooled or averaged long-run coefficients theta with standard errors"),
+                    TableSpec(name=:panel_ardl_short_run_ec_coefficients,
+                              description="Error-correction speed phi and the short-run coefficient block"),
+                    TableSpec(name=:panel_ardl_diagnostics,
+                              description="Estimator, unit count, orders, phi with its SE, log-likelihood and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_pmg),
         ),
@@ -913,7 +1056,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_midas, description="Path to CSV data file")],
+            tables=[TableSpec(name=:midas_weight_curve,
+                              description="Estimated MIDAS lag weights, most recent lag first"),
+                    TableSpec(name=:midas_coefficients,
+                              description="MIDAS regression coefficients with standard errors"),
+                    TableSpec(name=:midas_diagnostics,
+                              description="Weight scheme, m/K/p_ar, horizon, fit statistics and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_midas),
         ),
@@ -941,7 +1089,10 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="het", description="Heteroskedasticity-robust bootstrap for the linearity test"),
                    FlagSpec(name="no-linearity", description="Skip the Hansen (1996) linearity test"),
                    FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:estimate_threshold, description="Path to CSV data file")],
+            tables=[TableSpec(name=:threshold_regression_coefficients,
+                              description="Per-regime coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:threshold_regression_diagnostics,
+                              description="Threshold gamma with its Hansen CI, per-regime counts, fit statistics and the linearity test")],
             category="estimate",
             handler=wrap_legacy(_estimate_threshold),
         ),
@@ -964,7 +1115,10 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="het", description="Heteroskedastic (White) bootstrap for the linearity test / CI"),
                 FlagSpec(name="no-linearity", description="Skip the attached Hansen (1996) linearity test")
             , PLOT_FLAGS...],
-            tables=[TableSpec(name=:estimate_setar, description="Path to CSV data file")],
+            tables=[TableSpec(name=:setar_coefficients,
+                              description="Per-regime SETAR coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:setar_diagnostics,
+                              description="Threshold gamma with its Hansen CI, regime counts, p/d, fit statistics and the linearity test")],
             category="estimate",
             handler=wrap_legacy(_estimate_setar),
         ),
@@ -991,7 +1145,12 @@ function estimate_specs()::Vector{CommandSpec}
                 PLOT_OPTIONS...
             ],
             flags=copy(PLOT_FLAGS),
-            tables=[TableSpec(name=:estimate_star, description="Path to CSV data file")],
+            tables=[TableSpec(name=:star_regime_coefficients,
+                              description="Coefficients of the two regime blocks with standard errors and p-values"),
+                    TableSpec(name=:star_transition_parameters,
+                              description="Smoothness gamma and location c of the transition function, with standard errors"),
+                    TableSpec(name=:star_diagnostics,
+                              description="Transition type, fit statistics, the LM3 linearity test and any sequential-selection p-values")],
             category="estimate",
             handler=wrap_legacy(_estimate_star),
         ),
@@ -1016,7 +1175,16 @@ function estimate_specs()::Vector{CommandSpec}
                 PLOT_OPTIONS...
             ],
             flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)"), PLOT_FLAGS...],
-            tables=[TableSpec(name=:estimate_ms_ar, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ms_ar_regime_coefficients,
+                              description="Per-regime switching means plus the common AR block, with standard errors"),
+                    TableSpec(name=:ms_ar_regime_variances,
+                              description="Per-regime innovation variance with its standard error"),
+                    TableSpec(name=:ms_ar_transition_matrix,
+                              description="Markov transition matrix P, one row per originating regime"),
+                    TableSpec(name=:ms_ar_regime_probabilities,
+                              description="Filtered and smoothed regime probabilities, one row per period x regime"),
+                    TableSpec(name=:ms_ar_diagnostics,
+                              description="Log-likelihood, AIC/BIC, ergodic probabilities, expected durations and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_ms_ar),
         ),
@@ -1042,7 +1210,16 @@ function estimate_specs()::Vector{CommandSpec}
                 PLOT_OPTIONS...
             ],
             flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)"), PLOT_FLAGS...],
-            tables=[TableSpec(name=:estimate_ms, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ms_regression_regime_coefficients,
+                              description="Per-regime switching regression coefficients with standard errors"),
+                    TableSpec(name=:ms_regression_regime_variances,
+                              description="Per-regime innovation variance with its standard error"),
+                    TableSpec(name=:ms_regression_transition_matrix,
+                              description="Markov transition matrix P, one row per originating regime"),
+                    TableSpec(name=:ms_regression_regime_probabilities,
+                              description="Filtered and smoothed regime probabilities, one row per period x regime"),
+                    TableSpec(name=:ms_regression_diagnostics,
+                              description="Log-likelihood, AIC/BIC, ergodic probabilities, expected durations and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_ms),
         ),
@@ -1058,7 +1235,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_fastica, description="Path to CSV data file")],
+            tables=[TableSpec(name=:structural_impact_matrix_b0,
+                              description="Identified structural impact matrix B0, one row per equation"),
+                    TableSpec(name=:structural_shocks,
+                              description="First observations of the recovered structural shocks")],
             category="estimate",
             handler=wrap_legacy(_estimate_fastica),
         ),
@@ -1073,7 +1253,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_ml, description="Path to CSV data file")],
+            tables=[TableSpec(name=:structural_impact_matrix_b0,
+                              description="Identified structural impact matrix B0, one row per equation"),
+                    TableSpec(name=:model_fit,
+                              description="Non-Gaussian and Gaussian log-likelihoods, AIC/BIC and the assumed distribution"),
+                    TableSpec(name=:parameter_estimates_with_standard_errors,
+                              description="B0 elements with standard errors, when the estimator returns them")],
             category="estimate",
             handler=wrap_legacy(_estimate_ml),
         ),
@@ -1100,7 +1285,10 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="system", description="Use system GMM (adds level equations)"),
                 FlagSpec(name="collapse", description="Collapse instruments to limit count")
             ],
-            tables=[TableSpec(name=:estimate_pvar, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:panel_var_coefficients,
+                              description="Panel VAR coefficients, one row per equation x lagged regressor"),
+                    TableSpec(name=:panel_summary,
+                              description="Group and observation counts, instrument count, estimator and transformation")],
             category="estimate",
             handler=wrap_legacy(_estimate_pvar),
         ),
@@ -1118,7 +1306,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_vecm, description="Path to CSV data file")],
+            tables=[TableSpec(name=:cointegrating_vectors_beta,
+                              description="Cointegrating vectors beta, one row per variable and one column per relation"),
+                    TableSpec(name=:adjustment_coefficients_alpha,
+                              description="Adjustment coefficients alpha, one row per equation"),
+                    TableSpec(name=:information_criteria,
+                              description="AIC / BIC / HQC and the log-likelihood of the fitted VECM")],
             category="estimate",
             handler=wrap_legacy(_estimate_vecm),
         ),
@@ -1135,7 +1328,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_smm, description="Path to CSV data file")],
+            tables=[TableSpec(name=:smm_estimates,
+                              description="SMM parameter estimates with standard errors, t-statistics and p-values")],
             category="estimate",
             handler=wrap_legacy(_estimate_smm),
         ),
@@ -1156,7 +1350,10 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:estimate_favar, description="Path to CSV data file")],
+            tables=[TableSpec(name=:favar_coefficients,
+                              description="FAVAR coefficients over factors and key variables, one row per equation x regressor"),
+                    TableSpec(name=:bayesian_favar,
+                              description="Factor, key-variable, lag and draw counts of a --method bayesian fit")],
             category="estimate",
             handler=wrap_legacy(_estimate_favar),
         ),
@@ -1179,7 +1376,11 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:estimate_sdfm, description="Path to CSV data file")],
+            # #147 (closed the W3/#138 gap): the leaf now emits an estimation record —
+            # dimensions, identification, per-shock names, variance shares. The
+            # structural arrays still live on `irf sdfm`/`fevd sdfm`.
+            tables=[TableSpec(name=:sdfm_estimation_summary,
+                              description="Structural DFM estimation record: panel dimensions, factor counts, identification, factor-VAR lags, shock names and the average common variance share")],
             category="estimate",
             handler=wrap_legacy(_estimate_sdfm),
         ),
@@ -1217,7 +1418,12 @@ function estimate_specs()::Vector{CommandSpec}
                            description="Conley serial-correlation lag cutoff (0 = spatial only)")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_reg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:reg_coefficients,
+                              description="OLS/WLS coefficients with standard errors, t-statistics, p-values and CIs"),
+                    TableSpec(name=:fit_statistics,
+                              description="R-squared, adjusted R-squared, F-statistic with p-value, log-likelihood and AIC/BIC"),
+                    TableSpec(name=:conley_spatial_hac_settings,
+                              description="Coordinate columns, metric, kernel and cutoffs behind a --cov-type conley fit")],
             category="estimate",
             handler=wrap_legacy(_estimate_reg),
         ),
@@ -1236,7 +1442,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_select, description="Path to CSV data file")],
+            tables=[TableSpec(name=:selected_model_coefficients,
+                              description="Coefficients of the refitted model on the selected regressors"),
+                    TableSpec(name=:selection_path,
+                              description="The search trail: step, add/drop action, variable and the deciding statistic"),
+                    TableSpec(name=:selection_summary,
+                              description="Method, criterion, selected and forced variables, and any encompassing test")],
             category="estimate",
             handler=wrap_legacy(_estimate_select),
         ),
@@ -1256,7 +1467,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_iv, description="Path to CSV data file")],
+            tables=[TableSpec(name=:iv_coefficients,
+                              description="Instrumental-variables coefficients with standard errors, t-statistics and p-values"),
+                    TableSpec(name=:iv_diagnostics,
+                              description="R-squared, the k-class constant, first-stage F and the Sargan overidentification test")],
             category="estimate",
             handler=wrap_legacy(_estimate_iv),
         ),
@@ -1273,7 +1487,10 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="iterate", description="Iterate FGLS to the Gaussian MLE"),
                 FlagSpec(name="no-intercept", description="Do not add a per-equation constant"),
             ],
-            tables=[TableSpec(name=:estimate_sur, description="Path to CSV data file")],
+            tables=[TableSpec(name=:sur_coefficients,
+                              description="System coefficients, one row per equation x term, with standard errors and p-values"),
+                    TableSpec(name=:sur_system_statistics,
+                              description="Estimator, equation and observation counts, det(Sigma), McElroy R-squared and log-likelihood")],
             category="estimate",
             handler=wrap_legacy(_estimate_sur),
         ),
@@ -1290,7 +1507,10 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="no-intercept", description="Do not add a per-equation constant"),
             ],
-            tables=[TableSpec(name=:estimate_3sls, description="Path to CSV data file")],
+            tables=[TableSpec(name=Symbol("3sls_coefficients"),
+                              description="System coefficients, one row per equation x term, with standard errors and p-values"),
+                    TableSpec(name=Symbol("3sls_system_statistics"),
+                              description="Equation and observation counts, det(Sigma), McElroy R-squared and instruments per equation")],
             category="estimate",
             handler=wrap_legacy(_estimate_3sls),
         ),
@@ -1306,7 +1526,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 PLOT_OPTIONS...],
             flags=[SARIMA_FLAGS..., PLOT_FLAGS...],
-            tables=[TableSpec(name=:estimate_sarima, description="Path to CSV data file")],
+            tables=[TableSpec(name=:sarima_coefficients,
+                              description="Non-seasonal and seasonal AR/MA estimates plus the innovation variance"),
+                    TableSpec(name=:information_criteria,
+                              description="AIC, BIC, log-likelihood and effective sample size")],
             category="estimate",
             handler=wrap_legacy(_estimate_sarima),
         ),
@@ -1327,7 +1550,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 COUNT_IRR_OPTIONS...],
             flags=[COUNT_IRR_FLAG],
-            tables=[TableSpec(name=:estimate_poisson, description="Path to CSV data file")],
+            tables=[TableSpec(name=:poisson_regression_coefficients,
+                              description="Poisson coefficients with standard errors, z-statistics, p-values and CIs"),
+                    TableSpec(name=:incidence_rate_ratios,
+                              description="exp(beta) incidence-rate ratios with delta-method SEs and CIs (--irr)"),
+                    TableSpec(name=:fit_statistics,
+                              description="Log-likelihood, deviance, pseudo R-squared and AIC/BIC")],
             category="estimate",
             handler=wrap_legacy(_estimate_poisson),
         ),
@@ -1342,7 +1570,14 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 COUNT_IRR_OPTIONS...],
             flags=[COUNT_IRR_FLAG],
-            tables=[TableSpec(name=:estimate_nbreg, description="Path to CSV data file")],
+            tables=[TableSpec(name=:negative_binomial_regression_coefficients,
+                              description="NB2 coefficients with standard errors, z-statistics, p-values and CIs"),
+                    TableSpec(name=:overdispersion_parameter,
+                              description="The NB2 dispersion parameter alpha with its delta-method standard error"),
+                    TableSpec(name=:incidence_rate_ratios,
+                              description="exp(beta) incidence-rate ratios with delta-method SEs and CIs (--irr)"),
+                    TableSpec(name=:fit_statistics,
+                              description="Log-likelihood, deviance, pseudo R-squared and AIC/BIC")],
             category="estimate",
             handler=wrap_legacy(_estimate_nbreg),
         ),
@@ -1356,7 +1591,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_logit, description="Path to CSV data file")],
+            tables=[TableSpec(name=:logit_regression_coefficients,
+                              description="Logit coefficients with standard errors, z-statistics, p-values and CIs"),
+                    TableSpec(name=:fit_statistics,
+                              description="Pseudo R-squared, log-likelihood (fitted and null), AIC/BIC and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_logit),
         ),
@@ -1370,7 +1608,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_probit, description="Path to CSV data file")],
+            tables=[TableSpec(name=:probit_regression_coefficients,
+                              description="Probit coefficients with standard errors, z-statistics, p-values and CIs"),
+                    TableSpec(name=:fit_statistics,
+                              description="Pseudo R-squared, log-likelihood (fitted and null), AIC/BIC and convergence")],
             category="estimate",
             handler=wrap_legacy(_estimate_probit),
         ),
@@ -1414,7 +1655,14 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="collapse",
                          description="Collapse the GMM instrument matrix (--method ab|bb)")
             ],
-            tables=[TableSpec(name=:estimate_preg, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:panel_regression_coefficients,
+                              description="Panel coefficients with standard errors, t-statistics and p-values"),
+                    TableSpec(name=:model_statistics,
+                              description="Within/between/overall R-squared, F-statistic, and observation and group counts"),
+                    TableSpec(name=:dynamic_panel_diagnostics,
+                              description="AR(1)/AR(2) tests, Hansen J and the instrument count (--method ab|bb)"),
+                    TableSpec(name=:hdfe_absorption,
+                              description="Absorbed dimensions, level counts and the projection-loop convergence (--absorb)")],
             category="estimate",
             handler=wrap_legacy(_estimate_preg),
         ),
@@ -1435,7 +1683,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_piv, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:panel_iv_coefficients,
+                              description="Panel IV coefficients with standard errors, t-statistics and p-values"),
+                    TableSpec(name=:weak_instrument_diagnostics,
+                              description="First-stage F, Cragg-Donald and Kleibergen-Paap F, Stock-Yogo bound and Sargan test")],
             category="estimate",
             handler=wrap_legacy(_estimate_piv),
         ),
@@ -1445,7 +1696,10 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=with_default(PREG_OPTIONS, "method", "pooled"),
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_plogit, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:panel_logit_coefficients,
+                              description="Panel logit coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:model_statistics,
+                              description="Pseudo R-squared, log-likelihood, AIC/BIC, convergence and observation/group counts")],
             category="estimate",
             handler=wrap_legacy(_estimate_plogit),
         ),
@@ -1455,7 +1709,10 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=with_default(PREG_OPTIONS, "method", "pooled"),
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_pprobit, description="Path to CSV panel data file")],
+            tables=[TableSpec(name=:panel_probit_coefficients,
+                              description="Panel probit coefficients with standard errors, z-statistics and p-values"),
+                    TableSpec(name=:model_statistics,
+                              description="Pseudo R-squared, log-likelihood, AIC/BIC, convergence and observation/group counts")],
             category="estimate",
             handler=wrap_legacy(_estimate_pprobit),
         ),
@@ -1467,7 +1724,11 @@ function estimate_specs()::Vector{CommandSpec}
                 REG_OPTIONS...
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_ologit, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ordered_logit_coefficients,
+                              description="Ordered-logit slope coefficients with standard errors, p-values and CIs"),
+                    TableSpec(name=:cutpoints, description="Estimated category cutpoints of the latent index"),
+                    TableSpec(name=:fit_statistics,
+                              description="Pseudo R-squared, log-likelihood, AIC/BIC and the category count")],
             category="estimate",
             handler=wrap_legacy(_estimate_ologit),
         ),
@@ -1479,7 +1740,11 @@ function estimate_specs()::Vector{CommandSpec}
                 REG_OPTIONS...
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_oprobit, description="Path to CSV data file")],
+            tables=[TableSpec(name=:ordered_probit_coefficients,
+                              description="Ordered-probit slope coefficients with standard errors, p-values and CIs"),
+                    TableSpec(name=:cutpoints, description="Estimated category cutpoints of the latent index"),
+                    TableSpec(name=:fit_statistics,
+                              description="Pseudo R-squared, log-likelihood, AIC/BIC and the category count")],
             category="estimate",
             handler=wrap_legacy(_estimate_oprobit),
         ),
@@ -1494,7 +1759,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate_mlogit, description="Path to CSV data file")],
+            tables=[TableSpec(name=:multinomial_logit_coefficients,
+                              description="Coefficients for every alternative in one tidy table, with standard errors and CIs"),
+                    TableSpec(name=:fit_statistics,
+                              description="Pseudo R-squared, log-likelihood, AIC/BIC and the category count")],
             category="estimate",
             handler=wrap_legacy(_estimate_mlogit),
         )
@@ -1530,7 +1798,8 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
 
     # C051: MEMs renders coefficient-bearing models as a tidy coef table via Tables.jl
     # (equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
-    output_result(DataFrame(model); format=Symbol(format), output=output, title="VAR($p) Coefficients")
+    output_result(DataFrame(model); format=Symbol(format), output=output, title="VAR($p) Coefficients",
+                  key="var_coefficients")
 
     _status()
     output_model_criteria(model; format=format, title="Information Criteria")
@@ -1628,12 +1897,14 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
 
     coef_df = _build_var_coef_table(coef(model), varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
-                  title="BVAR($p) Posterior $(titlecase(method)) Coefficients")
+                  title="BVAR($p) Posterior $(titlecase(method)) Coefficients",
+                  key="bvar_coefficients")
 
     if hyper_tbl !== nothing
         output_result(hyper_tbl; format=Symbol(format),
                       output=_per_var_output_path(output, "hyper"),
-                      title="Minnesota Hyperparameters ($hopt)")
+                      title="Minnesota Hyperparameters ($hopt)",
+                      key="minnesota_hyperparameters")
     end
 
     _status()
@@ -1687,7 +1958,8 @@ end
 
 """Output LP coefficient table: shock coefficients + SEs per horizon per response variable."""
 function _output_lp_coef_table(irf_result, varnames, horizons;
-                               title::String="", format::String="table", output::String="")
+                               title::String="", format::String="table", output::String="",
+                               key::String="")
     n_h = size(irf_result.values, 1)
     n_resp = size(irf_result.values, 2)
     has_se = hasproperty(irf_result, :se) && !isnothing(irf_result.se) &&
@@ -1707,7 +1979,7 @@ function _output_lp_coef_table(irf_result, varnames, horizons;
         end
     end
 
-    output_result(coef_df; format=Symbol(format), output=output, title=title)
+    output_result(coef_df; format=Symbol(format), output=output, title=title, key=key)
 end
 
 function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
@@ -1724,7 +1996,8 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
     irf_result = lp_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
-        title="LP Coefficients ($shock_name → responses)", format=format, output=output)
+        title="LP Coefficients ($shock_name → responses)", format=format, output=output,
+        key="lp_coefficients")
 
     _status()
     # `LPModel.T_eff` is a Vector{Int} of length H+1 — the sample shrinks as h grows. The old
@@ -1738,7 +2011,7 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
         "Covariance estimator" => vcov,
         "Horizons" => horizons,
         "Control lags" => control_lags,
-    ]; format=format, title="Estimation Summary")
+    ]; format=format, title="Estimation Summary", key="lp_estimation_summary")
     return model
 end
 
@@ -1807,7 +2080,8 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
     irf_result = lp_iv_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
-        title="LP-IV Coefficients ($shock_name → responses)", format=format, output=output)
+        title="LP-IV Coefficients ($shock_name → responses)", format=format, output=output,
+        key="lp_coefficients")
 
     _status()
     # `T_eff` is also per-horizon (the sample shrinks as h grows), so nesting the whole
@@ -1821,7 +2095,7 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         "First-stage F (h=0)" => round(first(f_stats); digits=2),
         "Weak horizons" => length(wi.weak_horizons),
         "Instruments" => size(Z, 2),
-    ]; format=format, title="LP-IV Estimation Summary")
+    ]; format=format, title="LP-IV Estimation Summary", key="lp_estimation_summary")
 
     # ── W10/#112: weak-instrument-robust LP-IV diagnostics ──────────────────
     if mop_f
@@ -1856,7 +2130,8 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         # table written above would be silently overwritten.
         output_result(_lp_ar_band_table(band);
             format=Symbol(format), output=_per_var_output_path(output, "ar_bands"),
-            title="LP-IV Anderson-Rubin Bands ($(round(Int, 100 * ar_level))%)")
+            title="LP-IV Anderson-Rubin Bands ($(round(Int, 100 * ar_level))%)",
+            key="lp_iv_anderson_rubin_bands")
         n_unb = count(!, band.bounded)
         n_unb > 0 && _status_styled(
             "  $n_unb of $(length(band.bounded)) AR cells are unbounded: at those horizons the " *
@@ -1915,14 +2190,15 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
     irf_result = smooth_lp_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
-        title="Smooth LP Coefficients ($shock_name → responses)", format=format, output=output)
+        title="Smooth LP Coefficients ($shock_name → responses)", format=format, output=output,
+        key="lp_coefficients")
 
     _status()
     output_kv(Pair{String,Any}[
         "Smoothing parameter (λ)" => round(lam; digits=6),
         "B-spline knots" => knots,
         "Horizons" => horizons,
-    ]; format=format, title="Smooth LP Estimation Summary")
+    ]; format=format, title="Smooth LP Estimation Summary", key="lp_estimation_summary")
     return model
 end
 
@@ -1943,9 +2219,11 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
 
     for (regime, label) in [(:expansion, "Expansion"), (:recession, "Recession")]
         irf_result = getfield(results, regime)
+        # Both regimes are emitted in the SAME invocation, so the two tables get distinct —
+        # but still statically known — keys (`lp_coefficients_expansion`/`_recession`).
         _output_lp_coef_table(irf_result, varnames, horizons;
             title="State LP Coefficients — $label ($shock_name → responses)",
-            format=format,
+            format=format, key=_table_key("lp_coefficients", label),
             output=isempty(output) ? "" : replace(output, "." => "_$(lowercase(label))."))
         _status()
     end
@@ -1989,7 +2267,8 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
     irf_result = propensity_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
-        title="Propensity Score LP: ATE Estimates ($treat_name)", format=format, output=output)
+        title="Propensity Score LP: ATE Estimates ($treat_name)", format=format, output=output,
+        key="lp_coefficients")
     return model
 end
 
@@ -2019,7 +2298,8 @@ function _estimate_lp_robust(data, treatment, horizons, score_method, output, fo
     irf_result = propensity_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
-        title="Doubly Robust LP: ATE Estimates ($treat_name)", format=format, output=output)
+        title="Doubly Robust LP: ATE Estimates ($treat_name)", format=format, output=output,
+        key="lp_coefficients")
     return model
 end
 
@@ -2055,7 +2335,8 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
     q_sel = ma_order(model)
     label = _model_label(p_sel, d_sel, q_sel)
 
-    _arima_coef_table(model; format=format, output=output, title="$label Coefficients ($vname)")
+    _arima_coef_table(model; format=format, output=output, title="$label Coefficients ($vname)",
+                      key="arima_coefficients")
 
     _status()
     output_kv(Pair{String,Any}[
@@ -2138,7 +2419,7 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
                         "Estimating $lbl: variable=$vname")
     _status()
     output_result(_sarima_coef_df(model); format=Symbol(format), output=output,
-                  title="$lbl Coefficients ($vname)")
+                  title="$lbl Coefficients ($vname)", key="sarima_coefficients")
     _status()
     output_kv(Pair{String,Any}[
         "AIC"            => round(Float64(aic(model)); digits=4),
@@ -2174,7 +2455,8 @@ function _forecast_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
         throw(_domain_or_data_error(e, "SARIMA forecast"))
     end
     output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
+                  title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                  key="sarima_forecast")
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     return fc
 end
@@ -2197,7 +2479,8 @@ function _predict_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
     _status("$(_sarima_label(m)) fitted values: variable=$vname, n=$(length(f))"); _status()
     return output_result(DataFrame(t=1:length(f), fitted=round.(Float64.(f); digits=6));
                          format=Symbol(format), output=output,
-                         title="$(_sarima_label(m)) In-Sample Predictions for $vname")
+                         title="$(_sarima_label(m)) In-Sample Predictions for $vname",
+                         key="sarima_predictions")
 end
 
 function _residuals_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
@@ -2218,7 +2501,8 @@ function _residuals_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0
     _status("$(_sarima_label(m)) residuals: variable=$vname, n=$(length(r))"); _status()
     return output_result(DataFrame(t=1:length(r), residual=round.(Float64.(r); digits=6));
                          format=Symbol(format), output=output,
-                         title="$(_sarima_label(m)) Residuals for $vname")
+                         title="$(_sarima_label(m)) Residuals for $vname",
+                         key="sarima_residuals")
 end
 
 # ARIMA helpers (from old arima.jl)
@@ -2247,7 +2531,8 @@ function _model_label(p::Int, d::Int, q::Int)
     end
 end
 
-function _arima_coef_table(model; format::String="table", output::String="", title::String="Coefficients")
+function _arima_coef_table(model; format::String="table", output::String="", title::String="Coefficients",
+                           key::String="")
     c = coef(model)
     p_order = ar_order(model)
     q_order = ma_order(model)
@@ -2274,7 +2559,7 @@ function _arima_coef_table(model; format::String="table", output::String="", tit
         DataFrame(parameter=param_names, estimate=round.(c; digits=6))
     end
 
-    output_result(coef_df; format=Symbol(format), output=output, title=title)
+    output_result(coef_df; format=Symbol(format), output=output, title=title, key=key)
 end
 
 # ── ARFIMA (fractional integration / long memory) ──────────
@@ -2326,7 +2611,7 @@ function _forecast_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
             lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
             upper = round.(Float64.(collect(fc.ci_upper)); digits=6));
         format=Symbol(format), output=output,
-        title="ARFIMA($p,d,$q) Forecast for $vname")
+        title="ARFIMA($p,d,$q) Forecast for $vname", key="arfima_forecast")
     return fc
 end
 
@@ -2338,7 +2623,7 @@ function _predict_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
     f = Float64.(collect(m.fitted))
     output_result(DataFrame(t=1:length(f), fitted=round.(f; digits=6));
         format=Symbol(format), output=output,
-        title="ARFIMA($p,d,$q) In-Sample Predictions for $vname")
+        title="ARFIMA($p,d,$q) In-Sample Predictions for $vname", key="arfima_predictions")
     return m.fitted
 end
 
@@ -2350,7 +2635,7 @@ function _residuals_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
     r = Float64.(collect(m.residuals))
     output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
         format=Symbol(format), output=output,
-        title="ARFIMA($p,d,$q) Residuals for $vname")
+        title="ARFIMA($p,d,$q) Residuals for $vname", key="arfima_residuals")
     return m.residuals
 end
 
@@ -2376,7 +2661,7 @@ function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
     # (`DataFrame(model)`), so the tidy coefficient path does not apply — this is a
     # documented C051 exception (like ARIMA/volatility). Ordering is [c, d, phi.., theta..].
     _arfima_coef_table(model; format=format, output=output,
-                       title="$label Coefficients ($vname)")
+                       title="$label Coefficients ($vname)", key="arfima_coefficients")
 
     _status()
     output_kv(Pair{String,Any}[
@@ -2386,11 +2671,12 @@ function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
         "AIC"              => round(model.aic; digits=4),
         "BIC"              => round(model.bic; digits=4),
         "Converged"        => model.converged,
-    ]; format=format, title="ARFIMA Diagnostics ($vname)")
+    ]; format=format, title="ARFIMA Diagnostics ($vname)", key="arfima_diagnostics")
     return model
 end
 
-function _arfima_coef_table(model; format::String="table", output::String="", title::String="Coefficients")
+function _arfima_coef_table(model; format::String="table", output::String="", title::String="Coefficients",
+                            key::String="")
     c = coef(model)                                 # [c, d, phi.., theta..]
     p_order = ar_order(model)
     q_order = ma_order(model)
@@ -2418,7 +2704,7 @@ function _arfima_coef_table(model; format::String="table", output::String="", ti
         DataFrame(parameter=param_names, estimate=round.(c; digits=6))
     end
 
-    output_result(coef_df; format=Symbol(format), output=output, title=title)
+    output_result(coef_df; format=Symbol(format), output=output, title=title, key=key)
 end
 
 # ── GMM ────────────────────────────────────────────────────
@@ -2642,7 +2928,8 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
     shock_df = DataFrame(shocks[1:n_show, :], ["shock_$i" for i in 1:n])
     insertcols!(shock_df, 1, :t => 1:n_show)
     output_result(shock_df; format=Symbol(format), output=output,
-                  title="Structural Shocks (first $n_show observations)")
+                  title="Structural Shocks (first $n_show observations)",
+                  key="structural_shocks")
     return result
 end
 
@@ -2780,7 +3067,7 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
 
     coef_df = _build_pvar_coef_table(model, varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
-                  title="Panel VAR($p) Coefficients ($method)")
+                  title="Panel VAR($p) Coefficients ($method)", key="panel_var_coefficients")
 
     _status()
     output_kv(Pair{String,Any}[
@@ -2968,7 +3255,8 @@ function _estimate_smm(; data::String, config::String="",
         p_value = round.(p_vals; digits=4),
     )
     output_result(est_df; format=Symbol(format), output=output,
-                  title="SMM Estimation (model=$modelname, weighting=$weighting)")
+                  title="SMM Estimation (model=$modelname, weighting=$weighting)",
+                  key="smm_estimates")
 
     _status()
     _status_styled("  J-statistic: $(round(model.J_stat; digits=4))\n"; color=:cyan)
@@ -3000,7 +3288,8 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
 
     var_model = to_var(favar)
     coef_df = _build_var_coef_table(coef(var_model), favar.varnames, favar.p)
-    output_result(coef_df; format=Symbol(format), output=output, title="FAVAR($lags) Coefficients")
+    output_result(coef_df; format=Symbol(format), output=output, title="FAVAR($lags) Coefficients",
+                  key="favar_coefficients")
 
     _status()
     _status_styled("  Factors: $(favar.n_factors), Key variables: $(favar.n_key)\n"; color=:cyan)
@@ -3044,6 +3333,21 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
     _status("  Identification: $(sdfm.identification)")
     _status("  Factor VAR lags: $(sdfm.p_var)")
     _status("  Shocks: $(join(sdfm.shock_names, ", "))")
+
+    # #147: the leaf was status-only — a success exit with nothing addressable.
+    # The structural results live on `irf sdfm`/`fevd sdfm`; this table is the
+    # estimation record (dimensions, identification, variance shares).
+    summary_df = DataFrame(
+        metric = ["n_vars", "T", "dynamic_factors", "static_rank", "identification",
+                  "factor_var_lags", "horizon", "shocks", "avg_common_variance_share"],
+        value = [string(n), string(size(Y, 1)), string(sdfm.gdfm.q), string(sdfm.gdfm.r),
+                 String(sdfm.identification), string(sdfm.p_var), string(horizon),
+                 join(sdfm.shock_names, ", "),
+                 string(round(mean(sdfm.gdfm.variance_explained); digits=4))],
+    )
+    output_result(summary_df; format=Symbol(format), output=output,
+                  title="Structural DFM Estimation Summary",
+                  key="sdfm_estimation_summary")
 
     _maybe_plot(sdfm; plot=plot, plot_save=plot_save)
     return sdfm
@@ -3148,7 +3452,11 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
     end
 
     coef_df = _reg_coef_table(model, xcols)
-    output_result(coef_df; format=Symbol(format), output=output, title="$wls_tag Regression Coefficients")
+    # The OLS/WLS distinction is an option-driven label, so it stays in the human-facing
+    # title only — the envelope address is fixed for both paths (leaf-stem key,
+    # matching predict/residuals reg → reg_fitted_values/reg_residuals).
+    output_result(coef_df; format=Symbol(format), output=output, title="$wls_tag Regression Coefficients",
+                  key="reg_coefficients")
 
     _status()
     f_pv = hasproperty(model, :f_pval) ? model.f_pval :
@@ -3233,7 +3541,7 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
     # The refitted final model renders exactly like `estimate reg`.
     output_result(_reg_coef_table(res.final, res.varnames[res.selected]);
         format=Symbol(format), output=output,
-        title="Selected Model Coefficients ($dep_name)")
+        title="Selected Model Coefficients ($dep_name)", key="selected_model_coefficients")
     # The search path is the audit trail: each step is (action, column, statistic).
     if !isempty(res.path)
         output_result(DataFrame(
@@ -3242,7 +3550,7 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
                 variable = [res.varnames[p[2]] for p in res.path],
                 statistic = [round(Float64(p[3]); digits=6) for p in res.path]);
             format=Symbol(format), output=_per_var_output_path(output, "path"),
-            title="Selection Path ($dep_name)")
+            title="Selection Path ($dep_name)", key="selection_path")
     end
     pairs = Pair{String,Any}[
         "method" => String(res.method),
@@ -3308,7 +3616,8 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
     end
 
     coef_df = _reg_coef_table(model, xcols)
-    output_result(coef_df; format=Symbol(format), output=output, title="IV ($label) Regression Coefficients")
+    output_result(coef_df; format=Symbol(format), output=output, title="IV ($label) Regression Coefficients",
+                  key="iv_coefficients")
 
     _status()
     pairs = Pair{String,Any}[
@@ -3736,7 +4045,7 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
 
     coef_df = _preg_coef_table(model, model.varnames)
     output_result(coef_df; format=Symbol(format), output=output,
-        title="Panel Regression Coefficients ($method)")
+        title="Panel Regression Coefficients ($method)", key="panel_regression_coefficients")
 
     _status()
     pairs = Pair{String,Any}[
@@ -3865,7 +4174,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
 
     coef_df = _preg_coef_table(model, model.varnames)
     output_result(coef_df; format=Symbol(format), output=output,
-        title="Panel Logit Coefficients ($method)")
+        title="Panel Logit Coefficients ($method)", key="panel_logit_coefficients")
 
     _status()
     pairs = Pair{String,Any}[
@@ -3897,7 +4206,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
 
     coef_df = _preg_coef_table(model, model.varnames)
     output_result(coef_df; format=Symbol(format), output=output,
-        title="Panel Probit Coefficients ($method)")
+        title="Panel Probit Coefficients ($method)", key="panel_probit_coefficients")
 
     _status()
     pairs = Pair{String,Any}[
@@ -4150,10 +4459,17 @@ end
 """Map a raw estimator exception to a typed class. An `ArgumentError` from these estimators
 is always a statement about the DATA (bad response, mismatched offset), so it maps to
 `data/invalid` rather than the generic model class; everything else defers to
-`_domain_error_class` via CliError so it can never surface as internal/error."""
+`_domain_error_class` via CliError so it can never surface as internal/error.
+
+W4/#139: `_domain_error_class` is consulted BEFORE the generic fallbacks so the
+direct-`Exception` domain types outside `MacroModelError` (`StochasticSingularityError`,
+`DSGESolveError`) keep their specific classes on wrapped paths — the old fallback
+collapsed them into `model/error`."""
 function _domain_or_data_error(e, label::String)
     e isa CliError && return e
     _has_supertype_named(typeof(e), :MacroModelError) && return e
+    cli = _domain_error_class(e)
+    cli === nothing || return cli
     e isa ArgumentError && return CliError("data/invalid",
         "$label: $(sprint(showerror, e))")
     return CliError("model/error", "$label failed"; hint=sprint(showerror, e))
@@ -4175,7 +4491,8 @@ function _estimate_poisson(; data::String, dep::String="", offset::String="",
     if irr
         output_result(_irr_table(model, conf_level); format=Symbol(format),
                       output=_per_var_output_path(output, "irr"),
-                      title="Incidence-Rate Ratios ($(Int(round(conf_level*100)))% CI)")
+                      title="Incidence-Rate Ratios ($(Int(round(conf_level*100)))% CI)",
+                      key="incidence_rate_ratios")
     end
     _status()
     output_kv(_count_fit_pairs(model); format=format, title="Fit Statistics")
@@ -4207,7 +4524,8 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
     if irr
         output_result(_irr_table(model, conf_level); format=Symbol(format),
                       output=_per_var_output_path(output, "irr"),
-                      title="Incidence-Rate Ratios ($(Int(round(conf_level*100)))% CI)")
+                      title="Incidence-Rate Ratios ($(Int(round(conf_level*100)))% CI)",
+                      key="incidence_rate_ratios")
     end
     _status()
     output_kv(_count_fit_pairs(model); format=format, title="Fit Statistics")
@@ -4457,20 +4775,20 @@ end
 """In-sample conditional variance table, matching `_make_predict_vol`'s output shape
 so `predict garch` and `predict igarch` render identically."""
 function _vol_variant_predict_output(cond_var, vname::String, title::String;
-                                     format::String, output::String)
+                                     format::String, output::String, key::String="")
     cv = Float64.(collect(cond_var))
     output_result(DataFrame(t=1:length(cv), variance=round.(cv; digits=6),
                             volatility=round.(sqrt.(abs.(cv)); digits=6));
-        format=Symbol(format), output=output, title="$title ($vname)")
+        format=Symbol(format), output=output, title="$title ($vname)", key=key)
     return cond_var
 end
 
 """Standardized-residual table, matching `_make_residuals_vol`'s output shape."""
 function _vol_variant_residuals_output(resid, vname::String, title::String;
-                                       format::String, output::String)
+                                       format::String, output::String, key::String="")
     r = Float64.(collect(resid))
     output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
-        format=Symbol(format), output=output, title="$title ($vname)")
+        format=Symbol(format), output=output, title="$title ($vname)", key=key)
     return resid
 end
 
@@ -4500,7 +4818,8 @@ function _forecast_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, hor
         throw(_garch_variant_error(e, "IGARCH forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    _vol_forecast_output(fc, vname, "IGARCH($p,$q)", horizons; format=format, output=output)
+    _vol_forecast_output(fc, vname, "IGARCH($p,$q)", horizons; format=format, output=output,
+                         key="igarch_volatility_forecast")
     return fc
 end
 
@@ -4510,7 +4829,8 @@ function _predict_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, mode
         (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
     _status("IGARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
-        "IGARCH($p,$q)" * " Conditional Variance"; format=format, output=output)
+        "IGARCH($p,$q)" * " Conditional Variance"; format=format, output=output,
+        key="igarch_conditional_variance")
 end
 
 function _residuals_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
@@ -4519,7 +4839,8 @@ function _residuals_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, mo
         (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
     _status("IGARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
-        "IGARCH($p,$q)" * " Standardized Residuals"; format=format, output=output)
+        "IGARCH($p,$q)" * " Standardized Residuals"; format=format, output=output,
+        key="igarch_standardized_residuals")
 end
 
 function _forecast_cgarch(; data::String, column::Int=1, horizons::Int=10,
@@ -4538,7 +4859,8 @@ function _forecast_cgarch(; data::String, column::Int=1, horizons::Int=10,
         throw(_garch_variant_error(e, "Component-GARCH forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    _vol_forecast_output(fc, vname, "Component-GARCH(1,1)", horizons; format=format, output=output)
+    _vol_forecast_output(fc, vname, "Component-GARCH(1,1)", horizons; format=format, output=output,
+                         key="cgarch_volatility_forecast")
     return fc
 end
 
@@ -4548,7 +4870,8 @@ function _predict_cgarch(; data::String, column::Int=1, model=nothing, output::S
         (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
     _status("Component-GARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
-        "Component-GARCH(1,1)" * " Conditional Variance"; format=format, output=output)
+        "Component-GARCH(1,1)" * " Conditional Variance"; format=format, output=output,
+        key="cgarch_conditional_variance")
 end
 
 function _residuals_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
@@ -4557,7 +4880,8 @@ function _residuals_cgarch(; data::String, column::Int=1, model=nothing, output:
         (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
     _status("Component-GARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
-        "Component-GARCH(1,1)" * " Standardized Residuals"; format=format, output=output)
+        "Component-GARCH(1,1)" * " Standardized Residuals"; format=format, output=output,
+        key="cgarch_standardized_residuals")
 end
 
 function _forecast_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
@@ -4576,7 +4900,8 @@ function _forecast_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix
         throw(_garch_variant_error(e, "APARCH forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    _vol_forecast_output(fc, vname, "APARCH($p,$q)", horizons; format=format, output=output)
+    _vol_forecast_output(fc, vname, "APARCH($p,$q)", horizons; format=format, output=output,
+                         key="aparch_volatility_forecast")
     return fc
 end
 
@@ -4586,7 +4911,8 @@ function _predict_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_
         (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
     _status("APARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
-        "APARCH($p,$q)" * " Conditional Variance"; format=format, output=output)
+        "APARCH($p,$q)" * " Conditional Variance"; format=format, output=output,
+        key="aparch_conditional_variance")
 end
 
 function _residuals_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
@@ -4595,7 +4921,8 @@ function _residuals_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fi
         (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
     _status("APARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
-        "APARCH($p,$q)" * " Standardized Residuals"; format=format, output=output)
+        "APARCH($p,$q)" * " Standardized Residuals"; format=format, output=output,
+        key="aparch_standardized_residuals")
 end
 
 function _forecast_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
@@ -4614,7 +4941,8 @@ function _forecast_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0
         throw(_garch_variant_error(e, "FIGARCH forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    _vol_forecast_output(fc, vname, "FIGARCH($p,d,$q)", horizons; format=format, output=output)
+    _vol_forecast_output(fc, vname, "FIGARCH($p,d,$q)", horizons; format=format, output=output,
+                         key="figarch_volatility_forecast")
     return fc
 end
 
@@ -4624,7 +4952,8 @@ function _predict_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0:
         (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
     _status("FIGARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
-        "FIGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output)
+        "FIGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output,
+        key="figarch_conditional_variance")
 end
 
 function _residuals_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
@@ -4633,7 +4962,8 @@ function _residuals_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d
         (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
     _status("FIGARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
-        "FIGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output)
+        "FIGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output,
+        key="figarch_standardized_residuals")
 end
 
 function _forecast_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
@@ -4652,7 +4982,8 @@ function _forecast_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d
         throw(_garch_variant_error(e, "FIEGARCH forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    _vol_forecast_output(fc, vname, "FIEGARCH($p,d,$q)", horizons; format=format, output=output)
+    _vol_forecast_output(fc, vname, "FIEGARCH($p,d,$q)", horizons; format=format, output=output,
+                         key="fiegarch_volatility_forecast")
     return fc
 end
 
@@ -4662,7 +4993,8 @@ function _predict_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0
         (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
     _status("FIEGARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
-        "FIEGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output)
+        "FIEGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output,
+        key="fiegarch_conditional_variance")
 end
 
 function _residuals_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
@@ -4671,7 +5003,8 @@ function _residuals_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, 
         (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
     _status("FIEGARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
-        "FIEGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output)
+        "FIEGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output,
+        key="fiegarch_standardized_residuals")
 end
 
 # garch-midas is the odd one out: forecast(m::GarchMidasModel, h) takes NO conf_level,
@@ -4724,7 +5057,7 @@ function _forecast_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
             short_run = round.(Float64.(collect(fc.short_run)); digits=6),
             volatility = round.(sqrt.(abs.(tot)); digits=6));
         format=Symbol(format), output=output,
-        title="GARCH-MIDAS Volatility Forecast ($vname)")
+        title="GARCH-MIDAS Volatility Forecast ($vname)", key="garch_midas_volatility_forecast")
     return fc
 end
 
@@ -4734,7 +5067,8 @@ function _predict_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::I
     m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
     _status("GARCH-MIDAS conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
-        "GARCH-MIDAS Conditional Variance"; format=format, output=output)
+        "GARCH-MIDAS Conditional Variance"; format=format, output=output,
+        key="garch_midas_conditional_variance")
 end
 
 function _residuals_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
@@ -4743,7 +5077,8 @@ function _residuals_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k:
     m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
     _status("GARCH-MIDAS standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
-        "GARCH-MIDAS Standardized Residuals"; format=format, output=output)
+        "GARCH-MIDAS Standardized Residuals"; format=format, output=output,
+        key="garch_midas_standardized_residuals")
 end
 
 function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
@@ -4758,8 +5093,10 @@ function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     end
     names = String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]]
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
-                  output=output, title="IGARCH($p,$q) Coefficients ($vname)")
-    output_kv(_garch_variant_diag(model); format=format, title="IGARCH($p,$q) Diagnostics")
+                  output=output, title="IGARCH($p,$q) Coefficients ($vname)",
+                  key="igarch_coefficients")
+    output_kv(_garch_variant_diag(model); format=format, title="IGARCH($p,$q) Diagnostics",
+              key="igarch_diagnostics")
     return model
 end
 
@@ -4775,11 +5112,12 @@ function _estimate_cgarch(; data::String, column::Int=1,
     end
     names = String["mu", "omega", "rho", "phi", "alpha", "beta"]
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
-                  output=output, title="Component-GARCH(1,1) Coefficients ($vname)")
+                  output=output, title="Component-GARCH(1,1) Coefficients ($vname)",
+                  key="cgarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "transitory_persistence" => round(Float64(model.alpha + model.beta); digits=6),
         "unconditional_variance" => round(Float64(unconditional_variance(model)); digits=6),
-    ]); format=format, title="Component-GARCH Diagnostics")
+    ]); format=format, title="Component-GARCH Diagnostics", key="cgarch_diagnostics")
     return model
 end
 
@@ -4799,11 +5137,12 @@ function _estimate_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     end
     names = String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]; "delta"]
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
-                  output=output, title="APARCH($p,$q) Coefficients ($vname)")
+                  output=output, title="APARCH($p,$q) Coefficients ($vname)",
+                  key="aparch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "delta" => round(Float64(model.delta); digits=6),
         "n_params" => model.n_params,
-    ]); format=format, title="APARCH Diagnostics")
+    ]); format=format, title="APARCH Diagnostics", key="aparch_diagnostics")
     return model
 end
 
@@ -4820,12 +5159,13 @@ function _estimate_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     end
     names = String["mu"; "omega"; ["phi$i" for i in 1:q]; ["beta$i" for i in 1:p]; "d"]
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
-                  output=output, title="FIGARCH($p,d,$q) Coefficients ($vname)")
+                  output=output, title="FIGARCH($p,d,$q) Coefficients ($vname)",
+                  key="figarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "d" => round(Float64(model.d); digits=6),
         "truncation" => model.truncation,
         "n_neg_lambda" => model.n_neg_lambda,
-    ]); format=format, title="FIGARCH Diagnostics")
+    ]); format=format, title="FIGARCH Diagnostics", key="figarch_diagnostics")
     return model
 end
 
@@ -4842,11 +5182,12 @@ function _estimate_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     end
     names = String["mu"; "omega"; "theta"; "gamma"; ["phi$i" for i in 1:q]; ["beta$i" for i in 1:p]; "d"]
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
-                  output=output, title="FIEGARCH($p,d,$q) Coefficients ($vname)")
+                  output=output, title="FIEGARCH($p,d,$q) Coefficients ($vname)",
+                  key="fiegarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "d" => round(Float64(model.d); digits=6),
         "truncation" => model.truncation,
-    ]); format=format, title="FIEGARCH Diagnostics")
+    ]); format=format, title="FIEGARCH Diagnostics", key="fiegarch_diagnostics")
     return model
 end
 
@@ -4874,12 +5215,13 @@ function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
     end
     names = String["mu", "alpha", "beta", "m", "theta", "w"]
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
-                  output=output, title="GARCH-MIDAS Coefficients ($vname)")
+                  output=output, title="GARCH-MIDAS Coefficients ($vname)",
+                  key="garch_midas_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "variance_ratio" => round(Float64(model.variance_ratio); digits=6),
         "K" => model.K, "m_freq" => model.m_freq, "n_blocks" => model.n_blocks,
         "rv" => String(model.rv), "span" => String(model.span),
-    ]); format=format, title="GARCH-MIDAS Diagnostics")
+    ]); format=format, title="GARCH-MIDAS Diagnostics", key="garch_midas_diagnostics")
     return model
 end
 
@@ -4903,15 +5245,19 @@ kv block. Follows the repo convention of routing `--output` to the headline tabl
 (same as the C064a / mlogit handlers) so a `-o file` export is not overwritten by the
 subsequent blocks."""
 function _mgarch_output(model, varnames::Vector{String}, label::String;
-                        format::String="table", output::String="")
+                        format::String="table", output::String="", key_prefix::String="")
     R = correlations(model)[:, :, end]   # constant matrix for CCC/BEKK; last DCC slice
     n = size(R, 1)
     names = length(varnames) >= n ? varnames[1:n] : String["series_$i" for i in 1:n]
+    # `label` carries the option-dependent variant (cDCC vs DCC, scalar vs diagonal BEKK),
+    # so it stays in the title while the envelope key comes from the leaf's fixed prefix.
     output_result(_mgarch_corr_df(R, names); format=Symbol(format), output=output,
-                  title="$label Conditional Correlation")
+                  title="$label Conditional Correlation",
+                  key="$(key_prefix)_conditional_correlation")
     if !isempty(coef(model))
         output_result(_garch_variant_coef_table(model, model.param_names);
-                      format=Symbol(format), title="$label Dynamics Parameters")
+                      format=Symbol(format), title="$label Dynamics Parameters",
+                      key="$(key_prefix)_dynamics_parameters")
     end
     pairs = Pair{String,Any}[
         "loglik"       => round(Float64(loglikelihood(model)); digits=4),
@@ -4928,7 +5274,7 @@ function _mgarch_output(model, varnames::Vector{String}, label::String;
     elseif model.kind === :bekk
         push!(pairs, "bekk_kind" => string(model.bekk_kind))
     end
-    output_kv(pairs; format=format, title="$label Diagnostics")
+    output_kv(pairs; format=format, title="$label Diagnostics", key="$(key_prefix)_diagnostics")
     return nothing
 end
 
@@ -4942,7 +5288,8 @@ function _estimate_ccc(; data::String, p::Int=1, q::Int=1,
     catch e
         throw(_garch_variant_error(e, "CCC-GARCH"))
     end
-    _mgarch_output(model, varnames, "CCC-GARCH"; format=format, output=output)
+    _mgarch_output(model, varnames, "CCC-GARCH"; format=format, output=output,
+                   key_prefix="ccc_garch")
     return model
 end
 
@@ -4959,7 +5306,8 @@ function _estimate_dcc(; data::String, p::Int=1, q::Int=1, correction::String="n
         throw(_garch_variant_error(e, "DCC-GARCH"))
     end
     label = correction == "aielli" ? "cDCC-GARCH" : "DCC-GARCH"
-    _mgarch_output(model, varnames, label; format=format, output=output)
+    _mgarch_output(model, varnames, label; format=format, output=output,
+                   key_prefix="dcc_garch")
     return model
 end
 
@@ -4975,7 +5323,8 @@ function _estimate_bekk(; data::String, kind::String="scalar",
     catch e
         throw(_garch_variant_error(e, "BEKK-GARCH"))
     end
-    _mgarch_output(model, varnames, "BEKK-$kind"; format=format, output=output)
+    _mgarch_output(model, varnames, "BEKK-$kind"; format=format, output=output,
+                   key_prefix="bekk")
     return model
 end
 
@@ -5369,7 +5718,7 @@ function _predict_statespace(; data::String="", column::Int=1, kind::String="loc
     state in ("filtered", "both") && (df[!, "filtered"] = round.(filt; digits=6))
     state in ("smoothed", "both") && (df[!, "smoothed"] = round.(smoo; digits=6))
     output_result(df; format=Symbol(format), output=output,
-                  title="State-Space State Paths ($kind, $vname)")
+                  title="State-Space State Paths ($kind, $vname)", key="state_space_state_paths")
     return ssm
 end
 
@@ -5389,7 +5738,8 @@ function _residuals_statespace(; data::String="", column::Int=1, kind::String="l
     output_result(DataFrame("period" => periods, "series" => series,
                             "residual" => round.(vals; digits=6));
         format=Symbol(format), output=output,
-        title="State-Space $(standardized ? "Standardized " : "")Innovations ($kind, $vname)")
+        title="State-Space $(standardized ? "Standardized " : "")Innovations ($kind, $vname)",
+        key="state_space_innovations")
     return M
 end
 
@@ -5477,7 +5827,8 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
         throw(_garch_variant_error(e, "State-space estimation"))
     end
     output_result(_statespace_param_table(ssm); format=Symbol(format), output=output,
-                  title="State-Space Hyper-Parameters ($model, $vname)")
+                  title="State-Space Hyper-Parameters ($model, $vname)",
+                  key="state_space_hyper_parameters")
     output_kv(Pair{String,Any}[
         "model"     => model,
         # loglik/theta can be non-finite if the optimizer stalls — string-render (legacy-JSON
@@ -5544,7 +5895,7 @@ function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
         throw(_garch_variant_error(e, "Kernel density"))
     end
     output_result(_kde_table(kd); format=Symbol(format), output=output,
-                  title="Kernel Density Estimate ($vname)")
+                  title="Kernel Density Estimate ($vname)", key="kernel_density_estimate")
     output_kv(Pair{String,Any}[
         "kernel"    => string(kd.kernel),
         "bw_method" => string(kd.bw_method),
@@ -5578,7 +5929,7 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
         throw(_garch_variant_error(e, "Kernel regression"))
     end
     output_result(_kernel_reg_table(kr); format=Symbol(format), output=output,
-                  title="Kernel Regression Fit ($ynm ~ $xnm)")
+                  title="Kernel Regression Fit ($ynm ~ $xnm)", key="kernel_regression_fit")
     output_kv(Pair{String,Any}[
         "method"    => string(kr.method),
         "degree"    => kr.degree,
@@ -5610,7 +5961,7 @@ function _estimate_lowess(; data::String, dep::String="", indep::String="",
         throw(_garch_variant_error(e, "LOWESS"))
     end
     output_result(_lowess_table(lf); format=Symbol(format), output=output,
-                  title="LOWESS Fit ($ynm ~ $xnm)")
+                  title="LOWESS Fit ($ynm ~ $xnm)", key="lowess_fit")
     output_kv(Pair{String,Any}[
         "frac" => round(Float64(lf.span); digits=6),
         "iter" => lf.iter,
@@ -5705,7 +6056,8 @@ function _estimate_cointreg(; data::String, dep::String="", method::String="fmol
         throw(_garch_variant_error(e, "cointreg"))
     end
     output_result(_cointreg_coef_table(model); format=Symbol(format), output=output,
-                  title="Cointegrating Regression Coefficients ($dep_name)")
+                  title="Cointegrating Regression Coefficients ($dep_name)",
+                  key="cointegrating_regression_coefficients")
     pairs = Pair{String,Any}[
         "method"    => String(model.method),
         "trend"     => String(model.trend),
@@ -5745,8 +6097,11 @@ function _estimate_xtcointreg(; data::String, id_col::String="", time_col::Strin
         throw(_garch_variant_error(e, "xtcointreg"))
     end
     title = model.pooling === :group ? "Group-mean" : "Pooled"
+    # `--pooling` selects the estimator, not a different table: same columns either way, so
+    # it stays in the title and the key is fixed.
     output_result(_panel_cointreg_coef_table(model); format=Symbol(format), output=output,
-                  title="Panel Cointegrating Regression $title Coefficients ($depc)")
+                  title="Panel Cointegrating Regression $title Coefficients ($depc)",
+                  key="panel_cointegrating_regression_coefficients")
     tspan = model.balanced ? string(first(model.T_i)) :
             "$(minimum(model.T_i))-$(maximum(model.T_i))"
     output_kv(Pair{String,Any}[
@@ -5867,11 +6222,12 @@ function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::Str
     m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
                   ic=ic, case=case, trend=trend, label="ARDL")
     output_result(_ardl_coef_table(m); format=Symbol(format), output=output,
-                  title="ARDL Coefficients (levels form) ($dep_name)")
+                  title="ARDL Coefficients (levels form) ($dep_name)", key="ardl_coefficients")
     lr = long_run(m)
     output_result(_ardl_longrun_table(lr); format=Symbol(format),
                   output=_per_var_output_path(output, "longrun"),
-                  title="ARDL Long-Run Coefficients ($dep_name)")
+                  title="ARDL Long-Run Coefficients ($dep_name)",
+                  key="ardl_long_run_coefficients")
     ecm = ecm_form(m)   # exported since MEMs 0.8.0
     output_kv(Pair{String,Any}[
         "p"             => m.p,
@@ -5904,11 +6260,13 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
                    max_p=max_p, max_q=max_q, ic=ic, case=case, label="NARDL")
     a = m.ardl
     output_result(_ardl_coef_table(a); format=Symbol(format), output=output,
-                  title="NARDL Coefficients (levels form, split regressors) ($dep_name)")
+                  title="NARDL Coefficients (levels form, split regressors) ($dep_name)",
+                  key="nardl_coefficients")
     lr = long_run(m)   # ARDLLongRun on the enlarged (θ⁺/θ⁻) regressor set
     output_result(_ardl_longrun_table(lr); format=Symbol(format),
                   output=_per_var_output_path(output, "longrun"),
-                  title="NARDL Asymmetric Long-Run Coefficients (θ⁺ / θ⁻) ($dep_name)")
+                  title="NARDL Asymmetric Long-Run Coefficients (θ⁺ / θ⁻) ($dep_name)",
+                  key="nardl_asymmetric_long_run_coefficients")
     # Cached enlarged-k bounds decision (NO p-value — non-standard PSS test).
     b = m.bounds
     li = findfirst(x -> isapprox(x, b.level), b.levels)
@@ -5928,7 +6286,8 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
         "f_upper"      => li === nothing ? "n/a" : _ardl_kv(b.f_upper[li]; digits=4),
         "f_decision"   => String(b.f_decision),
         "t_decision"   => String(b.t_decision),
-    ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))")
+    ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))",
+       key="nardl_diagnostics")
     return m
 end
 
@@ -5992,10 +6351,12 @@ function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
         throw(_garch_variant_error(e, "PMG"))
     end
     output_result(_pmg_longrun_table(m); format=Symbol(format), output=output,
-                  title="Panel ARDL Long-Run Coefficients (theta) ($depc)")
+                  title="Panel ARDL Long-Run Coefficients (theta) ($depc)",
+                  key="panel_ardl_long_run_coefficients")
     output_result(_pmg_shortrun_table(m); format=Symbol(format),
                   output=_per_var_output_path(output, "shortrun"),
-                  title="Panel ARDL Short-Run + EC Coefficients ($depc)")
+                  title="Panel ARDL Short-Run + EC Coefficients ($depc)",
+                  key="panel_ardl_short_run_ec_coefficients")
     tspan = length(unique(m.T_i)) == 1 ? string(first(m.T_i)) :
             "$(minimum(m.T_i))-$(maximum(m.T_i))"
     output_kv(Pair{String,Any}[
@@ -6128,7 +6489,7 @@ function _forecast_midas(; data::String, column::Int=1, hf_data::String="", hf_c
             upper = round.(Float64.(collect(fc.ci_upper)); digits=6),
             se = round.(Float64.(collect(fc.se)); digits=6));
         format=Symbol(format), output=output,
-        title="MIDAS Direct Forecast ($ynm)")
+        title="MIDAS Direct Forecast ($ynm)", key="midas_forecast")
     output_kv(Pair{String,Any}[
         "horizon (h)" => mdl.h,
         "K (HF lags)" => mdl.K,
@@ -6173,10 +6534,10 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
         throw(_midas_error(e, "MIDAS"))
     end
     output_result(_midas_weight_table(model); format=Symbol(format), output=output,
-                  title="MIDAS Weight Curve ($xnm, most-recent-first)")
+                  title="MIDAS Weight Curve ($xnm, most-recent-first)", key="midas_weight_curve")
     output_result(_midas_coef_table(model); format=Symbol(format),
                   output=_per_var_output_path(output, "coef"),
-                  title="MIDAS Coefficients ($ynm)")
+                  title="MIDAS Coefficients ($ynm)", key="midas_coefficients")
     output_kv(Pair{String,Any}[
         "weights_kind" => String(model.weights_kind),
         "m"            => model.m,
@@ -6275,7 +6636,8 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
         _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 ($threshold_col>γ)"),
     )
     output_result(coef; format=Symbol(format), output=output,
-                  title="Threshold Regression Coefficients ($depc)")
+                  title="Threshold Regression Coefficients ($depc)",
+                  key="threshold_regression_coefficients")
     diag = Pair{String,Any}[
         "threshold_var"  => threshold_col,
         "gamma"          => round(Float64(model.gamma); digits=6),
@@ -6334,7 +6696,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
         _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 (q>γ)"),
     )
     output_result(coef; format=Symbol(format), output=output,
-                  title="SETAR(2;$p,$p) Coefficients ($vname)")
+                  title="SETAR(2;$p,$p) Coefficients ($vname)", key="setar_coefficients")
     diag = Pair{String,Any}[
         "gamma"          => round(Float64(model.gamma); digits=6),
         "gamma_ci_lower" => round(Float64(model.gamma_ci[1]); digits=6),
@@ -6361,7 +6723,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
             "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
         ])
     end
-    output_kv(diag; format=format, title="SETAR(2;$p,$p) Diagnostics")
+    output_kv(diag; format=format, title="SETAR(2;$p,$p) Diagnostics", key="setar_diagnostics")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
@@ -6421,12 +6783,12 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
         _threshold_coef_table(model.phi2, model.se_phi2, model.znames, "regime2 (G→1)"),
     )
     output_result(coef; format=Symbol(format), output=output,
-                  title="STAR($p) Regime Coefficients ($vname)")
+                  title="STAR($p) Regime Coefficients ($vname)", key="star_regime_coefficients")
     # Second table to a DISTINCT --output path (mirrors ardl/pmg): a shared file path would let
     # the transition table overwrite the regime-coefficient file. No-op for stdout/envelope.
     output_result(_star_transition_table(model); format=Symbol(format),
                   output=_per_var_output_path(output, "transition"),
-                  title="STAR($p) Transition Parameters")
+                  title="STAR($p) Transition Parameters", key="star_transition_parameters")
     diag = Pair{String,Any}[
         "trans_type"  => string(model.trans_type),
         "sname"       => model.sname,
@@ -6452,7 +6814,7 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
             "sel_H02" => round(Float64(sp[3]); digits=4),
         ])
     end
-    output_kv(diag; format=format, title="STAR($p) Diagnostics")
+    output_kv(diag; format=format, title="STAR($p) Diagnostics", key="star_diagnostics")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
@@ -6516,12 +6878,16 @@ Branches on `model.model_type`:
 - `:regression` — the full per-regime switching coefficients over `model.xnames` (from
   `model.coefs[:,k]` / `model.se_coefs[:,k]`).
 
-Each `output_result`/`output_kv` uses a DISTINCT title → distinct envelope slug; the 2nd/3rd
-tables route `--output` to a distinct `_per_var_output_path` so a `-o file` export is not
-overwritten by the subsequent table (the C065b multi-table lesson; no-op for stdout/envelope)."""
+W3/#138: the envelope keys come from `model_type`, not from `label` — the MS-AR label embeds
+the AR order, which would put `p` in the address. Deriving the prefix here (rather than taking
+it from the caller) keeps `estimate ms-ar` and `estimate ms` from drifting apart.
+The 2nd/3rd tables route `--output` to a distinct `_per_var_output_path` so a `-o file` export
+is not overwritten by the subsequent table (the C065b multi-table lesson; no-op for
+stdout/envelope)."""
 function _ms_render(model, format::String, output::String)
     K = model.k_regimes
     label = model.model_type == :ms_ar ? "MS-AR($(model.p))" : "MS Regression"
+    kp = model.model_type == :ms_ar ? "ms_ar" : "ms_regression"
     yname = String(model.yname)
     blocks = DataFrame[]
     if model.model_type == :ms_ar
@@ -6544,19 +6910,20 @@ function _ms_render(model, format::String, output::String)
         end
     end
     output_result(vcat(blocks...); format=Symbol(format), output=output,
-                  title="$label Regime Coefficients ($yname)")
+                  title="$label Regime Coefficients ($yname)",
+                  key="$(kp)_regime_coefficients")
     vardf = DataFrame(regime=String["regime$k" for k in 1:K],
                       sigma2=round.(Float64.(model.sigma2); digits=6),
                       std_error=round.(Float64.(model.se_sigma2); digits=6))
     output_result(vardf; format=Symbol(format),
                   output=_per_var_output_path(output, "variance"),
-                  title="$label Regime Variances")
+                  title="$label Regime Variances", key="$(kp)_regime_variances")
     output_result(_ms_transition_df(model.P); format=Symbol(format),
                   output=_per_var_output_path(output, "transition"),
-                  title="$label Transition Matrix")
+                  title="$label Transition Matrix", key="$(kp)_transition_matrix")
     output_result(_ms_prob_table(model); format=Symbol(format),
                   output=_per_var_output_path(output, "probabilities"),
-                  title="$label Regime Probabilities")
+                  title="$label Regime Probabilities", key="$(kp)_regime_probabilities")
     diag = Pair{String,Any}[
         "loglik"   => round(Float64(model.loglik); digits=4),
         "n_params" => model.n_params,
@@ -6575,7 +6942,7 @@ function _ms_render(model, format::String, output::String)
         "converged"     => model.converged,
         "iterations"    => model.iterations,
     ])
-    output_kv(diag; format=format, title="$label Diagnostics")
+    output_kv(diag; format=format, title="$label Diagnostics", key="$(kp)_diagnostics")
     return model
 end
 
@@ -6684,12 +7051,12 @@ end
 `period` is the EFFECTIVE-sample index (1..n_eff): SETAR/STAR/MS-AR all drop the first `p`
 (or `max(p,d)`) observations to build their lag matrix, so residual `t` is not calendar `t`."""
 function _nonlinear_resid_output(resid, label::String, vname::String,
-                                 format::String, output::String)
+                                 format::String, output::String; key::String="")
     r = Float64.(collect(resid))
     output_result(DataFrame("period" => collect(1:length(r)),
                             "residual" => round.(r; digits=6));
         format=Symbol(format), output=output,
-        title="$label Residuals ($vname)")
+        title="$label Residuals ($vname)", key=key)
     return r
 end
 
@@ -6714,7 +7081,8 @@ function _residuals_setar(; data::String="", column::Int=1, p::Int=1, d::String=
         trim::Float64=0.15, output::String="", format::String="table", model=nothing)
     m, vname = model === nothing ? _setar_refit(data, column, p, d, trim) : (model, "model")
     _status("SETAR(2;$p,$p) residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
-    return _nonlinear_resid_output(residuals(m), "SETAR(2;$p,$p)", vname, format, output)
+    return _nonlinear_resid_output(residuals(m), "SETAR(2;$p,$p)", vname, format, output;
+                                   key="setar_residuals")
 end
 
 """Refit a STAR for `residuals star`, mirroring `_estimate_star` exactly (including the
@@ -6752,7 +7120,8 @@ function _residuals_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
     m, vname = model === nothing ?
         _star_refit(data, column, p, d, type, n_gamma, n_c, transition_col) : (model, "model")
     _status("STAR($p) residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
-    return _nonlinear_resid_output(residuals(m), "STAR($p)", vname, format, output)
+    return _nonlinear_resid_output(residuals(m), "STAR($p)", vname, format, output;
+                                   key="star_residuals")
 end
 
 """Refit an MS-AR for `residuals ms-ar`, mirroring `_estimate_ms_ar`."""
@@ -6779,7 +7148,8 @@ function _residuals_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes:
     m, vname = model === nothing ?
         _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
     _status("MS-AR($p) [$k_regimes regimes] residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
-    return _nonlinear_resid_output(residuals(m), "MS-AR($p)", vname, format, output)
+    return _nonlinear_resid_output(residuals(m), "MS-AR($p)", vname, format, output;
+                                   key="ms_ar_residuals")
 end
 
 """Refit an MS regression for `residuals ms`, reusing `_ms_load_data` so the intercept-only
@@ -6814,7 +7184,8 @@ function _residuals_ms(; data::String="", dep::String="", k_regimes::Int=2,
         first(_ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)) : model
     vname = model === nothing ? String(m.yname) : "model"
     _status("MS regression [$k_regimes regimes] residuals: obs=$(length(m.residuals))"); _status()
-    return _nonlinear_resid_output(residuals(m), "MS Regression", vname, format, output)
+    return _nonlinear_resid_output(residuals(m), "MS Regression", vname, format, output;
+                                   key="ms_regression_residuals")
 end
 
 # ── W3/#101: MS predict + forecast (un-gated by MEMs#510) ────────────────────
@@ -6826,15 +7197,18 @@ end
 
 """Shared renderer for `predict ms|ms-ar` — regime-weighted fitted values."""
 function _ms_predict_output(m, probs::String, label::String, vname::String,
-                            format::String, output::String)
+                            format::String, output::String; key_prefix::String="")
     fitted = try
         predict(m; probs=Symbol(probs))
     catch e
         throw(_nonlinear_error(e, "$label predict"))
     end
     df = DataFrame(t=1:length(fitted), fitted=round.(Float64.(fitted); digits=6))
+    # `--probs` selects which weighting produced the same column set, so it stays in the
+    # title and out of the key.
     return output_result(df; format=Symbol(format), output=output,
-                         title="$label Fitted Values ($probs) for $vname")
+                         title="$label Fitted Values ($probs) for $vname",
+                         key="$(key_prefix)_fitted_values")
 end
 
 """Shared renderer for `forecast ms|ms-ar`.
@@ -6845,9 +7219,11 @@ first one. NO `_maybe_plot`: MEMs 0.7.2 ships no `plot_result(::MSForecast)` rec
 same gap that keeps the flags off `forecast setar|star` — so the leaves declare no plot flags.
 """
 function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
-                             ci_level::Float64, format::String, output::String)
+                             ci_level::Float64, format::String, output::String;
+                             key_prefix::String="")
     output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)")
+                  title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                  key="$(key_prefix)_forecast")
     K = size(fc.regime_prob, 2)
     rp = DataFrame(horizon=1:size(fc.regime_prob, 1))
     for k in 1:K
@@ -6855,7 +7231,8 @@ function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
     end
     return output_result(rp; format=Symbol(format),
                          output=_per_var_output_path(output, "regime-probabilities"),
-                         title="$label Predicted Regime Probabilities")
+                         title="$label Predicted Regime Probabilities",
+                         key="$(key_prefix)_predicted_regime_probabilities")
 end
 
 function _predict_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
@@ -6864,7 +7241,8 @@ function _predict_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::I
     m, vname = model === nothing ?
         _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
     _status("MS-AR($p) [$k_regimes regimes] fitted ($probs): variable=$vname"); _status()
-    return _ms_predict_output(m, probs, "MS-AR($p)", vname, format, output)
+    return _ms_predict_output(m, probs, "MS-AR($p)", vname, format, output;
+                              key_prefix="ms_ar")
 end
 
 function _predict_ms(; data::String="", dep::String="", k_regimes::Int=2,
@@ -6874,7 +7252,8 @@ function _predict_ms(; data::String="", dep::String="", k_regimes::Int=2,
         first(_ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)) : model
     vname = model === nothing ? String(m.yname) : "model"
     _status("MS regression [$k_regimes regimes] fitted ($probs)"); _status()
-    return _ms_predict_output(m, probs, "MS Regression", vname, format, output)
+    return _ms_predict_output(m, probs, "MS Regression", vname, format, output;
+                              key_prefix="ms_regression")
 end
 
 function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
@@ -6894,7 +7273,8 @@ function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::
     catch e
         throw(_nonlinear_error(e, "MS-AR forecast"))
     end
-    return _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, ci_level, format, output)
+    return _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, ci_level, format, output;
+                               key_prefix="ms_ar")
 end
 
 function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
@@ -6943,7 +7323,7 @@ function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
         throw(_nonlinear_error(e, "MS regression forecast"))
     end
     return _ms_forecast_output(fc, "MS Regression", vname, size(X_new, 1), ci_level,
-                               format, output)
+                               format, output; key_prefix="ms_regression")
 end
 
 """Load the future-regressor matrix for `forecast ms`.
@@ -7107,7 +7487,8 @@ function _irf_tvpvar(; data::String, date::Int=0, horizons::Int=20, lags::Int=2,
     df = long_table(birf)
     df = df[df.shock .== shock_name, :]
     output_result(df; format=Symbol(format), output=output,
-                  title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)")
+                  title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)",
+                  key="tvpvar_irf")
     return birf
 end
 
@@ -7301,7 +7682,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
     output_result(DataFrame(tau=rows_tau, term=rows_term, estimate=est, std_error=ses,
                             stat=stat, p_value=pval, ci_lower=lo, ci_upper=hi);
                   format=Symbol(format), output=output,
-                  title="Quantile Regression Coefficients ($(se_l) SE)")
+                  title="Quantile Regression Coefficients ($(se_l) SE)",
+                  key="quantile_regression_coefficients")
 
     # Pseudo-R² is per-quantile and NOT comparable with an OLS R²: it compares the check-
     # function objective against an intercept-only quantile fit, so it measures fit at that
@@ -7408,7 +7790,8 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
         ci_upper = round.([Float64(res.ci_conventional[2]), NaN,
                            Float64(res.ci_robust[2])]; digits=6),
     ); format=Symbol(format), output=output,
-       title="RDD Treatment Effect ($(res.design), $(round(Int, 100*res.level))% CI)")
+       title="RDD Treatment Effect ($(res.design), $(round(Int, 100*res.level))% CI)",
+       key="rdd_treatment_effect")
 
     settings = Pair{String,Any}[
         "design"          => String(res.design),

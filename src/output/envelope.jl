@@ -12,14 +12,16 @@ Base.@kwdef mutable struct Envelope
     status::Symbol = :ok
     meta::Dict{String,Any} = Dict{String,Any}()
     tables::Vector{Pair{Symbol,DataFrame}} = Pair{Symbol,DataFrame}[]  # ordered; first = primary
-    scalars::Dict{String,Any} = Dict{String,Any}()
     warnings::Vector{Dict{String,String}} = Dict{String,String}[]
     artifacts::Vector{Dict{String,String}} = Dict{String,String}[]
     error::Union{Nothing,Dict{String,Any}} = nothing
 end
+# `data` values are tables ONLY (envelope-v1 contract, W1/#136). The old
+# add_scalar!/scalars sibling path never gained a caller (output_kv renders a
+# metric/value table instead) and was deleted so emission cannot drift under
+# the strict schema.
 
 add_table!(env::Envelope, name::Symbol, df::DataFrame) = (push!(env.tables, name => df); env)
-add_scalar!(env::Envelope, key::String, value) = (env.scalars[key] = value; env)
 add_warning!(env::Envelope, code::String, msg::String) =
     (push!(env.warnings, Dict("code" => code, "message" => msg)); env)
 
@@ -56,9 +58,21 @@ add_artifact!(env::Envelope, kind::String, path::String) =
 
 function set_error!(env::Envelope, code::String, msg::String; hint::String="")
     env.status = :error
-    env.error = Dict{String,Any}("code" => code, "message" => msg, "hint" => hint)
+    # exit_code is derived from the code prefix by the SAME function that maps
+    # the process exit (W2/#137) — envelope and exit status cannot disagree.
+    # An empty hint is omitted, not serialized as "".
+    err = Dict{String,Any}("code" => code, "message" => msg,
+                           "exit_code" => exit_class(code))
+    isempty(hint) || (err["hint"] = hint)
+    env.error = err
     env
 end
+
+# One-shot latch: has THIS invocation already rendered an envelope to stdout?
+# Set by dispatch_leaf at both render sites, reset by run_cli at entry; the
+# run_cli usage-error net (W2/#137) checks it so an error can never produce two
+# envelopes (dispatch_leaf renders-then-rethrows on handler errors).
+const _ENVELOPE_EMITTED = Ref{Bool}(false)
 
 # JSON-safe value mapping (F20): non-finite floats → strings, never silent null
 _json_safe(x) = x

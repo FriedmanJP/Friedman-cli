@@ -138,14 +138,22 @@ function output_model_criteria(model; format::String="table", output::String="",
             push!(pairs, "Log-likelihood" => loglikelihood(model))
         catch; end
     end
-    output_kv(pairs; format=format, title=title)
+    # W3/#138: one stable key across all callers — title variants ("… (posterior
+    # mean)") stay human-facing only.
+    output_kv(pairs; format=format, title=title, key="information_criteria")
 end
 
-"""Output per-variable FEVD tables."""
+"""Output per-variable FEVD tables.
+
+W3/#138: `key_prefix` is the leaf's registry-declared family prefix; each
+variable's table is addressed `<key_prefix>_<varslug>`. Empty prefix falls back
+to the title slug (pre-W3 behavior; check_table_keys.jl flags any such leaf).
+"""
 function _output_fevd_tables(proportions::AbstractArray, varnames::Vector{String},
                               horizons::Int; id::String="cholesky",
                               title_prefix::String="FEVD",
-                              format::String="table", output::String="")
+                              format::String="table", output::String="",
+                              key_prefix::String="")
     n = length(varnames)
     for vi in 1:n
         fevd_df = DataFrame()
@@ -156,17 +164,19 @@ function _output_fevd_tables(proportions::AbstractArray, varnames::Vector{String
         vname = _var_name(varnames, vi)
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
-                      title="$title_prefix for $vname ($id identification)")
+                      title="$title_prefix for $vname ($id identification)",
+                      key=isempty(key_prefix) ? "" : _table_key(key_prefix, vname))
         _status()
     end
 end
 
-"""Output per-variable HD tables."""
+"""Output per-variable HD tables (W3/#138: family keys `<key_prefix>_<varslug>`)."""
 function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
                             T_eff::Int; id::String="cholesky",
                             title_prefix::String="Historical Decomposition",
                             format::String="table", output::String="",
-                            actual=nothing, initial=nothing)
+                            actual=nothing, initial=nothing,
+                            key_prefix::String="")
     n = length(varnames)
     for vi in 1:n
         hd_df = DataFrame()
@@ -183,7 +193,8 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
         vname = _var_name(varnames, vi)
         output_result(hd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
-                      title="$title_prefix: $vname ($id identification)")
+                      title="$title_prefix: $vname ($id identification)",
+                      key=isempty(key_prefix) ? "" : _table_key(key_prefix, vname))
         _status()
     end
 end
@@ -274,7 +285,8 @@ end
 
 """Shared volatility model estimation output: coefficients + persistence."""
 function _vol_estimate_output(model, vname::String, param_names::Vector{String},
-                               model_label::String; format::String="table", output::String="")
+                               model_label::String; format::String="table", output::String="",
+                               key::String="")
     c = coef(model)
     names = param_names[1:length(c)]
     coef_df = try
@@ -290,7 +302,7 @@ function _vol_estimate_output(model, vname::String, param_names::Vector{String},
         DataFrame(parameter=names, estimate=round.(c; digits=6))
     end
     output_result(coef_df; format=Symbol(format), output=output,
-                  title="$model_label Coefficients ($vname)")
+                  title="$model_label Coefficients ($vname)", key=key)
     _status()
     p_val = persistence(model)
     _status("Persistence: $(round(p_val; digits=4))")
@@ -298,14 +310,15 @@ end
 
 """Shared volatility forecast output: horizon/variance/volatility table."""
 function _vol_forecast_output(fc, vname::String, model_label::String,
-                               horizons::Int; format::String="table", output::String="")
+                               horizons::Int; format::String="table", output::String="",
+                               key::String="")
     fc_df = DataFrame(
         horizon=1:horizons,
         variance=round.(fc.forecast; digits=6),
         volatility=round.(sqrt.(fc.forecast); digits=6)
     )
     output_result(fc_df; format=Symbol(format), output=output,
-                  title="$model_label Volatility Forecast ($vname, h=$horizons)")
+                  title="$model_label Volatility Forecast ($vname, h=$horizons)", key=key)
 end
 
 # ── Volatility model table (F10: 5 rows × 4 verbs = 20 leaves) ──
@@ -436,7 +449,8 @@ function _make_estimate_vol(vol)
             throw(_domain_or_data_error(e, "$label estimation"))
         end
         _maybe_plot(model; plot=plot, plot_save=plot_save)
-        _vol_estimate_output(model, vname, vol.param_names(p, q), label; format=format, output=output)
+        _vol_estimate_output(model, vname, vol.param_names(p, q), label; format=format, output=output,
+                             key="$(vol.name)_coefficients")
         # W11/#113: the shape parameter (t degrees of freedom / GED shape) is estimated
         # JOINTLY but lives in `model.shape`, outside `coef(model)` — so it never reached
         # the coefficient table. Without this the user selects a fat-tailed likelihood and
@@ -448,7 +462,8 @@ function _make_estimate_vol(vol)
                                     distribution=[String(dsym)]);
                           format=Symbol(format),
                           output=_per_var_output_path(output, "shape"),
-                          title="Conditional Distribution ($(dsym === :student ? "Student-t degrees of freedom" : "GED shape"))")
+                          title="Conditional Distribution ($(dsym === :student ? "Student-t degrees of freedom" : "GED shape"))",
+                          key="conditional_distribution")
         end
         _vol_post_status(model, vol.post_est)
         return model
@@ -472,7 +487,8 @@ function _make_forecast_vol(vol)
         _status()
         fc = forecast(m, horizons)
         _maybe_plot(fc; plot=plot, plot_save=plot_save)
-        _vol_forecast_output(fc, vname, label, horizons; format=format, output=output)
+        _vol_forecast_output(fc, vname, label, horizons; format=format, output=output,
+                             key="$(vol.name)_volatility_forecast")
         if vol.post_fc !== :none
             _status()
             _vol_post_status(m, vol.post_fc)
@@ -495,7 +511,8 @@ function _make_predict_vol(vol)
         pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
                             volatility=round.(sqrt.(cond_var); digits=6))
         output_result(pred_df; format=Symbol(format), output=output,
-                      title="$(vol.predict_title(p, q)) ($vname)")
+                      title="$(vol.predict_title(p, q)) ($vname)",
+                      key="$(vol.name)_conditional_variance")
         return cond_var
     end
 end
@@ -513,7 +530,8 @@ function _make_residuals_vol(vol)
         _status()
         res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
         output_result(res_df; format=Symbol(format), output=output,
-                      title="$(vol.resid_title(p, q)) ($vname)")
+                      title="$(vol.resid_title(p, q)) ($vname)",
+                      key="$(vol.name)_standardized_residuals")
         return resid
     end
 end

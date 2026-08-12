@@ -1,0 +1,1 @@
+{"meta":{"julia":"GOLDEN","mems_version":"GOLDEN","cli_version":"GOLDEN","seed":null},"error":{"message":"file not found: /nope.csv","hint":"check the path","code":"data/file-not-found","exit_code":3},"status":"error","command":"filter hp","data":{},"warnings":[],"schema_version":1,"artifacts":[]}

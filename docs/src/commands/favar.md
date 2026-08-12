@@ -205,6 +205,11 @@ friedman estimate sdfm macro.csv --factors=3 --id=sign --config=restrictions.tom
 friedman estimate sdfm macro.csv --factors=3 --bandwidth=10 --kernel=parzen
 ```
 
+**Output** (since v0.10.0, #147): an estimation-record table
+(`sdfm_estimation_summary` — panel dimensions, factor counts, identification,
+factor-VAR lags, shock names, average common variance share). The structural
+arrays live on `irf sdfm` / `fevd sdfm`.
+
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--factors` | `-q` | Int | auto | Number of dynamic factors |

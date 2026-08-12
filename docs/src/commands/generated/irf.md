@@ -35,7 +35,7 @@ Compute Bayesian impulse response functions with credible intervals
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf_bvar` (Compute Bayesian impulse response functions with credible intervals)
+**Output tables:** `bayesian_irf` (Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper)
 
 ---
 
@@ -68,7 +68,7 @@ FAVAR impulse response functions
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf_favar` (FAVAR impulse response functions)
+**Output tables:** `favar_irf` (FAVAR responses to every shock in one tidy table (panel-wide under --panel-irf): horizon | variable | shock | value | lower | upper)
 
 ---
 
@@ -106,7 +106,7 @@ Compute structural LP impulse response functions
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf_lp` (Compute structural LP impulse response functions)
+**Output tables:** `lp_irf` (Local-projection responses to every selected shock in one tidy table: horizon | variable | shock | value | lower | upper)
 
 ---
 
@@ -136,7 +136,7 @@ Compute Panel VAR impulse response functions (OIRF/GIRF)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `irf_pvar` (Compute Panel VAR impulse response functions (OIRF/GIRF))
+**Output tables:** `panel_var_oirf_*` (Orthogonalized responses to one shock (--irf-type oirf): horizon | one column per variable, with bootstrap bands); `panel_var_girf_*` (Generalized responses to one shock (--irf-type girf): horizon | one column per variable, with bootstrap bands)
 
 ---
 
@@ -167,7 +167,7 @@ Structural DFM impulse response functions (panel-wide)
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf_sdfm` (Structural DFM impulse response functions (panel-wide))
+**Output tables:** `sdfm_irf` (Panel-wide structural DFM responses to every shock: horizon | variable | shock | value | lower | upper)
 
 ---
 
@@ -203,7 +203,7 @@ Date-specific IRF from a TVP-VAR-SV
 | `--no-sv` | — | Hold volatilities constant |
 | `--no-stationary-only` | — | Include explosive draws instead of discarding them |
 
-**Output tables:** `irf` (Date-specific Bayesian IRF)
+**Output tables:** `tvpvar_irf` (Date-t responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper)
 
 ---
 
@@ -244,7 +244,7 @@ Compute frequentist impulse response functions
 | `--bias-correct` | — | Kilian (1998) bias-corrected bootstrap bands |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf_var` (Compute frequentist impulse response functions)
+**Output tables:** `irf` (Responses to the selected shock: horizon | variable | shock | value | lower | upper (wide horizon-by-variable under --id arias|uhlig)); `irf_identified_set` (Median and bounds over the sign-identified set (--identified-set with --id sign)); `arias_importance_sampling_diagnostics` (Acceptance rate, draws, ESS and ESS fraction of the Arias importance sampler (--id arias))
 
 ---
 
@@ -279,7 +279,7 @@ Compute impulse response functions via VECM → VAR representation
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf_vecm` (Compute impulse response functions via VECM → VAR representation)
+**Output tables:** `vecm_irf` (Responses of the VECM's VAR representation to the selected shock: horizon | variable | shock | value | lower | upper)
 
 ---
 

@@ -78,6 +78,19 @@ struct SerializationError <: MacroModelError
 end
 Base.showerror(io::IO, e::MacroModelError) = print(io, nameof(typeof(e)), ": ", e.msg)
 
+# W4/#139 (#81): the two direct-Exception domain types OUTSIDE the MacroModelError
+# hierarchy on real MEMs 0.8.0 (dsge/bayes_types.jl, dsge/types.jl). Fields match
+# real exactly (msg::String only); showerror mirrors real's format.
+struct StochasticSingularityError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::StochasticSingularityError) =
+    print(io, "StochasticSingularityError: ", e.msg)
+struct DSGESolveError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::DSGESolveError) = print(io, "DSGESolveError: ", e.msg)
+
 # ─── Repro manifest + versioned save/load (MEMs 0.7.0 #345/#347; CLI C052) ────
 # JLD2 is not a test dep, so the mock persists a version-tagged container via
 # Serialization, mirroring real save_model/load_model version + type semantics.

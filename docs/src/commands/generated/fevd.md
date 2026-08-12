@@ -33,7 +33,7 @@ Compute Bayesian forecast error variance decomposition
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `fevd_bvar` (Compute Bayesian forecast error variance decomposition)
+**Output tables:** `bayesian_fevd_*` (Posterior-mean variance shares, one wide table per variable (horizon | one column per shock))
 
 ---
 
@@ -65,7 +65,7 @@ FAVAR forecast error variance decomposition
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `fevd_favar` (FAVAR forecast error variance decomposition)
+**Output tables:** `favar_fevd` (FAVAR variance shares, tidy long form: horizon | variable | shock | value)
 
 ---
 
@@ -97,7 +97,7 @@ Compute forecast error variance decomposition via structural LP
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `fevd_lp` (Compute forecast error variance decomposition via structural LP)
+**Output tables:** `lp_fevd_*` (Bias-corrected LP variance shares, one wide table per variable (horizon | one column per shock))
 
 ---
 
@@ -124,7 +124,7 @@ Compute Panel VAR forecast error variance decomposition
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `fevd_pvar` (Compute Panel VAR forecast error variance decomposition)
+**Output tables:** `panel_var_fevd_*` (Panel VAR variance shares, one wide table per variable (horizon | one column per shock))
 
 ---
 
@@ -151,7 +151,7 @@ Structural DFM forecast error variance decomposition
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `fevd_sdfm` (Structural DFM forecast error variance decomposition)
+**Output tables:** `sdfm_fevd` (Structural DFM variance shares in factor space, tidy long form: horizon | variable | shock | value)
 
 ---
 
@@ -183,7 +183,7 @@ Compute forecast error variance decomposition
 | `--normalize` | — | Rescale generalized shares to sum to 1 per variable |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `fevd_var` (Compute forecast error variance decomposition)
+**Output tables:** `fevd` (Variance shares in tidy long form: horizon | variable | shock | value); `generalized_fevd` (Pesaran-Shin generalized variance shares (--generalized); tidy long form); `fevd_by_variable_*` (One wide table per variable (horizon | one column per shock) under --id arias|uhlig)
 
 ---
 
@@ -215,7 +215,7 @@ Compute FEVD via VECM → VAR representation
 | `--plot` | — | Open interactive plot in browser |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `fevd_vecm` (Compute FEVD via VECM → VAR representation)
+**Output tables:** `vecm_fevd` (Variance shares of the VECM's VAR representation, tidy long form: horizon | variable | shock | value)
 
 ---
 

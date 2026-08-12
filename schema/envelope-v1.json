@@ -2,51 +2,145 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://friedmanjp.github.io/Friedman-cli/schema/envelope-v1.json",
   "title": "Friedman CLI result envelope v1 (draft until CLI v1.0)",
-  "description": "Normative shape of stdout when --format=json. Kept in sync manually until docs generation (C028).",
+  "description": "Normative shape of stdout when JSON output is requested. Tightened at CLI v0.10.0 (W1/#136) and additive-only from v0.10.0 on: new optional keys may appear under meta/error/tables, but no key is removed or retyped within schema_version 1; a breaking change bumps schema_version to 2 and is a major release. The formal freeze declaration lands at v1.0.0 (#59). Every `data` value is a table (columns × rows); cell values are number|string|boolean|null — non-finite floats are serialized as the strings \"NaN\"/\"Inf\"/\"-Inf\", never null, and missing values as null (F20). status and error co-occur: status \"ok\" implies error null; status \"error\" implies an error object carrying a `class/code` string from the exit-code taxonomy (0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal).",
   "type": "object",
-  "required": ["schema_version", "command", "status"],
+  "required": [
+    "schema_version",
+    "command",
+    "status",
+    "meta",
+    "data",
+    "warnings",
+    "artifacts",
+    "error"
+  ],
   "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "status": {
+          "const": "ok"
+        },
+        "error": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "status": {
+          "const": "error"
+        },
+        "error": {
+          "type": "object"
+        }
+      }
+    }
+  ],
   "properties": {
-    "schema_version": { "type": "integer", "const": 1 },
-    "command": { "type": "string" },
-    "status": { "type": "string", "enum": ["ok", "error"] },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "command": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "error"
+      ]
+    },
     "meta": {
       "type": "object",
-      "additionalProperties": true
+      "required": [
+        "cli_version",
+        "julia",
+        "mems_version"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "cli_version": {
+          "type": "string"
+        },
+        "julia": {
+          "type": "string"
+        },
+        "mems_version": {
+          "type": "string"
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "elapsed_ms": {
+          "type": "number"
+        },
+        "manifest": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
     },
     "data": {
       "type": "object",
+      "description": "Named result tables. Keys are STABLE, registry-declared addresses (v0.10.0, W3/#138): each key equals the leaf's declared table name, or — for family tables (one invocation emitting multiple sibling tables, e.g. per-shock IRFs) — '<declared-name>_<variable-slug>' where the declared name is the prefix and the slug is a runtime variable name from the user's own data. Option values, runtime parameters and estimated quantities never appear in keys (they live in human-facing titles). Declared names per leaf are exposed by `friedman schema`.",
       "additionalProperties": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["columns", "rows"],
-            "properties": {
-              "columns": {
-                "type": "array",
-                "items": { "type": "string" }
-              },
-              "rows": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": true
-                }
-              }
+        "type": "object",
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           },
-          { "type": ["number", "string", "boolean", "null", "array", "object"] }
-        ]
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "warnings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
         "properties": {
-          "code": { "type": "string" },
-          "message": { "type": "string" }
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
         }
       }
     },
@@ -54,23 +148,56 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["kind", "path"],
+        "required": [
+          "kind",
+          "path"
+        ],
+        "additionalProperties": false,
         "properties": {
-          "kind": { "type": "string" },
-          "path": { "type": "string" }
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
         }
       }
     },
     "error": {
       "oneOf": [
-        { "type": "null" },
+        {
+          "type": "null"
+        },
         {
           "type": "object",
-          "required": ["code", "message"],
+          "required": [
+            "code",
+            "message",
+            "exit_code"
+          ],
+          "additionalProperties": false,
           "properties": {
-            "code": { "type": "string" },
-            "message": { "type": "string" },
-            "hint": { "type": "string" }
+            "code": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*/[a-z0-9][a-z0-9-]*$"
+            },
+            "message": {
+              "type": "string"
+            },
+            "hint": {
+              "type": "string"
+            },
+            "exit_code": {
+              "type": "integer",
+              "enum": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
+            }
           }
         }
       ]

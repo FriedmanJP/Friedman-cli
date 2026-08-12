@@ -37,7 +37,13 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:solve, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[
+                TableSpec(name=:dsge_solution, description="Gensys/Klein state-transition policy matrix G1, one column per variable"),
+                TableSpec(name=:perturbation_policy_gx, description="Perturbation control policy gx: control responses to states and shocks"),
+                TableSpec(name=:projection_solution, description="Projection/PFI basis coefficients, one row per control"),
+                TableSpec(name=:determinacy_verdict, description="Sims existence/uniqueness pair and the collapsed determinacy verdict"),
+                TableSpec(name=:dsge_occbin_solution, description="OccBin piecewise path per variable (--constraints without --constraint-solver)"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_solve),
         ),
@@ -59,7 +65,10 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:irf, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[
+                TableSpec(name=:dsge_irf, description="Responses of every variable to one shock, one table per shock", family=true),
+                TableSpec(name=:occbin_irf, description="Linear vs piecewise OccBin response of one variable, one table per variable (--constraints)", family=true),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_irf),
         ),
@@ -79,7 +88,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="unconditional", description="Unconditional (asymptotic) FEVD for order≥2 perturbation (Andreasen et al. 2018)"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:fevd, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:dsge_fevd, description="Variance shares by shock across horizons, one table per variable", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_fevd),
         ),
@@ -101,7 +110,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="antithetic", description="Use antithetic sampling for variance reduction"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:simulate, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:dsge_simulation, description="Simulated path of every endogenous variable, burn-in dropped")],
             category="dsge",
             handler=wrap_legacy(_dsge_simulate),
         ),
@@ -127,7 +136,11 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="verbose-solver", description="Do NOT suppress per-grid-point solver warnings"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:determinacy_map, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[
+                TableSpec(name=:dsge_determinacy_map, description="One row per grid cell: swept parameter values, verdict code/label and the Sims existence/uniqueness pair"),
+                TableSpec(name=:determinacy_region_summary, description="Grid-point counts per determinacy region plus the solver settings"),
+                TableSpec(name=:determinacy_boundary, description="Parameter values where the verdict changes (one-parameter sweeps only)"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_determinacy_map),
         ),
@@ -149,7 +162,11 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:moments, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[
+                TableSpec(name=:dsge_theoretical_moments, description="Per-variable steady state, unconditional mean, risk correction and standard deviation"),
+                TableSpec(name=:variance_covariance, description="Pairwise covariance and correlation for every variable pair"),
+                TableSpec(name=:autocovariances, description="Own autocovariance and autocorrelation at each reported lag"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_moments),
         ),
@@ -172,7 +189,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:estimate, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:dsge_estimation, description="Estimated structural parameters with standard errors, t-stats and p-values")],
             category="dsge",
             handler=wrap_legacy(_dsge_estimate),
         ),
@@ -192,7 +209,7 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:perfect_foresight, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:perfect_foresight_path, description="Deterministic transition path of every endogenous variable")],
             category="dsge",
             handler=wrap_legacy(_dsge_perfect_foresight),
         ),
@@ -207,7 +224,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:steady_state, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:dsge_steady_state, description="Steady-state level of every endogenous variable")],
             category="dsge",
             handler=wrap_legacy(_dsge_steady_state),
         ),
@@ -227,7 +244,7 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:hd, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:dsge_historical_decomposition, description="Per-variable contribution path of one shock, one table per shock", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_hd),
         ),
@@ -241,7 +258,7 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH (Christen & Fox 2005)")
             ],
-            tables=[TableSpec(name=:bayes_estimate, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:bayesian_dsge_posterior, description="Posterior mean, std, median and 5/95% quantiles per estimated parameter")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_estimate),
         ),
@@ -258,7 +275,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayes_irf, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:bayesian_dsge_irf, description="Posterior-mean responses of every variable to one shock, one table per shock", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_irf),
         ),
@@ -275,7 +292,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayes_fevd, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:bayesian_dsge_fevd, description="Posterior-mean variance shares by shock across horizons, one table per variable", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_fevd),
         ),
@@ -292,7 +309,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayes_simulate, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:bayesian_dsge_simulation, description="Posterior-mean simulated path of every variable")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_simulate),
         ),
@@ -306,7 +323,10 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
-            tables=[TableSpec(name=:bayes_summary, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[
+                TableSpec(name=:bayesian_dsge_posterior_summary, description="Posterior mean, median, std and 5/95% quantiles per parameter"),
+                TableSpec(name=:prior_vs_posterior_comparison, description="Prior mean/std against posterior mean/std and quantiles per parameter"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_summary),
         ),
@@ -323,7 +343,7 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
-            tables=[TableSpec(name=:bayes_compare, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:bayesian_model_comparison, description="Log marginal likelihood and acceptance rate for each of the two models")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_compare),
         ),
@@ -341,7 +361,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayes_predictive, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:posterior_predictive_summary, description="Mean, std, min and max of each variable across the predictive simulations")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_predictive),
         ),
@@ -361,7 +381,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayes_hd, description="Path to DSGE model file (.toml or .jl)")],
+            tables=[TableSpec(name=:bayesian_dsge_historical_decomposition, description="Posterior-mean per-variable contribution path of one shock, one table per shock", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_hd),
         ),
@@ -376,7 +396,10 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
-            tables=[TableSpec(name=:bayes_mcmc_diag, description="MCMC convergence diagnostics (R-hat / ESS / Geweke)")],
+            tables=[
+                TableSpec(name=:mcmc_convergence_diagnostics, description="Per-parameter R-hat, bulk/tail ESS and Geweke z and p-value"),
+                TableSpec(name=:mcmc_diagnostics_summary, description="Draw count and sampler behind the diagnostics"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_mcmc_diag),
         ),
@@ -395,7 +418,10 @@ function dsge_specs()::Vector{CommandSpec}
                            description="table|csv|json", choices=["table","csv","json"]),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:bayes_identification, description="Iskrev (2010) local-identification rank test")],
+            tables=[
+                TableSpec(name=:identification_diagnostics, description="Iskrev rank test: rank, parameter/moment counts, tolerance and the identified verdict"),
+                TableSpec(name=:singular_values, description="Singular values of the moment Jacobian, in order"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_identification),
         ),
@@ -412,7 +438,10 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
-            tables=[TableSpec(name=:bayes_learning_rate, description="Koop-Pesaran-Smith (2013) learning-rate check")],
+            tables=[
+                TableSpec(name=:learning_rate_check, description="Per-parameter Koop-Pesaran-Smith learning rate and its flag"),
+                TableSpec(name=:learning_rate_summary, description="Flag threshold and the nested subsample sizes"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_learning_rate),
         ),
@@ -428,7 +457,10 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
-            tables=[TableSpec(name=:bayes_overlap, description="Prior/posterior overlap (weak-identification signal)")],
+            tables=[
+                TableSpec(name=:prior_posterior_overlap, description="Per-parameter prior/posterior overlap and weak-identification flag"),
+                TableSpec(name=:overlap_summary, description="Flag threshold applied to the overlap"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_overlap),
         ),
@@ -444,7 +476,7 @@ function dsge_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
-            tables=[TableSpec(name=:bayes_marginal_lik, description="Marginal likelihood via bridge sampling (Meng-Wong 1996)")],
+            tables=[TableSpec(name=:marginal_likelihood_bridge_sampling, description="Bridge-sampling and SMC log marginal likelihoods with the proposal settings")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_marginal_lik),
         ),
@@ -463,7 +495,10 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="f-reltol", type=Float64, default=1e-8, description="Relative function tolerance (> 0)"),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:bayes_posterior_mode, description="Posterior mode with Laplace standard errors")],
+            tables=[
+                TableSpec(name=:posterior_mode, description="Posterior mode and Laplace standard error per parameter"),
+                TableSpec(name=:posterior_mode_diagnostics, description="Log posterior/likelihood, Laplace log ML, convergence flag and iteration count"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_posterior_mode),
         ),
@@ -478,7 +513,10 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:bayes_prior_predictive, description="Prior predictive distribution of summary statistics")],
+            tables=[
+                TableSpec(name=:prior_predictive_distribution, description="Mean, std, median and 5/95% quantiles of each summary statistic across prior draws"),
+                TableSpec(name=:prior_predictive_summary, description="Draws requested, draws that solved and periods simulated per draw"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_prior_predictive),
         ),
@@ -508,7 +546,11 @@ function dsge_specs()::Vector{CommandSpec}
                 PLOT_OPTIONS...,
             ],
             flags=copy(PLOT_FLAGS),
-            tables=[TableSpec(name=:accuracy, description="Den Haan accuracy metrics")],
+            tables=[
+                TableSpec(name=:den_haan_accuracy, description="Max/mean percentage deviation plus the reference and PLM standard deviations"),
+                TableSpec(name=:reference_vs_plm_only_aggregate_path, description="Simulated reference and PLM-only aggregate paths side by side"),
+                TableSpec(name=:den_haan_simulation_settings, description="Solution method, scored aggregate, simulation lengths and seed"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_accuracy),
         ),
@@ -531,9 +573,12 @@ function dsge_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[
-                TableSpec(name=:diagnostics, description="Solution diagnostics"),
-                TableSpec(name=:aggregates, description="Steady-state aggregates"),
-                TableSpec(name=:prices, description="Steady-state prices"),
+                TableSpec(name=:ha_dsge_solve_diagnostics, description="Solution method with its size and fit diagnostics"),
+                TableSpec(name=:krusell_smith_plm_coefficients, description="Fitted perceived-law-of-motion coefficients (--method krusell-smith)"),
+                TableSpec(name=:ha_steady_state_aggregates, description="Steady-state aggregate quantities"),
+                TableSpec(name=:ha_steady_state_prices, description="Steady-state prices"),
+                TableSpec(name=:ha_steady_state_diagnostics, description="Steady-state convergence, iterations, Euler error and excess demand"),
+                TableSpec(name=:ha_euler_accuracy_log10_by_convention, description="log10 Euler errors under both the midpoints and nodes conventions"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_solve),
@@ -553,10 +598,10 @@ function dsge_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[
-                TableSpec(name=:aggregates, description="Steady-state aggregates"),
-                TableSpec(name=:prices, description="Steady-state prices"),
-                TableSpec(name=:diagnostics, description="Convergence diagnostics"),
-                TableSpec(name=:euler, description="Euler accuracy by convention"),
+                TableSpec(name=:ha_steady_state_aggregates, description="Steady-state aggregate quantities"),
+                TableSpec(name=:ha_steady_state_prices, description="Steady-state prices"),
+                TableSpec(name=:ha_steady_state_diagnostics, description="Convergence, iterations, Euler error and excess demand"),
+                TableSpec(name=:ha_euler_accuracy_log10_by_convention, description="log10 Euler errors under both the midpoints and nodes conventions"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_steady_state),
@@ -578,7 +623,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=:irf, description="Aggregate impulse responses")],
+            tables=[TableSpec(name=:ha_dsge_irf, description="Aggregate responses of every variable to one shock, one table per shock", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_irf),
         ),
@@ -599,7 +644,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=:fevd, description="Forecast error variance decomposition")],
+            tables=[TableSpec(name=:ha_dsge_fevd, description="Aggregate variance shares by shock across horizons, one table per variable", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_fevd),
         ),
@@ -621,7 +666,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=:simulate, description="Simulated aggregate deviations")],
+            tables=[TableSpec(name=:ha_dsge_simulation, description="Simulated path of every aggregate deviation")],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_simulate),
         ),
@@ -643,7 +688,7 @@ function dsge_specs()::Vector{CommandSpec}
                            description="table|csv|json", choices=["table","csv","json"]),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:distribution_irf, description="Distribution mass deviations (summary moments)")],
+            tables=[TableSpec(name=:ha_distribution_irf, description="Per-horizon L1 and max wealth-distribution mass deviation with the grid sizes")],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_distribution_irf),
         ),
@@ -666,7 +711,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=:inequality_irf, description="Gini and percentile paths")],
+            tables=[TableSpec(name=:ha_inequality_irf, description="Per-horizon Gini and wealth-percentile (p10-p90) responses")],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_inequality_irf),
         ),
@@ -684,7 +729,7 @@ function dsge_specs()::Vector{CommandSpec}
                            description="table|csv|json", choices=["table","csv","json"]),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:panel, description="Panel summary (mean assets over time)")],
+            tables=[TableSpec(name=:ha_panel_simulation_summary, description="Cross-sectional mean and sd of assets per period with the agent count")],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_simulate_panel),
         ),
@@ -717,7 +762,7 @@ function dsge_specs()::Vector{CommandSpec}
                            description="table|csv|json", choices=["table","csv","json"]),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:posterior, description="Posterior summary (mean, std, quantiles per parameter)")],
+            tables=[TableSpec(name=:ha_dsge_bayesian_posterior, description="RWMH posterior mean, std, median and 5/95% quantiles per parameter")],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_estimate),
         ),
@@ -745,8 +790,9 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="two-asset", description="Solve Kaplan-Moll-Violante two-asset model instead"),
             ],
             tables=[
-                TableSpec(name=:prices, description="Equilibrium r, w"),
-                TableSpec(name=:aggregates, description="K, L and convergence"),
+                TableSpec(name=:ct_aiyagari_prices, description="Equilibrium interest rate and wage"),
+                TableSpec(name=:ct_aiyagari_aggregates, description="Equilibrium capital, labour and the convergence flag"),
+                TableSpec(name=:ct_two_asset_solution, description="Liquid/illiquid holdings, distribution mass and HJB convergence (--two-asset)"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_ct_solve),
@@ -774,7 +820,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=:transition, description="MIT-shock path (t, Z, K, r, w, C)")],
+            tables=[TableSpec(name=:ct_mit_shock_transition, description="MIT-shock transition path of t, Z, K, r, w and C")],
             category="dsge",
             handler=wrap_legacy(_dsge_ct_transition),
         ),
@@ -796,8 +842,8 @@ function dsge_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[
-                TableSpec(name=:steady_state, description="Steady-state levels"),
-                TableSpec(name=:dynamics, description="Saddle-path diagnostics"),
+                TableSpec(name=:blanchard_olg_steady_state, description="Steady-state k, C, r, w, human wealth, MPC, debt and convergence"),
+                TableSpec(name=:blanchard_olg_dynamics, description="Stable eigenvalue, policy slope, determinacy verdict and both eigenvalue moduli"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_olg_solve),
@@ -822,7 +868,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
-            tables=[TableSpec(name=:path, description="Transition paths k, C, r, w")],
+            tables=[TableSpec(name=:blanchard_olg_transition, description="Transition paths of k, C, r and w from the initial capital stock")],
             category="dsge",
             handler=wrap_legacy(_dsge_olg_simulate),
         ),
@@ -873,7 +919,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                 end
             end
             output_result(path_df; format=Symbol(format), output=output,
-                          title="DSGE OccBin Solution ($(length(cons)) constraint(s), T=$periods)")
+                          title="DSGE OccBin Solution ($(length(cons)) constraint(s), T=$periods)",
+                          key="dsge_occbin_solution")
             return
         else
             # New solver hierarchy path
@@ -918,7 +965,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
             end
         end
         output_result(policy_df; format=Symbol(format), output=output,
-                      title="DSGE Solution (method=$method)")
+                      title="DSGE Solution (method=$method)", key="dsge_solution")
     elseif sol isa MacroEconometricModels.PerturbationSolution
         n_s = length(sol.state_indices)
         n_c = length(sol.control_indices)
@@ -937,7 +984,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         gx_df = DataFrame(sol.gx, col_names)
         insertcols!(gx_df, 1, :control => [spec.varnames[i] for i in sol.control_indices])
         output_result(gx_df; format=Symbol(format), output=output,
-                      title="Perturbation Policy (gx, order=$order)")
+                      title="Perturbation Policy (gx, order=$order)",
+                      key="perturbation_policy_gx")
     elseif sol isa MacroEconometricModels.ProjectionSolution
         _status("\n  Grid type: $(sol.grid_type), Degree: $(sol.degree)")
         _status("  Converged: $(sol.converged), Iterations: $(sol.iterations)")
@@ -948,7 +996,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                            ["basis_$i" for i in 1:size(sol.coefficients, 2)])
         insertcols!(coef_df, 1, :control => [spec.varnames[i] for i in sol.control_indices])
         output_result(coef_df; format=Symbol(format), output=output,
-                      title="Projection Solution (degree=$(sol.degree), grid=$(sol.grid_type))")
+                      title="Projection Solution (degree=$(sol.degree), grid=$(sol.grid_type))",
+                      key="projection_solution")
     end
     _status()
     return sol  # for --save-model (C029)
@@ -1024,7 +1073,8 @@ function _dsge_determinacy_map(; model::String, config::String="", rank_rtol::Fl
                      uniqueness = dmap.eu[i, j, 2]))
     end
     output_result(DataFrame(rows); format=Symbol(format), output=output,
-                  title="DSGE Determinacy Map ($(join(cfg.params, " × ")))")
+                  title="DSGE Determinacy Map ($(join(cfg.params, " × ")))",
+                  key="dsge_determinacy_map")
 
     # Region counts. A `failed` count > 0 is reported explicitly rather than folded into
     # "indeterminate": it means the sweep has holes, not that the model is indeterminate there.
@@ -1061,7 +1111,7 @@ function _dsge_determinacy_map(; model::String, config::String="", rank_rtol::Fl
         _status()
         output_result(DataFrame(; boundary = collect(Float64.(bnd)));
             format=Symbol(format), output=_per_var_output_path(output, "boundary"),
-            title="Determinacy Boundary ($p1)")
+            title="Determinacy Boundary ($p1)", key="determinacy_boundary")
         isempty(bnd) ?
             _status("  Verdict is constant across the grid — no boundary crossing.") :
             _status("  Boundary at $p1 ≈ $(join(round.(Float64.(bnd); digits=6), ", ")) " *
@@ -1144,7 +1194,8 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
         std_dev = round.(sqrt.(max.(diag(Var), 0.0)); digits=8),
     )
     output_result(mean_df; format=Symbol(format), output=output,
-                  title="DSGE Theoretical Moments (order=$order)")
+                  title="DSGE Theoretical Moments (order=$order)",
+                  key="dsge_theoretical_moments")
 
     cov_rows = NamedTuple[]
     for i in 1:k, j in i:k
@@ -1155,7 +1206,7 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
     end
     output_result(DataFrame(cov_rows); format=Symbol(format),
                   output=_per_var_output_path(output, "covariance"),
-                  title="Variance-Covariance (order=$order)")
+                  title="Variance-Covariance (order=$order)", key="variance_covariance")
 
     ac_rows = NamedTuple[]
     for lag in 1:lags, i in 1:k
@@ -1168,7 +1219,7 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
     end
     output_result(DataFrame(ac_rows); format=Symbol(format),
                   output=_per_var_output_path(output, "autocovariance"),
-                  title="Autocovariances (order=$order)")
+                  title="Autocovariances (order=$order)", key="autocovariances")
     return sol
 end
 
@@ -1222,7 +1273,8 @@ function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
     _maybe_plot(sim_df; plot=plot, plot_save=plot_save)
 
     output_result(sim_df; format=Symbol(format), output=output,
-                  title="DSGE Simulation (method=$method, T=$periods)")
+                  title="DSGE Simulation (method=$method, T=$periods)",
+                  key="dsge_simulation")
 end
 
 # ── IRF / FEVD / Estimate / Perfect Foresight ──────────────────
@@ -1252,7 +1304,8 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
             )
             output_result(irf_df; format=Symbol(format),
                           output=_per_var_output_path(output, vname),
-                          title="OccBin IRF: $vname ← $(ob_irf.shock_name)")
+                          title="OccBin IRF: $vname ← $(ob_irf.shock_name)",
+                          key=_table_key("occbin_irf", vname))
         end
         return
     end
@@ -1276,7 +1329,8 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
         end
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
-                      title="DSGE IRF: shock=$shock_name (method=$method, h=$horizon)")
+                      title="DSGE IRF: shock=$shock_name (method=$method, h=$horizon)",
+                      key=_table_key("dsge_irf", shock_name))
     end
 end
 
@@ -1321,7 +1375,8 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
         end
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
-                      title="DSGE FEVD: $vname ($mode_label)")
+                      title="DSGE FEVD: $vname ($mode_label)",
+                      key=_table_key("dsge_fevd", vname))
     end
 end
 
@@ -1363,7 +1418,7 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
         p_value = round.(p_vals; digits=4),
     )
     output_result(est_df; format=Symbol(format), output=output,
-                  title="DSGE Estimation ($method)")
+                  title="DSGE Estimation ($method)", key="dsge_estimation")
 
     _status()
     _status_styled("  J-statistic: $(round(est.J_stat; digits=4))\n"; color=:cyan)
@@ -1412,7 +1467,8 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     end
 
     output_result(path_df; format=Symbol(format), output=output,
-                  title="Perfect Foresight Path (T=$n_periods, converged=$(pf.converged))")
+                  title="Perfect Foresight Path (T=$n_periods, converged=$(pf.converged))",
+                  key="perfect_foresight_path")
 end
 
 # ── Bayesian DSGE Handlers ─────────────────────────────────────
@@ -1505,7 +1561,8 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         n_draws::Int, burnin::Int, ess_target::Float64, observables::String,
         solver::String, order::Int, delayed_acceptance::Bool,
         constraint_solver::String="",
-        prefilter::String="none", hp_lambda::Float64=1600.0)
+        prefilter::String="none", hp_lambda::Float64=1600.0,
+        measurement_error::String="none")
     inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
                              constraint_solver)
     spec, Y, theta0 = inp.spec, inp.Y, inp.theta0
@@ -1537,6 +1594,30 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     pf === :none || _status("  Prefilter: $prefilter" *
         (pf === :hp ? " (lambda=$hp_lambda)" : ""))
 
+    # #148: measurement error (none|auto|comma-separated SDs, one per observable).
+    # Upstream default is NONE — with n_obs > n_shocks the likelihood is then
+    # stochastically singular (model/stochastic-singularity), and this option is
+    # the in-CLI remedy the error hint points at.
+    me = if measurement_error in ("", "none")
+        nothing
+    elseif measurement_error == "auto"
+        :auto
+    else
+        try
+            [parse(Float64, strip(v)) for v in split(measurement_error, ",")]
+        catch
+            throw(CliError("usage/invalid-option",
+                "dsge bayes: --measurement-error must be none|auto|comma-separated numbers, " *
+                "got '$measurement_error'"))
+        end
+    end
+    # Guard the vector form up front (usage/invalid) — upstream raises an untyped
+    # ArgumentError on a length mismatch, which would surface as internal/error.
+    me isa Vector && length(me) != size(Y, 2) && throw(CliError("usage/invalid",
+        "dsge bayes: --measurement-error has $(length(me)) value(s) but there are " *
+        "$(size(Y, 2)) observables — give one SD per observable, or use auto"))
+    me === nothing || _status("  Measurement error: $measurement_error")
+
     solver_obj_kw = isempty(constraint_solver) ? (;) : (; solver_obj=Symbol(constraint_solver))
     # World-age barrier: estimate_dsge_bayes re-solves the spec (evaluating its @dsge
     # residual fns) on every posterior draw — must run at the latest world age.
@@ -1547,6 +1628,7 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         n_draws=n_draws, burnin=burnin, ess_target=ess_target,
         solver=Symbol(solver), solver_kwargs=solver_kwargs,
         delayed_acceptance=delayed_acceptance,
+        measurement_error=me,
         prefilter=pf, hp_lambda=hp_lambda, solver_obj_kw...)
 
     return result
@@ -1561,10 +1643,11 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
                                constraint_solver::String="",
                                delayed_acceptance::Bool=false,
                                prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     # Posterior summary table
     draws = result.theta_draws
@@ -1578,7 +1661,7 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
         q95 = [round(quantile(draws[:, i], 0.95); digits=6) for i in 1:np],
     )
     output_result(est_df; format=Symbol(format), output=output,
-                  title="Bayesian DSGE Posterior ($sampler)")
+                  title="Bayesian DSGE Posterior ($sampler)", key="bayesian_dsge_posterior")
 
     _status()
     _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
@@ -1595,12 +1678,13 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
                           constraint_solver::String="",
                           delayed_acceptance::Bool=false,
                           prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                           horizon::Int=40,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1624,7 +1708,8 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
         end
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
-                      title="Bayesian DSGE IRF: shock=$shock_name ($sampler, h=$horizon)")
+                      title="Bayesian DSGE IRF: shock=$shock_name ($sampler, h=$horizon)",
+                      key=_table_key("bayesian_dsge_irf", shock_name))
     end
 end
 
@@ -1638,11 +1723,12 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
                            delayed_acceptance::Bool=false,
                            horizon::Int=40,
                            prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1667,7 +1753,8 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
         end
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
-                      title="Bayesian DSGE FEVD: $vname ($sampler, h=$horizon)")
+                      title="Bayesian DSGE FEVD: $vname ($sampler, h=$horizon)",
+                      key=_table_key("bayesian_dsge_fevd", vname))
     end
 end
 
@@ -1680,12 +1767,13 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
                                constraint_solver::String="",
                                delayed_acceptance::Bool=false,
                                prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                periods::Int=200,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -1704,7 +1792,8 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
         sim_df[!, vname] = sim.point_estimate[:, vi]
     end
     output_result(sim_df; format=Symbol(format), output=output,
-                  title="Bayesian DSGE Simulation ($sampler, T=$periods)")
+                  title="Bayesian DSGE Simulation ($sampler, T=$periods)",
+                  key="bayesian_dsge_simulation")
 end
 
 function _dsge_bayes_summary(; model::String, data::String="", params::String="",
@@ -1716,10 +1805,11 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
                               constraint_solver::String="",
                               delayed_acceptance::Bool=false,
                               prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                               output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     summary = posterior_summary(result)
     pp_table = prior_posterior_table(result)
@@ -1735,7 +1825,8 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
         q95 = [round(summary[p][:q95]; digits=6) for p in pnames],
     )
     output_result(sum_df; format=Symbol(format), output=output,
-                  title="Bayesian DSGE Posterior Summary ($sampler)")
+                  title="Bayesian DSGE Posterior Summary ($sampler)",
+                  key="bayesian_dsge_posterior_summary")
 
     # Prior-posterior comparison
     pp_df = DataFrame(
@@ -1766,6 +1857,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
                               delayed_acceptance::Bool=false,
                               model2::String="", params2::String="", priors2::String="",
                               prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                               output::String="", format::String="table")
     isempty(model2) && error("--model2 is required for model comparison")
     isempty(params2) && error("--params2 is required for model comparison")
@@ -1774,7 +1866,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     _status("Estimating Model 1...")
     r1 = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Estimating Model 2...")
     r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
@@ -1818,11 +1910,12 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
                                  delayed_acceptance::Bool=false,
                                  n_sim::Int=500, periods::Int=100,
                                  prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                  output::String="", format::String="table",
                                  plot::Bool=false, plot_save::String="")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
@@ -1841,7 +1934,8 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
         max = [round(maximum(pp[:, :, vi]); digits=6) for vi in 1:min(nv, length(varnames))],
     )
     output_result(pp_df; format=Symbol(format), output=output,
-                  title="Posterior Predictive Summary ($sampler, n=$n_sim, T=$periods)")
+                  title="Posterior Predictive Summary ($sampler, n=$n_sim, T=$periods)",
+                  key="posterior_predictive_summary")
 end
 
 function _dsge_hd(; model::String, data::String="", observables::String="",
@@ -1883,8 +1977,10 @@ function _dsge_hd(; model::String, data::String="", observables::String="",
         contrib = hd.contributions[:, :, si]
         contrib_df = DataFrame(contrib, hd.variables)
         insertcols!(contrib_df, 1, :t => 1:hd.T_eff)
-        output_result(contrib_df; format=Symbol(format), output=output,
-            title="Shock: $sname contributions")
+        output_result(contrib_df; format=Symbol(format),
+            output=_per_var_output_path(output, string(sname)),
+            title="Shock: $sname contributions",
+            key=_table_key("dsge_historical_decomposition", sname))
     end
 
     _maybe_plot(hd; plot=plot, plot_save=plot_save)
@@ -1904,13 +2000,14 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          delayed_acceptance::Bool=false,
                          horizon::Int=40,
                          prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
     isempty(observables) && error("--observables is required (comma-separated variable names)")
 
     bd = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     df = load_data(data)
     Y = df_to_matrix(df)
@@ -1928,8 +2025,10 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
         pe = hd.point_estimate[:, :, si]
         pe_df = DataFrame(pe, hd.variables)
         insertcols!(pe_df, 1, :t => 1:hd.T_eff)
-        output_result(pe_df; format=Symbol(format), output=output,
-            title="Shock: $sname (posterior mean)")
+        output_result(pe_df; format=Symbol(format),
+            output=_per_var_output_path(output, string(sname)),
+            title="Shock: $sname (posterior mean)",
+            key=_table_key("bayesian_dsge_historical_decomposition", sname))
     end
 
     _maybe_plot(hd; plot=plot, plot_save=plot_save)
@@ -1950,10 +2049,11 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
                                 constraint_solver::String="",
                                 delayed_acceptance::Bool=false,
                                 prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                 output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Computing MCMC convergence diagnostics (R-hat / ESS / Geweke)")
     # Pure post-processing of theta_draws, but wrapped for world-age consistency.
@@ -1973,7 +2073,8 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
     output_kv(Pair{String,Any}[
         "n_draws" => d.n_draws,
         "method"  => string(d.method),
-    ]; format=format, title="MCMC Diagnostics Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="MCMC Diagnostics Summary")
     return nothing
 end
 
@@ -2043,7 +2144,9 @@ function _dsge_bayes_identification(; model::String, params::String="",
         index = collect(1:length(idr.singular_values)),
         singular_value = round.(idr.singular_values; sigdigits=6),
     )
-    output_result(sv_df; format=Symbol(format), title="Singular Values")
+    output_result(sv_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "singular_values"),
+                  title="Singular Values")
     return nothing
 end
 
@@ -2058,6 +2161,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
                                     fractions::String="0.5,1.0", threshold::Float64=0.2,
                                     refit_n_smc::Int=100,
                                     prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                     output::String="", format::String="table")
     frac_vec = try
         Float64[parse(Float64, strip(s)) for s in split(fractions, ",") if !isempty(strip(s))]
@@ -2070,7 +2174,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
 
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Koop-Pesaran-Smith learning-rate check (refit n_smc=$refit_n_smc)")
     # Re-runs SMC on nested subsamples (evaluates the spec) → world-age barrier.
@@ -2088,7 +2192,8 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
     output_kv(Pair{String,Any}[
         "threshold"    => threshold,
         "sample_sizes" => string(lr.sample_sizes),
-    ]; format=format, title="Learning-Rate Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Learning-Rate Summary")
     return nothing
 end
 
@@ -2102,10 +2207,11 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
                               delayed_acceptance::Bool=false,
                               threshold::Float64=0.8, n_grid::Int=0,
                               prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                               output::String="", format::String="table")
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Prior/posterior overlap (weak-identification signal)")
     ov = _dsge_call(prior_posterior_overlap, result; n_grid=n_grid, threshold=threshold)
@@ -2120,7 +2226,8 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
 
     output_kv(Pair{String,Any}[
         "threshold" => threshold,
-    ]; format=format, title="Overlap Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Overlap Summary")
     return nothing
 end
 
@@ -2171,7 +2278,8 @@ function _dsge_bayes_posterior_mode(; model::String, data::String="", params::St
         "Laplace log ML" => round(Float64(res.laplace_log_ml); digits=6),
         "converged" => res.converged,
         "iterations" => res.n_iterations];
-        format=format, title="Posterior Mode Diagnostics")
+        format=format, output=_per_var_output_path(output, "diagnostics"),
+        title="Posterior Mode Diagnostics")
     res.converged || _status_styled("-> optimizer did NOT converge — treat the mode and its Laplace ML with caution\n"; color=:yellow)
     return res
 end
@@ -2213,7 +2321,8 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
         "draws requested" => res.n_draws,
         "draws that solved" => res.n_effective,
         "periods simulated" => res.T_periods];
-        format=format, title="Prior Predictive Summary")
+        format=format, output=_per_var_output_path(output, "summary"),
+        title="Prior Predictive Summary")
     res.n_effective < res.n_draws && _status_styled(
         "-> $(res.n_draws - res.n_effective) prior draw(s) failed to solve and were dropped\n"; color=:yellow)
     return res
@@ -2229,12 +2338,13 @@ function _dsge_bayes_marginal_lik(; model::String, data::String="", params::Stri
                                    delayed_acceptance::Bool=false,
                                    proposal::String="normal", df::Float64=5.0,
                                    prefilter::String="none", hp_lambda::Float64=1600.0,
+                               measurement_error::String="none",
                                    output::String="", format::String="table")
     proposal in ("normal", "t") || throw(CliError("usage/invalid",
         "--proposal must be normal|t, got '$proposal'"))
     result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda)
+        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
     _status("Bridge-sampling marginal likelihood (proposal=$proposal)")
     # Re-evaluates the likelihood over the spec → world-age barrier. Returns a scalar
@@ -2281,13 +2391,19 @@ function _ha_ss_tables(ss; format::String, output::String, title_prefix::String=
             Float64(ss.excess_demand),
         ],
     )
+    # W3/#138: the envelope keys are fixed here rather than derived from the (prefixed)
+    # titles — every caller passes title_prefix="HA", but a key must not be hostage to a
+    # display string.
     output_result(agg_df; format=Symbol(format), output=output,
-                  title="$title_prefix Steady-State Aggregates")
+                  title="$title_prefix Steady-State Aggregates",
+                  key="ha_steady_state_aggregates")
     # Distinct paths for the 2nd+ table, or `--output f.csv` silently keeps only the last.
     output_result(price_df; format=Symbol(format), output=_per_var_output_path(output, "prices"),
-                  title="$title_prefix Steady-State Prices")
+                  title="$title_prefix Steady-State Prices",
+                  key="ha_steady_state_prices")
     output_result(diag_df; format=Symbol(format), output=_per_var_output_path(output, "diagnostics"),
-                  title="$title_prefix Steady-State Diagnostics")
+                  title="$title_prefix Steady-State Diagnostics",
+                  key="ha_steady_state_diagnostics")
 
     # Euler accuracy detail (MEMs#508). `ss.euler` carries BOTH conventions —
     # `(midpoints=…, nodes=…)`, each `(points, max, mean, n_evaluated, n_constrained,
@@ -2311,7 +2427,8 @@ function _ha_ss_tables(ss; format::String, output::String, title_prefix::String=
             output_result(DataFrame(rows);
                           format=Symbol(format),
                           output=_per_var_output_path(output, "euler"),
-                          title="$title_prefix Euler Accuracy (log10, by convention)")
+                          title="$title_prefix Euler Accuracy (log10, by convention)",
+                          key="ha_euler_accuracy_log10_by_convention")
         end
     end
     return (agg_df, price_df, diag_df)
@@ -2398,7 +2515,8 @@ function _dsge_ha_accuracy(; model::String, method::String="krusell-smith",
         metric=["dh_max", "dh_mean", "sigma_ref", "sigma_plm"],
         value=round.(Float64[acc.dh_max, acc.dh_mean, acc.sigma_ref, acc.sigma_plm]; digits=6),
     ); format=Symbol(format), output=output,
-       title="Den Haan Accuracy (% deviation, $(acc.aggregate), $(meth))")
+       title="Den Haan Accuracy (% deviation, $(acc.aggregate), $(meth))",
+       key="den_haan_accuracy")
     # The two simulated aggregate paths, tidy and long, under a distinct output path.
     n = min(length(acc.ref_path), length(acc.plm_path))
     output_result(DataFrame(t=1:n,
@@ -2415,7 +2533,9 @@ function _dsge_ha_accuracy(; model::String, method::String="krusell-smith",
         "seed"      => seed,
     ]
     meth === :krusell_smith || push!(settings, "T_fit" => t_fit)
-    output_kv(settings; format=format, title="Den Haan Simulation Settings")
+    output_kv(settings; format=format,
+              output=_per_var_output_path(output, "settings"),
+              title="Den Haan Simulation Settings")
     _maybe_plot(acc; plot=plot, plot_save=plot_save)
     return acc
 end
@@ -2440,9 +2560,12 @@ function _dsge_ha_solve(; model::String, method::String="ssj",
             metric = ["method", "r_squared", "converged", "iterations"],
             value = [String(meth), string(sol.r_squared), string(sol.converged), string(sol.iterations)],
         )
-        output_result(diag_df; format=Symbol(format), output=output,
-                      title="HA-DSGE Solve Diagnostics (krusell-smith)")
-        output_result(plm_df; format=Symbol(format), output=output,
+        output_result(diag_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "solve_diagnostics"),
+                      title="HA-DSGE Solve Diagnostics (krusell-smith)",
+                      key="ha_dsge_solve_diagnostics")
+        output_result(plm_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "plm"),
                       title="Krusell–Smith PLM Coefficients")
         _ha_ss_tables(sol.steady_state; format=format, output=output, title_prefix="HA")
         return sol
@@ -2465,8 +2588,10 @@ function _dsge_ha_solve(; model::String, method::String="ssj",
             string(size(sol.C_obs, 2)),
         ],
     )
-    output_result(diag_df; format=Symbol(format), output=output,
-                  title="HA-DSGE Solve Diagnostics (method=$(sol.method))")
+    output_result(diag_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "solve_diagnostics"),
+                  title="HA-DSGE Solve Diagnostics (method=$(sol.method))",
+                  key="ha_dsge_solve_diagnostics")
     _ha_ss_tables(sol.steady_state; format=format, output=output, title_prefix="HA")
     return sol
 end
@@ -2504,7 +2629,8 @@ function _dsge_ha_irf(; model::String, method::String="reiter",
         end
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock),
-                      title="HA-DSGE IRF: shock=$shock (method=$meth, h=$horizon)")
+                      title="HA-DSGE IRF: shock=$shock (method=$meth, h=$horizon)",
+                      key=_table_key("ha_dsge_irf", shock))
     end
     return ir
 end
@@ -2537,7 +2663,8 @@ function _dsge_ha_fevd(; model::String, method::String="reiter",
         end
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
-                      title="HA-DSGE FEVD: $vname (method=$meth, h=$horizon)")
+                      title="HA-DSGE FEVD: $vname (method=$meth, h=$horizon)",
+                      key=_table_key("ha_dsge_fevd", vname))
     end
     return fv
 end
@@ -2573,7 +2700,8 @@ function _dsge_ha_simulate(; model::String, method::String="reiter",
     insertcols!(sim_df, 1, :period => 1:periods)
     _maybe_plot(sim_df; plot=plot, plot_save=plot_save)
     output_result(sim_df; format=Symbol(format), output=output,
-                  title="HA-DSGE Simulation (method=$meth, T=$periods)")
+                  title="HA-DSGE Simulation (method=$meth, T=$periods)",
+                  key="ha_dsge_simulation")
     return path
 end
 
@@ -2603,7 +2731,8 @@ function _dsge_ha_distribution_irf(; model::String, method::String="reiter",
         n_income = fill(n_e, n_h),
     )
     output_result(df; format=Symbol(format), output=output,
-                  title="HA Distribution IRF (shock=$shock_index, h=$horizon)")
+                  title="HA Distribution IRF (shock=$shock_index, h=$horizon)",
+                  key="ha_distribution_irf")
     return d
 end
 
@@ -2633,7 +2762,8 @@ function _dsge_ha_inequality_irf(; model::String, method::String="reiter",
     )
     _maybe_plot(df; plot=plot, plot_save=plot_save)
     output_result(df; format=Symbol(format), output=output,
-                  title="HA Inequality IRF (shock=$shock_index, h=$horizon)")
+                  title="HA Inequality IRF (shock=$shock_index, h=$horizon)",
+                  key="ha_inequality_irf")
     return d
 end
 
@@ -2662,7 +2792,8 @@ function _dsge_ha_simulate_panel(; model::String,
         n_agents = fill(size(panel, 1), size(panel, 2)),
     )
     output_result(df; format=Symbol(format), output=output,
-                  title="HA Panel Simulation Summary (N=$n_agents, T=$periods)")
+                  title="HA Panel Simulation Summary (N=$n_agents, T=$periods)",
+                  key="ha_panel_simulation_summary")
     return panel
 end
 
@@ -2725,7 +2856,8 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
         q95 = [round(quantile(draws[:, i], 0.95); digits=6) for i in 1:np],
     )
     output_result(est_df; format=Symbol(format), output=output,
-                  title="HA-DSGE Bayesian Posterior (rwmh, method=$meth)")
+                  title="HA-DSGE Bayesian Posterior (rwmh, method=$meth)",
+                  key="ha_dsge_bayesian_posterior")
 
     _status()
     _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
@@ -2776,7 +2908,8 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
     price_df = DataFrame(name=["r", "w"], value=[ss.r, ss.w])
     agg_df = DataFrame(name=["K", "L", "converged"],
                        value=[ss.K, ss.L, Float64(ss.converged ? 1.0 : 0.0)])
-    output_result(price_df; format=Symbol(format), output=output, title="CT Aiyagari Prices")
+    output_result(price_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "prices"), title="CT Aiyagari Prices")
     output_result(agg_df; format=Symbol(format), output=output, title="CT Aiyagari Aggregates")
     return ss
 end
@@ -2809,7 +2942,8 @@ function _dsge_ct_transition(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Fl
                    color = tr.converged ? :green : :yellow)
     _maybe_plot(df; plot=plot, plot_save=plot_save)
     output_result(df; format=Symbol(format), output=output,
-                  title="CT MIT-Shock Transition (impact=$(shock_size), T=$periods)")
+                  title="CT MIT-Shock Transition (impact=$(shock_size), T=$periods)",
+                  key="ct_mit_shock_transition")
     return tr
 end
 
@@ -2878,6 +3012,7 @@ function _dsge_olg_simulate(; alpha::Float64=0.36, beta::Float64=0.96, delta::Fl
     )
     _maybe_plot(df; plot=plot, plot_save=plot_save)
     output_result(df; format=Symbol(format), output=output,
-                  title="Blanchard OLG Transition (H=$horizon)")
+                  title="Blanchard OLG Transition (H=$horizon)",
+                  key="blanchard_olg_transition")
     return paths
 end

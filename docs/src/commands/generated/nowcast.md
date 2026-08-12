@@ -24,6 +24,8 @@ Nowcast via bridge equations
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
+**Output tables:** `nowcast_bridge` (Nowcast, forecast and number of bridge equations)
+
 ---
 
 ### `friedman nowcast bvar`
@@ -48,6 +50,8 @@ Nowcast via Bayesian VAR
 | `--alpha0` | — | `Float64` | `2.0` | — | Initial co-persistence weight α |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `nowcast_bvar` (Nowcast, forecast and log-likelihood); `nowcast_bvar_hyperparameters` (Optimized prior hyperparameters (lambda, theta, miu, alpha, theta_cross))
 
 ---
 
@@ -76,6 +80,8 @@ Nowcast via Dynamic Factor Model (EM algorithm)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
+**Output tables:** `nowcast_dfm` (Nowcast, forecast, log-likelihood and EM iteration count)
+
 ---
 
 ### `friedman nowcast forecast`
@@ -103,6 +109,8 @@ Forecast from a nowcasting model
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
+**Output tables:** `nowcast_forecast` (Forecast path by horizon, one column per variable)
+
 ---
 
 ### `friedman nowcast news`
@@ -127,6 +135,8 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `nowcast_news_decomposition` (Per-variable news impact on the nowcast revision)
 
 ---
 
