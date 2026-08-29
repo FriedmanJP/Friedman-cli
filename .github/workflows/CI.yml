@@ -109,8 +109,9 @@ jobs:
     # T3 grew 1280 -> 1498 cases as #85 closed the predict/residuals/nowcast/data
     # coverage gaps; 13m53 on one PR and 15m17 (timeout) on the next. Same story.
     # 26m40 at 3064 cases, and --code-coverage=user adds instrumentation overhead on
-    # top of that, so the budget is 60 rather than 40.
-    timeout-minutes: 60
+    # top of that. v0.11.0 (3762 cases + HA/CT/DCEGM) cancelled at 60m on ubuntu
+    # coverage; two-asset-hank is now --max-iter 2 and the budget is 90.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2

@@ -4190,7 +4190,11 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "two-asset-hank B == B_supply" begin
-            r = run_json(["dsge", "ha", "steady-state", "two-asset-hank"])
+            # Cap GE iters: the production 50×50×7 example does not clear, and a
+            # full 200-iter closer blew the 60 min CI T3 budget. Keys still come
+            # from the shipped leaf; numeric B≈B_supply is the CT GE pin below.
+            r = run_json(["dsge", "ha", "steady-state", "two-asset-hank",
+                          "--max-iter", "2"])
             assert_envelope_ok(r; label="two-asset-hank ss")
             kv = collect_named_kv(r.doc, "name", "value")
             @test haskey(kv, "B")
