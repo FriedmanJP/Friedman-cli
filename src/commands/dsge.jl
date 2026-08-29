@@ -71,6 +71,7 @@ function dsge_specs()::Vector{CommandSpec}
                 TableSpec(name=:dsge_solution, description="Gensys/Klein state-transition policy matrix G1, one column per variable"),
                 TableSpec(name=:perturbation_policy_gx, description="Perturbation control policy gx: control responses to states and shocks"),
                 TableSpec(name=:projection_solution, description="Projection/PFI/VFI basis coefficients, one row per control"),
+                TableSpec(name=:projection_diagnostics, description="Projection/PFI/VFI convergence, iterations, residual norm, grid and degree"),
                 TableSpec(name=:vfi_value_function, description="Bellman value on collocation nodes (--method vfi)"),
                 TableSpec(name=:vfi_value_coefficients, description="Chebyshev coefficients of the Bellman value (--method vfi)"),
                 TableSpec(name=:vfi_value_at, description="evaluate_value at --evaluate-at (--method vfi)"),
@@ -647,6 +648,10 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="euler-points", type=String, default="midpoints",
                            description="Euler-error evaluation points: midpoints|nodes",
                            choices=["midpoints", "nodes"]),
+                OptionSpec(name="max-iter", type=Int, default=0,
+                           description="GE iterations (0 = upstream default: 200 one-asset, 60 two-asset closer)"),
+                OptionSpec(name="tol", type=Float64, default=0.0,
+                           description="Market-clearing tolerance (0 = upstream default)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -1570,7 +1575,10 @@ function dsge_specs()::Vector{CommandSpec}
                            description="table|csv|json", choices=["table","csv","json"]),
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:bewley_banks_steady_state, description="R, rk, L, N, B, leverage, Y, excess demand and convergence")],
+            tables=[
+                TableSpec(name=:bewley_banks_steady_state, description="R, rk, L, N, B, leverage, Y, excess demand and convergence"),
+                TableSpec(name=:bewley_banks_steady_state_policy, description="Lending and deposit policy over the net-worth grid at SS prices"),
+            ],
             category="dsge",
             handler=wrap_legacy(_dsge_bank_steady_state),
         ),
@@ -1750,6 +1758,15 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         _status("  Converged: $(sol.converged), Iterations: $(sol.iterations)")
         _status_styled("  Residual norm: $(round(sol.residual_norm; sigdigits=4))\n";
                     color = sol.residual_norm < 1e-6 ? :green : :yellow)
+        output_kv(Pair{String,Any}[
+            "converged" => sol.converged,
+            "iterations" => sol.iterations,
+            "residual_norm" => sol.residual_norm,
+            "grid_type" => string(sol.grid_type),
+            "degree" => sol.degree,
+            "method" => string(hasproperty(sol, :method) ? sol.method : method),
+        ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+           title="Projection Diagnostics", key="projection_diagnostics")
 
         coef_df = DataFrame(sol.coefficients,
                            ["basis_$i" for i in 1:size(sol.coefficients, 2)])
@@ -3319,14 +3336,20 @@ end
 
 function _dsge_ha_steady_state(; model::String, euler_points::String="midpoints",
                                 hh_solver::String="egm", distribution::String="young",
+                                max_iter::Int=0, tol::Float64=0.0,
                                 output::String="", format::String="table")
     ep = lowercase(strip(euler_points))
     ep in ("midpoints", "nodes") || throw(CliError("usage/invalid-option",
         "invalid --euler-points '$euler_points'; must be midpoints or nodes"))
+    max_iter >= 0 || throw(CliError("usage/invalid", "--max-iter must be ≥ 0"))
+    tol >= 0 || throw(CliError("usage/invalid", "--tol must be ≥ 0"))
     spec = _load_ha_model(model; distribution=distribution)
     hh = _parse_hh_solver(hh_solver)
     _status("Computing HA steady state for model=$(_ha_model_symbol(spec))...")
-    ss = _dsge_call(compute_steady_state, spec; euler_points=Symbol(ep), hh_solver=hh)
+    extra = (;)
+    max_iter > 0 && (extra = (; extra..., max_iter=max_iter))
+    tol > 0 && (extra = (; extra..., tol=tol))
+    ss = _dsge_call(compute_steady_state, spec; euler_points=Symbol(ep), hh_solver=hh, extra...)
     _ha_ss_tables(ss; format=format, output=output)
     return ss
 end
@@ -3880,6 +3903,7 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
         output_kv(Pair{String,Any}[
             "r_a" => ge0.r_a, "r_b" => ge0.r_b, "w" => ge0.w, "tau" => ge0.tau,
             "K" => ge0.K, "B" => ge0.B, "L" => ge0.L, "Y" => ge0.Y,
+            "B_supply" => hasproperty(m, :B_supply) ? m.B_supply : 1.0,
             "resid_illiquid" => ge0.resid_illiquid, "resid_liquid" => ge0.resid_liquid,
             "markets_cleared" => ge0.markets_cleared,
             "converged" => ge0.converged, "iterations" => ge0.iterations,
@@ -4683,6 +4707,19 @@ function _intermediary_sys(; n_n=25, n_xi=3, n_min=0.05, n_max=8.0, beta=0.99, s
         lambda=lambda, zeta1=zeta1, zeta2=zeta2, R=R, rk=rk, Z=z, alpha=alpha)
 end
 
+function _bewley_policy_df(sys, pol)
+    n_grid = sys.grid.grids[1]
+    n_n_g = length(n_grid)
+    n_e = size(pol.l_policy, 2)
+    rows = NamedTuple[]
+    for i in 1:n_n_g, j in 1:n_e
+        push!(rows, (n_index=i, n=Float64(n_grid[i]), xi_index=j,
+                     l_policy=Float64(pol.l_policy[i, j]),
+                     b_policy=Float64(pol.b_policy[i, j])))
+    end
+    return DataFrame(rows)
+end
+
 function _dsge_bank_pe(; n_n::Int=25, n_xi::Int=3, n_min::Float64=0.05, n_max::Float64=8.0,
                         beta::Float64=0.99, sigma::Float64=0.95, lambda::Float64=0.20,
                         zeta1::Float64=0.02, zeta2::Float64=2.0,
@@ -4697,16 +4734,7 @@ function _dsge_bank_pe(; n_n::Int=25, n_xi::Int=3, n_min::Float64=0.05, n_max::F
         "converged" => pe.converged, "iterations" => pe.iterations,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="Bewley Banks PE", key="bewley_banks_pe")
-    n_grid = sys.grid.grids[1]
-    n_n_g = length(n_grid)
-    n_e = size(pe.l_policy, 2)
-    rows = NamedTuple[]
-    for i in 1:n_n_g, j in 1:n_e
-        push!(rows, (n_index=i, n=Float64(n_grid[i]), xi_index=j,
-                     l_policy=Float64(pe.l_policy[i, j]),
-                     b_policy=Float64(pe.b_policy[i, j])))
-    end
-    output_result(DataFrame(rows); format=Symbol(format), output=output,
+    output_result(_bewley_policy_df(sys, pe); format=Symbol(format), output=output,
                   title="Bewley Banks PE Policy", key="bewley_banks_pe_policy")
     return pe
 end
@@ -4733,6 +4761,9 @@ function _dsge_bank_steady_state(; n_n::Int=25, n_xi::Int=3, n_min::Float64=0.05
         "converged" => ss.converged, "iterations" => ss.iterations,
     ]; format=format, output=output, title="Bewley Banks Steady State",
        key="bewley_banks_steady_state")
+    output_result(_bewley_policy_df(sys, ss); format=Symbol(format),
+                  output=_per_var_output_path(output, "policy"),
+                  title="Bewley Banks SS Policy", key="bewley_banks_steady_state_policy")
     return ss
 end
 

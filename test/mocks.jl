@@ -9486,22 +9486,56 @@ rasmussen(io::IOData) = linkages(io)
 key_sectors(io::IOData) = linkages(io).classification
 
 function sda(io0::IOData, io1::IOData; method::Symbol=:additive,
-            factors=nothing, on=:output, average::Symbol=:two_polar)
+            factors=nothing, on=:output)
+    is_ext = !(on === :output || on === "output")
+    on_key = is_ext ? String(on) : "output"
+    if is_ext
+        haskey(io0.extensions, on_key) || throw(ArgumentError("no extension '$on_key'"))
+        haskey(io1.extensions, on_key) || throw(ArgumentError("no extension '$on_key'"))
+    end
+    default_facs = is_ext ? [:intensity, :technology, :final_demand] : [:technology, :final_demand]
+    use_legacy = factors === nothing && !is_ext && method in (:additive, :multiplicative)
+    facs = factors === nothing ? default_facs : collect(Symbol.(factors))
+    isempty(facs) && throw(ArgumentError("factors must be non-empty"))
+    has_int = any(f -> f in (:intensity, :emission_intensity), facs)
+    has_int && !is_ext && throw(ArgumentError(":intensity requires on=<extension name>"))
+    is_ext && !has_int && throw(ArgumentError("emission SDA requires :intensity among factors"))
+    if method == :multiplicative
+        (is_ext || facs != [:technology, :final_demand]) && throw(ArgumentError(
+            "method=:multiplicative is only implemented for the two-factor " *
+            "output path factors=[:technology, :final_demand]"))
+    elseif method != :additive
+        throw(ArgumentError("method must be :additive or :multiplicative"))
+    end
     L0 = leontief_inverse(io0); L1 = leontief_inverse(io1)
     y0 = vec(sum(io0.Y, dims=2)); y1 = vec(sum(io1.Y, dims=2))
     ΔL = L1 - L0; Δy = y1 - y0
     if method == :additive
         L_eff = 0.5 .* (ΔL * y0 .+ ΔL * y1); Y_eff = 0.5 .* (L1 * Δy .+ L0 * Δy)
         total = L1 * y1 .- L0 * y0
-        return SDAResult(Dict(:L => L_eff, :Y => Y_eff), total,
-                         total .- (L_eff .+ Y_eff), :additive)
-    elseif method == :multiplicative
+        residual = total .- (L_eff .+ Y_eff)
+        if use_legacy
+            return SDAResult(Dict(:L => L_eff, :Y => Y_eff), total, residual, :additive)
+        end
+        effects = Dict{Symbol,Vector{Float64}}()
+        z = zeros(length(total))
+        for f in facs
+            if f === :technology
+                effects[f] = L_eff
+            elseif f in (:final_demand, :fd)
+                effects[f] = Y_eff
+            elseif f in (:intensity, :emission_intensity)
+                effects[f] = 0.5 .* (L_eff .+ Y_eff)
+            else
+                effects[f] = z
+            end
+        end
+        return SDAResult(effects, total, residual, :additive)
+    else
         x0 = L0 * y0; x1 = L1 * y1; ratio = x1 ./ max.(x0, eps())
         L_eff = (L1 * y0) ./ max.(x0, eps()); Y_eff = ratio ./ max.(L_eff, eps())
         return SDAResult(Dict(:L => L_eff, :Y => Y_eff), ratio,
                          ratio .- (L_eff .* Y_eff), :multiplicative)
-    else
-        throw(ArgumentError("method must be :additive or :multiplicative"))
     end
 end
 
@@ -10529,7 +10563,10 @@ function intermediary_pe(sys::IntermediarySystem{T}; R=sys.R, rk=sys.rk, max_ite
 end
 function intermediary_steady_state(sys::IntermediarySystem{T}; r_bounds=nothing, max_iter=24, tol=1e-4) where T
     lo, hi = r_bounds === nothing ? (T(0.01), T(0.5)) : (T(r_bounds[1]), T(r_bounds[2]))
-    conv = lo < hi
+    hi > lo || throw(ArgumentError("intermediary_steady_state: r_bounds must satisfy lo < hi"))
+    # A bracket that cannot contain a typical credit-market root reports honest
+    # non-convergence (mirrors real's no-sign-change path).
+    conv = lo < T(0.3) && hi > T(0.01)
     n_n = length(sys.grid.grids[1]); n_e = length(sys.xi.states)
     IntermediarySteadyState{T}(sys, ones(T, n_n, n_e), ones(T, n_n, n_e), ones(T, n_n, n_e),
                                ones(T, n_n, n_e) ./ T(n_n * n_e),

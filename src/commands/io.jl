@@ -239,7 +239,7 @@ function io_specs()::Vector{CommandSpec}
                 OUTPUT_OPTIONS..., PLOT_OPTIONS...],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
             tables=[TableSpec(name=:structural_decomposition,
-                              description="Per-sector (or per-stressor) SDA effects; legacy L_effect/Y_effect when --factors is omitted")],
+                              description="Per-sector (or per-stressor) SDA effects; legacy L_effect/Y_effect when --factors is omitted and --on is output; intensity/technology/final_demand when --on is a satellite")],
             category="io", handler=wrap_legacy(_io_sda),
         ),
         CommandSpec(
@@ -932,10 +932,11 @@ function _io_sda(; data::String="", data2::String="", n_sectors::Int=0, n_fd::In
         throw(e)
     end
     facs = _parse_sda_factors(factors)
+    on_arg = on == "output" ? :output : on
     r = try
         facs === nothing ?
-            sda(io0, io1; method=Symbol(method)) :
-            sda(io0, io1; method=Symbol(method), factors=facs, on=on == "output" ? :output : on)
+            sda(io0, io1; method=Symbol(method), on=on_arg) :
+            sda(io0, io1; method=Symbol(method), factors=facs, on=on_arg)
     catch e
         e isa ArgumentError && occursin("same number of sectors", _err_message(e)) &&
             throw(CliError("data/shape", _err_message(e)))
@@ -944,7 +945,10 @@ function _io_sda(; data::String="", data2::String="", n_sectors::Int=0, n_fd::In
     end
     labels = length(r.total) == length(io0.sectors) ? io0.sectors :
              (hasproperty(r, :stressors) ? collect(r.stressors) : ["row$i" for i in 1:length(r.total)])
-    if facs === nothing && haskey(r.effects, :L) && haskey(r.effects, :Y)
+    # Legacy L/Y column names only when --factors is omitted AND --on is output.
+    # Explicit --factors (even technology,final-demand) and satellite --on use
+    # the named-factor *_effect columns (intensity/technology/final_demand).
+    if facs === nothing && on_arg === :output && haskey(r.effects, :L) && haskey(r.effects, :Y)
         df = DataFrame(sector=labels,
                        L_effect=round.(r.effects[:L]; digits=6),
                        Y_effect=round.(r.effects[:Y]; digits=6),

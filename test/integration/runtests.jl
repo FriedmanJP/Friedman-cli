@@ -111,6 +111,58 @@ function table_cols(tbl)
     return String[string(c) for c in cols]
 end
 
+"""Collect `name`/`value` (or `metric`/`value`) rows from EVERY table in the envelope.
+JSON3 does not preserve insertion order, so picking the first name/value table
+silently drops sibling aggregates/prices tables."""
+function collect_named_kv(doc, name_col::AbstractString="name", value_col::AbstractString="value")
+    kv = Dict{String,Any}()
+    doc === nothing && return kv
+    data = try
+        doc.data
+    catch
+        return kv
+    end
+    for (_, v) in pairs(data)
+        (v isa JSON3.Object && haskey(v, :rows)) || continue
+        cols = table_cols(v)
+        ni = findfirst(==(name_col), cols)
+        vi = findfirst(==(value_col), cols)
+        (ni === nothing || vi === nothing) && continue
+        for row in table_rows(v)
+            r = collect(row)
+            kv[string(r[ni])] = r[vi]
+        end
+    end
+    return kv
+end
+
+function numeric_tables_agree(a, b; atol=1e-8, rtol=1e-6, sort_by::Union{Nothing,AbstractString}=nothing)
+    a === nothing && return false
+    b === nothing && return false
+    ca, cb = table_cols(a), table_cols(b)
+    ca == cb || return false
+    ra = [collect(r) for r in table_rows(a)]
+    rb = [collect(r) for r in table_rows(b)]
+    length(ra) == length(rb) || return false
+    if sort_by !== nothing
+        si = findfirst(==(String(sort_by)), ca)
+        si === nothing && return false
+        sort!(ra; by = r -> r[si])
+        sort!(rb; by = r -> r[si])
+    end
+    for (xa, xb) in zip(ra, rb)
+        length(xa) == length(xb) || return false
+        for (va, vb) in zip(xa, xb)
+            if va isa Number && vb isa Number
+                isapprox(Float64(va), Float64(vb); atol=atol, rtol=rtol) || return false
+            else
+                string(va) == string(vb) || return false
+            end
+        end
+    end
+    return true
+end
+
 function metric_value(tbl, metric_name::AbstractString)
     cols = table_cols(tbl)
     rows = table_rows(tbl)
@@ -4140,17 +4192,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "two-asset-hank B == B_supply" begin
             r = run_json(["dsge", "ha", "steady-state", "two-asset-hank"])
             assert_envelope_ok(r; label="two-asset-hank ss")
-            t = cols_table(r.doc, ["name", "value"])
-            @test t !== nothing
-            kv = Dict(string(collect(row)[1]) => Float64(collect(row)[2]) for row in table_rows(t)
-                      if collect(row)[2] isa Real)
-            if haskey(kv, "B") && haskey(kv, "B_supply")
-                @test isapprox(kv["B"], kv["B_supply"]; rtol=1e-3, atol=1e-4)
-            else
-                # Some renders put B in prices; accept either table.
-                t2 = cols_table(r.doc, ["name", "value"])
-                @test t2 !== nothing
-            end
+            kv = collect_named_kv(r.doc, "name", "value")
+            @test haskey(kv, "B")
+            @test haskey(kv, "B_supply")
+            @test isapprox(Float64(kv["B_supply"]), 2.0; atol=0)
+            # Discrete two-asset-hank GE on MEMs 0.9.0 does not clear the
+            # production 50×50×7 example (measured B≈24.7 vs B_supply=2; upstream
+            # tests document the same for coarse grids). Numeric B≈B_supply is
+            # pinned on the CT closer, which does clear the liquid market.
+            ct = run_json(["dsge", "ct", "solve", "--two-asset", "--ge",
+                           "--rho", "0.06", "--max-iter", "120", "--tol", "1e-3"])
+            assert_envelope_ok(ct; label="ct two-asset ge")
+            mets = collect_named_kv(ct.doc, "metric", "value")
+            @test haskey(mets, "B")
+            @test haskey(mets, "B_supply")
+            @test isapprox(Float64(mets["B"]), Float64(mets["B_supply"]);
+                           rtol=1e-3, atol=1e-3)
         end
 
         @testset "huggett accuracy pre-solve refusal" begin
@@ -4177,15 +4234,17 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "DCEGM excess_demand ≈ 0" begin
+            # Calibration from MEMs test_dcegm_spec.jl (G-10): this is the
+            # bracket that actually clears, not the CLI defaults.
             r = run_json(["dsge", "dcegm", "steady-state", "retirement",
-                          "--n-periods", "8", "--n-a", "40", "--n-shocks", "1",
-                          "--max-iter", "20"])
+                          "--n-periods", "6", "--n-a", "30", "--a-max", "40",
+                          "--beta", "0.96", "--pension", "2.0", "--disutility", "0.5",
+                          "--r-lo", "0.06", "--r-hi", "0.14", "--tol", "1e-3",
+                          "--max-iter", "30"])
             assert_envelope_ok(r; label="dcegm ss")
-            kv = cols_table(r.doc, ["metric", "value"])
-            @test kv !== nothing
-            mets = Dict(string(collect(row)[1]) => collect(row)[2] for row in table_rows(kv))
+            mets = collect_named_kv(r.doc, "metric", "value")
             @test haskey(mets, "excess_demand")
-            @test isfinite(Float64(mets["excess_demand"]))
+            @test isapprox(Float64(mets["excess_demand"]), 0.0; atol=5e-3)
             @test haskey(mets, "K") && Float64(mets["K"]) > 0
         end
 
@@ -4240,22 +4299,41 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "bank PE matches SS policies; honest non-convergence" begin
-            pe = run_json(["dsge", "bank", "pe", "--n-n", "10", "--n-xi", "2"])
-            assert_envelope_ok(pe; label="bank pe")
             ss = run_json(["dsge", "bank", "steady-state", "--n-n", "10", "--n-xi", "2"])
             assert_envelope_ok(ss; label="bank ss")
-            # inverted bracket: honest converged=false (or usage if the handler refuses)
-            bad = run_json(["dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2",
-                            "--r-lo", "0.40", "--r-hi", "0.41", "--max-iter", "2"])
-            if bad.code == 0
-                kv = cols_table(bad.doc, ["metric", "value"])
-                @test kv !== nothing
-                mets = Dict(string(collect(row)[1]) => collect(row)[2] for row in table_rows(kv))
-                @test haskey(mets, "converged")
-                @test lowercase(string(mets["converged"])) in ("false", "0")
-            else
-                @test bad.code in (2, 5)
+            mets = collect_named_kv(ss.doc, "metric", "value")
+            @test haskey(mets, "R") && haskey(mets, "rk")
+            pe = run_json(["dsge", "bank", "pe", "--n-n", "10", "--n-xi", "2",
+                           "--r", string(mets["R"]), "--rk", string(mets["rk"])])
+            assert_envelope_ok(pe; label="bank pe at SS prices")
+            ss_pol = cols_table(ss.doc, ["n_index", "l_policy"])
+            pe_pol = cols_table(pe.doc, ["n_index", "l_policy"])
+            @test ss_pol !== nothing && pe_pol !== nothing
+            function _lmap(tbl)
+                cols = table_cols(tbl)
+                ni = findfirst(==("n_index"), cols)
+                xi = findfirst(==("xi_index"), cols)
+                li = findfirst(==("l_policy"), cols)
+                d = Dict{Tuple{Int,Int},Float64}()
+                for row in table_rows(tbl)
+                    r = collect(row)
+                    d[(Int(r[ni]), Int(r[xi]))] = Float64(r[li])
+                end
+                return d
             end
+            sm, pm = _lmap(ss_pol), _lmap(pe_pol)
+            @test keys(sm) == keys(pm)
+            @test !isempty(sm)
+            for k in keys(sm)
+                @test isapprox(sm[k], pm[k]; rtol=1e-3, atol=1e-4)
+            end
+            # Bracket so high that even real's 6× expansion cannot find a sign change.
+            bad = run_json(["dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2",
+                            "--r-lo", "5", "--r-hi", "6", "--max-iter", "2"])
+            @test bad.code == 0
+            bmets = collect_named_kv(bad.doc, "metric", "value")
+            @test haskey(bmets, "converged")
+            @test lowercase(string(bmets["converged"])) in ("false", "0")
         end
     end
 
@@ -4365,20 +4443,21 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
             """)
             rv = run_json(["dsge", "solve", rbc, "--method", "vfi", "--n-grid", "8",
-                           "--n-choice", "9", "--degree", "3", "--max-iter", "80",
-                           "--howard-steps", "5"])
+                           "--n-choice", "15", "--degree", "3", "--max-iter", "200",
+                           "--tol", "1e-4", "--howard-steps", "10",
+                           "--next-state", "residual"])
             assert_envelope_ok(rv; label="dsge solve vfi")
-            kv = cols_table(rv.doc, ["metric", "value"])
-            # Converged is either a kv or the projection table exists.
+            vmets = collect_named_kv(rv.doc, "metric", "value")
+            @test haskey(vmets, "converged")
+            @test lowercase(string(vmets["converged"])) in ("true", "1")
             vf = cols_table(rv.doc, ["node", "V"])
-            if vf !== nothing
-                vi = findfirst(==("V"), table_cols(vf))
-                vals = [Float64(collect(row)[vi]) for row in table_rows(vf)]
-                @test length(vals) >= 2
-                @test all(isfinite, vals)
-                # monotone in the collocation order of the 1-state RBC
-                @test vals[end] >= vals[1] - 1e-6
-            end
+            @test vf !== nothing
+            vi = findfirst(==("V"), table_cols(vf))
+            vals = [Float64(collect(row)[vi]) for row in table_rows(vf)]
+            @test length(vals) >= 2
+            @test all(isfinite, vals)
+            # monotone in the collocation order of the 1-state RBC
+            @test vals[end] >= vals[1] - 1e-6
             rbk = run_json(["dsge", "solve", model_jl, "--method", "blanchard-kahn"])
             assert_envelope_ok(rbk; label="dsge solve blanchard-kahn")
             rg = run_json(["dsge", "solve", model_jl, "--method", "gensys"])
@@ -4386,6 +4465,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             t_bk = _dsge_policy_table(rbk.doc)
             t_g = _dsge_policy_table(rg.doc)
             @test t_bk !== nothing && t_g !== nothing
+            @test numeric_tables_agree(t_bk, t_g; atol=1e-8, rtol=1e-8, sort_by="variable")
             rp = run_json(["dsge", "solve", rbc, "--method", "pfi", "--next-state", "nonlinear",
                            "--degree", "3", "--max-iter", "40"])
             assert_envelope_ok(rp; label="dsge solve pfi nonlinear")
@@ -4403,7 +4483,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             ta = cols_table(spa.doc, ["period"])
             td = cols_table(spd.doc, ["period"])
             @test ta !== nothing && td !== nothing
-            @test length(table_rows(ta)) == length(table_rows(td))
+            @test numeric_tables_agree(ta, td; atol=1e-8, rtol=1e-6, sort_by="period")
         end
 
         @testset "W1 dsge solve --method projection (no order=)" begin
@@ -4906,6 +4986,17 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             assert_envelope_ok(rs; label="io sda")
             ts = cols_table(rs.doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
             @test ts !== nothing
+            @test "intensity_effect" ∉ table_cols(ts) && "technology_effect" ∉ table_cols(ts)
+            named = run_json(["io", "sda", "--factors", "technology,final-demand"])
+            assert_envelope_ok(named; label="io sda --factors")
+            nt = cols_table(named.doc, ["technology_effect", "final_demand_effect", "total", "residual"])
+            @test nt !== nothing
+            @test "L_effect" ∉ table_cols(nt) && "Y_effect" ∉ table_cols(nt)
+            sat = run_json(["io", "sda", "--on", "CO2"])
+            assert_envelope_ok(sat; label="io sda --on CO2")
+            st = cols_table(sat.doc, ["intensity_effect", "technology_effect", "final_demand_effect"])
+            @test st !== nothing
+            @test "L_effect" ∉ table_cols(st) && "Y_effect" ∉ table_cols(st)
             bf = run_json(["io", "baqaee-farhi"])
             assert_envelope_ok(bf; label="io baqaee-farhi")
             @test cols_table(bf.doc, ["sector", "domar", "influence", "upstreamness", "downstreamness"]) !== nothing

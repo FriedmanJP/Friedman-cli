@@ -646,7 +646,7 @@ Structural decomposition of Δoutput between two periods
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `structural_decomposition` (Per-sector (or per-stressor) SDA effects; legacy L_effect/Y_effect when --factors is omitted)
+**Output tables:** `structural_decomposition` (Per-sector (or per-stressor) SDA effects; legacy L_effect/Y_effect when --factors is omitted and --on is output; intensity/technology/final_demand when --on is a satellite)
 
 ---
 

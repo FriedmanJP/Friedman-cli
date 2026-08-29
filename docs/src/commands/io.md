@@ -153,19 +153,25 @@ friedman io key-sectors
 
 ## io sda
 
-Structural decomposition of the change in gross output between two periods into
-a technology (`ΔL`) effect and a final-demand (`Δy`) effect (Dietzenbacher &
-Los 1998).
+Structural decomposition of the change in an indicator between two periods
+(Dietzenbacher & Los 1998 two-polar average). Omit `--factors` and `--on` for
+the classical output path, which emits legacy `L_effect`/`Y_effect` columns.
+Pass `--on <satellite>` (e.g. `CO2` on `:wiot`) for emission SDA; the default
+factors then become intensity, technology, and final demand (no `L`/`Y` keys).
 
 ```bash
 friedman io sda --data period0.csv --data2 period1.csv --n-sectors 35
 friedman io sda --method multiplicative
+friedman io sda --factors technology,final-demand
+friedman io sda --on CO2
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--data2` | String | | Second-period table (defaults to `--data`) |
 | `--method` | String | `additive` | `additive` (exact, zero residual) \| `multiplicative` |
+| `--factors` | String | | Comma-separated SDA factors (kebab); omit for legacy `L_effect`/`Y_effect` |
+| `--on` | String | `output` | `output` or a satellite account name (emission SDA) |
 
 ## io extract
 

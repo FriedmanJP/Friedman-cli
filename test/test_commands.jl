@@ -12839,6 +12839,21 @@ end
         doc = _iodoc("sda", "--method", "additive")
         t = _table(doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
         @test all(isapprox(Float64(r[4]), 0.0; atol=1e-6) for r in t.rows)
+        # omitted --factors/--on → legacy L/Y keys, no named-factor columns
+        cols = String.(t.columns)
+        @test "intensity_effect" ∉ cols && "technology_effect" ∉ cols
+        # explicit --factors → named columns, not legacy L/Y
+        named = _iodoc("sda", "--factors", "technology,final-demand")
+        nt = _table(named, ["sector", "technology_effect", "final_demand_effect", "total", "residual"])
+        ncols = String.(nt.columns)
+        @test "L_effect" ∉ ncols && "Y_effect" ∉ ncols
+        # satellite --on (bundled :wiot has CO2) → intensity + technology + final_demand
+        sat = _iodoc("sda", "--on", "CO2")
+        st = _table(sat, ["intensity_effect", "technology_effect", "final_demand_effect"])
+        scols = String.(st.columns)
+        @test "L_effect" ∉ scols && "Y_effect" ∉ scols
+        @test "intensity_effect" in scols && "technology_effect" in scols &&
+              "final_demand_effect" in scols
     end
 
     @testset "extract (name / index / errors)" begin
@@ -13125,6 +13140,23 @@ end
             """)
             bk = _dsgedoc("dsge", "solve", lin, "--method", "blanchard-kahn")
             @test _hascols(bk, ["variable"])
+            gens = _dsgedoc("dsge", "solve", lin, "--method", "gensys")
+            tb = _table(bk, ["variable"]); tg = _table(gens, ["variable"])
+            @test String.(tb.columns) == String.(tg.columns)
+            @test length(tb.rows) == length(tg.rows)
+            for (rb, rg) in zip(tb.rows, tg.rows)
+                for (a, b) in zip(rb, rg)
+                    if a isa Number && b isa Number
+                        @test isapprox(Float64(a), Float64(b); atol=1e-12, rtol=0)
+                    else
+                        @test string(a) == string(b)
+                    end
+                end
+            end
+            pfi = _dsgedoc("dsge", "solve", lin, "--method", "pfi")
+            pkv = Dict(String(r[1]) => r[2] for r in _table(pfi, ["metric", "value"]).rows)
+            @test haskey(pkv, "converged")
+            @test lowercase(string(pkv["converged"])) in ("true", "1")
             err = nothing
             try; _capture() do
                 _dispatch_via_app(String["dsge", "solve", lin, "--method", "vfi", "--n-grid", "8"])
@@ -13150,9 +13182,8 @@ end
             end
         end
         @test haskey(kv, "K") || haskey(kv, "B") || haskey(kv, "Y")
-        if haskey(kv, "B") && haskey(kv, "B_supply")
-            @test isapprox(Float64(kv["B"]), Float64(kv["B_supply"]); atol=1e-8)
-        end
+        @test haskey(kv, "B") && haskey(kv, "B_supply")
+        @test isapprox(Float64(kv["B"]), Float64(kv["B_supply"]); atol=1e-8)
         err = nothing
         try; _capture() do
             _dispatch_via_app(String["dsge", "ha", "accuracy", "huggett"])
@@ -13179,6 +13210,7 @@ end
         eq = _dsgedoc("dsge", "dcegm", "steady-state", "retirement", "--n-a", "8", "--n-periods", "4")
         kv = Dict(String(r[1]) => r[2] for r in _table(eq, ["metric", "value"]).rows)
         @test haskey(kv, "excess_demand")
+        @test isapprox(Float64(kv["excess_demand"]), 0.0; atol=5e-3)
         lc = _dsgedoc("dsge", "lifecycle", "steady-state", "--j", "8", "--j-retire", "6",
                       "--n-a", "8", "--income-states", "2")
         @test _hascols(lc, ["age", "cohort_mass"])
@@ -13189,11 +13221,31 @@ end
         @test _hascols(firm, ["metric", "value"]) || _hascols(firm, ["k_index"])
         pe = _dsgedoc("dsge", "bank", "pe", "--n-n", "8", "--n-xi", "2")
         @test _hascols(pe, ["n_index", "l_policy"])
+        ss = _dsgedoc("dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2")
+        @test _hascols(ss, ["n_index", "l_policy"])
+        function _lmap(doc)
+            t = _table(doc, ["n_index", "l_policy"])
+            cols = String.(t.columns)
+            ni = findfirst(==("n_index"), cols)
+            xi = findfirst(==("xi_index"), cols)
+            li = findfirst(==("l_policy"), cols)
+            Dict((Int(r[ni]), Int(r[xi])) => Float64(r[li]) for r in t.rows)
+        end
+        pe_l, ss_l = _lmap(pe), _lmap(ss)
+        @test keys(pe_l) == keys(ss_l)
+        for k in keys(pe_l)
+            @test isapprox(pe_l[k], ss_l[k]; atol=1e-12, rtol=0)
+        end
         err = nothing
         try; _capture() do
             _dispatch_via_app(String["dsge", "bank", "steady-state", "--r-lo", "0.5", "--r-hi", "0.1"])
         end; catch e; err = e; end
         @test err isa CliError && err.code == "usage/invalid"
+        bad = _dsgedoc("dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2",
+                       "--r-lo", "5", "--r-hi", "6")
+        bkv = Dict(String(r[1]) => r[2] for r in _table(bad, ["metric", "value"]).rows)
+        @test haskey(bkv, "converged")
+        @test lowercase(string(bkv["converged"])) in ("false", "0")
         err = nothing
         try; _capture() do
             _dispatch_via_app(String["dsge", "dcegm", "transition", "retirement"])

@@ -46,6 +46,10 @@ removed or renamed. The only user-visible break is upstream's removal of the
   `--method pfi|projection` no longer receive `order=`; Krusell–Smith `r_squared`
   renders as a Dict; `dsge bayes * --constraint-solver` no longer passes
   `solver_obj=`. ProjectionSolution control-column length is guarded.
+- `io sda --on` is forwarded even when `--factors` is omitted (emission SDA
+  was silently running the output path). Projection/PFI/VFI emit a
+  `projection_diagnostics` kv (stdout `converged`); `dsge bank steady-state`
+  emits the SS policy table so PE vs SS `l_policy` is comparable.
 
 ## [0.10.0] — 2026-08-12
 

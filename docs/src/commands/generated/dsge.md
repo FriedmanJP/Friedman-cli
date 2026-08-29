@@ -80,7 +80,7 @@ Bewley-bank credit-market stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `bewley_banks_steady_state` (R, rk, L, N, B, leverage, Y, excess demand and convergence)
+**Output tables:** `bewley_banks_steady_state` (R, rk, L, N, B, leverage, Y, excess demand and convergence); `bewley_banks_steady_state_policy` (Lending and deposit policy over the net-worth grid at SS prices)
 
 ---
 
@@ -1422,6 +1422,8 @@ Compute HA-DSGE stationary equilibrium
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--euler-points` | — | `String` | `midpoints` | `midpoints`, `nodes` | Euler-error evaluation points: midpoints\|nodes |
+| `--max-iter` | — | `Int64` | `0` | — | GE iterations (0 = upstream default: 200 one-asset, 60 two-asset closer) |
+| `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = upstream default) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -1893,7 +1895,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `vfi_value_function` (Bellman value on collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
+**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
 
 ---
 
