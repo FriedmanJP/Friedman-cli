@@ -1264,7 +1264,7 @@ _dsge_call(f, args...; kwargs...) = Base.invokelatest(f, args...; kwargs...)
 Fresh module for evaluating a runtime DSGE spec (a `.jl` file or a synthesized `@dsge`
 block). The in-scope `MacroEconometricModels` object is injected as a const and its
 exports are brought in via a *relative* `using .MacroEconometricModels` — so the bare
-`@dsge`/`DSGESpec` names the macro expands to resolve against the injected object rather
+`@dsge`/`ModelSpec` names the macro expands to resolve against the injected object rather
 than the load path. This is what makes the loader work identically under the real
 package and the test mock (which shadows `MacroEconometricModels` in the test session).
 """
@@ -1280,9 +1280,11 @@ end
 
 Synthesize an `@dsge begin … end` source block from the parsed `[model]` TOML fields
 (`get_dsge`): `parameters` (name→value), `endogenous`, `exogenous`, `equations` (already
-in `var[t]` form), and the optional `linear` flag. Real MEMs has no keyword `DSGESpec`
+in `var[t]` form), and the optional `linear` flag. Real MEMs has no keyword RA-spec
 constructor — specs are built by the `@dsge` macro, which parses the equations into
 callable residual functions — so the TOML path must route through the macro too.
+`E[t](...)` is not rewritten: upstream errors at expansion and the catch maps it to
+`config/invalid`. Write leads as `x[t+1]` (`E_t x_{t+1}`).
 """
 function _dsge_toml_block(dsge_cfg::Dict)
     params = dsge_cfg["parameters"]     # Dict name => value
@@ -1298,6 +1300,12 @@ function _dsge_toml_block(dsge_cfg::Dict)
     push!(lines, "    endogenous: " * join(endog, ", "))
     isempty(exog) || push!(lines, "    exogenous: " * join(exog, ", "))
     is_linear && push!(lines, "    linear: true")
+    util = strip(string(get(dsge_cfg, "utility", "")))
+    beta = strip(string(get(dsge_cfg, "beta", "")))
+    ctrls = get(dsge_cfg, "controls", String[])
+    isempty(util) || push!(lines, "    utility: $util")
+    isempty(beta) || push!(lines, "    beta: $beta")
+    isempty(ctrls) || push!(lines, "    controls: " * join(ctrls, ", "))
     push!(lines, "")
     for eq in eqs
         push!(lines, "    " * eq)
@@ -1305,22 +1313,110 @@ function _dsge_toml_block(dsge_cfg::Dict)
     return "@dsge begin\n" * join(lines, "\n") * "\nend"
 end
 
+# ── ModelSpec kind guards (MEMs 0.9.0: DSGESpec/HADSGESpec are gone) ──────────
+
+_unwrap_loaderror(e) = e isa LoadError ? _unwrap_loaderror(e.error) : e
+
+const _AGENT_KIND_FAMILY = Dict(
+    "HouseholdSystem"            => ("heterogeneous-agent", "`dsge ha …`"),
+    "DCEGMSystem"                => ("DCEGM", "`dsge dcegm …`"),
+    "LifeCycleSystem"            => ("life-cycle", "`dsge lifecycle …`"),
+    "ContinuousHouseholdSystem"  => ("continuous-time household", "`dsge ct …`"),
+    "FirmSystem"                 => ("firm (Khan–Thomas)", "`dsge firm …`"),
+    "IntermediarySystem"         => ("bank (Bewley)", "`dsge bank …`"),
+)
+
+_is_model_spec(x) = x isa MacroEconometricModels.ModelSpec
+
+function _agent_kind_names(spec)
+    String[string(nameof(typeof(v))) for v in values(spec.agents)]
+end
+
+_is_ra_spec(spec) = _is_model_spec(spec) && isempty(spec.agents)
+_is_ha_spec(spec) = _is_model_spec(spec) &&
+    MacroEconometricModels.has_kind(spec, MacroEconometricModels.HouseholdSystem)
+
+function _ha_households(spec)
+    collect(MacroEconometricModels.agents_of(spec, MacroEconometricModels.HouseholdSystem))
+end
+
+function _ha_model_symbol(spec)
+    hh = _ha_households(spec)
+    length(hh) == 1 || throw(CliError("model/unsupported",
+        "this command supports exactly one household population; this spec has $(length(hh))";
+        hint="multi-population HA solve is deferred (see `dsge ha` docs)"))
+    return hh[1].model
+end
+
+function _wrong_command_for_kinds(spec, intended::String)
+    names = unique(_agent_kind_names(spec))
+    if isempty(names)
+        return CliError("usage/wrong-command",
+            "this is a representative-agent ModelSpec — use `dsge solve|irf|…`, not `$intended`",
+            hint="e.g. friedman dsge solve <file>")
+    end
+    if length(names) == 1 && names[1] == "HouseholdSystem"
+        return CliError("usage/wrong-command",
+            "this is a heterogeneous-agent spec — use `dsge ha …`",
+            hint="e.g. friedman dsge ha solve <file> --method reiter")
+    end
+    families = String[]
+    for n in names
+        pair = get(_AGENT_KIND_FAMILY, n, (n, "the matching `dsge` family command"))
+        push!(families, pair[2])
+    end
+    return CliError("usage/wrong-command",
+        "this spec has agent kind $(join(names, "/")) — use $(join(unique(families), " or ")), not `$intended`")
+end
+
+function _require_ra_spec(spec, intended::String="dsge solve")
+    _is_model_spec(spec) || throw(CliError("config/invalid",
+        "model did not evaluate to a ModelSpec (got $(typeof(spec)))"))
+    _is_ra_spec(spec) || throw(_wrong_command_for_kinds(spec, intended))
+    return spec
+end
+
+function _require_ha_spec(spec, intended::String="dsge ha")
+    _is_model_spec(spec) || throw(CliError("config/invalid",
+        "model did not evaluate to a ModelSpec (got $(typeof(spec)))"))
+    _is_ha_spec(spec) || throw(_wrong_command_for_kinds(spec, intended))
+    return spec
+end
+
+function _dsge_eval_invalid(e, msg::String; hint::String="")
+    inner = _unwrap_loaderror(e)
+    inner isa CliError && rethrow(inner)
+    throw(CliError("config/invalid",
+        msg * ": $(sprint(showerror, inner))"; hint=hint))
+end
+
+function _dsge_solve_error(e, label::String)
+    e isa CliError && return e
+    msg = sprint(showerror, e)
+    if e isa ArgumentError && (occursin("#651", msg) ||
+            occursin("multiple agent populations", msg) ||
+            occursin("mixed agent kinds", msg) ||
+            occursin("no solver for agent kind", msg))
+        return CliError("model/unsupported", "$label: $msg")
+    end
+    return _domain_or_data_error(e, label)
+end
+
 """
-    _load_dsge_model(path) → DSGESpec
+    _load_dsge_model(path) → ModelSpec
 
 Load a representative-agent DSGE model from a `.toml` or `.jl` file.
 
-- `.toml`: parse `[model]` (incl. optional `linear = true` → `DSGESpec.linear`) and
-  build the spec by synthesizing an `@dsge` block from the equations ([`_dsge_toml_block`]).
-- `.jl`: last expression must be a `DSGESpec` — typically the file is an `@dsge begin … end`
-  block. The sandbox pre-imports MEMs' exports, so the file may use `@dsge`/`DSGESpec`
-  unqualified without its own `using MacroEconometricModels`.
+- `.toml`: parse `[model]` (incl. optional `linear = true`) and build the spec by
+  synthesizing an `@dsge` block from the equations ([`_dsge_toml_block`]).
+- `.jl`: last expression must be a `ModelSpec` with no agent populations — typically
+  an `@dsge begin … end` block. The sandbox pre-imports MEMs' exports.
 
 Both paths compile the spec's residual functions at load time; every downstream MEMs
 call that evaluates them must go through [`_dsge_call`] (world-age barrier).
 
-If a `.jl` file evaluates to `HADSGESpec`, throw `usage/wrong-command` (exit 2)
-pointing the user at `dsge ha …` — never crash downstream (C046 / P4-9).
+An HA spec, or any other agent kind reachable via `to_spec`, is `usage/wrong-command`
+(exit 2) — never silently remapped into an RA solver.
 """
 function _load_dsge_model(path::String)
     _validate_input_path(path)
@@ -1342,12 +1438,12 @@ function _load_dsge_model(path::String)
         spec = try
             include_string(mod, block)
         catch e
-            throw(CliError("config/invalid",
+            _dsge_eval_invalid(e,
                 "could not build a DSGE spec from the TOML model — check [[model.equations]]" *
-                " and [model] parameters/endogenous/exogenous: $(sprint(showerror, e))"))
+                " and [model] parameters/endogenous/exogenous";
+                hint="E[t](...) was removed; write the lead directly (x[t+1] is E_t x_{t+1})")
         end
-        spec isa MacroEconometricModels.DSGESpec || throw(CliError("config/invalid",
-            "TOML model did not build a DSGESpec (got $(typeof(spec)))"))
+        _require_ra_spec(spec, "dsge solve")
 
         lin_note = is_linear ? ", linear=true" : ""
         _status("Loaded DSGE model from TOML: $(length(dsge_cfg["endogenous"])) endogenous, $(length(dsge_cfg["exogenous"])) exogenous, $(length(dsge_cfg["equations"])) equations$lin_note")
@@ -1355,14 +1451,14 @@ function _load_dsge_model(path::String)
 
     elseif ext == ".jl"
         mod = _dsge_sandbox()
-        result = Base.include(mod, path)
-        if result isa MacroEconometricModels.HADSGESpec
-            throw(CliError("usage/wrong-command",
-                "this is a heterogeneous-agent spec — use `dsge ha …`",
-                hint="e.g. friedman dsge ha solve $(path) --method reiter"))
+        result = try
+            Base.include(mod, path)
+        catch e
+            e isa CliError && rethrow()
+            _dsge_eval_invalid(e, "could not evaluate the DSGE model file '$path'";
+                hint="the file should be an `@dsge begin … end` block; E[t](...) was removed — write x[t+1]")
         end
-        result isa MacroEconometricModels.DSGESpec || throw(CliError("config/invalid",
-            ".jl model file must evaluate to a DSGESpec (last expression), got $(typeof(result))"))
+        _require_ra_spec(result, "dsge solve")
         spec = result
         lin_note = (hasproperty(spec, :linear) && spec.linear) ? ", linear=true" : ""
         _status("Loaded DSGE model from Julia file: $(spec.n_endog) endogenous, $(spec.n_exog) exogenous$lin_note")
@@ -1381,7 +1477,44 @@ const _HA_BUILTIN_MODELS = (
     "one-asset-hank" => :one_asset_hank,
     "two-asset-hank" => :two_asset_hank,
     "huggett" => :huggett,
+    "endogenous-labor" => :endogenous_labor,
 )
+
+const _RA_METHOD_MAP = Dict(
+    "gensys" => :gensys,
+    "klein" => :klein,
+    "perturbation" => :perturbation,
+    "projection" => :projection,
+    "pfi" => :pfi,
+    "vfi" => :vfi,
+    "blanchard-kahn" => :blanchard_kahn,
+    "blanchard_kahn" => :blanchard_kahn,
+)
+
+const _RA_METHOD_CHOICES = ["gensys", "klein", "perturbation", "projection", "pfi",
+                            "vfi", "blanchard-kahn"]
+
+"""Map CLI `--method` string to the MEMs `solve` symbol (`:blanchard_kahn` not hyphen)."""
+function _parse_ra_method(method::String)
+    key = lowercase(strip(method))
+    haskey(_RA_METHOD_MAP, key) || throw(CliError("usage/invalid-option",
+        "invalid --method '$method'; must be $(join(_RA_METHOD_CHOICES, "|"))"))
+    return _RA_METHOD_MAP[key]
+end
+
+function _parse_hh_solver(hh_solver::String)
+    s = lowercase(strip(hh_solver))
+    s in ("egm", "vfi") || throw(CliError("usage/invalid-option",
+        "invalid --hh-solver '$hh_solver'; must be egm|vfi"))
+    return Symbol(s)
+end
+
+function _parse_ha_distribution(distribution::String)
+    s = lowercase(strip(distribution))
+    s in ("young", "winberry") || throw(CliError("usage/invalid-option",
+        "invalid --distribution '$distribution'; must be young|winberry"))
+    return Symbol(s)
+end
 
 const _HA_METHOD_MAP = Dict(
     "ssj" => :ssj,
@@ -1418,33 +1551,30 @@ function _ha_builtin_symbol(name::String)
 end
 
 """
-    _load_ha_model(model) → HADSGESpec
+    _load_ha_model(model) → ModelSpec
 
-Load HA-DSGE model from a builtin name (`huggett`, `krusell-smith`, …) or a `.jl`
-file that evaluates to `HADSGESpec`.
+Load an HA-DSGE model from a builtin name (`huggett`, `krusell-smith`, …) or a `.jl`
+file that evaluates to a `ModelSpec` carrying a `HouseholdSystem`.
 
-The `.jl` path goes through [`_dsge_sandbox`] (#80, fixed in W13): an HA spec file is an
-`@dsge begin … end` block carrying `heterogeneous:`/`idiosyncratic:`/`aggregation:`
-declarations, so the bare `@dsge` name has to resolve — a sandbox holding only the
-`MacroEconometricModels` const gave `UndefVarError` on every `.jl` HA model. This is the
-same defect the RA loader had; unlike the RA case there is no world-age barrier to add,
-because the HA solve paths never *invoke* the spec's compiled residual closures (they read
-`param_values`/`endog` and build throwaway specs — `heterogeneous/parser.jl`, `ssj.jl`).
+The `.jl` path goes through [`_dsge_sandbox`]. At MEMs 0.9.0 the HA SSJ path evaluates
+the spec's `NamedEquation` residual closures, so downstream `compute_steady_state` /
+`solve` of a `.jl` spec must go through [`_dsge_call`] (world-age barrier).
 """
-function _load_ha_model(model::String)
+function _load_ha_model(model::String; distribution::String="young")
     isempty(strip(model)) && throw(CliError("usage/missing-arg",
-        "HA model is required (builtin name or path to .jl HADSGESpec)"))
+        "HA model is required (builtin name or path to .jl ModelSpec)"))
+    dist = _parse_ha_distribution(distribution)
 
     bsym = _ha_builtin_symbol(model)
     if bsym !== nothing
-        _status("Loading HA-DSGE builtin :$bsym via load_ha_example")
-        return MacroEconometricModels.load_ha_example(bsym)
+        _status("Loading HA-DSGE builtin :$bsym via load_ha_example (distribution=$dist)")
+        return MacroEconometricModels.load_ha_example(bsym; distribution=dist)
     end
 
     _validate_input_path(model)
     isfile(model) || throw(CliError("data/file-not-found",
         "HA model file not found: $model (hint: use a builtin name like huggett, " *
-        "or a .jl file evaluating to HADSGESpec)"))
+        "or a .jl file evaluating to a heterogeneous-agent ModelSpec)"))
     ext = lowercase(splitext(model)[2])
     ext == ".jl" || throw(CliError("usage/invalid-option",
         "HA model file must be .jl (got '$ext'); builtins: " *
@@ -1455,19 +1585,12 @@ function _load_ha_model(model::String)
         Base.include(mod, model)
     catch e
         e isa CliError && rethrow()
-        throw(CliError("config/invalid",
-            "could not evaluate the HA model file '$model': $(sprint(showerror, e))";
+        _dsge_eval_invalid(e, "could not evaluate the HA model file '$model'";
             hint="the file should be an `@dsge begin … end` block with heterogeneous:, " *
-                 "idiosyncratic: and aggregation: declarations"))
+                 "idiosyncratic: and aggregation: declarations")
     end
-    if result isa MacroEconometricModels.DSGESpec
-        throw(CliError("usage/wrong-command",
-            "this is a representative-agent DSGESpec — use `dsge solve|irf|…`, not `dsge ha`",
-            hint="e.g. friedman dsge solve $(model)"))
-    end
-    result isa MacroEconometricModels.HADSGESpec || throw(CliError("config/invalid",
-        ".jl HA model must evaluate to HADSGESpec, got $(typeof(result))"))
-    _status("Loaded HADSGESpec from Julia file (model=$(result.model))")
+    _require_ha_spec(result, "dsge ha")
+    _status("Loaded HA ModelSpec from Julia file (model=$(_ha_model_symbol(result)))")
     return result
 end
 
@@ -1475,80 +1598,217 @@ end
     _solve_ha(spec; method=:ssj, kwargs...) → HADSGESolution | KrusellSmithSolution
 
 Compute steady state (unless `ss` supplied) then solve with the HA method.
+`.jl` specs go through [`_dsge_call`]: at 0.9.0 SSJ evaluates the aggregate
+residual closures compiled at load time.
 """
-function _solve_ha(spec::MacroEconometricModels.HADSGESpec;
+function _solve_ha(spec::MacroEconometricModels.ModelSpec;
                    method::Symbol=:ssj,
                    ss=nothing,
                    n_reduced::Int=30,
                    T_horizon::Int=300,
                    kwargs...)
-    if ss === nothing
-        _status("Computing HA steady state...")
-        # Only pass steady-state kwargs (MEMs filters the rest inside solve,
-        # but we call compute_steady_state separately and must not forward
-        # n_reduced / T_horizon here).
-        ss_keys = (:K_init, :r_bounds, :max_iter, :tol, :verbose, :price_fn, :clearing)
-        ss_kw = Dict{Symbol,Any}()
-        for k in ss_keys
-            haskey(kwargs, k) && (ss_kw[k] = kwargs[k])
-        end
-        ss = MacroEconometricModels.compute_steady_state(spec; ss_kw...)
-        if hasproperty(ss, :converged)
-            _status_styled("  Steady state converged: $(ss.converged)\n";
-                           color = ss.converged ? :green : :yellow)
-        end
+    _require_ha_spec(spec, "dsge ha")
+    hh = get(kwargs, :hh_solver, :egm)
+    if hh === :vfi && method === :krusell_smith
+        throw(CliError("usage/invalid",
+            "--hh-solver vfi is not implemented with --method krusell-smith " *
+            "(the KS household problem has aggregate (K, z) in the state)";
+            hint="use --hh-solver egm, or vfi on ssj/reiter/steady-state"))
     end
-    _status("Solving HA-DSGE with method=$method...")
-    sol = MacroEconometricModels.solve(spec; method=method, ss=ss,
-                                       n_reduced=n_reduced, T_horizon=T_horizon,
-                                       kwargs...)
-    return sol
+    try
+        if ss === nothing
+            _status("Computing HA steady state...")
+            # Only pass steady-state kwargs (MEMs filters the rest inside solve,
+            # but we call compute_steady_state separately and must not forward
+            # n_reduced / T_horizon here).
+            ss_keys = (:K_init, :r_bounds, :max_iter, :tol, :verbose, :price_fn, :clearing,
+                       :hh_solver, :distribution)
+            ss_kw = Dict{Symbol,Any}()
+            for k in ss_keys
+                haskey(kwargs, k) && (ss_kw[k] = kwargs[k])
+            end
+            ss = _dsge_call(compute_steady_state, spec; ss_kw...)
+            if hasproperty(ss, :converged)
+                _status_styled("  Steady state converged: $(ss.converged)\n";
+                               color = ss.converged ? :green : :yellow)
+            end
+        end
+        _status("Solving HA-DSGE with method=$method...")
+        return _dsge_call(solve, spec; method=method, ss=ss,
+                          n_reduced=n_reduced, T_horizon=T_horizon,
+                          kwargs...)
+    catch e
+        throw(_dsge_solve_error(e, "HA-DSGE solve"))
+    end
+end
+
+"""Build the method-gated kwargs for `solve`. Exclusive knobs on the wrong method are
+`usage/invalid` (not silently dropped). Defaults/sentinels mean "not passed"."""
+function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String="auto",
+                         next_state::String="", howard_steps::Int=-1,
+                         n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
+                         scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
+                         damping::Float64=0.0, anderson_m::Int=0)
+    ns = lowercase(strip(next_state))
+    vfi_exclusive = n_grid != 0 || n_choice != 0
+    pfi_exclusive = anderson_m != 0
+    shared_knobs = howard_steps != -1 || n_quad != 0 || scale != 0.0 ||
+                   tol != 0.0 || max_iter != 0 || damping != 0.0 || !isempty(ns)
+
+    if meth === :vfi
+        isempty(ns) || ns in ("auto", "linear", "residual") || throw(CliError("usage/invalid",
+            "vfi --next-state must be auto|linear|residual (got '$next_state')"))
+        pfi_exclusive && throw(CliError("usage/invalid",
+            "--anderson-m is a PFI option; not valid with --method vfi"))
+        g = lowercase(strip(grid))
+        g in ("auto", "tensor") || throw(CliError("usage/invalid",
+            "vfi supports --grid auto|tensor only (Smolyak value-function iteration is not implemented)"))
+        n_grid == 0 || n_grid >= 3 || throw(CliError("usage/invalid",
+            "--n-grid must be ≥ 3 (got $n_grid)"))
+        n_choice == 0 || n_choice >= 3 || throw(CliError("usage/invalid",
+            "--n-choice must be ≥ 3 (got $n_choice)"))
+    elseif meth === :pfi
+        isempty(ns) || ns in ("linear", "policy", "nonlinear") || throw(CliError("usage/invalid",
+            "pfi --next-state must be linear|policy|nonlinear (got '$next_state')"))
+        vfi_exclusive && throw(CliError("usage/invalid",
+            "--n-grid/--n-choice are VFI options; not valid with --method pfi"))
+        anderson_m >= 0 || throw(CliError("usage/invalid",
+            "--anderson-m must be ≥ 0 (got $anderson_m)"))
+    elseif vfi_exclusive || pfi_exclusive || shared_knobs
+        throw(CliError("usage/invalid",
+            "VFI/PFI knobs require --method vfi or pfi (got $(meth))"))
+    end
+    howard_steps == -1 || howard_steps >= 0 || throw(CliError("usage/invalid",
+        "--howard-steps must be ≥ 0 (got $howard_steps)"))
+    n_quad == 0 || n_quad >= 1 || throw(CliError("usage/invalid",
+        "--n-quad must be ≥ 1 (got $n_quad)"))
+    scale == 0.0 || scale > 0 || throw(CliError("usage/invalid",
+        "--scale must be > 0 (got $scale)"))
+    tol == 0.0 || tol > 0 || throw(CliError("usage/invalid",
+        "--tol must be > 0 (got $tol)"))
+    max_iter == 0 || max_iter >= 1 || throw(CliError("usage/invalid",
+        "--max-iter must be ≥ 1 (got $max_iter)"))
+    damping == 0.0 || damping > 0 || throw(CliError("usage/invalid",
+        "--damping must be > 0 (got $damping)"))
+
+    extra = NamedTuple()
+    if meth === :perturbation
+        extra = (; extra..., order=order)
+    elseif meth === :projection
+        extra = (; extra..., degree=degree, grid=Symbol(grid))
+    elseif meth === :pfi
+        extra = (; extra..., degree=degree, grid=Symbol(grid))
+        isempty(ns) || (extra = (; extra..., next_state=Symbol(ns)))
+        howard_steps >= 0 && (extra = (; extra..., howard_steps=howard_steps))
+        n_quad > 0 && (extra = (; extra..., n_quad=n_quad))
+        scale > 0 && (extra = (; extra..., scale=scale))
+        tol > 0 && (extra = (; extra..., tol=tol))
+        max_iter > 0 && (extra = (; extra..., max_iter=max_iter))
+        damping > 0 && (extra = (; extra..., damping=damping))
+        anderson_m > 0 && (extra = (; extra..., anderson_m=anderson_m))
+    elseif meth === :vfi
+        gsym = lowercase(strip(grid)) in ("auto", "tensor", "") ? :tensor : Symbol(grid)
+        extra = (; extra..., degree=degree, grid=gsym)
+        isempty(ns) || (extra = (; extra..., next_state=Symbol(ns)))
+        howard_steps >= 0 && (extra = (; extra..., howard_steps=howard_steps))
+        n_grid >= 3 && (extra = (; extra..., n_grid=n_grid))
+        n_choice >= 3 && (extra = (; extra..., n_choice=n_choice))
+        n_quad > 0 && (extra = (; extra..., n_quad=n_quad))
+        scale > 0 && (extra = (; extra..., scale=scale))
+        tol > 0 && (extra = (; extra..., tol=tol))
+        max_iter > 0 && (extra = (; extra..., max_iter=max_iter))
+        damping > 0 && (extra = (; extra..., damping=damping))
+    end
+    return extra
+end
+
+function _require_vfi_bellman(spec)
+    u = hasproperty(spec, :bellman_utility) ? spec.bellman_utility : nothing
+    b = hasproperty(spec, :bellman_beta) ? spec.bellman_beta : nothing
+    (u !== nothing && b !== nothing) || throw(CliError("config/missing-key",
+        "dsge solve --method vfi requires @dsge utility: and beta: " *
+        "(or TOML [model] utility / beta)";
+        hint="e.g. utility = \"log(C)\", beta = \"beta\", controls = [\"C\"]"))
+    return nothing
 end
 
 """
-    _solve_dsge(spec; method="gensys", order=1, degree=5, grid="auto", constraint_solver="") → solution
+    _solve_dsge(spec; method="gensys", ...) → solution
 
-Solve a DSGE model: compute steady state → linearize → solve.
-Returns DSGESolution, PerturbationSolution, or ProjectionSolution.
+Solve a representative-agent DSGE model: compute steady state → linearize → solve.
+Per-method kwargs only: `order` for perturbation; `degree`/`grid` for projection/pfi/vfi;
+VFI/PFI knobs only for the matching solver. `blanchard-kahn` maps to `:blanchard_kahn`.
+An HA spec is refused (upstream would silently remap `:gensys` → `:ssj`).
 """
-function _solve_dsge(spec::MacroEconometricModels.DSGESpec;
+function _solve_dsge(spec::MacroEconometricModels.ModelSpec;
                      method::String="gensys", order::Int=1,
                      degree::Int=5, grid::String="auto",
-                     constraint_solver::String="")
-    _status("Computing steady state...")
-    ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    # World-age barrier: a runtime-loaded spec's @dsge residual fns are "too new" for
-    # this frame — every MEMs call that evaluates them must go through _dsge_call.
-    spec = _dsge_call(compute_steady_state, spec; ss_kw...)
+                     constraint_solver::String="",
+                     next_state::String="", howard_steps::Int=-1,
+                     n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
+                     scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
+                     damping::Float64=0.0, anderson_m::Int=0)
+    _require_ra_spec(spec, "dsge solve")
+    meth = _parse_ra_method(method)
+    extra = _ra_solve_extra(meth; order=order, degree=degree, grid=grid,
+                            next_state=next_state, howard_steps=howard_steps,
+                            n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
+                            scale=scale, tol=tol, max_iter=max_iter,
+                            damping=damping, anderson_m=anderson_m)
+    meth === :vfi && _require_vfi_bellman(spec)
+    try
+        _status("Computing steady state...")
+        ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
+        # World-age barrier: a runtime-loaded spec's @dsge residual fns are "too new" for
+        # this frame — every MEMs call that evaluates them must go through _dsge_call.
+        spec = _dsge_call(compute_steady_state, spec; ss_kw...)
 
-    _status("Linearizing model...")
-    _dsge_call(linearize, spec)
+        _status("Linearizing model...")
+        _dsge_call(linearize, spec)
 
-    _status("Solving with method=$method" *
-            (method == "perturbation" ? ", order=$order" : "") *
-            (method in ("projection", "pfi") ? ", degree=$degree, grid=$grid" : "") *
-            "...")
+        _status("Solving with method=$method" *
+                (meth === :perturbation ? ", order=$order" : "") *
+                (meth in (:projection, :pfi, :vfi) ? ", degree=$degree, grid=$grid" : "") *
+                "...")
 
-    solve_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    sol = _dsge_call(solve, spec; method=Symbol(method), order=order,
-                degree=degree, grid=Symbol(grid), solve_kw...)
+        solve_kw = isempty(constraint_solver) ? NamedTuple() : (; solver=Symbol(constraint_solver))
+        sol = _dsge_call(solve, spec; method=meth, extra..., solve_kw...)
 
-    # Report diagnostics
-    if sol isa MacroEconometricModels.DSGESolution ||
-       sol isa MacroEconometricModels.PerturbationSolution
-        det_status = is_determined(sol) ? "unique" : "indeterminate"
-        stab_status = is_stable(sol) ? "stable" : "unstable"
-        _status_styled("  Determinacy: $det_status\n"; color = is_determined(sol) ? :green : :red)
-        _status_styled("  Stability: $stab_status\n"; color = is_stable(sol) ? :green : :red)
+        # Report diagnostics
+        if sol isa MacroEconometricModels.DSGESolution ||
+           sol isa MacroEconometricModels.PerturbationSolution
+            det_status = is_determined(sol) ? "unique" : "indeterminate"
+            stab_status = is_stable(sol) ? "stable" : "unstable"
+            _status_styled("  Determinacy: $det_status\n"; color = is_determined(sol) ? :green : :red)
+            _status_styled("  Stability: $stab_status\n"; color = is_stable(sol) ? :green : :red)
+        end
+
+        return sol
+    catch e
+        throw(_dsge_solve_error(e, "DSGE solve"))
     end
+end
 
-    return sol
+"""Load a one-column (or first-column) positive TFP path from CSV."""
+function _load_positive_path(path::String; min_length::Int=2, name::String="Z_path")
+    _validate_input_path(path)
+    isfile(path) || throw(CliError("data/file-not-found", "$name file not found: $path"))
+    df = load_data(path)
+    mat = df_to_matrix(df)
+    vec = mat[:, 1]
+    length(vec) >= min_length || throw(CliError("data/shape",
+        "$name has $(length(vec)) row(s); need ≥ $min_length"))
+    all(>(0), vec) || throw(CliError("data/invalid",
+        "$name values must all be positive"))
+    return Float64.(vec)
 end
 
 """
     _load_dsge_constraints(path; spec=nothing) → Vector{constraint}
 
 Load OccBin and/or nonlinear constraints from a TOML file.
+Bounds become `VariableBound`. `[[constraints.nonlinear]]` expr strings are
+`Meta.parse`d then `parse_constraint`'d (Expr only upstream) → `OccBinConstraint`.
 Nonlinear constraints require a loaded DSGE spec.
 """
 function _load_dsge_constraints(path::String; spec=nothing)
@@ -1559,29 +1819,108 @@ function _load_dsge_constraints(path::String; spec=nothing)
     has_nonlinear = !isempty(get(con_cfg, "nonlinear", []))
 
     if has_nonlinear && spec === nothing
-        error("nonlinear constraints require a loaded DSGE spec (pass spec keyword)")
+        throw(CliError("config/invalid",
+            "nonlinear constraints require a loaded DSGE spec (pass spec keyword)"))
     end
 
     constraints = Any[]
 
     if has_bounds
         for b in con_cfg["bounds"]
-            lower = get(b, "lower", -Inf)
-            c = variable_bound(Symbol(b["variable"]); lower=lower,
-                               upper=get(b, "upper", Inf))
+            lo = get(b, "lower", nothing)
+            hi = get(b, "upper", nothing)
+            lo_arg = (lo === nothing || lo == -Inf) ? nothing : lo
+            hi_arg = (hi === nothing || hi == Inf) ? nothing : hi
+            (lo_arg === nothing && hi_arg === nothing) && throw(CliError("config/invalid",
+                "constraints.bounds for '$(b["variable"])' needs a finite lower or upper"))
+            c = variable_bound(Symbol(b["variable"]); lower=lo_arg, upper=hi_arg)
             push!(constraints, c)
         end
     end
 
     if has_nonlinear
         for nl in con_cfg["nonlinear"]
+            raw = nl["expr"]
+            expr = try
+                raw isa Expr ? raw : Meta.parse(String(raw))
+            catch e
+                throw(CliError("config/invalid",
+                    "could not parse nonlinear constraint expression $(repr(raw)): " *
+                    sprint(showerror, e)))
+            end
+            expr isa Expr || throw(CliError("config/invalid",
+                "nonlinear constraint did not parse to an Expr: $(repr(raw))"))
             # parse_constraint compiles against the spec's residual fns → world-age barrier
-            c = _dsge_call(parse_constraint, nl["expr"], spec)
+            c = try
+                _dsge_call(parse_constraint, expr, spec)
+            catch e
+                e isa CliError && rethrow()
+                throw(CliError("config/invalid",
+                    "parse_constraint failed for $(repr(raw)): $(sprint(showerror, e))"))
+            end
             push!(constraints, c)
         end
     end
 
     return constraints
+end
+
+"""Convert loaded constraints to 1 or 2 `OccBinConstraint`s (upstream's only shapes)."""
+function _as_occbin_constraints(constraints, spec)
+    out = MacroEconometricModels.OccBinConstraint[]
+    for c in constraints
+        if c isa MacroEconometricModels.OccBinConstraint
+            push!(out, c)
+        elseif c isa MacroEconometricModels.VariableBound
+            var = c.var_name
+            if c.lower !== nothing
+                expr = Expr(:call, :(>=), Expr(:ref, var, :t), c.lower)
+                bind = Expr(:(=), Expr(:ref, var, :t), c.lower)
+                push!(out, MacroEconometricModels.OccBinConstraint{Float64}(
+                    expr, var, Float64(c.lower), :geq, bind))
+            end
+            if c.upper !== nothing
+                expr = Expr(:call, :(<=), Expr(:ref, var, :t), c.upper)
+                bind = Expr(:(=), Expr(:ref, var, :t), c.upper)
+                push!(out, MacroEconometricModels.OccBinConstraint{Float64}(
+                    expr, var, Float64(c.upper), :leq, bind))
+            end
+        else
+            throw(CliError("usage/invalid",
+                "OccBin constraints must be variable bounds or parsed comparison Exprs " *
+                "(got $(typeof(c)))"))
+        end
+    end
+    n = length(out)
+    n == 0 && throw(CliError("usage/invalid",
+        "OccBin requires 1 or 2 constraints; none were usable"))
+    n > 2 && throw(CliError("usage/invalid",
+        "OccBin supports 1 or 2 constraints (got $n); split the file or drop extra bounds"))
+    return out
+end
+
+function _occbin_solve_call(spec, cons; periods::Int)
+    obs = _as_occbin_constraints(cons, spec)
+    shock_path = zeros(Float64, periods, spec.n_exog)
+    shock_path[1, 1] = 1.0
+    if length(obs) == 1
+        return _dsge_call(occbin_solve, spec, obs[1];
+                          shock_path=shock_path, nperiods=periods)
+    else
+        return _dsge_call(occbin_solve, spec, obs[1], obs[2];
+                          shock_path=shock_path, nperiods=periods)
+    end
+end
+
+function _occbin_irf_call(spec, cons; shock_idx::Int, horizon::Int, magnitude::Real)
+    obs = _as_occbin_constraints(cons, spec)
+    if length(obs) == 1
+        return _dsge_call(occbin_irf, spec, obs[1], shock_idx, horizon;
+                          magnitude=magnitude)
+    else
+        return _dsge_call(occbin_irf, spec, obs[1], obs[2], shock_idx, horizon;
+                          magnitude=magnitude)
+    end
 end
 
 """

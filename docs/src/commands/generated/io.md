@@ -3,7 +3,50 @@
 
 Generated reference for `friedman io` and its subcommands.
 
-**Leaves:** 12
+**Leaves:** 27
+
+### `friedman io aggregate`
+
+Aggregate an IO/MRIO table over regions and/or sector types
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--region-map` | — | `String` | `""` | — | old=new region pairs, comma-separated |
+| `--sector-map` | — | `String` | `""` | — | old=new sector-type pairs, comma-separated |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `io_table_summary` (Sector/region/category counts after aggregation); `sectors` (Per-sector gross output, final demand and value added)
+
+---
+
+### `friedman io balance`
+
+Repair intermediate flows so row and column accounts close (RAS/GRAS)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--method` | — | `String` | `ras` | `ras`, `gras` | ras (non-negative Z) \| gras (sign-preserving) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Biproportional convergence tolerance |
+| `--maxiter` | — | `Int64` | `1000` | — | Maximum RAS/GRAS iterations |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+**Output tables:** `io_table_summary` (Sector/region counts of the balanced table); `sectors` (Per-sector gross output, final demand and value added)
+
+---
 
 ### `friedman io baqaee-farhi`
 
@@ -25,6 +68,268 @@ Baqaee & Farhi (2019) nonlinear IO: Domar weights, centralities
 | `--second-order` | — | Also emit the second-order 'beyond Hulten' Hessian (sector×sector) |
 
 **Output tables:** `baqaee_farhi_2019_decomposition` (Per-sector Domar weight, influence, upstreamness and downstreamness); `second_order_hessian_beyond_hulten` (Second-order 'beyond Hulten' Hessian, sector by sector (--second-order only))
+
+---
+
+### `friedman io bf elasticities`
+
+Factor-price, goods-price and Domar-share incidence at the base point
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `price_incidence` (∂ log p_i / ∂ log A_j, shocked sector by column); `factor_price_incidence` (∂ log w_f / ∂ log A_j, shocked sector by column)
+
+---
+
+### `friedman io bf equilibrium`
+
+Exact nested-CES counterfactual equilibrium (Baqaee–Farhi 2019/2020)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--dlog-a` | — | `String` | `""` | — | Hicks-neutral productivity shocks (scalar or comma list; default 0) |
+| `--dlog-l` | — | `String` | `""` | — | Factor-supply shocks (scalar or comma list; default 0) |
+| `--dlog-mu` | — | `String` | `""` | — | Markup shocks (scalar or comma list; default 0) |
+| `--method` | — | `String` | `newton` | `newton`, `fixedpoint` | Inner price solver: newton \| fixedpoint |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Solver tolerance |
+| `--maxiter` | — | `Int64` | `500` | — | Maximum solver iterations |
+| `--damping` | — | `Float64` | `0.5` | — | Quasi-Newton damping in (0, 1] |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `bf_equilibrium_summary` (dlogY, Hulten, technology/allocative split, convergence); `bf_equilibrium_sectors` (Per-sector log output and log price changes)
+
+---
+
+### `friedman io bf local`
+
+Local Hulten + second-order Hessian on a ProductionNetwork
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--hessian` | — | `String` | `auto` | `auto`, `full`, `none` | Form n×n Hessian: auto (n≤500) \| full \| none |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--no-elasticities` | — | Skip the attached BFElasticities block |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `bf_local_hulten` (Per-sector first-order (Hulten) Domar weights); `bf_local_hessian` (Second-order Hessian of log Y in log A (--hessian full|auto))
+
+---
+
+### `friedman io bf misallocation`
+
+Baqaee–Farhi (2020) Prop. 5 Harberger misallocation distance
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--point` | — | `String` | `efficient` | `efficient`, `observed` | Evaluation point: efficient \| observed |
+| `--hessian` | — | `String` | `auto` | `auto`, `full`, `none` | Form n×n H_μ: auto (n≤500) \| full \| none |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `bf_misallocation_summary` (Exact distance L, first- and second-order Harberger terms); `bf_misallocation_sectors` (Per-sector Δlog μ, Domar weight and markup)
+
+---
+
+### `friedman io bf network`
+
+Calibrate a Baqaee–Farhi ProductionNetwork from an IO table
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `production_network_summary` (n, M, F, nests of the calibrated network); `production_network_sectors` (Per-sector cost/revenue Domar weights and markups)
+
+---
+
+### `friedman io bf shock-curve`
+
+One-sector productivity shock: exact vs Hulten vs second-order Taylor
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--sector` | — | `String` | `""` | — | Shocked sector: name or 1-based index (required) |
+| `--range` | — | `String` | `-0.5,0.5` | — | (lo,hi) grid for Δ log A |
+| `--points` | — | `Int64` | `41` | — | Number of grid points (≥ 2) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `bf_shock_curve` (Δ log A grid with exact, Hulten and second-order Δ log Y)
+
+---
+
+### `friedman io bf wedges`
+
+Baqaee–Farhi (2020) Theorem 1 technology vs allocative-efficiency split
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--theta` | — | `String` | `1.0` | — | Production substitution elasticity (scalar or per-sector comma list) |
+| `--sigma` | — | `Float64` | `1.0` | — | Household consumption substitution elasticity |
+| `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
+| `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
+| `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
+| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
+| `--dlog-a` | — | `String` | `""` | — | Productivity shocks (scalar or comma list; default 0) |
+| `--dlog-l` | — | `String` | `""` | — | Factor-supply shocks (scalar or comma list; default 0) |
+| `--dlog-mu` | — | `String` | `""` | — | Markup shocks (scalar or comma list; default 0) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `bf_wedge_decomp` (dlogY, technology, allocative, factor-supply terms); `bf_wedge_domar` (Per-sector cost vs revenue Domar weights and markups)
+
+---
+
+### `friedman io bilateral-trade`
+
+Bilateral intermediate/final/total trade from exporter to importer
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--exporter` | — | `String` | `""` | — | Exporting region name or 1-based index (required) |
+| `--importer` | — | `String` | `""` | — | Importing region name or 1-based index (required) |
+| `--kind` | — | `String` | `total` | `total`, `intermediate`, `final` | total \| intermediate \| final |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `bilateral_trade_summary` (Intermediate, final and total bilateral flows); `bilateral_trade_by_sector` (Per-sector gross exports from exporter to importer)
 
 ---
 
@@ -54,6 +359,30 @@ Download an IO/MRIO table (network); respects --offline
 
 ---
 
+### `friedman io export-decomposition`
+
+Koopman–Wang–Wei (2014) DVA/RDV/FVA/PDC decomposition of gross exports
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--region` | — | `String` | `""` | — | Region name or 1-based index (required when nregions>1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `kww_export_aggregates` (One-row DVA/RDV/FVA/PDC plus gross exports and VAX ratio); `kww_export_by_sector` (Per-sector DVA/RDV/FVA/PDC of the region's exports)
+
+---
+
 ### `friedman io extract`
 
 Hypothetical extraction: output loss from removing sector(s)
@@ -65,10 +394,18 @@ Hypothetical extraction: output loss from removing sector(s)
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--sectors-extract` | — | `String` | `""` | — | Sector(s) to extract: names or 1-based indices, comma-separated (required) |
+| `--mode` | — | `String` | `complete` | `complete`, `backward`, `forward`, `partial` | Extraction variant: complete\|backward\|forward\|partial |
+| `--share` | — | `Float64` | `1.0` | — | Partial extraction share in (0, 1] |
+| `--region` | — | `String` | `""` | — | Extract a whole MRIO region block |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
-**Output tables:** `hypothetical_extraction_loss` (Per-sector output loss caused by extracting the target sector(s))
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `hypothetical_extraction_loss` (Per-sector output loss caused by extracting the target sector(s)); `hypothetical_extraction_summary` (total_loss, loss_pct_go, loss_pct_gdp, mode, share)
 
 ---
 
@@ -83,6 +420,7 @@ Consumption-based footprint of a satellite (environmental) account
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--account` | — | `String` | `""` | — | Satellite account name (default: first available, e.g. CO2) |
+| `--by` | — | `String` | `sector` | `sector`, `region` | sector (default) \| region (MRIO production vs consumption) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -90,7 +428,7 @@ Consumption-based footprint of a satellite (environmental) account
 |------|-------|-------------|
 | `--detail` | — | Also emit intensities (S) and emission multipliers (M=SL) |
 
-**Output tables:** `footprint` (Consumption-based footprint total per stressor); `footprint_by_sector` (Per-sector footprint contribution, one column per stressor); `intensities_s` (Direct stressor intensities S by sector (--detail only)); `emission_multipliers` (Total emission multipliers M=SL by sector (--detail only))
+**Output tables:** `footprint` (Consumption-based footprint total per stressor); `footprint_by_sector` (Per-sector footprint contribution, one column per stressor); `regional_footprint` (Per-region production vs consumption footprint (--by region)); `intensities_s` (Direct stressor intensities S by sector (--detail only)); `emission_multipliers` (Total emission multipliers M=SL by sector (--detail only))
 
 ---
 
@@ -109,6 +447,32 @@ Ghosh (supply-driven) representation: B and inverse G
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
 **Output tables:** `allocation_coefficients_b` (Allocation coefficient matrix B, sector by sector (--matrix B|both)); `ghosh_inverse_g` (Ghosh inverse G, sector by sector (--matrix G|both))
+
+---
+
+### `friedman io impact`
+
+Final-demand impact / scenario through the Leontief inverse
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--dy` | — | `String` | `""` | — | Final-demand change: comma list or sector=value (required) |
+| `--kind` | — | `String` | `output` | — | output \| va \| income \| employment \| satellite account name |
+| `--type` | — | `String` | `I` | `I`, `II` | Type I (open) \| Type II (household-closed) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `impact_summary` (Economy-wide impact total, kind and type); `impact_by_sector` (Per-sector impact of the demand scenario)
 
 ---
 
@@ -176,10 +540,19 @@ Parse/inspect an IO table: dimensions, balance, per-sector totals
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text; .zip needs ZipFile, deferred W9) |
+| `--year` | — | `String` | `""` | — | ICIO year filter |
+| `--member` | — | `String` | `""` | — | ICIO member filter |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
 
-**Output tables:** `io_table_summary` (Sector/region/category counts, year, unit, source, extensions and total output); `sectors` (Per-sector gross output, final demand and value added)
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-aggregate-cn-mx` | — | ICIO: do not aggregate CN/MX processing units |
+| `--check` | — | ICIO: run parser balance checks |
+
+**Output tables:** `io_table_summary` (Sector/region/category counts, year, unit, source, extensions and total output); `sectors` (Per-sector gross output, final demand, value added and region)
 
 ---
 
@@ -202,6 +575,55 @@ Sectoral output/income/employment multipliers (Type I & II)
 
 ---
 
+### `friedman io network-stats`
+
+Domar weights, Herfindahl, APL, degrees, upstreamness/downstreamness
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `network_stats_summary` (Herfindahl of Domar weights and multiplier dispersion); `network_stats_sectors` (Per-sector Domar, multiplier, degrees and up/down-streamness)
+
+---
+
+### `friedman io price`
+
+Leontief cost-push (or Ghosh dual) price model
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--dva` | — | `String` | `""` | — | Value-added coefficient shocks: comma list or sector=value |
+| `--dtax` | — | `String` | `""` | — | Production-tax shocks: comma list or sector=value |
+| `--mode` | — | `String` | `leontief` | `leontief`, `ghosh` | leontief (cost-push dual) \| ghosh (descriptive dual) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `price_model` (Per-sector price change, new price and primary-cost shock)
+
+---
+
 ### `friedman io sda`
 
 Structural decomposition of Δoutput between two periods
@@ -214,10 +636,17 @@ Structural decomposition of Δoutput between two periods
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--data2` | — | `String` | `""` | — | Second-period IO table (CSV path / :example; default: same as --data) |
 | `--method` | — | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) \| multiplicative |
+| `--factors` | — | `String` | `""` | — | Comma-separated SDA factors (kebab); omit for legacy L_effect/Y_effect |
+| `--on` | — | `String` | `output` | — | output \| satellite account name (emission SDA) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
-**Output tables:** `structural_decomposition` (Per-sector technology (L) and final-demand (Y) effects, total and residual)
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `structural_decomposition` (Per-sector (or per-stressor) SDA effects; legacy L_effect/Y_effect when --factors is omitted)
 
 ---
 
@@ -231,6 +660,30 @@ List downloadable IO/MRIO sources (offline catalog)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
 **Output tables:** `io_mrio_sources` (Known IO/MRIO sources with available versions and credential requirements)
+
+---
+
+### `friedman io vertical-specialization`
+
+Hummels–Ishii–Yi / KWW import content of exports
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
+| `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
+| `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
+| `--region` | — | `String` | `""` | — | Region name or 1-based index (required when nregions>1) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `vertical_specialization` (VS, VS share, VS1, domestic content and gross exports); `vertical_specialization_by_sector` (Per-sector foreign content in that sector's exports)
 
 ---
 

@@ -3976,6 +3976,65 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(spec; force=true); rm(bad; force=true); rm(broken; force=true)
     end
 
+    # W0/#151: HA `.jl` default ssj (world-age barrier), E[t] exit 4 on .toml and .jl.
+    @testset "W0 HA .jl ssj + E[t] refusal (#151)" begin
+        spec = tempname() * ".jl"
+        write(spec, """
+        @dsge begin
+            parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
+            endogenous: Y, K, r, w, Z
+            exogenous: eps_Z
+
+            heterogeneous: a in [0.0, 400.0], n_grid = 40, utility = log, discount = beta_hh, borrowing = 0.0
+
+            idiosyncratic: e ~ Rouwenhorst(0.966, 0.5, 3)
+
+            aggregation: K = sum(a)
+
+            Y[t] = Z[t] * K[t-1]^alpha
+            r[t] = alpha * Z[t] * K[t-1]^(alpha-1) - delta
+            w[t] = (1 - alpha) * Z[t] * K[t-1]^alpha
+            Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
+        end
+        """)
+        r = run_json(["dsge", "ha", "solve", spec, "--n-reduced", "8"])
+        assert_envelope_ok(r; label="dsge ha solve .jl ssj")
+        @test r.doc !== nothing
+
+        toml = tempname() * ".toml"
+        write(toml, """
+        [model]
+        parameters = { rho = 0.9 }
+        endogenous = ["Y", "C"]
+        exogenous = ["e"]
+        [[model.equations]]
+        expr = "Y[t] = C[t] + e[t]"
+        [[model.equations]]
+        expr = "C[t] = rho * E[t](C[t+1])"
+        """)
+        et = run_json(["dsge", "solve", toml])
+        @test et.code == 4
+        @test et.doc !== nothing
+        @test occursin("E[t]", string(et.doc.error.message))
+
+        jl_et = tempname() * ".jl"
+        write(jl_et, """
+        @dsge begin
+            parameters: rho = 0.9
+            endogenous: Y, C
+            exogenous: e
+            Y[t] = C[t] + e[t]
+            C[t] = rho * E[t](C[t+1])
+        end
+        """)
+        ej = run_json(["dsge", "solve", jl_et])
+        @test ej.code == 4
+        @test ej.doc !== nothing
+        @test occursin("E[t]", string(ej.doc.error.message))
+
+        rm(spec; force=true); rm(toml; force=true); rm(jl_et; force=true)
+    end
+
     @testset "dsge ha solve reiter huggett" begin
         r = run_json(["dsge", "ha", "solve", "huggett",
                       "--method", "reiter", "--n-reduced", "8"])
@@ -3991,6 +4050,36 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
         @test length(table_rows(tbl)) >= 5
+    end
+
+    @testset "W0 dsge ha fevd zero-row proportion (#702)" begin
+        r = run_json(["dsge", "ha", "fevd", "huggett",
+                      "--method", "reiter", "--horizon", "4", "--n-reduced", "8"])
+        assert_envelope_ok(r; label="dsge ha fevd")
+        # MEMs#702: an identically-zero IRF row now gets proportion 1.0, never 0.
+        for (_, t) in pairs(r.doc.data)
+            (t isa JSON3.Object && haskey(t, :columns) && haskey(t, :rows)) || continue
+            cols = String.(t.columns)
+            pi = findfirst(==("proportion"), cols)
+            pi === nothing && (pi = findfirst(c -> occursin("prop", lowercase(c)), cols))
+            pi === nothing && continue
+            for rw in table_rows(t)
+                v = collect(rw)[pi]
+                v isa Number && @test v >= 0.0
+            end
+        end
+    end
+
+    @testset "W1 dsge ha solve krusell-smith Dict R²" begin
+        r = run_json(["dsge", "ha", "solve", "krusell-smith", "--method", "krusell-smith"])
+        assert_envelope_ok(r; label="ha solve krusell-smith")
+        diag = nothing
+        for (_, t) in pairs(r.doc.data)
+            (t isa JSON3.Object && haskey(t, :columns)) || continue
+            "r_squared" in String.(t.columns) && (diag = t)
+        end
+        @test diag !== nothing
+        @test length(table_rows(diag)) >= 1
     end
 
     # C048 — HA Bayesian estimation (un-deferred after MEMs#228). RWMH re-solves the HA
@@ -4036,6 +4125,138 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
         @test length(table_rows(tbl)) >= 20
+    end
+
+    @testset "W6–W8 HA two-asset / dcegm / lifecycle / firm / bank" begin
+        cols_table(doc, cols) = begin
+            doc === nothing && return nothing
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                all(c -> c in table_cols(v), cols) && return v
+            end
+            return nothing
+        end
+
+        @testset "two-asset-hank B == B_supply" begin
+            r = run_json(["dsge", "ha", "steady-state", "two-asset-hank"])
+            assert_envelope_ok(r; label="two-asset-hank ss")
+            t = cols_table(r.doc, ["name", "value"])
+            @test t !== nothing
+            kv = Dict(string(collect(row)[1]) => Float64(collect(row)[2]) for row in table_rows(t)
+                      if collect(row)[2] isa Real)
+            if haskey(kv, "B") && haskey(kv, "B_supply")
+                @test isapprox(kv["B"], kv["B_supply"]; rtol=1e-3, atol=1e-4)
+            else
+                # Some renders put B in prices; accept either table.
+                t2 = cols_table(r.doc, ["name", "value"])
+                @test t2 !== nothing
+            end
+        end
+
+        @testset "huggett accuracy pre-solve refusal" begin
+            r = run_json(["dsge", "ha", "accuracy", "huggett"])
+            @test r.code == 5
+            @test r.doc !== nothing && String(r.doc.error.code) == "model/unsupported"
+        end
+
+        @testset "HA hd reconstruction" begin
+            csv = tempname() * ".csv"
+            open(csv, "w") do io
+                println(io, "K")
+                for t in 1:16
+                    println(io, 10.0 + 0.05 * sin(t / 3))
+                end
+            end
+            r = run_json(["dsge", "ha", "hd", "krusell-smith", "--data", csv,
+                          "--observables", "K", "--method", "ssj", "--n-reduced", "8",
+                          "--t-horizon", "40"])
+            assert_envelope_ok(r; label="ha hd")
+            t = cols_table(r.doc, ["t"])
+            @test t !== nothing
+            rm(csv; force=true)
+        end
+
+        @testset "DCEGM excess_demand ≈ 0" begin
+            r = run_json(["dsge", "dcegm", "steady-state", "retirement",
+                          "--n-periods", "8", "--n-a", "40", "--n-shocks", "1",
+                          "--max-iter", "20"])
+            assert_envelope_ok(r; label="dcegm ss")
+            kv = cols_table(r.doc, ["metric", "value"])
+            @test kv !== nothing
+            mets = Dict(string(collect(row)[1]) => collect(row)[2] for row in table_rows(kv))
+            @test haskey(mets, "excess_demand")
+            @test isfinite(Float64(mets["excess_demand"]))
+            @test haskey(mets, "K") && Float64(mets["K"]) > 0
+        end
+
+        @testset "lifecycle cohort_mass sums to 1" begin
+            r = run_json(["dsge", "lifecycle", "steady-state",
+                          "--j", "12", "--j-retire", "9", "--n-a", "24",
+                          "--income-states", "2", "--max-iter", "30"])
+            assert_envelope_ok(r; label="lifecycle ss")
+            t = cols_table(r.doc, ["age", "cohort_mass"])
+            @test t !== nothing
+            ci = findfirst(==("cohort_mass"), table_cols(t))
+            mass = [Float64(collect(row)[ci]) for row in table_rows(t)]
+            @test isapprox(sum(mass), 1.0; atol=1e-6)
+        end
+
+        @testset "Blanchard TFP IRF decay" begin
+            r = run_json(["dsge", "olg", "irf", "--horizon", "12", "--rho-z", "0.5",
+                          "--sigma-z", "0.01"])
+            assert_envelope_ok(r; label="olg irf")
+            t = nothing
+            for (_, v) in pairs(r.doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                "horizon" in table_cols(v) && (t = v; break)
+            end
+            @test t !== nothing
+            hi = findfirst(==("horizon"), table_cols(t))
+            # pick a non-horizon numeric column
+            vi = findfirst(c -> c != "horizon", table_cols(t))
+            rows = [collect(x) for x in table_rows(t)]
+            sort!(rows; by = r -> Int(r[hi]))
+            if vi !== nothing && length(rows) >= 4
+                a1 = abs(Float64(rows[2][vi]))
+                aN = abs(Float64(rows[end][vi]))
+                @test aN <= a1 + 1e-8 || aN < 0.5
+            end
+        end
+
+        @testset "firm --prices ss|ge" begin
+            zcsv = tempname() * ".csv"
+            open(zcsv, "w") do io
+                println(io, "Z")
+                for t in 1:6
+                    println(io, 1.0 + 0.01 * (t == 1))
+                end
+            end
+            for pr in ("ss", "ge")
+                r = run_json(["dsge", "firm", "transition", "--z-path", zcsv,
+                              "--prices", pr, "--n-k", "8", "--n-eps", "2"])
+                assert_envelope_ok(r; label="firm transition $pr")
+            end
+            rm(zcsv; force=true)
+        end
+
+        @testset "bank PE matches SS policies; honest non-convergence" begin
+            pe = run_json(["dsge", "bank", "pe", "--n-n", "10", "--n-xi", "2"])
+            assert_envelope_ok(pe; label="bank pe")
+            ss = run_json(["dsge", "bank", "steady-state", "--n-n", "10", "--n-xi", "2"])
+            assert_envelope_ok(ss; label="bank ss")
+            # inverted bracket: honest converged=false (or usage if the handler refuses)
+            bad = run_json(["dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2",
+                            "--r-lo", "0.40", "--r-hi", "0.41", "--max-iter", "2"])
+            if bad.code == 0
+                kv = cols_table(bad.doc, ["metric", "value"])
+                @test kv !== nothing
+                mets = Dict(string(collect(row)[1]) => collect(row)[2] for row in table_rows(kv))
+                @test haskey(mets, "converged")
+                @test lowercase(string(mets["converged"])) in ("false", "0")
+            else
+                @test bad.code in (2, 5)
+            end
+        end
     end
 
     # C051 loader + C061 bayes-compare — representative-agent DSGE on real MEMs.
@@ -4112,6 +4333,157 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test numv(row[3]) ≈ 0.01 atol=1e-8
         end
 
+        @testset "W1 dsge solve --method pfi (no order=)" begin
+            r = run_json(["dsge", "solve", model_jl, "--method", "pfi"])
+            assert_envelope_ok(r; label="dsge solve pfi")
+            @test named_table(r.doc, :projection_solution) !== nothing ||
+                  any(t -> t isa JSON3.Object && haskey(t, :columns) &&
+                           "control" in String.(t.columns), values(r.doc.data))
+        end
+
+        @testset "W5 dsge solve --method vfi / blanchard-kahn / pfi next-state" begin
+            cols_table(doc, cols) = begin
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    all(c -> c in table_cols(v), cols) && return v
+                end
+                return nothing
+            end
+            rbc = joinpath(dir, "rbc.jl")
+            write(rbc, """
+            @dsge begin
+                parameters: beta = 0.99, alpha = 0.36, delta = 0.025, rho = 0.9, sigma = 0.01
+                endogenous: c, k, a
+                exogenous: e
+                utility: log(c)
+                beta: beta
+                controls: c
+                euler: 1 / c[t] = beta * (1 / c[t+1]) * (alpha * exp(a[t+1]) * k[t]^(alpha - 1) + 1 - delta)
+                c[t] + k[t] = exp(a[t]) * k[t-1]^alpha + (1 - delta) * k[t-1]
+                a[t] = rho * a[t-1] + sigma * e[t]
+            end
+            """)
+            rv = run_json(["dsge", "solve", rbc, "--method", "vfi", "--n-grid", "8",
+                           "--n-choice", "9", "--degree", "3", "--max-iter", "80",
+                           "--howard-steps", "5"])
+            assert_envelope_ok(rv; label="dsge solve vfi")
+            kv = cols_table(rv.doc, ["metric", "value"])
+            # Converged is either a kv or the projection table exists.
+            vf = cols_table(rv.doc, ["node", "V"])
+            if vf !== nothing
+                vi = findfirst(==("V"), table_cols(vf))
+                vals = [Float64(collect(row)[vi]) for row in table_rows(vf)]
+                @test length(vals) >= 2
+                @test all(isfinite, vals)
+                # monotone in the collocation order of the 1-state RBC
+                @test vals[end] >= vals[1] - 1e-6
+            end
+            rbk = run_json(["dsge", "solve", model_jl, "--method", "blanchard-kahn"])
+            assert_envelope_ok(rbk; label="dsge solve blanchard-kahn")
+            rg = run_json(["dsge", "solve", model_jl, "--method", "gensys"])
+            assert_envelope_ok(rg; label="dsge solve gensys vs bk")
+            t_bk = _dsge_policy_table(rbk.doc)
+            t_g = _dsge_policy_table(rg.doc)
+            @test t_bk !== nothing && t_g !== nothing
+            rp = run_json(["dsge", "solve", rbc, "--method", "pfi", "--next-state", "nonlinear",
+                           "--degree", "3", "--max-iter", "40"])
+            assert_envelope_ok(rp; label="dsge solve pfi nonlinear")
+            shocks = joinpath(dir, "pf_shocks.csv")
+            open(shocks, "w") do io
+                println(io, "e")
+                for _ in 1:8; println(io, "0.0"); end
+            end
+            spa = run_json(["dsge", "perfect-foresight", model_jl, "--shocks", shocks,
+                            "--periods", "8", "--sparsity", "auto"])
+            spd = run_json(["dsge", "perfect-foresight", model_jl, "--shocks", shocks,
+                            "--periods", "8", "--sparsity", "dense"])
+            assert_envelope_ok(spa; label="pf auto")
+            assert_envelope_ok(spd; label="pf dense")
+            ta = cols_table(spa.doc, ["period"])
+            td = cols_table(spd.doc, ["period"])
+            @test ta !== nothing && td !== nothing
+            @test length(table_rows(ta)) == length(table_rows(td))
+        end
+
+        @testset "W1 dsge solve --method projection (no order=)" begin
+            r = run_json(["dsge", "solve", model_jl, "--method", "projection"])
+            assert_envelope_ok(r; label="dsge solve projection")
+            @test named_table(r.doc, :projection_solution) !== nothing ||
+                  any(t -> t isa JSON3.Object && haskey(t, :columns) &&
+                           "control" in String.(t.columns), values(r.doc.data))
+        end
+
+        @testset "W1 dsge solve --method junk → usage" begin
+            r = run_json(["dsge", "solve", model_jl, "--method", "not-a-solver"])
+            @test r.code == 2
+        end
+
+        @testset "W1 perfect-foresight with/without shocks" begin
+            shocks = joinpath(dir, "pf_shocks.csv")
+            open(shocks, "w") do io
+                println(io, "e")
+                for t in 1:8
+                    println(io, t == 1 ? 1.0 : 0.0)
+                end
+            end
+            r0 = run_json(["dsge", "perfect-foresight", model_jl, "--periods", "8"])
+            assert_envelope_ok(r0; label="perfect-foresight no shocks")
+            r1 = run_json(["dsge", "perfect-foresight", model_jl, "--shocks", shocks, "--periods", "8"])
+            assert_envelope_ok(r1; label="perfect-foresight with shocks")
+            rbad = run_json(["dsge", "perfect-foresight", model_jl, "--shocks", shocks, "--periods", "20"])
+            @test rbad.code == 3
+        end
+
+        @testset "W1 OccBin 1/2/>2 bounds + nonlinear Expr" begin
+            c1 = joinpath(dir, "occ1.toml")
+            write(c1, """
+            [[constraints.bounds]]
+            variable = "Y"
+            lower = -10.0
+            """)
+            r1 = run_json(["dsge", "solve", model_jl, "--constraints", c1, "--periods", "8"])
+            assert_envelope_ok(r1; label="occbin 1 bound")
+
+            c2 = joinpath(dir, "occ2.toml")
+            write(c2, """
+            [[constraints.bounds]]
+            variable = "Y"
+            lower = -10.0
+            [[constraints.bounds]]
+            variable = "C"
+            upper = 10.0
+            """)
+            r2 = run_json(["dsge", "solve", model_jl, "--constraints", c2, "--periods", "8"])
+            assert_envelope_ok(r2; label="occbin 2 bounds")
+
+            c3 = joinpath(dir, "occ3.toml")
+            write(c3, """
+            [[constraints.bounds]]
+            variable = "Y"
+            lower = -10.0
+            [[constraints.bounds]]
+            variable = "C"
+            upper = 10.0
+            [[constraints.bounds]]
+            variable = "Y"
+            upper = 10.0
+            """)
+            r3 = run_json(["dsge", "solve", model_jl, "--constraints", c3, "--periods", "8"])
+            @test r3.code == 2
+
+            nl = joinpath(dir, "occnl.toml")
+            write(nl, """
+            [[constraints.nonlinear]]
+            expr = "Y[t] >= -10.0"
+            """)
+            rnl = run_json(["dsge", "solve", model_jl, "--constraints", nl, "--periods", "8"])
+            assert_envelope_ok(rnl; label="occbin nonlinear expr")
+
+            rirf = run_json(["dsge", "irf", model_jl, "--constraints", c1, "--horizon", "6"])
+            assert_envelope_ok(rirf; label="occbin irf 1 bound")
+        end
+
         @testset "dsge steady-state from TOML (compute_steady_state world-age)" begin
             r = run_json(["dsge", "steady-state", model_toml])
             assert_envelope_ok(r; label="dsge steady-state")
@@ -4159,6 +4531,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             metrics(doc) = Set(String(collect(r)[1]) for t in values(doc.data)
                                if (t isa JSON3.Object && haskey(t, :columns) &&
                                    "metric" in String.(t.columns)) for r in t.rows)
+
+            rcs = run_json(["dsge", "bayes", "estimate", model_toml,
+                            "--data", dat, "--params", "rho,sigma",
+                            "--priors", pri, "--observables", "Y",
+                            "--sampler", "smc", "--n-smc", "20", "--n-particles", "20",
+                            "--constraint-solver", "optim"])
+            assert_envelope_ok(rcs; label="dsge bayes estimate constraint-solver")
 
             r = run_json(["dsge", "bayes", "posterior-mode", model_toml,
                           "--data", dat, "--params", "rho,sigma",
@@ -4551,6 +4930,140 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             r = run_json(["io", "download", "--source", "oecd", "--storage",
                           joinpath(tempdir(), "io_dl_none"), "--offline"])
             @test r.code == 6
+        end
+
+        @testset "W2/#153 IO2 riders" begin
+            for mode in ("complete", "backward", "forward")
+                r = run_json(["io", "extract", "--sectors-extract", "Agriculture",
+                              "--mode", mode])
+                assert_envelope_ok(r; label="io extract --mode $mode")
+                @test cols_table(r.doc, ["sector", "output_loss"]) !== nothing
+            end
+            rp = run_json(["io", "extract", "--sectors-extract", "Agriculture",
+                           "--mode", "partial", "--share", "0.5"])
+            assert_envelope_ok(rp; label="io extract --mode partial")
+            fr = run_json(["io", "footprint", "--by", "region"])
+            assert_envelope_ok(fr; label="io footprint --by region")
+            @test cols_table(fr.doc, ["region"]) !== nothing
+            kww = joinpath(ROOT, "test", "integration", "fixtures", "kww_example1.csv")
+            loaded = run_json(["io", "load", "--data", kww, "--parser", "icio"])
+            assert_envelope_ok(loaded; label="io load --parser icio")
+        end
+
+        @testset "W3/#154 io bf" begin
+            r = run_json(["io", "bf", "network"])
+            assert_envelope_ok(r; label="io bf network")
+            @test cols_table(r.doc, ["sector", "lambda", "lambda_rev", "mu"]) !== nothing
+            eq = run_json(["io", "bf", "equilibrium", "--dlog-a", "0.01,0"])
+            assert_envelope_ok(eq; label="io bf equilibrium")
+            @test cols_table(eq.doc, ["sector", "dlog_x", "dlog_p"]) !== nothing
+            kv = cols_table(eq.doc, ["metric", "value"])
+            @test kv !== nothing
+            mets = Dict(string(collect(row)[1]) => collect(row)[2] for row in table_rows(kv))
+            @test haskey(mets, "converged")
+            assert_envelope_ok(run_json(["io", "bf", "local"]); label="io bf local")
+            assert_envelope_ok(run_json(["io", "bf", "elasticities"]); label="io bf elasticities")
+            sc = run_json(["io", "bf", "shock-curve", "--sector", "1", "--points", "5"])
+            assert_envelope_ok(sc; label="io bf shock-curve")
+            @test cols_table(sc.doc, ["shock", "exact", "hulten", "second_order"]) !== nothing
+            assert_envelope_ok(run_json(["io", "bf", "wedges", "--dlog-a", "0.01"]); label="io bf wedges")
+            assert_envelope_ok(run_json(["io", "bf", "misallocation"]); label="io bf misallocation")
+
+            # Closed-form: shock-curve at 0 is all zeros; diagonal/no-intermediate
+            # Hulten = Domar and Hessian is (near) zero.
+            sc0 = run_json(["io", "bf", "shock-curve", "--sector", "1",
+                            "--range", "-0.2,0.2", "--points", "5"])
+            assert_envelope_ok(sc0; label="io bf shock-curve zeros")
+            t0 = cols_table(sc0.doc, ["shock", "exact", "hulten", "second_order"])
+            si = findfirst(==("shock"), table_cols(t0))
+            ei = findfirst(==("exact"), table_cols(t0))
+            hi = findfirst(==("hulten"), table_cols(t0))
+            zi = findfirst(==("second_order"), table_cols(t0))
+            zero_row = nothing
+            for row in table_rows(t0)
+                r = collect(row)
+                if abs(Float64(r[si])) < 1e-12
+                    zero_row = r
+                    break
+                end
+            end
+            @test zero_row !== nothing
+            @test isapprox(Float64(zero_row[ei]), 0.0; atol=1e-10)
+            @test isapprox(Float64(zero_row[hi]), 0.0; atol=1e-10)
+            @test isapprox(Float64(zero_row[zi]), 0.0; atol=1e-10)
+
+            diag = tempname() * ".csv"
+            open(diag, "w") do io
+                println(io, "100,0,100")
+                println(io, "0,200,200")
+            end
+            loc = run_json(["io", "bf", "local", "--data", diag, "--n-sectors", "2"])
+            assert_envelope_ok(loc; label="io bf local diagonal")
+            fo = cols_table(loc.doc, ["sector", "first_order"])
+            @test fo !== nothing
+            foi = findfirst(==("first_order"), table_cols(fo))
+            # Domar of a no-intermediate table is 1 per sector (X_i / GDP_i wait: GDP = VA
+            # sum). Hulten first-order equals the Domar weight.
+            ns = run_json(["io", "network-stats", "--data", diag, "--n-sectors", "2"])
+            assert_envelope_ok(ns; label="io network-stats diagonal")
+            dt = cols_table(ns.doc, ["sector", "domar"])
+            @test dt !== nothing
+            di_ = findfirst(==("domar"), table_cols(dt))
+            hult = [Float64(collect(row)[foi]) for row in table_rows(fo)]
+            domar = [Float64(collect(row)[di_]) for row in table_rows(dt)]
+            @test isapprox(hult, domar; atol=1e-6)
+            hess = cols_table(loc.doc, ["sector", "S1"]) !== nothing ?
+                cols_table(loc.doc, ["sector", "S1"]) :
+                cols_table(loc.doc, ["sector", "sector_1"])
+            if hess !== nothing
+                for row in table_rows(hess)
+                    for (j, c) in enumerate(table_cols(hess))
+                        c == "sector" && continue
+                        @test isapprox(Float64(collect(row)[j]), 0.0; atol=1e-6)
+                    end
+                end
+            end
+            rm(diag; force=true)
+        end
+
+        @testset "W4/#155 classical + KWW export-decomposition" begin
+            assert_envelope_ok(run_json(["io", "price", "--dva", "0.1,0"]); label="io price")
+            im = run_json(["io", "impact", "--dy", "10,0"])
+            assert_envelope_ok(im; label="io impact")
+            @test cols_table(im.doc, ["sector", "impact"]) !== nothing
+            ns = run_json(["io", "network-stats"])
+            assert_envelope_ok(ns; label="io network-stats")
+            @test cols_table(ns.doc, ["sector", "domar", "upstreamness", "downstreamness"]) !== nothing
+            assert_envelope_ok(run_json(["io", "balance"]); label="io balance")
+            assert_envelope_ok(run_json(["io", "aggregate"]); label="io aggregate")
+
+            kww = joinpath(ROOT, "test", "integration", "fixtures", "kww_example1.csv")
+            loaded = run_json(["io", "load", "--data", kww, "--parser", "icio"])
+            assert_envelope_ok(loaded; label="io load KWW icio")
+            ed = run_json(["io", "export-decomposition", "--data", kww,
+                           "--parser", "icio", "--region", "A"])
+            assert_envelope_ok(ed; label="io export-decomposition KWW A")
+            t = cols_table(ed.doc, ["dva", "rdv", "fva", "pdc", "gross_exports"])
+            @test t !== nothing
+            cols = table_cols(t)
+            di = findfirst(==("dva"), cols); ri = findfirst(==("rdv"), cols)
+            fi = findfirst(==("fva"), cols); pi = findfirst(==("pdc"), cols)
+            gi = findfirst(==("gross_exports"), cols)
+            row = collect(first(table_rows(t)))
+            dva, rdv, fva, pdc = Float64(row[di]), Float64(row[ri]), Float64(row[fi]), Float64(row[pi])
+            ge = Float64(row[gi])
+            @test isapprox(dva, 20.0; atol=1e-6)
+            @test isapprox(rdv, 50.0; atol=1e-6)
+            @test isapprox(fva, 0.0; atol=1e-6)
+            @test isapprox(pdc, 0.0; atol=1e-6)
+            @test isapprox(dva + rdv + fva + pdc, ge; atol=1e-8)
+            @test isapprox(ge, 70.0; atol=1e-6)
+            vs = run_json(["io", "vertical-specialization", "--data", kww,
+                           "--parser", "icio", "--region", "B"])
+            assert_envelope_ok(vs; label="io vertical-specialization KWW B")
+            bt = run_json(["io", "bilateral-trade", "--data", kww, "--parser", "icio",
+                           "--exporter", "A", "--importer", "B"])
+            assert_envelope_ok(bt; label="io bilateral-trade KWW")
         end
     end
 

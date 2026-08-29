@@ -51,6 +51,7 @@ makedocs(;
             "nowcast (guide)" => "commands/nowcast.md",
             "dsge (guide)" => "commands/dsge.md",
             "HA-DSGE workflow" => "commands/ha-dsge.md",
+            "Not wrapped (v0.11.0)" => "commands/not-wrapped.md",
             "did (guide)" => "commands/did.md",
             "multipliers (guide)" => "commands/multipliers.md",
             "policy (guide)" => "commands/policy.md",

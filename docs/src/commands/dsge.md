@@ -18,7 +18,7 @@ Friedman supports RA models as TOML or Julia (`DSGESpec`) files, and HA models a
 
 ### TOML (`.toml`)
 
-The model is defined in the `[model]` section with `endogenous`, `exogenous`, `parameters`, and `[[model.equations]]` entries. Set `linear = true` for pre-linearized models (variables are deviations from steady state). An optional `[solver]` section specifies the solution method. Equations are written in MEMs' `@dsge` syntax — index every variable by time (`x[t]`, `x[t-1]`, `x[t+1]`); the CLI feeds them to the `@dsge` macro to build the spec.
+The model is defined in the `[model]` section with `endogenous`, `exogenous`, `parameters`, and `[[model.equations]]` entries. Set `linear = true` for pre-linearized models (variables are deviations from steady state). An optional `[solver]` section specifies the solution method. Equations are written in MEMs' `@dsge` syntax — index every variable by time (`x[t]`, `x[t-1]`, `x[t+1]`); `x[t+1]` is `E_t x_{t+1}`. The `E[t](...)` operator was removed at MEMs 0.9.0 and is a typed `config/invalid` (exit 4) on both `.toml` and `.jl` — there is no auto-rewrite. The CLI feeds the equations to the `@dsge` macro to build the spec.
 
 ```toml
 [model]

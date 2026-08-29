@@ -2441,11 +2441,33 @@ export TimeSeriesData, DataDiagnostic, DataSummary
 export load_example, to_matrix, varnames, frequency, desc, vardesc, nobs, nvars
 export describe_data, diagnose, fix, apply_tcode, validate_for_model, apply_filter
 
-# ─── DSGE Types ──────────────────────────────────────────────
+# ─── DSGE Types (MEMs 0.9.0 ModelSpec; ModelSpec/HAModelSpec are gone) ──
 
 abstract type AbstractDSGEModel end
+abstract type AbstractAgentSystem{T<:AbstractFloat} end
+const NoAgents = NamedTuple{(), Tuple{}}
 
-struct DSGESpec{T<:Real}
+struct HouseholdSystem{T<:AbstractFloat} <: AbstractAgentSystem{T}
+    individual::Any
+    income::Any
+    grid::Any
+    aggregation::Any
+    het_params::Dict{Symbol,T}
+    n_assets::Int
+    n_income::Int
+    model::Symbol
+    distribution::Symbol
+end
+
+function HouseholdSystem{T}(; model::Symbol=:aiyagari, distribution::Symbol=:young,
+                             n_assets::Int=50, n_income::Int=2,
+                             het_params=Dict{Symbol,T}(:alpha => T(0.36), :delta => T(0.025))) where {T<:AbstractFloat}
+    HouseholdSystem{T}(nothing, nothing, nothing, Pair{Symbol,Function}[],
+                       het_params, n_assets, n_income, model, distribution)
+end
+HouseholdSystem(; kwargs...) = HouseholdSystem{Float64}(; kwargs...)
+
+struct ModelSpec{T<:AbstractFloat, A<:NamedTuple}
     endog::Vector{Symbol}; exog::Vector{Symbol}; params::Vector{Symbol}
     param_values::Dict{Symbol,T}; n_endog::Int; n_exog::Int; n_params::Int
     varnames::Vector{String}; steady_state::Vector{T}
@@ -2456,11 +2478,20 @@ struct DSGESpec{T<:Real}
     # mock-surface rule (fields are added on demand, never eagerly).
     augmented::Bool
     original_endog::Vector{Symbol}
+    bellman_utility::Any
+    bellman_beta::Any
+    bellman_consumption::Union{Nothing,Symbol}
+    bellman_controls::Vector{Symbol}
+    agents::A
 end
-function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false,
+function ModelSpec(; n_endog=3, n_exog=1, linear::Bool=false,
                    endog_names=nothing, exog_names=nothing,
                    params=nothing, param_values=nothing,
-                   augmented::Bool=false, original_endog=nothing, kwargs...)
+                   augmented::Bool=false, original_endog=nothing,
+                   bellman_utility=nothing, bellman_beta=nothing,
+                   bellman_consumption=nothing,
+                   bellman_controls::Vector{Symbol}=Symbol[],
+                   agents::NamedTuple=NamedTuple(), kwargs...)
     endog = endog_names === nothing ? [Symbol("y$i") for i in 1:n_endog] :
             Symbol[Symbol(v) for v in endog_names]
     exog = exog_names === nothing ? [Symbol("e$i") for i in 1:n_exog] :
@@ -2479,19 +2510,28 @@ function DSGESpec(; n_endog=3, n_exog=1, linear::Bool=false,
     varnames = String[String(v) for v in endog]
     ss = zeros(Float64, n_endog)
     orig = original_endog === nothing ? endog : Symbol[Symbol(v) for v in original_endog]
-    DSGESpec{Float64}(endog, exog, ps, pv, n_endog, n_exog, length(ps),
-                      varnames, ss, linear, augmented, orig)
+    A = typeof(agents)
+    ModelSpec{Float64, A}(endog, exog, ps, pv, n_endog, n_exog, length(ps),
+                          varnames, ss, linear, augmented, orig,
+                          bellman_utility, bellman_beta, bellman_consumption,
+                          bellman_controls, agents)
 end
+
+has_kind(spec::ModelSpec, ::Type{S}) where {S} =
+    any(v -> v isa S, values(spec.agents))
+agents_of(spec::ModelSpec, ::Type{S}) where {S} =
+    (v for v in values(spec.agents) if v isa S)
 
 # ── Mock @dsge macro (mirrors real MEMs' @dsge; C051/RA-DSGE loader) ────────
 # The CLI loads RA DSGE models by evaluating an `@dsge begin … end` block (from a .jl
 # file, or synthesized from TOML). Real MEMs parses the block into residual functions;
 # the mock only needs the shape, so it counts endogenous/exogenous names and delegates
-# to the keyword `DSGESpec` constructor. `linear: true` inside the block is honoured.
+# to the keyword `ModelSpec` constructor. `linear: true` inside the block is honoured.
 # Block line ASTs (see the real declaration syntax):
 #   `endogenous: Y, C` → Expr(:tuple, Expr(:call, :(:), :endogenous, :Y), :C)
 #   `exogenous: e`      → Expr(:call, :(:), :exogenous, :e)
 #   `linear: true`      → Expr(:call, :(:), :linear, true)
+# Real never accepted `variables:`/`shocks:` (error at 0.9.0); `E[t](...)` errors.
 function _mock_dsge_extract(block, kw::Symbol)
     (block isa Expr && block.head === :block) || return Any[]
     for arg in block.args
@@ -2554,32 +2594,54 @@ function _mock_dsge_params(block)
 end
 
 macro dsge(block)
+    occursin("E[t]", string(block)) && error(
+        "@dsge: E[t](...) was removed; write the lead directly (x[t+1] is E_t x_{t+1})")
+    !isempty(_mock_dsge_extract(block, :variables)) &&
+        error("@dsge: unrecognized declaration :variables")
+    !isempty(_mock_dsge_extract(block, :shocks)) &&
+        error("@dsge: unrecognized declaration :shocks")
     en = Symbol[v for v in _mock_dsge_extract(block, :endogenous) if v isa Symbol]
-    # Real accepts `variables:` as well as `endogenous:`.
-    isempty(en) && (en = Symbol[v for v in _mock_dsge_extract(block, :variables) if v isa Symbol])
     xn = Symbol[v for v in _mock_dsge_extract(block, :exogenous) if v isa Symbol]
-    isempty(xn) && (xn = Symbol[v for v in _mock_dsge_extract(block, :shocks) if v isa Symbol])
+    het = _mock_dsge_extract(block, :heterogeneous)
+    idio = _mock_dsge_extract(block, :idiosyncratic)
+    agg = _mock_dsge_extract(block, :aggregation)
+    is_ha = !isempty(het) || !isempty(idio) || !isempty(agg)
     ne = max(length(en), 1)
-    nx = max(length(xn), 1)
+    nx = max(length(xn), is_ha ? 0 : 1)
     pnames, pvals = _mock_dsge_params(block)
     lin_names = _mock_dsge_extract(block, :linear)
     is_linear = !isempty(lin_names) && lin_names[1] === true
+    util_decl = _mock_dsge_extract(block, :utility)
+    beta_decl = _mock_dsge_extract(block, :beta)
+    ctrl_decl = Symbol[v for v in _mock_dsge_extract(block, :controls) if v isa Symbol]
+    bu = isempty(util_decl) ? nothing : (util_decl[1] === :log ? log : util_decl[1])
+    bb = isempty(beta_decl) ? nothing : beta_decl[1]
+    bc = isempty(ctrl_decl) ? nothing : ctrl_decl[1]
+    agents = if is_ha
+        (household = HouseholdSystem(; model=:huggett),)
+    else
+        NamedTuple()
+    end
     # Splice the constructor object so the expansion needs nothing in the caller's scope.
-    return :($(DSGESpec)(; n_endog=$ne, n_exog=$nx, linear=$is_linear,
+    return :($(ModelSpec)(; n_endog=$ne, n_exog=$(max(nx, is_ha ? 0 : 1)), linear=$is_linear,
                           endog_names=$(isempty(en) ? nothing : en),
                           exog_names=$(isempty(xn) ? nothing : xn),
                           params=$(isempty(pnames) ? nothing : pnames),
-                          param_values=$(isempty(pvals) ? nothing : pvals)))
+                          param_values=$(isempty(pvals) ? nothing : pvals),
+                          bellman_utility=$bu, bellman_beta=$(bb === nothing ? nothing : QuoteNode(bb)),
+                          bellman_consumption=$(bc === nothing ? nothing : QuoteNode(bc)),
+                          bellman_controls=$(ctrl_decl),
+                          agents=$agents))
 end
 
 struct LinearDSGE{T<:Real}
     Gamma0::Matrix{T}; Gamma1::Matrix{T}; C::Vector{T}; Psi::Matrix{T}; Pi::Matrix{T}
-    spec::DSGESpec{T}
+    spec::ModelSpec{T}
 end
 
 struct DSGESolution{T<:Real}
     G1::Matrix{T}; impact::Matrix{T}; C_sol::Vector{T}; eu::Vector{Int}
-    method::Symbol; eigenvalues::Vector{Complex{T}}; spec::DSGESpec{T}; linear::LinearDSGE{T}
+    method::Symbol; eigenvalues::Vector{Complex{T}}; spec::ModelSpec{T}; linear::LinearDSGE{T}
 end
 
 struct PerturbationSolution{T<:Real}
@@ -2588,28 +2650,41 @@ struct PerturbationSolution{T<:Real}
     gσσ::Union{Nothing,Vector{T}}; hσσ::Union{Nothing,Vector{T}}
     eta::Matrix{T}; steady_state::Vector{T}
     state_indices::Vector{Int}; control_indices::Vector{Int}
-    eu::Vector{Int}; method::Symbol; spec::DSGESpec{T}; linear::LinearDSGE{T}
+    eu::Vector{Int}; method::Symbol; spec::ModelSpec{T}; linear::LinearDSGE{T}
 end
 
 struct ProjectionSolution{T<:Real}
     coefficients::Matrix{T}; state_bounds::Matrix{T}; grid_type::Symbol; degree::Int
     residual_norm::T; converged::Bool; iterations::Int; method::Symbol
-    spec::DSGESpec{T}; linear::LinearDSGE{T}; steady_state::Vector{T}
+    spec::ModelSpec{T}; linear::LinearDSGE{T}; steady_state::Vector{T}
     state_indices::Vector{Int}; control_indices::Vector{Int}
+    value_fn::Matrix{T}
+    collocation_nodes::Matrix{T}
+    value_coefficients::Vector{T}
 end
 
 struct PerfectForesightPath{T<:Real}
     path::Matrix{T}; deviations::Matrix{T}; converged::Bool; iterations::Int
-    spec::DSGESpec{T}
+    spec::ModelSpec{T}
 end
 
 struct DSGEEstimation{T<:Real} <: AbstractDSGEModel
     theta::Vector{T}; vcov::Matrix{T}; param_names::Vector{String}; method::Symbol
-    J_stat::T; J_pvalue::T; converged::Bool; spec::DSGESpec{T}
+    J_stat::T; J_pvalue::T; converged::Bool; spec::ModelSpec{T}
 end
 
-struct OccBinConstraint{T<:Real}
-    variable::Symbol; bound::T; direction::Symbol
+struct OccBinConstraint{T<:AbstractFloat}
+    expr::Expr
+    variable::Symbol
+    bound::T
+    direction::Symbol
+    bind_expr::Expr
+end
+
+struct VariableBound{T<:AbstractFloat}
+    var_name::Symbol
+    lower::Union{T, Nothing}
+    upper::Union{T, Nothing}
 end
 
 struct NonlinearConstraint{T<:Real}
@@ -2624,7 +2699,7 @@ end
 struct OccBinSolution{T<:Real}
     linear_path::Matrix{T}; piecewise_path::Matrix{T}; steady_state::Vector{T}
     regime_history::Vector{Int}; converged::Bool; iterations::Int
-    spec::DSGESpec{T}; varnames::Vector{String}
+    spec::ModelSpec{T}; varnames::Vector{String}
     constraints::Vector{OccBinConstraint{T}}
 end
 
@@ -2635,7 +2710,7 @@ end
 
 # ─── DSGE Mock Helpers & Functions ───────────────────────────
 
-function _mock_linear(spec::DSGESpec{T}) where T
+function _mock_linear(spec::ModelSpec{T}) where T
     n = spec.n_endog
     ne = spec.n_exog
     Gamma0 = Matrix{T}(I(n))
@@ -2647,7 +2722,7 @@ function _mock_linear(spec::DSGESpec{T}) where T
     LinearDSGE{T}(Gamma0, Gamma1, C_vec, Psi, Pi_mat, spec)
 end
 
-function _mock_solution(spec::DSGESpec{T}; method=:gensys) where T
+function _mock_solution(spec::ModelSpec{T}; method=:gensys) where T
     n = spec.n_endog
     ne = spec.n_exog
     ld = _mock_linear(spec)
@@ -2660,15 +2735,17 @@ function _mock_solution(spec::DSGESpec{T}; method=:gensys) where T
     DSGESolution{T}(G1, impact, C_sol, eu, method, eigs[1:min(n, length(eigs))], spec, ld)
 end
 
-function compute_steady_state(spec::DSGESpec; solver=nothing, constraints=[], kwargs...)
+function compute_steady_state(spec::ModelSpec; solver=nothing, constraints=[], kwargs...)
+    has_kind(spec, HouseholdSystem) && return _mock_ha_ss(spec; kwargs...)
     spec
 end
 
-function linearize(spec::DSGESpec)
+function linearize(spec::ModelSpec)
     _mock_linear(spec)
 end
 
-function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto, solver=nothing, constraints=[], kwargs...) where T
+function solve(spec::ModelSpec{T}; method=:gensys, order=1, degree=5, grid=:auto, solver=nothing, constraints=[], ss=nothing, n_reduced::Int=10, T_horizon::Int=300, kwargs...) where T
+    has_kind(spec, HouseholdSystem) && return _mock_ha_solve(spec; method=method, ss=ss, n_reduced=n_reduced, T_horizon=T_horizon)
     n = spec.n_endog
     ne = spec.n_exog
     ld = _mock_linear(spec)
@@ -2692,7 +2769,7 @@ function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto,
         control_idx = collect(n_states+1:n)
         return PerturbationSolution{T}(order, gx, hx, gxx, hxx, gσσ, hσσ, eta, ss,
             state_idx, control_idx, [1, 1], :perturbation, spec, ld)
-    elseif method in (:projection, :pfi)
+    elseif method in (:projection, :pfi, :vfi)
         n_states = max(1, n ÷ 2)
         n_controls = n - n_states
         coeffs = ones(T, n_controls, degree + 1) * T(0.1)
@@ -2700,86 +2777,109 @@ function solve(spec::DSGESpec{T}; method=:gensys, order=1, degree=5, grid=:auto,
         ss = zeros(T, n)
         state_idx = collect(1:n_states)
         control_idx = collect(n_states+1:n)
+        vf = method === :vfi ? reshape(T[T(i) for i in 1:5], 5, 1) : zeros(T, 0, 0)
+        nodes = method === :vfi ? hcat(range(T(-1), T(1); length=5)) : zeros(T, 0, 0)
+        vc = method === :vfi ? T[0.1, 0.2, 0.3] : T[]
         return ProjectionSolution{T}(coeffs, bounds, grid == :auto ? :chebyshev : grid, degree,
-            T(1e-8), true, 50, method, spec, ld, ss, state_idx, control_idx)
+            T(1e-8), true, 50, method, spec, ld, ss, state_idx, control_idx,
+            vf, nodes, vc)
     else
         return _mock_solution(spec; method=method)
     end
 end
 
 function gensys(Γ0, Γ1, C, Ψ, Π)
-    _mock_solution(DSGESpec())
+    _mock_solution(ModelSpec())
 end
 
-function blanchard_kahn(ld::LinearDSGE, spec::DSGESpec)
+function blanchard_kahn(ld::LinearDSGE, spec::ModelSpec)
     _mock_solution(spec; method=:blanchard_kahn)
 end
 
 function klein(Γ0, Γ1, C, Ψ, n_pre)
-    _mock_solution(DSGESpec(); method=:klein)
+    _mock_solution(ModelSpec(); method=:klein)
 end
 
-function perturbation_solver(spec::DSGESpec; order=1)
+function perturbation_solver(spec::ModelSpec; order=1)
     solve(spec; method=:perturbation, order=order)
 end
 
-function collocation_solver(spec::DSGESpec; degree=5, kwargs...)
+function collocation_solver(spec::ModelSpec; degree=5, kwargs...)
     solve(spec; method=:projection, degree=degree)
 end
 
-function pfi_solver(spec::DSGESpec; kwargs...)
+function pfi_solver(spec::ModelSpec; kwargs...)
     solve(spec; method=:pfi)
 end
 
-function perfect_foresight(spec::DSGESpec{T}; shocks=nothing, T_periods=100, solver=nothing, constraints=[], kwargs...) where T
+function perfect_foresight(spec::ModelSpec{T}; shock_path=nothing, T_periods=100, solver=nothing, constraints=[], kwargs...) where T
+    if shock_path !== nothing
+        size(shock_path, 1) == T_periods || throw(AssertionError(
+            "shock_path must have T_periods=$T_periods rows, got $(size(shock_path, 1))"))
+    end
     n = spec.n_endog
     path = zeros(T, T_periods, n)
     devs = zeros(T, T_periods, n)
     PerfectForesightPath{T}(path, devs, true, 25, spec)
 end
 
-function occbin_solve(spec::DSGESpec{T}, shocks, constraints; T_periods=40, kwargs...) where T
+function _mock_occbin_sol(spec::ModelSpec{T}, cons; shock_path=nothing, nperiods::Int=40) where T
     n = spec.n_endog
-    lp = zeros(T, T_periods, n)
-    pp = zeros(T, T_periods, n)
+    np = shock_path === nothing ? nperiods : size(shock_path, 1)
+    lp = zeros(T, np, n)
+    pp = zeros(T, np, n)
     ss = zeros(T, n)
-    regimes = ones(Int, T_periods)
-    cons = constraints isa Vector ? constraints : [constraints]
+    regimes = ones(Int, np)
     OccBinSolution{T}(lp, pp, ss, regimes, true, 15, spec, spec.varnames, cons)
 end
 
-function occbin_irf(spec::DSGESpec{T}, constraints, shock_idx; shock_size=1.0, horizon=40, kwargs...) where T
+function occbin_solve(spec::ModelSpec{T}, constraint::OccBinConstraint;
+                      shock_path=zeros(T, 40, spec.n_exog), nperiods::Int=size(shock_path, 1),
+                      maxiter::Int=100, kwargs...) where T
+    _mock_occbin_sol(spec, [constraint]; shock_path=shock_path, nperiods=nperiods)
+end
+function occbin_solve(spec::ModelSpec{T}, c1::OccBinConstraint, c2::OccBinConstraint;
+                      shock_path=zeros(T, 40, spec.n_exog), nperiods::Int=size(shock_path, 1),
+                      kwargs...) where T
+    _mock_occbin_sol(spec, [c1, c2]; shock_path=shock_path, nperiods=nperiods)
+end
+function occbin_solve(spec::ModelSpec{T}, expr::Expr; kwargs...) where T
+    occbin_solve(spec, parse_constraint(expr, spec); kwargs...)
+end
+
+function occbin_irf(spec::ModelSpec{T}, constraint::OccBinConstraint, shock_idx::Int, horizon::Int;
+                    magnitude::Real=one(T), maxiter::Int=100, kwargs...) where T
     n = spec.n_endog
     ne = spec.n_exog
     lin = zeros(T, horizon + 1, n, ne)
     pw = zeros(T, horizon + 1, n, ne)
-    # Set decaying response for shock_idx
     for h in 0:horizon
         for v in 1:n
-            lin[h+1, v, min(shock_idx, ne)] = T(shock_size) * T(0.9)^h
-            pw[h+1, v, min(shock_idx, ne)] = T(shock_size) * T(0.85)^h
+            lin[h+1, v, min(shock_idx, ne)] = T(magnitude) * T(0.9)^h
+            pw[h+1, v, min(shock_idx, ne)] = T(magnitude) * T(0.85)^h
         end
     end
-    regimes = ones(Int, horizon + 1)
-    OccBinIRF{T}(lin, pw, regimes, spec.varnames, "shock$shock_idx")
+    OccBinIRF{T}(lin, pw, ones(Int, horizon + 1), spec.varnames, "shock$shock_idx")
+end
+function occbin_irf(spec::ModelSpec{T}, c1::OccBinConstraint, c2::OccBinConstraint,
+                    shock_idx::Int, horizon::Int; magnitude::Real=one(T), kwargs...) where T
+    occbin_irf(spec, c1, shock_idx, horizon; magnitude=magnitude, kwargs...)
 end
 
-function parse_constraint(expr::String, spec::DSGESpec)
-    nonlinear_constraint(x -> 0.0; label=expr)
-end
-function parse_constraint(expr, spec::DSGESpec)
-    OccBinConstraint{Float64}(Symbol("x"), 0.0, :geq)
+function parse_constraint(expr::Expr, spec::ModelSpec)
+    OccBinConstraint{Float64}(expr, :x, 0.0, :geq, :(x[t] = 0.0))
 end
 
-function variable_bound(var::Symbol; lower=-Inf, upper=Inf)
-    if upper < Inf
-        OccBinConstraint{Float64}(var, upper, :leq)
-    else
-        OccBinConstraint{Float64}(var, lower, :geq)
-    end
+function variable_bound(var::Symbol; lower::Union{Real,Nothing}=nothing,
+                         upper::Union{Real,Nothing}=nothing)
+    lower === nothing && upper === nothing &&
+        throw(ArgumentError("At least one of lower or upper must be specified"))
+    lo = lower === nothing ? nothing : Float64(lower)
+    hi = upper === nothing ? nothing : Float64(upper)
+    VariableBound{Float64}(var, lo, hi)
 end
 
-function estimate_dsge(spec::DSGESpec{T}, data, param_names; method=:irf_matching, kwargs...) where T
+function estimate_dsge(spec::ModelSpec{T}, data, param_names; method=:irf_matching, kwargs...) where T
     np = length(param_names)
     theta = ones(T, np) * T(0.5)
     vcov_mat = Matrix{T}(I(np)) * T(0.01)
@@ -2850,9 +2950,11 @@ function nshocks(sol::Union{DSGESolution,PerturbationSolution,ProjectionSolution
     sol.spec.n_exog
 end
 
-export AbstractDSGEModel, DSGESpec, LinearDSGE, DSGESolution, PerturbationSolution
+export AbstractDSGEModel, AbstractAgentSystem, ModelSpec, HouseholdSystem, NoAgents
+export has_kind, agents_of
+export LinearDSGE, DSGESolution, PerturbationSolution
 export ProjectionSolution, PerfectForesightPath, DSGEEstimation
-export OccBinConstraint, NonlinearConstraint, nonlinear_constraint, OccBinSolution, OccBinIRF
+export OccBinConstraint, VariableBound, NonlinearConstraint, nonlinear_constraint, OccBinSolution, OccBinIRF
 export compute_steady_state, linearize, solve, gensys, blanchard_kahn, klein
 export perturbation_solver, collocation_solver, pfi_solver
 export perfect_foresight, occbin_solve, occbin_irf, parse_constraint, variable_bound
@@ -5246,21 +5348,39 @@ struct BayesianDSGE{T<:Real}
     method::Symbol
     acceptance_rate::T
     ess_history::Vector{T}
-    spec::DSGESpec{T}
+    spec::ModelSpec{T}
     solution::DSGESolution{T}
 end
 
 # theta0 accepts a positional Vector OR a name→value Dict/NamedTuple (MEMs #136).
-function estimate_dsge_bayes(spec::DSGESpec{T},
+function estimate_dsge_bayes(spec::ModelSpec{T},
         data::Matrix, theta0::Union{AbstractVector,AbstractDict,NamedTuple};
         priors=Dict(), method=:smc, observables=Symbol[],
         n_smc=5000, n_particles=500, n_mh_steps=1,
         n_draws=10000, burnin=5000, ess_target=0.5,
         measurement_error=nothing, solver=:gensys,
         solver_kwargs=NamedTuple(), delayed_acceptance=false,
-        n_screen=200, rng=nothing, solver_obj=nothing,
+        n_screen=200, rng=nothing,
         prefilter::Symbol=:none, hp_lambda::Real=1600,
-        observation_trends=nothing, warn_trends::Bool=true) where T
+        observation_trends=nothing, warn_trends::Bool=true,
+        ha_method::Symbol=:ssj, ha_kwargs=NamedTuple(),
+        proposal_scale=0.01, adapt_interval::Int=100) where T
+    if has_kind(spec, HouseholdSystem)
+        np = length(theta0 isa AbstractDict ? collect(values(theta0)) :
+                    theta0 isa NamedTuple ? collect(theta0) : collect(theta0))
+        n_kept = max(n_draws - burnin, 1)
+        tv = T.(collect(theta0 isa AbstractDict ? values(theta0) :
+                        theta0 isa NamedTuple ? collect(theta0) : theta0))
+        draws = randn(T, n_kept, np) .* T(0.01) .+ reshape(tv, 1, np)
+        log_post = fill(T(-100.0), n_kept)
+        pnames = isempty(priors) ? ["param_$i" for i in 1:np] :
+                 sort!([String(k) for k in keys(priors)])
+        ess_hist = fill(T(0.8), 10)
+        dspec = ModelSpec()
+        sol = solve(dspec; method=:gensys)
+        return BayesianDSGE{T}(draws, log_post, pnames, T(-450.0 + np), :rwmh, T(0.30),
+                               ess_hist, dspec, sol)
+    end
     # W12/#114: mirror real's enum so a bad --prefilter throws the same class here.
     prefilter in (:none, :demean, :first_difference, :linear_detrend, :hp) ||
         throw(ArgumentError(
@@ -5341,7 +5461,7 @@ function mcmc_diagnostics(result::BayesianDSGE{T}) where {T}
     )
 end
 
-function identification_diagnostics(spec::DSGESpec{T}, param_names::Vector{Symbol};
+function identification_diagnostics(spec::ModelSpec{T}, param_names::Vector{Symbol};
         theta=nothing, observables::Vector{Symbol}=Symbol[], n_lags::Int=2,
         tol_rel=1e-8, solver::Symbol=:gensys, solver_kwargs=NamedTuple()) where {T}
     d = length(param_names)
@@ -8535,7 +8655,7 @@ struct ForecastSufficiency{T<:AbstractFloat}
     H::Int
 end
 
-function policy_news_matrix(spec::DSGESpec, policy_shock::Symbol,
+function policy_news_matrix(spec::ModelSpec, policy_shock::Symbol,
                             outcomes::AbstractVector{<:Pair{Symbol,Symbol}},
                             instruments::AbstractVector{<:Pair{Symbol,Symbol}}=Pair{Symbol,Symbol}[];
                             H::Int=100, solver::Symbol=:gensys, chunk::Int=0)
@@ -8641,17 +8761,7 @@ export PolicyCausalEffects, PolicyRule, PolicyLoss, BaselinePath, PolicyCounterf
 # handler use the real accessor instead of teaching the mock a new name.
 
 # --- C039 Phase-4 surface mocks (MEMs 0.6.7 fields ⊆ real) ---
-struct HADSGESpec{T<:AbstractFloat}
-    aggregate_spec::Any
-    individual::Any
-    income::Any
-    grid::Any
-    aggregation::Any
-    het_params::Dict{Symbol,T}
-    n_assets::Int
-    n_income::Int
-    model::Symbol
-end
+# HAModelSpec/HADSGESpec deleted at 0.9.0 — HA is ModelSpec + HouseholdSystem.
 
 struct HASteadyState{T<:AbstractFloat}
     policies::Any
@@ -8675,7 +8785,7 @@ struct HADSGESolution{T<:AbstractFloat}
     steady_state::HASteadyState{T}
     linear_solution::Any
     method::Symbol
-    spec::HADSGESpec{T}
+    spec::ModelSpec{T}
     reduction_basis::Any
     n_full_states::Int
     n_reduced::Int
@@ -8835,22 +8945,26 @@ struct IOData{T}
     meta::Dict{String,Any}
 end
 
-const _HA_EXAMPLE_NAMES = (:krusell_smith, :one_asset_hank, :two_asset_hank, :huggett)
+const _HA_EXAMPLE_NAMES = (:krusell_smith, :one_asset_hank, :two_asset_hank, :huggett, :endogenous_labor)
 
-function load_ha_example(name::Symbol)
+function load_ha_example(name::Symbol; distribution::Symbol=:young)
     name in _HA_EXAMPLE_NAMES || error(
-        "Unknown HA-DSGE example: :$name. Available: :krusell_smith, :one_asset_hank, :two_asset_hank, :huggett")
-    HADSGESpec{Float64}(nothing, nothing, nothing, nothing, nothing,
-                        Dict{Symbol,Float64}(:alpha => 0.36, :delta => 0.025),
-                        50, 2, name)
+        "Unknown HA-DSGE example: :$name. Available: :krusell_smith, :one_asset_hank, :two_asset_hank, :huggett, :endogenous_labor")
+    distribution in (:young, :winberry) || error("distribution must be :young or :winberry")
+    hh = HouseholdSystem{Float64}(; model=name)
+    return ModelSpec(; n_endog=0, n_exog=1, endog_names=Symbol[], exog_names=[:eps_Z],
+                     agents=(household=hh,))
 end
-load_ha_example(name::String) = load_ha_example(Symbol(replace(name, "-" => "_")))
+load_ha_example(name::String; distribution::Symbol=:young) =
+    load_ha_example(Symbol(replace(name, "-" => "_")); distribution=distribution)
+
+_mock_ha_model(spec::ModelSpec) = only(agents_of(spec, HouseholdSystem)).model
 
 struct KrusellSmithSolution{T<:AbstractFloat}
     steady_state::HASteadyState{T}
-    plm_coefficients::Vector{T}
-    r_squared::T
-    spec::HADSGESpec{T}
+    plm_coefficients::Dict{Symbol,Vector{T}}
+    r_squared::Dict{Symbol,T}
+    spec::ModelSpec{T}
     converged::Bool
     iterations::Int
 end
@@ -8875,7 +8989,7 @@ end
 function den_haan_test(ks::KrusellSmithSolution{T}; T_sim::Int=10000, T_burn::Int=1000,
                        rho_z::Real=0.95, sigma_z::Real=0.007, seed::Int=98765) where T
     T_sim > T_burn + 10 || throw(AssertionError("T_sim must exceed T_burn by at least 10"))
-    ks.spec.model === :huggett &&
+    _mock_ha_model(ks.spec) === :huggett &&
         error("den_haan_test is implemented for the capital models (:aiyagari/:ks)")
     n = T_sim - T_burn
     ref = T[T(1.0) + T(0.01) * sin(i / 10) for i in 1:n]
@@ -8892,7 +9006,7 @@ function den_haan_test(sol::HADSGESolution{T}; T_sim::Int=2000, T_burn::Int=200,
                        seed::Int=98765) where T
     T_sim > T_burn + 10 || throw(AssertionError("T_sim must exceed T_burn by at least 10"))
     T_fit > 100 || throw(AssertionError("T_fit must be > 100 to fit the implied law of motion"))
-    sol.spec.model === :huggett &&
+    _mock_ha_model(sol.spec) === :huggett &&
         error("den_haan_test is implemented for the capital models (:aiyagari/:ks)")
     sol.method in (:ssj, :reiter) || error(
         "den_haan_test(::HADSGESolution) supports the linearized methods :ssj and :reiter; " *
@@ -8906,55 +9020,42 @@ function den_haan_test(sol::HADSGESolution{T}; T_sim::Int=2000, T_burn::Int=200,
                        T_sim, T_burn, :implied)
 end
 
-function _mock_ha_ss(spec::HADSGESpec{T}) where T
-    HASteadyState{T}(
+function _mock_ha_ss(spec::ModelSpec{T}; euler_points::Symbol=:midpoints, kwargs...) where T
+    euler_points in (:nodes, :midpoints) || throw(ArgumentError(
+        "_ha_steady_state: euler_points must be :nodes or :midpoints, got :$euler_points."))
+    ss = HASteadyState{T}(
         Dict{Symbol,Any}(:savings => ones(T, 10, 2) * T(0.5)),
         ones(T, 10, 2) ./ 20,
         ones(T, 10, 2),
         Dict{Symbol,T}(:r => T(0.01), :w => T(1.0)),
-        Dict{Symbol,T}(:K => T(10.0), :Y => T(1.0), :excess_demand => T(0.0)),
+        Dict{Symbol,T}(:K => T(10.0), :Y => T(1.0), :excess_demand => T(0.0),
+                       :B => T(1.5), :B_supply => T(1.5)),
         nothing, nothing, true, 10, T(1e-6), T(0.0),
         nothing,
-        # Node evaluation understates the error (EGM solves the Euler equation exactly at
-        # the nodes), so the mock keeps midpoints strictly worse than nodes, as upstream does.
         (midpoints=(points=:midpoints, max=T(-2.1), mean=T(-3.0),
                     n_evaluated=18, n_constrained=2, n_offgrid=0),
          nodes=(points=:nodes, max=T(-5.4), mean=T(-6.2),
                 n_evaluated=20, n_constrained=0, n_offgrid=0)))
-end
-
-function compute_steady_state(spec::HADSGESpec{T};
-        K_init=nothing, r_bounds=nothing, max_iter::Int=100, tol=1e-8,
-        verbose::Bool=false, price_fn=nothing, clearing=nothing,
-        euler_points::Symbol=:midpoints) where T
-    euler_points in (:nodes, :midpoints) || throw(ArgumentError(
-        "_ha_steady_state: euler_points must be :nodes or :midpoints, got :$euler_points."))
-    ss = _mock_ha_ss(spec)
-    # `euler_error` is whichever convention was selected — mirror real, which picks from
-    # the same pair it stores in `euler` rather than recomputing.
     sel = euler_points === :nodes ? ss.euler.nodes.max : ss.euler.midpoints.max
     HASteadyState{T}(ss.policies, ss.distribution, ss.value_fn, ss.prices, ss.aggregates,
                      ss.grid, ss.income, ss.converged, ss.iterations, T(sel),
                      ss.excess_demand, ss.parametric, ss.euler)
 end
 
-function solve(spec::HADSGESpec{T}; method::Symbol=:ssj, ss=nothing,
-               n_reduced::Int=10, T_horizon::Int=300,
-               T_sim::Int=11000, T_burn::Int=1000, max_outer::Int=20) where T
+function _mock_ha_solve(spec::ModelSpec{T}; method::Symbol=:ssj, ss=nothing,
+                        n_reduced::Int=10, T_horizon::Int=300) where T
     ss0 = ss === nothing ? _mock_ha_ss(spec) : ss
     if method === :krusell_smith
-        return KrusellSmithSolution{T}(ss0, T[0.1, 0.9, 0.05], T(0.99), spec, true, 5)
+        return KrusellSmithSolution{T}(ss0, Dict(:K => T[0.1, 0.9, 0.05]),
+                                       Dict(:K => T(0.99)), spec, true, 5)
     end
     method in (:ssj, :reiter) || error(
         "Unknown HA-DSGE method: :$method. Use :ssj, :reiter, or :krusell_smith.")
     n_red = n_reduced
     n_sys = max(n_red + 1, 2)
     endog = [Symbol("x_$i") for i in 1:n_sys]
-    # The two trailing fields are real's augmentation bookkeeping (W12/#114); a
-    # throwaway system spec is never augmented, so it is its own original variable set.
-    dummy_dsge = DSGESpec{T}(endog, [:epsilon], Symbol[], Dict{Symbol,T}(),
-                             n_sys, 1, 0, string.(endog), zeros(T, n_sys), false,
-                             false, endog)
+    dummy_dsge = ModelSpec(; n_endog=n_sys, n_exog=1,
+                           endog_names=endog, exog_names=[:epsilon])
     G1 = Matrix{T}(I, n_sys, n_sys) * T(0.5)
     impact = ones(T, n_sys, 1) * T(0.1)
     lin = LinearDSGE{T}(Matrix{T}(I, n_sys, n_sys), G1, zeros(T, n_sys), impact,
@@ -8986,6 +9087,21 @@ function simulate(sol::HADSGESolution{T}, T_periods::Int;
                   shock_draws=nothing, rng=Random.default_rng()) where T
     n_out = size(sol.C_obs, 1)
     ones(T, T_periods, n_out) * T(0.01)
+end
+
+function historical_decomposition(sol::HADSGESolution{T}, data::AbstractMatrix,
+        observables::Vector{Symbol}; measurement_error=nothing) where {T}
+    T_obs = size(data, 1)
+    n_obs = length(observables)
+    n_shocks = max(sol.spec.n_exog, 1)
+    varnames_hd = [string(s) for s in observables]
+    shock_names = ["epsilon"]
+    HistoricalDecomposition{T}(
+        ones(T, T_obs, n_obs, n_shocks) * T(0.1),
+        ones(T, T_obs, n_obs) * T(0.01),
+        ones(T, T_obs, n_obs),
+        ones(T, T_obs, n_shocks),
+        T_obs, varnames_hd, shock_names, :ha)
 end
 
 function distribution_irf(sol::HADSGESolution{T}, horizon::Int;
@@ -9022,27 +9138,6 @@ function simulate_panel(ss::HASteadyState{T};
                         N_agents::Int=1000, T_periods::Int=100,
                         rng=Random.default_rng()) where T
     ones(T, N_agents, T_periods) .* T(1.0) .+ randn(rng, T, N_agents, T_periods) .* T(0.1)
-end
-
-# HA Bayesian estimation (C048; un-deferred after MEMs#228). Returns BayesianDSGE with
-# RWMH method — mirrors the real HADSGESpec dispatch surface.
-function estimate_dsge_bayes(spec::HADSGESpec{T}, data::AbstractMatrix, theta0;
-        priors=Dict(), observables=Symbol[], n_draws::Int=5000, burnin::Int=1000,
-        measurement_error=nothing, ha_method::Symbol=:ssj,
-        ha_kwargs=NamedTuple(), proposal_scale=0.01, adapt_interval::Int=100,
-        rng=nothing) where {T<:AbstractFloat}
-    np = length(theta0)
-    n_kept = max(n_draws - burnin, 1)
-    tv = T.(collect(theta0))
-    draws = randn(T, n_kept, np) .* T(0.01) .+ reshape(tv, 1, np)
-    log_post = fill(T(-100.0), n_kept)
-    pnames = isempty(priors) ? ["param_$i" for i in 1:np] :
-             sort!([String(k) for k in keys(priors)])
-    ess_hist = fill(T(0.8), 10)
-    dspec = DSGESpec()
-    sol = solve(dspec; method=:gensys)
-    BayesianDSGE{T}(draws, log_post, pnames, T(-450.0 + np), :rwmh, T(0.30),
-                    ess_hist, dspec, sol)
 end
 
 function x13_filter(y::AbstractVector{T};
@@ -9148,6 +9243,14 @@ struct FootprintResult
     name::String
 end
 
+struct RegionalFootprintResult
+    production::Matrix{Float64}
+    consumption::Matrix{Float64}
+    stressors::Vector{String}
+    regions::Vector{String}
+    name::String
+end
+
 struct BaqaeeFarhiResult
     domar::Vector{Float64}
     first_order::Vector{Float64}
@@ -9155,6 +9258,154 @@ struct BaqaeeFarhiResult
     influence::Vector{Float64}
     upstreamness::Vector{Float64}
     downstreamness::Vector{Float64}
+    sectors::Vector{String}
+end
+
+# W3/#154 — Baqaee–Farhi standard-form types (subset of real fields).
+struct ProductionNetwork{T<:AbstractFloat}
+    theta::Vector{T}
+    lambda::Vector{T}
+    lambda_rev::Vector{T}
+    mu::Vector{T}
+    factor_supplies::Vector{T}
+    node_names::Vector{String}
+    parent::Vector{Int}
+    n::Int
+    M::Int
+    F::Int
+    nests::Symbol
+    outer_nodes::Vector{Int}
+    io::IOData{T}
+end
+
+struct BFEquilibrium{T<:AbstractFloat}
+    dlogY::T
+    dlog_x::Vector{T}
+    dlog_p::Vector{T}
+    hulten::T
+    technology::T
+    allocative::T
+    profit_share::T
+    dlogA::Vector{T}
+    dlogL::Vector{T}
+    dlogmu::Vector{T}
+    converged::Bool
+    iterations::Int
+    residual::T
+    sectors::Vector{String}
+end
+
+struct BFElasticities{T<:AbstractFloat}
+    dlogw_dlogA::Matrix{T}
+    dlogp_dlogA::Matrix{T}
+    dlambda_dlogA::Matrix{T}
+    factor_names::Vector{String}
+    sectors::Vector{String}
+end
+
+struct BFLocal{T<:AbstractFloat}
+    first_order::Vector{T}
+    second_order::Matrix{T}
+    lambda::Vector{T}
+    Lambda::Vector{T}
+    elasticities::Union{BFElasticities{T},Nothing}
+    sectors::Vector{String}
+    nests::Symbol
+end
+
+struct BFShockCurve{T<:AbstractFloat}
+    shocks::Vector{T}
+    exact::Vector{T}
+    hulten::Vector{T}
+    second_order::Vector{T}
+    sector::String
+    sector_index::Int
+end
+
+struct BFWedgeDecomp{T<:AbstractFloat}
+    dlogY::T
+    technology::T
+    allocative::T
+    allocative_mu::T
+    allocative_factor::T
+    factor_supply::T
+    lambda_cost::Vector{T}
+    lambda_rev::Vector{T}
+    Lambda_cost::Vector{T}
+    Lambda_rev::Vector{T}
+    mu::Vector{T}
+    dlogA::Vector{T}
+    dlogmu::Vector{T}
+    dlogL::Vector{T}
+    dlog_Lambda::Vector{T}
+    sectors::Vector{String}
+end
+
+struct BFMisallocation{T<:AbstractFloat}
+    distance::T
+    first_order::T
+    second_order::T
+    H_mu::Matrix{T}
+    delta_logmu::Vector{T}
+    point::Symbol
+    lambda::Vector{T}
+    mu::Vector{T}
+    sectors::Vector{String}
+end
+
+# W4/#155 — classical + MRIO result types (subset of real fields).
+struct PriceModelResult
+    dp::Vector{Float64}
+    p::Vector{Float64}
+    dv::Vector{Float64}
+    mode::Symbol
+    sectors::Vector{String}
+end
+
+struct ImpactResult
+    total::Float64
+    by_sector::Vector{Float64}
+    dy::Vector{Float64}
+    kind::Symbol
+    type::Symbol
+    sectors::Vector{String}
+    fixed::Vector{Int}
+end
+
+struct NetworkStatsResult
+    domar::Vector{Float64}
+    herfindahl::Float64
+    multipliers::Vector{Float64}
+    multiplier_dispersion::Float64
+    apl::Matrix{Float64}
+    in_degree::Vector{Float64}
+    out_degree::Vector{Float64}
+    upstreamness::Vector{Float64}
+    downstreamness::Vector{Float64}
+    sectors::Vector{String}
+end
+
+struct VerticalSpecialization
+    vs::Float64
+    vs_share::Float64
+    vs1::Float64
+    domestic_content::Float64
+    dc_share::Float64
+    gross_exports::Float64
+    region::String
+    by_sector::Vector{Float64}
+end
+
+struct ExportDecomposition
+    dva::Float64
+    rdv::Float64
+    fva::Float64
+    pdc::Float64
+    gross_exports::Float64
+    vax_ratio::Float64
+    region::String
+    terms::Vector{Float64}
+    by_sector::Matrix{Float64}
     sectors::Vector{String}
 end
 
@@ -9235,7 +9486,7 @@ rasmussen(io::IOData) = linkages(io)
 key_sectors(io::IOData) = linkages(io).classification
 
 function sda(io0::IOData, io1::IOData; method::Symbol=:additive,
-            factors::Symbol=:LY, average::Symbol=:two_polar)
+            factors=nothing, on=:output, average::Symbol=:two_polar)
     L0 = leontief_inverse(io0); L1 = leontief_inverse(io1)
     y0 = vec(sum(io0.Y, dims=2)); y1 = vec(sum(io1.Y, dims=2))
     ΔL = L1 - L0; Δy = y1 - y0
@@ -9263,8 +9514,20 @@ end
 _io_sector_idx(io::IOData, s::AbstractVector{<:AbstractString}) =
     reduce(vcat, _io_sector_idx.(Ref(io), s))
 
-function hypothetical_extraction(io::IOData, sectors)
-    idx = _io_sector_idx(io, sectors); A = technical_coefficients(io)
+function hypothetical_extraction(io::IOData, sectors; mode::Symbol=:complete,
+                                 share::Real=1.0, region=nothing)
+    (0.0 < share <= 1.0 + 1e-15) || throw(ArgumentError("share must be in (0, 1]; got $share"))
+    mode in (:complete, :backward, :forward, :partial) ||
+        throw(ArgumentError("mode must be :complete, :backward, :forward or :partial"))
+    if region !== nothing
+        region in io.regions || throw(ArgumentError("region '$region' not found; available: $(io.regions)"))
+        ns = length(io.sectors) ÷ max(1, length(io.regions))
+        ridx = findfirst(==(region), io.regions)
+        idx = collect((ridx - 1) * ns + 1 : ridx * ns)
+    else
+        idx = _io_sector_idx(io, sectors)
+    end
+    A = technical_coefficients(io)
     y = vec(sum(io.Y, dims=2)); x_base = (I - A) \ y
     Ae = copy(A); Ae[idx, :] .= 0.0; Ae[:, idx] .= 0.0
     ye = copy(y); ye[idx] .= 0.0; x_red = (I - Ae) \ ye
@@ -9285,11 +9548,85 @@ _io_ext(io, name) = haskey(io.extensions, name) ? io.extensions[name] :
 intensities(io::IOData, name::AbstractString) = _io_ext(io, name).S
 emission_multipliers(io::IOData, name::AbstractString) =
     _io_ext(io, name).S * leontief_inverse(io)
-function footprint(io::IOData, name::AbstractString)
+function footprint(io::IOData, name::AbstractString; by::Symbol=:sector)
+    by in (:sector, :region) || throw(ArgumentError("by must be :sector or :region; got :$by"))
     ext = _io_ext(io, name); L = leontief_inverse(io); M = ext.S * L
     total = M * io.Y .+ ext.F_Y; y = vec(sum(io.Y, dims=2))
-    FootprintResult(total, M .* reshape(y, 1, :), ext.stressors, String(name))
+    by === :sector && return FootprintResult(total, M .* reshape(y, 1, :), ext.stressors, String(name))
+    G = max(length(io.regions), 1)
+    ns = length(io.sectors) ÷ G
+    prod = zeros(size(M, 1), G); consu = zeros(size(M, 1), G)
+    for g in 1:G
+        sl = (g - 1) * ns + 1 : g * ns
+        prod[:, g] = vec(sum(M[:, sl]; dims=2))
+        consu[:, g] = vec(sum(total; dims=2)) ./ G
+    end
+    return RegionalFootprintResult(prod, consu, ext.stressors, io.regions, String(name))
 end
+
+function parse_icio(path::AbstractString; year=nothing, member::AbstractString="",
+                    aggregate_cn_mx::Bool=true, check::Bool=false, unit::AbstractString="Million USD")
+    ext = lowercase(splitext(path)[2])
+    ext == ".zip" && error("Reading zip members requires the ZipFile package. " *
+                           "Run `]add ZipFile` and `using ZipFile` to enable it.")
+    ext == ".xlsx" && error("Reading Excel sheets requires the XLSX package. " *
+                            "Run `]add XLSX` and `using XLSX` to enable it.")
+    lines = String[strip(l) for l in eachline(path) if !isempty(strip(l))]
+    isempty(lines) && throw(ArgumentError("parse_icio: need a header row and at least one data row"))
+    header = String[strip(p) for p in split(lines[1], ',')]
+    col_labels = header[2:end]
+    row_labels = String[]
+    data_rows = Vector{Vector{Float64}}()
+    fd_re = r"HFCE|NPISH|NPS|GGFC|GFCF|INVNT|INV|DIRP|DPABR|FD|P33|DISC"
+    va_exact = Set(["TLS", "VA", "VALU", "TAXES", "TAXSUB"])
+    tot_col = Set(["OUT", "TOTAL"])
+    tot_row = Set(["OUT", "OUTPUT"])
+    for line in lines[2:end]
+        parts = String[strip(p) for p in split(line, ',')]
+        lab = parts[1]
+        (isempty(lab) || lab in tot_row) && continue
+        push!(row_labels, lab)
+        vals = Float64[]
+        for j in 1:length(col_labels)
+            raw = j + 1 <= length(parts) ? parts[j + 1] : "0"
+            v = tryparse(Float64, raw)
+            push!(vals, v === nothing ? 0.0 : v)
+        end
+        push!(data_rows, vals)
+    end
+    keep_c = [j for (j, c) in enumerate(col_labels) if !(c in tot_col)]
+    col_labels = col_labels[keep_c]
+    M = reduce(vcat, (reshape(r[keep_c], 1, :) for r in data_rows))
+    is_va = [r in va_exact || occursin(r"VALU|TAX", r) for r in row_labels]
+    is_fd = [occursin(fd_re, c) for c in col_labels]
+    ind_rows = findall(!, is_va); va_rows = findall(identity, is_va)
+    ind_cols = findall(!, is_fd); fd_cols = findall(identity, is_fd)
+    Z = Matrix{Float64}(M[ind_rows, ind_cols])
+    Y = isempty(fd_cols) ? zeros(Float64, length(ind_rows), 0) : Matrix{Float64}(M[ind_rows, fd_cols])
+    va = if isempty(va_rows)
+        x_tmp = vec(sum(Z; dims=2)) .+ vec(sum(Y; dims=2))
+        reshape(x_tmp .- vec(sum(Z; dims=1)), 1, length(x_tmp))
+    else
+        Matrix{Float64}(M[va_rows, ind_cols])
+    end
+    ind_labs = row_labels[ind_rows]
+    regions = unique(String[let i = findfirst('_', lab)
+                                i === nothing ? lab : lab[1:i-1]
+                            end for lab in ind_labs])
+    fd_cats = isempty(fd_cols) ? String[] : col_labels[fd_cols]
+    va_cats = isempty(va_rows) ? ["VA"] : row_labels[va_rows]
+    x = vec(sum(Z; dims=2)) .+ vec(sum(Y; dims=2))
+    yr = year === nothing ? 0 : Int(year)
+    IOData{Float64}(Z, Y, va, x, ind_labs, regions, fd_cats, va_cats,
+                    Dict{String,Any}(), String(unit), yr, "OECD ICIO", Dict{String,Any}())
+end
+function region_indices(io::IOData, region::AbstractString)
+    i = findfirst(==(region), io.regions)
+    i === nothing && throw(ArgumentError("region '$region' not found"))
+    ns = length(io.sectors) ÷ max(1, length(io.regions))
+    collect((i - 1) * ns + 1 : i * ns)
+end
+region_indices(io::IOData, region::Integer) = region_indices(io, io.regions[region])
 
 domar_weights(io::IOData) = io.x ./ sum(io.va)
 function baqaee_farhi(io::IOData; theta=nothing, sigma=nothing)
@@ -9298,6 +9635,472 @@ function baqaee_farhi(io::IOData; theta=nothing, sigma=nothing)
     n = length(λ)
     BaqaeeFarhiResult(λ, copy(λ), zeros(n, n), vec(L' * β),
                       vec(sum(L, dims=2)), vec(sum(L, dims=1)), copy(io.sectors))
+end
+
+function _io_bf_as_vector(::Type{T}, x, n::Int, name::String) where {T}
+    if x isa AbstractVector
+        length(x) == n || throw(ArgumentError(
+            "$name must be a scalar or length-$n vector; got length $(length(x))"))
+        return T[T(v) for v in x]
+    else
+        return fill(T(x), n)
+    end
+end
+
+function production_network(io::IOData{T};
+                            theta=1.0, sigma=1.0, epsilon=1.0, eta=1.0,
+                            nests::Symbol=:single, factors=:single, mu=1.0,
+                            check::Bool=true) where {T<:AbstractFloat}
+    nests in (:single, :two) || throw(ArgumentError(
+        "nests must be :single or :two (got $nests); :custom is not yet implemented"))
+    n = length(io.x)
+    θ_sec = _io_bf_as_vector(T, theta, n, "theta")
+    _io_bf_as_vector(T, epsilon, n, "epsilon")
+    _io_bf_as_vector(T, eta, n, "eta")
+    μ_sec = _io_bf_as_vector(T, mu, n, "mu")
+    all(μ_sec .>= one(T) - T(1e-14)) || throw(ArgumentError(
+        "mu must satisfy μ ≥ 1 for all sectors (got min=$(minimum(μ_sec)))"))
+    if factors === :single
+        F = 1; fnames = ["factor"]
+    elseif factors === :va_cats
+        F = size(io.va, 1); fnames = String.(io.va_cats)
+    elseif factors isa AbstractMatrix
+        F = size(factors, 1); fnames = ["factor$f" for f in 1:F]
+    else
+        throw(ArgumentError(
+            "factors must be :single, :va_cats, or an F×n matrix; got $factors"))
+    end
+    F >= 1 || throw(ArgumentError("production_network requires at least one factor"))
+    M = nests === :single ? n : 3n
+    N = 1 + M + F
+    outer = collect(2:n+1)
+    λ = zeros(T, N)
+    λr = zeros(T, N)
+    dw = T.(io.x ./ max(sum(io.va), eps(T)))
+    for (k, g) in enumerate(outer)
+        λ[g] = dw[k]; λr[g] = dw[k]
+    end
+    λ[1] = one(T)
+    parent = zeros(Int, N)
+    for i in 1:n
+        parent[i + 1] = i
+    end
+    names = String["household"]
+    append!(names, String.(io.sectors))
+    append!(names, fnames)
+    while length(names) < N
+        push!(names, "node$(length(names)+1)")
+    end
+    θ = vcat(T(sigma), θ_sec)
+    pad = T(theta isa AbstractVector ? theta[1] : theta)
+    length(θ) < 1 + M && (θ = vcat(θ, fill(pad, 1 + M - length(θ))))
+    length(θ) > 1 + M && (θ = θ[1:1+M])
+    μ = ones(T, M)
+    for (k, g) in enumerate(outer)
+        μ[g - 1] = μ_sec[k]
+    end
+    Lfac = T.(dw[1:min(end, F)])
+    length(Lfac) < F && (Lfac = vcat(Lfac, fill(T(1 / F), F - length(Lfac))))
+    ProductionNetwork{T}(θ, λ, λr, μ, Lfac, names[1:N], parent, n, M, F,
+                         nests, outer, io)
+end
+
+function bf_equilibrium(net::ProductionNetwork{T};
+                        dlogA=nothing, dlogL=nothing, dlogmu=nothing,
+                        method::Symbol=:newton, tol::Real=1e-10,
+                        maxiter::Int=500, damping::Real=0.5) where {T<:AbstractFloat}
+    method in (:newton, :fixedpoint) || throw(ArgumentError(
+        "method must be :newton or :fixedpoint; got $method"))
+    n, F = net.n, net.F
+    dA = dlogA === nothing ? zeros(T, n) : _io_bf_as_vector(T, dlogA, n, "dlogA")
+    dL = dlogL === nothing ? zeros(T, F) : _io_bf_as_vector(T, dlogL, F, "dlogL")
+    dμ = dlogmu === nothing ? zeros(T, n) : _io_bf_as_vector(T, dlogmu, n, "dlogmu")
+    λ_out = T[net.lambda[g] for g in net.outer_nodes]
+    hult = dot(λ_out, dA) + (isempty(dL) ? zero(T) : dot(net.factor_supplies, dL))
+    tech = dot(λ_out, dA)
+    alloc = -dot(λ_out, dμ)
+    dlogY = hult + T(0.5) * alloc
+    conv = maxiter >= 2
+    BFEquilibrium{T}(dlogY, dA, zeros(T, n), hult, tech, alloc, zero(T),
+                     dA, dL, dμ, conv, conv ? 1 : maxiter, conv ? T(0) : T(1),
+                     String.(net.io.sectors))
+end
+
+function bf_elasticities(net::ProductionNetwork{T}) where {T<:AbstractFloat}
+    n, F = net.n, net.F
+    I_n = Matrix{T}(I, n, n)
+    BFElasticities{T}(zeros(T, F, n), -I_n, zeros(T, n, n),
+                      String.(net.node_names[net.M+2:net.M+1+F]),
+                      String.(net.io.sectors))
+end
+
+function baqaee_farhi(net::ProductionNetwork{T};
+                      hessian::Symbol=:auto, elasticities::Bool=true) where {T<:AbstractFloat}
+    hessian in (:full, :none, :auto) || throw(ArgumentError(
+        "hessian must be :full, :none, or :auto; got $hessian"))
+    n = net.n
+    do_H = hessian === :none ? false : true
+    λ_out = T[net.lambda[g] for g in net.outer_nodes]
+    Λ = net.lambda[net.M+2:net.M+1+net.F]
+    H = do_H ? zeros(T, n, n) : zeros(T, 0, 0)
+    elast = elasticities ? bf_elasticities(net) : nothing
+    BFLocal{T}(λ_out, H, copy(net.lambda), Vector{T}(Λ), elast,
+               String.(net.io.sectors), net.nests)
+end
+
+function _io_bf_sector_index(net::ProductionNetwork, sector::Integer)
+    i = Int(sector)
+    1 <= i <= net.n || throw(ArgumentError("sector index $i out of range 1:$(net.n)"))
+    return i
+end
+function _io_bf_sector_index(net::ProductionNetwork, sector::AbstractString)
+    i = findfirst(==(String(sector)), String.(net.io.sectors))
+    i === nothing && throw(ArgumentError("sector $(repr(sector)) not found in network sectors"))
+    return i
+end
+_io_bf_sector_index(net::ProductionNetwork, sector::Symbol) =
+    _io_bf_sector_index(net, String(sector))
+
+function bf_shock_curve(net::ProductionNetwork{T}, sector;
+                        range::Tuple{<:Real,<:Real}=(-0.5, 0.5),
+                        points::Int=41) where {T<:AbstractFloat}
+    points >= 2 || throw(ArgumentError("points must be ≥ 2"))
+    lo, hi = T(range[1]), T(range[2])
+    lo < hi || throw(ArgumentError("range must be increasing"))
+    idx = _io_bf_sector_index(net, sector)
+    label = String(net.io.sectors[idx])
+    λ_i = net.lambda[net.outer_nodes[idx]]
+    shocks = collect(Base.range(lo, hi; length=points))
+    exact = T[λ_i * s + T(0.1) * s * s for s in shocks]
+    hult = T[λ_i * s for s in shocks]
+    so = T[λ_i * s + T(0.05) * s * s for s in shocks]
+    BFShockCurve{T}(shocks, exact, hult, so, label, idx)
+end
+
+function bf_wedge_decomp(net::ProductionNetwork{T};
+                         dlogA=nothing, dlogmu=nothing, dlogL=nothing) where {T<:AbstractFloat}
+    eq = bf_equilibrium(net; dlogA=dlogA, dlogL=dlogL, dlogmu=dlogmu)
+    n, M, F = net.n, net.M, net.F
+    λc = T[net.lambda[g] for g in net.outer_nodes]
+    λr = T[net.lambda_rev[g] for g in net.outer_nodes]
+    μ_out = T[net.mu[g - 1] for g in net.outer_nodes]
+    Λc = net.lambda[M+2:M+1+F]
+    Λr = net.lambda_rev[M+2:M+1+F]
+    BFWedgeDecomp{T}(eq.dlogY, eq.technology, eq.allocative,
+                     -dot(λc, eq.dlogmu), zero(T), dot(Vector{T}(Λc), eq.dlogL),
+                     λc, λr, Vector{T}(Λc), Vector{T}(Λr), μ_out,
+                     eq.dlogA, eq.dlogmu, eq.dlogL, zeros(T, F),
+                     String.(net.io.sectors))
+end
+
+function bf_misallocation(net::ProductionNetwork{T}; point::Symbol=:efficient,
+                          hessian::Symbol=:auto) where {T<:AbstractFloat}
+    point in (:efficient, :observed) || throw(ArgumentError(
+        "point must be :efficient or :observed; got $point"))
+    hessian in (:full, :none, :auto) || throw(ArgumentError(
+        "hessian must be :full, :none, or :auto; got $hessian"))
+    n = net.n
+    μ_sec = T[net.mu[g - 1] for g in net.outer_nodes]
+    v = log.(μ_sec)
+    λ_out = T[net.lambda[g] for g in net.outer_nodes]
+    do_H = hessian !== :none
+    H = do_H ? zeros(T, n, n) : zeros(T, 0, 0)
+    BFMisallocation{T}(zero(T), zero(T), zero(T), H, v, point, λ_out, μ_sec,
+                       String.(net.io.sectors))
+end
+
+# ── W4/#155 classical + MRIO ─────────────────────────────────
+
+function _io_price_shock_vector(io::IOData, shock, n::Int)
+    shock === nothing && return zeros(Float64, n)
+    if shock isa AbstractDict
+        v = zeros(Float64, n)
+        for (k, val) in shock
+            idx = _io_sector_idx(io, k)
+            length(idx) == 1 || throw(ArgumentError(
+                "price shock key must identify a single sector; got $k → $idx"))
+            v[idx[1]] = Float64(val)
+        end
+        return v
+    end
+    v = Float64.(vec(collect(shock)))
+    length(v) == n || throw(ArgumentError("shock vector length $(length(v)) must equal n=$n"))
+    return v
+end
+
+function price_model(io::IOData; dva=nothing, dtax=nothing, mode::Symbol=:leontief)
+    n = length(io.x)
+    dv = _io_price_shock_vector(io, dva, n) .+ _io_price_shock_vector(io, dtax, n)
+    if mode === :leontief
+        A = technical_coefficients(io)
+        dp = Matrix{Float64}(inv(Matrix(I - A'))) * dv
+    elseif mode === :ghosh
+        B = allocation_coefficients(io)
+        dp = Matrix{Float64}(inv(Matrix(I - B))) * dv
+    else
+        throw(ArgumentError("mode must be :leontief or :ghosh; got :$mode"))
+    end
+    PriceModelResult(dp, ones(Float64, n) .+ dp, dv, mode, copy(io.sectors))
+end
+
+function _io_impact_dy(io::IOData, dy, n::Int)
+    if dy isa AbstractDict
+        v = zeros(Float64, n)
+        for (k, val) in dy
+            idx = _io_sector_idx(io, k)
+            length(idx) == 1 || throw(ArgumentError(
+                "dy key must identify a single sector; got $k → $idx"))
+            v[idx[1]] = Float64(val)
+        end
+        return v
+    end
+    v = Float64.(vec(collect(dy)))
+    length(v) == n || throw(ArgumentError("dy length $(length(v)) must equal n=$n"))
+    return v
+end
+
+function impact(io::IOData, dy; kind=:output, type::Symbol=:I, fix=Dict())
+    n = length(io.x)
+    dyv = _io_impact_dy(io, dy, n)
+    kind_sym = kind isa Symbol ? kind : Symbol(kind)
+    if type === :I
+        dx = leontief_inverse(io) * dyv
+    elseif type === :II
+        L2 = _io_closed_leontief(io)
+        dx = (L2 * vcat(dyv, 0.0))[1:n]
+    else
+        throw(ArgumentError("type must be :I or :II; got :$type"))
+    end
+    ImpactResult(sum(dx), Float64.(dx), dyv, kind_sym, type, copy(io.sectors), Int[])
+end
+
+function network_stats(io::IOData)
+    λ = Float64.(domar_weights(io))
+    L = leontief_inverse(io)
+    A = technical_coefficients(io)
+    mult = vec(sum(L, dims=1))
+    n = length(mult)
+    NetworkStatsResult(λ, sum(abs2, λ), Float64.(mult),
+                       n > 1 ? std(Float64.(mult); corrected=true) : 0.0,
+                       zeros(n, n),
+                       Float64.(vec(sum(A, dims=2))), Float64.(vec(sum(A, dims=1))),
+                       Float64.(vec(sum(L, dims=2))), Float64.(vec(sum(L, dims=1))),
+                       copy(io.sectors))
+end
+
+function _io_ns_per_region(io::IOData)
+    G = max(length(io.regions), 1)
+    n = length(io.x)
+    ns = n ÷ G
+    G * ns == n || throw(ArgumentError(
+        "unbalanced MRIO layout: length(x)=$n, nregions=$G, nsectors=$ns " *
+        "(expected n = G·nsectors)"))
+    ns
+end
+
+function _io_resolve_region(io::IOData, region::AbstractString)
+    ridx = findfirst(==(region), io.regions)
+    ridx === nothing && throw(ArgumentError(
+        "region '$region' not found; available: $(io.regions)"))
+    ridx
+end
+function _io_resolve_region(io::IOData, region::Integer)
+    G = length(io.regions)
+    (1 <= region <= G) || throw(ArgumentError("region index $region out of 1:$G"))
+    Int(region)
+end
+
+function bilateral_trade(io::IOData{T}, exporter, importer;
+                         kind::Symbol=:total) where {T}
+    kind in (:total, :intermediate, :final) || throw(ArgumentError(
+        "kind must be :total, :intermediate, or :final; got :$kind"))
+    ri = _io_resolve_region(io, exporter)
+    si = _io_resolve_region(io, importer)
+    ns = _io_ns_per_region(io)
+    Ir = (ri - 1) * ns + 1 : ri * ns
+    Is = (si - 1) * ns + 1 : si * ns
+    Zrs = io.Z[Ir, Is]
+    inter_by = vec(sum(Zrs; dims=2))
+    G = length(io.regions)
+    n_fd = size(io.Y, 2)
+    blocked = G > 1 && n_fd > 0 && n_fd % G == 0
+    n_fd_r = blocked ? n_fd ÷ G : n_fd
+    if blocked
+        Jr = (si - 1) * n_fd_r + 1 : si * n_fd_r
+        final_by = vec(sum(io.Y[Ir, Jr]; dims=2))
+    else
+        final_by = ri == si ? vec(sum(io.Y[Ir, :]; dims=2)) : zeros(T, ns)
+    end
+    if kind === :intermediate
+        by_sec = inter_by; fin = zero(T); inter = sum(inter_by); tot = inter
+    elseif kind === :final
+        by_sec = final_by; inter = zero(T); fin = sum(final_by); tot = fin
+    else
+        by_sec = inter_by .+ final_by
+        inter = sum(inter_by); fin = sum(final_by); tot = inter + fin
+    end
+    (intermediate=Float64(inter), final=Float64(fin), total=Float64(tot),
+     by_sector=Float64.(by_sec))
+end
+
+function gross_exports(io::IOData{T}, region) where {T}
+    ri = _io_resolve_region(io, region)
+    G = length(io.regions)
+    ns = _io_ns_per_region(io)
+    E = zeros(T, ns)
+    for s in 1:G
+        s == ri && continue
+        bt = bilateral_trade(io, ri, s; kind=:total)
+        E .+= T.(bt.by_sector)
+    end
+    E
+end
+
+function aggregate(io::IOData{T}; region_map=nothing, sector_map=nothing) where {T}
+    G = length(io.regions)
+    ns = _io_ns_per_region(io)
+    n = length(io.x)
+    rmap = Dict{String,String}()
+    if region_map !== nothing
+        for (k, v) in region_map
+            rmap[String(k)] = String(v)
+        end
+    end
+    old_to_new_r = [get(rmap, io.regions[r], io.regions[r]) for r in 1:G]
+    new_regions = unique(old_to_new_r)
+    G2 = length(new_regions)
+    r_of = [findfirst(==(old_to_new_r[r]), new_regions) for r in 1:G]
+    sec_types = String[io.sectors[i] for i in 1:ns]
+    smap = Dict{String,String}()
+    if sector_map !== nothing
+        for (k, v) in sector_map
+            smap[String(k)] = String(v)
+        end
+    end
+    old_to_new_s = [get(smap, sec_types[j], sec_types[j]) for j in 1:ns]
+    new_sec = unique(old_to_new_s)
+    ns2 = length(new_sec)
+    s_of = [findfirst(==(old_to_new_s[j]), new_sec) for j in 1:ns]
+    if G2 == G && ns2 == ns
+        return io
+    end
+    n2 = G2 * ns2
+    function new_ind(old_i::Int)
+        r_old = (old_i - 1) ÷ ns + 1
+        s_old = (old_i - 1) % ns + 1
+        (r_of[r_old] - 1) * ns2 + s_of[s_old]
+    end
+    Z2 = zeros(T, n2, n2); x2 = zeros(T, n2)
+    for i in 1:n, j in 1:n
+        Z2[new_ind(i), new_ind(j)] += io.Z[i, j]
+    end
+    for i in 1:n
+        x2[new_ind(i)] += io.x[i]
+    end
+    n_fd = size(io.Y, 2)
+    Y2 = zeros(T, n2, n_fd)
+    for i in 1:n, j in 1:n_fd
+        Y2[new_ind(i), j] += io.Y[i, j]
+    end
+    n_va = size(io.va, 1)
+    va2 = zeros(T, n_va, n2)
+    for f in 1:n_va, j in 1:n
+        va2[f, new_ind(j)] += io.va[f, j]
+    end
+    secs2 = String[]
+    for r in 1:G2, s in 1:ns2
+        push!(secs2, G2 == 1 ? new_sec[s] : string(new_regions[r], "_", new_sec[s]))
+    end
+    IOData{T}(Z2, Y2, va2, x2, secs2, new_regions, copy(io.fd_cats), copy(io.va_cats),
+              Dict{String,Any}(), io.unit, io.year,
+              isempty(io.source) ? "aggregate" : io.source * " [aggregated]",
+              io.meta)
+end
+
+function balance(io::IOData{T}; method::Symbol=:ras, tol::Real=1e-10,
+                 maxiter::Integer=1000) where {T<:AbstractFloat}
+    method in (:ras, :gras) ||
+        throw(ArgumentError("method must be :ras or :gras; got :$method"))
+    io  # already-balanced tables are a fixed point
+end
+
+function vertical_specialization(io::IOData{T}, region=nothing) where {T}
+    G = length(io.regions)
+    if region === nothing
+        G == 1 || throw(ArgumentError(
+            "region is required when nregions=$(G) > 1"))
+        region = io.regions[1]
+    end
+    ri = _io_resolve_region(io, region)
+    rname = io.regions[ri]
+    ns = _io_ns_per_region(io)
+    E = gross_exports(io, ri)
+    ge = sum(E)
+    if ge == zero(T) || G == 1
+        return VerticalSpecialization(0.0, 0.0, 0.0, Float64(ge),
+                                      ge == 0 ? 0.0 : 1.0, Float64(ge),
+                                      rname, zeros(Float64, ns))
+    end
+    L = leontief_inverse(io)
+    va_tot = vec(sum(io.va; dims=1))
+    v = T[io.x[j] == 0 ? zero(T) : va_tot[j] / io.x[j] for j in 1:length(io.x)]
+    Is = (ri - 1) * ns + 1 : ri * ns
+    vs_by = zeros(T, ns); vs_tot = zero(T)
+    for t in 1:G
+        t == ri && continue
+        It = (t - 1) * ns + 1 : t * ns
+        fva_per = vec(v[It]' * L[It, Is])
+        vs_by .+= fva_per .* E
+        vs_tot += dot(fva_per, E)
+    end
+    dc = ge - vs_tot
+    VerticalSpecialization(Float64(vs_tot),
+                           ge == 0 ? 0.0 : Float64(vs_tot / ge),
+                           0.0, Float64(dc),
+                           ge == 0 ? 0.0 : Float64(dc / ge),
+                           Float64(ge), rname, Float64.(vs_by))
+end
+
+function export_decomposition(io::IOData{T}, region=nothing) where {T}
+    G = length(io.regions)
+    if region === nothing
+        G == 1 || throw(ArgumentError(
+            "region is required when nregions=$(G) > 1"))
+        region = io.regions[1]
+    end
+    s = _io_resolve_region(io, region)
+    rname = io.regions[s]
+    ns = _io_ns_per_region(io)
+    sec_types = String[io.sectors[i] for i in 1:ns]
+    if G == 1
+        return ExportDecomposition(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, rname,
+                                   zeros(9), zeros(ns, 4), sec_types)
+    end
+    Es = gross_exports(io, s)
+    ge = Float64(sum(Es))
+    vs = vertical_specialization(io, s)
+    fva = vs.vs
+    # Split the residual domestic content into DVA (absorbed abroad) vs RDV
+    # using the share of final vs intermediate exports, so the four aggregates
+    # add up to gross exports. Exact KWW terms are T3's job (real MEMs).
+    bt_final = 0.0; bt_inter = 0.0
+    for r in 1:G
+        r == s && continue
+        bt = bilateral_trade(io, s, r; kind=:total)
+        bt_final += bt.final; bt_inter += bt.intermediate
+    end
+    dc = ge - fva
+    dva = dc * (bt_final / max(bt_final + bt_inter, eps()))
+    rdv = dc - dva
+    pdc = 0.0
+    vax = ge == 0 ? 0.0 : dva / ge
+    by = zeros(ns, 4)
+    if ge > 0
+        w = Float64.(Es) ./ ge
+        by[:, 1] .= dva .* w; by[:, 2] .= rdv .* w
+        by[:, 3] .= fva .* w; by[:, 4] .= pdc .* w
+    end
+    ExportDecomposition(dva, rdv, fva, pdc, ge, vax, rname, zeros(9), by, sec_types)
 end
 
 const _IO_SOURCES = Dict{Symbol,NamedTuple}(
@@ -9462,14 +10265,311 @@ export generalized_residuals   # MEMs#507: ordered-model score residual (W4/#87)
 export estimate_ologit, estimate_oprobit, estimate_mlogit
 export brant_test, hausman_iia, dropna, keeprows
 
-export HADSGESpec, HASteadyState, HADSGESolution, KrusellSmithSolution
+# ── W5–W8 family mocks (MEMs 0.9.0 DCEGM / lifecycle / Khan–Thomas / Bewley banks) ──
+struct HAGrid{T<:AbstractFloat}
+    grids::Vector{Vector{T}}
+    n_points::Vector{Int}
+    n_dims::Int
+    n_income::Int
+    bounds::Vector{Tuple{T,T}}
+    labels::Vector{Symbol}
+    total_individual_states::Int
+end
+function HAGrid(grids::Vector{<:AbstractVector{T}}; n_income::Int=1,
+                labels::Vector{Symbol}=[:a]) where {T<:AbstractFloat}
+    gs = Vector{T}[collect(T, g) for g in grids]
+    n_dims = length(gs)
+    n_points = Int[length(g) for g in gs]
+    bounds = Tuple{T,T}[(minimum(g), maximum(g)) for g in gs]
+    labs = length(labels) == n_dims ? labels : Symbol[Symbol("x$i") for i in 1:n_dims]
+    HAGrid{T}(gs, n_points, n_dims, n_income, bounds, labs, prod(n_points) * n_income)
+end
+
+struct IncomeProcess{T<:AbstractFloat}
+    transition::Matrix{T}
+    states::Vector{T}
+    stationary_dist::Vector{T}
+    labels::Symbol
+end
+function IncomeProcess(n::Int=1; labels::Symbol=:e)
+    T = Float64
+    P = ones(T, n, n) ./ T(n)
+    s = ones(T, n)
+    IncomeProcess{T}(P, s, ones(T, n) ./ T(n), labels)
+end
+
+struct DCEGMProblem{T<:AbstractFloat}
+    beta::T; R::T; utility::Any; utility_prime::Any; utility_prime_inv::Any; income::Any
+    options::Vector{Symbol}; absorbing::Vector{Bool}; asset_grid::Vector{T}
+    income_process::IncomeProcess{T}; n_periods::Int; taste_shock_scale::T; credit_limit::T
+end
+struct DCEGMSystem{T<:AbstractFloat} <: AbstractAgentSystem{T}
+    problem::DCEGMProblem{T}
+end
+struct DCEGMSolution{T<:AbstractFloat}
+    M::Array{Vector{T},3}; c::Array{Vector{T},3}; v::Array{Vector{T},3}
+    ev_constrained::Array{T,3}; n_kinks::Array{Int,3}; prob::DCEGMProblem{T}
+    n_periods::Int; converged::Bool; iterations::Int; sup_diff::T
+end
+struct DCEGMDistribution{T<:AbstractFloat}
+    grid::Vector{T}; dist::Array{T,4}; shares::Matrix{T}
+    consumption::Vector{T}; assets::Vector{T}; n_periods::Int
+end
+struct DCEGMFirm{T<:AbstractFloat}
+    alpha::T; delta::T; Z::T; L::T
+end
+DCEGMFirm(; alpha::Real=0.36, delta::Real=0.08, Z::Real=1.0, L::Real=1.0) =
+    DCEGMFirm{Float64}(Float64(alpha), Float64(delta), Float64(Z), Float64(L))
+struct DCEGMEquilibrium{T<:AbstractFloat}
+    r::T; w::T; K::T; L::T; Y::T; K_demand::T; excess_demand::T
+    solution::DCEGMSolution{T}; distribution::DCEGMDistribution{T}; firm::DCEGMFirm{T}
+    converged::Bool; iterations::Int
+end
+struct DCEGMTransition{T<:AbstractFloat}
+    Z::Vector{T}; K::Vector{T}; r::Vector{T}; w::Vector{T}; A::Vector{T}; Y::Vector{T}
+    equilibrium::DCEGMEquilibrium{T}; method::Symbol; converged::Bool
+end
+
+function _mock_dcegm_prob(; n_periods=20, beta=0.98, R=1.0, n_a=8)
+    T = Float64
+    ag = collect(range(zero(T), T(10); length=max(n_a, 2)))
+    DCEGMProblem{T}(T(beta), T(R), log, inv, inv, identity,
+                    [:work, :retire], [false, true], ag, IncomeProcess(1),
+                    n_periods, zero(T), zero(T))
+end
+dcegm_retirement_model(; n_periods::Int=20, beta::Real=0.98, R::Real=1.0, n_a::Int=8,
+                       wage=20.0, disutility=1.0, sigma=0.0, n_shocks=1,
+                       taste_shock_scale=0.0, a_max=50.0, pension=0.0,
+                       credit_limit=0.0, curvature=2.0) =
+    _mock_dcegm_prob(; n_periods=n_periods, beta=beta, R=R, n_a=n_a)
+
+function dcegm_solve(prob::DCEGMProblem{T}; max_iter::Int=500, tol::Real=1e-8) where T
+    n_t = max(prob.n_periods, 1); n_d = length(prob.options); n_e = 1
+    knots = T[T(0), T(1), T(2)]
+    M = Array{Vector{T},3}(undef, n_t, n_d, n_e)
+    c = similar(M); v = similar(M)
+    for t in 1:n_t, d in 1:n_d, j in 1:n_e
+        M[t, d, j] = knots; c[t, d, j] = knots ./ T(2); v[t, d, j] = log.(knots .+ one(T))
+    end
+    DCEGMSolution{T}(M, c, v, zeros(T, n_t, n_d, n_e), zeros(Int, n_t, n_d, n_e),
+                     prob, n_t, true, 2, T(1e-10))
+end
+function dcegm_steady_state(source, firm=DCEGMFirm(); r_bounds=(0.001, 0.20),
+                             labor::Symbol=:exogenous, reprice_wage::Bool=false,
+                             work_option::Symbol=:work, n_sim::Int=40,
+                             tol::Real=1e-4, max_iter::Int=40)
+    prob = source isa DCEGMProblem ? source : _mock_dcegm_prob()
+    sol = dcegm_solve(prob)
+    T = typeof(sol.sup_diff)
+    dist = DCEGMDistribution{T}(prob.asset_grid, zeros(T, 2, 2, 2, 2),
+                                ones(T, 2, 2) ./ T(4), T[1, 1], T[1, 1], sol.n_periods)
+    DCEGMEquilibrium{T}(T(0.04), T(1.0), T(3.0), T(1.0), T(1.2), T(3.0), T(1e-8),
+                        sol, dist, firm isa DCEGMFirm ? firm : DCEGMFirm(), true, 4)
+end
+function dcegm_mit(eq::DCEGMEquilibrium{T}, Z_path::AbstractVector) where T
+    n = length(Z_path)
+    DCEGMTransition{T}(collect(T, Z_path), fill(eq.K, n), fill(eq.r, n), fill(eq.w, n),
+                       fill(eq.K, n), fill(eq.Y, n), eq, :mit, true)
+end
+function irf(eq::DCEGMEquilibrium{T}, horizon::Int; shock_size::Real=0.01, persist::Real=0.0) where T
+    vars = ["K", "r", "w", "Y", "Z"]
+    vals = zeros(T, horizon, length(vars), 1)
+    for h in 1:horizon; vals[h, :, 1] .= T(0.01) * T(0.9)^(h - 1); end
+    ImpulseResponse(vals, nothing, nothing, horizon, vars, ["tfp"], :dcegm)
+end
+function fevd(eq::DCEGMEquilibrium{T}, horizon::Int; shock_size::Real=0.01, persist::Real=0.0) where T
+    n = 5; props = ones(T, n, 1, horizon)
+    FEVD(copy(props), props, ["K", "r", "w", "Y", "Z"], ["tfp"])
+end
+function simulate(eq::DCEGMEquilibrium{T}, periods::Int; shock_size::Real=0.0, persist::Real=0.0) where T
+    hcat(fill(eq.K, periods), fill(eq.r, periods), fill(eq.w, periods),
+         fill(eq.Y, periods), fill(eq.firm.Z, periods))
+end
+
+struct LifeCycleOLG{T<:AbstractFloat}
+    J::Int; J_retire::Int; survival::Vector{T}; earnings::Vector{T}
+    income::IncomeProcess{T}; grid::HAGrid{T}; beta::T; sigma::T
+    alpha::T; delta::T; Z::T; n_pop::T; replacement::T; credit_limit::T; annuities::Bool
+end
+struct LifeCycleSystem{T<:AbstractFloat} <: AbstractAgentSystem{T}
+    model::LifeCycleOLG{T}
+end
+function LifeCycleOLG(; J::Int=12, J_retire::Int=9, survival=0.99, earnings=nothing,
+                       income=IncomeProcess(3), a_max=40.0, n_a::Int=8,
+                       beta=0.97, sigma=2.0, alpha=0.36, delta=0.06, Z=1.0,
+                       n_pop=0.0, replacement=0.4, credit_limit=0.0, annuities::Bool=true)
+    T = Float64
+    surv = survival isa AbstractVector ? T.(survival) : fill(T(survival), J)
+    earn = earnings === nothing ? ones(T, J) : T.(earnings)
+    grid = HAGrid([collect(range(T(credit_limit), T(a_max); length=n_a))]; n_income=length(income.states))
+    LifeCycleOLG{T}(J, J_retire, surv, earn, income, grid, T(beta), T(sigma),
+                    T(alpha), T(delta), T(Z), T(n_pop), T(replacement), T(credit_limit), annuities)
+end
+lifecycle_income(rho, sigma, n) = IncomeProcess(n; labels=:e)
+struct LifeCycleSteadyState{T<:AbstractFloat}
+    r::T; w::T; K::T; L::T; Y::T; tau::T; pension::T; transfer::T
+    c_policy::Array{T,3}; a_policy::Array{T,3}; dist::Array{T,3}
+    cohort_mass::Vector{T}; asset_profile::Vector{T}; consumption_profile::Vector{T}
+    income_profile::Vector{T}; converged::Bool; iterations::Int; excess_demand::T
+    spec::LifeCycleOLG{T}
+end
+struct LifeCycleTransition{T<:AbstractFloat}
+    K::Vector{T}; r::Vector{T}; w::Vector{T}; Y::Vector{T}; C::Vector{T}; Z::Vector{T}
+    pension::Vector{T}; transfer::Vector{T}; tau::T; converged::Bool; iterations::Int
+    ss::LifeCycleSteadyState{T}
+end
+function lifecycle_steady_state(m::LifeCycleOLG{T}; r_bounds=(-0.02, 0.10),
+                                  tol::Real=1e-6, max_iter::Int=60, bequest_iter::Int=50) where T
+    J = m.J
+    mu = ones(T, J) ./ T(J)
+    LifeCycleSteadyState{T}(T(0.04), T(1.0), T(3.0), T(1.0), T(1.2), T(0.1), T(0.2), T(0.0),
+                            zeros(T, 3, 2, J), zeros(T, 3, 2, J), zeros(T, 3, 2, J),
+                            mu, ones(T, J), ones(T, J), ones(T, J), true, 6, T(1e-8), m)
+end
+function lifecycle_transition(m::LifeCycleOLG{T}, arg; H::Int=20,
+                                tol::Real=1e-5, max_iter::Int=80, relax::Real=0.5) where T
+    ss = lifecycle_steady_state(m)
+    n = arg isa AbstractVector ? length(arg) : H + 1
+    Z = arg isa AbstractVector ? collect(T, arg) : fill(m.Z, n)
+    LifeCycleTransition{T}(fill(ss.K, n), fill(ss.r, n), fill(ss.w, n), fill(ss.Y, n),
+                           fill(ss.K, n), Z, fill(ss.pension, n), fill(ss.transfer, n),
+                           ss.tau, true, 3, ss)
+end
+function irf(ss::LifeCycleSteadyState{T}, horizon::Int; shock_size::Real=0.01, persist::Real=0.0) where T
+    vars = ["K", "r", "w", "Y", "Z"]
+    vals = zeros(T, horizon, length(vars), 1)
+    for h in 1:horizon; vals[h, :, 1] .= T(0.01) * T(0.9)^(h - 1); end
+    ImpulseResponse(vals, nothing, nothing, horizon, vars, ["tfp"], :lifecycle)
+end
+function fevd(ss::LifeCycleSteadyState{T}, horizon::Int; shock_size::Real=0.01, persist::Real=0.0) where T
+    n = 5; props = ones(T, n, 1, horizon)
+    FEVD(copy(props), props, ["K", "r", "w", "Y", "Z"], ["tfp"])
+end
+function simulate(ss::LifeCycleSteadyState{T}, periods::Int; shock_size::Real=0.0, persist::Real=0.0) where T
+    hcat(fill(ss.K, periods), fill(ss.r, periods), fill(ss.w, periods),
+         fill(ss.Y, periods), fill(ss.spec.Z, periods))
+end
+
+struct FirmSystem{T<:AbstractFloat} <: AbstractAgentSystem{T}
+    k_grid::Vector{T}; productivity::IncomeProcess{T}
+    alpha::T; nu::T; delta::T; beta::T; gamma::T; xi_bar::T; b::T; phi::T
+    rho_z::T; sigma_z::T; Z::T
+end
+function khan_thomas_example(; n_k::Int=8, n_eps::Int=2, alpha=0.256, nu=0.640,
+                              delta=0.069, beta=0.977, gamma=1.016, xi_bar=0.0083,
+                              b=0.011, phi=2.4, rho_z=0.859, sigma_z=0.014,
+                              rho_e=0.859, sigma_e=0.022, Z=1.0)
+    T = Float64
+    kg = collect(range(T(0.1), T(2.0); length=max(n_k, 3)))
+    FirmSystem{T}(kg, IncomeProcess(n_eps), T(alpha), T(nu), T(delta), T(beta), T(gamma),
+                  T(xi_bar), T(b), T(phi), T(rho_z), T(sigma_z), T(Z))
+end
+struct KhanThomasSteadyState{T<:AbstractFloat}
+    firm::FirmSystem{T}; w::T; p::T; K::T; N::T; Y::T; I::T; C::T; inaction::T
+    distribution::Matrix{T}; value::Matrix{T}; k_star::Vector{T}
+    k_constrained::Matrix{T}; adj_prob::Matrix{T}; labor::Matrix{T}
+    converged::Bool; iterations::Int; method::Symbol
+end
+struct KhanThomasTransition{T<:AbstractFloat}
+    Z::Vector{T}; Y::Vector{T}; I::Vector{T}; K::Vector{T}; N::Vector{T}; C::Vector{T}
+    w::Vector{T}; ss::KhanThomasSteadyState{T}; method::Symbol; converged::Bool
+end
+function khan_thomas_steady_state(fs::FirmSystem{T}; tol::Real=1e-5, max_iter::Int=16) where T
+    n_k = length(fs.k_grid); n_e = length(fs.productivity.states)
+    KhanThomasSteadyState{T}(fs, T(1.0), T(1.0), T(3.0), T(0.3), T(1.0), T(0.2), T(0.8),
+                             T(0.5), ones(T, n_k, n_e) ./ T(n_k * n_e), ones(T, n_k, n_e),
+                             fill(T(1.0), n_e), ones(T, n_k, n_e), fill(T(0.4), n_k, n_e),
+                             ones(T, n_k, n_e), true, 4, :ge)
+end
+function khan_thomas_mit(ss::KhanThomasSteadyState{T}, Z_path::AbstractVector; prices::Symbol=:ss) where T
+    n = length(Z_path)
+    KhanThomasTransition{T}(collect(T, Z_path), fill(ss.Y, n), fill(ss.I, n), fill(ss.K, n),
+                            fill(ss.N, n), fill(ss.C, n), fill(ss.w, n), ss, :mit, true)
+end
+function irf(ss::KhanThomasSteadyState{T}, horizon::Int; shock_size::Real=0.01,
+              persist::Real=0.5, prices::Symbol=:ss) where T
+    vars = ["Y", "I", "K", "N", "C", "Z"]
+    vals = zeros(T, horizon, length(vars), 1)
+    for h in 1:horizon; vals[h, :, 1] .= T(0.01) * T(0.9)^(h - 1); end
+    ImpulseResponse(vals, nothing, nothing, horizon, vars, ["tfp"], :khan_thomas)
+end
+
+struct IntermediarySystem{T<:AbstractFloat} <: AbstractAgentSystem{T}
+    grid::HAGrid{T}; xi::IncomeProcess{T}; kappa::T; beta::T; sigma::T; lambda::T
+    zeta1::T; zeta2::T; R::T; rk::T; Z::T; alpha::T; n_enter::T
+    het_params::Dict{Symbol,T}; aggregation::Vector{Pair{Symbol,Function}}
+    model::Symbol; distribution::Symbol
+end
+function IntermediarySystem(; n_n::Int=8, n_xi::Int=2, n_min=0.05, n_max=8.0,
+                             beta=0.99, sigma=0.95, lambda=0.20, zeta1=0.02, zeta2=2.0,
+                             R=1.01, rk=0.05, Z=0.25, alpha=0.33)
+    T = Float64
+    g = HAGrid([collect(range(T(n_min), T(n_max); length=max(n_n, 3)))]; n_income=n_xi, labels=[:n])
+    IntermediarySystem{T}(g, IncomeProcess(n_xi; labels=:xi), T(0.0), T(beta), T(sigma), T(lambda),
+                          T(zeta1), T(zeta2), T(R), T(rk), T(Z), T(alpha), T(0.0),
+                          Dict{Symbol,T}(), Pair{Symbol,Function}[], :bewley, :young)
+end
+struct IntermediaryPE{T<:AbstractFloat}
+    V::Matrix{T}; l_policy::Matrix{T}; b_policy::Matrix{T}
+    prices::Dict{Symbol,T}; converged::Bool; iterations::Int
+end
+struct IntermediarySteadyState{T<:AbstractFloat}
+    system::IntermediarySystem{T}; V::Matrix{T}; l_policy::Matrix{T}; b_policy::Matrix{T}
+    distribution::Matrix{T}; prices::Dict{Symbol,T}; aggregates::Dict{Symbol,T}
+    grid::HAGrid{T}; xi::IncomeProcess{T}; converged::Bool; iterations::Int; excess_demand::T
+end
+struct IntermediaryTransition{T<:AbstractFloat}
+    Z::Vector{T}; L::Vector{T}; Y::Vector{T}; K::Vector{T}; rk::Vector{T}
+    ss::IntermediarySteadyState{T}; method::Symbol; converged::Bool
+end
+function intermediary_pe(sys::IntermediarySystem{T}; R=sys.R, rk=sys.rk, max_iter=250, tol=1e-6) where T
+    n_n = length(sys.grid.grids[1]); n_e = length(sys.xi.states)
+    IntermediaryPE{T}(ones(T, n_n, n_e), ones(T, n_n, n_e), ones(T, n_n, n_e),
+                      Dict(:R => T(R), :rk => T(rk)), true, 3)
+end
+function intermediary_steady_state(sys::IntermediarySystem{T}; r_bounds=nothing, max_iter=24, tol=1e-4) where T
+    lo, hi = r_bounds === nothing ? (T(0.01), T(0.5)) : (T(r_bounds[1]), T(r_bounds[2]))
+    conv = lo < hi
+    n_n = length(sys.grid.grids[1]); n_e = length(sys.xi.states)
+    IntermediarySteadyState{T}(sys, ones(T, n_n, n_e), ones(T, n_n, n_e), ones(T, n_n, n_e),
+                               ones(T, n_n, n_e) ./ T(n_n * n_e),
+                               Dict(:R => sys.R, :rk => sys.rk),
+                               Dict(:L => T(1.0), :N => T(1.0), :B => T(0.5),
+                                    :leverage => T(2.0), :Y => T(0.4)),
+                               sys.grid, sys.xi, conv, conv ? 4 : max_iter,
+                               conv ? T(1e-8) : T(1.0))
+end
+function intermediary_mit(ss::IntermediarySteadyState{T}, Z_path::AbstractVector) where T
+    n = length(Z_path)
+    IntermediaryTransition{T}(collect(T, Z_path), fill(ss.aggregates[:L], n),
+                              fill(ss.aggregates[:Y], n), fill(ss.aggregates[:L], n),
+                              fill(ss.prices[:rk], n), ss, :mit, true)
+end
+function irf(ss::IntermediarySteadyState{T}, horizon::Int; shock_size::Real=0.01, persist::Real=0.5) where T
+    vars = ["L", "Y", "K", "rk", "Z"]
+    vals = zeros(T, horizon, length(vars), 1)
+    for h in 1:horizon; vals[h, :, 1] .= T(0.01) * T(0.9)^(h - 1); end
+    ImpulseResponse(vals, nothing, nothing, horizon, vars, ["tfp"], :bank)
+end
+
+export HASteadyState, HADSGESolution, KrusellSmithSolution
 export DenHaanAccuracy, den_haan_test
 export CTAiyagari, CTSteadyState, CTTransition, CTTwoAsset, CTTwoAssetSolution, CTPoissonIncome
 export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
 export X13FilterResult, IOData
 export load_ha_example, compute_steady_state, distribution_irf, inequality_irf, simulate_panel
 export ct_steady_state, ct_mit_shock, ct_two_asset_solve
-export x13_filter, parse_io, blanchard_steady_state, blanchard_solve, blanchard_transition
+export x13_filter, parse_io, parse_icio, region_indices, blanchard_steady_state, blanchard_solve, blanchard_transition
+export HAGrid, IncomeProcess
+export DCEGMProblem, DCEGMSystem, DCEGMSolution, DCEGMFirm, DCEGMEquilibrium, DCEGMTransition, DCEGMDistribution
+export dcegm_retirement_model, dcegm_solve, dcegm_steady_state, dcegm_mit
+export LifeCycleOLG, LifeCycleSystem, LifeCycleSteadyState, LifeCycleTransition
+export lifecycle_income, lifecycle_steady_state, lifecycle_transition
+export FirmSystem, KhanThomasSteadyState, KhanThomasTransition
+export khan_thomas_example, khan_thomas_steady_state, khan_thomas_mit
+export IntermediarySystem, IntermediaryPE, IntermediarySteadyState, IntermediaryTransition
+export intermediary_pe, intermediary_steady_state, intermediary_mit
+export RegionalFootprintResult
 # Input-Output analysis (C049)
 export IOExtension, IOMetaData, LeontiefModel, GhoshModel, IOMultipliers, LinkageResult
 export SDAResult, ExtractionResult, FootprintResult, BaqaeeFarhiResult, IOSourceTable
@@ -9478,6 +10578,15 @@ export leontief, ghosh, multipliers, linkages, rasmussen, key_sectors
 export sda, hypothetical_extraction, add_extension!, intensities, emission_multipliers, footprint
 export domar_weights, baqaee_farhi, list_io_sources, download_io
 export download_oecd, download_wiod, download_exiobase3, download_eora26, download_gloria
+export ProductionNetwork, production_network
+export BFEquilibrium, bf_equilibrium
+export BFLocal, BFElasticities, BFShockCurve, BFWedgeDecomp, BFMisallocation
+export bf_elasticities, bf_shock_curve, bf_wedge_decomp, bf_misallocation
+export PriceModelResult, price_model, ImpactResult, impact
+export NetworkStatsResult, network_stats
+export aggregate, balance, bilateral_trade, gross_exports
+export VerticalSpecialization, vertical_specialization
+export ExportDecomposition, export_decomposition
 
 # ─── C062b: single-equation ARDL / NARDL (EV-08/09) ─────────────────────────
 # Mirror the real MEMs 0.7.0 ARDL field NAMES (a faithful subset is fine — check_mock_surface
@@ -10789,7 +11898,7 @@ struct DeterminacyMap{T<:AbstractFloat}
     method::Symbol
 end
 
-function determinacy_region(spec::DSGESpec{T},
+function determinacy_region(spec::ModelSpec{T},
                             theta_base::AbstractDict=spec.param_values;
                             params, grids, div::Real=1.0 + 1e-8, rank_rtol::Real=1e-8,
                             method::Symbol=:gensys, threaded::Bool=false,
@@ -10911,16 +12020,24 @@ export DeterminacyMap, determinacy_region, determinacy_boundary, determinacy_lab
 # are absent here too and keep falling back to the CLI's `.fmod` handle.
 const _SERIALIZABLE_TYPE_NAMES = (
     "APARCHModel", "ARCHModel", "ARDLModel", "ARFIMAModel", "ARIMAModel", "ARMAModel",
-    "ARModel", "BVARPosterior", "CGARCHModel", "CointRegModel", "CrossSectionData",
-    "DynamicFactorModel", "EGARCHModel", "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
+    "ARModel", "BVARPosterior", "BFElasticities", "BFEquilibrium", "BFLocal",
+    "BFMisallocation", "BFShockCurve", "BFWedgeDecomp", "BaqaeeFarhiResult",
+    "CGARCHModel", "CointRegModel", "CrossSectionData",
+    "DynamicFactorModel", "EGARCHModel", "ExportDecomposition", "ExtractionResult",
+    "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
     "FactorModel", "GARCHModel", "GJRGARCHModel", "GMMModel", "GarchMidasModel",
-    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "LPIVModel", "LPModel",
+    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "ImpactResult",
+    "LPIVModel", "LPModel",
     "LogitModel", "MAModel", "MGARCHModel", "MidasModel", "MultinomialLogitModel",
-    "NARDLModel", "OrderedLogitModel", "OrderedProbitModel", "PMGModel", "PVARModel",
+    "NARDLModel", "NetworkStatsResult", "OrderedLogitModel", "OrderedProbitModel",
+    "PMGModel", "PVARModel",
     "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
-    "PanelProbitModel", "PanelRegModel", "ProbitModel", "PropensityLPModel", "RegModel",
+    "PanelProbitModel", "PanelRegModel", "PriceModelResult", "ProbitModel",
+    "ProductionNetwork", "PropensityLPModel", "RASResult", "RegModel",
+    "RegionalFootprintResult", "SDAResult",
     "SMMModel", "SURModel", "SVModel", "SmoothLPModel", "StateLPModel", "StateSpaceModel",
     "StructuralDFM", "ThresholdModel", "TimeSeriesData", "VARModel", "VECMModel",
+    "VerticalSpecialization",
 )
 
 const _SERIALIZABLE_TYPES = Dict{String,Type}(
@@ -10932,7 +12049,7 @@ const _SERIALIZABLE_TYPES = Dict{String,Type}(
 # W7 HA-typed mocks live BELOW the HA type definitions — mocks.jl is one
 # flat top-to-bottom module and a typed signature is resolved at include time
 # (the standing forward-reference lesson).
-function policy_causal_effects(spec::HADSGESpec, ss::HASteadyState;
+function policy_causal_effects(spec::ModelSpec, ss::HASteadyState;
                                outcomes::AbstractVector{<:Pair{Symbol,Symbol}},
                                instruments::AbstractVector{<:Pair{Symbol,Symbol}}=[:rate => :r],
                                H::Int=100, T_horizon::Int=300,
@@ -10950,7 +12067,7 @@ function policy_causal_effects(spec::HADSGESpec, ss::HASteadyState;
         H, ["news $k" for k in 1:H], :ha)
 end
 
-function sequence_jacobian(spec::HADSGESpec, ss::HASteadyState,
+function sequence_jacobian(spec::ModelSpec, ss::HASteadyState,
                            input::Symbol, output::Symbol;
                            T_horizon::Int=300, dx::Real=1e-4)
     input in (:r, :w) || throw(ArgumentError(

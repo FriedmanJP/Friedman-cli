@@ -3977,11 +3977,15 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "olg")
     @test haskey(dsge_node.subcmds, "determinacy-map")   # W12/#114
     @test haskey(dsge_node.subcmds, "moments")           # W12/#114
-    @test length(dsge_node.subcmds) == 14
+    @test haskey(dsge_node.subcmds, "dcegm")
+    @test haskey(dsge_node.subcmds, "lifecycle")
+    @test haskey(dsge_node.subcmds, "firm")
+    @test haskey(dsge_node.subcmds, "bank")
+    @test length(dsge_node.subcmds) == 18
 
-    # Nested nodes: bayes, ha, ct, olg; remaining are leaves
+    # Nested nodes vs remaining leaves
     for (name, cmd) in dsge_node.subcmds
-        if name in ("bayes", "ha", "ct", "olg")
+        if name in ("bayes", "ha", "ct", "olg", "dcegm", "lifecycle", "firm", "bank")
             @test cmd isa NodeCommand
         else
             @test cmd isa LeafCommand
@@ -3990,7 +3994,7 @@ include(joinpath(@__DIR__, "test_repl.jl"))
 
     ha_node = dsge_node.subcmds["ha"]
     for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
-                 "distribution-irf", "inequality-irf", "simulate-panel", "estimate")
+                 "distribution-irf", "inequality-irf", "simulate-panel", "estimate", "hd")
         @test haskey(ha_node.subcmds, leaf)
         @test ha_node.subcmds[leaf] isa LeafCommand
     end
@@ -4002,6 +4006,16 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     olg_node = dsge_node.subcmds["olg"]
     @test haskey(olg_node.subcmds, "solve")
     @test haskey(olg_node.subcmds, "simulate")
+    @test haskey(olg_node.subcmds, "irf")
+    @test haskey(olg_node.subcmds, "fevd")
+    @test haskey(ct_node.subcmds, "irf")
+    @test haskey(ct_node.subcmds, "fevd")
+    @test haskey(dsge_node.subcmds["dcegm"].subcmds, "solve")
+    @test haskey(dsge_node.subcmds["dcegm"].subcmds, "steady-state")
+    @test haskey(dsge_node.subcmds["lifecycle"].subcmds, "steady-state")
+    @test haskey(dsge_node.subcmds["firm"].subcmds, "steady-state")
+    @test haskey(dsge_node.subcmds["bank"].subcmds, "pe")
+    @test haskey(dsge_node.subcmds["bank"].subcmds, "steady-state")
 
     # solve has model argument and key options
     solve_cmd = dsge_node.subcmds["solve"]

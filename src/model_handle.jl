@@ -140,19 +140,27 @@ end
 # grew it 6 → 56 types, and a hand-maintained mirror would silently rot at the next bump
 # (the C038 protocol re-runs T3 against whatever this resolves to). `_SERIALIZABLE_TYPES`
 # is upstream-private, so a rename must NOT stop the CLI from loading — fall back to the
-# frozen 0.7.2 names, which only costs us newer types until the list is refreshed.
+# frozen 0.9.0 names, which only costs us newer types until the list is refreshed.
 const _NATIVE_SAVE_TYPES_FALLBACK = Set([
     "APARCHModel", "ARCHModel", "ARDLModel", "ARFIMAModel", "ARIMAModel", "ARMAModel",
-    "ARModel", "BVARPosterior", "CGARCHModel", "CointRegModel", "CrossSectionData",
-    "DynamicFactorModel", "EGARCHModel", "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
+    "ARModel", "BVARPosterior", "BFElasticities", "BFEquilibrium", "BFLocal",
+    "BFMisallocation", "BFShockCurve", "BFWedgeDecomp", "BaqaeeFarhiResult",
+    "CGARCHModel", "CointRegModel", "CrossSectionData",
+    "DynamicFactorModel", "EGARCHModel", "ExportDecomposition", "ExtractionResult",
+    "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
     "FactorModel", "GARCHModel", "GJRGARCHModel", "GMMModel", "GarchMidasModel",
-    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "LPIVModel", "LPModel",
+    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "ImpactResult",
+    "LPIVModel", "LPModel",
     "LogitModel", "MAModel", "MGARCHModel", "MidasModel", "MultinomialLogitModel",
-    "NARDLModel", "OrderedLogitModel", "OrderedProbitModel", "PMGModel", "PVARModel",
+    "NARDLModel", "NetworkStatsResult", "OrderedLogitModel", "OrderedProbitModel",
+    "PMGModel", "PVARModel",
     "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
-    "PanelProbitModel", "PanelRegModel", "ProbitModel", "PropensityLPModel", "RegModel",
+    "PanelProbitModel", "PanelRegModel", "PriceModelResult", "ProbitModel",
+    "ProductionNetwork", "PropensityLPModel", "RASResult", "RegModel",
+    "RegionalFootprintResult", "SDAResult",
     "SMMModel", "SURModel", "SVModel", "SmoothLPModel", "StateLPModel", "StateSpaceModel",
     "StructuralDFM", "ThresholdModel", "TimeSeriesData", "VARModel", "VECMModel",
+    "VerticalSpecialization",
 ])
 
 const _NATIVE_SAVE_TYPES = if isdefined(MacroEconometricModels, :_SERIALIZABLE_TYPES)
@@ -167,7 +175,7 @@ _is_native_saveable(model) = string(nameof(typeof(model))) in _NATIVE_SAVE_TYPES
     save_model_dispatch(path, model) → path
 
 Hybrid save (C052, widened in W1/#106). `.jld2` → native MEMs `save_model` (portable,
-versioned; the `_NATIVE_SAVE_TYPES` registry, 56 types at MEMs 0.7.2). `.fmod` → interim
+versioned; the `_NATIVE_SAVE_TYPES` registry, 73 types at MEMs 0.9.0). `.fmod` → interim
 Serialization handle (any type). No recognized suffix → native when supported, else interim.
 
 What is left on `.fmod` is now a deliberate carve-out rather than a coverage gap: the DSGE

@@ -389,10 +389,22 @@ function get_dsge(config::Dict)
     eqs_raw = get(model, "equations", Dict[])
     result["equations"] = String[eq["expr"] for eq in eqs_raw if haskey(eq, "expr")]
 
-    # Pre-linearized model flag (MEMs DSGESpec.linear / @dsge `linear: true`)
+    # Pre-linearized model flag (MEMs ModelSpec.linear / @dsge `linear: true`)
     lin_raw = get(model, "linear", false)
     result["linear"] = lin_raw isa Bool ? lin_raw :
                        lowercase(string(lin_raw)) in ("true", "1", "yes")
+
+    # Bellman VFI payload (MEMs 0.9.0): synthesized as `@dsge utility:` / `beta:` / `controls:`.
+    result["utility"] = string(get(model, "utility", ""))
+    result["beta"] = string(get(model, "beta", ""))
+    ctrls_raw = get(model, "controls", String[])
+    result["controls"] = if ctrls_raw isa AbstractVector
+        String[string(c) for c in ctrls_raw]
+    elseif ctrls_raw isa AbstractString && !isempty(strip(ctrls_raw))
+        String[strip(s) for s in split(string(ctrls_raw), ",") if !isempty(strip(s))]
+    else
+        String[]
+    end
 
     # Optional solver section
     solver = get(config, "solver", Dict())

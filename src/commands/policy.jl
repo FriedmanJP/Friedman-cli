@@ -1738,9 +1738,9 @@ function register_policy_commands!()
     ]
     push!(specs, CommandSpec(
         path=["policy", "news", "dsge"],
-        summary="DSGE model file (TOML or .jl DSGESpec)",
+        summary="DSGE model file (TOML or .jl ModelSpec)",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                      description="DSGE model file (TOML or .jl DSGESpec)")],
+                      description="DSGE model file (TOML or .jl ModelSpec)")],
         options=[OptionSpec(name="policy-shock", type=String, default="",
                             description="Exogenous shock the news menu perturbs (REQUIRED)");
                  OptionSpec(name="outcomes", type=String, default="",
@@ -1765,9 +1765,9 @@ function register_policy_commands!()
     ))
     push!(specs, CommandSpec(
         path=["policy", "news", "ha"],
-        summary="HA model (builtin name or .jl HADSGESpec)",
+        summary="HA model (builtin name or .jl HA ModelSpec)",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                      description="HA model (builtin name or .jl HADSGESpec)")],
+                      description="HA model (builtin name or .jl HA ModelSpec)")],
         options=[OptionSpec(name="outcomes", type=String, default="",
                             description="name=model_variable map (SYMBOLS; REQUIRED)");
                  OptionSpec(name="instruments", type=String, default="",
@@ -1792,9 +1792,9 @@ function register_policy_commands!()
     ))
     push!(specs, CommandSpec(
         path=["policy", "jacobian", "ha"],
-        summary="HA model (builtin name or .jl HADSGESpec)",
+        summary="HA model (builtin name or .jl HA ModelSpec)",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                      description="HA model (builtin name or .jl HADSGESpec)")],
+                      description="HA model (builtin name or .jl HA ModelSpec)")],
         options=[OptionSpec(name="input", type=String, default="r",
                             choices=["r", "w"], description="Price input: r | w");
                  OptionSpec(name="jac-output", type=String, default="",
@@ -1887,9 +1887,9 @@ function register_policy_commands!()
     ))
     push!(specs, CommandSpec(
         path=["policy", "sufficiency", "dsge"],
-        summary="DSGE model file (TOML or .jl DSGESpec)",
+        summary="DSGE model file (TOML or .jl ModelSpec)",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                      description="DSGE model file (TOML or .jl DSGESpec)")],
+                      description="DSGE model file (TOML or .jl ModelSpec)")],
         options=[OptionSpec(name="observables", type=String, default="",
                             description="Comma-separated model variables the econometrician sees (REQUIRED)");
                  OptionSpec(name="horizon", type=Int, default=40,

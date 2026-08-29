@@ -183,4 +183,4 @@ removal at v1.0.0.
 
 ## Totals
 
-20 top-level commands, 411 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+20 top-level commands, 449 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
