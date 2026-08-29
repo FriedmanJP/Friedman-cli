@@ -21,7 +21,7 @@ Compute a stationary equilibrium for a small incomplete-markets economy, solve a
 | `one-asset-hank` | One-asset HANK | Medium |
 | `two-asset-hank` | Two-asset HANK | Largest |
 
-Any of these tokens may be written with a leading colon (`:huggett`). A `.jl` file that evaluates to `HADSGESpec` is also accepted.
+Any of these tokens may be written with a leading colon (`:huggett`). A `.jl` file that evaluates to a heterogeneous-agent `ModelSpec` (household population) is also accepted.
 
 ### Custom models from a `.jl` file
 
@@ -56,10 +56,14 @@ Set `a in [0.0, a_max]` generously. If too much of the stationary distribution p
 because it is measured on the clamped aggregate; MEMs warns about this on stderr, and the
 warning is worth acting on rather than ignoring.
 
-!!! note "Fixed in v0.9.1"
+!!! note "Fixed in v0.9.1 / v0.11.0"
     Before v0.9.1 this path did not work at all ([#80](https://github.com/FriedmanJP/Friedman-cli/issues/80)):
     every `.jl` HA model failed with `UndefVarError: @dsge`, because the loader's sandbox
     injected the package object but not its exports. Builtin names were unaffected.
+    At MEMs 0.9.0 `HADSGESpec` is gone (`ModelSpec` + `HouseholdSystem`) and HA SSJ
+    evaluates written aggregate residual closures, so `.jl` HA solves go through the
+    world-age barrier. Written aggregate equations are compiled (they were ignored at
+    0.8.0). `E[t](...)` is a typed `config/invalid`.
 
 ---
 

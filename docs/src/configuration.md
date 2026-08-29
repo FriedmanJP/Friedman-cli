@@ -206,14 +206,16 @@ grid = "auto"        # auto|chebyshev|smolyak
 
 | Section | Description |
 |---------|-------------|
-| `[model]` | Lists endogenous/exogenous variables; optional `linear = true` for pre-linearized specs (MEMs `DSGESpec.linear`) |
+| `[model]` | Lists endogenous/exogenous variables; optional `linear = true` for pre-linearized specs (MEMs `ModelSpec.linear`) |
 | `[model.parameters]` | Deep parameters with values |
 | `[[model.equations]]` | Model equations (one per block, `expr` field) |
 | `[solver]` | Solution method and settings |
 
 Equations use MEMs' `@dsge` syntax — the CLI builds the spec by feeding them to that
-macro. Time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]` = lead; the expectations
-operator `E[t](expr)` is stripped under rational expectations. (Bare `x` and the older
+macro. Time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]` = lead
+(`x[t+1]` is `E_t x_{t+1}`). The expectations operator `E[t](expr)` was removed
+upstream at MEMs 0.9.0 — both `.toml` and `.jl` fail as typed `config/invalid`
+with that message. There is no auto-rewrite shim. (Bare `x` and the older
 `x(+1)`/`x(-1)` forms are **not** accepted — always index by `[t]`.)
 
 ## OccBin Constraints

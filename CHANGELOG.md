@@ -4,6 +4,53 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.11.0] — 2026-08-29
+
+CLI v0.11.0 adopts MacroEconometricModels **0.9.0** (program index #150, waves
+#151–#161). The machine surface stays additive: no leaf, option, or flag is
+removed or renamed. The only user-visible break is upstream's removal of the
+`E[t](...)` grammar — write `x[t+1]`. Native save types grow 56 → **73**.
+
+### Added
+
+- **IO2 network layer** (#153–#155): riders on the existing `io` family
+  (`extract --mode/--share/--region`, `footprint --by region`, `sda --factors/--on`,
+  `io load --parser csv|icio`, IOData `.jld2` handles); a new **`io bf`** node
+  (network, equilibrium, local, elasticities, shock-curve, wedges, misallocation);
+  classical + MRIO leaves (`price`, `impact`, `network-stats`, `aggregate`,
+  `balance`, `vertical-specialization`, `export-decomposition`, `bilateral-trade`).
+  ZipFile/XLSX `.zip`/WIOD paths stay typed `env/missing-extension` (exit 6).
+- **RA solvers** (#156): `dsge solve --method vfi|blanchard-kahn`, VFI/PFI knobs,
+  TOML `utility`/`beta`/`controls`, `perfect-foresight --sparsity/--max-iter/--tol`.
+- **HA expansion** (#157): live `two-asset-hank` and `endogenous-labor` builtins,
+  `--hh-solver egm|vfi`, `--distribution young|winberry`, `dsge ha hd`,
+  `dsge ha estimate --sampler mh|smc`.
+- **Family kinds** (#158–#159): `dsge dcegm` (solve/steady-state/irf/fevd/simulate/transition),
+  `dsge lifecycle`, `dsge olg irf|fevd`, `dsge ct irf|fevd` plus two-asset GE/MIT,
+  `dsge firm` (Khan–Thomas) and `dsge bank` (Bewley banks).
+- **Not wrapped** docs (`docs/src/commands/not-wrapped.md`) recording W9
+  dispositions (#160).
+
+### Changed
+
+- MEMs pin `=0.8.0` → `=0.9.0`. Loaders use `ModelSpec` (RA = empty agents, HA =
+  `HouseholdSystem`); HA `.jl` SSJ goes through the world-age barrier.
+- `E[t](...)` is **not** rewritten — both `.toml` and `.jl` fail as typed
+  `config/invalid` with the `x[t+1]` rule.
+
+### Fixed
+
+- Seven pre-existing dead `dsge` routes (#152): `perfect-foresight` uses
+  `shock_path=` with a T_periods-row guard; OccBin 1/2 bounds (`>2` →
+  `usage/invalid`); nonlinear constraints are `Meta.parse`d to `Expr`;
+  `--method pfi|projection` no longer receive `order=`; Krusell–Smith `r_squared`
+  renders as a Dict; `dsge bayes * --constraint-solver` no longer passes
+  `solver_obj=`. ProjectionSolution control-column length is guarded.
+- `io sda --on` is forwarded even when `--factors` is omitted (emission SDA
+  was silently running the output path). Projection/PFI/VFI emit a
+  `projection_diagnostics` kv (stdout `converged`); `dsge bank steady-state`
+  emits the SS policy table so PE vs SS `l_policy` is comparable.
+
 ## [0.10.0] — 2026-08-12
 
 CLI v0.10.0 is the **Agent-Contract Hardening** release (program index #135,

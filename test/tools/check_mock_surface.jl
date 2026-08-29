@@ -36,7 +36,9 @@ const CORE_TYPES = Set([
 ])
 
 # Freeze kwargs-absorber budget (`; kwargs...)` forms).
-const KWARGS_ABSORBER_BUDGET = 23
+# 27 after v0.11.0 family mocks (explicit HA distribution forwarding; call-site
+# `; kwargs...)` matches on pre-existing DSGE/FAVAR wrappers still count).
+const KWARGS_ABSORBER_BUDGET = 27
 
 function _mock_struct_names(src::String)
     unique(String[m.captures[1] for m in eachmatch(r"(?m)^struct\s+(\w+)", src)])

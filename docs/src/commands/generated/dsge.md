@@ -3,7 +3,103 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 39
+**Leaves:** 62
+
+### `friedman dsge bank irf`
+
+Bewley-bank MIT IRF (variable names from the ImpulseResponse)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.5` | — | AR(1) decay (default 0.5) |
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
+| `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser (ImpulseResponse) |
+
+**Output tables:** `bewley_banks_irf_*` (MIT responses of the bank IRF variables to TFP)
+
+---
+
+### `friedman dsge bank pe`
+
+Bewley-bank partial equilibrium at given (R, rᵏ)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
+| `--n-min` | — | `Float64` | `0.05` | — | Net-worth grid lower bound (> 0) |
+| `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound |
+| `--beta` | — | `Float64` | `0.99` | — | Discount factor in (0,1) |
+| `--sigma` | — | `Float64` | `0.95` | — | Survival probability in (0,1] |
+| `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter (> 0) |
+| `--zeta1` | — | `Float64` | `0.02` | — | Operating-cost scale (≥ 0) |
+| `--zeta2` | — | `Float64` | `2.0` | — | Operating-cost curvature (> 1) |
+| `--r` | — | `Float64` | `1.01` | — | Gross deposit rate R (> 0) |
+| `--rk` | — | `Float64` | `0.05` | — | Net claim return rᵏ |
+| `--z` | — | `Float64` | `0.25` | — | TFP |
+| `--alpha` | — | `Float64` | `0.33` | — | Capital share in (0,1) |
+| `--max-iter` | — | `Int64` | `250` | — | PE VFI iterations |
+| `--tol` | — | `Float64` | `1.0e-6` | — | PE VFI tolerance |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `bewley_banks_pe` (PE prices, convergence and iterations); `bewley_banks_pe_policy` (Lending and deposit policy over the net-worth grid)
+
+---
+
+### `friedman dsge bank steady-state`
+
+Bewley-bank credit-market stationary equilibrium
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
+| `--n-min` | — | `Float64` | `0.05` | — | Net-worth grid lower bound |
+| `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound |
+| `--beta` | — | `Float64` | `0.99` | — | Discount factor |
+| `--sigma` | — | `Float64` | `0.95` | — | Survival probability |
+| `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter |
+| `--r` | — | `Float64` | `1.01` | — | Gross deposit rate R (held fixed) |
+| `--z` | — | `Float64` | `0.25` | — | TFP |
+| `--alpha` | — | `Float64` | `0.33` | — | Capital share |
+| `--r-lo` | — | `Float64` | `NaN` | — | rᵏ bracket lower end (NaN = default) |
+| `--r-hi` | — | `Float64` | `NaN` | — | rᵏ bracket upper end (NaN = default) |
+| `--tol` | — | `Float64` | `0.0001` | — | Credit-market tolerance |
+| `--max-iter` | — | `Int64` | `24` | — | Bisection cap |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `bewley_banks_steady_state` (R, rk, L, N, B, leverage, Y, excess demand and convergence); `bewley_banks_steady_state_policy` (Lending and deposit policy over the net-worth grid at SS prices)
+
+---
+
+### `friedman dsge bank transition`
+
+Bewley-bank MIT TFP path
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 2, all positive; required) |
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
+| `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `bewley_banks_transition` (Path of t, Z, L, Y, K, rk); `bewley_banks_transition_diagnostics` (Method and convergence)
+
+---
 
 ### `friedman dsge bayes compare`
 
@@ -551,6 +647,64 @@ Path to DSGE model file (.toml or .jl)
 
 ---
 
+### `friedman dsge ct fevd`
+
+FEVD from the CT MIT impulse (single TFP shock)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--rho` | — | `Float64` | `0.05` | — | Discount rate |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
+| `--delta` | — | `Float64` | `0.05` | — | Depreciation |
+| `--z` | — | `Float64` | `1.0` | — | TFP level |
+| `--horizon` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--dt` | — | `Float64` | `0.25` | — | Time step |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--two-asset` | — | Two-asset GE FEVD |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `ct_fevd_*` (Variance shares by shock across horizons, one table per variable)
+
+---
+
+### `friedman dsge ct irf`
+
+MIT impulse response of CT Aiyagari or two-asset GE
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--rho` | — | `Float64` | `0.05` | — | Discount rate |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
+| `--delta` | — | `Float64` | `0.05` | — | Depreciation |
+| `--z` | — | `Float64` | `1.0` | — | TFP level |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--dt` | — | `Float64` | `0.25` | — | Time step |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--two-asset` | — | Two-asset GE IRF (K, r_a, r_b, w, B, Z) |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `ct_irf_*` (MIT responses of every variable to the TFP shock, one table per shock)
+
+---
+
 ### `friedman dsge ct solve`
 
 Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
@@ -573,8 +727,9 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--two-asset` | — | Solve Kaplan-Moll-Violante two-asset model instead |
+| `--ge` | — | Two-asset general equilibrium (ct_two_asset_ge; requires --two-asset) |
 
-**Output tables:** `ct_aiyagari_prices` (Equilibrium interest rate and wage); `ct_aiyagari_aggregates` (Equilibrium capital, labour and the convergence flag); `ct_two_asset_solution` (Liquid/illiquid holdings, distribution mass and HJB convergence (--two-asset))
+**Output tables:** `ct_aiyagari_prices` (Equilibrium interest rate and wage); `ct_aiyagari_aggregates` (Equilibrium capital, labour and the convergence flag); `ct_two_asset_solution` (Liquid/illiquid holdings, distribution mass and HJB convergence (--two-asset)); `ct_two_asset_ge` (Two-asset GE prices, aggregates and market residuals (--two-asset --ge))
 
 ---
 
@@ -598,13 +753,219 @@ MIT-shock perfect-foresight transition (ct_mit_shock)
 | `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--z-path` | — | `String` | `""` | — | CSV of TFP path (two-asset MIT; length ≥ 2, all positive) |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser (one-asset CTTransition only) |
+| `--two-asset` | — | Two-asset MIT (ct_two_asset_mit; no plot) |
+
+**Output tables:** `ct_mit_shock_transition` (MIT-shock transition path of t, Z, K, r, w and C); `ct_two_asset_transition` (Two-asset MIT path of t, Z, K, r_a, r_b, w, B, C (--two-asset))
+
+---
+
+### `friedman dsge dcegm fevd`
+
+FEVD of a DCEGM equilibrium (single TFP shock)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-periods` | — | `Int64` | `20` | — | Finite horizon |
+| `--beta` | — | `Float64` | `0.98` | — | Discount factor |
+| `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
+| `--n-a` | — | `Int64` | `80` | — | Asset grid points |
+| `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
+| `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
+| `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Firm TFP |
+| `--horizon` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `ct_mit_shock_transition` (MIT-shock transition path of t, Z, K, r, w and C)
+**Output tables:** `dcegm_fevd_*` (Variance shares by shock across horizons, one table per variable)
+
+---
+
+### `friedman dsge dcegm irf`
+
+MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-periods` | — | `Int64` | `20` | — | Finite horizon |
+| `--beta` | — | `Float64` | `0.98` | — | Discount factor |
+| `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
+| `--n-a` | — | `Int64` | `80` | — | Asset grid points |
+| `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
+| `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
+| `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Firm TFP |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `dcegm_irf_*` (MIT responses of K, r, w, Y, Z to TFP)
+
+---
+
+### `friedman dsge dcegm simulate`
+
+MIT simulation of a DCEGM equilibrium (levels)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-periods` | — | `Int64` | `20` | — | Finite horizon |
+| `--beta` | — | `Float64` | `0.98` | — | Discount factor |
+| `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
+| `--n-a` | — | `Int64` | `80` | — | Asset grid points |
+| `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
+| `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
+| `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Firm TFP |
+| `--periods` | — | `Int64` | `40` | — | Simulation length (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.0` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `dcegm_simulation` (Simulated path of K, r, w, Y, Z)
+
+---
+
+### `friedman dsge dcegm solve`
+
+Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-periods` | — | `Int64` | `20` | — | Finite horizon (0 = infinite) |
+| `--beta` | — | `Float64` | `0.98` | — | Discount factor in (0,1) |
+| `--r` | — | `Float64` | `1.0` | — | Gross return R |
+| `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
+| `--disutility` | — | `Float64` | `1.0` | — | Work disutility |
+| `--sigma` | — | `Float64` | `0.0` | — | Income-shock s.d. |
+| `--n-shocks` | — | `Int64` | `1` | — | Income quadrature nodes (≥ 1) |
+| `--taste-shock-scale` | — | `Float64` | `0.0` | — | Taste-shock scale (≥ 0) |
+| `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
+| `--n-a` | — | `Int64` | `200` | — | Asset grid points |
+| `--pension` | — | `Float64` | `0.0` | — | Retirement income |
+| `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
+| `--curvature` | — | `Float64` | `2.0` | — | Grid curvature (≥ 1) |
+| `--max-iter` | — | `Int64` | `500` | — | Infinite-horizon iteration cap |
+| `--tol` | — | `Float64` | `1.0e-8` | — | Policy tolerance |
+| `--period` | — | `Int64` | `1` | — | Stored period for the policy table |
+| `--income` | — | `Int64` | `1` | — | Income-state index for the policy table |
+| `--view` | — | `String` | `policy` | `policy`, `threshold` | plot_result view: policy\|threshold |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser (DCEGMSolution) |
+
+**Output tables:** `dcegm_solve_diagnostics` (Convergence, iterations, kinks and sup-norm policy change); `dcegm_policy` (Long policy: one row per option knot at --period/--income); `dcegm_kinks` (Switching-threshold counts per period × option × income)
+
+---
+
+### `friedman dsge dcegm steady-state`
+
+DCEGM capital-market equilibrium (dcegm_steady_state)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-periods` | — | `Int64` | `20` | — | Finite horizon (0 = infinite) |
+| `--beta` | — | `Float64` | `0.98` | — | Discount factor in (0,1) |
+| `--r` | — | `Float64` | `1.0` | — | Gross return R (PE; GE solves for r) |
+| `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
+| `--disutility` | — | `Float64` | `1.0` | — | Work disutility |
+| `--sigma` | — | `Float64` | `0.0` | — | Income-shock s.d. |
+| `--n-shocks` | — | `Int64` | `1` | — | Income quadrature nodes |
+| `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
+| `--n-a` | — | `Int64` | `200` | — | Asset grid points |
+| `--pension` | — | `Float64` | `0.0` | — | Retirement income |
+| `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
+| `--curvature` | — | `Float64` | `2.0` | — | Grid curvature |
+| `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
+| `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Firm TFP |
+| `--l` | — | `Float64` | `1.0` | — | Firm labour endowment |
+| `--r-lo` | — | `Float64` | `0.001` | — | Net-return bracket lower end |
+| `--r-hi` | — | `Float64` | `0.2` | — | Net-return bracket upper end |
+| `--labor` | — | `String` | `exogenous` | `exogenous`, `measured` | Labour: exogenous\|measured |
+| `--work-option` | — | `String` | `work` | — | Discrete option treated as work |
+| `--n-sim` | — | `Int64` | `40` | — | Simulation periods (infinite horizon) |
+| `--tol` | — | `Float64` | `0.0001` | — | \|A − K^d\| tolerance |
+| `--max-iter` | — | `Int64` | `40` | — | Bisection cap |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--reprice-wage` | — | Feed the firm wage back into work-option income |
+
+**Output tables:** `dcegm_equilibrium` (Clearing r, w, K, L, Y, excess demand and convergence)
+
+---
+
+### `friedman dsge dcegm transition`
+
+MIT TFP path of a DCEGM equilibrium
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 2, all positive; required) |
+| `--n-periods` | — | `Int64` | `20` | — | Finite horizon |
+| `--beta` | — | `Float64` | `0.98` | — | Discount factor |
+| `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
+| `--n-a` | — | `Int64` | `80` | — | Asset grid points |
+| `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
+| `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
+| `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Firm TFP |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `dcegm_transition_path` (MIT path of t, Z, K, r, w, A, Y); `dcegm_transition_diagnostics` (Method and convergence)
 
 ---
 
@@ -671,8 +1032,20 @@ Path to DSGE model file (.toml or .jl)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | — | Solution method: gensys\|klein\|perturbation\|projection\|pfi |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
+| `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -687,16 +1060,91 @@ Path to DSGE model file (.toml or .jl)
 
 ---
 
+### `friedman dsge firm irf`
+
+Khan–Thomas MIT IRF of Y, I, K, N, C, Z
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `NaN` | — | AR(1) decay (NaN = firm.rho_z) |
+| `--prices` | — | `String` | `ss` | `ss`, `ge` | Hold (w,p) at SS or iterate GE wages |
+| `--n-k` | — | `Int64` | `16` | — | Capital-grid nodes |
+| `--n-eps` | — | `Int64` | `3` | — | Idiosyncratic productivity states |
+| `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser (ImpulseResponse) |
+
+**Output tables:** `khan_thomas_irf_*` (MIT responses of Y, I, K, N, C, Z to TFP)
+
+---
+
+### `friedman dsge firm steady-state`
+
+Khan–Thomas plant-level stationary equilibrium
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n-k` | — | `Int64` | `16` | — | Capital-grid nodes (≥ 3) |
+| `--n-eps` | — | `Int64` | `3` | — | Idiosyncratic productivity states |
+| `--alpha` | — | `Float64` | `0.256` | — | Capital exponent (> 0; α+ν<1) |
+| `--nu` | — | `Float64` | `0.64` | — | Labour exponent (> 0) |
+| `--delta` | — | `Float64` | `0.069` | — | Depreciation in (0,1) |
+| `--beta` | — | `Float64` | `0.977` | — | Discount factor in (0,1) |
+| `--gamma` | — | `Float64` | `1.016` | — | Utility curvature (≥ 1) |
+| `--xi-bar` | — | `Float64` | `0.0083` | — | Fixed-cost upper bound (≥ 0) |
+| `--b` | — | `Float64` | `0.011` | — | Exemption band (≥ 0) |
+| `--phi` | — | `Float64` | `2.4` | — | Frisch inverse (> 0) |
+| `--rho-z` | — | `Float64` | `0.859` | — | Aggregate TFP persistence (\|ρ\|<1) |
+| `--sigma-z` | — | `Float64` | `0.014` | — | Aggregate TFP s.d. (≥ 0) |
+| `--rho-e` | — | `Float64` | `0.859` | — | Idiosyncratic persistence |
+| `--sigma-e` | — | `Float64` | `0.022` | — | Idiosyncratic s.d. |
+| `--z` | — | `Float64` | `1.0` | — | TFP level (> 0) |
+| `--tol` | — | `Float64` | `1.0e-5` | — | Wage fixed-point tolerance |
+| `--max-iter` | — | `Int64` | `16` | — | Outer wage iterations |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `khan_thomas_steady_state` (w, p, K, N, Y, I, C, inaction, convergence); `khan_thomas_policy` (k-grid × ε: unconstrained k*, constrained k' and adjustment probability)
+
+---
+
+### `friedman dsge firm transition`
+
+Khan–Thomas MIT TFP path (--prices ss|ge)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 2, all positive; required) |
+| `--prices` | — | `String` | `ss` | `ss`, `ge` | Hold (w,p) at SS or iterate GE wages |
+| `--n-k` | — | `Int64` | `16` | — | Capital-grid nodes |
+| `--n-eps` | — | `Int64` | `3` | — | Idiosyncratic productivity states |
+| `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `khan_thomas_transition` (Path of t, Z, Y, I, K, N, C, w); `khan_thomas_transition_diagnostics` (Method and convergence)
+
+---
+
 ### `friedman dsge ha accuracy`
 
 Den Haan (2010) accuracy of the aggregate law of motion
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Capital builtin (krusell-smith\|one-asset-hank) or .jl HADSGESpec |
+| `model` | `String` | yes | — | Capital builtin (krusell-smith\|one-asset-hank) or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `krusell-smith` | `krusell-smith`, `ssj`, `reiter` | Solution to score: krusell-smith\|ssj\|reiter |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states |
 | `--t-sim` | — | `Int64` | `10000` | — | Simulation length (must exceed --t-burn by >= 10) |
@@ -723,10 +1171,12 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
@@ -741,20 +1191,26 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 
 ### `friedman dsge ha estimate`
 
-Bayesian estimation of HA-DSGE parameters (RWMH; MEMs#228 fixed in 0.6.7)
+Bayesian estimation of HA-DSGE parameters (MH/SMC; MEMs#228 fixed in 0.6.7)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--data` | — | `String` | `""` | — | Path to observed aggregates CSV (required) |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML with [priors] section (required) |
 | `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
+| `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |
 | `--n-draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
 | `--burnin` | — | `Int64` | `500` | — | Burn-in draws to discard |
+| `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA default 500) |
+| `--n-mh-steps` | — | `Int64` | `1` | — | MH mutation steps per SMC stage |
+| `--ess-target` | — | `Float64` | `0.5` | — | ESS target for SMC resampling |
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ); default 300 (ABRS 2021) |
 | `--n-reduced` | — | `Int64` | `15` | — | Reduced distribution states |
 | `--proposal-scale` | — | `Float64` | `0.01` | — | Initial RWMH proposal scale |
@@ -764,7 +1220,7 @@ Bayesian estimation of HA-DSGE parameters (RWMH; MEMs#228 fixed in 0.6.7)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
-**Output tables:** `ha_dsge_bayesian_posterior` (RWMH posterior mean, std, median and 5/95% quantiles per parameter)
+**Output tables:** `ha_dsge_bayesian_posterior` (Posterior mean, std, median and 5/95% quantiles per parameter); `ha_dsge_bayesian_settings` (Sampler, solution method, observables and measurement-error provenance)
 
 ---
 
@@ -774,10 +1230,12 @@ Aggregate FEVD from linearized HA-DSGE solution
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
 | `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -793,16 +1251,48 @@ Aggregate FEVD from linearized HA-DSGE solution
 
 ---
 
+### `friedman dsge ha hd`
+
+Historical decomposition of HA-DSGE aggregates
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
+| `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
+| `--data` | `-d` | `String` | `""` | — | Path to CSV data file (levels) |
+| `--observables` | — | `String` | `""` | — | Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
+| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `ha_historical_decomposition_*` (Per-variable contribution path of one shock, one table per shock)
+
+---
+
 ### `friedman dsge ha inequality-irf`
 
 Gini and wealth-percentile IRFs after an aggregate shock
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
@@ -826,10 +1316,12 @@ Aggregate IRFs from linearized HA-DSGE solution
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -851,10 +1343,12 @@ Simulate aggregate paths from linearized HA-DSGE
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
 | `--periods` | — | `Int64` | `200` | — | Simulation periods |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
@@ -877,10 +1371,12 @@ Simulate individual asset holdings from steady-state policies
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--n-agents` | — | `Int64` | `1000` | — | Number of agents |
 | `--periods` | — | `Int64` | `100` | — | Time periods |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
@@ -897,10 +1393,12 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin (huggett\|krusell-smith\|one-asset-hank\|two-asset-hank) or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin (huggett\|krusell-smith\|one-asset-hank\|two-asset-hank\|endogenous-labor) or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter`, `krusell-smith` | HA solution method: ssj\|reiter\|krusell-smith |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states (SSJ/Reiter) |
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
@@ -917,11 +1415,15 @@ Compute HA-DSGE stationary equilibrium
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HADSGESpec |
+| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--euler-points` | — | `String` | `midpoints` | `midpoints`, `nodes` | Euler-error evaluation points: midpoints\|nodes |
+| `--max-iter` | — | `Int64` | `0` | — | GE iterations (0 = upstream default: 200 one-asset, 60 two-asset closer) |
+| `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = upstream default) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -939,6 +1441,20 @@ Path to DSGE model file (.toml or .jl)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
+| `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--states` | — | `String` | `observables` | — | observables\|all |
@@ -965,8 +1481,20 @@ Path to DSGE model file (.toml or .jl)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | — | Solution method: gensys\|klein\|perturbation\|projection\|pfi |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
+| `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--n-sim` | — | `Int64` | `0` | — | Simulation-based IRF draws (0=analytical) |
@@ -980,6 +1508,150 @@ Path to DSGE model file (.toml or .jl)
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `dsge_irf_*` (Responses of every variable to one shock, one table per shock); `occbin_irf_*` (Linear vs piecewise OccBin response of one variable, one table per variable (--constraints))
+
+---
+
+### `friedman dsge lifecycle fevd`
+
+FEVD of a life-cycle OLG steady state
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--j` | — | `Int64` | `40` | — | Maximum age J |
+| `--j-retire` | — | `Int64` | `30` | — | Retirement age |
+| `--n-a` | — | `Int64` | `40` | — | Asset grid points |
+| `--income-states` | — | `Int64` | `3` | — | Income states |
+| `--horizon` | — | `Int64` | `20` | — | FEVD horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `lifecycle_fevd_*` (Variance shares by shock across horizons, one table per variable)
+
+---
+
+### `friedman dsge lifecycle irf`
+
+MIT IRF of a life-cycle OLG steady state
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--j` | — | `Int64` | `40` | — | Maximum age J |
+| `--j-retire` | — | `Int64` | `30` | — | Retirement age |
+| `--n-a` | — | `Int64` | `40` | — | Asset grid points |
+| `--income-states` | — | `Int64` | `3` | — | Income states |
+| `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `lifecycle_irf_*` (MIT responses of K, r, w, Y, Z to TFP)
+
+---
+
+### `friedman dsge lifecycle simulate`
+
+MIT simulation of a life-cycle OLG steady state (levels)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--j` | — | `Int64` | `40` | — | Maximum age J |
+| `--j-retire` | — | `Int64` | `30` | — | Retirement age |
+| `--n-a` | — | `Int64` | `40` | — | Asset grid points |
+| `--income-states` | — | `Int64` | `3` | — | Income states |
+| `--periods` | — | `Int64` | `20` | — | Simulation length (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.0` | — | TFP impulse size |
+| `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `lifecycle_simulation` (Simulated path of K, r, w, Y, Z)
+
+---
+
+### `friedman dsge lifecycle steady-state`
+
+Life-cycle OLG stationary equilibrium
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--j` | — | `Int64` | `60` | — | Maximum age J (≥ 2) |
+| `--j-retire` | — | `Int64` | `45` | — | Retirement age (≥ 2) |
+| `--survival` | — | `Float64` | `0.99` | — | Scalar survival probability (overridden by --config vector) |
+| `--a-max` | — | `Float64` | `60.0` | — | Asset grid upper bound |
+| `--n-a` | — | `Int64` | `200` | — | Asset grid points (≥ 3) |
+| `--beta` | — | `Float64` | `0.97` | — | Discount factor in (0,1) |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion (> 0) |
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share in (0,1) |
+| `--delta` | — | `Float64` | `0.06` | — | Depreciation in [0,1] |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--n-pop` | — | `Float64` | `0.0` | — | Population growth (> −1) |
+| `--replacement` | — | `Float64` | `0.4` | — | Pension replacement (≥ 0) |
+| `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
+| `--income-rho` | — | `Float64` | `0.95` | — | Idiosyncratic income persistence |
+| `--income-sigma` | — | `Float64` | `0.2` | — | Idiosyncratic income s.d. |
+| `--income-states` | — | `Int64` | `5` | — | Income states |
+| `--config` | — | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors |
+| `--r-lo` | — | `Float64` | `-0.02` | — | Net-return bracket lower end |
+| `--r-hi` | — | `Float64` | `0.1` | — | Net-return bracket upper end |
+| `--tol` | — | `Float64` | `1.0e-6` | — | Excess-demand tolerance |
+| `--max-iter` | — | `Int64` | `60` | — | Bisection cap |
+| `--bequest-iter` | — | `Int64` | `50` | — | Inner bequest iterations |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-annuities` | — | Turn off perfect annuities |
+| `--plot` | — | Open interactive plot in browser (LifeCycleSteadyState) |
+
+**Output tables:** `lifecycle_steady_state` (r, w, K, L, Y, tau, pension, transfer, excess demand and convergence); `lifecycle_age_profiles` (Cohort mass and asset/consumption/income profiles by age)
+
+---
+
+### `friedman dsge lifecycle transition`
+
+Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--j` | — | `Int64` | `60` | — | Maximum age J |
+| `--j-retire` | — | `Int64` | `45` | — | Retirement age |
+| `--survival` | — | `Float64` | `0.99` | — | Scalar survival probability |
+| `--a-max` | — | `Float64` | `60.0` | — | Asset grid upper bound |
+| `--n-a` | — | `Int64` | `80` | — | Asset grid points |
+| `--beta` | — | `Float64` | `0.97` | — | Discount factor |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--delta` | — | `Float64` | `0.06` | — | Depreciation |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--income-rho` | — | `Float64` | `0.95` | — | Idiosyncratic income persistence |
+| `--income-sigma` | — | `Float64` | `0.2` | — | Idiosyncratic income s.d. |
+| `--income-states` | — | `Int64` | `3` | — | Income states |
+| `--config` | — | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors |
+| `--k0` | — | `Float64` | `NaN` | — | Initial capital (XOR --z-path) |
+| `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 3; XOR --k0) |
+| `--horizon` | — | `Int64` | `80` | — | Transition horizon H (ignored when --z-path is set) |
+| `--tol` | — | `Float64` | `1.0e-5` | — | Shooting tolerance |
+| `--max-iter` | — | `Int64` | `80` | — | Shooting iterations |
+| `--relax` | — | `Float64` | `0.5` | — | Damping on the capital update |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `lifecycle_transition_path` (Path of t, K, r, w, Y, C, Z, pension, transfer); `lifecycle_transition_diagnostics` (tau, convergence and iterations)
 
 ---
 
@@ -1000,6 +1672,75 @@ Path to DSGE model file (.toml or .jl)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `dsge_theoretical_moments` (Per-variable steady state, unconditional mean, risk correction and standard deviation); `variance_covariance` (Pairwise covariance and correlation for every variable pair); `autocovariances` (Own autocovariance and autocorrelation at each reported lag)
+
+---
+
+### `friedman dsge olg fevd`
+
+Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--beta` | — | `Float64` | `0.96` | — | Discount factor |
+| `--delta` | — | `Float64` | `0.08` | — | Depreciation |
+| `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--debt` | — | `Float64` | `0.0` | — | Government debt b |
+| `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
+| `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
+| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
+| `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
+| `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
+| `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
+| `--rho-i` | — | `Float64` | `0.0` | — | NK interest smoothing (--nk) |
+| `--sigma-i` | — | `Float64` | `0.0` | — | NK monetary shock scale (--nk) |
+| `--omega` | — | `Float64` | `0.0` | — | NK indexation ω in [0,1] (--nk) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--nk` | — | NK perpetual-youth variant (adds π, i, rr and eps_i) |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `blanchard_olg_fevd_*` (Variance shares by shock across horizons, one table per variable)
+
+---
+
+### `friedman dsge olg irf`
+
+Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--beta` | — | `Float64` | `0.96` | — | Discount factor |
+| `--delta` | — | `Float64` | `0.08` | — | Depreciation |
+| `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--debt` | — | `Float64` | `0.0` | — | Government debt b |
+| `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
+| `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
+| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
+| `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
+| `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
+| `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
+| `--rho-i` | — | `Float64` | `0.0` | — | NK interest smoothing (--nk) |
+| `--sigma-i` | — | `Float64` | `0.0` | — | NK monetary shock scale (--nk) |
+| `--omega` | — | `Float64` | `0.0` | — | NK indexation ω in [0,1] (--nk) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--nk` | — | NK perpetual-youth variant (adds π, i, rr and eps_i) |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `blanchard_olg_irf_*` (Responses of every variable to one shock (eps_Z; NK also eps_i))
 
 ---
 
@@ -1062,6 +1803,9 @@ Path to DSGE model file (.toml or .jl)
 | `--constraints` | — | `String` | `""` | — | Path to constraints TOML |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--periods` | — | `Int64` | `100` | — | Simulation periods |
+| `--sparsity` | — | `String` | `auto` | `auto`, `dense` | Jacobian: auto (sparse BT) or dense (nlopt/path/ipopt ignore this) |
+| `--max-iter` | — | `Int64` | `100` | — | Newton iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -1084,8 +1828,20 @@ Path to DSGE model file (.toml or .jl)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | — | Solution method: gensys\|klein\|perturbation\|projection\|pfi |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
+| `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--periods` | — | `Int64` | `200` | — | Simulation periods (after burn-in) |
 | `--burn` | — | `Int64` | `100` | — | Burn-in periods to discard |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
@@ -1112,10 +1868,21 @@ Path to DSGE model file (.toml or .jl)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | — | Solution method: gensys\|klein\|perturbation\|projection\|pfi |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak |
+| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
+| `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
+| `--evaluate-at` | — | `String` | `""` | — | State vector x1,x2,… at which to evaluate the VFI value function |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--periods` | — | `Int64` | `40` | — | Number of periods for OccBin simulation |
@@ -1128,7 +1895,7 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI basis coefficients, one row per control); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
+**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
 
 ---
 

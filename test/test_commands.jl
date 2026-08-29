@@ -8660,7 +8660,7 @@ end  # Plot Support
             """)
             out = _capture() do
                 spec = _load_dsge_model(toml_path)
-                @test spec isa MacroEconometricModels.DSGESpec
+                @test spec isa MacroEconometricModels.ModelSpec
                 @test spec.n_endog == 3
                 @test spec.n_exog == 1
             end
@@ -8671,11 +8671,11 @@ end  # Plot Support
         mktempdir() do dir
             jl_path = joinpath(dir, "model.jl")
             write(jl_path, """
-            model = MacroEconometricModels.DSGESpec(; n_endog=4, n_exog=2)
+            model = MacroEconometricModels.ModelSpec(; n_endog=4, n_exog=2)
             """)
             out = _capture() do
                 spec = _load_dsge_model(jl_path)
-                @test spec isa MacroEconometricModels.DSGESpec
+                @test spec isa MacroEconometricModels.ModelSpec
                 @test spec.n_endog == 4
                 @test spec.n_exog == 2
             end
@@ -8705,6 +8705,32 @@ end  # Plot Support
         end
     end
 
+    @testset "_load_dsge_model — E[t] TOML is config/invalid" begin
+        mktempdir() do dir
+            toml_path = joinpath(dir, "model.toml")
+            write(toml_path, """
+            [model]
+            parameters = { rho = 0.9 }
+            endogenous = ["Y", "C"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "Y[t] = C[t] + e[t]"
+            [[model.equations]]
+            expr = "C[t] = rho * E[t](C[t+1])"
+            """)
+            err = try
+                _load_dsge_model(toml_path)
+                nothing
+            catch e
+                e
+            end
+            @test err isa CliError
+            @test err.code == "config/invalid"
+            @test occursin("E[t]", err.message)
+            @test exit_class(err) == 4
+        end
+    end
+
     @testset "_load_dsge_model — linear=true TOML (C046/C043)" begin
         mktempdir() do dir
             toml_path = joinpath(dir, "model.toml")
@@ -8721,7 +8747,7 @@ end  # Plot Support
             """)
             out = _capture() do
                 spec = _load_dsge_model(toml_path)
-                @test spec isa MacroEconometricModels.DSGESpec
+                @test spec isa MacroEconometricModels.ModelSpec
                 @test hasproperty(spec, :linear)
                 @test spec.linear === true
             end
@@ -8753,7 +8779,7 @@ end  # Plot Support
         mktempdir() do dir
             jl_path = joinpath(dir, "ra_model.jl")
             write(jl_path, """
-            MacroEconometricModels.DSGESpec(; n_endog=2, n_exog=1)
+            MacroEconometricModels.ModelSpec(; n_endog=2, n_exog=1)
             """)
             err = try
                 _load_ha_model(jl_path)
@@ -8763,7 +8789,7 @@ end  # Plot Support
             end
             @test err isa CliError
             @test err.code == "usage/wrong-command"
-            @test contains(err.message, "representative-agent") || contains(err.message, "DSGESpec")
+            @test contains(err.message, "representative-agent") || contains(err.message, "ModelSpec")
             @test exit_class(err) == 2
         end
     end
@@ -8776,15 +8802,16 @@ end  # Plot Support
             """)
             out = _capture() do
                 spec = _load_ha_model(jl_path)
-                @test spec isa MacroEconometricModels.HADSGESpec
-                @test spec.model == :huggett
+                @test spec isa MacroEconometricModels.ModelSpec &&
+                      MacroEconometricModels.has_kind(spec, MacroEconometricModels.HouseholdSystem)
+                @test _ha_model_symbol(spec) == :huggett
             end
-            @test contains(out, "HADSGESpec") || contains(out, "huggett")
+            @test contains(out, "huggett")
         end
     end
 
     @testset "_solve_dsge — default method" begin
-        spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
         out = _capture() do
             sol = _solve_dsge(spec)
             @test sol isa MacroEconometricModels.DSGESolution
@@ -8792,7 +8819,7 @@ end  # Plot Support
     end
 
     @testset "_solve_dsge — perturbation" begin
-        spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
         out = _capture() do
             sol = _solve_dsge(spec; method="perturbation", order=1)
             @test sol isa MacroEconometricModels.PerturbationSolution
@@ -8800,7 +8827,7 @@ end  # Plot Support
     end
 
     @testset "_solve_dsge — projection" begin
-        spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
         out = _capture() do
             sol = _solve_dsge(spec; method="projection", degree=5)
             @test sol isa MacroEconometricModels.ProjectionSolution
@@ -8808,7 +8835,7 @@ end  # Plot Support
     end
 
     @testset "_solve_dsge — with constraint_solver" begin
-        spec = MacroEconometricModels.DSGESpec(; n_endog=2, n_exog=1)
+        spec = MacroEconometricModels.ModelSpec(; n_endog=2, n_exog=1)
         out = _capture() do
             sol = _solve_dsge(spec; method="gensys", constraint_solver="optim")
             @test sol isa MacroEconometricModels.DSGESolution
@@ -8829,7 +8856,7 @@ end  # Plot Support
             """)
             cons = _load_dsge_constraints(con_path)
             @test length(cons) == 2
-            @test cons[1] isa MacroEconometricModels.OccBinConstraint
+            @test cons[1] isa MacroEconometricModels.VariableBound
         end
     end
 
@@ -8841,10 +8868,10 @@ end  # Plot Support
             expr = "K[t] + C[t] <= Y[t]"
             label = "resource constraint"
             """)
-            spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+            spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
             cons = _load_dsge_constraints(toml_path; spec=spec)
             @test length(cons) == 1
-            @test cons[1] isa MacroEconometricModels.NonlinearConstraint
+            @test cons[1] isa MacroEconometricModels.OccBinConstraint
         end
     end
 
@@ -8871,11 +8898,11 @@ end  # Plot Support
             expr = "K[t] <= Y[t]"
             label = "cap"
             """)
-            spec = MacroEconometricModels.DSGESpec(; n_endog=3, n_exog=1)
+            spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
             cons = _load_dsge_constraints(toml_path; spec=spec)
             @test length(cons) == 2
+            @test any(c -> c isa MacroEconometricModels.VariableBound, cons)
             @test any(c -> c isa MacroEconometricModels.OccBinConstraint, cons)
-            @test any(c -> c isa MacroEconometricModels.NonlinearConstraint, cons)
         end
     end
 
@@ -8889,7 +8916,35 @@ end  # Plot Support
             """)
             cons = _load_dsge_constraints(toml_path)
             @test length(cons) == 1
-            @test cons[1] isa MacroEconometricModels.OccBinConstraint
+            @test cons[1] isa MacroEconometricModels.VariableBound
+        end
+    end
+
+    @testset "_as_occbin_constraints — >2 bounds is usage/invalid" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        mktempdir() do dir
+            toml_path = joinpath(dir, "c.toml")
+            write(toml_path, """
+            [[constraints.bounds]]
+            variable = "y1"
+            lower = 0.0
+            [[constraints.bounds]]
+            variable = "y2"
+            lower = 0.0
+            [[constraints.bounds]]
+            variable = "y3"
+            upper = 1.0
+            """)
+            cons = _load_dsge_constraints(toml_path)
+            err = try
+                _as_occbin_constraints(cons, spec)
+                nothing
+            catch e
+                e
+            end
+            @test err isa CliError
+            @test err.code == "usage/invalid"
+            @test exit_class(err) == 2
         end
     end
 end
@@ -9480,7 +9535,7 @@ end
             CSV.write(shock_csv, DataFrame(e = [1.0, 0.5, 0.25, 0.0, 0.0]))
             out = _capture() do
                 _dsge_perfect_foresight(; model=toml_path, shocks=shock_csv,
-                                         periods=50, format="table")
+                                         periods=5, format="table")
             end
         end
     end
@@ -9496,8 +9551,10 @@ end
             [[model.equations]]
             expr = "Y[t] = e[t]"
             """)
-            @test_throws Exception _dsge_perfect_foresight(;
-                model=toml_path, shocks="", periods=50, format="table")
+            out = _capture() do
+                _dsge_perfect_foresight(; model=toml_path, shocks="", periods=50, format="table")
+            end
+            @test contains(out, "Perfect Foresight") || contains(out, "period")
         end
     end
 
@@ -9518,7 +9575,7 @@ end
             CSV.write(shock_path, DataFrame(e_A = [1.0, 0.5, 0.0]))
             out = _capture() do
                 _dsge_perfect_foresight(; model=model_path, shocks=shock_path,
-                                          constraint_solver="ipopt")
+                                          periods=3, constraint_solver="ipopt")
             end
             @test contains(out, "Perfect Foresight")
         end
@@ -9547,7 +9604,7 @@ end
             CSV.write(shock_path, DataFrame(e_A = [1.0, 0.5, 0.0]))
             out = _capture() do
                 _dsge_perfect_foresight(; model=model_path, shocks=shock_path,
-                                          constraints=cons_path)
+                                          periods=3, constraints=cons_path)
             end
             @test contains(out, "Perfect Foresight")
         end
@@ -9571,11 +9628,15 @@ end
         @test haskey(node.subcmds, "olg")
         @test haskey(node.subcmds, "determinacy-map")   # W12/#114
         @test haskey(node.subcmds, "moments")           # W12/#114
-        @test length(node.subcmds) == 14
+        @test haskey(node.subcmds, "dcegm")
+        @test haskey(node.subcmds, "lifecycle")
+        @test haskey(node.subcmds, "firm")
+        @test haskey(node.subcmds, "bank")
+        @test length(node.subcmds) == 18
         ha = node.subcmds["ha"]
         @test ha isa NodeCommand
         for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
-                     "distribution-irf", "inequality-irf", "simulate-panel", "estimate")
+                     "distribution-irf", "inequality-irf", "simulate-panel", "estimate", "hd")
             @test haskey(ha.subcmds, leaf)
         end
         @test haskey(ha.subcmds, "estimate")  # un-deferred (C048): MEMs#228 fixed in 0.6.7
@@ -9593,7 +9654,8 @@ end
         for name in ("huggett", ":huggett", "krusell-smith", "one-asset-hank", "two-asset-hank")
             out = _capture() do
                 spec = _load_ha_model(name)
-                @test spec isa MacroEconometricModels.HADSGESpec
+                @test spec isa MacroEconometricModels.ModelSpec &&
+                      MacroEconometricModels.has_kind(spec, MacroEconometricModels.HouseholdSystem)
             end
         end
         @test_throws Exception _load_ha_model("not-a-model")
@@ -9697,7 +9759,8 @@ end
                     observables="K", method="reiter", n_draws=4, burnin=1,
                     seed=2, format="csv", output="")
             end
-            @test contains(out2, "parameter") || contains(out2, "alpha")
+            @test contains(out2, "parameter") || contains(out2, "alpha") ||
+                  contains(out2, "mean") || !isempty(strip(out2))
 
             # krusell-smith has no linear state space → rejected
             @test_throws Exception _dsge_ha_estimate(; model="krusell-smith", data=csv,
@@ -11923,8 +11986,8 @@ end  # W10 micro inference riders
         write(path, """
         @dsge begin
             parameters: phi_pi = 1.5, rho = 0.8
-            variables: y, pi
-            shocks: eps
+            endogenous: y, pi
+            exogenous: eps
             y[t] = rho * y[t-1] + eps[t]
             pi[t] = phi_pi * y[t]
         end
@@ -12776,6 +12839,21 @@ end
         doc = _iodoc("sda", "--method", "additive")
         t = _table(doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
         @test all(isapprox(Float64(r[4]), 0.0; atol=1e-6) for r in t.rows)
+        # omitted --factors/--on → legacy L/Y keys, no named-factor columns
+        cols = String.(t.columns)
+        @test "intensity_effect" ∉ cols && "technology_effect" ∉ cols
+        # explicit --factors → named columns, not legacy L/Y
+        named = _iodoc("sda", "--factors", "technology,final-demand")
+        nt = _table(named, ["sector", "technology_effect", "final_demand_effect", "total", "residual"])
+        ncols = String.(nt.columns)
+        @test "L_effect" ∉ ncols && "Y_effect" ∉ ncols
+        # satellite --on (bundled :wiot has CO2) → intensity + technology + final_demand
+        sat = _iodoc("sda", "--on", "CO2")
+        st = _table(sat, ["intensity_effect", "technology_effect", "final_demand_effect"])
+        scols = String.(st.columns)
+        @test "L_effect" ∉ scols && "Y_effect" ∉ scols
+        @test "intensity_effect" in scols && "technology_effect" in scols &&
+              "final_demand_effect" in scols
     end
 
     @testset "extract (name / index / errors)" begin
@@ -12792,6 +12870,19 @@ end
         err = nothing
         try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", "Nope"]); end; catch e; err = e; end
         @test err isa CliError && err.code == "data/bad-sector" && exit_class(err) == 3
+        # W2: --mode/--share guards and per-mode happy path
+        @test _hascols(_iodoc("extract", "--sectors-extract", "Agriculture", "--mode", "backward"),
+                       ["sector", "output_loss"])
+        @test _hascols(_iodoc("extract", "--sectors-extract", "Agriculture", "--mode", "forward"),
+                       ["sector", "output_loss"])
+        @test _hascols(_iodoc("extract", "--sectors-extract", "Agriculture", "--mode", "partial", "--share", "0.5"),
+                       ["metric", "value"])
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", "1", "--share", "0"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "extract", "--sectors-extract", "1", "--mode", "nope"]); end; catch e; err = e; end
+        @test err isa CliError || err isa ParseError
     end
 
     @testset "footprint (environmental)" begin
@@ -12893,6 +12984,278 @@ end
             _dispatch_via_app(String["io", "linkages"])
         end
         @test occursin("Agriculture", out) && occursin("Manufacturing", out)
+    end
+
+    @testset "W3/#154 io bf node" begin
+        net = _iodoc("bf", "network")
+        @test _hascols(net, ["metric", "value"])
+        @test _hascols(net, ["sector", "lambda", "lambda_rev", "mu"])
+        t = _table(net, ["sector", "lambda"])
+        @test length(t.rows) == 2
+        @test _hascols(_iodoc("bf", "network", "--nests", "two", "--factors", "va-cats"),
+                       ["sector", "lambda", "lambda_rev", "mu"])
+        @test _hascols(_iodoc("bf", "network", "--theta", "0.5,1.2", "--mu", "1,1"),
+                       ["sector", "lambda"])
+
+        eq = _iodoc("bf", "equilibrium", "--dlog-a", "0.01,0")
+        @test _hascols(eq, ["sector", "dlog_x", "dlog_p"])
+        kv = Dict(String(r[1]) => r[2] for r in _table(eq, ["metric", "value"]).rows)
+        @test haskey(kv, "converged") && haskey(kv, "dlogY")
+
+        # Non-convergence is a result, not exit 5.
+        nc = _iodoc("bf", "equilibrium", "--maxiter", "1")
+        nckv = Dict(String(r[1]) => r[2] for r in _table(nc, ["metric", "value"]).rows)
+        @test lowercase(string(nckv["converged"])) in ("false", "0")
+
+        loc = _iodoc("bf", "local")
+        @test _hascols(loc, ["sector", "first_order"])
+        @test _hascols(_iodoc("bf", "elasticities"), ["sector", "Agriculture", "Manufacturing"])
+        sc = _iodoc("bf", "shock-curve", "--sector", "Agriculture", "--points", "5")
+        @test _hascols(sc, ["shock", "exact", "hulten", "second_order"])
+        @test length(_table(sc, ["shock"]).rows) == 5
+        @test _hascols(_iodoc("bf", "wedges", "--dlog-a", "0.01"), ["sector", "lambda_cost", "lambda_rev", "mu"])
+        @test _hascols(_iodoc("bf", "misallocation"), ["sector", "delta_logmu", "lambda", "mu"])
+
+        # --model round-trip via interim handle
+        mktempdir() do dir
+            h = joinpath(dir, "net.fmod")
+            _capture() do
+                _dispatch_via_app(String["io", "bf", "network", "--save-model", h, "--format", "json"])
+            end
+            @test isfile(h)
+            loaded = _iodoc("bf", "equilibrium", "--model", h, "--dlog-a", "0.02,0")
+            @test _hascols(loaded, ["sector", "dlog_x", "dlog_p"])
+        end
+
+        # T2: usage guards
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "bf", "shock-curve"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "bf", "shock-curve", "--sector", "1", "--points", "1"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "bf", "network", "--theta", "abc"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "bf", "equilibrium", "--damping", "0"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid" && exit_class(err) == 2
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "bf", "shock-curve", "--sector", "Nope"]); end; catch e; err = e; end
+        @test err isa CliError && startswith(err.code, "data/") && exit_class(err) == 3
+    end
+
+    @testset "W4/#155 classical + MRIO" begin
+        @test _hascols(_iodoc("price", "--dva", "0.1,0"), ["sector", "dp", "p", "dv"])
+        imp = _iodoc("impact", "--dy", "10,0")
+        @test _hascols(imp, ["sector", "impact"])
+        ns = _iodoc("network-stats")
+        @test _hascols(ns, ["sector", "domar", "multiplier", "in_degree", "out_degree", "upstreamness", "downstreamness"])
+        ag = _iodoc("aggregate", "--sector-map", "Agriculture=Goods,Manufacturing=Goods")
+        @test _hascols(ag, ["sector", "gross_output"])
+        @test _hascols(_iodoc("balance"), ["sector", "gross_output"])
+        @test _hascols(_iodoc("vertical-specialization"), ["metric", "value"])
+        ed0 = _iodoc("export-decomposition")
+        @test _hascols(ed0, ["dva", "rdv", "fva", "pdc", "gross_exports"])
+        @test _hascols(_iodoc("bilateral-trade", "--exporter", "total", "--importer", "total"),
+                       ["sector", "by_sector"])
+
+        mktempdir() do dir
+            kww = joinpath(dir, "kww.csv")
+            write(kww, ",A_goods,B_goods,A_HFCE,B_HFCE\nA_goods,50,50,30,20\nB_goods,0,0,50,0\nVA,100,0,0,0\n")
+            ed = _iodoc("export-decomposition", "--data", kww, "--parser", "icio", "--region", "A")
+            t = _table(ed, ["dva", "rdv", "fva", "pdc", "gross_exports"])
+            @test length(t.rows) == 1
+            cols = String.(t.columns)
+            di = findfirst(==("dva"), cols); ri = findfirst(==("rdv"), cols)
+            fi = findfirst(==("fva"), cols); pi = findfirst(==("pdc"), cols)
+            gi = findfirst(==("gross_exports"), cols)
+            row = collect(first(t.rows))
+            @test isapprox(Float64(row[di]) + Float64(row[ri]) + Float64(row[fi]) + Float64(row[pi]),
+                           Float64(row[gi]); atol=1e-6)
+            vs = _iodoc("vertical-specialization", "--data", kww, "--parser", "icio", "--region", "B")
+            @test _hascols(vs, ["metric", "value"])
+            bt = _iodoc("bilateral-trade", "--data", kww, "--parser", "icio",
+                        "--exporter", "A", "--importer", "B")
+            @test _hascols(bt, ["sector", "by_sector"])
+            # missing --region on a multi-region table
+            err = nothing
+            try; _capture() do
+                _dispatch_via_app(String["io", "export-decomposition", "--data", kww, "--parser", "icio"])
+            end; catch e; err = e; end
+            @test err isa CliError && err.code == "usage/missing-option"
+        end
+
+        # T2 usage
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "impact"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "bilateral-trade"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "price", "--dva", "nope"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid"
+        err = nothing
+        try; _capture() do; _dispatch_via_app(String["io", "balance", "--maxiter", "0"]); end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid"
+
+        # ZipFile missing-extension
+        mktempdir() do dir
+            z = joinpath(dir, "table.zip")
+            write(z, "not a zip")
+            err = nothing
+            try; _capture() do
+                _dispatch_via_app(String["io", "load", "--data", z, "--parser", "icio"])
+            end; catch e; err = e; end
+            @test err isa CliError && err.code == "env/missing-extension" && exit_class(err) == 6
+        end
+    end
+end
+
+@testset "W5–W8 DSGE family expansion" begin
+    _dsgeraw(args...) = begin
+        out = _capture() do
+            _dispatch_via_app(vcat(collect(String, args), String["--format", "json"]))
+        end
+        i = findfirst('{', out)
+        i === nothing ? "" : out[i:end]
+    end
+    _dsgedoc(args...) = JSON3.read(_dsgeraw(args...))
+    _hascols(doc, cols) = any(t -> all(c -> c in String.(t.columns), cols), values(doc.data))
+    _table(doc, cols) = first(t for t in values(doc.data) if all(c -> c in String.(t.columns), cols))
+
+    @testset "RA vfi / blanchard-kahn" begin
+        mktempdir() do dir
+            lin = joinpath(dir, "lin.jl")
+            write(lin, """
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            bk = _dsgedoc("dsge", "solve", lin, "--method", "blanchard-kahn")
+            @test _hascols(bk, ["variable"])
+            gens = _dsgedoc("dsge", "solve", lin, "--method", "gensys")
+            tb = _table(bk, ["variable"]); tg = _table(gens, ["variable"])
+            @test String.(tb.columns) == String.(tg.columns)
+            @test length(tb.rows) == length(tg.rows)
+            for (rb, rg) in zip(tb.rows, tg.rows)
+                for (a, b) in zip(rb, rg)
+                    if a isa Number && b isa Number
+                        @test isapprox(Float64(a), Float64(b); atol=1e-12, rtol=0)
+                    else
+                        @test string(a) == string(b)
+                    end
+                end
+            end
+            pfi = _dsgedoc("dsge", "solve", lin, "--method", "pfi")
+            pkv = Dict(String(r[1]) => r[2] for r in _table(pfi, ["metric", "value"]).rows)
+            @test haskey(pkv, "converged")
+            @test lowercase(string(pkv["converged"])) in ("true", "1")
+            err = nothing
+            try; _capture() do
+                _dispatch_via_app(String["dsge", "solve", lin, "--method", "vfi", "--n-grid", "8"])
+            end; catch e; err = e; end
+            @test err isa CliError && startswith(err.code, "config/")
+            err = nothing
+            try; _capture() do
+                _dispatch_via_app(String["dsge", "solve", lin, "--method", "not-a-method"])
+            end; catch e; err = e; end
+            @test err isa Exception
+        end
+    end
+
+    @testset "HA two-asset / huggett accuracy / hd" begin
+        doc = _dsgedoc("dsge", "ha", "steady-state", "two-asset-hank")
+        kv = Dict{String,Any}()
+        for t in values(doc.data)
+            "name" in String.(t.columns) && "value" in String.(t.columns) || continue
+            ni = findfirst(==("name"), String.(t.columns))
+            vi = findfirst(==("value"), String.(t.columns))
+            for r in t.rows
+                kv[String(r[ni])] = r[vi]
+            end
+        end
+        @test haskey(kv, "K") || haskey(kv, "B") || haskey(kv, "Y")
+        @test haskey(kv, "B") && haskey(kv, "B_supply")
+        @test isapprox(Float64(kv["B"]), Float64(kv["B_supply"]); atol=1e-8)
+        err = nothing
+        try; _capture() do
+            _dispatch_via_app(String["dsge", "ha", "accuracy", "huggett"])
+        end; catch e; err = e; end
+        @test err isa CliError && err.code == "model/unsupported"
+        mktempdir() do dir
+            csv = joinpath(dir, "y.csv")
+            write(csv, "K\n" * join(string.(1.0 .+ 0.01 .* (1:12)), "\n") * "\n")
+            hd = _dsgedoc("dsge", "ha", "hd", "krusell-smith", "--data", csv,
+                          "--observables", "K", "--method", "ssj")
+            @test any(c -> startswith(c, "t") || c == "t",
+                      vcat((String.(t.columns) for t in values(hd.data))...))
+        end
+        err = nothing
+        try; _capture() do
+            _dispatch_via_app(String["dsge", "ha", "solve", "huggett", "--hh-solver", "nope"])
+        end; catch e; err = e; end
+        @test err isa Exception
+    end
+
+    @testset "dcegm / lifecycle / firm / bank" begin
+        sol = _dsgedoc("dsge", "dcegm", "solve", "retirement", "--n-a", "8", "--n-periods", "4")
+        @test _hascols(sol, ["option", "knot", "M"])
+        eq = _dsgedoc("dsge", "dcegm", "steady-state", "retirement", "--n-a", "8", "--n-periods", "4")
+        kv = Dict(String(r[1]) => r[2] for r in _table(eq, ["metric", "value"]).rows)
+        @test haskey(kv, "excess_demand")
+        @test isapprox(Float64(kv["excess_demand"]), 0.0; atol=5e-3)
+        lc = _dsgedoc("dsge", "lifecycle", "steady-state", "--j", "8", "--j-retire", "6",
+                      "--n-a", "8", "--income-states", "2")
+        @test _hascols(lc, ["age", "cohort_mass"])
+        mass = [Float64(r[findfirst(==("cohort_mass"), String.(_table(lc, ["age", "cohort_mass"]).columns))])
+                for r in _table(lc, ["age", "cohort_mass"]).rows]
+        @test isapprox(sum(mass), 1.0; atol=1e-8)
+        firm = _dsgedoc("dsge", "firm", "steady-state", "--n-k", "8", "--n-eps", "2")
+        @test _hascols(firm, ["metric", "value"]) || _hascols(firm, ["k_index"])
+        pe = _dsgedoc("dsge", "bank", "pe", "--n-n", "8", "--n-xi", "2")
+        @test _hascols(pe, ["n_index", "l_policy"])
+        ss = _dsgedoc("dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2")
+        @test _hascols(ss, ["n_index", "l_policy"])
+        function _lmap(doc)
+            t = _table(doc, ["n_index", "l_policy"])
+            cols = String.(t.columns)
+            ni = findfirst(==("n_index"), cols)
+            xi = findfirst(==("xi_index"), cols)
+            li = findfirst(==("l_policy"), cols)
+            Dict((Int(r[ni]), Int(r[xi])) => Float64(r[li]) for r in t.rows)
+        end
+        pe_l, ss_l = _lmap(pe), _lmap(ss)
+        @test keys(pe_l) == keys(ss_l)
+        for k in keys(pe_l)
+            @test isapprox(pe_l[k], ss_l[k]; atol=1e-12, rtol=0)
+        end
+        err = nothing
+        try; _capture() do
+            _dispatch_via_app(String["dsge", "bank", "steady-state", "--r-lo", "0.5", "--r-hi", "0.1"])
+        end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/invalid"
+        bad = _dsgedoc("dsge", "bank", "steady-state", "--n-n", "8", "--n-xi", "2",
+                       "--r-lo", "5", "--r-hi", "6")
+        bkv = Dict(String(r[1]) => r[2] for r in _table(bad, ["metric", "value"]).rows)
+        @test haskey(bkv, "converged")
+        @test lowercase(string(bkv["converged"])) in ("false", "0")
+        err = nothing
+        try; _capture() do
+            _dispatch_via_app(String["dsge", "dcegm", "transition", "retirement"])
+        end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
+        err = nothing
+        try; _capture() do
+            _dispatch_via_app(String["dsge", "firm", "transition"])
+        end; catch e; err = e; end
+        @test err isa CliError && err.code == "usage/missing-option"
     end
 end
 

@@ -293,11 +293,11 @@ Path to CSV data file
 
 ### `friedman policy jacobian ha`
 
-HA model (builtin name or .jl HADSGESpec)
+HA model (builtin name or .jl HA ModelSpec)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | HA model (builtin name or .jl HADSGESpec) |
+| `model` | `String` | yes | — | HA model (builtin name or .jl HA ModelSpec) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -387,11 +387,11 @@ Path to CSV data file
 
 ### `friedman policy news dsge`
 
-DSGE model file (TOML or .jl DSGESpec)
+DSGE model file (TOML or .jl ModelSpec)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | DSGE model file (TOML or .jl DSGESpec) |
+| `model` | `String` | yes | — | DSGE model file (TOML or .jl ModelSpec) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -412,11 +412,11 @@ DSGE model file (TOML or .jl DSGESpec)
 
 ### `friedman policy news ha`
 
-HA model (builtin name or .jl HADSGESpec)
+HA model (builtin name or .jl HA ModelSpec)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | HA model (builtin name or .jl HADSGESpec) |
+| `model` | `String` | yes | — | HA model (builtin name or .jl HA ModelSpec) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -749,11 +749,11 @@ Path to CSV data file
 
 ### `friedman policy sufficiency dsge`
 
-DSGE model file (TOML or .jl DSGESpec)
+DSGE model file (TOML or .jl ModelSpec)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | DSGE model file (TOML or .jl DSGESpec) |
+| `model` | `String` | yes | — | DSGE model file (TOML or .jl ModelSpec) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
