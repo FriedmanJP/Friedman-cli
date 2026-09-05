@@ -1183,6 +1183,106 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
     return favar, Y, varnames
 end
 
+const _SDFM_METHODS = Dict(
+    "fglr" => :fglr,
+    "gdfm-var" => :gdfm_var,
+)
+
+const _SDFM_Q_METHODS = Dict(
+    "hallin-liska" => :hallin_liska,
+    "bai-ng" => :bai_ng,
+    "amengual-watson" => :amengual_watson,
+)
+
+const _GDFM_SPECTRAL = Dict(
+    "lag-window" => :lag_window,
+    "smoothed-periodogram" => :smoothed_periodogram,
+)
+
+"""
+    _load_instrument(data, column) → Vector{Float64}
+
+Load a proxy-instrument column for SDFM `identification=:proxy`: the column must
+exist, be numeric, and hold no missings (upstream takes an `AbstractVector`, so a
+missing cell would fail deep inside estimation as an untyped error).
+"""
+function _load_instrument(data::String, column::String)
+    df = load_data(data)
+    column in names(df) || throw(CliError("data/column-range",
+        "instrument column '$column' not found; available: $(join(names(df), ", "))"))
+    col = df[!, column]
+    any(ismissing, col) && throw(CliError("data/missing-values",
+        "instrument column '$column' contains missing values"))
+    try
+        return Vector{Float64}(col)
+    catch
+        throw(CliError("data/invalid", "instrument column '$column' is not numeric"))
+    end
+end
+
+"""
+    _load_and_estimate_sdfm(data, factors, id, var_lags, horizon, config, method,
+                            spectral, instrument_col, q_method) → (sdfm, Y, varnames, q)
+
+Shared Structural-DFM estimation for the `estimate`/`irf`/`fevd`/`forecast sdfm`
+data paths (W1/#165): one implementation, one option surface.
+
+- `factors === nothing` → upstream `:auto` q-selection via `q_method`
+  (deterministic; replaces the legacy `ic_criteria_gdfm` auto path).
+- `id == "proxy"` requires `--instrument`; `--instrument` with any other id is a
+  `usage/invalid` no-op guard. `--q-method` with explicit `--factors` is ignored
+  by upstream (selection never runs), so it is `usage/invalid` there too.
+- `--seed` is forwarded as the estimator's own `seed=` (C052/#243 pattern).
+"""
+function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::Int,
+                                 horizon::Int, config::String, method::String,
+                                 spectral::String, instrument_col::String,
+                                 q_method::String; bandwidth::Int=0,
+                                 kernel::String="bartlett")
+    haskey(_SDFM_METHODS, method) || throw(CliError("usage/invalid",
+        "estimate sdfm: --method must be fglr|gdfm-var (got '$method')"))
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "estimate sdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+    haskey(_SDFM_Q_METHODS, q_method) || throw(CliError("usage/invalid",
+        "estimate sdfm: --q-method must be hallin-liska|bai-ng|amengual-watson (got '$q_method')"))
+    if factors !== nothing && q_method != "hallin-liska"
+        throw(CliError("usage/invalid",
+            "estimate sdfm: --q-method '$q_method' applies only to automatic factor " *
+            "selection (omit --factors to use it)"))
+    end
+    if !isempty(instrument_col) && id != "proxy"
+        throw(CliError("usage/invalid",
+            "estimate sdfm: --instrument applies only to --id proxy (got --id $id)"))
+    end
+    if id == "proxy" && isempty(instrument_col)
+        throw(CliError("usage/missing",
+            "estimate sdfm: --id proxy requires --instrument <column>";
+            hint="name a numeric, missing-free proxy column, e.g. --instrument mp_shock"))
+    end
+
+    Y, varnames = load_multivariate_data(data)
+
+    sign_check = nothing
+    if id == "sign" && !isempty(config)
+        sign_check, _ = _build_check_func(config)
+    end
+    instrument = isempty(instrument_col) ? nothing : _load_instrument(data, instrument_col)
+
+    est_kw = (identification=Symbol(id), p=var_lags, H=horizon,
+              method=_SDFM_METHODS[method], spectral=_GDFM_SPECTRAL[spectral],
+              sign_check=sign_check, instrument=instrument, seed=_SEED[],
+              bandwidth=bandwidth, kernel=Symbol(kernel), varnames=varnames)
+    sdfm, q = if factors === nothing
+        _status("Selecting dynamic factors (auto: $q_method)...")
+        m = estimate_structural_dfm(Y, :auto; q_method=_SDFM_Q_METHODS[q_method], est_kw...)
+        _status("  Auto-selected $(m.gdfm.q) dynamic factors")
+        m, m.gdfm.q
+    else
+        estimate_structural_dfm(Y, factors; est_kw...), factors
+    end
+    return sdfm, Y, varnames, q
+end
+
 # ── Panel/Matrix Loading Helper ──────────────────────────
 
 """

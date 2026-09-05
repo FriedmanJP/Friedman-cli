@@ -155,10 +155,15 @@ function fevd_specs()::Vector{CommandSpec}
             summary="Structural DFM forecast error variance decomposition",
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
-                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|proxy (--id proxy requires --instrument)"),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizons", type=Int, default=20, description="FEVD horizon"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -475,19 +480,22 @@ end
 
 function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
                      var_lags::Int=1, horizons::Int=20,
+                     config::String="", method::String="fglr",
+                     spectral::String="lag-window", instrument::String="",
+                     q_method::String="hallin-liska",
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
                      model=nothing)
     if isnothing(model)
-        Y, varnames = load_multivariate_data(data)
-        q = factors === nothing ? ic_criteria_gdfm(Y, min(10, size(Y, 2) - 1)).q_opt : factors
-        sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags,
-                                       H=horizons, varnames=varnames)
+        # W1/#165: shared estimation surface with `estimate sdfm`. FEVD uses the
+        # identification stored at estimation (upstream #710).
+        sdfm, _, _, q = _load_and_estimate_sdfm(data, factors, id, var_lags,
+            horizons, config, method, spectral, instrument, q_method)
     else
         sdfm = model
     end
 
-    _status("SDFM FEVD: $q factors, horizon=$horizons")
+    _status("SDFM FEVD: id=$id, method=$method, horizon=$horizons")
     _status()
 
     result = fevd(sdfm, horizons)

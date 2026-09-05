@@ -4766,8 +4766,8 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
-        @test length(node.subcmds) == 30
+        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
+        @test length(node.subcmds) == 31
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
@@ -5327,7 +5327,7 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 30  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 31  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101; +sdfm W1 #165)
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -10173,6 +10173,112 @@ end
         end
     end
 
+    @testset "sdfm W1 riders — method/spectral/q-method/instrument (mock)" begin
+        # New leaf checklist (T1/T2 on mocks): registry spec + handler → T3 + golden.
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            # auto selection through each upstream q_method branch
+            for qm in ("hallin-liska", "bai-ng", "amengual-watson")
+                out = _capture() do
+                    _estimate_sdfm(; data=csv, factors=nothing, q_method=qm,
+                                     horizon=10, format="table")
+                end
+            end
+            # legacy estimator + legacy spectrum
+            out = _capture() do
+                _estimate_sdfm(; data=csv, factors=2, method="gdfm-var",
+                                 spectral="smoothed-periodogram",
+                                 horizon=10, format="table")
+            end
+            # proxy identification with an instrument column runs
+            inst_csv = joinpath(dir, "inst.csv")
+            CSV.write(inst_csv, DataFrame(y1=randn(100), y2=randn(100), y3=randn(100),
+                                          z=randn(100)))
+            out = _capture() do
+                _estimate_sdfm(; data=inst_csv, factors=1, id="proxy",
+                                 instrument="z", horizon=10, format="table")
+            end
+            # guards: proxy needs an instrument; instrument needs proxy;
+            # q-method needs auto; enums are closed
+            e1 = try; _estimate_sdfm(; data=csv, factors=2, id="proxy", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/missing"
+            e2 = try; _estimate_sdfm(; data=csv, factors=2, instrument="var1", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _estimate_sdfm(; data=csv, factors=2, q_method="bai-ng", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/invalid"
+            e4 = try; _estimate_sdfm(; data=csv, factors=2, method="bogus", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
+            e5 = try; _estimate_sdfm(; data=csv, factors=2, spectral="bogus", format="table"); nothing; catch e; e; end
+            @test e5 isa CliError && e5.code == "usage/invalid"
+            e6 = try; _estimate_sdfm(; data=csv, factors=2, q_method="bogus", format="table"); nothing; catch e; e; end
+            @test e6 isa CliError && e6.code == "usage/invalid"
+            # instrument column hygiene mirrors the weights/coordinates loaders
+            e7 = try; _estimate_sdfm(; data=csv, factors=1, id="proxy", instrument="nope", format="table"); nothing; catch e; e; end
+            @test e7 isa CliError && e7.code == "data/column-range"
+        end
+    end
+
+    @testset "irf/fevd sdfm W1 riders — shared surface + bootstrap ci (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _irf_sdfm(; data=csv, factors=nothing, q_method="bai-ng",
+                            method="gdfm-var", horizons=8, format="table")
+            end
+            out = _capture() do
+                _irf_sdfm(; data=csv, factors=2, horizons=8, ci="bootstrap",
+                            reps=5, format="table")
+            end
+            e1 = try; _irf_sdfm(; data=csv, factors=2, ci="bogus", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _irf_sdfm(; data=csv, factors=2, reps=0, format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            out = _capture() do
+                _fevd_sdfm(; data=csv, factors=nothing, spectral="smoothed-periodogram",
+                             horizons=8, format="table")
+            end
+        end
+    end
+
+    @testset "gdfm W1 riders — spectral + forecast method (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _estimate_gdfm(; data=csv, nfactors=2, dynamic_rank=1,
+                                 spectral="smoothed-periodogram", format="table")
+            end
+            e1 = try; _estimate_gdfm(; data=csv, spectral="bogus", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            for m in ("ar", "one-sided", "spectral")
+                out = _capture() do
+                    _forecast_gdfm(; data=csv, nfactors=2, dynamic_rank=1,
+                                     horizons=4, method=m, format="table")
+                end
+            end
+            e2 = try; _forecast_gdfm(; data=csv, method="bogus", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _forecast_gdfm(; data=csv, spectral="bogus", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/invalid"
+        end
+    end
+
+    @testset "forecast sdfm — new leaf (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _forecast_sdfm(; data=csv, factors=2, horizons=4, format="table")
+            end
+            out = _capture() do
+                _forecast_sdfm(; data=csv, factors=nothing, horizons=4,
+                                 ci="bootstrap", reps=5, format="table")
+            end
+            e1 = try; _forecast_sdfm(; data=csv, ci="bogus", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _forecast_sdfm(; data=csv, reps=0, format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+        end
+    end
+
     @testset "_hd_favar" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
@@ -12615,6 +12721,8 @@ end  # Command Handlers
             (["spectral", "transfer", "--filter", "hp", "--lambda", "1600.0", "--nobs", "200", "--format", "json"], ["spectral", "transfer"]),
             # #147: estimate sdfm estimation-record table
             (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
+            # W1/#165: new forecast sdfm leaf
+            (["forecast", "sdfm", fix, "--factors", "1", "--horizons", "4", "--format", "json"], ["forecast", "sdfm"]),
         ]
         for (argv, gkeys) in cases
             Random.seed!(42)

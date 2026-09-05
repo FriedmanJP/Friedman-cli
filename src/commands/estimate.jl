@@ -415,10 +415,14 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="Spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
             tables=[TableSpec(name=:gdfm_common_variance_shares,
                               description="Share of each variable variance explained by the common component")],
             category="estimate",
@@ -1362,8 +1366,12 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|proxy (--id proxy requires --instrument)"),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
@@ -2846,7 +2854,9 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
 end
 
 function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
-                         output::String="", format::String="table")
+                         spectral::String="lag-window",
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="")
     X, varnames = load_multivariate_data(data)
 
     q = if isnothing(dynamic_rank)
@@ -2869,15 +2879,18 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
         nfactors
     end
 
-    _status("Estimating GDFM: static rank=$r, dynamic rank=$q")
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "estimate gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+    _status("Estimating GDFM: static rank=$r, dynamic rank=$q, spectral=$spectral")
     _status()
 
-    model = estimate_gdfm(X, q; r=r)
+    model = estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral])
 
     var_shares = common_variance_share(model)
     var_df = DataFrame(variable=varnames, common_variance_share=round.(var_shares; digits=4))
     output_result(var_df; format=Symbol(format), output=output,
                   title="GDFM Common Variance Shares")
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
 
     _status()
     _status("Average common variance share: $(round(mean(var_shares); digits=4))")
@@ -3304,31 +3317,19 @@ end
 function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
                          var_lags::Int=1, horizon::Int=40,
                          config::String="", bandwidth::Int=0,
-                         kernel::String="bartlett",
+                         kernel::String="bartlett", method::String="fglr",
+                         spectral::String="lag-window", instrument::String="",
+                         q_method::String="hallin-liska",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data)
-    n = size(Y, 2)
+    # W1/#165: one shared data path (see `_load_and_estimate_sdfm`); --factors
+    # omitted selects q via upstream `:auto` + `--q-method` (deterministic).
+    sdfm, Y, varnames, q = _load_and_estimate_sdfm(data, factors, id, var_lags, horizon,
+        config, method, spectral, instrument, q_method;
+        bandwidth=bandwidth, kernel=kernel)
+    n = length(varnames)
 
-    q = if factors === nothing
-        auto_q = ic_criteria_gdfm(Y, min(10, n - 1))
-        _status_styled("  Auto-selected dynamic factors: $(auto_q.q_opt)\n"; color=:cyan)
-        auto_q.q_opt
-    else
-        factors
-    end
-
-    sign_check = nothing
-    if id == "sign" && !isempty(config)
-        sign_check, _ = _build_check_func(config)
-    end
-
-    _status("Estimating Structural DFM: $q factors, id=$id, VAR lags=$var_lags, horizon=$horizon")
-
-    sdfm = estimate_structural_dfm(Y, q;
-        identification=Symbol(id), p=var_lags, H=horizon,
-        sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel),
-        varnames=varnames)   # panel names on the model (MEMs#538) → irf sdfm labels
+    _status("Estimating Structural DFM: $q factors, id=$id, method=$method, VAR lags=$var_lags, horizon=$horizon")
 
     _status("  Identification: $(sdfm.identification)")
     _status("  Factor VAR lags: $(sdfm.p_var)")

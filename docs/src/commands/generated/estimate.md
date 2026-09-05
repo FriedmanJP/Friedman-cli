@@ -535,9 +535,15 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | `-r` | `Int64` | — | — | Number of static factors (default: auto) |
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | Spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `gdfm_common_variance_shares` (Share of each variable variance explained by the common component)
 
@@ -1460,8 +1466,12 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
+| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy (--id proxy requires --instrument) |
+| `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
+| `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--horizon` | — | `Int64` | `40` | — | Structural IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |

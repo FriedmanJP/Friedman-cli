@@ -1,6 +1,6 @@
 # favar & sdfm
 
-Factor-Augmented VAR (FAVAR) and Structural Dynamic Factor Model (SDFM) commands. FAVAR spans the full analysis pipeline with 7 commands across `estimate`, `irf`, `fevd`, `hd`, `forecast`, `predict`, and `residuals`. SDFM provides 3 commands: `estimate`, `irf`, `fevd`.
+Factor-Augmented VAR (FAVAR) and Structural Dynamic Factor Model (SDFM) commands. FAVAR spans the full analysis pipeline with 7 commands across `estimate`, `irf`, `fevd`, `hd`, `forecast`, `predict`, and `residuals`. SDFM provides 4 commands: `estimate`, `irf`, `fevd`, `forecast`.
 
 ## FAVAR
 
@@ -13,9 +13,10 @@ FAVAR (Bernanke, Boivin & Eliasz 2005) augments a standard VAR with latent facto
     positional `X9`/`X10`), and `irf sdfm` labels every panel response by its column
     name (previously `Var 1`, `Var 2`, …). `fevd sdfm` decomposes in **factor space**
     and keeps its `Factor i` labels. `estimate static` stores the names on the
-    `FactorModel` as well. `estimate gdfm` and `estimate dynamic` are unchanged — their
-    upstream estimators accept no variable names at MEMs 0.8.0 (their loadings tables
-    were already labelled CLI-side).
+    `FactorModel` as well. `estimate dynamic` is unchanged — its
+    upstream estimator accepts no variable names at MEMs 0.8.0 (its loadings table
+    was already labelled CLI-side). `estimate gdfm` takes `--spectral` (FHLR lag-window
+    default) and `--plot` since v0.12.0.
 
 ### estimate favar
 
@@ -188,7 +189,7 @@ friedman residuals favar macro.csv --key-vars=ffr,cpi --factors=3
 
 ## Structural DFM
 
-Structural Dynamic Factor Model (Forni et al. 2009) identifies structural shocks in a dynamic factor framework using Cholesky or sign restrictions.
+Structural Dynamic Factor Model (Forni et al. 2009) identifies structural shocks in a dynamic factor framework using Cholesky, sign, or proxy (external-instrument) restrictions. The default estimator is FGLR (2009); `--method gdfm-var` restores the legacy GDFM-factor VAR path. Omitting `--factors` selects the dynamic rank automatically via `--q-method` (Hallin–Liška default; deterministic).
 
 ### estimate sdfm
 
@@ -198,8 +199,17 @@ Estimate a Structural DFM.
 # Cholesky identification (default)
 friedman estimate sdfm macro.csv --factors=3
 
+# Automatic factor selection via Bai–Ng
+friedman estimate sdfm macro.csv --q-method=bai-ng
+
 # Sign restrictions
 friedman estimate sdfm macro.csv --factors=3 --id=sign --config=restrictions.toml
+
+# Proxy identification with an external instrument column
+friedman estimate sdfm macro.csv --factors=3 --id=proxy --instrument=mp_shock
+
+# Legacy estimator + legacy spectrum
+friedman estimate sdfm macro.csv --factors=3 --method=gdfm-var --spectral=smoothed-periodogram
 
 # Custom bandwidth and kernel
 friedman estimate sdfm macro.csv --factors=3 --bandwidth=10 --kernel=parzen
@@ -212,8 +222,12 @@ arrays live on `irf sdfm` / `fevd sdfm`.
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--factors` | `-q` | Int | auto | Number of dynamic factors |
-| `--id` | | String | `cholesky` | `cholesky`, `sign` |
+| `--factors` | `-q` | Int | auto (`--q-method`) | Number of dynamic factors |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `proxy` (`--id proxy` requires `--instrument`) |
+| `--q-method` | | String | `hallin-liska` | Auto selection: `hallin-liska`, `bai-ng`, `amengual-watson` |
+| `--method` | | String | `fglr` | Estimator: `fglr`, `gdfm-var` (legacy) |
+| `--spectral` | | String | `lag-window` | GDFM spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
+| `--instrument` | | String | | Proxy-instrument CSV column (only with `--id proxy`) |
 | `--var-lags` | | Int | 1 | Factor VAR lag order |
 | `--horizon` | `-h` | Int | 40 | Structural IRF horizon |
 | `--config` | | String | | TOML config for sign restrictions |
@@ -228,20 +242,27 @@ arrays live on `irf sdfm` / `fevd sdfm`.
 
 ### irf sdfm
 
-Structural DFM impulse response functions. Outputs panel-wide responses (all original variables).
+Structural DFM impulse response functions. Outputs panel-wide responses (all original variables), computed on demand for the requested horizon; bootstrap bands come from the factor-VAR residual bootstrap.
 
 ```bash
 friedman irf sdfm macro.csv --factors=3 --horizons=40
 friedman irf sdfm macro.csv --id=sign --config=restrictions.toml
+friedman irf sdfm macro.csv --factors=3 --horizons=40 --ci=bootstrap --reps=200
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--factors` | `-q` | Int | auto | Number of dynamic factors |
-| `--id` | | String | `cholesky` | `cholesky`, `sign` |
+| `--factors` | `-q` | Int | auto (`--q-method`) | Number of dynamic factors |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `proxy` (`--id proxy` requires `--instrument`) |
+| `--q-method` | | String | `hallin-liska` | Auto selection: `hallin-liska`, `bai-ng`, `amengual-watson` |
+| `--method` | | String | `fglr` | Estimator: `fglr`, `gdfm-var` (legacy) |
+| `--spectral` | | String | `lag-window` | GDFM spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
+| `--instrument` | | String | | Proxy-instrument CSV column (only with `--id proxy`) |
 | `--var-lags` | | Int | 1 | Factor VAR lag order |
 | `--horizons` | `-h` | Int | 40 | IRF horizon |
 | `--config` | | String | | TOML config for sign restrictions |
+| `--ci` | | String | `none` | Bands: `none`, `bootstrap` |
+| `--reps` | | Int | 200 | Bootstrap replications (with `--ci bootstrap`) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
@@ -251,7 +272,7 @@ friedman irf sdfm macro.csv --id=sign --config=restrictions.toml
 
 ### fevd sdfm
 
-Structural DFM forecast error variance decomposition.
+Structural DFM forecast error variance decomposition (factor space, using the identification stored at estimation).
 
 ```bash
 friedman fevd sdfm macro.csv --factors=3 --horizons=20
@@ -259,16 +280,50 @@ friedman fevd sdfm macro.csv --factors=3 --horizons=20
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--factors` | `-q` | Int | auto | Number of dynamic factors |
-| `--id` | | String | `cholesky` | `cholesky`, `sign` |
+| `--factors` | `-q` | Int | auto (`--q-method`) | Number of dynamic factors |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `proxy` (`--id proxy` requires `--instrument`) |
+| `--q-method` | | String | `hallin-liska` | Auto selection: `hallin-liska`, `bai-ng`, `amengual-watson` |
+| `--method` | | String | `fglr` | Estimator: `fglr`, `gdfm-var` (legacy) |
+| `--spectral` | | String | `lag-window` | GDFM spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
+| `--instrument` | | String | | Proxy-instrument CSV column (only with `--id proxy`) |
 | `--var-lags` | | Int | 1 | Factor VAR lag order |
 | `--horizons` | `-h` | Int | 20 | FEVD horizon |
+| `--config` | | String | | TOML config for sign restrictions |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-**Output:** Tidy table (`horizon|variable|shock|value`, [C051](fevd.md#output-format-c051)) — `fevd(sdfm,...)` delegates to the factor VAR (factor-space shocks, not panel-wide).
+**Output:** Tidy table (`horizon|variable|shock|value`, [C051](fevd.md#output-format-c051)) — factor-space shocks, not panel-wide.
+
+### forecast sdfm
+
+Structural DFM panel forecasting (new in v0.12.0).
+
+```bash
+friedman forecast sdfm macro.csv --factors=3 --horizons=12
+friedman forecast sdfm macro.csv --horizons=12 --ci=bootstrap --reps=200
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--factors` | `-q` | Int | auto (`--q-method`) | Number of dynamic factors |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `proxy` (`--id proxy` requires `--instrument`) |
+| `--q-method` | | String | `hallin-liska` | Auto selection: `hallin-liska`, `bai-ng`, `amengual-watson` |
+| `--method` | | String | `fglr` | Structural estimator: `fglr`, `gdfm-var` (legacy) |
+| `--spectral` | | String | `lag-window` | GDFM spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
+| `--instrument` | | String | | Proxy-instrument CSV column (only with `--id proxy`) |
+| `--var-lags` | | Int | 1 | Factor VAR lag order |
+| `--horizons` | `-h` | Int | 12 | Forecast horizon |
+| `--config` | | String | | TOML config for sign restrictions |
+| `--ci` | | String | `none` | Intervals: `none`, `bootstrap` |
+| `--reps` | | Int | 200 | Bootstrap replications (with `--ci bootstrap`) |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** Tidy table (`horizon|variable|value|lower|upper`, [C051](forecast.md#output-format-c051)).
 
 ## Key Concepts
 

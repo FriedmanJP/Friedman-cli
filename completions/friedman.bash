@@ -14,7 +14,7 @@ _friedman() {
     estimate) COMPREPLY=( $(compgen -W "3sls aparch arch ardl arfima arima bekk bvar ccc cgarch cointreg dcc dynamic egarch elastic-net fastica favar fiegarch figarch garch garch-midas gdfm gjr-garch gmm heckman igarch iv kde kernel-reg lasso logit lowess lp mfvar midas ml mlogit ms ms-ar nardl nbreg ologit oprobit piv plogit pmg poisson pprobit preg probit pvar qreg rdd reg ridge robust sarima sdfm select setar smm star statespace static sur sv threshold tobit truncreg tvp tvpvar var vecm xtcointreg" -- "$cur") ) ;;
     fevd) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm var vecm" -- "$cur") ) ;;
     filter) COMPREPLY=( $(compgen -W "bhp bk bn hamilton hp x13" -- "$cur") ) ;;
-    forecast) COMPREPLY=( $(compgen -W "aparch arch arfima arima bvar cgarch dynamic egarch evaluate favar fiegarch figarch garch garch-midas gdfm gjr-garch igarch lp midas ms ms-ar sarima scenario setar star static sv var vecm" -- "$cur") ) ;;
+    forecast) COMPREPLY=( $(compgen -W "aparch arch arfima arima bvar cgarch dynamic egarch evaluate favar fiegarch figarch garch garch-midas gdfm gjr-garch igarch lp midas ms ms-ar sarima scenario sdfm setar star static sv var vecm" -- "$cur") ) ;;
     hd) COMPREPLY=( $(compgen -W "bvar favar lp var vecm" -- "$cur") ) ;;
     io) COMPREPLY=( $(compgen -W "aggregate balance baqaee-farhi bf bilateral-trade download export-decomposition extract footprint ghosh impact key-sectors leontief linkages load multipliers network-stats price sda sources vertical-specialization" -- "$cur") ) ;;
     irf) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm tvpvar var vecm" -- "$cur") ) ;;

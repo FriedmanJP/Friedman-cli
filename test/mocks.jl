@@ -1236,7 +1236,10 @@ end
 function ic_criteria_gdfm(X, max_q; standardize=true)
     (q_ratio=min(2, max_q), q_opt=min(2, max_q))
 end
-function estimate_gdfm(X, q; r=2, standardize=true, bandwidth=0, kernel=:bartlett)
+function estimate_gdfm(X, q; r=2, standardize=true, bandwidth=0, kernel=:bartlett,
+                       spectral=:lag_window)
+    spectral in (:lag_window, :smoothed_periodogram) ||
+        throw(ArgumentError("spectral must be :lag_window or :smoothed_periodogram, got :$spectral"))
     T_obs, n = size(X)
     bw = bandwidth == 0 ? 5 : bandwidth
     fac = ones(T_obs, r) * 0.1
@@ -5302,13 +5305,22 @@ end
 function estimate_structural_dfm(X::Matrix{T}, q::Int;
         identification=:cholesky, p=1, H=40, sign_check=nothing,
         max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett,
-        varnames::Union{Nothing,Vector{String}}=nothing) where T
+        spectral=:lag_window, method=:fglr, instrument=nothing, seed=nothing,
+        r=0, varnames::Union{Nothing,Vector{String}}=nothing) where T
+    method in (:fglr, :gdfm_var) ||
+        throw(ArgumentError("method must be :fglr or :gdfm_var, got :$method"))
+    spectral in (:lag_window, :smoothed_periodogram) ||
+        throw(ArgumentError("spectral must be :lag_window or :smoothed_periodogram, got :$spectral"))
+    # Real (factor/structural.jl) requires an instrument for proxy identification.
+    identification === :proxy && instrument === nothing && throw(ArgumentError(
+        "identification=:proxy requires `instrument`"))
     n_obs, n_vars = size(X)
     # Real (factor/structural.jl, MEMs#538) defaults and validates the length.
     vn = varnames === nothing ? ["Var $i" for i in 1:n_vars] : varnames
     length(vn) == n_vars || throw(ArgumentError(
         "varnames has $(length(vn)) entries but panel has $n_vars columns"))
-    gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel)
+    gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel,
+                         spectral=spectral)
     factor_Y = randn(T, n_obs - p, q)
     B_fvar = ones(T, q * p + 1, q) * T(0.1)
     U_fvar = randn(T, n_obs - p, q)
@@ -5324,6 +5336,28 @@ function estimate_structural_dfm(X::Matrix{T}, q::Int;
     StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames, vn)
 end
 
+# Real (factor/structural.jl): q=:auto selects via q_method (hallin_liska default).
+# Deterministic canned selection matching the old ic_criteria_gdfm auto (2 factors
+# when the panel allows it).
+function estimate_structural_dfm(X::Matrix{T}, q::Symbol;
+        q_method=:hallin_liska, q_max=8, r=0, identification=:cholesky, p=1, H=40,
+        method=:fglr, spectral=:lag_window, instrument=nothing, seed=nothing,
+        sign_check=nothing,
+        standardize=true, bandwidth=0, kernel=:bartlett, varnames=nothing) where T
+    q === :auto || throw(ArgumentError("q must be a positive integer or :auto, got :$q"))
+    q_method in (:hallin_liska, :bai_ng, :amengual_watson) || throw(ArgumentError(
+        "q_method must be :hallin_liska, :bai_ng, or :amengual_watson, got :$q_method"))
+    n_obs, n_vars = size(X)
+    q_cap = min(q_max, max(1, n_vars - 1), max(1, n_obs - 1))
+    q_hat = max(min(q_cap, 2), 1)
+    # No `; kwargs...` absorber here (the mock budget in check_mock_surface.jl is
+    # frozen): the forwarded set is enumerated explicitly, matching the CLI surface.
+    estimate_structural_dfm(X, q_hat; r=r, identification=identification, p=p, H=H,
+        method=method, spectral=spectral, instrument=instrument, seed=seed,
+        sign_check=sign_check,
+        standardize=standardize, bandwidth=bandwidth, kernel=kernel, varnames=varnames)
+end
+
 function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
     h = min(horizon, size(sdfm.structural_irf, 1) - 1)
     vals = sdfm.structural_irf[1:h+1, :, :]
@@ -5335,6 +5369,22 @@ end
 # No kwargs absorber: the CLI never forwards kwargs here, and mock ⊆ real means
 # stricter is the safe direction (keeps the check_mock_surface absorber budget flat).
 fevd(sdfm::StructuralDFM{T}, horizon::Int) where T = fevd(sdfm.factor_var, horizon)
+
+# Real (favar/analysis.jl): panel forecast from a Structural DFM → FactorForecast.
+# Defined here (after the struct) because mocks.jl is one flat top-to-bottom
+# module — a signature type must already exist at include time.
+function forecast(sdfm::StructuralDFM{T}, h::Int;
+        ci_method=:none, reps=200, conf_level=0.95, rng=nothing) where T
+    h >= 1 || throw(ArgumentError("h must be ≥ 1"))
+    ci_method in (:none, :bootstrap) ||
+        throw(ArgumentError("ci_method must be :none or :bootstrap, got :$ci_method"))
+    n = length(sdfm.varnames)
+    r = size(sdfm.loadings_td, 2)
+    factors = ones(h, r) * 0.1
+    obs = ones(h, n) * 0.1
+    FactorForecast(factors, obs, factors, factors, obs .- 0.5, obs .+ 0.5,
+        abs.(factors) .* 0.1, ones(h, n)*0.1, h, conf_level, :analytical)
+end
 
 export StructuralDFM, estimate_structural_dfm
 

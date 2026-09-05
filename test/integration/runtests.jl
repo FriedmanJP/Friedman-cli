@@ -3097,6 +3097,76 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "sdfm/gdfm 0.9.1 surface (W1/#165)" begin
+        csv = dgp_var2(; T=150, seed=165)
+        # legacy estimator + legacy spectrum riders
+        rl = run_json(["estimate", "sdfm", csv, "--factors", "1",
+                       "--method", "gdfm-var",
+                       "--spectral", "smoothed-periodogram"])
+        assert_envelope_ok(rl; label="estimate sdfm legacy")
+        # automatic q-selection through each upstream criterion (deterministic)
+        for qm in ("hallin-liska", "bai-ng", "amengual-watson")
+            ra = run_json(["estimate", "sdfm", csv, "--q-method", qm])
+            assert_envelope_ok(ra; label="estimate sdfm auto $qm")
+            sm = named_table(ra.doc, :sdfm_estimation_summary)
+            @test sm !== nothing
+            if sm !== nothing
+                mets = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                            for r in table_rows(sm))
+                @test parse(Int, mets["dynamic_factors"]) >= 1
+            end
+        end
+        # proxy identification with a (strong, hence non-degenerate) instrument
+        rng = MersenneTwister(166)
+        y1 = randn(rng, 150); y2 = randn(rng, 150); y3 = randn(rng, 150)
+        idf = DataFrame(y1=y1, y2=y2, y3=y3, z=y1 .+ 0.1 .* randn(rng, 150))
+        icsv = write_csv(idf; prefix="sdfm_proxy")
+        rp = run_json(["estimate", "sdfm", icsv, "--factors", "1",
+                       "--id", "proxy", "--instrument", "z"])
+        assert_envelope_ok(rp; label="estimate sdfm proxy")
+        # guards are typed usage errors, never exit 1
+        @test run_json(["estimate", "sdfm", icsv, "--factors", "1",
+                        "--id", "proxy"]).code == 2
+        @test run_json(["estimate", "sdfm", icsv, "--factors", "1",
+                        "--instrument", "z"]).code == 2
+        @test run_json(["estimate", "sdfm", csv, "--factors", "1",
+                        "--method", "bogus"]).code == 2
+        # FHLR one-sided / spectral forecast branches
+        for m in ("one-sided", "spectral")
+            rf2 = run_json(["forecast", "gdfm", csv, "--nfactors", "1",
+                            "--dynamic-rank", "1", "--horizons", "4",
+                            "--method", m])
+            assert_envelope_ok(rf2; label="forecast gdfm $m")
+            _, t2 = first_table(rf2.doc)
+            @test t2 !== nothing &&
+                table_cols(t2) == ["horizon", "variable", "value", "lower", "upper"]
+        end
+        # new forecast sdfm leaf, incl. bootstrap intervals
+        fs = run_json(["forecast", "sdfm", csv, "--factors", "1", "--horizons", "4"])
+        assert_envelope_ok(fs; label="forecast sdfm")
+        _, tf2 = first_table(fs.doc)
+        @test tf2 !== nothing &&
+            table_cols(tf2) == ["horizon", "variable", "value", "lower", "upper"]
+        fb = run_json(["forecast", "sdfm", csv, "--factors", "1", "--horizons", "4",
+                       "--ci", "bootstrap", "--reps", "20"])
+        assert_envelope_ok(fb; label="forecast sdfm bootstrap")
+        # SDFM residual-bootstrap IRF bands
+        ib = run_json(["irf", "sdfm", csv, "--factors", "1", "--horizons", "6",
+                       "--ci", "bootstrap", "--reps", "20"])
+        assert_envelope_ok(ib; label="irf sdfm bootstrap")
+        # --plot-save against the real recipes (W5/#95: only advertise what runs)
+        for args in (["estimate", "gdfm", csv, "--dynamic-rank", "1"],
+                     ["forecast", "gdfm", csv, "--dynamic-rank", "1", "--horizons", "4"],
+                     ["estimate", "sdfm", csv, "--factors", "1"])
+            out = tempname() * ".html"
+            rpl = run_json(vcat(args, ["--plot-save", out]))
+            assert_envelope_ok(rpl; label=join(args[1:2], " ") * " --plot-save")
+            @test isfile(out) && filesize(out) > 1000
+            rm(out; force=true)
+        end
+        rm(csv; force=true); rm(icsv; force=true)
+    end
+
     @testset "factor family carries CSV varnames (W10/#131, MEMs#538)" begin
         # Before the adoption, irf favar labelled key variables by panel POSITION
         # ("X9"/"X10") and irf sdfm labelled every response "Var $i" — real names

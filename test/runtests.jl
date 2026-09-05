@@ -4181,6 +4181,10 @@ end
     sdfm_opt_names = [o.name for o in sdfm_cmd.options]
     @test "factors" in sdfm_opt_names
     @test "id" in sdfm_opt_names
+    @test "q-method" in sdfm_opt_names
+    @test "method" in sdfm_opt_names
+    @test "spectral" in sdfm_opt_names
+    @test "instrument" in sdfm_opt_names
     @test "var-lags" in sdfm_opt_names
     @test "bandwidth" in sdfm_opt_names
     @test "kernel" in sdfm_opt_names
@@ -4310,10 +4314,12 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
+    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 30
+    @test length(fc_node.subcmds) == 31
     @test haskey(fc_node.subcmds, "favar")
+    @test haskey(fc_node.subcmds, "sdfm")
+    @test fc_node.subcmds["sdfm"] isa LeafCommand
     @test fc_node.subcmds["favar"] isa LeafCommand
 
     fc_favar = fc_node.subcmds["favar"]

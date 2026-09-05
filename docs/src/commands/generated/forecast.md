@@ -3,7 +3,7 @@
 
 Generated reference for `friedman forecast` and its subcommands.
 
-**Leaves:** 34
+**Leaves:** 35
 
 ### `friedman forecast aparch`
 
@@ -539,6 +539,8 @@ Path to CSV data file
 | `--nfactors` | `-r` | `Int64` | — | — | Number of static factors (default: auto) |
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--method` | — | `String` | `ar` | `ar`, `one-sided`, `spectral` | Factor projection: ar (two-sided)\|one-sided\|spectral (FHLR 2005) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -801,6 +803,43 @@ Waggoner-Zha conditional (scenario) forecast
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `conditional_forecast` (Conditioned path beside the unconditional baseline: horizon | variable | value | lower | upper | unconditional); `implied_structural_shocks` (Shocks that deliver the scenario: horizon | shock | value); `scenario_settings` (Model, horizon, condition count, confidence level, identification and draws used)
+
+---
+
+### `friedman forecast sdfm`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy (--id proxy requires --instrument) |
+| `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
+| `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Structural estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
+| `--ci` | — | `String` | `none` | `none`, `bootstrap` | Interval method: none\|bootstrap |
+| `--reps` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `sdfm_forecast` (Panel forecasts from the structural dynamic factor model, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 

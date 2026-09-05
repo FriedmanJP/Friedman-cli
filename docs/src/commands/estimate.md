@@ -617,8 +617,11 @@ friedman estimate gdfm data.csv --nfactors=5 --dynamic-rank=3
 |--------|-------|------|---------|-------------|
 | `--nfactors` | `-r` | Int | auto | Number of static factors |
 | `--dynamic-rank` | `-q` | Int | auto | Dynamic rank |
+| `--spectral` | | String | `lag-window` | Spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
 
 **Output:** Common variance shares per variable, average common variance share.
 
