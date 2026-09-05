@@ -25,8 +25,10 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -95,7 +97,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -189,6 +191,7 @@ end
 
 function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
                     id::String="cholesky", config::String="",
+                    instrument::String="", target_var::String="",
                     generalized::Bool=false, normalize::Bool=false,
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
@@ -205,16 +208,17 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
     _status()
 
     # Arias identification: use identify_arias → irf_mean → compute FEVD from structural IRFs
-    if id == "arias"
-        isempty(config) && error("Arias identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
-        arias_result = identify_arias(model, restrictions, horizons)
+    # (narrative-adrr shares the pipeline via identify_narrative)
+    if id in ("arias", "narrative-adrr")
+        cfg2, restrictions = _load_svar_restrictions(config, n, id == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
+        if id == "narrative-adrr"
+            isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
+                throw(CliError("usage/missing",
+                    "fevd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
+            arias_result = identify_narrative(model, restrictions, horizons)
+        else
+            arias_result = identify_arias(model, restrictions, horizons)
+        end
         irf_vals = irf_mean(arias_result)  # H x n x n
         n_h = size(irf_vals, 1)
         # Compute FEVD proportions from structural IRFs
@@ -242,14 +246,7 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
 
     # Uhlig identification: use identify_uhlig → compute FEVD from structural IRFs
     if id == "uhlig"
-        isempty(config) && error("Uhlig identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+        cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
         uhlig_result = identify_uhlig(model, restrictions, horizons;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
@@ -302,7 +299,14 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         return
     end
 
-    kwargs = _build_identification_kwargs(id, config)
+    # W2/#166: VAR-family allow-set (proxy/max-share/gmm-moments) + extras.
+    _identification_method(id, _ID_METHODS_VAR, "fevd var")
+    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "fevd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR)
+    _inject_svar_id_kwargs!(kwargs, id, "fevd var", data, varnames, instrument, target_var)
     fevd_result = fevd(model, horizons; kwargs...)
 
     _status_report(() -> report(fevd_result))
@@ -403,8 +407,21 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     _status("Computing VECM FEVD: rank=$r, VAR($p), horizons=$horizons, id=$id")
     _status()
 
-    kwargs = _build_identification_kwargs(id, config)
-    fevd_result = fevd(var_model, horizons; kwargs...)
+    _identification_method(id, _ID_METHODS_VECM, "fevd vecm")
+    if id == "svec"
+        lr_zeros, sr_zeros = _load_svec_zeros(config, n, "fevd vecm")
+        svec_kwargs = Dict{Symbol,Any}(:method => :svec)
+        lr_zeros !== nothing && (svec_kwargs[:long_run_zeros] = lr_zeros)
+        sr_zeros !== nothing && (svec_kwargs[:short_run_zeros] = sr_zeros)
+        fevd_result = try
+            fevd(vecm, horizons; svec_kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM SVEC FEVD"))
+        end
+    else
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM)
+        fevd_result = fevd(var_model, horizons; kwargs...)
+    end
 
     _status_report(() -> report(fevd_result))
 

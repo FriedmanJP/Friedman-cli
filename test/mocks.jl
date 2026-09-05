@@ -289,10 +289,12 @@ struct SignRestriction
     variable::Int; shock::Int; sign::Symbol; horizon::Int
 end
 struct SVARRestrictions
-    n_vars::Int; zeros::Vector{ZeroRestriction}; signs::Vector{SignRestriction}
+    # Untyped vectors: real holds Vector{AbstractSVARRestriction} mixing zero/sign/
+    # long-run/A0/bound/cumulative/narrative restrictions; the mock must too (W2).
+    n_vars::Int; zeros::Vector; signs::Vector
 end
-SVARRestrictions(n::Int; zeros=ZeroRestriction[], signs=SignRestriction[]) =
-    SVARRestrictions(n, zeros, signs)
+SVARRestrictions(n::Int; zeros=[], signs=[]) =
+    SVARRestrictions(n, collect(Any, zeros), collect(Any, signs))
 struct AriasSVARResult{T}
     Q_draws::Vector{Matrix{T}}; irf_draws::Array{T,4}; weights::Vector{T}; acceptance_rate::T
     restrictions::SVARRestrictions
@@ -589,6 +591,84 @@ end
 struct ExternalVolatilitySVARResult{T}
     B0::Matrix{T}
 end
+
+# ─── SVAR Identification Types (0.9.2) ────────────────────
+# Field names mirror real MEMs (mock ⊆ real gate); sign-carrying fields stay
+# Symbols on the mock (CLI-facing convention) — the gate compares names, and the
+# CLI builds restrictions through the builder functions below, never positionally.
+
+struct LongRunZeroRestriction
+    variable::Int; shock::Int
+end
+struct A0ZeroRestriction
+    variable::Int; shock::Int
+end
+struct A0SignRestriction
+    variable::Int; shock::Int; sign::Symbol
+end
+struct ElasticityBound
+    numerator_var::Int; denominator_var::Int; shock::Int; horizon::Int
+    lower::Float64; upper::Float64
+end
+struct MagnitudeBound
+    variable::Int; shock::Int; horizon::Int; lower::Float64; upper::Float64
+end
+struct CumulativeRestriction
+    variable::Int; shock::Int; horizons::UnitRange{Int}; sign::Symbol
+end
+struct NarrativeShockRestriction
+    shock::Int; dates::Vector{Int}; sign::Symbol
+end
+struct NarrativeContributionRestriction
+    variable::Int; shock::Int; window::UnitRange{Int}; kind::Symbol
+end
+struct IdentificationStatus
+    status::Symbol; ranks::Vector{Int}; orders::Vector{Int}; n_overidentifying::Int
+end
+struct SVARPattern{T}
+    A::Matrix{T}; B::Matrix{T}; long_run::Union{Nothing,Matrix{T}}
+    function SVARPattern(A::AbstractMatrix, B::AbstractMatrix; long_run=nothing)
+        size(A, 1) == size(A, 2) || throw(ArgumentError("A must be square"))
+        size(A) == size(B) || throw(ArgumentError("A and B must have the same size"))
+        T = promote_type(float(eltype(A)), float(eltype(B)))
+        lr = if long_run === nothing
+            nothing
+        else
+            size(long_run) == size(A) ||
+                throw(ArgumentError("long_run must be n×n, same as A and B"))
+            Matrix{T}(long_run)
+        end
+        new{T}(Matrix{T}(A), Matrix{T}(B), lr)
+    end
+end
+struct ProxySVARResult{T}
+    Q::Matrix{T}; B0::Matrix{T}; k::Int; first_stage_F::T; reliability::T
+    instruments_names::Vector{String}; varnames::Vector{String}
+    shock_names::Vector{String}; is_partial::Bool
+end
+struct MaxShareResult{T}
+    Q::Vector{T}; q::Vector{T}; target::Int; horizons::Vector{Int}; band::Symbol
+    share::T; eigvals::Vector{T}; varnames::Vector{String}
+    shock_names::Vector{String}; is_partial::Bool
+end
+struct NonGaussianGMMResult{T}
+    B0::Matrix{T}; Q::Matrix{T}; theta::Vector{T}; vcov::Matrix{T}; se::Vector{T}
+    J::T; J_pvalue::T; moments::Symbol; weighting::Symbol
+    shocks::Matrix{T}; varnames::Vector{String}; shock_names::Vector{String}
+end
+struct SVARModel{T}
+    A::Matrix{T}; B::Matrix{T}; Q::Matrix{T}
+    vcov::Union{Nothing,Matrix{T}}; se::Union{Nothing,Matrix{T}}
+    loglik::T; lr_stat::T; lr_df::Int; lr_pvalue::T
+    pattern::SVARPattern{T}; identification::IdentificationStatus
+    varnames::Vector{String}
+end
+struct RobustBayesResult{T}
+    lower::Array{T,3}; upper::Array{T,3}
+    robust_lower::Array{T,3}; robust_upper::Array{T,3}
+    single_prior_lower::Array{T,3}; single_prior_upper::Array{T,3}
+    informativeness::T; empty_set_prob::T; level::T
+end
 struct NormalityTestResult{T}
     test_name::Symbol; statistic::T; pvalue::T; df::Int
 end
@@ -751,6 +831,13 @@ VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
               aic, bic, hqic, loglik, deterministic, method, nothing,
               ["y$i" for i in 1:size(Y, 2)])
 
+# After VECMModel: mocks.jl is one flat top-to-bottom module, so a signature
+# type must already exist at include time.
+struct SVECResult{T}
+    B0::Matrix{T}; Q::Matrix{T}; Xi::Matrix{T}; n_permanent::Int
+    vecm::VECMModel{T}; identification::IdentificationStatus
+end
+
 VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
           Pi::Matrix{T}, Gamma::Vector{Matrix{T}}, mu::Vector{T}, U::Matrix{T},
           Sigma::Matrix{T}, aic::T, bic::T, hqic::T, loglik::T,
@@ -888,6 +975,9 @@ report(::BayesianFEVD) = nothing
 report(::HistoricalDecomposition) = nothing
 report(::BayesianHistoricalDecomposition) = nothing
 report(::UhligSVARResult) = nothing
+report(::RobustBayesResult) = nothing
+report(::SVARModel) = nothing
+report(::SVECResult) = nothing
 
 # Global flag to control mock behavior for testing edge cases
 const _MOCK_FLAGS = Dict{Symbol,Any}(
@@ -930,7 +1020,9 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
              narrative_check=nothing, ci_type=:none, reps=200, conf_level=0.95,
              stationary_only=false, seed=nothing,
              bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
-             bias_correct::Bool=false, bias_reps::Int=0)
+             bias_correct::Bool=false, bias_reps::Int=0,
+             instruments=nothing, target=nothing, restrictions=nothing,
+             pattern=nothing)
     bootstrap in (:iid, :wild, :block) || throw(ArgumentError(
         "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
     wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
@@ -985,18 +1077,20 @@ function identify_sign(model::VARModel, horizon::Int, check_func; max_draws=1000
     n = size(model.Y, 2)
     if store_all
         n_d = 10
-        irf_draws = ones(n_d, horizon + 1, n, n) * 0.1
+        # Real compute_irf returns (horizon, n, n), impact-first (row 1 = horizon 0).
+        irf_draws = ones(n_d, horizon, n, n) * 0.1
         Q_draws = [Matrix{Float64}(I(n)) for _ in 1:n_d]
         return SignIdentifiedSet(Q_draws, irf_draws, n_d, max_draws, Float64(n_d/max_draws),
             ["var$i" for i in 1:n], ["shock$i" for i in 1:n])
     end
     Q = Matrix{Float64}(I(n))
-    irf_vals = ones(horizon + 1, n, n) * 0.1
+    irf_vals = ones(horizon, n, n) * 0.1
     return (Q, irf_vals)
 end
 
 # FEVD
-function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing)
+function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing,
+              instruments=nothing, target=nothing, restrictions=nothing, pattern=nothing)
     n = size(model.Y, 2)
     props = ones(n, n, horizon) / n
     # Real carries model.varnames into the result (same gap as irf above).
@@ -1021,7 +1115,9 @@ end
 
 # Historical Decomposition
 function historical_decomposition(model::VARModel, horizon::Int; method=:cholesky,
-                                   check_func=nothing, narrative_check=nothing)
+                                   check_func=nothing, narrative_check=nothing,
+                                   instruments=nothing, target=nothing,
+                                   restrictions=nothing, pattern=nothing)
     n = size(model.Y, 2)
     T_eff = min(horizon, size(model.Y, 1) - model.p)
     contribs = ones(T_eff, n, n) * 0.1
@@ -1029,6 +1125,24 @@ function historical_decomposition(model::VARModel, horizon::Int; method=:cholesk
     initial = ones(T_eff, n) * 0.01
     shocks_mat = ones(T_eff, n)
     HistoricalDecomposition(contribs, initial, actual, shocks_mat, T_eff)
+end
+# Real (vecm/analysis.jl): method=:svec/:long_run go through identify_svec on the
+# VECM itself (KPSW default); everything else converts to the levels VAR first.
+# The mock mirrors the routing; the canned shapes come from the VAR path.
+function irf(vecm::VECMModel, horizon::Int; method=:cholesky, kwargs...)
+    (method === :svec || method === :long_run) ?
+        irf(to_var(vecm), horizon; method=:cholesky) :
+        irf(to_var(vecm), horizon; method=method, kwargs...)
+end
+function fevd(vecm::VECMModel, horizon::Int; method=:cholesky, kwargs...)
+    (method === :svec || method === :long_run) ?
+        fevd(to_var(vecm), horizon; method=:cholesky) :
+        fevd(to_var(vecm), horizon; method=method, kwargs...)
+end
+function historical_decomposition(vecm::VECMModel, horizon::Int; method=:cholesky, kwargs...)
+    (method === :svec || method === :long_run) ?
+        historical_decomposition(to_var(vecm), horizon; method=:cholesky) :
+        historical_decomposition(to_var(vecm), horizon; method=method, kwargs...)
 end
 function historical_decomposition(chain::MockChains, p::Int, n::Int, horizon::Int;
                                    data=nothing, method=:cholesky, quantiles=[0.16, 0.5, 0.84])
@@ -1059,9 +1173,8 @@ end
 verify_decomposition(hd::HistoricalDecomposition; tol=1e-6) = _MOCK_FLAGS[:verify_decomposition]
 contribution(hd::HistoricalDecomposition, var::Int, shock::Int) = hd.contributions[:, var, shock]
 
-# SVAR restrictions
-zero_restriction(variable, shock; horizon=0) = ZeroRestriction(variable, shock, horizon)
-sign_restriction(variable, shock, sign::Symbol; horizon=0) = SignRestriction(variable, shock, sign, horizon)
+# SVAR restrictions (builders with validation live in the 0.9.2 block below —
+# zero/sign_restriction there cover :long_run and horizon ranges too)
 function identify_arias(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
                         n_draws=1000, n_rotations=1000)
     n = size(model.Y, 2)
@@ -1081,6 +1194,191 @@ function identify_uhlig(model::VARModel, restrictions::SVARRestrictions, horizon
     Q = Matrix{Float64}(I(n))
     irf_vals = ones(horizon + 1, n, n) * 0.1
     UhligSVARResult(Q, irf_vals, 1e-6, fill(1e-7, n), restrictions, true)
+end
+function identify_narrative(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
+                            kwargs...)
+    # Real (core/arias.jl) is a thin wrapper around identify_arias for ADRR
+    # narrative restrictions — mirror it exactly.
+    identify_arias(model, restrictions, horizon; kwargs...)
+end
+
+# ─── SVAR restriction builders (0.9.2) ────────────────────
+# Mirror real validation (ArgumentError) so degenerate TOML fails the same way
+# on mocks and real MEMs; sign convention stays Symbol (CLI-facing).
+_mock_parse_sign(s::Symbol) =
+    s === :positive ? s : s === :negative ? s :
+        throw(ArgumentError("sign must be :positive or :negative"))
+_mock_check_range(hs, what) =
+    (all(h -> h isa Integer && h >= 1, hs) ||
+        throw(ArgumentError("$what horizons must be ≥ 1"))) &&
+    UnitRange{Int}(minimum(hs), maximum(hs))
+
+function zero_restriction(variable, shock; horizon=0)
+    horizon === :long_run && return LongRunZeroRestriction(variable, shock)
+    horizon isa Integer && horizon >= 0 ||
+        throw(ArgumentError("restriction horizon must be ≥ 0 or :long_run"))
+    ZeroRestriction(variable, shock, Int(horizon))
+end
+function sign_restriction(variable, shock, sign::Symbol; horizon=0, horizons=nothing)
+    s = _mock_parse_sign(sign)
+    if horizons !== nothing
+        r = _mock_check_range(horizons, "sign restriction")
+        return [SignRestriction(variable, shock, s, h) for h in r]
+    end
+    horizon isa Integer && horizon >= 0 ||
+        throw(ArgumentError("restriction horizon must be ≥ 0"))
+    SignRestriction(variable, shock, s, Int(horizon))
+end
+a0_zero_restriction(equation, shock) = A0ZeroRestriction(equation, shock)
+a0_sign_restriction(equation, shock, sign::Symbol) =
+    A0SignRestriction(equation, shock, _mock_parse_sign(sign))
+function elasticity_bound(numerator_var, denominator_var, shock;
+                          horizon=0, lower=-Inf, upper=Inf)
+    lower <= upper || throw(ArgumentError("elasticity lower bound exceeds upper"))
+    ElasticityBound(numerator_var, denominator_var, shock, Int(horizon),
+                    Float64(lower), Float64(upper))
+end
+function magnitude_bound(variable, shock; horizon=0, lower, upper)
+    lower <= upper || throw(ArgumentError("magnitude lower bound exceeds upper"))
+    MagnitudeBound(variable, shock, Int(horizon), Float64(lower), Float64(upper))
+end
+function cumulative_restriction(variable, shock, sign::Symbol; horizons)
+    r = _mock_check_range(horizons, "cumulative restriction")
+    CumulativeRestriction(variable, shock, r, _mock_parse_sign(sign))
+end
+function narrative_shock_restriction(shock, dates, sign::Symbol)
+    ds = collect(Int, dates)
+    (all(d -> d >= 1, ds) && !isempty(ds)) ||
+        throw(ArgumentError("narrative dates must be nonempty and ≥ 1"))
+    NarrativeShockRestriction(shock, ds, _mock_parse_sign(sign))
+end
+function narrative_contribution_restriction(variable, shock, window; kind=:most_important)
+    kind in (:most_important, :overwhelming, :least_important) || throw(ArgumentError(
+        "kind must be :most_important (Type A), :overwhelming (Type B), or :least_important"))
+    w = _mock_check_range(window, "narrative contribution")
+    NarrativeContributionRestriction(variable, shock, w, kind)
+end
+
+# ─── SVAR identification estimators (0.9.2, canned) ───────
+function identify_proxy(model::VARModel, z::AbstractVector; normalize=1, normalize_value=1.0)
+    (length(z) == size(model.Y, 1) || length(z) == size(model.Y, 1) - model.p) ||
+        throw(ArgumentError("instrument length must match T or T - p"))
+    n = size(model.Y, 2)
+    ProxySVARResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), 1, 25.0, 0.9,
+                    ["z"], model.varnames, ["shock$i" for i in 1:n], false)
+end
+identify_proxy(model::VARModel, Z::AbstractMatrix; normalize=1, normalize_value=1.0) =
+    identify_proxy(model, vec(Z); normalize=normalize, normalize_value=normalize_value)
+function identify_max_share(model::VARModel; target=nothing, horizons=nothing,
+                            band=:auto, kwargs...)
+    target === nothing && throw(ArgumentError("identify_max_share requires `target`"))
+    n = size(model.Y, 2)
+    (target isa Integer ? 1 <= target <= n : target in model.varnames) ||
+        throw(ArgumentError("target must be a variable index or name"))
+    hs = horizons === nothing ? [4, 8] : collect(Int, horizons)
+    MaxShareResult(zeros(n), zeros(n), target isa Integer ? target : 1, hs, band,
+                   0.75, ones(n), model.varnames, ["shock$i" for i in 1:n], false)
+end
+function identify_gmm_moments(model::VARModel; moments=:both, weighting=:two_step,
+                              kwargs...)
+    moments in (:independence, :cumulant, :both) ||
+        throw(ArgumentError("moments must be :independence, :cumulant, or :both"))
+    weighting in (:identity, :two_step, :cue) ||
+        throw(ArgumentError("weighting must be :identity, :two_step, or :cue"))
+    n = size(model.Y, 2)
+    T = size(model.Y, 1)
+    NonGaussianGMMResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), zeros(n),
+                         Matrix{Float64}(I(n)), zeros(n), 1.5, 0.45, moments, weighting,
+                         zeros(T, n), model.varnames, ["shock$i" for i in 1:n])
+end
+function identify_svec(vecm::VECMModel; long_run_zeros=nothing, short_run_zeros=nothing,
+                       pattern=nothing, n_starts=5, max_iter=400, kwargs...)
+    n = size(vecm.Y, 2)
+    SVECResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), zeros(n, n), vecm.rank,
+               vecm, IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0))
+end
+function estimate_svar(model::VARModel, pattern::SVARPattern; n_starts=5, max_iter=400,
+                       long_run_matrix=nothing, rng=nothing, kwargs...)
+    n = size(model.Y, 2)
+    n_starts >= 1 || throw(ArgumentError("n_starts must be ≥ 1, got $n_starts"))
+    (size(pattern.A) == (n, n) && size(pattern.B) == (n, n)) ||
+        throw(ArgumentError("Pattern dimension ($(size(pattern.A, 1))) must match model ($n)"))
+    SVARModel(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), Matrix{Float64}(I(n)),
+              nothing, nothing, -100.0, 0.0, 0, 1.0, pattern,
+              IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0), model.varnames)
+end
+function recursive_pattern(n::Integer)
+    n >= 1 || throw(ArgumentError("n must be positive"))
+    A = Matrix{Float64}(I, n, n)
+    for i in 2:n, j in 1:i-1
+        A[i, j] = NaN
+    end
+    B = zeros(n, n)
+    for i in 1:n
+        B[i, i] = NaN
+    end
+    SVARPattern(A, B)
+end
+function a_model_pattern(A::AbstractMatrix)
+    n = size(A, 1)
+    T = float(eltype(A))
+    SVARPattern(A, Matrix{T}(I, n, n))
+end
+function b_model_pattern(B::AbstractMatrix)
+    n = size(B, 1)
+    T = float(eltype(B))
+    SVARPattern(Matrix{T}(I, n, n), B)
+end
+ab_model_pattern(A::AbstractMatrix, B::AbstractMatrix; long_run=nothing) =
+    SVARPattern(A, B; long_run=long_run)
+function blanchard_quah_pattern(n::Integer)
+    n >= 1 || throw(ArgumentError("n must be positive"))
+    B = fill(NaN, n, n)
+    lr = fill(NaN, n, n)
+    for i in 1:n, j in i+1:n
+        lr[i, j] = 0.0
+    end
+    SVARPattern(Matrix{Float64}(I, n, n), B; long_run=lr)
+end
+function identify_robust_bayes(post::BVARPosterior, restrictions::SVARRestrictions,
+                               horizon::Int; level=0.68, solver=:optimize,
+                               n_draws=200, n_rotations=100, rng=nothing, data=nothing)
+    (0 < level < 1) || throw(ArgumentError("level must lie in (0, 1)"))
+    horizon >= 1 || throw(ArgumentError("horizon must be ≥ 1"))
+    solver === :draws || solver === :optimize ||
+        throw(ArgumentError("solver must be :draws or :optimize, got :$solver"))
+    n = post.n
+    # Real returns (horizon, n, n) arrays (horizon × variable × shock).
+    lo = fill(0.05, horizon, n, n)
+    hi = fill(0.15, horizon, n, n)
+    RobustBayesResult(lo, hi, lo .- 0.05, hi .+ 0.05, lo .+ 0.01, hi .- 0.01,
+                      0.2, 0.0, 0.68)
+end
+label_shocks(result; by=:restrictions, restrictions=nothing, variables=nothing,
+             convention=:unit_effect) = (collect(1:size(result.B0, 2)), ones(Int, size(result.B0, 2)))
+median_target(s::SignIdentifiedSet) =
+    (Q=s.Q_draws[1], irf=s.irf_draws[1, :, :, :], index=1)
+modal_model(s::SignIdentifiedSet; bandwidth=nothing, kwargs...) =
+    (Q=s.Q_draws[1], irf=s.irf_draws[1, :, :, :], index=1)
+joint_band(s::SignIdentifiedSet; level=0.68, kwargs...) =
+    (s.irf_draws[1, :, :, :] .- 0.1, s.irf_draws[1, :, :, :] .+ 0.1)
+sup_t_band(s::SignIdentifiedSet; level=0.68, kwargs...) =
+    (s.irf_draws[1, :, :, :] .- 0.1, s.irf_draws[1, :, :, :] .+ 0.1)
+test_lambda_distinct(result; pairs=:all) =
+    (statistic=[8.0], pvalue=[0.02], pvalue_bonferroni=[0.02], pairs=[(1, 2)])
+test_gaussian_shock_count(result; alpha=0.05) =
+    (statistic=2.0, pvalue=0.35, details=Dict(:n_gaussian => 1))
+test_label_stability(model::VARModel; method=:fastica, n_bootstrap=999, rng=nothing,
+                     transition_var=nothing, regime_indicator=nothing) =
+    (statistic=0.95, pvalue=NaN)
+function check_identification(restrictions::SVARRestrictions, model::VARModel; n_points=10, rng=nothing)
+    IdentificationStatus(:set, fill(1, 1), fill(1, 1), 0)
+end
+function check_identification(pattern::SVARPattern, n::Int)
+    n >= 1 || throw(ArgumentError("n must be positive"))
+    size(pattern.A, 1) == n || throw(ArgumentError(
+        "Pattern dimension ($(size(pattern.A, 1))) must match n=$n"))
+    IdentificationStatus(:exact, fill(1, 1), fill(1, 1), 0)
 end
 
 # Chain parameter extraction (BVAR forecast)
@@ -2041,6 +2339,12 @@ export VARModel, MockChains, BVARPosterior, MinnesotaHyperparameters
 export ImpulseResponse, BayesianImpulseResponse, FEVD, BayesianFEVD
 export HistoricalDecomposition, BayesianHistoricalDecomposition
 export ZeroRestriction, SignRestriction, SVARRestrictions, AriasSVARResult, UhligSVARResult
+export LongRunZeroRestriction, A0ZeroRestriction, A0SignRestriction
+export ElasticityBound, MagnitudeBound, CumulativeRestriction
+export NarrativeShockRestriction, NarrativeContributionRestriction
+export IdentificationStatus, SVARPattern
+export ProxySVARResult, MaxShareResult, NonGaussianGMMResult, SVECResult, SVARModel
+export RobustBayesResult
 export LPModel, LPIVModel, SmoothLPModel, StateLPModel, PropensityLPModel
 export LPImpulseResponse, StructuralLP, LPFEVD, LPForecast
 export FactorModel, DynamicFactorModel, GeneralizedDynamicFactorModel, FactorForecast
@@ -2067,7 +2371,14 @@ export irf, fevd, historical_decomposition, verify_decomposition, contribution
 export cumulative_irf
 export SignIdentifiedSet, identify_sign, irf_bounds, irf_median
 export VARForecast
-export zero_restriction, sign_restriction, identify_arias, irf_mean, identify_uhlig
+export zero_restriction, sign_restriction, identify_arias, irf_mean, identify_uhlig, identify_narrative
+export a0_zero_restriction, a0_sign_restriction, elasticity_bound, magnitude_bound
+export cumulative_restriction, narrative_shock_restriction, narrative_contribution_restriction
+export identify_proxy, identify_max_share, identify_gmm_moments, identify_svec
+export estimate_svar, recursive_pattern, a_model_pattern, b_model_pattern, ab_model_pattern
+export blanchard_quah_pattern, identify_robust_bayes, label_shocks
+export median_target, modal_model, joint_band, sup_t_band, check_identification
+export test_lambda_distinct, test_gaussian_shock_count, test_label_stability
 export estimate_lp, lp_irf, estimate_lp_iv, lp_iv_irf, weak_instrument_test
 export estimate_smooth_lp, smooth_lp_irf, cross_validate_lambda
 export estimate_state_lp, state_irf, test_regime_difference

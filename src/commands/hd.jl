@@ -31,8 +31,10 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -94,7 +96,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -142,7 +144,7 @@ end
 # ── VAR HD ───────────────────────────────────────────────
 
 function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
-                  config::String="",
+                  config::String="", instrument::String="", target_var::String="",
                   output::String="", format::String="table",
                   plot::Bool=false, plot_save::String="",
                   model=nothing)
@@ -159,16 +161,17 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
     _status()
 
     # Arias identification: use Q from identify_arias to compute structural shocks
-    if id == "arias"
-        isempty(config) && error("Arias identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
-        arias_result = identify_arias(model, restrictions, size(Y, 1) - p)
+    # (narrative-adrr shares the pipeline via identify_narrative)
+    if id in ("arias", "narrative-adrr")
+        cfg2, restrictions = _load_svar_restrictions(config, n, id == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
+        if id == "narrative-adrr"
+            isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
+                throw(CliError("usage/missing",
+                    "hd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
+            arias_result = identify_narrative(model, restrictions, size(Y, 1) - p)
+        else
+            arias_result = identify_arias(model, restrictions, size(Y, 1) - p)
+        end
         # Use Cholesky HD as base, labelled with Arias id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
         _status_report(() -> report(hd_result))
@@ -189,14 +192,7 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
 
     # Uhlig identification: use Q from identify_uhlig to compute structural shocks
     if id == "uhlig"
-        isempty(config) && error("Uhlig identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+        cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
         uhlig_result = identify_uhlig(model, restrictions, size(Y, 1) - p;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
@@ -220,7 +216,14 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
         return
     end
 
-    kwargs = _build_identification_kwargs(id, config)
+    # W2/#166: VAR-family allow-set (proxy/max-share/gmm-moments) + extras.
+    _identification_method(id, _ID_METHODS_VAR, "hd var")
+    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "hd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR)
+    _inject_svar_id_kwargs!(kwargs, id, "hd var", data, varnames, instrument, target_var)
     hd_result = historical_decomposition(model, size(Y, 1) - p; kwargs...)
 
     _status_report(() -> report(hd_result))
@@ -258,7 +261,7 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
         n = length(varnames)
         Y = post.data
     end
-    method = get(ID_METHOD_MAP, id, :cholesky)
+    method = _identification_method(id, ID_METHOD_MAP, "hd bvar")
 
     _status("Computing Bayesian Historical Decomposition: BVAR($p), id=$id")
     _status("  Sampler: $sampler, Draws: $draws")
@@ -298,7 +301,7 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
         lp_horizon = min(hd_horizon, T_obs ÷ 2 - lags - 1)
         lp_horizon < 1 && error("Not enough observations for LP historical decomposition (T=$T_obs, lags=$lags)")
 
-        method = get(ID_METHOD_MAP, id, :cholesky)
+        method = _identification_method(id, ID_METHOD_MAP, "hd lp")
         check_func, narrative_check = _build_check_func(config)
         kwargs = Dict{Symbol,Any}(
             :method => method, :lags => lags, :var_lags => vp,
@@ -360,9 +363,22 @@ function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     _status("Computing VECM Historical Decomposition: rank=$r, VAR($p), id=$id")
     _status()
 
-    kwargs = _build_identification_kwargs(id, config)
+    _identification_method(id, _ID_METHODS_VECM, "hd vecm")
     T_eff = size(Y, 1) - p
-    hd_result = historical_decomposition(var_model, T_eff; kwargs...)
+    if id == "svec"
+        lr_zeros, sr_zeros = _load_svec_zeros(config, n, "hd vecm")
+        svec_kwargs = Dict{Symbol,Any}(:method => :svec)
+        lr_zeros !== nothing && (svec_kwargs[:long_run_zeros] = lr_zeros)
+        sr_zeros !== nothing && (svec_kwargs[:short_run_zeros] = sr_zeros)
+        hd_result = try
+            historical_decomposition(vecm, T_eff; svec_kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM SVEC historical decomposition"))
+        end
+    else
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM)
+        hd_result = historical_decomposition(var_model, T_eff; kwargs...)
+    end
 
     _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)

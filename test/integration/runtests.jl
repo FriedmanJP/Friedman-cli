@@ -232,6 +232,151 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "estimate svar / svec + narrative-adrr (W2/#166)" begin
+        csv = dgp_var2(; T=180, seed=7)
+        # recursive: closed form, just-identified → LR df 0, exact identification
+        r = run_json(["estimate", "svar", csv, "--lags", "2"])
+        assert_envelope_ok(r; label="estimate svar recursive")
+        a = named_table(r.doc, :svar_a)
+        @test a !== nothing
+        if a !== nothing
+            @test table_cols(a) == ["equation", "y1", "y2", "y3"]
+            @test length(table_rows(a)) == 3
+            # recursive A is unit lower-triangular: diagonal 1, above-diagonal 0
+            rows = [collect(row) for row in table_rows(a)]
+            @test all(Float64(row[i+1]) ≈ 1.0 for (i, row) in enumerate(rows))
+            @test all(Float64(rows[i][j+1]) ≈ 0.0 for i in 1:3 for j in i+1:3)
+        end
+        kv = collect_named_kv(r.doc, "metric", "value")
+        @test Int(kv["LR df"]) == 0
+        @test string(kv["Identification"]) == "exact"
+        # Blanchard-Quah long-run pattern runs too
+        r = run_json(["estimate", "svar", csv, "--lags", "2", "--pattern", "blanchard-quah"])
+        assert_envelope_ok(r; label="estimate svar blanchard-quah")
+        # A-model from TOML matrices (nan = free parameter)
+        svar_toml = tempname() * ".toml"
+        write(svar_toml, "[svar]\nA = [[1.0, 0.0, 0.0], [nan, 1.0, 0.0], [nan, nan, 1.0]]\n")
+        r = run_json(["estimate", "svar", csv, "--lags", "2", "--pattern", "a-model",
+                      "--config", svar_toml])
+        assert_envelope_ok(r; label="estimate svar a-model")
+        rm(svar_toml; force=true)
+        rm(csv; force=true)
+
+        # SVEC on cointegrated data, default KPSW identification
+        cc = dgp_coint(; T=250, seed=21)
+        r = run_json(["estimate", "svec", cc, "--lags", "2", "--rank", "1"])
+        assert_envelope_ok(r; label="estimate svec")
+        b0 = named_table(r.doc, :svec_b0)
+        @test b0 !== nothing
+        if b0 !== nothing
+            @test table_cols(b0) == ["equation", "x", "y"]
+            @test length(table_rows(b0)) == 2
+        end
+        kv = collect_named_kv(r.doc, "metric", "value")
+        @test Int(kv["Permanent shocks"]) == 1
+        # structural VECM routes on the vecm leaves (KPSW default)
+        r = run_json(["irf", "vecm", cc, "--lags", "2", "--rank", "1",
+                      "--horizons", "8", "--shock", "1", "--ci", "none", "--id", "svec"])
+        assert_envelope_ok(r; label="irf vecm svec")
+        tbl = named_table(r.doc, :vecm_irf)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+        end
+        r = run_json(["fevd", "vecm", cc, "--lags", "2", "--rank", "1",
+                      "--horizons", "8", "--id", "svec"])
+        assert_envelope_ok(r; label="fevd vecm svec")
+        rm(cc; force=true)
+
+        # narrative-adrr shares the Arias pipeline end to end
+        csv2 = dgp_var2(; T=200, seed=9)
+        adrr_toml = tempname() * ".toml"
+        write(adrr_toml, """
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        [[identification.narrative_contributions]]
+        variable = 1
+        shock = 1
+        window = [1, 4]
+        kind = "most_important"
+        """)
+        # underidentified AB pattern → RWZ guard is upstream inside estimate_svar
+        # (W2/#166 #752 disposition); the CLI maps it to model/identification.
+        under_toml = tempname() * ".toml"
+        write(under_toml, "[svar]\nA = [[nan, nan, nan], [nan, nan, nan], [nan, nan, nan]]\n" *
+              "B = [[nan, nan, nan], [nan, nan, nan], [nan, nan, nan]]\n")
+        r = run_json(["estimate", "svar", csv2, "--lags", "2", "--pattern", "ab-model",
+                      "--config", under_toml])
+        @test r.code == 5
+        rm(under_toml; force=true)
+        r = run_json(["irf", "var", csv2, "--lags", "2", "--horizons", "8",
+                      "--shock", "1", "--ci", "none", "--id", "narrative-adrr",
+                      "--config", adrr_toml])
+        assert_envelope_ok(r; label="irf var narrative-adrr")
+        # NOTE: select by key, never first_table (JSON3 object order is arbitrary).
+        # The Arias path renders wide (build_irf_table): horizon + one col per variable.
+        tbl = named_table(r.doc, :irf)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "y1", "y2", "y3"]
+        end
+        # robust-bayes on the BVAR posterior (Giacomini-Kitagawa bands).
+        # NOTE: on bvar leaves --config is the *prior* file, so it must carry
+        # both [prior] and [identification].
+        rb_toml = tempname() * ".toml"
+        write(rb_toml, """
+        [prior]
+        type = "minnesota"
+        [prior.hyperparameters]
+        lambda1 = 0.2
+        lambda2 = 0.5
+        lambda3 = 1.0
+        lambda4 = 100000.0
+        [prior.optimization]
+        enabled = false
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        """)
+        r = run_json(["irf", "bvar", csv2, "--lags", "2", "--draws", "50",
+                      "--horizons", "4", "--shock", "1", "--id", "robust-bayes",
+                      "--config", rb_toml])
+        assert_envelope_ok(r; label="irf bvar robust-bayes")
+        bands = named_table(r.doc, :robust_bayes_bands)
+        @test bands !== nothing
+        if bands !== nothing
+            cols = table_cols(bands)
+            @test any(c -> endswith(c, "_robust_lower"), cols)
+            @test any(c -> endswith(c, "_robust_upper"), cols)
+            @test length(table_rows(bands)) == 4
+        end
+        # set-identified summaries over the sign identified set
+        sign_toml = tempname() * ".toml"
+        write(sign_toml, """
+        [identification]
+        method = "sign"
+        [identification.sign_matrix]
+        matrix = [[1, -1, 1], [0, 1, -1], [0, 0, 1]]
+        horizons = [0]
+        """)
+        for sum_kind in ["median-target", "joint-band"]
+            r = run_json(["irf", "var", csv2, "--lags", "2", "--horizons", "6",
+                          "--shock", "1", "--ci", "none", "--id", "sign",
+                          "--identified-set", "--summary", sum_kind,
+                          "--replications", "100", "--config", sign_toml])
+            assert_envelope_ok(r; label="irf var identified-set $sum_kind")
+        end
+        rm(sign_toml; force=true)
+        rm(rb_toml; force=true)
+        rm(adrr_toml; force=true)
+        rm(csv2; force=true)
+    end
+
     @testset "estimate arima on AR(1) φ=0.7" begin
         csv = dgp_ar1(; T=250, φ=0.7, seed=11)
         r = run_json(["estimate", "arima", csv, "--column", "1"])

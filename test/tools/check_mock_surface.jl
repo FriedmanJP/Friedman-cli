@@ -38,7 +38,12 @@ const CORE_TYPES = Set([
 # Freeze kwargs-absorber budget (`; kwargs...)` forms).
 # 27 after v0.11.0 family mocks (explicit HA distribution forwarding; call-site
 # `; kwargs...)` matches on pre-existing DSGE/FAVAR wrappers still count).
-const KWARGS_ABSORBER_BUDGET = 27
+# 29 after W2/#166: the two new matches are both faithful — real
+# `identify_narrative(model, restrictions, horizon; kwargs...)` (core/arias.jl)
+# is itself an absorber, so the mock def and its forward into `identify_arias`
+# mirror upstream exactly. Seven unfaithful W2 absorbers (proxy ×3, robust_bayes,
+# median_target, check_identification ×2) were made explicit instead.
+const KWARGS_ABSORBER_BUDGET = 29
 
 function _mock_struct_names(src::String)
     unique(String[m.captures[1] for m in eachmatch(r"(?m)^struct\s+(\w+)", src)])

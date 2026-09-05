@@ -1320,6 +1320,61 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_vecm),
         ),
         CommandSpec(
+            path=["estimate", "svar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="pattern", type=String, default="recursive", description="AB-model pattern: recursive|blanchard-quah|a-model|b-model|ab-model", choices=["recursive", "blanchard-quah", "a-model", "b-model", "ab-model"]),
+                OptionSpec(name="config", type=String, default="", description="TOML config with [svar] A/B matrices (a/b/ab-model)"),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (overidentified patterns)"),
+                OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:svar_a,
+                              description="SVAR contemporaneous A matrix, one row per equation"),
+                    TableSpec(name=:svar_b,
+                              description="SVAR structural B matrix, one row per equation"),
+                    TableSpec(name=:svar_summary,
+                              description="Log-likelihood, LR overidentification test and identification status")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_svar),
+        ),
+        CommandSpec(
+            path=["estimate", "svec"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="config", type=String, default="", description="TOML config with optional [svec] long/short-run zero matrices"),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (restricted patterns)"),
+                OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:svec_b0,
+                              description="SVEC contemporaneous impact matrix B0, one row per equation"),
+                    TableSpec(name=:svec_xi,
+                              description="SVEC long-run impact matrix Xi, one row per equation"),
+                    TableSpec(name=:svec_summary,
+                              description="Permanent-shock count and identification status")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_svec),
+        ),
+        CommandSpec(
             path=["estimate", "smm"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -3040,6 +3095,111 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
         "Log-likelihood" => round(loglikelihood(vecm); digits=4),
     ]; format=format, title="Information Criteria")
     return vecm
+end
+
+# ── SVAR (AB-model ML) ─────────────────────────────────────
+
+function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive", config::String="",
+                        n_starts::Int=5, max_iter::Int=400,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate svar: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate svar: --max-iter must be ≥ 1 (got $max_iter)"))
+    model, Y, varnames, p = _load_and_estimate_var(data, lags)
+    n = size(Y, 2)
+    pat = _load_svar_pattern(config, n, pattern, "estimate svar")
+
+    _status("Estimating SVAR($p) with $n variables: $(join(varnames, ", "))")
+    _status("Pattern: $pattern, Starts: $n_starts, Max iterations: $max_iter")
+    _status()
+
+    svar = try
+        estimate_svar(model, pat; n_starts=n_starts, max_iter=max_iter)
+    catch e
+        throw(_domain_or_data_error(e, "SVAR estimation"))
+    end
+    _status_report(() -> report(svar))
+    _status()
+
+    a_df = DataFrame(svar.A, varnames)
+    insertcols!(a_df, 1, :equation => varnames)
+    output_result(a_df; format=Symbol(format), output=output,
+                  title="SVAR Contemporaneous Matrix (A)", key="svar_a")
+    _status()
+
+    b_df = DataFrame(svar.B, varnames)
+    insertcols!(b_df, 1, :equation => varnames)
+    output_result(b_df; format=Symbol(format), output=_per_var_output_path(output, "b"),
+                  title="SVAR Structural Matrix (B)", key="svar_b")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Log-likelihood" => round(Float64(svar.loglik); digits=4),
+        "LR statistic" => round(Float64(svar.lr_stat); digits=4),
+        "LR df" => svar.lr_df,
+        "LR p-value" => round(Float64(svar.lr_pvalue); digits=6),
+        "Identification" => string(svar.identification.status),
+        "Overidentifying restrictions" => svar.identification.n_overidentifying,
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="SVAR Identification Summary",
+        key="svar_summary")
+
+    _maybe_plot(svar; plot=plot, plot_save=plot_save)
+    return svar
+end
+
+# ── SVEC (VECM structural) ─────────────────────────────────
+
+function _estimate_svec(; data::String, lags::Int=2, rank::String="auto",
+                        deterministic::String="constant", method::String="johansen",
+                        significance::Float64=0.05, config::String="",
+                        n_starts::Int=5, max_iter::Int=400,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate svec: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate svec: --max-iter must be ≥ 1 (got $max_iter)"))
+    vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
+    n = size(Y, 2)
+    lr_zeros, sr_zeros = _load_svec_zeros(config, n, "estimate svec")
+
+    _status("Estimating SVEC($(p-1)) with $n variables: $(join(varnames, ", "))")
+    _status("Cointegration rank: $(cointegrating_rank(vecm)), Restrictions: " *
+            (lr_zeros === nothing && sr_zeros === nothing ? "default (KPSW)" : "custom [svec]"))
+    _status()
+
+    svec = try
+        identify_svec(vecm; long_run_zeros=lr_zeros, short_run_zeros=sr_zeros,
+                      n_starts=n_starts, max_iter=max_iter)
+    catch e
+        throw(_domain_or_data_error(e, "SVEC identification"))
+    end
+    _status_report(() -> report(svec))
+    _status()
+
+    b0_df = DataFrame(svec.B0, varnames)
+    insertcols!(b0_df, 1, :equation => varnames)
+    output_result(b0_df; format=Symbol(format), output=output,
+                  title="SVEC Contemporaneous Impact Matrix (B0)", key="svec_b0")
+    _status()
+
+    xi_df = DataFrame(svec.Xi, varnames)
+    insertcols!(xi_df, 1, :equation => varnames)
+    output_result(xi_df; format=Symbol(format), output=_per_var_output_path(output, "xi"),
+                  title="SVEC Long-Run Impact Matrix (Xi)", key="svec_xi")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Permanent shocks" => svec.n_permanent,
+        "Identification" => string(svec.identification.status),
+        "Overidentifying restrictions" => svec.identification.n_overidentifying,
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="SVEC Identification Summary",
+        key="svec_summary")
+
+    _maybe_plot(svec; plot=plot, plot_save=plot_save)
+    return svec
 end
 
 # ── Panel VAR ─────────────────────────────────────────────

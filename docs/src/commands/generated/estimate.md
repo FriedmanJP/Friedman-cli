@@ -3,7 +3,7 @@
 
 Generated reference for `friedman estimate` and its subcommands.
 
-**Leaves:** 74
+**Leaves:** 76
 
 ### `friedman estimate 3sls`
 
@@ -1709,6 +1709,71 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `sv_coefficients` (SV parameter estimates with standard errors, z-statistics and p-values)
+
+---
+
+### `friedman estimate svar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
+| `--pattern` | — | `String` | `recursive` | `recursive`, `blanchard-quah`, `a-model`, `b-model`, `ab-model` | AB-model pattern: recursive\|blanchard-quah\|a-model\|b-model\|ab-model |
+| `--config` | — | `String` | `""` | — | TOML config with [svar] A/B matrices (a/b/ab-model) |
+| `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (overidentified patterns) |
+| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `svar_a` (SVAR contemporaneous A matrix, one row per equation); `svar_b` (SVAR structural B matrix, one row per equation); `svar_summary` (Log-likelihood, LR overidentification test and identification status)
+
+---
+
+### `friedman estimate svec`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--config` | — | `String` | `""` | — | TOML config with optional [svec] long/short-run zero matrices |
+| `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (restricted patterns) |
+| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `svec_b0` (SVEC contemporaneous impact matrix B0, one row per equation); `svec_xi` (SVEC long-run impact matrix Xi, one row per equation); `svec_summary` (Permanent-shock count and identification status)
 
 ---
 

@@ -16,3 +16,14 @@ Surface that exists upstream at MEMs 0.8.1/0.9.0 and is **not** a CLI leaf. Disp
 | MEMs#609 JuMP/Ipopt/NonlinearSolve as extensions | **Watch-list.** Would change C060 bundling/licensing and the ~2.3 s cold-start floor. |
 
 `--plot` is advertised only when a real `plot_result` method exists. Types without recipes (Threshold/STAR/MS forecasts, `ProjectionSolution`, firm/bank results, `DCEGMEquilibrium`, `LifeCycleTransition`, `CTTwoAssetGE`) stay plotless.
+
+## W2/#166 deferrals (MEMs 0.9.2 SVAR remainder; cite W4 #168)
+
+| Item | Disposition |
+|------|-------------|
+| `label_shocks` (#749) | **Defer.** Returns a relabeled result object, not a labels table — nothing to render, and the NG `irf`/`fevd` paths consume only Q downstream, so labeling would be invisible. Trigger: a result-holding leaf (e.g. a future `estimate nongaussian` family). |
+| K-regime joint-ML token (#739) | **No token.** The `_k_regime_*` kernel is private; it rides `identify_markov_switching` (the `test heteroskedasticity --method markov` and `--test lambda-distinct` paths). |
+| `estimate_svar` experimental extensions (#756) | **Defer.** Upstream-marked experimental surface stays out. |
+| ForwardDiff-volume internals (#756) | **Defer.** Optimizer internals, no CLI shape. |
+| Oracle/DGP-recovery test-only helpers (#755) | **Defer.** Test-only upstream helpers, never user surface. |
+| RWZ rank/order checker (#752) | **Enforced upstream, no separate CLI.** `_assert_rwz_identified` runs inside `identify_arias` (frequentist + Bayesian) and `estimate_svar`; violations throw `IdentificationError` → `model/identification` (exit 5). Proven by the underidentified-pattern T3 case. |

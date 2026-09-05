@@ -131,6 +131,47 @@ tol_coarse = 1e-5       # coarse tolerance (default: 1e-4)
 tol_fine = 1e-10        # fine tolerance (default: 1e-8)
 ```
 
+## Narrative ADRR Identification
+
+Antolín-Díaz / Rubio-Ramírez narrative contribution restrictions, run through the Arias importance-sampling pipeline. Used with `--id=narrative-adrr` on the `irf`/`fevd`/`hd` `var` leaves. Takes the same zero/sign restriction blocks as Arias, plus at least one `narrative_contributions` block (Type A `most_important` or Type B `overwhelming`; default `most_important`).
+
+```toml
+[[identification.sign_restrictions]]
+var = 2
+shock = 1
+sign = "positive"
+horizon = 0
+
+[[identification.narrative_contributions]]
+variable = 1
+shock = 1
+window = [1, 4]          # 2-element [lo, hi] horizon range
+kind = "most_important"  # or "overwhelming"
+```
+
+## SVAR AB-model Patterns
+
+Patterns for `estimate svar --pattern`. `recursive` and `blanchard-quah` need no config; the matrix kinds read n×n arrays from the `[svar]` table, where TOML `nan` marks a free parameter and any fixed number a calibrated entry.
+
+```toml
+[svar]
+# a-model reads A (B = I); b-model reads B (A = I);
+# ab-model reads A and B, with an optional long_run matrix
+A = [[1.0, 0.0], [nan, 1.0]]
+# B = [[nan, 0.0], [0.0, nan]]
+# long_run = [[nan, 0.0], [nan, nan]]
+```
+
+## SVEC Restrictions
+
+Optional zero matrices for `estimate svec --config`. Either key absent keeps upstream's KPSW default for that side; no `--config` at all gives the fully default KPSW identification. Same n×n `nan`-means-free convention as `[svar]`.
+
+```toml
+[svec]
+long_run_zeros = [[nan, 0.0], [nan, nan]]
+short_run_zeros = [[nan, 0.0], [nan, nan]]
+```
+
 ## Non-Gaussian SVAR
 
 Used by `test heteroskedasticity` with `--method=smooth_transition` or `--method=external`.

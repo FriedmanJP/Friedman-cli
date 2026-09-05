@@ -197,6 +197,76 @@ function _make_uhlig_config(dir)
     return path
 end
 
+"""Create a TOML config for narrative-ADRR identification (ADRR Type A/B)."""
+function _make_adrr_config(dir)
+    path = joinpath(dir, "adrr.toml")
+    open(path, "w") do io
+        write(io, """
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        [[identification.narrative_contributions]]
+        variable = 1
+        shock = 1
+        window = [1, 4]
+        kind = "most_important"
+        """)
+    end
+    return path
+end
+
+"""Create a TOML config combining a Minnesota prior with Arias-style restrictions (for BVAR SVAR paths)."""
+function _make_bvar_restrictions_config(dir)
+    path = joinpath(dir, "bvar_restrictions.toml")
+    open(path, "w") do io
+        write(io, """
+        [prior]
+        type = "minnesota"
+        [prior.hyperparameters]
+        lambda1 = 0.2
+        lambda2 = 0.5
+        lambda3 = 1.0
+        lambda4 = 100000.0
+        [prior.optimization]
+        enabled = false
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        """)
+    end
+    return path
+end
+
+"""Create a TOML config for SVAR matrix patterns (TOML `nan` = free parameter)."""
+function _make_svar_config(dir)
+    path = joinpath(dir, "svar.toml")
+    open(path, "w") do io
+        write(io, """
+        [svar]
+        A = [[1.0, 0.0, 0.0], [nan, 1.0, 0.0], [nan, nan, 1.0]]
+        B = [[nan, 0.0, 0.0], [0.0, nan, 0.0], [0.0, 0.0, nan]]
+        """)
+    end
+    return path
+end
+
+"""Create a TOML config for SVEC custom zero matrices."""
+function _make_svec_config(dir; n=2)
+    path = joinpath(dir, "svec.toml")
+    rows = join(["[" * join(fill("nan", n), ", ") * "]" for _ in 1:n], ", ")
+    open(path, "w") do io
+        write(io, """
+        [svec]
+        short_run_zeros = [$rows]
+        """)
+    end
+    return path
+end
+
 """Create a TOML config for GMM."""
 function _make_gmm_config(dir; colnames=["var1","var2","var3"])
     path = joinpath(dir, "gmm.toml")

@@ -18,7 +18,7 @@ Compute Bayesian impulse response functions with credible intervals
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|robust-bayes |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
@@ -35,7 +35,7 @@ Compute Bayesian impulse response functions with credible intervals
 | `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `bayesian_irf` (Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper)
+**Output tables:** `bayesian_irf` (Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper); `robust_bayes_bands` (Giacomini-Kitagawa robust bands for the selected shock: horizon | one lower/upper/robust_lower/robust_upper column per variable (--id robust-bayes)); `robust_bayes_diagnostics` (Empty-set probability, informativeness and credibility level (--id robust-bayes))
 
 ---
 
@@ -226,14 +226,17 @@ Compute frequentist impulse response functions
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|proxy\|max-share\|gmm-moments\|narrative-adrr |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
 | `--bootstrap` | — | `String` | `iid` | `iid`, `wild`, `block` | Bootstrap scheme (--ci bootstrap): iid\|wild\|block |
 | `--block-length` | — | `Int64` | `0` | — | Block length for --bootstrap block (0 = library default) |
 | `--wild-dist` | — | `String` | `rademacher` | `rademacher`, `mammen` | Wild-bootstrap multiplier: rademacher\|mammen |
 | `--bias-reps` | — | `Int64` | `0` | — | Inner reps for --bias-correct (0 = same as --replications) |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
+| `--summary` | — | `String` | `none` | `none`, `median-target`, `modal-model`, `joint-band`, `sup-t-band` | Set-identified summary (only with --identified-set) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -269,7 +272,7 @@ Compute impulse response functions via VECM → VAR representation
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--config` | — | `String` | `""` | — | TOML config for identification |

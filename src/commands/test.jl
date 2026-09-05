@@ -179,9 +179,10 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="test", short="t", type=String, default="all", description="strength|gaussianity|independence|overidentification|all"),
+                OptionSpec(name="test", short="t", type=String, default="all", description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
                 OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests)"),
                 OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="n-bootstrap", type=Int, default=999, description="Bootstrap replications (for label-stability)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -2063,7 +2064,10 @@ end
 
 function _test_identifiability(; data::String, lags=nothing, test::String="all",
                                   method::String="fastica", contrast::String="logcosh",
+                                  n_bootstrap::Int=999,
                                   output::String="", format::String="table")
+    n_bootstrap >= 1 || throw(CliError("usage/invalid",
+        "test identifiability: --n-bootstrap must be ≥ 1 (got $n_bootstrap)"))
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
@@ -2082,6 +2086,12 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     run_independence = test == "all" || test == "independence"
     run_overid = test == "all" || test == "overidentification"
     run_comparison = test == "all"
+    # W2/#166 riders (#751): opt-in only — `all` keeps its historical set so
+    # existing row output is unchanged. lambda-distinct needs ≥2 variables
+    # (no shock pairs exist univariately).
+    run_lambda = test == "lambda-distinct"
+    run_gausscount = test == "gaussian-count"
+    run_labelstab = test == "label-stability"
 
     if run_strength
         str_result = test_identification_strength(model)
@@ -2094,7 +2104,7 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     end
 
     ica_result = nothing
-    if run_gaussianity || run_independence || run_overid
+    if run_gaussianity || run_independence || run_overid || run_gausscount
         ica_result = if method == "jade"
             identify_jade(model)
         elseif method == "sobi"
@@ -2135,6 +2145,45 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
             statistic=round(overid_result.statistic; digits=4),
             p_value=round(overid_result.pvalue; digits=4),
             conclusion=overid_result.pvalue < 0.05 ? "Reject overidentification" : "Cannot reject overidentification"
+        ))
+    end
+
+    if run_lambda
+        n >= 2 || throw(CliError("usage/invalid",
+            "test identifiability: --test lambda-distinct needs ≥ 2 variables (got $n)"))
+        ms_result = identify_markov_switching(model)
+        lam = test_lambda_distinct(ms_result)
+        stats = collect(Float64, lam.statistic)
+        bonf = collect(Float64, lam.pvalue_bonferroni)
+        push!(results_df, (
+            test="Lambda Distinctness",
+            statistic=round(maximum(stats); digits=4),
+            p_value=round(minimum(bonf); digits=4),
+            conclusion=all(b -> b < 0.05, bonf) ? "Eigenvalues distinct" : "Some eigenvalues indistinguishable"
+        ))
+    end
+
+    if run_gausscount && !isnothing(ica_result)
+        gc_result = test_gaussian_shock_count(ica_result)
+        n_gaussian = gc_result.details[:n_gaussian]
+        push!(results_df, (
+            test="Gaussian Shock Count",
+            statistic=round(Float64(gc_result.statistic); digits=4),
+            p_value=round(Float64(gc_result.pvalue); digits=4),
+            conclusion=n_gaussian <= 1 ? "At most one Gaussian shock" : "$n_gaussian Gaussian shocks"
+        ))
+    end
+
+    if run_labelstab
+        # Label stability carries no p-value (match fraction only); NaN renders
+        # as null in JSON and never counts toward the 5% summary below.
+        ls_result = test_label_stability(model; method=Symbol(method), n_bootstrap=n_bootstrap)
+        frac = round(Float64(ls_result.statistic); digits=4)
+        push!(results_df, (
+            test="Label Stability",
+            statistic=frac,
+            p_value=NaN,
+            conclusion=frac >= 0.5 ? "Labels stable" : "Labels unstable"
         ))
     end
 

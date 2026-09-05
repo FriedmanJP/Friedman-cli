@@ -270,9 +270,9 @@ end
         @test !haskey(kwargs, :check_func)
         @test !haskey(kwargs, :narrative_check)
 
-        # Unknown method -> falls back to :cholesky
-        kwargs2 = _build_identification_kwargs("unknown", "")
-        @test kwargs2[:method] == :cholesky
+        # Unknown method -> usage/invalid (W2/#166: no silent :cholesky fallback)
+        e_unknown = try; _build_identification_kwargs("unknown", ""); nothing; catch e; e; end
+        @test e_unknown isa CliError && e_unknown.code == "usage/invalid"
 
         # Sign with config
         mktempdir() do dir
@@ -447,8 +447,8 @@ end  # Shared utilities
         @test node isa NodeCommand
         @test node.name == "estimate"
         # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +poisson/nbreg W2, +sarima W6,
-        # +tvpvar/mfvar W7)
-        @test length(node.subcmds) == 75
+        # +tvpvar/mfvar W7, +svar/svec W2/#166)
+        @test length(node.subcmds) == 77
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -543,6 +543,121 @@ end  # Shared utilities
             @test isfile(outfile)
             result_df = CSV.read(outfile, DataFrame)
             @test nrow(result_df) > 0
+        end
+    end
+
+    @testset "_estimate_svar — recursive pattern" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_svar(; data=csv, lags=2, pattern="recursive", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svar — blanchard-quah pattern" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_svar(; data=csv, lags=2, pattern="blanchard-quah", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svar — a/b/ab-model with config" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svar_config(dir)
+            for pat in ("a-model", "b-model", "ab-model")
+                out = cd(dir) do
+                    _capture() do
+                        _estimate_svar(; data=csv, lags=2, pattern=pat, config=cfg, format="table")
+                    end
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svar — json envelope keys" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _dispatch_via_app(["estimate", "svar", csv, "--lags", "2", "--format", "json"])
+                end
+            end
+            i = findfirst('{', out)
+            doc = JSON3.read(out[i:end])
+            @test haskey(doc[:data], :svar_a)
+            @test haskey(doc[:data], :svar_b)
+            @test haskey(doc[:data], :svar_summary)
+        end
+    end
+
+    @testset "_estimate_svar — guards" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svar_config(dir)
+            e1 = try; _estimate_svar(; data=csv, lags=2, n_starts=0); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _estimate_svar(; data=csv, lags=2, max_iter=0); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _estimate_svar(; data=csv, lags=2, pattern="a-model", config=""); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/missing"
+            e4 = try; _estimate_svar(; data=csv, lags=2, pattern="b-model", config=cfg[1:end-5] * ".missing"); nothing; catch e; e; end
+            @test e4 isa Exception
+        end
+    end
+
+    @testset "_load_svar_pattern — malformed matrix" begin
+        mktempdir() do dir
+            bad = joinpath(dir, "bad.toml")
+            open(bad, "w") do io
+                write(io, "[svar]\nA = [[1.0, 0.0], [0.0]]\nB = [[1.0, 0.0], [0.0, 1.0]]\n")
+            end
+            e = try; _load_svar_pattern(bad, 2, "ab-model", "estimate svar"); nothing; catch e; e; end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
+    @testset "_estimate_svec — default KPSW" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_svec(; data=csv, lags=2, rank="1", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svec — custom zeros with json keys" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            cfg = _make_svec_config(dir; n=2)
+            out = cd(dir) do
+                _capture() do
+                    _dispatch_via_app(["estimate", "svec", csv, "--lags", "2", "--rank", "1",
+                                       "--config", cfg, "--format", "json"])
+                end
+            end
+            i = findfirst('{', out)
+            doc = JSON3.read(out[i:end])
+            @test haskey(doc[:data], :svec_b0)
+            @test haskey(doc[:data], :svec_xi)
+            @test haskey(doc[:data], :svec_summary)
+        end
+    end
+
+    @testset "_estimate_svec — guards" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            e1 = try; _estimate_svec(; data=csv, n_starts=0); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
         end
     end
 
@@ -4148,6 +4263,26 @@ end  # Estimate handlers
         end
     end
 
+    @testset "_test_identifiability — W2 riders" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            for test_type in ["lambda-distinct", "gaussian-count", "label-stability"]
+                out = _capture() do
+                    _test_identifiability(; data=csv, lags=2, test=test_type,
+                                            method="fastica", n_bootstrap=10, format="table")
+                end
+            end
+            e = try
+                _test_identifiability(; data=csv, lags=2, test="lambda-distinct",
+                                        n_bootstrap=0, format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     @testset "_test_identifiability — all 5 ICA methods" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4354,6 +4489,38 @@ end  # Test handlers
         end
     end
 
+    @testset "_irf_var — narrative-adrr identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_adrr_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="narrative-adrr",
+                              config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_var — narrative-adrr without narrative_contributions errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_arias_config(dir)
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="narrative-adrr",
+                                  config=cfg, format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/missing"
+        end
+    end
+
     @testset "_irf_var — uhlig identification" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4376,6 +4543,82 @@ end  # Test handlers
                               config="", format="table")
                 end
             end
+        end
+    end
+
+    @testset "_irf_var — W2a proxy/max-share/gmm-moments (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3, colnames=["y1", "y2", "z"])
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="proxy",
+                              instrument="z", ci="none", format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10,
+                              id="max-share", target_var="y1", ci="none",
+                              format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10,
+                              id="max-share", target_var="2", ci="none",
+                              format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10,
+                              id="gmm-moments", ci="none", format="table")
+                end
+            end
+            e1 = try; _irf_var(; data=csv, lags=2, id="proxy", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/missing"
+            e2 = try; _irf_var(; data=csv, lags=2, id="cholesky", instrument="z", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _irf_var(; data=csv, lags=2, id="max-share", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/missing"
+            e4 = try; _irf_var(; data=csv, lags=2, id="cholesky", target_var="y1", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
+            e5 = try; _irf_var(; data=csv, lags=2, id="max-share", target_var="nope", format="table"); nothing; catch e; e; end
+            @test e5 isa CliError && e5.code == "usage/invalid"
+            e6 = try; _irf_var(; data=csv, lags=2, id="max-share", target_var="9", format="table"); nothing; catch e; e; end
+            @test e6 isa CliError && e6.code == "usage/invalid"
+            e7 = try; _irf_var(; data=csv, lags=2, id="bogus", format="table"); nothing; catch e; e; end
+            @test e7 isa CliError && e7.code == "usage/invalid"
+            e8 = try; _irf_var(; data=csv, lags=2, id="cholesky", identified_set=true, format="table"); nothing; catch e; e; end
+            @test e8 isa CliError && e8.code == "usage/invalid"
+            e9 = try; _irf_var(; data=csv, lags=2, id="arias", instrument="z", format="table"); nothing; catch e; e; end
+            @test e9 isa CliError && e9.code == "usage/invalid"
+        end
+    end
+
+    @testset "_fevd_var/_hd_var — W2a proxy/max-share guards (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3, colnames=["y1", "y2", "z"])
+            out = cd(dir) do
+                _capture() do
+                    _fevd_var(; data=csv, lags=2, horizons=10, id="proxy",
+                               instrument="z", format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _hd_var(; data=csv, lags=2, id="max-share", target_var="y2",
+                             format="table")
+                end
+            end
+            e1 = try; _fevd_var(; data=csv, lags=2, id="proxy", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/missing"
+            e2 = try; _fevd_var(; data=csv, lags=2, id="bogus", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _hd_var(; data=csv, lags=2, id="max-share", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/missing"
+            e4 = try; _hd_var(; data=csv, lags=2, id="bogus", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
         end
     end
 
@@ -4413,6 +4656,47 @@ end  # Test handlers
                                draws=100, sampler="direct", config="", format="table")
                 end
             end
+        end
+    end
+
+    @testset "_irf_bvar — robust-bayes" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_bvar_restrictions_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _dispatch_via_app(["irf", "bvar", csv, "--lags", "2", "--shock", "1",
+                                       "--horizons", "10", "--id", "robust-bayes",
+                                       "--draws", "100", "--config", cfg, "--format", "json"])
+                end
+            end
+            i = findfirst('{', out)
+            doc = JSON3.read(out[i:end])
+            @test haskey(doc[:data], :robust_bayes_bands)
+            @test haskey(doc[:data], :robust_bayes_diagnostics)
+        end
+    end
+
+    @testset "_irf_bvar — robust-bayes guards" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_bvar_restrictions_config(dir)
+            e1 = try
+                _irf_bvar(; data=csv, lags=2, shock=9, horizons=10, id="robust-bayes",
+                           draws=100, config=cfg, format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try
+                _irf_bvar(; data=csv, lags=2, shock=1, horizons=10, id="robust-bayes",
+                           draws=100, config="", format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e2 isa CliError && e2.code == "usage/missing"
         end
     end
 
@@ -4558,6 +4842,30 @@ end  # Test handlers
         end
     end
 
+    @testset "_irf_var — set-identified summaries" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sign_config(dir)
+            for sum_kind in ["median-target", "modal-model", "joint-band", "sup-t-band"]
+                out = cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sign",
+                                  config=cfg, ci="none", format="table",
+                                  identified_set=true, summary=sum_kind)
+                    end
+                end
+            end
+            e = try
+                _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="cholesky",
+                          ci="none", format="table", summary="median-target")
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     @testset "_irf_var — stationary-only flag with bootstrap" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4641,6 +4949,19 @@ end  # IRF handlers
         end
     end
 
+    @testset "_fevd_var — narrative-adrr identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_adrr_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_var(; data=csv, lags=2, horizons=10, id="narrative-adrr",
+                               config=cfg, format="table")
+                end
+            end
+        end
+    end
+
     @testset "_fevd_bvar" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4713,6 +5034,18 @@ end  # FEVD handlers
             out = cd(dir) do
                 _capture() do
                     _hd_var(; data=csv, lags=2, id="arias", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_hd_var — narrative-adrr identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_adrr_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _hd_var(; data=csv, lags=2, id="narrative-adrr", config=cfg, format="table")
                 end
             end
         end
@@ -5302,7 +5635,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 75  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 77  # 76 primary (+sarima W6, +tvpvar/mfvar W7, +svar/svec W2 #166) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -5460,6 +5793,45 @@ end  # Forecast handlers
         end
     end
 
+    @testset "_irf_vecm — svec identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _irf_vecm(; data=csv, lags=2, rank="1", shock=1, horizons=10,
+                               id="svec", ci="none", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_vecm — svec with custom zeros" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svec_config(dir; n=3)
+            out = cd(dir) do
+                _capture() do
+                    _irf_vecm(; data=csv, lags=2, rank="1", shock=1, horizons=10,
+                               id="svec", ci="none", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_vecm — svec rejects bootstrap CI" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            e = try
+                _irf_vecm(; data=csv, lags=2, rank="1", shock=1, horizons=10,
+                           id="svec", ci="bootstrap", format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     # ── fevd vecm ────────────────────────────────────────────
 
     @testset "_fevd_vecm — default" begin
@@ -5489,6 +5861,19 @@ end  # Forecast handlers
         end
     end
 
+    @testset "_fevd_vecm — svec identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svec_config(dir; n=3)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_vecm(; data=csv, lags=2, rank="1", horizons=10,
+                                id="svec", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
     # ── hd vecm ──────────────────────────────────────────────
 
     @testset "_hd_vecm — default" begin
@@ -5509,6 +5894,17 @@ end  # Forecast handlers
             out = cd(dir) do
                 _capture() do
                     _hd_vecm(; data=csv, lags=2, rank="1", id="sign", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_hd_vecm — svec identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _hd_vecm(; data=csv, lags=2, rank="1", id="svec", format="table")
                 end
             end
         end
@@ -7162,7 +7558,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 75  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 77  # 76 primary (+sarima W6, +tvpvar/mfvar W7, +svar/svec W2 #166) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
     end
 
     @testset "register_irf_commands! includes pvar" begin

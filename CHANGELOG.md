@@ -4,6 +4,32 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [Unreleased] — v0.12.0 program (#163–#169, MEMs 0.9.3)
+
+### Added
+
+- **SVAR expansion** (#166): new `estimate svar` (AB-model ML — `recursive`,
+  `blanchard-quah`, and TOML-matrix `a-model`/`b-model`/`ab-model` with `nan`
+  marking free parameters) and `estimate svec` (KPSW default plus optional
+  `[svec]` long/short-run zero matrices) leaves, both plot-capable with native
+  save/load handles; `--id narrative-adrr` on the `irf`/`fevd`/`hd` `var`
+  leaves runs ADRR narrative contributions through the Arias pipeline
+  (requires `[identification.narrative_contributions]` in `--config`);
+  `--id svec` on the `irf`/`fevd`/`hd` `vecm` leaves routes through
+  `identify_svec` on the VECM itself (KPSW default, optional `[svec]` zeros;
+  IRFs are point-only, `--ci none`); `--id robust-bayes` on `irf bvar`
+  renders Giacomini–Kitagawa robust bands from the posterior; `irf var
+  --identified-set --summary` selects a set-identified summary
+  (`median-target`/`modal-model`/`joint-band`/`sup-t-band`); `test
+  identifiability` gains opt-in `lambda-distinct`/`gaussian-count`/
+  `label-stability` riders plus `--n-bootstrap`; unknown `--id` values are now
+  `usage/invalid` instead of silently falling back to Cholesky. Deferred with
+  record: `label_shocks`, K-regime tokens, RWZ checker (enforced upstream).
+
+### Changed
+
+- MEMs pin `=0.9.0` → `=0.9.3` (#164).
+
 ## [0.11.0] — 2026-08-29
 
 CLI v0.11.0 adopts MacroEconometricModels **0.9.0** (program index #150, waves
