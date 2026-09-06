@@ -48,6 +48,18 @@ Full per-issue ledger (MEMs #790–#807 + #813) with file:line evidence:
   `cross_validate_lambda` positionally), Johansen `_fmt` display-only
   (`test johansen` rounds result fields itself).
 
+- **W2 (#173): 0.9.4 DGP-library decision (no feature code).** Defer:
+  no `data simulate` leaf in v0.12.1 — a useful family is ~15–20 leaves
+  against a patch line, truth+data bundles need envelope schema design
+  (upstream returns NamedTuples, not tables), and upstream simulators
+  take a positional `rng` (no `seed=` kwarg for `_fwd_seed`); sketch +
+  T3 oracle-helper adoption filed as #177 (0.13.0 candidate). T3 harness
+  stays hermetic (32 local CSV-path DGPs, pinned streams). No-ops:
+  upstream white-noise lint, simulation guide, DGP API reference.
+  Watches re-checked at 0.9.4: MEMs#609/#255 open with no movement, no
+  `report()` overhaul, MEMs 1.0 unannounced. Full table:
+  `docs/src/commands/not-wrapped.md` (W2/#173 section).
+
 ## [0.12.0] — 2026-09-06 — MEMs 0.9.3 adoption program (#163–#169)
 
 CLI v0.12.0 adopts MacroEconometricModels **0.9.3**. The machine surface stays

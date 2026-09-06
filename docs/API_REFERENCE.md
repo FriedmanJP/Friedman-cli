@@ -14,4 +14,4 @@ julia --project docs/generate_cli_reference.jl
 
 See `docs/src/commands/generated/` for per-command option tables and `docs/docrule.md` for documentation rules.
 
-**Unwrapped upstream surface:** dispositions (adopt / defer / wontwrap / watch) live in `docs/src/commands/not-wrapped.md` (v0.11.0 line on #160, v0.12.0 remainder on #168).
+**Unwrapped upstream surface:** dispositions (adopt / defer / wontwrap / watch) live in `docs/src/commands/not-wrapped.md` (v0.11.0 line on #160, v0.12.0 remainder on #168, v0.12.1 DGP-library decision on #173).

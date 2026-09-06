@@ -132,6 +132,32 @@ Must-answer resolutions for W1/W2 (W0-branch line numbers):
 | DGP-01 `#790` (`_fmt`, Xoshiro seeding/docstrings) | Display-only + comment-only on CLI paths. **No-op** (comments → W1 reword). |
 | `_simulation_smoother` (new private) | **No surface.** Unexported, no callers. |
 
+## W2/#173 dispositions (MEMs 0.9.4 DGP library: exposure vs defer + T3 adoption)
+
+Verified against the `v0.9.4` tag sources (`abd1222`, `/tmp` clone diffs
+clean vs the `Pkg.dependencies`-resolved copy): `src/dgp/` is 11 files,
+40 exports (32 truth-returning `dgp_*` simulators pairing the sample with
+population truth in a NamedTuple + 8 analytic helpers). Every simulator
+takes a positional `rng::AbstractRNG` (e.g. `dgp_var(rng; ...)`); there is
+no `seed=` kwarg, so the CLI `_fwd_seed` convention cannot thread through
+without a handler-side `Xoshiro(seed)` construction.
+
+| Item | Disposition |
+|------|-------------|
+| CLI exposure of the DGP library (`data simulate` family) | **Defer to #177** (0.13.0 candidate, sketch recorded there). No v0.12.1 leaf: a useful family is ~15–20 leaves against a patch line; the truth+data bundle envelope needs schema design (upstream NamedTuples are not tables); upstream positions it as a simulation/testing library; zero user demand signal. |
+| T3-harness adoption of upstream DGPs/oracles | **Defer to #177; harness stays hermetic.** The 32 local `MersenneTwister`-seeded CSV-path generators in `test/integration/dgp.jl` match the CLI's CSV boundary with pinned streams — swapping to in-memory upstream NamedTuples buys adapter churn across fixtures/goldens. Follow-up adopts only the oracle helpers (`var_irf`/`var_fevd`/`lyapunov_gamma0`) as closed-form T3 assertions per the W12/#114 lesson. |
+| Upstream white-noise lint (`test/dgp/test_dgp_lint.jl` + `ALLOWLIST.md`) | **No-op.** Upstream-internal static check over upstream `test/`; nothing crosses the CLI boundary. |
+| Upstream simulation guide (`docs/src/simulation.md`) | **No-op; no CLI mirror.** User-facing simulation docs live upstream; the CLI documents only leaves it ships. |
+| Upstream DGP API reference (`docs/src/api/simulation.md`) | **No-op; canonical link stands.** `docs/API_REFERENCE.md` already points at the upstream docs as canonical. |
+| #790–#807/#813 remainder not absorbed by W0/W1 | **Closed by the rows above.** Test-seeding halves are upstream-test-only; behavior deltas went to W1 (`#797` J-test NaN) or verified no-ops (W0 ledger). No silent gaps. |
+
+## Standing watches (re-checked at 0.9.4 for W2)
+
+- **MEMs#609 (OPEN, no movement):** JuMP/Ipopt/NonlinearSolve still required deps; C060 story and cold-start floor stand.
+- **MEMs#255 (OPEN, no movement):** sub-package split undecided; no adapter impact.
+- **`report()` overhaul:** none landed (only `show`-body display lines at 0.9.4); the `_status_report` swallow stands.
+- **MEMs 1.0 major watch:** not announced (0.9.x line); adaptation pattern holds ready.
+
 W0 audit on `=0.9.4`: T3 **4031/4031** (core 3972 + entry points 59,
 exit 0); golden regen zero drift (mocks, as expected); docs captures one
 attributed regen — `dsge ha solve huggett --method reiter` 
