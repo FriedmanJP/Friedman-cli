@@ -30,6 +30,24 @@ Full per-issue ledger (MEMs #790–#807 + #813) with file:line evidence:
   rewords. Watches re-checked: MEMs#609/#255 open with no movement,
   no `report()` overhaul, MEMs 1.0 unannounced.
 
+- **W1 (#172): 0.9.4 correctness moves.** SMM J p-value under identity
+  weighting renders `n/a (identity weighting — χ² limit needs efficient
+  weighting)` instead of a bare `NaN` (`_estimate_smm`); same NaN guard
+  applied to the `_estimate_gmm` J-test, whose verdict branch now reports
+  n/a on NaN instead of misreading `NaN < 0.05` as "Cannot reject"
+  (`j_test(::GMMModel)` shares the M-29 NaN policy per the W0 ledger —
+  through this leaf LP-GMM is just-identified, so the guard is
+  defense-in-depth, pinned by T3). T3: new identity-weighting SMM case
+  (n/a note, no bare NaN) + GMM identity/twostep cases pinning upstream
+  behavior. Stale `MersenneTwister` comments reworded to `Xoshiro`
+  (`shared.jl`, `dsge.jl`); CLI-owned `MersenneTwister(seed)`
+  constructions untouched. Verified no-ops: `compare_var_lp`
+  unreachable (zero `src/` hits, no `policy`/counterfactual transit),
+  `estimate_smooth_lp` call passes only `n_knots`/`lambda` (the
+  `_smooth_lp_cv_errors` kwarg gate cannot trigger — CLI calls
+  `cross_validate_lambda` positionally), Johansen `_fmt` display-only
+  (`test johansen` rounds result fields itself).
+
 ## [0.12.0] — 2026-09-06 — MEMs 0.9.3 adoption program (#163–#169)
 
 CLI v0.12.0 adopts MacroEconometricModels **0.9.3**. The machine surface stays

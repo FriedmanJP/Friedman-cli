@@ -3792,8 +3792,9 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     _status()
 
     rng = seed > 0 ? Random.MersenneTwister(seed) : Random.default_rng()
-    # MEMs#769: seed= owns the RNG and records the manifest (seed wins over rng,
-    # same stream as the MersenneTwister above). Leaf --seed wins, else global.
+    # MEMs#769: seed= owns the RNG and records the manifest (seed wins over rng;
+    # upstream builds Xoshiro(seed), so the MersenneTwister above is shadowed
+    # whenever a seed is in play). Leaf --seed wins, else global.
     eff_seed = seed > 0 ? seed : _SEED[]
     result = _dsge_call(estimate_dsge_bayes, spec, Y, theta0;
         priors=priors_dist, observables=obs_syms,

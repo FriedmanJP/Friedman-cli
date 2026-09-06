@@ -2807,10 +2807,20 @@ function _estimate_gmm(; data::String, config::String="",
         _status()
         _status("Hansen's J-test for overidentification:")
         _status("  J-statistic: $(round(jtest.J_stat; digits=4))")
-        _status("  p-value: $(round(jtest.p_value; digits=4))")
+        # M-29 (MEMs#797): j_test(::GMMModel) shares the SMM NaN-under-identity
+        # policy (stored NaN p-value) — render n/a with the reason, never a number.
+        if isnan(jtest.p_value)
+            _status("  p-value: n/a (identity weighting — χ² limit needs efficient weighting)")
+        else
+            _status("  p-value: $(round(jtest.p_value; digits=4))")
+        end
         _status("  Degrees of freedom: $(jtest.df)")
 
-        if jtest.p_value < 0.05
+        # NaN < 0.05 is false, so a bare comparison would misreport
+        # "Cannot reject" on an undefined p-value — verdict stays silent on NaN.
+        if isnan(jtest.p_value)
+            _status_styled("  -> J-test n/a under identity weighting (χ² limit needs efficient weighting)\n"; color=:yellow)
+        elseif jtest.p_value < 0.05
             _status_styled("  -> Reject valid moment conditions at 5%\n"; color=:yellow)
         else
             _status_styled("  -> Cannot reject valid moment conditions\n"; color=:green)
@@ -3434,7 +3444,13 @@ function _estimate_smm(; data::String, config::String="",
 
     _status()
     _status_styled("  J-statistic: $(round(model.J_stat; digits=4))\n"; color=:cyan)
-    _status_styled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
+    # M-29 (MEMs#797): the χ² limit needs efficient weighting — under identity
+    # model.J_pvalue is NaN, so render n/a with the reason instead of bare NaN.
+    if isnan(model.J_pvalue)
+        _status_styled("  J p-value:   n/a (identity weighting — χ² limit needs efficient weighting)\n"; color=:cyan)
+    else
+        _status_styled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
+    end
     _status_styled("  Converged:   $(model.converged)\n";
                 color = model.converged ? :green : :red)
     return model
