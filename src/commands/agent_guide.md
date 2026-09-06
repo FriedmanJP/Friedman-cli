@@ -240,7 +240,12 @@ plus per-field diffs (`unverifiable` when no seed was recorded — not a pass).
 DSGE/HA solutions (`dsge solve`, `dsge ha solve`, `dsge ha steady-state`, `dsge bayes estimate`
 all take `--save-model`). `.fmod` remains as the interim handle for unregistered payloads.
 `friedman model info PATH` reads the container header (writing versions, note, bundle layout)
-without re-running estimation.
+without re-running estimation — header-only, it never executes stored code.
+Trust caveat (mirrors upstream): a `--model` handle carrying DSGE/HA equations recompiles
+them at load through an AST allowlist (`Core.eval`), the same risk class as
+`Serialization.deserialize` — only load files you trust. Programmatic payloads with
+anonymous closures (household utilities, `ss_fn`) fail at `--save-model` time with
+`data/serialization`; persist named functions or callable structs (`CRRAUtility`) instead.
 
 ## Quiet / no-color / json alias
 

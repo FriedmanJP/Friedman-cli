@@ -63,6 +63,19 @@ Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
   (`irf_match`, `model_average`, `identify_arias_bayesian`,
   `hansen_linearity_test`, `posterior_predictive_check`).
 
+### Decision record
+
+- **W4 (#168): unexposed 0.9.1–0.9.3 remainder.** Adopted: SDFM `:auto`
+  corners (W1), #753 identification-serialization details (W3). Wontwrap:
+  `varindex`, `refs`/`report` as data, `TimeSeriesData` conveniences, v1
+  fixtures (#770). Deferred: `estimate_svar` experimental extensions,
+  ForwardDiff internals (#756), oracle/DGP helpers (#755). No direct
+  surface: `compute_Q` registry (reached via `identify_*`). Declined:
+  bundles/`note=`/`compress=`. Watches: MEMs#609/#255 (no movement),
+  `report()` overhaul (none landed), MEMs 1.0 (not announced), plus
+  CLI-filed MEMs#816 (LinearSolve world-age boom on the steady-state
+  QR-fallback branch). Full table: `docs/src/commands/not-wrapped.md`.
+
 ## [0.11.0] — 2026-08-29
 
 CLI v0.11.0 adopts MacroEconometricModels **0.9.0** (program index #150, waves
