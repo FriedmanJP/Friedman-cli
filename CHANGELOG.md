@@ -4,7 +4,18 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [Unreleased] — v0.12.1 wave W0 (#171): MEMs pin `=0.9.3` → `=0.9.4`
+## [0.12.1] — 2026-09-06 — MEMs 0.9.4 adoption program (#171–#174)
+
+CLI v0.12.1 adopts MacroEconometricModels **0.9.4**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed (453 leaves /
+20 top-level, unchanged).
+
+Two user-visible numerical caveats vs 0.12.0. First, the same `--seed`
+produces different randomized streams than 0.12.0: upstream default RNGs
+moved `MersenneTwister` → `Xoshiro` (determinism and `model reproduce`
+bit-reproduction are preserved). Second, SMM/GMM J-test p-values under
+identity weighting are now honestly `n/a` (identity weighting has no χ²
+limit — an efficient weighting is required) instead of a bare `NaN`.
 
 C038 bump, re-resolved from General (MEMs-only Manifest delta, no new
 transitives). T3 4031/4031 green; golden regen zero drift (mocks); docs
