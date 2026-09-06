@@ -4,6 +4,32 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [Unreleased] — v0.12.1 wave W0 (#171): MEMs pin `=0.9.3` → `=0.9.4`
+
+C038 bump, re-resolved from General (MEMs-only Manifest delta, no new
+transitives). T3 4031/4031 green; golden regen zero drift (mocks); docs
+captures one attributed regen (`dsge ha solve huggett --method reiter`
+`explained_variance` ULP move from the upstream `Xoshiro(1234)` default —
+see below); mock-surface PASS with the mock kept a strict subset (none of
+the 40 new upstream DGP exports added — no handler consumes them);
+plot-coverage 179/179 with neither ADDED nor REMOVED. Hands W1 the J-test
+NaN verdicts (GMM *and* SMM under identity weighting) plus two stale
+`MersenneTwister` comments, and W2 the DGP-library exposure decision.
+Full per-issue ledger (MEMs #790–#807 + #813) with file:line evidence:
+`docs/src/commands/not-wrapped.md` (W0/#171 section).
+
+### Decision record
+
+- **W0 (#171): 0.9.4 absorption ledger.** Defer: the 40-export `src/dgp/`
+  simulation library (no CLI leaf calls it; W2 decides exposure vs defer
+  + T3-harness adoption). No-ops (verified unreachable/display-only):
+  `compare_var_lp` off-by-one fix, `_smooth_lp_cv_errors` kwarg gate,
+  Johansen `_fmt`, upstream DGP-02–DGP-04/06/07/09–18 test seeding. W1
+  scope: SMM `j_test` NaN p-value under identity weighting (matches the
+  pre-existing GMM M-29 policy — both leaves render it), Xoshiro comment
+  rewords. Watches re-checked: MEMs#609/#255 open with no movement,
+  no `report()` overhaul, MEMs 1.0 unannounced.
+
 ## [0.12.0] — 2026-09-06 — MEMs 0.9.3 adoption program (#163–#169)
 
 CLI v0.12.0 adopts MacroEconometricModels **0.9.3**. The machine surface stays
