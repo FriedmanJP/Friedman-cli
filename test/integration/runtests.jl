@@ -70,6 +70,40 @@ function run_json(args::Vector{String}; quiet::Bool=true)
     return (code=Int(code), doc=doc, raw=raw)
 end
 
+"""Run friedman args capturing (code, out, err) separately.
+
+`run_json` drops stderr, but the J-test verdicts render on stderr via
+`_status` (suppressed under `--quiet`) — identity-weighting cases need the
+raw stderr text, so this runner leaves `--quiet` off by default.
+"""
+function run_cli_capture(args::Vector{String}; quiet::Bool=false)
+    argv = String[]
+    quiet && push!(argv, "--quiet")
+    append!(argv, args)
+    any(a -> startswith(a, "--format"), argv) || push!(argv, "--format", "json")
+
+    out_path = tempname()
+    err_path = tempname()
+    code = try
+        open(out_path, "w") do out_io
+            open(err_path, "w") do err_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(err_io) do
+                        return Friedman.run_cli(argv)
+                    end
+                end
+            end
+        end
+    catch
+        Cint(1)
+    end
+    out = read(out_path, String)
+    err = read(err_path, String)
+    rm(out_path; force=true)
+    rm(err_path; force=true)
+    return (code=Int(code), out=out, err=err)
+end
+
 function assert_envelope_ok(r; label="")
     @test r.code == 0
     @test r.doc !== nothing
@@ -496,6 +530,79 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # AR persistence recovered near the true 0.7 (bounds keep it in (-0.99,0.99))
             @test 0.3 < Float64(phi_row[eidx]) < 0.99
         end
+        rm(csv; force=true); rm(cfg; force=true)
+    end
+
+    @testset "estimate smm identity weighting — J p-value n/a (MEMs#797, M-29)" begin
+        # No identity-weighting T3 coverage existed: under identity the χ² limit
+        # needs efficient weighting, so model.J_pvalue is NaN and the leaf must
+        # render n/a with the reason instead of a bare NaN.
+        csv = dgp_ar1(; T=400, φ=0.7, σ=1.0, seed=71)
+        cfg = tempname() * "_smm_id.toml"
+        write(cfg, """
+        [smm]
+        model = "ar1"
+        theta0 = [0.4, 0.5]
+        lags = 2
+        weighting = "identity"
+        sim_ratio = 5
+        burn = 100
+        lower = [-0.99, 1.0e-4]
+        upper = [0.99, 10.0]
+        """)
+        r = run_cli_capture(["--seed", "20240722", "estimate", "smm", csv, "--config", cfg])
+        @test r.code == 0
+        @test occursin("J p-value:", r.err)
+        @test occursin("n/a (identity weighting", r.err)
+        @test !occursin("J p-value:   NaN", r.err)
+        rm(csv; force=true); rm(cfg; force=true)
+    end
+
+    @testset "estimate gmm identity weighting — pins upstream behavior (MEMs#797, M-29)" begin
+        # W0 ledger finding: j_test(::GMMModel) shares the SMM NaN-under-identity
+        # policy — but through THIS leaf the model is just-identified
+        # (estimate_lp_gmm LP moments: df=0, J=0, p=1.0 on every weighting), so
+        # the NaN branch cannot fire here and the leaf guard stays as
+        # defense-in-depth (NaN < 0.05 is false and must never read as
+        # "Cannot reject"). Pin the actual upstream behavior: no bare NaN,
+        # just-identified J output, no n/a note.
+        csv = dgp_var2(; T=200, seed=9)
+        cfg = tempname() * "_gmm_id.toml"
+        write(cfg, """
+        [gmm]
+        moment_conditions = ["y1", "y2"]
+        instruments = ["lag_y1", "lag_y2"]
+        weighting = "twostep"
+        """)
+        r = run_cli_capture(["estimate", "gmm", csv, "--config", cfg,
+                             "--weighting", "identity"])
+        @test r.code == 0
+        @test occursin("Hansen's J-test", r.err)
+        @test occursin("Degrees of freedom: 0", r.err)
+        @test occursin("p-value: 1.0", r.err)
+        @test !occursin("p-value: NaN", r.err)
+        @test !occursin("n/a (identity weighting", r.err)
+        rm(csv; force=true); rm(cfg; force=true)
+    end
+
+    @testset "estimate gmm efficient weighting — numeric J p-value control" begin
+        # Control pinning the non-identity path: a real χ² p-value renders
+        # numeric with a verdict (guards against an over-broad NaN branch).
+        csv = dgp_var2(; T=200, seed=9)
+        cfg = tempname() * "_gmm_tw.toml"
+        write(cfg, """
+        [gmm]
+        moment_conditions = ["y1", "y2"]
+        instruments = ["lag_y1", "lag_y2"]
+        weighting = "twostep"
+        """)
+        r = run_cli_capture(["estimate", "gmm", csv, "--config", cfg,
+                             "--weighting", "twostep"])
+        @test r.code == 0
+        @test occursin("Hansen's J-test", r.err)
+        @test !occursin("n/a (identity weighting", r.err)
+        @test occursin(r"p-value: [0-9]", r.err)
+        @test occursin("valid moment conditions", r.err)
         rm(csv; force=true); rm(cfg; force=true)
     end
 

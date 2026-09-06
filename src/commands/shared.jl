@@ -791,7 +791,7 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
     end
 
     # Forward --seed as the estimator's own seed (C052/#243): estimate_bvar seeds a
-    # fresh MersenneTwister(seed) and records it in the BVARPosterior ReproManifest,
+    # fresh Xoshiro(seed) and records it in the BVARPosterior ReproManifest,
     # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,

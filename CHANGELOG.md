@@ -4,6 +4,73 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.12.1] — 2026-09-06 — MEMs 0.9.4 adoption program (#171–#174)
+
+CLI v0.12.1 adopts MacroEconometricModels **0.9.4**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed (453 leaves /
+20 top-level, unchanged).
+
+Two user-visible numerical caveats vs 0.12.0. First, the same `--seed`
+produces different randomized streams than 0.12.0: upstream default RNGs
+moved `MersenneTwister` → `Xoshiro` (determinism and `model reproduce`
+bit-reproduction are preserved). Second, SMM/GMM J-test p-values under
+identity weighting are now honestly `n/a` (identity weighting has no χ²
+limit — an efficient weighting is required) instead of a bare `NaN`.
+
+C038 bump, re-resolved from General (MEMs-only Manifest delta, no new
+transitives). T3 4031/4031 green; golden regen zero drift (mocks); docs
+captures one attributed regen (`dsge ha solve huggett --method reiter`
+`explained_variance` ULP move from the upstream `Xoshiro(1234)` default —
+see below); mock-surface PASS with the mock kept a strict subset (none of
+the 40 new upstream DGP exports added — no handler consumes them);
+plot-coverage 179/179 with neither ADDED nor REMOVED. Hands W1 the J-test
+NaN verdicts (GMM *and* SMM under identity weighting) plus two stale
+`MersenneTwister` comments, and W2 the DGP-library exposure decision.
+Full per-issue ledger (MEMs #790–#807 + #813) with file:line evidence:
+`docs/src/commands/not-wrapped.md` (W0/#171 section).
+
+### Decision record
+
+- **W0 (#171): 0.9.4 absorption ledger.** Defer: the 40-export `src/dgp/`
+  simulation library (no CLI leaf calls it; W2 decides exposure vs defer
+  + T3-harness adoption). No-ops (verified unreachable/display-only):
+  `compare_var_lp` off-by-one fix, `_smooth_lp_cv_errors` kwarg gate,
+  Johansen `_fmt`, upstream DGP-02–DGP-04/06/07/09–18 test seeding. W1
+  scope: SMM `j_test` NaN p-value under identity weighting (matches the
+  pre-existing GMM M-29 policy — both leaves render it), Xoshiro comment
+  rewords. Watches re-checked: MEMs#609/#255 open with no movement,
+  no `report()` overhaul, MEMs 1.0 unannounced.
+
+- **W1 (#172): 0.9.4 correctness moves.** SMM J p-value under identity
+  weighting renders `n/a (identity weighting — χ² limit needs efficient
+  weighting)` instead of a bare `NaN` (`_estimate_smm`); same NaN guard
+  applied to the `_estimate_gmm` J-test, whose verdict branch now reports
+  n/a on NaN instead of misreading `NaN < 0.05` as "Cannot reject"
+  (`j_test(::GMMModel)` shares the M-29 NaN policy per the W0 ledger —
+  through this leaf LP-GMM is just-identified, so the guard is
+  defense-in-depth, pinned by T3). T3: new identity-weighting SMM case
+  (n/a note, no bare NaN) + GMM identity/twostep cases pinning upstream
+  behavior. Stale `MersenneTwister` comments reworded to `Xoshiro`
+  (`shared.jl`, `dsge.jl`); CLI-owned `MersenneTwister(seed)`
+  constructions untouched. Verified no-ops: `compare_var_lp`
+  unreachable (zero `src/` hits, no `policy`/counterfactual transit),
+  `estimate_smooth_lp` call passes only `n_knots`/`lambda` (the
+  `_smooth_lp_cv_errors` kwarg gate cannot trigger — CLI calls
+  `cross_validate_lambda` positionally), Johansen `_fmt` display-only
+  (`test johansen` rounds result fields itself).
+
+- **W2 (#173): 0.9.4 DGP-library decision (no feature code).** Defer:
+  no `data simulate` leaf in v0.12.1 — a useful family is ~15–20 leaves
+  against a patch line, truth+data bundles need envelope schema design
+  (upstream returns NamedTuples, not tables), and upstream simulators
+  take a positional `rng` (no `seed=` kwarg for `_fwd_seed`); sketch +
+  T3 oracle-helper adoption filed as #177 (0.13.0 candidate). T3 harness
+  stays hermetic (32 local CSV-path DGPs, pinned streams). No-ops:
+  upstream white-noise lint, simulation guide, DGP API reference.
+  Watches re-checked at 0.9.4: MEMs#609/#255 open with no movement, no
+  `report()` overhaul, MEMs 1.0 unannounced. Full table:
+  `docs/src/commands/not-wrapped.md` (W2/#173 section).
+
 ## [0.12.0] — 2026-09-06 — MEMs 0.9.3 adoption program (#163–#169)
 
 CLI v0.12.0 adopts MacroEconometricModels **0.9.3**. The machine surface stays

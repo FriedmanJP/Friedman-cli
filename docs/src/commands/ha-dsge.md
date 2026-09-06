@@ -376,7 +376,7 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
                 ],
                 [
                     "explained_variance",
-                    "0.9999999999994282"
+                    "0.9999999999994043"
                 ],
                 [
                     "obs_rows",
