@@ -4,7 +4,10 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [Unreleased] — v0.12.0 program (#163–#169, MEMs 0.9.3)
+## [0.12.0] — 2026-09-06 — MEMs 0.9.3 adoption program (#163–#169)
+
+CLI v0.12.0 adopts MacroEconometricModels **0.9.3**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed.
 
 ### Added
 
