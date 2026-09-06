@@ -215,9 +215,9 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
             isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
                 throw(CliError("usage/missing",
                     "fevd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
-            arias_result = identify_narrative(model, restrictions, horizons)
+            arias_result = identify_narrative(model, restrictions, horizons; _fwd_seed()...)
         else
-            arias_result = identify_arias(model, restrictions, horizons)
+            arias_result = identify_arias(model, restrictions, horizons; _fwd_seed()...)
         end
         irf_vals = irf_mean(arias_result)  # H x n x n
         n_h = size(irf_vals, 1)
@@ -251,7 +251,8 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         uhlig_result = identify_uhlig(model, restrictions, horizons;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
             max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
+            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+            _fwd_seed()...)
         irf_vals = uhlig_result.irf  # H x n x n
         n_h = size(irf_vals, 1)
         # Compute FEVD proportions from structural IRFs

@@ -19,7 +19,7 @@ friedman
 ├── hd     bvar | favar | lp | var | vecm
 ├── io     aggregate | balance | baqaee-farhi | bf elasticities | bf equilibrium | bf local | bf misallocation | bf network | bf shock-curve | bf wedges | bilateral-trade | download | export-decomposition | extract | footprint | ghosh | impact | key-sectors | leontief | linkages | load | multipliers | network-stats | price | sda | sources | vertical-specialization
 ├── irf     bvar | favar | lp | pvar | sdfm | tvpvar | var | vecm
-├── model     info
+├── model     info | reproduce
 ├── multipliers     nardl
 ├── nowcast     bridge | bvar | dfm | forecast | news
 ├── policy     counterfactual bvar | counterfactual lp | counterfactual var | effects bvar | effects lp | effects sign | effects var | history bvar | history var | jacobian ha | moments bvar | moments var | news dsge | news ha | opp bvar | opp var | opp-sequence bvar | opp-sequence var | optimal bvar | optimal lp | optimal var | spanning var | sufficiency dsge
@@ -29,7 +29,7 @@ friedman
 ├── spectral     acf | cross | density | periodogram | transfer
 └── test     adf | adf-2break | anderson-rubin | andrews | arch-lm | ardl-bounds | bai-perron | bartlett-wn | bds | box-pierce | brant | breitung | breusch-pagan | chow | cips | cusum | cusumsq | dfgls | dh-causality | dispersion | durbin-watson | edf | engle-granger | ers | f-fe | factor-break | fisher | fisher-johansen | fourier-adf | fourier-kpss | glejser | gph | granger | gregory-hansen | gsadf | hadri | hansen-instability | hansen-linearity | harvey | hausman | hausman-iia | hegy | heteroskedasticity | identifiability | influence | ips | johansen | kao | kpss | ljung-box | llc | lm | lm-unitroot | local-whittle | lr | modified-wald | moon-perron | nardl-symmetry | normality | np | nyblom | panic | park-added | pedroni | pesaran-cd | phillips-ouliaris | pmg-hausman | pp | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | recursive-residuals | sadf | sign-bias | star-linearity | var lagselect | var stability | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif | weak-instrument | westerlund | white | wild-cluster | wooldridge-ar | za
 
-Total: 20 top-level commands, 452 leaves (from registry).
+Total: 20 top-level commands, 453 leaves (from registry).
 ```
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
@@ -47,7 +47,7 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 - [`hd`](generated/hd.md) — 5 leaves
 - [`io`](generated/io.md) — 27 leaves
 - [`irf`](generated/irf.md) — 8 leaves
-- [`model`](generated/model.md) — 1 leaves
+- [`model`](generated/model.md) — 2 leaves
 - [`multipliers`](generated/multipliers.md) — 1 leaves
 - [`nowcast`](generated/nowcast.md) — 5 leaves
 - [`policy`](generated/policy.md) — 23 leaves

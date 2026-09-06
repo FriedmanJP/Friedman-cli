@@ -26,9 +26,42 @@ Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
   `usage/invalid` instead of silently falling back to Cholesky. Deferred with
   record: `label_shocks`, K-regime tokens, RWZ checker (enforced upstream).
 
+### Added
+
+- **Universal serialization + reproduce** (#167): the native `.jld2` registry
+  grows 73 → **350** types (frozen fallback + mock mirror refreshed; all 73 old
+  names still registered, `SERIALIZATION_FORMAT_VERSION` stays 1); the
+  DSGE/HA-solution `.fmod` carve-out is **retired** — native round-trips proven
+  field-by-field on real MEMs for `DSGESolution` (reloaded solution computes
+  IRFs; only load-time `ss_fn` closures differ by design), `SVARModel`,
+  `HASteadyState`, and `KrusellSmithSolution` (incl. `manifest.seed`); new
+  **`model reproduce`** leaf re-runs a saved handle from its `ReproManifest`
+  seed and reports a match verdict plus per-field diffs (honest
+  `unverifiable` when no seed was recorded; works on `.jld2`/`.fmod`/`model://`);
+  `--seed` is now forwarded as estimators' own `seed=` everywhere 0.9.3
+  supports it — BVAR/IRF (existing) plus SV, MFVAR, TVPVAR, FAVAR, SDFM, SMM,
+  quantile/robust/SETAR/threshold, NARDL multipliers, DiD, structural LP, PVAR
+  bootstrap IRF, conditional forecast, all `identify_*`/non-Gaussian tests,
+  wild-cluster bootstrap, MS/SETAR/STAR forecasts, the full policy/OPP family,
+  DSGE Bayes estimation + predictives, and Krusell–Smith solves — via one
+  `_fwd_seed()` helper that passes nothing when `--seed` is absent (so
+  `seed::Int=<const>` defaults are untouched). `model info` now reads the
+  container header (`model_info`: writing versions, note, bundle layout)
+  without reconstructing the payload, with best-effort dimensions.
+
 ### Changed
 
 - MEMs pin `=0.9.0` → `=0.9.3` (#164).
+- Explicit no-surface (recorded): no `--compress` flag, no bundle/`note=`
+  writers — the CLI stays single-model-per-file and deterministic-default;
+  `model info` displays a saved note on the read path. CodecZlib arrives
+  transitively with JLD2 (already in the Manifest/bundle, zlib-licensed), so
+  no C060 action. Out of scope kept out: `posterior_mode` (no draws, no
+  `seed=`), rng-only paths (`historical_decomposition`, VAR/BVAR/ARIMA
+  forecasts, `identify_robust_bayes`, DSGE `simulate` leaves which pin their
+  own RNG), pre-`#786` `seed::Int=<const>` spec tests, and uncalled helpers
+  (`irf_match`, `model_average`, `identify_arias_bayesian`,
+  `hansen_linearity_test`, `posterior_predictive_check`).
 
 ## [0.11.0] — 2026-08-29
 

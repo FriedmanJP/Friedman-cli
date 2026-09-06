@@ -2094,7 +2094,7 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     run_labelstab = test == "label-stability"
 
     if run_strength
-        str_result = test_identification_strength(model)
+        str_result = test_identification_strength(model; _fwd_seed()...)
         push!(results_df, (
             test="Identification Strength",
             statistic=round(str_result.statistic; digits=4),
@@ -2112,9 +2112,9 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         elseif method == "dcov"
             identify_dcov(model)
         elseif method == "hsic"
-            identify_hsic(model)
+            identify_hsic(model; _fwd_seed()...)
         else
-            identify_fastica(model; contrast=Symbol(contrast))
+            identify_fastica(model; contrast=Symbol(contrast), _fwd_seed()...)
         end
     end
 
@@ -2129,7 +2129,7 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     end
 
     if run_independence && !isnothing(ica_result)
-        indep_result = test_shock_independence(ica_result)
+        indep_result = test_shock_independence(ica_result; _fwd_seed()...)
         push!(results_df, (
             test="Shock Independence",
             statistic=round(indep_result.statistic; digits=4),
@@ -2139,7 +2139,7 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     end
 
     if run_overid && !isnothing(ica_result)
-        overid_result = test_overidentification(model, ica_result)
+        overid_result = test_overidentification(model, ica_result; _fwd_seed()...)
         push!(results_df, (
             test="Overidentification",
             statistic=round(overid_result.statistic; digits=4),
@@ -2686,7 +2686,8 @@ function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
         wild_cluster_bootstrap(model, coefname, null;
             clusters=cl, n_boot=boot_reps, weights=Symbol(boot_weights),
             imposenull=!no_impose_null, ci=!no_ci, level=level,
-            ci_gridpoints=ci_gridpoints, enumerate=enum_flag)
+            ci_gridpoints=ci_gridpoints, enumerate=enum_flag,
+            _fwd_seed()...)
     catch e
         throw(_domain_or_data_error(e, "wild cluster bootstrap"))
     end
@@ -3669,7 +3670,7 @@ function _test_hansen_linearity(; data::String, column::Int=1, p::Int=1, d::Int=
     y, vname = load_univariate_series(data, column)
     _status("Hansen (1996) Linearity Test: variable=$vname, observations=$(length(y)), SETAR(p=$p, d=$d), reps=$reps"); _status()
     model = try
-        estimate_setar(y, p, d; linearity=true, reps=reps, trim=trim)
+        estimate_setar(y, p, d; linearity=true, reps=reps, trim=trim, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "Hansen linearity test"))
     end

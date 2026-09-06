@@ -3,7 +3,7 @@
 
 Generated reference for `friedman model` and its subcommands.
 
-**Leaves:** 1
+**Leaves:** 2
 
 ### `friedman model info`
 
@@ -19,6 +19,23 @@ Inspect a model handle (.jld2 native or .fmod interim): type, versions, dimensio
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `model_handle_info` (Handle path, magic, model type, writing and runtime versions, dimensions)
+
+---
+
+### `friedman model reproduce`
+
+Verify a saved handle by re-running its estimator from the recorded seed
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `path` | `String` | yes | — | Handle path (.jld2, .fmod, or model:// session handle) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `model_reproduce_summary` (Handle, model type, match verdict, recorded seed, thread counts, note); `model_reproduce_fields` (Per-field re-run comparison (present when the report has field diffs))
 
 ---
 

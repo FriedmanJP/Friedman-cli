@@ -18,7 +18,7 @@ _friedman() {
     hd) COMPREPLY=( $(compgen -W "bvar favar lp var vecm" -- "$cur") ) ;;
     io) COMPREPLY=( $(compgen -W "aggregate balance baqaee-farhi bf bilateral-trade download export-decomposition extract footprint ghosh impact key-sectors leontief linkages load multipliers network-stats price sda sources vertical-specialization" -- "$cur") ) ;;
     irf) COMPREPLY=( $(compgen -W "bvar favar lp pvar sdfm tvpvar var vecm" -- "$cur") ) ;;
-    model) COMPREPLY=( $(compgen -W "info" -- "$cur") ) ;;
+    model) COMPREPLY=( $(compgen -W "info reproduce" -- "$cur") ) ;;
     multipliers) COMPREPLY=( $(compgen -W "nardl" -- "$cur") ) ;;
     nowcast) COMPREPLY=( $(compgen -W "bridge bvar dfm forecast news" -- "$cur") ) ;;
     policy) COMPREPLY=( $(compgen -W "counterfactual effects history jacobian moments news opp opp-sequence optimal spanning sufficiency" -- "$cur") ) ;;

@@ -313,7 +313,8 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     if identified_set && id == "sign"
         check_func, _ = _build_check_func(config)
         isnothing(check_func) && error("--identified-set requires a --config file with sign restrictions")
-        set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true)
+        set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true,
+                            _fwd_seed()...)
         # W2/#166 (#746): set-identified summaries operate on the held set.
         sum_label = ""
         if summary == "none"
@@ -410,9 +411,9 @@ function _var_irf_arias(model, config::String, horizons::Int,
         id_cfg = get(cfg, "identification", Dict())
         isempty(get(id_cfg, "narrative_contributions", [])) && throw(CliError("usage/missing",
             "irf var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
-        result = identify_narrative(model, restrictions, horizons)
+        result = identify_narrative(model, restrictions, horizons; _fwd_seed()...)
     else
-        result = identify_arias(model, restrictions, horizons)
+        result = identify_arias(model, restrictions, horizons; _fwd_seed()...)
     end
 
     # W8/#110 (MEMs#372): the importance weights became operative in 0.7.2, so the summary
@@ -447,7 +448,8 @@ function _var_irf_uhlig(model, config::String, horizons::Int,
     result = identify_uhlig(model, restrictions, horizons;
         n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
         max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-        tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
+        tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+        _fwd_seed()...)
     _status("Uhlig identification: penalty=$(round(result.penalty; digits=6)), converged=$(result.converged)")
     for (si, sp) in enumerate(result.shock_penalties)
         _status("  Shock $si penalty: $(round(sp; digits=6))")
@@ -710,7 +712,8 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
     # (n_boot→n_draws, conf_level→ci) and returns a NamedTuple
     # (irf, lower, upper, draws) instead of an ImpulseResponse struct.
     irf_result = pvar_bootstrap_irf(model, horizons;
-        n_draws=boot_draws, ci=confidence, irf_type=Symbol(irf_type))
+        n_draws=boot_draws, ci=confidence, irf_type=Symbol(irf_type),
+        _fwd_seed()...)
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 

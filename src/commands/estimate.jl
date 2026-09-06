@@ -2971,9 +2971,9 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
     elseif method == "dcov"
         identify_dcov(model)
     elseif method == "hsic"
-        identify_hsic(model)
+        identify_hsic(model; _fwd_seed()...)
     else
-        identify_fastica(model; contrast=Symbol(contrast))
+        identify_fastica(model; contrast=Symbol(contrast), _fwd_seed()...)
     end
 
     if hasproperty(result, :converged)
@@ -3407,7 +3407,8 @@ function _estimate_smm(; data::String, config::String="",
     model = try
         estimate_smm(simulator_fn, moments_fn, theta0, Y;
                      weighting=wsym, sim_ratio=sim_ratio, burn=burn,
-                     contributions_fn=contributions_fn, bounds=bounds, rng=rng)
+                     contributions_fn=contributions_fn, bounds=bounds, rng=rng,
+                     _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         (e isa ArgumentError || e isa AssertionError || e isa BoundsError ||
@@ -5599,7 +5600,7 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
     _status("Robust regression ($psi $method-estimator): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
     _status()
     model = try
-        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method))
+        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method), _fwd_seed()...)
     catch e
         throw(_garch_variant_error(e, "Robust regression"))
     end
@@ -6787,7 +6788,8 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
     _status()
     model = try
         estimate_threshold(y, X, q; trim=trim, linearity=!no_linearity, reps=reps,
-                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col)
+                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col,
+                           _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "threshold regression"))
     end
@@ -6848,7 +6850,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     _status()
     model = try
         estimate_setar(y, p, d_arg; trim=trim, linearity=!no_linearity, reps=reps,
-                       ci_level=ci_level, het=het)
+                       ci_level=ci_level, het=het, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
@@ -7231,7 +7233,7 @@ function _setar_refit(data::String, column::Int, p::Int, d::String, trim::Float6
     d_arg = _parse_setar_delay(d)
     y, vname = load_univariate_series(data, column)
     model = try
-        estimate_setar(y, p, d_arg; trim=trim, linearity=false)
+        estimate_setar(y, p, d_arg; trim=trim, linearity=false, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
@@ -7430,7 +7432,7 @@ function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::
         _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
     _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
     fc = try
-        forecast(m, horizons; reps=reps, level=ci_level)
+        forecast(m, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS-AR forecast"))
     end
@@ -7479,7 +7481,7 @@ function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
 
     _status("MS regression forecast (h=$(size(X_new,1))): ci=$ci_level"); _status()
     fc = try
-        forecast(m, X_new; reps=reps, level=ci_level)
+        forecast(m, X_new; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS regression forecast"))
     end
@@ -7566,7 +7568,7 @@ function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::
     post = try
         estimate_tvpvar(Y, lags; tvp=!no_tvp, sv=!no_sv, n_draws=draws, n_burn=burnin,
                         thin=thin, n_train=n_train, k_Q=k_q, k_S=k_s, k_W=k_w,
-                        varnames=varnames)
+                        varnames=varnames, _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate tvpvar"))
@@ -7745,7 +7747,8 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
             "ratio $freq_ratio, aggregation $(join(aggs, ","))")
     post = try
         estimate_mfvar(Y, lags; low_freq=lf, freq_ratio=freq_ratio, aggregation=agg_arg,
-                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames)
+                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames,
+                       _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate mfvar"))
@@ -7819,7 +7822,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
 
     model = try
         estimate_qreg(y, X, length(taus) == 1 ? taus[1] : taus;
-                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha)
+                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha,
+                      _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate qreg"))

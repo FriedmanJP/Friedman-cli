@@ -1628,9 +1628,14 @@ function dsge_specs()::Vector{CommandSpec}
 end
 
 function register_dsge_commands!()
-    # --save-model only on solve (estimate already covered under estimate command)
+    # --save-model on the solution-returning leaves (W3/#167 adds the HA pair +
+    # bayes estimate: HASteadyState / HADSGESolution / KrusellSmithSolution /
+    # BayesianDSGE are all natively registered at MEMs 0.9.3, so they persist
+    # via .jld2 — the retired .fmod carve-out).
     specs = map(dsge_specs()) do s
-        s.path == ["dsge", "solve"] ? with_save_model([s])[1] : s
+        s.path in (["dsge", "solve"], ["dsge", "ha", "solve"],
+                   ["dsge", "ha", "steady-state"],
+                   ["dsge", "bayes", "estimate"]) ? with_save_model([s])[1] : s
     end
     register!(specs)
     return build_node("dsge", specs; description="DSGE models: RA, Bayesian, HA, CT, OLG, DCEGM, lifecycle, firm, bank")
@@ -2509,7 +2514,8 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         solver=Symbol(solver), solver_kwargs=solver_kwargs,
         delayed_acceptance=delayed_acceptance,
         measurement_error=me,
-        prefilter=pf, hp_lambda=hp_lambda)
+        prefilter=pf, hp_lambda=hp_lambda,
+        _fwd_seed()...)
 
     return result
 end
@@ -2799,7 +2805,7 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
-    pp = _dsge_call(posterior_predictive, result, n_sim; T_periods=periods)
+    pp = _dsge_call(posterior_predictive, result, n_sim; T_periods=periods, _fwd_seed()...)
 
     _maybe_plot(pp; plot=plot, plot_save=plot_save)
 
@@ -3194,7 +3200,8 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
     res = try
         _dsge_call(prior_predictive, inp.spec, inp.priors_dict;
             n_draws=n_draws, T_periods=periods, observables=inp.obs_syms,
-            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs)
+            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs,
+            _fwd_seed()...)
     catch e
         throw(_identification_error(e))
     end
@@ -3785,12 +3792,16 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     _status()
 
     rng = seed > 0 ? Random.MersenneTwister(seed) : Random.default_rng()
+    # MEMs#769: seed= owns the RNG and records the manifest (seed wins over rng,
+    # same stream as the MersenneTwister above). Leaf --seed wins, else global.
+    eff_seed = seed > 0 ? seed : _SEED[]
     result = _dsge_call(estimate_dsge_bayes, spec, Y, theta0;
         priors=priors_dist, observables=obs_syms,
         method=Symbol(samp), n_draws=n_draws, burnin=burnin, n_smc=n_smc,
         n_mh_steps=n_mh_steps, ess_target=ess_target, measurement_error=me,
         ha_method=meth, ha_kwargs=(T_horizon=t_horizon, n_reduced=n_reduced, hh_solver=hh),
-        proposal_scale=proposal_scale, adapt_interval=adapt_interval, rng=rng)
+        proposal_scale=proposal_scale, adapt_interval=adapt_interval, rng=rng,
+        seed=eff_seed)
 
     draws = result.theta_draws
     np = size(draws, 2)

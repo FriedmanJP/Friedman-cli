@@ -382,7 +382,7 @@ const VOL_MODELS = [
     (
         name = "sv",
         order = :sv,
-        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_sv(y; n_samples=draws),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_sv(y; n_samples=draws, _fwd_seed()...),
         # SV is a stochastic-volatility sampler, not a GARCH likelihood — no `dist`.
         supports_dist = false,
         param_names = (p, q) -> String["mu", "phi", "sigma_eta"],
@@ -750,6 +750,18 @@ function _load_and_estimate_var(data::String, lags)
     model = estimate_var(Y, p; varnames=varnames)
     return model, Y, varnames, p
 end
+
+"""
+    _fwd_seed() → NamedTuple
+
+Forward the global `--seed` as estimators' own `seed=` (W3/#167 — extends the
+C052/#243 BVAR pattern to every `seed=`-accepting estimator at MEMs 0.9.3, where
+it additionally records a `ReproManifest` for `reproduce`). Empty when `--seed`
+was not given, so library defaults are untouched — including `seed::Int=<const>`
+estimators (Krusell–Smith, spec tests), which cannot receive `nothing`.
+Splat into estimator kwargs: `estimate_sv(y; n_samples=n, _fwd_seed()...)`.
+"""
+_fwd_seed() = _SEED[] === nothing ? NamedTuple() : (; seed=_SEED[])
 
 """
     _load_and_estimate_bvar(data, lags, config, draws, sampler) -> (post, Y, varnames, p, n)
@@ -1141,6 +1153,7 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
         kwargs[:narrative_check] = narrative_check
     end
 
+    _SEED[] !== nothing && (kwargs[:seed] = _SEED[])
     slp = structural_lp(Y, horizons; kwargs...)
     return slp, Y, varnames
 end
@@ -1450,7 +1463,8 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
     favar = estimate_favar(Y, key_indices, r, lags;
                            method=Symbol(method),
                            n_draws=draws,
-                           panel_varnames=varnames)
+                           panel_varnames=varnames,
+                           _fwd_seed()...)
     return favar, Y, varnames
 end
 
@@ -2005,9 +2019,13 @@ function _solve_ha(spec::MacroEconometricModels.ModelSpec;
             end
         end
         _status("Solving HA-DSGE with method=$method...")
+        # Krusell–Smith owns its PLM-simulation RNG via seed= (MEMs#769), recorded
+        # on KrusellSmithSolution.manifest. Other HA methods take no seed — only
+        # forward here, never blindly into kwargs (ssj/reiter would reject it).
+        ks_seed = (method === :krusell_smith && _SEED[] !== nothing) ? (; seed=_SEED[]) : NamedTuple()
         return _dsge_call(solve, spec; method=method, ss=ss,
                           n_reduced=n_reduced, T_horizon=T_horizon,
-                          kwargs...)
+                          ks_seed..., kwargs...)
     catch e
         throw(_dsge_solve_error(e, "HA-DSGE solve"))
     end

@@ -14008,3 +14008,106 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
         @test err isa CliError && err.code == "usage/missing"
     end
 end
+
+@testset "W3/#167: universal serialization + reproduce" begin
+    @testset "_fwd_seed" begin
+        _SEED[] = nothing
+        @test isempty(_fwd_seed())
+        _SEED[] = 7
+        @test _fwd_seed() == (; seed=7)
+        _SEED[] = nothing
+    end
+
+    @testset "fallback registry is the 0.9.3 set" begin
+        @test length(_NATIVE_SAVE_TYPES_FALLBACK) == 350
+        for t in ("VARModel", "BVARPosterior", "RegModel", "DSGESolution",
+                  "PerturbationSolution", "KrusellSmithSolution", "HASteadyState",
+                  "HADSGESolution", "BayesianDSGE", "PosteriorMode", "SVARModel",
+                  "SVECResult", "MaxShareResult", "ProxySVARResult",
+                  "RobustBayesResult", "SignIdentifiedSet", "ImpulseResponse",
+                  "BayesianImpulseResponse", "FEVD", "VARForecast", "BVARForecast",
+                  "IOMultipliers", "LinkageResult", "JohansenResult",
+                  "IdentifiabilityTestResult", "MFVARPosterior", "TVPVARPosterior")
+            @test t in _NATIVE_SAVE_TYPES_FALLBACK
+        end
+    end
+
+    @testset "seeded mock estimators record manifests" begin
+        Y = randn(60, 2)
+        post = estimate_bvar(Y, 1; seed=11)
+        @test post.manifest !== nothing && post.manifest.seed == 11
+        @test estimate_bvar(Y, 1).manifest === nothing
+    end
+
+    @testset "model info reads the native header" begin
+        mktempdir() do dir
+            p = joinpath(dir, "m.jld2")
+            save_model_dispatch(p, estimate_bvar(randn(60, 2), 1))
+            info = _native_model_info(p)
+            @test info.model_type == "BVARPosterior"
+            @test info.magic == "MEMs native (jld2)"
+            @test info.note == ""
+            doc = _run_leaf(["model", "info", p])
+            @test string(doc.status) == "ok"
+            @test haskey(doc.data, :model_handle_info)
+        end
+    end
+
+    @testset "model reproduce: match / decline / unsupported" begin
+        mktempdir() do dir
+            seeded = joinpath(dir, "s.jld2")
+            save_model_dispatch(seeded, estimate_bvar(randn(60, 2), 1; seed=11))
+            doc = _run_leaf(["model", "reproduce", seeded])
+            @test string(doc.status) == "ok"
+            @test haskey(doc.data, :model_reproduce_summary)
+            @test haskey(doc.data, :model_reproduce_fields)
+            mrow = only(r for r in doc.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow[2] == "true"
+            srow = only(r for r in doc.data.model_reproduce_summary.rows if r[1] == "seed")
+            @test srow[2] == "11"
+
+            plain = joinpath(dir, "u.jld2")
+            save_model_dispatch(plain, estimate_bvar(randn(60, 2), 1))
+            doc2 = _run_leaf(["model", "reproduce", plain])
+            @test string(doc2.status) == "ok"
+            mrow2 = only(r for r in doc2.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow2[2] == "unverifiable (no recorded seed)"
+            @test !haskey(doc2.data, :model_reproduce_fields)
+
+            # Deterministic models carry no manifest: upstream's universal
+            # reproduce(x) fallback answers with a missing verdict (exit 0),
+            # never model/unsupported — the honest "cannot verify", not a pass.
+            varp = joinpath(dir, "v.jld2")
+            save_model_dispatch(varp, estimate_var(randn(60, 2), 1))
+            doc3 = _run_leaf(["model", "reproduce", varp])
+            @test string(doc3.status) == "ok"
+            mrow3 = only(r for r in doc3.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow3[2] == "unverifiable (no recorded seed)"
+            @test !haskey(doc3.data, :model_reproduce_fields)
+
+            # missing positional: the strict parser throws before any envelope
+            # (same ParseError family as every other leaf's missing-arg case)
+            errm = try
+                _dispatch_via_app(["model", "reproduce", "--format", "json"])
+                nothing
+            catch e
+                e
+            end
+            @test errm isa ParseError
+            @test occursin("missing required argument", errm.message)
+        end
+    end
+
+    @testset "model reproduce via model:// session handle" begin
+        _SERVE_MODEL_STORE[] = Dict{String,Any}()
+        try
+            save_model_dispatch("model://rep", estimate_bvar(randn(60, 2), 1; seed=5))
+            doc = _run_leaf(["model", "reproduce", "model://rep"])
+            @test string(doc.status) == "ok"
+            mrow = only(r for r in doc.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow[2] == "true"
+        finally
+            _SERVE_MODEL_STORE[] = nothing
+        end
+    end
+end

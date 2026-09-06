@@ -46,7 +46,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         method=Symbol(method), leads=leads, horizon=horizon,
         covariates=covs, control_group=Symbol(control_group),
         cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
-        base_period=Symbol(base_period))
+        base_period=Symbol(base_period), _fwd_seed()...)
 
     # C051: DIDResult is deliberately NOT rendered via DataFrame(model)/long_table — the
     # event-time ATT summary (plus the optional group-time ATT block below) is a
@@ -262,7 +262,7 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
     else
         est = estimate_did(pd, outcome, treatment;
             method=Symbol(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level)
+            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
         result = pretrend_test(est)
     end
 
@@ -331,7 +331,7 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     else
         est = estimate_did(pd, outcome, treatment;
             method=Symbol(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level)
+            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
         result = honest_did(est; Mbar=mbar, conf_level=conf_level)
     end
 

@@ -20,7 +20,7 @@ Aggregate an IO/MRIO table over regions and/or sector types
 | `--sector-map` | — | `String` | `""` | — | old=new sector-type pairs, comma-separated |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 **Output tables:** `io_table_summary` (Sector/region/category counts after aggregation); `sectors` (Per-sector gross output, final demand and value added)
 
@@ -42,7 +42,7 @@ Repair intermediate flows so row and column accounts close (RAS/GRAS)
 | `--maxiter` | — | `Int64` | `1000` | — | Maximum RAS/GRAS iterations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 **Output tables:** `io_table_summary` (Sector/region counts of the balanced table); `sectors` (Per-sector gross output, final demand and value added)
 
@@ -92,7 +92,7 @@ Factor-price, goods-price and Domar-share incidence at the base point
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -131,7 +131,7 @@ Exact nested-CES counterfactual equilibrium (Baqaee–Farhi 2019/2020)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -164,7 +164,7 @@ Local Hulten + second-order Hessian on a ProductionNetwork
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -199,7 +199,7 @@ Baqaee–Farhi (2020) Prop. 5 Harberger misallocation distance
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -231,7 +231,7 @@ Calibrate a Baqaee–Farhi ProductionNetwork from an IO table
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -266,7 +266,7 @@ One-sector productivity shock: exact vs Hulten vs second-order Taylor
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -301,7 +301,7 @@ Baqaee–Farhi (2020) Theorem 1 technology vs allocative-efficiency split
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -545,7 +545,7 @@ Parse/inspect an IO table: dimensions, balance, per-sector totals
 | `--member` | — | `String` | `""` | — | ICIO member filter |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

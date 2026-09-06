@@ -225,18 +225,22 @@ friedman --seed 42 estimate var data.csv --format json
 `meta.seed` echoes the seed; use the same seed for reproducible stochastic paths. Every JSON
 envelope also carries `meta.manifest` — the MacroEconometricModels.jl reproducibility manifest
 (seed, threads, OS, Julia + package + dependency versions, git, timestamp) — for provenance.
-`--seed` is additionally forwarded as the estimator's own `seed=` for the BVAR family and
-VAR/VECM IRFs, so their `ReproManifest` records it and the draws reproduce bit-for-bit.
+`--seed` is additionally forwarded as the estimator's own `seed=` everywhere upstream
+supports it (BVAR/IRF plus SV, MFVAR/TVPVAR, FAVAR/SDFM, SMM, quantile/robust/nonlinear,
+DiD, LP, PVAR bootstrap, conditional forecasts, set-identification, policy/OPP, DSGE Bayes
+and Krusell–Smith), so their `ReproManifest` records it and the draws reproduce bit-for-bit.
+`friedman model reproduce HANDLE` re-runs the recorded estimator and reports a match verdict
+plus per-field diffs (`unverifiable` when no seed was recorded — not a pass).
 
 ## Model handles
 
 `--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
-`.jld2` is the native, versioned format and since CLI v0.9.1 covers the full upstream
-serialization registry (56 types at MacroEconometricModels 0.7.2) — in practice every model
-`estimate` can fit. `.fmod` is the interim handle, now needed only for the DSGE/heterogeneous-agent
-*solutions* reachable via `dsge solve --save-model`, whose compiled model closures cannot be
-stored portably; saving one of those to `.jld2` fails with `model/unsupported-save` (exit 5) and
-writes nothing. `friedman model info PATH` inspects either format without re-running estimation.
+`.jld2` is the native, versioned format covering the full upstream serialization registry
+(350 types at MacroEconometricModels 0.9.3) — every model `estimate` can fit, including
+DSGE/HA solutions (`dsge solve`, `dsge ha solve`, `dsge ha steady-state`, `dsge bayes estimate`
+all take `--save-model`). `.fmod` remains as the interim handle for unregistered payloads.
+`friedman model info PATH` reads the container header (writing versions, note, bundle layout)
+without re-running estimation.
 
 ## Quiet / no-color / json alias
 

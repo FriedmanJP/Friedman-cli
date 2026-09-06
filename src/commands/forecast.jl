@@ -886,12 +886,12 @@ function _forecast_setar(; data::String="", column::Int=1, p::Int=1, d::String="
     y, vname = load_univariate_series(data, column)
     _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
     model = try
-        estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false)
+        estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR forecast"))
     end
     fc = try
-        forecast(model, horizons; reps=reps, level=ci_level)
+        forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR forecast"))
     end
@@ -927,7 +927,7 @@ function _forecast_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
         throw(_nonlinear_error(e, "STAR forecast"))
     end
     fc = try
-        forecast(model, horizons; reps=reps, level=ci_level)
+        forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "STAR forecast"))
     end
@@ -1561,7 +1561,8 @@ function _forecast_scenario(; data::String="", conditions_file::String="", lags=
     end
 
     fc = try
-        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=confidence)
+        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=confidence,
+                             _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "forecast scenario"))

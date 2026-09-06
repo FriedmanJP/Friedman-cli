@@ -168,9 +168,9 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
             isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
                 throw(CliError("usage/missing",
                     "hd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
-            arias_result = identify_narrative(model, restrictions, size(Y, 1) - p)
+            arias_result = identify_narrative(model, restrictions, size(Y, 1) - p; _fwd_seed()...)
         else
-            arias_result = identify_arias(model, restrictions, size(Y, 1) - p)
+            arias_result = identify_arias(model, restrictions, size(Y, 1) - p; _fwd_seed()...)
         end
         # Use Cholesky HD as base, labelled with Arias id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
@@ -197,7 +197,8 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
         uhlig_result = identify_uhlig(model, restrictions, size(Y, 1) - p;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
             max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
+            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+            _fwd_seed()...)
         # Use Cholesky HD as base, labelled with Uhlig id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
         _status_report(() -> report(hd_result))
@@ -270,7 +271,7 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
     horizon = size(Y, 1) - p
 
     bhd = historical_decomposition(post, horizon;
-        method=method, quantiles=[0.16, 0.5, 0.84])
+        method=method, quantiles=[0.16, 0.5, 0.84], _fwd_seed()...)
 
     _status_report(() -> report(bhd))
     _maybe_plot(bhd; plot=plot, plot_save=plot_save)
@@ -309,6 +310,7 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
         )
         if !isnothing(check_func);      kwargs[:check_func] = check_func; end
         if !isnothing(narrative_check);  kwargs[:narrative_check] = narrative_check; end
+        _SEED[] !== nothing && (kwargs[:seed] = _SEED[])
 
         slp = structural_lp(Y, lp_horizon; kwargs...)
     else
