@@ -4,7 +4,7 @@ This file no longer mirrors the full upstream surface (F44 / D-8).
 
 **Canonical docs:** [MacroEconometricModels.jl](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/)
 
-**Pinned version:** see `Project.toml` `[compat] MacroEconometricModels` (currently **0.7.2** from the Julia General registry).
+**Pinned version:** see `Project.toml` `[compat] MacroEconometricModels` (currently **0.9.3** from the Julia General registry; program index #163, waves #164–#169).
 
 **CLI surface:** generated from the command registry via:
 
@@ -13,3 +13,5 @@ julia --project docs/generate_cli_reference.jl
 ```
 
 See `docs/src/commands/generated/` for per-command option tables and `docs/docrule.md` for documentation rules.
+
+**Unwrapped upstream surface:** dispositions (adopt / defer / wontwrap / watch) live in `docs/src/commands/not-wrapped.md` (v0.11.0 line on #160, v0.12.0 remainder on #168).

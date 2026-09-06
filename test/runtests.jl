@@ -4149,8 +4149,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 75
+    # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +svar/svec W2/#166)
+    @test length(est_node.subcmds) == 77
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4181,6 +4181,10 @@ end
     sdfm_opt_names = [o.name for o in sdfm_cmd.options]
     @test "factors" in sdfm_opt_names
     @test "id" in sdfm_opt_names
+    @test "q-method" in sdfm_opt_names
+    @test "method" in sdfm_opt_names
+    @test "spectral" in sdfm_opt_names
+    @test "instrument" in sdfm_opt_names
     @test "var-lags" in sdfm_opt_names
     @test "bandwidth" in sdfm_opt_names
     @test "kernel" in sdfm_opt_names
@@ -4310,10 +4314,12 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
+    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 30
+    @test length(fc_node.subcmds) == 31
     @test haskey(fc_node.subcmds, "favar")
+    @test haskey(fc_node.subcmds, "sdfm")
+    @test fc_node.subcmds["sdfm"] isa LeafCommand
     @test fc_node.subcmds["favar"] isa LeafCommand
 
     fc_favar = fc_node.subcmds["favar"]

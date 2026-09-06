@@ -415,10 +415,14 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="Spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
             tables=[TableSpec(name=:gdfm_common_variance_shares,
                               description="Share of each variable variance explained by the common component")],
             category="estimate",
@@ -1316,6 +1320,61 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_vecm),
         ),
         CommandSpec(
+            path=["estimate", "svar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="pattern", type=String, default="recursive", description="AB-model pattern: recursive|blanchard-quah|a-model|b-model|ab-model", choices=["recursive", "blanchard-quah", "a-model", "b-model", "ab-model"]),
+                OptionSpec(name="config", type=String, default="", description="TOML config with [svar] A/B matrices (a/b/ab-model)"),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (overidentified patterns)"),
+                OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:svar_a,
+                              description="SVAR contemporaneous A matrix, one row per equation"),
+                    TableSpec(name=:svar_b,
+                              description="SVAR structural B matrix, one row per equation"),
+                    TableSpec(name=:svar_summary,
+                              description="Log-likelihood, LR overidentification test and identification status")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_svar),
+        ),
+        CommandSpec(
+            path=["estimate", "svec"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="config", type=String, default="", description="TOML config with optional [svec] long/short-run zero matrices"),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (restricted patterns)"),
+                OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:svec_b0,
+                              description="SVEC contemporaneous impact matrix B0, one row per equation"),
+                    TableSpec(name=:svec_xi,
+                              description="SVEC long-run impact matrix Xi, one row per equation"),
+                    TableSpec(name=:svec_summary,
+                              description="Permanent-shock count and identification status")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_svec),
+        ),
+        CommandSpec(
             path=["estimate", "smm"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1362,8 +1421,12 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|proxy (--id proxy requires --instrument)"),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
@@ -2846,7 +2909,9 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
 end
 
 function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
-                         output::String="", format::String="table")
+                         spectral::String="lag-window",
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="")
     X, varnames = load_multivariate_data(data)
 
     q = if isnothing(dynamic_rank)
@@ -2869,15 +2934,18 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
         nfactors
     end
 
-    _status("Estimating GDFM: static rank=$r, dynamic rank=$q")
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "estimate gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+    _status("Estimating GDFM: static rank=$r, dynamic rank=$q, spectral=$spectral")
     _status()
 
-    model = estimate_gdfm(X, q; r=r)
+    model = estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral])
 
     var_shares = common_variance_share(model)
     var_df = DataFrame(variable=varnames, common_variance_share=round.(var_shares; digits=4))
     output_result(var_df; format=Symbol(format), output=output,
                   title="GDFM Common Variance Shares")
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
 
     _status()
     _status("Average common variance share: $(round(mean(var_shares); digits=4))")
@@ -2903,9 +2971,9 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
     elseif method == "dcov"
         identify_dcov(model)
     elseif method == "hsic"
-        identify_hsic(model)
+        identify_hsic(model; _fwd_seed()...)
     else
-        identify_fastica(model; contrast=Symbol(contrast))
+        identify_fastica(model; contrast=Symbol(contrast), _fwd_seed()...)
     end
 
     if hasproperty(result, :converged)
@@ -3027,6 +3095,111 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
         "Log-likelihood" => round(loglikelihood(vecm); digits=4),
     ]; format=format, title="Information Criteria")
     return vecm
+end
+
+# ── SVAR (AB-model ML) ─────────────────────────────────────
+
+function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive", config::String="",
+                        n_starts::Int=5, max_iter::Int=400,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate svar: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate svar: --max-iter must be ≥ 1 (got $max_iter)"))
+    model, Y, varnames, p = _load_and_estimate_var(data, lags)
+    n = size(Y, 2)
+    pat = _load_svar_pattern(config, n, pattern, "estimate svar")
+
+    _status("Estimating SVAR($p) with $n variables: $(join(varnames, ", "))")
+    _status("Pattern: $pattern, Starts: $n_starts, Max iterations: $max_iter")
+    _status()
+
+    svar = try
+        estimate_svar(model, pat; n_starts=n_starts, max_iter=max_iter)
+    catch e
+        throw(_domain_or_data_error(e, "SVAR estimation"))
+    end
+    _status_report(() -> report(svar))
+    _status()
+
+    a_df = DataFrame(svar.A, varnames)
+    insertcols!(a_df, 1, :equation => varnames)
+    output_result(a_df; format=Symbol(format), output=output,
+                  title="SVAR Contemporaneous Matrix (A)", key="svar_a")
+    _status()
+
+    b_df = DataFrame(svar.B, varnames)
+    insertcols!(b_df, 1, :equation => varnames)
+    output_result(b_df; format=Symbol(format), output=_per_var_output_path(output, "b"),
+                  title="SVAR Structural Matrix (B)", key="svar_b")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Log-likelihood" => round(Float64(svar.loglik); digits=4),
+        "LR statistic" => round(Float64(svar.lr_stat); digits=4),
+        "LR df" => svar.lr_df,
+        "LR p-value" => round(Float64(svar.lr_pvalue); digits=6),
+        "Identification" => string(svar.identification.status),
+        "Overidentifying restrictions" => svar.identification.n_overidentifying,
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="SVAR Identification Summary",
+        key="svar_summary")
+
+    _maybe_plot(svar; plot=plot, plot_save=plot_save)
+    return svar
+end
+
+# ── SVEC (VECM structural) ─────────────────────────────────
+
+function _estimate_svec(; data::String, lags::Int=2, rank::String="auto",
+                        deterministic::String="constant", method::String="johansen",
+                        significance::Float64=0.05, config::String="",
+                        n_starts::Int=5, max_iter::Int=400,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate svec: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate svec: --max-iter must be ≥ 1 (got $max_iter)"))
+    vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
+    n = size(Y, 2)
+    lr_zeros, sr_zeros = _load_svec_zeros(config, n, "estimate svec")
+
+    _status("Estimating SVEC($(p-1)) with $n variables: $(join(varnames, ", "))")
+    _status("Cointegration rank: $(cointegrating_rank(vecm)), Restrictions: " *
+            (lr_zeros === nothing && sr_zeros === nothing ? "default (KPSW)" : "custom [svec]"))
+    _status()
+
+    svec = try
+        identify_svec(vecm; long_run_zeros=lr_zeros, short_run_zeros=sr_zeros,
+                      n_starts=n_starts, max_iter=max_iter)
+    catch e
+        throw(_domain_or_data_error(e, "SVEC identification"))
+    end
+    _status_report(() -> report(svec))
+    _status()
+
+    b0_df = DataFrame(svec.B0, varnames)
+    insertcols!(b0_df, 1, :equation => varnames)
+    output_result(b0_df; format=Symbol(format), output=output,
+                  title="SVEC Contemporaneous Impact Matrix (B0)", key="svec_b0")
+    _status()
+
+    xi_df = DataFrame(svec.Xi, varnames)
+    insertcols!(xi_df, 1, :equation => varnames)
+    output_result(xi_df; format=Symbol(format), output=_per_var_output_path(output, "xi"),
+                  title="SVEC Long-Run Impact Matrix (Xi)", key="svec_xi")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Permanent shocks" => svec.n_permanent,
+        "Identification" => string(svec.identification.status),
+        "Overidentifying restrictions" => svec.identification.n_overidentifying,
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="SVEC Identification Summary",
+        key="svec_summary")
+
+    _maybe_plot(svec; plot=plot, plot_save=plot_save)
+    return svec
 end
 
 # ── Panel VAR ─────────────────────────────────────────────
@@ -3234,7 +3407,8 @@ function _estimate_smm(; data::String, config::String="",
     model = try
         estimate_smm(simulator_fn, moments_fn, theta0, Y;
                      weighting=wsym, sim_ratio=sim_ratio, burn=burn,
-                     contributions_fn=contributions_fn, bounds=bounds, rng=rng)
+                     contributions_fn=contributions_fn, bounds=bounds, rng=rng,
+                     _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         (e isa ArgumentError || e isa AssertionError || e isa BoundsError ||
@@ -3304,31 +3478,19 @@ end
 function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
                          var_lags::Int=1, horizon::Int=40,
                          config::String="", bandwidth::Int=0,
-                         kernel::String="bartlett",
+                         kernel::String="bartlett", method::String="fglr",
+                         spectral::String="lag-window", instrument::String="",
+                         q_method::String="hallin-liska",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data)
-    n = size(Y, 2)
+    # W1/#165: one shared data path (see `_load_and_estimate_sdfm`); --factors
+    # omitted selects q via upstream `:auto` + `--q-method` (deterministic).
+    sdfm, Y, varnames, q = _load_and_estimate_sdfm(data, factors, id, var_lags, horizon,
+        config, method, spectral, instrument, q_method;
+        bandwidth=bandwidth, kernel=kernel)
+    n = length(varnames)
 
-    q = if factors === nothing
-        auto_q = ic_criteria_gdfm(Y, min(10, n - 1))
-        _status_styled("  Auto-selected dynamic factors: $(auto_q.q_opt)\n"; color=:cyan)
-        auto_q.q_opt
-    else
-        factors
-    end
-
-    sign_check = nothing
-    if id == "sign" && !isempty(config)
-        sign_check, _ = _build_check_func(config)
-    end
-
-    _status("Estimating Structural DFM: $q factors, id=$id, VAR lags=$var_lags, horizon=$horizon")
-
-    sdfm = estimate_structural_dfm(Y, q;
-        identification=Symbol(id), p=var_lags, H=horizon,
-        sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel),
-        varnames=varnames)   # panel names on the model (MEMs#538) → irf sdfm labels
+    _status("Estimating Structural DFM: $q factors, id=$id, method=$method, VAR lags=$var_lags, horizon=$horizon")
 
     _status("  Identification: $(sdfm.identification)")
     _status("  Factor VAR lags: $(sdfm.p_var)")
@@ -5438,7 +5600,7 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
     _status("Robust regression ($psi $method-estimator): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
     _status()
     model = try
-        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method))
+        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method), _fwd_seed()...)
     catch e
         throw(_garch_variant_error(e, "Robust regression"))
     end
@@ -6626,7 +6788,8 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
     _status()
     model = try
         estimate_threshold(y, X, q; trim=trim, linearity=!no_linearity, reps=reps,
-                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col)
+                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col,
+                           _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "threshold regression"))
     end
@@ -6687,7 +6850,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     _status()
     model = try
         estimate_setar(y, p, d_arg; trim=trim, linearity=!no_linearity, reps=reps,
-                       ci_level=ci_level, het=het)
+                       ci_level=ci_level, het=het, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
@@ -7070,7 +7233,7 @@ function _setar_refit(data::String, column::Int, p::Int, d::String, trim::Float6
     d_arg = _parse_setar_delay(d)
     y, vname = load_univariate_series(data, column)
     model = try
-        estimate_setar(y, p, d_arg; trim=trim, linearity=false)
+        estimate_setar(y, p, d_arg; trim=trim, linearity=false, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
@@ -7269,7 +7432,7 @@ function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::
         _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
     _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
     fc = try
-        forecast(m, horizons; reps=reps, level=ci_level)
+        forecast(m, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS-AR forecast"))
     end
@@ -7318,7 +7481,7 @@ function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
 
     _status("MS regression forecast (h=$(size(X_new,1))): ci=$ci_level"); _status()
     fc = try
-        forecast(m, X_new; reps=reps, level=ci_level)
+        forecast(m, X_new; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS regression forecast"))
     end
@@ -7405,7 +7568,7 @@ function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::
     post = try
         estimate_tvpvar(Y, lags; tvp=!no_tvp, sv=!no_sv, n_draws=draws, n_burn=burnin,
                         thin=thin, n_train=n_train, k_Q=k_q, k_S=k_s, k_W=k_w,
-                        varnames=varnames)
+                        varnames=varnames, _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate tvpvar"))
@@ -7584,7 +7747,8 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
             "ratio $freq_ratio, aggregation $(join(aggs, ","))")
     post = try
         estimate_mfvar(Y, lags; low_freq=lf, freq_ratio=freq_ratio, aggregation=agg_arg,
-                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames)
+                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames,
+                       _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate mfvar"))
@@ -7658,7 +7822,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
 
     model = try
         estimate_qreg(y, X, length(taus) == 1 ? taus[1] : taus;
-                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha)
+                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha,
+                      _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate qreg"))

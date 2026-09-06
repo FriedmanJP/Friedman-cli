@@ -728,16 +728,21 @@ Test identifiability conditions for non-Gaussian SVAR. Runs up to 5 tests: ident
 friedman test identifiability data.csv --test=all
 friedman test identifiability data.csv --test=strength
 friedman test identifiability data.csv --test=gaussianity --method=jade
+friedman test identifiability data.csv --test=lambda-distinct
+friedman test identifiability data.csv --test=label-stability --n-bootstrap=200
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--lags` | `-p` | Int | auto (AIC) | VAR lag order |
-| `--test` | `-t` | String | `all` | `strength`, `gaussianity`, `independence`, `overidentification`, `all` |
+| `--test` | `-t` | String | `all` | `strength`, `gaussianity`, `independence`, `overidentification`, `all`, plus opt-in `lambda-distinct`, `gaussian-count`, `label-stability` |
 | `--method` | | String | `fastica` | `fastica`, `jade`, `sobi`, `dcov`, `hsic` |
 | `--contrast` | | String | `logcosh` | `logcosh`, `exp`, `kurtosis` (FastICA only) |
+| `--n-bootstrap` | | Int | 999 | Bootstrap replications (`label-stability` only) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+
+The three W2 riders are opt-in only — `--test all` keeps its historical 5-test set. `lambda-distinct` fits a 2-regime Markov-switching SVAR and aggregates the pairwise Wald tests (max statistic, min Bonferroni p-value); it needs ≥ 2 variables. `label-stability` reports the bootstrap column-match fraction and carries no p-value.
 
 ### test heteroskedasticity
 

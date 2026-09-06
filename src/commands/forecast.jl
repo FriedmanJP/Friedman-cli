@@ -505,6 +505,8 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="method", type=String, default="ar", description="Factor projection: ar (two-sided)|one-sided|spectral (FHLR 2005)", choices=["ar","one-sided","spectral"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -515,6 +517,33 @@ function forecast_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:gdfm_forecast, description="Observable forecasts from the generalized dynamic factor model, tidy long form: horizon | variable | value | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_gdfm),
+        ),
+        CommandSpec(
+            path=["forecast", "sdfm"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|proxy (--id proxy requires --instrument)"),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Structural estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="ci", type=String, default="none", description="Interval method: none|bootstrap", choices=["none","bootstrap"]),
+                OptionSpec(name="reps", type=Int, default=200, description="Bootstrap replications (with --ci bootstrap)"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:sdfm_forecast, description="Panel forecasts from the structural dynamic factor model, tidy long form: horizon | variable | value | lower | upper")],
+            category="forecast",
+            handler=wrap_legacy(_forecast_sdfm),
         ),
         # Volatility 20-plex (forecast side): generated from VOL_MODELS
         _vol_specs(:forecast)...,
@@ -857,12 +886,12 @@ function _forecast_setar(; data::String="", column::Int=1, p::Int=1, d::String="
     y, vname = load_univariate_series(data, column)
     _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
     model = try
-        estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false)
+        estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR forecast"))
     end
     fc = try
-        forecast(model, horizons; reps=reps, level=ci_level)
+        forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR forecast"))
     end
@@ -898,7 +927,7 @@ function _forecast_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
         throw(_nonlinear_error(e, "STAR forecast"))
     end
     fc = try
-        forecast(model, horizons; reps=reps, level=ci_level)
+        forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "STAR forecast"))
     end
@@ -994,11 +1023,22 @@ function _forecast_dynamic(; data::String="", nfactors=nothing, horizons::Int=12
                   key="dynamic_factor_forecast")
 end
 
+const _GDFM_FORECAST_METHODS = Dict(
+    "ar" => :ar,
+    "one-sided" => :one_sided,
+    "spectral" => :spectral,
+)
+
 function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing,
-                          horizons::Int=12,
+                          horizons::Int=12, method::String="ar",
+                          spectral::String="lag-window",
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
+    haskey(_GDFM_FORECAST_METHODS, method) || throw(CliError("usage/invalid",
+        "forecast gdfm: --method must be ar|one-sided|spectral (got '$method')"))
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "forecast gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -1022,10 +1062,10 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
             nfactors
         end
 
-        _status("Forecasting with GDFM: static rank=$r, dynamic rank=$q, horizon=$horizons")
+        _status("Forecasting with GDFM: static rank=$r, dynamic rank=$q, horizon=$horizons, method=$method")
         _status()
 
-        fm = estimate_gdfm(X, q; r=r)
+        fm = estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral])
     else
         fm = model
         varnames = fm.varnames
@@ -1033,8 +1073,10 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
 
     # C051: route through MEMs' GDFM forecast (→ FactorForecast) and render its tidy
     # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled AR(1)
-    # extrapolation on the common-component factors.
-    fc = forecast(fm, horizons)
+    # extrapolation on the common-component factors. W1/#165: --method selects the
+    # factor projection (:ar fits AR(1) on two-sided factors; :one_sided/:spectral
+    # are the FHLR 2005 one-sided projection).
+    fc = forecast(fm, horizons; method=_GDFM_FORECAST_METHODS[method])
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
@@ -1043,6 +1085,41 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
     _status()
     var_shares = common_variance_share(fm)
     _status("Average common variance share: $(round(mean(var_shares); digits=4))")
+end
+
+function _forecast_sdfm(; data::String="", factors=nothing, id::String="cholesky",
+                         var_lags::Int=1, horizons::Int=12,
+                         config::String="", method::String="fglr",
+                         spectral::String="lag-window", instrument::String="",
+                         q_method::String="hallin-liska",
+                         ci::String="none", reps::Int=200,
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="",
+                         model=nothing)
+    ci in ("none", "bootstrap") || throw(CliError("usage/invalid",
+        "forecast sdfm: --ci must be none|bootstrap (got '$ci')"))
+    reps >= 1 || throw(CliError("usage/invalid",
+        "forecast sdfm: --reps must be ≥ 1 (got $reps)"))
+    if isnothing(model)
+        # W1/#165: same estimation surface as `estimate sdfm` (--method here is
+        # the structural estimator, fglr|gdfm-var; the forecast itself takes
+        # --ci/--reps). H=horizons: forecast(sdfm) projects forward itself.
+        sdfm, _, varnames, q = _load_and_estimate_sdfm(data, factors, id, var_lags,
+            horizons, config, method, spectral, instrument, q_method)
+        _status("Forecasting with SDFM: $q factors, id=$id, method=$method, horizon=$horizons")
+        _status()
+    else
+        sdfm = model
+        varnames = sdfm.varnames
+    end
+
+    fc = ci == "bootstrap" ?
+        forecast(sdfm, horizons; ci_method=:bootstrap, reps=reps) :
+        forecast(sdfm, horizons)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    output_result(long_table(fc); format=Symbol(format), output=output,
+                  title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
+                  key="sdfm_forecast")
 end
 
 # Volatility forecast handlers live in shared.jl (VOL_MODELS / _VOL_FORECAST_HANDLERS).
@@ -1484,7 +1561,8 @@ function _forecast_scenario(; data::String="", conditions_file::String="", lags=
     end
 
     fc = try
-        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=confidence)
+        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=confidence,
+                             _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "forecast scenario"))

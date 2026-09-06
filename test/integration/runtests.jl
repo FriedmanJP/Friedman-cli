@@ -232,6 +232,156 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "estimate svar / svec + narrative-adrr (W2/#166)" begin
+        csv = dgp_var2(; T=180, seed=7)
+        # recursive: closed form, just-identified → LR df 0, exact identification
+        r = run_json(["estimate", "svar", csv, "--lags", "2"])
+        assert_envelope_ok(r; label="estimate svar recursive")
+        a = named_table(r.doc, :svar_a)
+        @test a !== nothing
+        if a !== nothing
+            @test table_cols(a) == ["equation", "y1", "y2", "y3"]
+            @test length(table_rows(a)) == 3
+            # recursive A is unit lower-triangular: diagonal 1, above-diagonal 0
+            rows = [collect(row) for row in table_rows(a)]
+            @test all(Float64(row[i+1]) ≈ 1.0 for (i, row) in enumerate(rows))
+            @test all(Float64(rows[i][j+1]) ≈ 0.0 for i in 1:3 for j in i+1:3)
+        end
+        kv = collect_named_kv(r.doc, "metric", "value")
+        @test Int(kv["LR df"]) == 0
+        @test string(kv["Identification"]) == "exact"
+        # Blanchard-Quah long-run pattern runs too
+        r = run_json(["estimate", "svar", csv, "--lags", "2", "--pattern", "blanchard-quah"])
+        assert_envelope_ok(r; label="estimate svar blanchard-quah")
+        # A-model from TOML matrices (nan = free parameter)
+        svar_toml = tempname() * ".toml"
+        write(svar_toml, "[svar]\nA = [[1.0, 0.0, 0.0], [nan, 1.0, 0.0], [nan, nan, 1.0]]\n")
+        r = run_json(["estimate", "svar", csv, "--lags", "2", "--pattern", "a-model",
+                      "--config", svar_toml])
+        assert_envelope_ok(r; label="estimate svar a-model")
+        rm(svar_toml; force=true)
+        rm(csv; force=true)
+
+        # SVEC on cointegrated data, default KPSW identification
+        cc = dgp_coint(; T=250, seed=21)
+        r = run_json(["estimate", "svec", cc, "--lags", "2", "--rank", "1"])
+        assert_envelope_ok(r; label="estimate svec")
+        b0 = named_table(r.doc, :svec_b0)
+        @test b0 !== nothing
+        if b0 !== nothing
+            @test table_cols(b0) == ["equation", "x", "y"]
+            @test length(table_rows(b0)) == 2
+        end
+        kv = collect_named_kv(r.doc, "metric", "value")
+        @test Int(kv["Permanent shocks"]) == 1
+        # structural VECM routes on the vecm leaves (KPSW default)
+        r = run_json(["irf", "vecm", cc, "--lags", "2", "--rank", "1",
+                      "--horizons", "8", "--shock", "1", "--ci", "none", "--id", "svec"])
+        assert_envelope_ok(r; label="irf vecm svec")
+        tbl = named_table(r.doc, :vecm_irf)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "variable", "shock", "value", "lower", "upper"]
+        end
+        r = run_json(["fevd", "vecm", cc, "--lags", "2", "--rank", "1",
+                      "--horizons", "8", "--id", "svec"])
+        assert_envelope_ok(r; label="fevd vecm svec")
+        rm(cc; force=true)
+
+        # narrative-adrr shares the Arias pipeline end to end
+        csv2 = dgp_var2(; T=200, seed=9)
+        adrr_toml = tempname() * ".toml"
+        write(adrr_toml, """
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        [[identification.narrative_contributions]]
+        variable = 1
+        shock = 1
+        window = [1, 4]
+        kind = "most_important"
+        """)
+        # underidentified AB pattern → RWZ guard is upstream inside estimate_svar
+        # (W2/#166 #752 disposition); the CLI maps it to model/identification.
+        under_toml = tempname() * ".toml"
+        write(under_toml, "[svar]\nA = [[nan, nan, nan], [nan, nan, nan], [nan, nan, nan]]\n" *
+              "B = [[nan, nan, nan], [nan, nan, nan], [nan, nan, nan]]\n")
+        r = run_json(["estimate", "svar", csv2, "--lags", "2", "--pattern", "ab-model",
+                      "--config", under_toml])
+        @test r.code == 5
+        rm(under_toml; force=true)
+        r = run_json(["irf", "var", csv2, "--lags", "2", "--horizons", "8",
+                      "--shock", "1", "--ci", "none", "--id", "narrative-adrr",
+                      "--config", adrr_toml])
+        assert_envelope_ok(r; label="irf var narrative-adrr")
+        # NOTE: select by key, never first_table (JSON3 object order is arbitrary).
+        # The Arias path renders wide (build_irf_table): horizon + one col per variable.
+        tbl = named_table(r.doc, :irf)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test table_cols(tbl) == ["horizon", "y1", "y2", "y3"]
+        end
+        # robust-bayes on the BVAR posterior (Giacomini-Kitagawa bands).
+        # NOTE: on bvar leaves --config is the *prior* file, so it must carry
+        # both [prior] and [identification].
+        rb_toml = tempname() * ".toml"
+        write(rb_toml, """
+        [prior]
+        type = "minnesota"
+        [prior.hyperparameters]
+        lambda1 = 0.2
+        lambda2 = 0.5
+        lambda3 = 1.0
+        lambda4 = 100000.0
+        [prior.optimization]
+        enabled = false
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        """)
+        r = run_json(["irf", "bvar", csv2, "--lags", "2", "--draws", "50",
+                      "--horizons", "4", "--shock", "1", "--id", "robust-bayes",
+                      "--config", rb_toml])
+        assert_envelope_ok(r; label="irf bvar robust-bayes")
+        bands = named_table(r.doc, :robust_bayes_bands)
+        @test bands !== nothing
+        if bands !== nothing
+            cols = table_cols(bands)
+            @test any(c -> endswith(c, "_robust_lower"), cols)
+            @test any(c -> endswith(c, "_robust_upper"), cols)
+            @test length(table_rows(bands)) == 4
+        end
+        # set-identified summaries over the sign identified set
+        sign_toml = tempname() * ".toml"
+        write(sign_toml, """
+        [identification]
+        method = "sign"
+        [identification.sign_matrix]
+        matrix = [[1, -1, 1], [0, 1, -1], [0, 0, 1]]
+        horizons = [0]
+        """)
+        # --seed pins the identified-set draws (W3/#167 _fwd_seed wiring):
+        # this restriction set is marginal at 100 unseeded replications
+        # (~1/3 of streams accept zero rotations → model/identification flake).
+        # Seed 1 accepts deterministically (verified frozen pass/fail per seed);
+        # 300 replications give the acceptance margin cross-platform headroom.
+        for sum_kind in ["median-target", "joint-band"]
+            r = run_json(["--seed", "1", "irf", "var", csv2, "--lags", "2", "--horizons", "6",
+                          "--shock", "1", "--ci", "none", "--id", "sign",
+                          "--identified-set", "--summary", sum_kind,
+                          "--replications", "300", "--config", sign_toml])
+            assert_envelope_ok(r; label="irf var identified-set $sum_kind")
+        end
+        rm(sign_toml; force=true)
+        rm(rb_toml; force=true)
+        rm(adrr_toml; force=true)
+        rm(csv2; force=true)
+    end
+
     @testset "estimate arima on AR(1) φ=0.7" begin
         csv = dgp_ar1(; T=250, φ=0.7, seed=11)
         r = run_json(["estimate", "arima", csv, "--column", "1"])
@@ -3097,6 +3247,76 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "sdfm/gdfm 0.9.1 surface (W1/#165)" begin
+        csv = dgp_var2(; T=150, seed=165)
+        # legacy estimator + legacy spectrum riders
+        rl = run_json(["estimate", "sdfm", csv, "--factors", "1",
+                       "--method", "gdfm-var",
+                       "--spectral", "smoothed-periodogram"])
+        assert_envelope_ok(rl; label="estimate sdfm legacy")
+        # automatic q-selection through each upstream criterion (deterministic)
+        for qm in ("hallin-liska", "bai-ng", "amengual-watson")
+            ra = run_json(["estimate", "sdfm", csv, "--q-method", qm])
+            assert_envelope_ok(ra; label="estimate sdfm auto $qm")
+            sm = named_table(ra.doc, :sdfm_estimation_summary)
+            @test sm !== nothing
+            if sm !== nothing
+                mets = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                            for r in table_rows(sm))
+                @test parse(Int, mets["dynamic_factors"]) >= 1
+            end
+        end
+        # proxy identification with a (strong, hence non-degenerate) instrument
+        rng = MersenneTwister(166)
+        y1 = randn(rng, 150); y2 = randn(rng, 150); y3 = randn(rng, 150)
+        idf = DataFrame(y1=y1, y2=y2, y3=y3, z=y1 .+ 0.1 .* randn(rng, 150))
+        icsv = write_csv(idf; prefix="sdfm_proxy")
+        rp = run_json(["estimate", "sdfm", icsv, "--factors", "1",
+                       "--id", "proxy", "--instrument", "z"])
+        assert_envelope_ok(rp; label="estimate sdfm proxy")
+        # guards are typed usage errors, never exit 1
+        @test run_json(["estimate", "sdfm", icsv, "--factors", "1",
+                        "--id", "proxy"]).code == 2
+        @test run_json(["estimate", "sdfm", icsv, "--factors", "1",
+                        "--instrument", "z"]).code == 2
+        @test run_json(["estimate", "sdfm", csv, "--factors", "1",
+                        "--method", "bogus"]).code == 2
+        # FHLR one-sided / spectral forecast branches
+        for m in ("one-sided", "spectral")
+            rf2 = run_json(["forecast", "gdfm", csv, "--nfactors", "1",
+                            "--dynamic-rank", "1", "--horizons", "4",
+                            "--method", m])
+            assert_envelope_ok(rf2; label="forecast gdfm $m")
+            _, t2 = first_table(rf2.doc)
+            @test t2 !== nothing &&
+                table_cols(t2) == ["horizon", "variable", "value", "lower", "upper"]
+        end
+        # new forecast sdfm leaf, incl. bootstrap intervals
+        fs = run_json(["forecast", "sdfm", csv, "--factors", "1", "--horizons", "4"])
+        assert_envelope_ok(fs; label="forecast sdfm")
+        _, tf2 = first_table(fs.doc)
+        @test tf2 !== nothing &&
+            table_cols(tf2) == ["horizon", "variable", "value", "lower", "upper"]
+        fb = run_json(["forecast", "sdfm", csv, "--factors", "1", "--horizons", "4",
+                       "--ci", "bootstrap", "--reps", "20"])
+        assert_envelope_ok(fb; label="forecast sdfm bootstrap")
+        # SDFM residual-bootstrap IRF bands
+        ib = run_json(["irf", "sdfm", csv, "--factors", "1", "--horizons", "6",
+                       "--ci", "bootstrap", "--reps", "20"])
+        assert_envelope_ok(ib; label="irf sdfm bootstrap")
+        # --plot-save against the real recipes (W5/#95: only advertise what runs)
+        for args in (["estimate", "gdfm", csv, "--dynamic-rank", "1"],
+                     ["forecast", "gdfm", csv, "--dynamic-rank", "1", "--horizons", "4"],
+                     ["estimate", "sdfm", csv, "--factors", "1"])
+            out = tempname() * ".html"
+            rpl = run_json(vcat(args, ["--plot-save", out]))
+            assert_envelope_ok(rpl; label=join(args[1:2], " ") * " --plot-save")
+            @test isfile(out) && filesize(out) > 1000
+            rm(out; force=true)
+        end
+        rm(csv; force=true); rm(icsv; force=true)
+    end
+
     @testset "factor family carries CSV varnames (W10/#131, MEMs#538)" begin
         # Before the adoption, irf favar labelled key variables by panel POSITION
         # ("X9"/"X10") and irf sdfm labelled every response "Var $i" — real names
@@ -3323,6 +3543,122 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test r6.doc !== nothing && String(r6.doc["status"]) == "error"
         @test startswith(String(r6.doc["error"]["code"]), "data/")
         rm(csv; force=true); rm(jld; force=true); rm(vfmod; force=true); rm(garbage; force=true)
+    end
+
+    # W3/#167 — universal serialization: newly-native round-trips + reproduce
+    @testset "W3 native round-trips + model reproduce" begin
+        csv = dgp_var2(; T=100, seed=43)
+
+        # Seeded BVAR: save → downstream irf --model still works on the
+        # posterior-mean VARModel file. That file carries NO manifest (the
+        # seed went into the sampler, the saved object is deterministic), so
+        # reproduce honestly reports unverifiable — exit 0, not a refusal.
+        bjld = tempname() * ".jld2"
+        rb = run_json(["--seed", "11", "estimate", "bvar", csv, "--lags", "1",
+                       "--draws", "50", "--save-model", bjld])
+        assert_envelope_ok(rb; label="w3 seeded bvar save")
+        @test isfile(bjld)
+        ri = run_json(["irf", "bvar", "--model", bjld, "--horizons", "4"])
+        assert_envelope_ok(ri; label="w3 irf bvar --model")
+        rp = run_json(["model", "reproduce", bjld])
+        assert_envelope_ok(rp; label="w3 reproduce bvar unverifiable")
+        summ = rp.doc.data.model_reproduce_summary
+        @test only(r for r in summ.rows if r[1] == "matched")[2] == "unverifiable (no recorded seed)"
+        @test only(r for r in summ.rows if r[1] == "seed")[2] == "none recorded"
+        @test !haskey(rp.doc.data, :model_reproduce_fields)
+        rm(bjld; force=true)
+
+        # TRUE matched path (MEMs#769): estimate sv --seed records a
+        # ReproManifest on the saved SVModel, so reproduce re-runs from the
+        # seed and compares bit-for-bit.
+        vjld = tempname() * ".jld2"
+        rv = run_json(["--seed", "7", "estimate", "sv", csv, "--column", "1",
+                       "--draws", "150", "--save-model", vjld])
+        assert_envelope_ok(rv; label="w3 seeded sv save")
+        rvi = run_json(["model", "info", vjld])
+        assert_envelope_ok(rvi; label="w3 sv info")
+        vrow = only(r for r in rvi.doc.data.model_handle_info.rows if r[1] == "model_type")
+        @test vrow[2] == "SVModel"
+        rvp = run_json(["model", "reproduce", vjld])
+        assert_envelope_ok(rvp; label="w3 reproduce sv match")
+        vsumm = rvp.doc.data.model_reproduce_summary
+        @test only(r for r in vsumm.rows if r[1] == "matched")[2] == "true"
+        @test only(r for r in vsumm.rows if r[1] == "seed")[2] == "7"
+        @test haskey(rvp.doc.data, :model_reproduce_fields)
+        @test length(rvp.doc.data.model_reproduce_fields.rows) >= 1
+        rm(vjld; force=true)
+
+        # SVAR (ex-.fmod family): save → info type → reproduce is honest about
+        # the missing manifest (upstream's universal fallback reports a
+        # missing verdict, exit 0 — never a model/unsupported refusal).
+        sjld = tempname() * ".jld2"
+        rs = run_json(["estimate", "svar", csv, "--lags", "2", "--pattern", "recursive",
+                       "--save-model", sjld])
+        assert_envelope_ok(rs; label="w3 svar save")
+        rsi = run_json(["model", "info", sjld])
+        assert_envelope_ok(rsi; label="w3 svar info")
+        irow = only(r for r in rsi.doc.data.model_handle_info.rows if r[1] == "model_type")
+        @test irow[2] == "SVARModel"
+        rsr = run_json(["model", "reproduce", sjld])
+        assert_envelope_ok(rsr; label="w3 reproduce svar unverifiable")
+        ssumm = rsr.doc.data.model_reproduce_summary
+        @test only(r for r in ssumm.rows if r[1] == "matched")[2] == "unverifiable (no recorded seed)"
+        @test !haskey(rsr.doc.data, :model_reproduce_fields)
+        rm(sjld; force=true)
+        rm(csv; force=true)
+    end
+
+    # W3/#167 — DSGE/HA solutions move off .fmod: save → info → typed refusal
+    @testset "W3 DSGE/HA native round-trips" begin
+        dir = mktempdir()
+        model_toml = joinpath(dir, "model.toml")
+        write(model_toml, """
+        [model]
+        parameters = { rho = 0.9, sigma = 0.01 }
+        endogenous = ["Y", "C"]
+        exogenous = ["e"]
+        linear = true
+        [[model.equations]]
+        expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
+        [[model.equations]]
+        expr = "C[t] = Y[t]"
+        """)
+        sol = tempname() * ".jld2"
+        r = run_json(["dsge", "solve", model_toml, "--save-model", sol])
+        assert_envelope_ok(r; label="w3 dsge solve save")
+        ri = run_json(["model", "info", sol])
+        assert_envelope_ok(ri; label="w3 dsge sol info")
+        irow = only(r for r in ri.doc.data.model_handle_info.rows if r[1] == "model_type")
+        @test irow[2] == "DSGESolution"
+        # no reproduce(::DSGESolution) upstream: the universal fallback reports
+        # a missing verdict (exit 0), never a typed refusal or exit 1
+        rr = run_json(["model", "reproduce", sol])
+        assert_envelope_ok(rr; label="w3 reproduce dsge-sol unverifiable")
+        @test only(r for r in rr.doc.data.model_reproduce_summary.rows if r[1] == "matched")[2] ==
+              "unverifiable (no recorded seed)"
+        rm(sol; force=true)
+
+        # HA steady state + Krusell–Smith (KS reuses the suite's small-solve shape)
+        ss = tempname() * ".jld2"
+        rh = run_json(["dsge", "ha", "steady-state", "huggett", "--save-model", ss])
+        assert_envelope_ok(rh; label="w3 ha ss save")
+        rhi = run_json(["model", "info", ss])
+        assert_envelope_ok(rhi; label="w3 ha ss info")
+        hirow = only(r for r in rhi.doc.data.model_handle_info.rows if r[1] == "model_type")
+        @test hirow[2] == "HASteadyState"
+        rm(ss; force=true)
+
+        ks = tempname() * ".jld2"
+        rk = run_json(["--seed", "7", "dsge", "ha", "solve", "krusell-smith",
+                       "--method", "krusell-smith", "--n-reduced", "6",
+                       "--t-horizon", "20", "--save-model", ks])
+        assert_envelope_ok(rk; label="w3 ks solve save")
+        rki = run_json(["model", "info", ks])
+        assert_envelope_ok(rki; label="w3 ks info")
+        kirow = only(r for r in rki.doc.data.model_handle_info.rows if r[1] == "model_type")
+        @test kirow[2] == "KrusellSmithSolution"
+        rm(ks; force=true)
+        rm(dir; force=true, recursive=true)
     end
 
     @testset "W1/#106 native save/load across the widened registry" begin
@@ -7447,8 +7783,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"irf_var","arguments":$(argsjson(Dict("model"=>"model://m1","horizons"=>4,"ci"=>"none")))}}""",
             # 5. typed error: missing data file → data envelope, isError
             """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"estimate_var","arguments":$(argsjson(Dict("data"=>"/nope/missing.csv")))}}""",
+            # 6. W3/#167: model_reproduce over a session handle — VARModel has no
+            # manifest, so the universal fallback's honest unverifiable verdict
+            # (ok, not a crash and not a refusal)
+            """{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"model_reproduce","arguments":$(argsjson(Dict("path"=>"model://m1")))}}""",
         ])
-        @test length(rs) == 5
+        @test length(rs) == 6
 
         @test String(rs[1].result.serverInfo.name) == "friedman"
         tools = rs[2].result.tools
@@ -7474,6 +7814,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test String(bad_env.status) == "error"
         @test startswith(String(bad_env.error.code), "data/")
         @test Int(bad_env.error.exit_code) == 3
+
+        rep = rs[6].result
+        @test rep.isError == false
+        rep_env = JSON3.read(rep.content[1].text)
+        @test String(rep_env.status) == "ok"
+        @test haskey(rep_env.data, :model_reproduce_summary)
 
         # store is session-scoped: gone after the loop
         @test Friedman._SERVE_MODEL_STORE[] === nothing

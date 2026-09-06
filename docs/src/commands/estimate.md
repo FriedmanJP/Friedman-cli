@@ -617,8 +617,11 @@ friedman estimate gdfm data.csv --nfactors=5 --dynamic-rank=3
 |--------|-------|------|---------|-------------|
 | `--nfactors` | `-r` | Int | auto | Number of static factors |
 | `--dynamic-rank` | `-q` | Int | auto | Dynamic rank |
+| `--spectral` | | String | `lag-window` | Spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
 
 **Output:** Common variance shares per variable, average common variance share.
 
@@ -969,6 +972,57 @@ friedman estimate vecm data.csv --significance=0.01
 | `--output` | `-o` | String | | Export file path |
 
 **Output:** Cointegration rank, loading matrix (alpha), cointegrating vectors (beta), short-run coefficients.
+
+## estimate svar
+
+Maximum-likelihood estimation of the AB-model SVAR (`A u_t = B ε_t`, Amisano–Giannini). `recursive` and `blanchard-quah` are closed-form; overidentified matrix patterns are maximised with LBFGS from `--n-starts` starting values. Matrix patterns come from the `[svar]` config table (`nan` = free parameter); see [Configuration](../configuration.md).
+
+```bash
+friedman estimate svar data.csv --lags=2
+friedman estimate svar data.csv --pattern=blanchard-quah
+friedman estimate svar data.csv --pattern=a-model --config=svar.toml
+friedman estimate svar data.csv --pattern=ab-model --config=svar.toml --n-starts=10
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--lags` | `-p` | Int | auto (AIC) | VAR lag order |
+| `--pattern` | | String | `recursive` | `recursive`, `blanchard-quah`, `a-model`, `b-model`, `ab-model` |
+| `--config` | | String | | TOML config with `[svar]` A/B matrices (a/b/ab-model) |
+| `--n-starts` | | Int | 5 | Optimizer starting values (overidentified patterns) |
+| `--max-iter` | | Int | 400 | Max optimizer iterations per start |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** Contemporaneous matrix A, structural matrix B, log-likelihood with the LR overidentification test and identification status.
+
+## estimate svec
+
+Structural VECM via King–Plosser–Stock–Watson (default) or custom long/short-run zero matrices from the `[svec]` config table. Without `--config` the identification is fully KPSW.
+
+```bash
+friedman estimate svec data.csv --lags=2 --rank=1
+friedman estimate svec data.csv --lags=2 --rank=1 --config=svec.toml
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--lags` | `-p` | Int | 2 | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | String | `auto` | Cointegration rank (`auto`, `1`, `2`, ...) |
+| `--deterministic` | | String | `constant` | `none`, `constant`, `trend` |
+| `--method` | | String | `johansen` | `johansen`, `engle_granger` |
+| `--significance` | | Float64 | 0.05 | Significance level for auto rank selection |
+| `--config` | | String | | TOML config with optional `[svec]` zero matrices |
+| `--n-starts` | | Int | 5 | Optimizer starting values (restricted patterns) |
+| `--max-iter` | | Int | 400 | Max optimizer iterations per start |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** Contemporaneous impact matrix B0, long-run impact matrix Xi, permanent-shock count and identification status.
 
 ## estimate pvar
 

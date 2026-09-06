@@ -76,11 +76,11 @@ const PLOT_OPTIONS = [
 # Model handles (P2-7 / C029) — compose onto estimate vs downstream specs
 const SAVE_MODEL_OPTION = OptionSpec(
     name="save-model", type=String, default="",
-    description="Save estimated model to a .fmod handle file",
+    description="Save estimated model to a handle file (.jld2 native, .fmod interim)",
 )
 const MODEL_OPTION = OptionSpec(
     name="model", type=String, default="",
-    description="Load model from a .fmod handle (skip re-estimation)",
+    description="Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation)",
 )
 
 # Config ergonomics (P2-8 / C030) — append to every leaf that has --config

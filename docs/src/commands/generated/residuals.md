@@ -19,7 +19,7 @@ Path to CSV data file
 | `--instruments` | — | `String` | `common` | `common`, `perequation` | Instrument mode |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -49,7 +49,7 @@ Path to CSV data file
 | `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `aparch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -68,7 +68,7 @@ Model residuals (arch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `arch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -92,7 +92,7 @@ Path to CSV data file
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `arfima_residuals` (ARFIMA residuals, one row per period)
 
@@ -111,7 +111,7 @@ Model residuals (arima)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `arima_residuals` (ARIMA residuals, one row per period)
 
@@ -133,7 +133,7 @@ Model residuals (bvar)
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -158,7 +158,7 @@ Path to CSV data file
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `cgarch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -179,7 +179,7 @@ Model residuals (dynamic)
 | `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `dynamic_factor_idiosyncratic_component` (Idiosyncratic component of the dynamic factor model, one column per series)
 
@@ -198,7 +198,7 @@ Model residuals (egarch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `egarch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -219,7 +219,7 @@ Model residuals (favar)
 | `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `favar_residuals` (FAVAR residuals, one column per factor and observed variable)
 
@@ -243,7 +243,7 @@ Path to CSV data file
 | `--dist` | — | `String` | `normal` | — | Innovation distribution |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `fiegarch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -267,7 +267,7 @@ Path to CSV data file
 | `--dist` | — | `String` | `normal` | — | Innovation distribution |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `figarch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -286,7 +286,7 @@ Model residuals (garch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `garch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -310,7 +310,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -336,7 +336,7 @@ Model residuals (gdfm)
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `gdfm_idiosyncratic_component` (Idiosyncratic component of the generalized dynamic factor model, one column per series)
 
@@ -355,7 +355,7 @@ Model residuals (gjr-garch)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `gjr_garch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -376,7 +376,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `igarch_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -397,7 +397,7 @@ Model residuals (logit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `logit_residuals` (Response residuals y - p, one row per observation)
 
@@ -419,7 +419,7 @@ Model residuals (mlogit)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `multinomial_logit_residuals` (Per-alternative residuals (response, pearson or deviance per --kind))
 
@@ -441,7 +441,7 @@ Path to CSV data file
 | `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -467,7 +467,7 @@ Path to CSV data file
 | `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -494,7 +494,7 @@ Path to CSV data file
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `negative_binomial_residuals` (Negative binomial residuals, one row per observation)
 
@@ -516,7 +516,7 @@ Model residuals (ologit)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -542,7 +542,7 @@ Model residuals (oprobit)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -570,7 +570,7 @@ Model residuals (piv)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `panel_iv_residuals` (Panel IV residuals, one row per observation)
 
@@ -594,7 +594,7 @@ Model residuals (plogit)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `panel_logit_residuals` (Panel logit residuals, one row per observation)
 
@@ -619,7 +619,7 @@ Path to CSV data file
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `poisson_residuals` (Poisson residuals, one row per observation)
 
@@ -643,7 +643,7 @@ Model residuals (pprobit)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `panel_probit_residuals` (Panel probit residuals, one row per observation)
 
@@ -667,7 +667,7 @@ Model residuals (preg)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `panel_regression_residuals` (Panel regression residuals, one row per observation)
 
@@ -688,7 +688,7 @@ Model residuals (probit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `probit_residuals` (Response residuals y - p, one row per observation)
 
@@ -710,7 +710,7 @@ Model residuals (reg)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `reg_residuals` (OLS/WLS residuals, one row per observation)
 
@@ -743,7 +743,7 @@ Path to CSV data file
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -770,7 +770,7 @@ Path to CSV data file
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `setar_residuals` (SETAR residuals, one row per effective period)
 
@@ -795,7 +795,7 @@ Path to CSV data file
 | `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `star_residuals` (STAR residuals, one row per effective period)
 
@@ -817,7 +817,7 @@ Path to CSV data file
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -840,7 +840,7 @@ Model residuals (static)
 | `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `static_factor_idiosyncratic_component` (Idiosyncratic component of the static factor model, one column per series)
 
@@ -859,7 +859,7 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML with [[equations]] blocks (required) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -886,7 +886,7 @@ Model residuals (sv)
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `sv_standardized_residuals` (Standardized residuals, one row per period)
 
@@ -905,7 +905,7 @@ Model residuals (var)
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `var_residuals` (VAR residuals, one column per variable)
 
@@ -925,7 +925,7 @@ Model residuals (vecm)
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `vecm_residuals` (VECM residuals (via the VAR representation), one column per variable)
 

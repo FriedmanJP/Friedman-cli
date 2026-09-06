@@ -169,6 +169,7 @@ Path to DSGE model file (.toml or .jl)
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1404,6 +1405,7 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 **Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
 
@@ -1426,6 +1428,7 @@ Compute HA-DSGE stationary equilibrium
 | `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = upstream default) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 **Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
 
@@ -1889,7 +1892,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

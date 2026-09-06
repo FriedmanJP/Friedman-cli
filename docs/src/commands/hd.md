@@ -17,7 +17,7 @@ friedman hd var data.csv --id=sign --config=sign_restrictions.toml
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--lags` | `-p` | Int | auto | Lag order |
-| `--id` | | String | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `arias`, `uhlig` |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `arias`, `uhlig`, `narrative-adrr` |
 | `--config` | | String | | TOML config for identification |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
@@ -75,6 +75,7 @@ Historical decomposition for Vector Error Correction Models. The VECM is convert
 ```bash
 friedman hd vecm data.csv --id=cholesky
 friedman hd vecm data.csv --rank=2 --deterministic=constant --lags=4
+friedman hd vecm data.csv --id=svec --rank=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -82,7 +83,7 @@ friedman hd vecm data.csv --rank=2 --deterministic=constant --lags=4
 | `--lags` | `-p` | Int | auto | Lag order |
 | `--rank` | `-r` | Int | auto | Cointegration rank (auto via Johansen) |
 | `--deterministic` | | String | `constant` | `none`, `constant`, `trend` |
-| `--id` | | String | `cholesky` | Identification method |
+| `--id` | | String | `cholesky` | Identification method (`cholesky`, `sign`, `narrative`, `longrun`, `svec`; `svec` accepts an optional `[svec]` config) |
 | `--config` | | String | | TOML config for identification |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |

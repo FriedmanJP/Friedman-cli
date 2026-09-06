@@ -23,7 +23,7 @@ Compute Bayesian historical decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -55,7 +55,7 @@ FAVAR historical decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -86,7 +86,7 @@ Compute historical decomposition via structural LP
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -110,12 +110,14 @@ Compute historical decomposition of shocks
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -141,12 +143,12 @@ Compute historical decomposition via VECM → VAR representation
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 

@@ -23,7 +23,7 @@ friedman fevd var data.csv --id=sign --config=sign_restrictions.toml
 |--------|-------|------|---------|-------------|
 | `--lags` | `-p` | Int | auto | Lag order |
 | `--horizons` | `-h` | Int | 20 | Forecast horizon |
-| `--id` | | String | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `arias`, `uhlig` |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `arias`, `uhlig`, `narrative-adrr` |
 | `--config` | | String | | TOML config for identification |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
@@ -116,6 +116,7 @@ VECM-based FEVD. The VECM is converted to its VAR representation for decompositi
 ```bash
 friedman fevd vecm data.csv --horizons=20
 friedman fevd vecm data.csv --rank=2 --deterministic=constant --lags=4
+friedman fevd vecm data.csv --id=svec --rank=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -124,7 +125,7 @@ friedman fevd vecm data.csv --rank=2 --deterministic=constant --lags=4
 | `--horizons` | `-h` | Int | 20 | Forecast horizon |
 | `--rank` | `-r` | Int | auto | Cointegration rank (auto via Johansen) |
 | `--deterministic` | | String | `constant` | `none`, `constant`, `trend` |
-| `--id` | | String | `cholesky` | Identification method |
+| `--id` | | String | `cholesky` | Identification method (`cholesky`, `sign`, `narrative`, `longrun`, `svec`; `svec` accepts an optional `[svec]` config) |
 | `--config` | | String | | TOML config for identification |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |

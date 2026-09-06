@@ -26,9 +26,11 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|proxy|max-share|gmm-moments|narrative-adrr"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="bootstrap", type=String, default="iid",
                            description="Bootstrap scheme (--ci bootstrap): iid|wild|block",
                            choices=["iid", "wild", "block"]),
@@ -40,6 +42,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="bias-reps", type=Int, default=0,
                            description="Inner reps for --bias-correct (0 = same as --replications)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="summary", type=String, default="none", description="Set-identified summary (only with --identified-set)", choices=["none", "median-target", "modal-model", "joint-band", "sup-t-band"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -67,7 +70,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|robust-bayes"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
@@ -79,7 +82,9 @@ function irf_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser"),
                 FlagSpec(name="cumulative", description="Compute cumulative IRFs (for differenced data)")
             ],
-            tables=[TableSpec(name=:bayesian_irf, description="Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper")],
+            tables=[TableSpec(name=:bayesian_irf, description="Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper"),
+                    TableSpec(name=:robust_bayes_bands, description="Giacomini-Kitagawa robust bands for the selected shock: horizon | one lower/upper/robust_lower/robust_upper column per variable (--id robust-bayes)"),
+                    TableSpec(name=:robust_bayes_diagnostics, description="Empty-set probability, informativeness and credibility level (--id robust-bayes)")],
             category="irf",
             handler=wrap_legacy(_irf_bvar),
         ),
@@ -148,7 +153,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
@@ -217,11 +222,17 @@ function irf_specs()::Vector{CommandSpec}
             summary="Structural DFM impulse response functions (panel-wide)",
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
-                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|proxy (--id proxy requires --instrument)"),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizons", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="ci", type=String, default="none", description="Bands: none|bootstrap (residual bootstrap)", choices=["none","bootstrap"]),
+                OptionSpec(name="reps", type=Int, default=200, description="Bootstrap replications (with --ci bootstrap)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -247,14 +258,14 @@ end
 
 function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=20,
                    id::String="cholesky", ci::String="bootstrap", replications::Int=1000,
-                   config::String="",
+                   config::String="", instrument::String="", target_var::String="",
                    bootstrap::String="iid", block_length::Int=0,
                    wild_dist::String="rademacher",
                    bias_correct::Bool=false, bias_reps::Int=0,
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    cumulative::Bool=false, identified_set::Bool=false,
-                   stationary_only::Bool=false,
+                   stationary_only::Bool=false, summary::String="none",
                    model=nothing)
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
@@ -267,9 +278,15 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     _status("Computing IRFs: VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
     _status()
 
-    # Arias identification handled separately
-    if id == "arias"
-        _var_irf_arias(model, config, horizons, varnames, shock; format=format, output=output)
+    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "irf var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
+
+    # Arias identification handled separately (narrative-adrr shares the Arias
+    # pipeline via identify_narrative — same AriasSVARResult shape)
+    if id in ("arias", "narrative-adrr")
+        _var_irf_arias(model, config, horizons, varnames, shock; format=format, output=output, estimator=id)
         return
     end
 
@@ -279,18 +296,46 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         return
     end
 
+    # W2/#166: the VAR family admits proxy/max-share/gmm-moments beyond the base
+    # map (validated here — _build_identification_kwargs below only knows base).
+    _identification_method(id, _ID_METHODS_VAR, "irf var")
+    if identified_set && id != "sign"
+        throw(CliError("usage/invalid",
+            "irf var: --identified-set applies only to --id sign (got --id $id)"))
+    end
+
+    if summary != "none" && !(identified_set && id == "sign")
+        throw(CliError("usage/invalid",
+            "irf var: --summary applies only to --identified-set with --id sign (got --summary $summary)"))
+    end
+
     # Sign-identified set: return full draw set instead of point estimates
     if identified_set && id == "sign"
         check_func, _ = _build_check_func(config)
         isnothing(check_func) && error("--identified-set requires a --config file with sign restrictions")
-        set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true)
-        lower, upper = irf_bounds(set)
-        med = irf_median(set)
+        set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true,
+                            _fwd_seed()...)
+        # W2/#166 (#746): set-identified summaries operate on the held set.
+        sum_label = ""
+        if summary == "none"
+            lower, upper = irf_bounds(set)
+            med = irf_median(set)
+        elseif summary in ("median-target", "modal-model")
+            tgt = summary == "median-target" ? median_target(set) : modal_model(set)
+            med, lower, upper = tgt.irf, nothing, nothing
+            sum_label = " [$summary #$(tgt.index)]"
+        else
+            med = irf_median(set)
+            lower, upper = summary == "joint-band" ? joint_band(set) : sup_t_band(set)
+            sum_label = " [$summary]"
+        end
         _status("Sign-Identified Set: $(set.n_accepted)/$(set.n_total) accepted ($(round(set.acceptance_rate*100; digits=1))%)")
-        irf_df = build_irf_table(med, lower, upper, varnames, shock, horizons)
+        # Set arrays carry `horizons` rows, impact-first — label them 0..H-1
+        # (build_irf_table's default), not 0..H.
+        irf_df = build_irf_table(med, lower, upper, varnames, shock)
         shock_name = _shock_name(varnames, shock)
         output_result(irf_df; format=Symbol(format), output=output,
-                      title="IRF Identified Set (sign, $shock_name shock)",
+                      title="IRF Identified Set (sign, $shock_name shock)$sum_label",
                       key="irf_identified_set")
         return
     end
@@ -314,7 +359,8 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         _status("bootstrap options ignored: they apply to --ci bootstrap, not --ci $ci")
     end
 
-    kwargs = _build_identification_kwargs(id, config)
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR)
+    _inject_svar_id_kwargs!(kwargs, id, "irf var", data, varnames, instrument, target_var)
     kwargs[:ci_type] = Symbol(ci)
     kwargs[:reps] = replications
     if ci == "bootstrap"
@@ -356,23 +402,19 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
                   title="IRF to $shock_name shock ($id identification)", key="irf")
 end
 
-function _load_svar_restrictions(model, config::String, method_label::String)
-    isempty(config) && error("$method_label identification requires a --config file with restrictions")
-    cfg = load_config(config)
-    id_cfg = get(cfg, "identification", Dict())
-    zeros_list = get(id_cfg, "zero_restrictions", [])
-    signs_list = get(id_cfg, "sign_restrictions", [])
-    n = nvars(model)
-    zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-    sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-    restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
-    return cfg, restrictions
-end
-
 function _var_irf_arias(model, config::String, horizons::Int,
-                        varnames::Vector{String}, shock::Int; format::String="table", output::String="")
-    _, restrictions = _load_svar_restrictions(model, config, "Arias")
-    result = identify_arias(model, restrictions, horizons)
+                        varnames::Vector{String}, shock::Int; format::String="table", output::String="",
+                        estimator::String="arias")
+    cfg, restrictions = _load_svar_restrictions(config, nvars(model),
+        estimator == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
+    if estimator == "narrative-adrr"
+        id_cfg = get(cfg, "identification", Dict())
+        isempty(get(id_cfg, "narrative_contributions", [])) && throw(CliError("usage/missing",
+            "irf var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
+        result = identify_narrative(model, restrictions, horizons; _fwd_seed()...)
+    else
+        result = identify_arias(model, restrictions, horizons; _fwd_seed()...)
+    end
 
     # W8/#110 (MEMs#372): the importance weights became operative in 0.7.2, so the summary
     # can now rest on far fewer EFFECTIVE draws than n_draws suggests. Under pure sign
@@ -401,12 +443,13 @@ end
 
 function _var_irf_uhlig(model, config::String, horizons::Int,
                         varnames::Vector{String}, shock::Int; format::String="table", output::String="")
-    cfg, restrictions = _load_svar_restrictions(model, config, "Uhlig")
+    cfg, restrictions = _load_svar_restrictions(config, nvars(model), "Uhlig")
     uhlig_params = get_uhlig_params(cfg)
     result = identify_uhlig(model, restrictions, horizons;
         n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
         max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-        tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
+        tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+        _fwd_seed()...)
     _status("Uhlig identification: penalty=$(round(result.penalty; digits=6)), converged=$(result.converged)")
     for (si, sp) in enumerate(result.shock_penalties)
         _status("  Shock $si penalty: $(round(sp; digits=6))")
@@ -435,7 +478,14 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
         p = post.p
         n = length(varnames)
     end
-    method = get(ID_METHOD_MAP, id, :cholesky)
+    # Robust Bayes runs its own estimator (identify_robust_bayes on the posterior),
+    # not the generic compute_Q path — which has no robust-bayes branch.
+    if id == "robust-bayes"
+        _irf_bvar_robust_bayes(post, config, n, horizons, varnames, shock;
+                               format=format, output=output, plot=plot, plot_save=plot_save)
+        return
+    end
+    method = _identification_method(id, ID_METHOD_MAP, "irf bvar")
 
     _status("Computing Bayesian IRFs: BVAR($p), shock=$shock, horizons=$horizons, id=$id")
     _status("  Sampler: $sampler, Draws: $draws")
@@ -474,6 +524,46 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
     output_result(irf_df; format=Symbol(format), output=output,
                   title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)",
                   key="bayesian_irf")
+end
+
+function _irf_bvar_robust_bayes(post, config::String, n::Int, horizons::Int,
+                                  varnames::Vector{String}, shock::Int;
+                                  format::String="table", output::String="",
+                                  plot::Bool=false, plot_save::String="")
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "irf bvar: --shock index $shock out of 1:$n"))
+    _, restrictions = _load_svar_restrictions(config, n, "Robust-Bayes")
+    result = identify_robust_bayes(post, restrictions, horizons)
+    _status_report(() -> report(result))
+    _status()
+
+    # Arrays are (H, n_variables, n_shocks); horizons label 0..H-1 exactly like
+    # the Arias wide table (build_irf_table's default).
+    H = size(result.lower, 1)
+    size(result.lower, 3) >= shock || throw(CliError("model/error",
+        "irf bvar: robust-bayes result covers $(size(result.lower, 3)) shocks (asked $shock)"))
+    shock_name = _shock_name(varnames, shock)
+    band_df = DataFrame(horizon=collect(0:(H - 1)))
+    for (vi, vname) in enumerate(varnames)
+        band_df[!, "$(vname)_lower"] = result.lower[:, vi, shock]
+        band_df[!, "$(vname)_upper"] = result.upper[:, vi, shock]
+        band_df[!, "$(vname)_robust_lower"] = result.robust_lower[:, vi, shock]
+        band_df[!, "$(vname)_robust_upper"] = result.robust_upper[:, vi, shock]
+    end
+    output_result(band_df; format=Symbol(format), output=output,
+                  title="Robust Bayes bands to $shock_name shock (Giacomini-Kitagawa)",
+                  key="robust_bayes_bands")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Empty-set probability" => round(Float64(result.empty_set_prob); digits=6),
+        "Informativeness" => round(Float64(result.informativeness); digits=6),
+        "Level" => round(Float64(result.level); digits=4),
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+        title="Robust Bayes Diagnostics", key="robust_bayes_diagnostics")
+
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 # ── LP IRF ───────────────────────────────────────────────
@@ -559,12 +649,29 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
     _status("Computing VECM IRFs: rank=$r, VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
     _status()
 
-    kwargs = _build_identification_kwargs(id, config)
-    kwargs[:ci_type] = Symbol(ci)
-    kwargs[:reps] = replications
-    isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + manifest (C052/#243)
+    _identification_method(id, _ID_METHODS_VECM, "irf vecm")
+    if id == "svec"
+        # Upstream (vecm/analysis.jl) re-identifies per draw, so bands would reuse
+        # a frozen rotation — only point IRFs are available.
+        ci == "none" || throw(CliError("usage/invalid",
+            "irf vecm: --id svec supports only --ci none (got --ci $ci)"))
+        lr_zeros, sr_zeros = _load_svec_zeros(config, n, "irf vecm")
+        svec_kwargs = Dict{Symbol,Any}(:method => :svec)
+        lr_zeros !== nothing && (svec_kwargs[:long_run_zeros] = lr_zeros)
+        sr_zeros !== nothing && (svec_kwargs[:short_run_zeros] = sr_zeros)
+        irf_result = try
+            irf(vecm, horizons; svec_kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM SVEC IRF"))
+        end
+    else
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM)
+        kwargs[:ci_type] = Symbol(ci)
+        kwargs[:reps] = replications
+        isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + manifest (C052/#243)
 
-    irf_result = irf(var_model, horizons; kwargs...)
+        irf_result = irf(var_model, horizons; kwargs...)
+    end
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
@@ -605,7 +712,8 @@ function _irf_pvar(; data::String="", id_col::String="", time_col::String="",
     # (n_boot→n_draws, conf_level→ci) and returns a NamedTuple
     # (irf, lower, upper, draws) instead of an ImpulseResponse struct.
     irf_result = pvar_bootstrap_irf(model, horizons;
-        n_draws=boot_draws, ci=confidence, irf_type=Symbol(irf_type))
+        n_draws=boot_draws, ci=confidence, irf_type=Symbol(irf_type),
+        _fwd_seed()...)
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 
@@ -666,23 +774,35 @@ end
 
 function _irf_sdfm(; data::String="", factors=nothing, id::String="cholesky",
                     var_lags::Int=1, horizons::Int=40,
-                    config::String="",
+                    config::String="", method::String="fglr",
+                    spectral::String="lag-window", instrument::String="",
+                    q_method::String="hallin-liska",
+                    ci::String="none", reps::Int=200,
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
+    ci in ("none", "bootstrap") || throw(CliError("usage/invalid",
+        "irf sdfm: --ci must be none|bootstrap (got '$ci')"))
+    reps >= 1 || throw(CliError("usage/invalid",
+        "irf sdfm: --reps must be ≥ 1 (got $reps)"))
     if isnothing(model)
-        Y, varnames = load_multivariate_data(data)
-        q = factors === nothing ? ic_criteria_gdfm(Y, min(10, size(Y, 2) - 1)).q_opt : factors
-        sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags,
-                                       H=horizons, varnames=varnames)
+        # W1/#165: shared estimation surface with `estimate sdfm` (H=horizons —
+        # post-0.9.1 the IRF is computed on demand, but the stored horizon still
+        # bounds the mock clamp, so keep them equal).
+        sdfm, _, _, q = _load_and_estimate_sdfm(data, factors, id, var_lags,
+            horizons, config, method, spectral, instrument, q_method)
     else
         sdfm = model
     end
 
-    _status("Structural DFM IRF: $q factors, id=$id, horizon=$horizons")
+    _status("Structural DFM IRF: id=$id, method=$method, horizon=$horizons, ci=$ci")
     _status()
 
-    irf_result = irf(sdfm, horizons)
+    # W1/#165: on-demand horizons (#717) + residual-bootstrap bands (#714/#716);
+    # identification stays fixed at estimation (upstream rejects ident kwargs).
+    irf_kwargs = Dict{Symbol,Any}(:ci_type => Symbol(ci), :reps => reps)
+    isnothing(_SEED[]) || (irf_kwargs[:seed] = _SEED[])
+    irf_result = irf(sdfm, horizons; irf_kwargs...)
 
     _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
 

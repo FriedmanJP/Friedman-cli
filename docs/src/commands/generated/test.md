@@ -949,9 +949,10 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--test` | `-t` | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|all |
+| `--test` | `-t` | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|lambda-distinct\|gaussian-count\|label-stability\|all (the last three are opt-in only) |
 | `--method` | — | `String` | `fastica` | — | fastica\|jade\|sobi\|dcov\|hsic (for gaussianity/independence/overidentification tests) |
 | `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
+| `--n-bootstrap` | — | `Int64` | `999` | — | Bootstrap replications (for label-stability) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

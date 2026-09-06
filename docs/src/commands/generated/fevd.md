@@ -24,7 +24,7 @@ Compute Bayesian forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -56,7 +56,7 @@ FAVAR forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -88,7 +88,7 @@ Compute forecast error variance decomposition via structural LP
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -118,7 +118,7 @@ Compute Panel VAR forecast error variance decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -138,18 +138,26 @@ Structural DFM forecast error variance decomposition
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign |
+| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy (--id proxy requires --instrument) |
+| `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
+| `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--horizons` | — | `Int64` | `20` | — | FEVD horizon |
+| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `sdfm_fevd` (Structural DFM variance shares in factor space, tidy long form: horizon | variable | shock | value)
 
@@ -167,12 +175,14 @@ Compute forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -201,12 +211,12 @@ Compute FEVD via VECM → VAR representation
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 

@@ -117,6 +117,8 @@ function main()
             (["filter", "bhp", fix, "--lambda", "1600.0", "--stopping", "BIC", "--format", "json"], ["filter", "bhp"]),
             # #147: estimate sdfm emits an estimation-record table (was status-only)
             (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
+            # W1/#165: new forecast sdfm leaf (panel FactorForecast long table)
+            (["forecast", "sdfm", fix, "--factors", "1", "--horizons", "4", "--format", "json"], ["forecast", "sdfm"]),
         ]
         for (argv, gpath) in cases
             Random.seed!(42)

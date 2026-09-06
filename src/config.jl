@@ -22,7 +22,12 @@
 const CONFIG_SCHEMA = Dict{String,Vector{String}}(
     "prior" => ["type", "hyperparameters", "optimization"],
     "identification" => ["method", "sign_matrix", "narrative", "zero_restrictions",
-                         "sign_restrictions", "uhlig"],
+                         "sign_restrictions", "a0_zero_restrictions",
+                         "a0_sign_restrictions", "elasticity_bounds",
+                         "magnitude_bounds", "cumulative_restrictions",
+                         "narrative_shocks", "narrative_contributions", "uhlig"],
+    "svar" => ["recursive", "A", "B", "long_run", "n_starts", "max_iter"],
+    "svec" => ["long_run_zeros", "short_run_zeros"],
     "gmm" => ["moment_conditions", "instruments", "weighting"],
     "smm" => ["model", "theta0", "lags", "p", "lower", "upper",
               "weighting", "sim_ratio", "burn"],
@@ -48,6 +53,8 @@ const CONFIG_NESTED_SCHEMA = Dict{String,Vector{String}}(
 const CONFIG_ENUMS = Dict{String,Vector{String}}(
     "prior.type" => ["minnesota"],
     "identification.method" => ["cholesky", "sign", "narrative", "longrun", "arias", "uhlig",
+                                "narrative-adrr", "proxy", "max-share", "gmm-moments",
+                                "svec", "svar",
                                 "fastica", "jade", "sobi", "dcov", "hsic", "student_t",
                                 "mixture_normal", "pml", "skew_normal", "markov_switching",
                                 "garch_id"],

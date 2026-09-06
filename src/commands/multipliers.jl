@@ -118,10 +118,10 @@ function _multipliers_nardl(; data::String, dep::String="", asymmetric::String="
                    max_p=max_p, max_q=max_q, ic=ic, case=case, label="multipliers nardl")
     bootstrap = !no_bootstrap
     mm = try
-        # rng-only family: reproducibility rides the global Random.seed! (harness), not a per-
-        # estimator seed=. Pass the default RNG explicitly (project contract).
+        # MEMs#786: dynamic_multipliers takes seed= (recorded on NARDLMultipliers.manifest;
+        # seed wins over rng). Forward --seed; otherwise the explicit default RNG.
         dynamic_multipliers(m, horizon; bootstrap=bootstrap, nreps=nreps, level=level,
-                            rng=Random.default_rng())
+                            rng=Random.default_rng(), _fwd_seed()...)
     catch e
         throw(_garch_variant_error(e, "NARDL dynamic multipliers"))
     end

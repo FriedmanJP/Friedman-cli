@@ -4,7 +4,7 @@ Compute forecasts. 16 model subcommands covering VAR, BVAR, LP, ARIMA, SETAR, ST
 
 ## Output format (C051)
 
-`var`, `bvar`, `lp`, `arima`, `static`, `dynamic`, `gdfm`, `vecm`, and `favar` (see
+`var`, `bvar`, `lp`, `arima`, `static`, `dynamic`, `gdfm`, `vecm`, `favar`, and `sdfm` (see
 [favar & sdfm](favar.md)) all render through MEMs' tidy `long_table(result)`: one row per
 `(horizon, variable)` cell, columns `horizon | variable | value | lower | upper`
 (`lower`/`upper` are `missing` when the forecast carries no CI, e.g. `--ci-method=none`).
@@ -270,10 +270,11 @@ friedman forecast dynamic data.csv --nfactors=2 --factor-lags=1 --horizons=12
 
 ## forecast gdfm
 
-Forecast observables using a Generalized Dynamic Factor Model.
+Forecast observables using a Generalized Dynamic Factor Model. `--method` selects the factor projection: `ar` fits an AR(1) on each two-sided factor (default); `one-sided` and `spectral` are the FHLR (2005) one-sided projection.
 
 ```bash
 friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12
+friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12 --method=one-sided
 ```
 
 | Option | Short | Type | Default | Description |
@@ -281,6 +282,8 @@ friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12
 | `--nfactors` | `-r` | Int | auto | Number of static factors |
 | `--dynamic-rank` | `-q` | Int | auto | Dynamic rank |
 | `--horizons` | `-h` | Int | 12 | Forecast horizon |
+| `--method` | | String | `ar` | Factor projection: `ar` (two-sided), `one-sided`, `spectral` |
+| `--spectral` | | String | `lag-window` | GDFM spectrum: `lag-window` (FHLR), `smoothed-periodogram` |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
@@ -533,4 +536,4 @@ Combine ≥2 forecasts into one series.
 
 ## See Also
 
-For FAVAR forecasting, see [favar & sdfm](favar.md#forecast-favar). For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).
+For FAVAR forecasting, see [favar & sdfm](favar.md#forecast-favar); for Structural DFM forecasting, see [forecast sdfm](favar.md#forecast-sdfm). For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).
