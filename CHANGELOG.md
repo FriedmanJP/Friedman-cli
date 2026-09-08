@@ -4,22 +4,26 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [Unreleased] — v0.12.2 wave W0 (#179): MEMs pin `=0.9.4` → `=0.9.5`
+## [0.12.2] — 2026-09-08 — MEMs 0.9.5 adoption program (#178–#181)
+
+CLI v0.12.2 adopts MacroEconometricModels **0.9.5**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed (453 leaves /
+20 top-level, unchanged).
 
 C038 bump, re-resolved from General (MEMs 0.9.4→0.9.5 plus routine
 transitive patches — NonlinearSolve stack, Ipopt, JSON, SciMLBase;
 197→197 packages, none added or removed; Optim pre-existing at 2.3.1).
-T3 4046/4046 green (+15 vs the W0-time 4031 is exactly the W1/#172
-identity-weighting tests — zero bump drift); golden regen zero drift
+The 0.9.5 `src/` delta is `vfi.jl` + new `vfi_smolyak.jl` + one include
+line, absorbed as the Smolyak VFI grid + anisotropic levels
+(#817/#819/#821) and the control-vector Bellman optimizer (#818) — with
+two issue-text corrections (the optimizer set is 4 symbols including
+`:fminbox_nm`, and `dsge estimate` carries no VFI knobs).
+
+Final gates: T3 4084/4084 green; T1/T2 green; golden regen zero drift
 (mocks); docs captures OK with no regen; mock-surface PASS with the
-mock kept a strict subset (no new upstream exports — the 0.9.5 `src/`
-delta is `vfi.jl` + new `vfi_smolyak.jl` + one include line);
-plot-coverage 179/179 with neither ADDED nor REMOVED. Hands W1 the
-Smolyak grid exposure (`--grid smolyak`, `--smolyak-mu`, the
-`auto`-routing decision), the multi-control optimizer (`--optimizer`,
-`optimizer_opts` design), and two issue-text corrections (the optimizer
-set is 4 symbols including `:fminbox_nm`, and `dsge estimate` carries
-no VFI knobs). Full per-issue ledger (MEMs #817–#821) with file:line
+mock kept a strict subset (no new upstream exports); plot-coverage
+179/179 with neither ADDED nor REMOVED; table-keys PASS; docs reference
+`--check` OK. Full per-issue ledger (MEMs #817–#821) with file:line
 evidence: `docs/src/commands/not-wrapped.md` (W0/#179 section).
 
 ### Decision record
