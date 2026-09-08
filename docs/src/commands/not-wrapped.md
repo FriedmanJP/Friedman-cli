@@ -303,3 +303,106 @@ JSON, SciMLBase), 197→197 packages, Optim pre-existing at 2.3.1
 - **Upstream OPEN #814/#815/#816:** watches, not scope (#816 is a
   `compute_steady_state` error-path shape question — stays
   upstream-gated per the standing rule).
+
+## W1/#180 appendix (MEMs 0.9.5 VFI absorption: decisions + notes)
+
+- **`auto`-routing decision: pass `:auto` through.** Evidence (real
+  MEMs 0.9.5): on `nx=2`, `auto`→tensor bit-identical to explicit
+  tensor (same it/res/V); on `nx=4`, `auto`→smolyak bit-identical to
+  explicit smolyak (V gap 0.0) with 41 nodes (`N(4,2)`). Rationale:
+  upstream-intended (the tensor grid is intractable at `nx ≥ 4` —
+  12⁴ nodes at the default `--n-grid 12`); `nx ≤ 3` behavior is
+  bit-identical so nothing regresses; explicit `--grid
+  tensor|smolyak` still overrides. T3 pins both identities plus the
+  closed-form node counts. The only behavior move is `nx ≥ 4`
+  default solves (tensor → Smolyak), noted in the CHANGELOG.
+- **`optimizer_opts`: deferred with record.** Five keys
+  (`iterations`/`x_tol`/`f_tol`/`g_tol`/`show_trace`) forwarding to
+  `Optim.Options` need a typed design (TOML section vs scalar
+  subset); a bare string passthrough is unacceptable and scalar
+  explosion is unjustified with no demand signal. Upstream defaults
+  apply (200/100 iters, 1e-8 tols). Revisit on user request.
+- **`--smolyak-mu` is VFI-only.** `pfi_solver`/`collocation_solver`
+  accept `smolyak_mu` (pre-existing surface the 0.9.5 release did
+  not touch) but stay on the upstream default `μ=3`; exposing it
+  there is a separate feature with no T3 demand. PFI/projection +
+  `--smolyak-mu` → `usage/invalid`, honestly messaged.
+- **Knob-scoping rule: provably-dead explicit combos are rejected;
+  the `auto` corners stay permissive and documented.** Upstream
+  silently ignores the losing knob in each pair, so accept-and-ignore
+  would lie: `--n-grid`×`--grid smolyak`, `--degree`×`--grid smolyak`
+  (tensor-path export only — the Smolyak path reports
+  `maximum(levels)`), `--smolyak-mu`×`--grid tensor`,
+  `--n-choice`×`--optimizer fminbox-*` are all `usage/invalid`, as is
+  `--optimizer grid1d` on an explicitly multi-control model (post-load
+  check — `n_ctrl` needs the spec).
+  `--grid auto` / `--optimizer auto` (or unset) with the same knobs
+  stay allowed, since resolution needs the solved model; help text
+  says so. T3 pins both the rejections and the leniency.
+- **`grid1d` + default (undeclared) controls → `data/invalid`
+  (exit 3).** With empty `bellman_controls` the count resolves
+  inside upstream (non-state endogenous), whose `ArgumentError` maps
+  to `data/invalid` like any shape mismatch. T3 pins exit 2
+  (explicit) vs exit 3 (default) side by side.
+- **The `μ=2`-vs-tensor gap is discretization, not a bug.**
+  Measured on the T3 RBC (`nx=2`, default wide `k` bounds): gaps
+  8.93 (`μ=2`) → 1.23 (`μ=3`) toward tensor; tight-tol `μ=2`
+  unchanged (109.806 both); Howard-0 similar gap. A degree-2
+  polynomial over the 10× capital range simply carries units of
+  approximation error. T3 therefore pins the μ-refinement property
+  and a garbage-excluding band, never tight agreement.
+- **`collocation_nodes` are unit-cube on both paths**
+  (`Matrix{T}(nodes_unit)`, `vfi.jl` solution construction) — so the
+  `vfi_value_function` table's state-named coordinate columns show
+  unit values, and `evaluate_value` (physical levels) disagrees with
+  node coordinates by construction. Pre-existing on tensor (not a
+  0.9.5 regression); out of scope to re-render here. Follow-up:
+  #182.
+- **NM-vs-LBFGS fixed-point gap on labor3 (upstream solver
+  behavior).** Both converge (`res ≈ 1e-4`) but to V's 1.1 apart —
+  distinct local maxima of the 2-control Bellman RHS (labor has no
+  disutility cost, so the maximizers sit near the `n` bound
+  differently). T3 asserts convergence + same-path bit-identity,
+  never cross-optimizer agreement. `lbfgs` on 2 controls costs
+  ~150 s (central finite differences) and is upstream-tested
+  (#818); the CLI threads all four optimizer values through one map
+  lookup, pinned on 1 control.
+- **Round-6 `m_r=60.01` anomaly: unreproduced, T3 arbitrates.** One
+  experiment script shape twice produced `V=60.014125` on the
+  auto→nm path where 15+ other solves (fresh processes, bisects,
+  alias test) give `58.8960206283` bit-exact; post-lbfgs re-evals
+  rule out cross-solve corruption. The T3 bit-exact auto==nm
+  assertion is the arbiter — T3-RESULT-PENDING.
+- **Multi-control reachability map (the hunt, condensed).**
+  `@dsge utility:` requires exactly one consumption symbol, but
+  `controls:` is n-ary — so `utility: log(c)` + `controls: c, n`
+  parses while 0.9.4 threw at solve time. Of the candidates: `[c,i]`
+  is fundamentally unsolvable (static resource constraint → zero
+  G1 control columns, and no defining equation for `i`); plain
+  labor fails default-guess SS (`n^(-α)` at `n=0`); cleared
+  denominators fix SS but residual inference needs one equation
+  with LHS exactly `v[t]` per control (`_lhs_defines` is
+  syntactic); the `n[t] = 1 - …` rearrangement (exact, same zeros)
+  satisfies it. Result: labor3 solves end-to-end on the
+  CLI-faithful path (default SS, no closures). No `.jl` closure
+  smuggling is needed or supported.
+- **4-state SS lesson.** Unscaled `exp(a1+a2+a3)` puts `e³ ≈ 20×`
+  output at the default guess, and Newton wanders to `k<0`
+  (`DomainError`); scaling to `/3` reproduces rbc1's initial
+  residual and converges. (Also: a 3-state default-grid tensor VFI
+  costs ~13 min — tensor T3 cases always shrink `--n-grid`.)
+- **`dsge simulate` antithetic fix (pre-existing, zero
+  coverage).** `simulate(::ProjectionSolution)` takes only
+  `shock_draws`/`seed`/`rng` (real `simulation.jl:206`), so the
+  unconditional `antithetic=` kwarg made EVERY
+  projection/pfi/vfi `simulate` exit 1 with `internal/error`. Fixed
+  by type-branching (`seed=` forwarded, stderr note when
+  `--antithetic` is set); T1/T2 + T3 regression (tensor + smolyak
+  + seed); the mock now rejects `antithetic` with `MethodError`
+  parity so a regression fails loudly instead of hiding again.
+- **Mock `@dsge` utility-quote fix (pre-existing, latent).**
+  The mock spliced `utility:` expressions bare into the
+  `ModelSpec` constructor, evaluating `C` in the caller scope
+  (`UndefVarError`) — reachable on the first-ever T1/T2
+  VFI-success test (only the config-error path existed).
+  `QuoteNode` now mirrors real unevaluated storage.

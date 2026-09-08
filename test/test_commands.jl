@@ -13674,6 +13674,156 @@ end
         end
     end
 
+    @testset "W1 VFI smolyak + optimizer (MEMs#817-819, #821)" begin
+        _vfikv(doc) = Dict(String(r[1]) => r[2]
+                           for r in _table(doc, ["metric", "value"]).rows)
+        _vferr(args...) = begin
+            err = nothing
+            try; _capture() do
+                _dispatch_via_app(collect(String, args))
+            end; catch e; err = e; end
+            err
+        end
+        mktempdir() do dir
+            bell1 = joinpath(dir, "bell1.jl")
+            write(bell1, """
+            @dsge begin
+                parameters: beta = 0.99, rho = 0.9, sigma = 0.01
+                endogenous: C, K, A
+                exogenous: e
+                utility: log(C)
+                beta: beta
+                controls: C
+                C[t] = K[t]
+                K[t] = rho * K[t-1] + sigma * e[t]
+                A[t] = rho * A[t-1] + sigma * e[t]
+            end
+            """)
+            bell2 = joinpath(dir, "bell2.jl")
+            write(bell2, """
+            @dsge begin
+                parameters: beta = 0.99, rho = 0.9, sigma = 0.01
+                endogenous: C, I, K, A
+                exogenous: e
+                utility: log(C)
+                beta: beta
+                controls: C, I
+                C[t] + I[t] = K[t]
+                K[t] = rho * K[t-1] + sigma * e[t]
+                A[t] = rho * A[t-1] + sigma * e[t]
+            end
+            """)
+            bell0 = joinpath(dir, "bell0.jl")
+            write(bell0, """
+            @dsge begin
+                parameters: beta = 0.99, rho = 0.9, sigma = 0.01
+                endogenous: C, I, K, A
+                exogenous: e
+                utility: log(C)
+                beta: beta
+                C[t] + I[t] = K[t]
+                K[t] = rho * K[t-1] + sigma * e[t]
+                A[t] = rho * A[t-1] + sigma * e[t]
+            end
+            """)
+            # Mock nx: bell1 n=3 → 1 state; bell2/bell0 n=4 → 2 states.
+            sm = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                          "--grid", "smolyak")
+            smkv = _vfikv(sm)
+            @test string(smkv["grid_type"]) == "smolyak"
+            @test Int(smkv["smolyak_blocks"]) == 3
+            @test Int(smkv["n_nodes"]) == 5
+            @test _hascols(sm, ["node", "V"])
+            au = _dsgedoc("dsge", "solve", bell1, "--method", "vfi")
+            aukv = _vfikv(au)
+            @test string(aukv["grid_type"]) == "tensor"
+            @test Int(aukv["smolyak_blocks"]) == 0
+            te = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                          "--grid", "tensor")
+            @test string(_vfikv(te)["grid_type"]) == "tensor"
+            for o in ("auto", "grid1d", "fminbox-nm", "fminbox-lbfgs")
+                d = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                             "--optimizer", o)
+                @test string(_vfikv(d)["grid_type"]) == "tensor"
+            end
+            # Explicit 2-control + grid1d: usage/invalid (CLI pre-check).
+            e1 = _vferr("dsge", "solve", bell2, "--method", "vfi",
+                        "--optimizer", "grid1d")
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            # Explicit 2-control + auto: resolves to fminbox, solves fine.
+            a2 = _dsgedoc("dsge", "solve", bell2, "--method", "vfi")
+            @test string(_vfikv(a2)["grid_type"]) == "tensor"
+            # Default (empty) controls + grid1d: upstream ArgumentError →
+            # data/invalid, mirroring real MEMs (mock throw parity).
+            e0 = _vferr("dsge", "solve", bell0, "--method", "vfi",
+                        "--optimizer", "grid1d")
+            @test e0 isa CliError && e0.code == "data/invalid" &&
+                exit_class(e0) == 3
+            # Bad enum → parser exit 2.
+            eo = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--optimizer", "bogus")
+            @test eo isa ParseError || (eo isa CliError && exit_class(eo) == 2)
+            # smolyak-mu shape junk → usage/invalid.
+            for bad in ("x", "-1", "2,-1", "2,,3", "2.5", "2,")
+                eb = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                            "--grid", "smolyak", "--smolyak-mu", bad)
+                @test eb isa CliError && eb.code == "usage/invalid"
+            end
+            # Length-vs-nx: mock nx=1 on bell1, nx=2 on bell2.
+            m1 = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                          "--grid", "smolyak", "--smolyak-mu", "2")
+            @test string(_vfikv(m1)["grid_type"]) == "smolyak"
+            em = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "smolyak", "--smolyak-mu", "2,2")
+            @test em isa CliError && em.code == "data/invalid" &&
+                exit_class(em) == 3
+            m2 = _dsgedoc("dsge", "solve", bell2, "--method", "vfi",
+                          "--grid", "smolyak", "--smolyak-mu", "2,2")
+            @test string(_vfikv(m2)["grid_type"]) == "smolyak"
+            # Dead combos → usage/invalid.
+            dg = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "smolyak", "--n-grid", "8")
+            @test dg isa CliError && dg.code == "usage/invalid"
+            dt = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "tensor", "--smolyak-mu", "2")
+            @test dt isa CliError && dt.code == "usage/invalid"
+            dn = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--optimizer", "fminbox-nm", "--n-choice", "15")
+            @test dn isa CliError && dn.code == "usage/invalid"
+            dd = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "smolyak", "--degree", "3")
+            @test dd isa CliError && dd.code == "usage/invalid"
+            # The auto corner stays allowed (resolution needs the model).
+            ac = _dsgedoc("dsge", "solve", bell2, "--method", "vfi",
+                          "--n-choice", "15")
+            @test string(_vfikv(ac)["grid_type"]) == "tensor"
+            # Knob scope: VFI-only knobs on other methods → usage/invalid.
+            sg = _vferr("dsge", "solve", bell1, "--method", "gensys",
+                        "--optimizer", "auto")
+            @test sg isa CliError && sg.code == "usage/invalid"
+            sp = _vferr("dsge", "solve", bell1, "--method", "pfi",
+                        "--smolyak-mu", "2")
+            @test sp isa CliError && sp.code == "usage/invalid"
+            # vfi grid vocabulary unchanged otherwise.
+            gc = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "chebyshev")
+            @test gc isa CliError && gc.code == "usage/invalid"
+            # simulate+irf route through the ProjectionSolution path: the
+            # antithetic kwarg must never reach it (W1 fix; the mock throws
+            # MethodError like real if it regresses).
+            smd = _dsgedoc("dsge", "simulate", bell1, "--method", "vfi",
+                           "--periods", "5", "--burn", "2")
+            @test _hascols(smd, ["period"])
+            smd2 = _dsgedoc("dsge", "simulate", bell1, "--method", "vfi",
+                            "--periods", "5", "--burn", "2",
+                            "--antithetic", "--seed", "7")
+            @test _hascols(smd2, ["period"])
+            ird = _dsgedoc("dsge", "irf", bell1, "--method", "vfi",
+                           "--grid", "smolyak", "--horizon", "4")
+            @test ird isa JSON3.Object
+        end
+    end
+
     @testset "HA two-asset / huggett accuracy / hd" begin
         doc = _dsgedoc("dsge", "ha", "steady-state", "two-asset-hank")
         kv = Dict{String,Any}()

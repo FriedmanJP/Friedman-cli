@@ -3006,7 +3006,11 @@ macro dsge(block)
     util_decl = _mock_dsge_extract(block, :utility)
     beta_decl = _mock_dsge_extract(block, :beta)
     ctrl_decl = Symbol[v for v in _mock_dsge_extract(block, :controls) if v isa Symbol]
-    bu = isempty(util_decl) ? nothing : (util_decl[1] === :log ? log : util_decl[1])
+    # Quote: real @dsge stores the utility form unevaluated, and splicing it
+    # bare evaluates `C` in the caller's scope (UndefVarError). Latent until
+    # the first T1/T2 VFI-success test (only the config-error path existed).
+    bu = isempty(util_decl) ? nothing :
+        (util_decl[1] === :log ? log : QuoteNode(util_decl[1]))
     bb = isempty(beta_decl) ? nothing : beta_decl[1]
     bc = isempty(ctrl_decl) ? nothing : ctrl_decl[1]
     agents = if is_ha
@@ -3053,6 +3057,8 @@ struct ProjectionSolution{T<:Real}
     value_fn::Matrix{T}
     collocation_nodes::Matrix{T}
     value_coefficients::Vector{T}
+    # Real field (MEMs ≥ 0.9.0): n_blocks × nx level set, 0×0 off Smolyak.
+    smolyak_levels::Matrix{Int}
 end
 
 struct PerfectForesightPath{T<:Real}
@@ -3169,12 +3175,36 @@ function solve(spec::ModelSpec{T}; method=:gensys, order=1, degree=5, grid=:auto
         ss = zeros(T, n)
         state_idx = collect(1:n_states)
         control_idx = collect(n_states+1:n)
+        # VFI-only mirrors of the real 0.9.5 validation (exit-class parity).
+        # n_ctrl follows the real rule: explicit bellman_controls, else the
+        # non-state endogenous (the mock's own control block). Unknown
+        # optimizer symbols are CLI-unreachable (parser choices + map guard).
+        opt = get(kwargs, :optimizer, :auto)
+        mu = get(kwargs, :smolyak_mu, nothing)
+        if method === :vfi
+            nctrl = isempty(spec.bellman_controls) ? n_controls :
+                length(spec.bellman_controls)
+            opt === :grid1d && nctrl != 1 && throw(ArgumentError(
+                "optimizer=:grid1d supports one continuous control (got $nctrl)"))
+            gres = grid === :auto ? (n_states <= 3 ? :tensor : :smolyak) : grid
+            if gres === :smolyak && mu !== nothing
+                muv = mu isa Integer ? fill(Int(mu), n_states) : collect(Int, mu)
+                ((mu isa Integer && mu >= 0) || all(>=(0), muv)) ||
+                    throw(ArgumentError("smolyak_mu must be ≥ 0"))
+                length(muv) == n_states || throw(ArgumentError(
+                    "smolyak_mu must be a scalar or a vector of length nx=$n_states"))
+            end
+        else
+            gres = grid == :auto ? :chebyshev : grid
+        end
         vf = method === :vfi ? reshape(T[T(i) for i in 1:5], 5, 1) : zeros(T, 0, 0)
         nodes = method === :vfi ? hcat(range(T(-1), T(1); length=5)) : zeros(T, 0, 0)
         vc = method === :vfi ? T[0.1, 0.2, 0.3] : T[]
-        return ProjectionSolution{T}(coeffs, bounds, grid == :auto ? :chebyshev : grid, degree,
+        lv = (method === :vfi && gres === :smolyak) ? fill(2, 3, n_states) :
+            zeros(Int, 0, 0)
+        return ProjectionSolution{T}(coeffs, bounds, gres, degree,
             T(1e-8), true, 50, method, spec, ld, ss, state_idx, control_idx,
-            vf, nodes, vc)
+            vf, nodes, vc, lv)
     else
         return _mock_solution(spec; method=method)
     end
@@ -3286,6 +3316,11 @@ function simulate(sol::PerturbationSolution{T}, T_periods::Int; kwargs...) where
     randn(T, T_periods, sol.spec.n_endog)
 end
 function simulate(sol::ProjectionSolution{T}, T_periods::Int; kwargs...) where T
+    # Real simulate (simulation.jl:206) takes shock_draws/seed/rng only —
+    # reject antithetic like real (MethodError → internal/error both tiers).
+    # Regression net for the W1 dsge-simulate fix: the CLI must never pass
+    # antithetic here, so this fires only if the fix regresses.
+    haskey(kwargs, :antithetic) && throw(MethodError(simulate, (sol, T_periods)))
     randn(T, T_periods, sol.spec.n_endog)
 end
 

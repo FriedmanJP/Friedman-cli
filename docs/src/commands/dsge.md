@@ -70,22 +70,23 @@ The CLI auto-detects the format by file extension. (A `.jl` file that evaluates 
 
 ## dsge solve
 
-Solve a DSGE model. Supports 5 solution methods and OccBin occasionally binding constraints.
+Solve a DSGE model. Supports 7 solution methods and OccBin occasionally binding constraints.
 
 ```bash
 friedman dsge solve rbc.toml
 friedman dsge solve rbc.toml --method=perturbation --order=2
 friedman dsge solve rbc.toml --method=perturbation --order=3
 friedman dsge solve rbc.toml --method=projection --degree=7 --grid=chebyshev
+friedman dsge solve rbc.toml --method=vfi --grid=smolyak --smolyak-mu=3
 friedman dsge solve rbc.toml --constraints=occbin.toml --periods=60
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--method` | | String | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi` |
+| `--method` | | String | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` |
 | `--order` | | Int | 1 | Perturbation order (`1`, `2`, or `3`) |
-| `--degree` | | Int | 5 | Polynomial degree (projection/pfi) |
-| `--grid` | | String | `auto` | Grid type: `auto`, `chebyshev`, `smolyak` |
+| `--degree` | | Int | 5 | Polynomial degree (projection/pfi/vfi; on VFI, tensor-path export only — rejected beside `--grid smolyak`, whose degree comes from `--smolyak-mu`) |
+| `--grid` | | String | `auto` | Grid type: `auto`, `chebyshev`, `smolyak` (`vfi`: `auto`, `tensor`, `smolyak`) |
 | `--constraints` | | String | | Path to OccBin constraints TOML |
 | `--constraint-solver` | | String | (empty) | Constraint solver backend: `nonlinearsolve`, `optim`, `nlopt`, `ipopt`, `path` (empty = legacy OccBin path) |
 | `--periods` | | Int | 40 | Number of periods for OccBin simulation |
@@ -102,6 +103,42 @@ friedman dsge solve rbc.toml --constraints=occbin.toml --periods=60
 
 See [Configuration](../configuration.md#occbin-constraints) for the OccBin constraints TOML format.
 
+### VFI options (`--method vfi`)
+
+Value-function iteration needs Bellman components in the model: `@dsge`
+`utility:` / `beta:` / `controls:` declarations (or TOML `[model]`
+`utility` / `beta` / `controls`). The same knobs are accepted by
+`dsge solve`, `dsge irf`, and `dsge simulate` (`fevd`/`hd` reject VFI).
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--grid` | String | `auto` | `auto`, `tensor`, or `smolyak`. `auto` routes `nx ≤ 3` states to the tensor grid and `nx ≥ 4` to Smolyak (upstream default; the tensor grid is intractable past ~4 states at the default `--n-grid 12`). |
+| `--smolyak-mu` | String | (unset) | Smolyak level: scalar `μ ≥ 0` or comma-separated per-dimension levels, e.g. `--smolyak-mu 2,3`. Smolyak path only; unset = upstream default `μ=2`. Anisotropic (`μ=0` pins that dimension at level 0). |
+| `--optimizer` | String | (unset) | Bellman maximizer: `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs`. `auto` uses the 1-D line scan for one control and derivative-free `Fminbox(NelderMead())` for control vectors; `fminbox-lbfgs` suits smooth problems. Unset = `auto`. |
+| `--n-grid` | Int | 0 | Tensor-grid nodes per state (tensor path only; `≥ 3`; 0 = default 12). |
+| `--n-choice` | Int | 0 | Line-search points (`grid1d` only; `≥ 3`; 0 = default 41). |
+| `--next-state` | String | (unset) | Transition inference: `auto`, `linear`, `residual`. |
+| `--howard-steps` | Int | -1 | Howard policy-improvement sub-steps (-1 = default). |
+| `--evaluate-at` | String | (empty) | Comma-separated state levels at which to report the value function. |
+
+Knob scope is enforced: VFI-only knobs on another method, and dead
+combinations (`--n-grid` or `--degree` with `--grid smolyak`,
+`--smolyak-mu` with `--grid tensor`, `--n-choice` with an `fminbox`
+optimizer, `--optimizer grid1d` on a multi-control model), are usage
+errors. The `auto` corners
+(`--grid auto`, `--optimizer auto`/unset) stay permissive — resolution
+needs the solved model. Upstream `optimizer_opts` (iteration caps,
+tolerances) are not exposed; upstream defaults apply.
+
+Accuracy note: the default `μ=2` is coarse on wide state grids (expect
+single-digit-percent value gaps vs tensor on a default RBC calibration;
+raising `--smolyak-mu` refines monotonically). The diagnostics table
+reports `n_nodes` and `smolyak_blocks` (`0` off the Smolyak path) so the
+active grid is always visible. Multi-control models declare a
+`controls:` list; residual transition inference needs one defining
+equation per control (see the W1 appendix in
+`not-wrapped.md` for the worked labor example).
+
 ## dsge irf
 
 Impulse response functions from a solved DSGE model.
@@ -116,7 +153,7 @@ friedman dsge irf rbc.toml --constraints=occbin.toml
 |--------|-------|------|---------|-------------|
 | `--method` | | String | `gensys` | Solution method |
 | `--order` | | Int | 1 | Perturbation order |
-| `--horizon` | `-h` | Int | 40 | IRF horizon |
+| `--horizon` | | Int | 40 | IRF horizon |
 | `--shock-size` | | Float64 | 1.0 | Shock size (std devs) |
 | `--n-sim` | | Int | 0 | Simulation-based IRF draws (0 = analytical) |
 | `--constraints` | | String | | Path to OccBin constraints TOML |
@@ -128,6 +165,8 @@ friedman dsge irf rbc.toml --constraints=occbin.toml
 **Output (standard):** Per-shock IRF tables with columns for each endogenous variable.
 
 **Output (OccBin):** Per-variable tables comparing linear vs piecewise-linear IRFs.
+
+With `--method vfi` the solve accepts the [VFI options](#vfi-options-method-vfi) above.
 
 ## dsge fevd
 
@@ -143,7 +182,7 @@ friedman dsge fevd rbc.toml --method=perturbation --order=2 --unconditional
 |--------|-------|------|---------|-------------|
 | `--method` | | String | `gensys` | Solution method |
 | `--order` | | Int | 1 | Perturbation order (`1`, `2`, or `3`) |
-| `--horizon` | `-h` | Int | 40 | FEVD horizon (ignored for asymptotic `--unconditional`) |
+| `--horizon` | | Int | 40 | FEVD horizon (ignored for asymptotic `--unconditional`) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--unconditional` | | Flag | | Unconditional (asymptotic) FEVD via Andreasen et al. (2018); requires `--method=perturbation` and `--order` ≥ 2 |
@@ -165,7 +204,7 @@ friedman dsge hd rbc.toml --method=perturbation --order=2
 |--------|-------|------|---------|-------------|
 | `--method` | | String | `gensys` | Solution method |
 | `--order` | | Int | 1 | Perturbation order |
-| `--horizon` | `-h` | Int | 40 | HD horizon |
+| `--horizon` | | Int | 40 | HD horizon |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
@@ -189,13 +228,15 @@ friedman dsge simulate rbc.toml --seed=42 --antithetic
 | `--periods` | | Int | 200 | Simulation periods (after burn-in) |
 | `--burn` | | Int | 100 | Burn-in periods to discard |
 | `--seed` | | Int | 0 | Random seed (0 = no seed) |
-| `--antithetic` | | Flag | | Use antithetic sampling for variance reduction |
+| `--antithetic` | | Flag | | Use antithetic sampling for variance reduction (linear methods only; ignored with a stderr note for `projection`/`pfi`/`vfi`) |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
 **Output:** Simulated data table with a column per endogenous variable, periods after burn-in.
+
+With `--method vfi` the solve accepts the [VFI options](#vfi-options-method-vfi) above. `--seed` forwards to the nonlinear-policy simulator on `projection`/`pfi`/`vfi` solves.
 
 ## dsge moments
 

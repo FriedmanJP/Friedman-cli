@@ -37,6 +37,25 @@ evidence: `docs/src/commands/not-wrapped.md` (W0/#179 section).
   open with no movement, no `report()` overhaul, MEMs 1.0
   unannounced, upstream OPEN #814/#815/#816 noted (not scope).
 
+- **W1 (#180): Smolyak VFI + multi-control optimizer.** `dsge
+  solve`/`irf`/`simulate --method vfi` gain `--grid smolyak`,
+  `--optimizer auto|grid1d|fminbox-nm|fminbox-lbfgs`, and
+  `--smolyak-mu` (scalar `μ ≥ 0` or per-dimension vector); the stale
+  "Smolyak value-function iteration is not implemented" guard is
+  gone. `--grid auto` passes through to upstream routing (`nx ≤ 3`
+  → tensor, bit-identical; `nx ≥ 4` → Smolyak — the only behavior
+  move, for previously near-intractable default solves).
+  Provably-dead explicit combos are `usage/invalid`; the `auto`
+  corners stay permissive. Diagnostics gain `n_nodes` +
+  `smolyak_blocks`. Deferred with record: `optimizer_opts`
+  (upstream defaults apply), `--smolyak-mu` for PFI/projection.
+  Pre-existing fixes with T1/T2+T3 regression: `dsge simulate`
+  on projection/pfi/vfi exited 1 on an unsupported `antithetic`
+  kwarg (now type-branched with `seed=` forwarding); the mock
+  `@dsge` spliced `utility:` bare (`UndefVarError` on the first
+  VFI-success test). Full decision record: `docs/src/commands/
+  not-wrapped.md` (W1/#180 appendix).
+
 ## [0.12.1] — 2026-09-06 — MEMs 0.9.4 adoption program (#171–#174)
 
 CLI v0.12.1 adopts MacroEconometricModels **0.9.4**. The machine surface stays

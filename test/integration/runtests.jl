@@ -4933,6 +4933,232 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test numeric_tables_agree(ta, td; atol=1e-8, rtol=1e-6, sort_by="period")
         end
 
+        @testset "V0122 VFI smolyak + optimizer (MEMs#817-819, #821)" begin
+            rbc = joinpath(dir, "vfi_rbc2.jl")
+            write(rbc, """
+            @dsge begin
+                parameters: beta = 0.99, alpha = 0.36, delta = 0.025, rho = 0.9, sigma = 0.01
+                endogenous: c, k, a
+                exogenous: e
+                utility: log(c)
+                beta: beta
+                controls: c
+                euler: 1 / c[t] = beta * (1 / c[t+1]) * (alpha * exp(a[t+1]) * k[t]^(alpha - 1) + 1 - delta)
+                c[t] + k[t] = exp(a[t]) * k[t-1]^alpha + (1 - delta) * k[t-1]
+                a[t] = rho * a[t-1] + sigma * e[t]
+            end
+            """)
+            # Genuine 4-state model (k + 3 TFP components): the shock sum is
+            # scaled so the default-guess steady state converges (unscaled
+            # exp(a1+a2+a3) sends Newton to k<0 — see W1 appendix).
+            rbc4s = joinpath(dir, "vfi_rbc4s.jl")
+            write(rbc4s, """
+            @dsge begin
+                parameters: beta = 0.99, alpha = 0.36, delta = 0.025, rho = 0.9, sigma = 0.01
+                endogenous: c, k, a1, a2, a3
+                exogenous: e1, e2, e3
+                utility: log(c)
+                beta: beta
+                controls: c
+                euler: 1 / c[t] = beta * (1 / c[t+1]) * (alpha * exp((a1[t+1] + a2[t+1] + a3[t+1]) / 3) * k[t]^(alpha - 1) + 1 - delta)
+                c[t] + k[t] = exp((a1[t] + a2[t] + a3[t]) / 3) * k[t-1]^alpha + (1 - delta) * k[t-1]
+                a1[t] = rho * a1[t-1] + sigma * e1[t]
+                a2[t] = rho * a2[t-1] + sigma * e2[t]
+                a3[t] = rho * a3[t-1] + sigma * e3[t]
+            end
+            """)
+            # Two-control labor RBC. The FOC isolates n[t] on the LHS (exact
+            # rearrangement, same zeros) so residual transition inference can
+            # assign it — defines-detection is syntactic (W1 appendix).
+            labor = joinpath(dir, "vfi_labor.jl")
+            write(labor, """
+            @dsge begin
+                parameters: beta = 0.99, alpha = 0.36, delta = 0.025, rho = 0.9, sigma = 0.01, psi = 1.5
+                endogenous: c, k, a, n
+                exogenous: e
+                utility: log(c)
+                beta: beta
+                controls: c, n
+                euler: 1 / c[t] = beta * (1 / c[t+1]) * (alpha * exp(a[t+1]) * k[t]^(alpha - 1) * n[t+1]^(1 - alpha) + 1 - delta)
+                c[t] + k[t] = exp(a[t]) * k[t-1]^alpha * n[t]^(1 - alpha) + (1 - delta) * k[t-1]
+                n[t] = 1 - (psi * c[t] * n[t]^alpha) / ((1 - alpha) * exp(a[t]) * k[t-1]^alpha)
+                a[t] = rho * a[t-1] + sigma * e[t]
+            end
+            """)
+            labor_nc = joinpath(dir, "vfi_labor_noctrl.jl")
+            write(labor_nc, """
+            @dsge begin
+                parameters: beta = 0.99, alpha = 0.36, delta = 0.025, rho = 0.9, sigma = 0.01, psi = 1.5
+                endogenous: c, k, a, n
+                exogenous: e
+                utility: log(c)
+                beta: beta
+                euler: 1 / c[t] = beta * (1 / c[t+1]) * (alpha * exp(a[t+1]) * k[t]^(alpha - 1) * n[t+1]^(1 - alpha) + 1 - delta)
+                c[t] + k[t] = exp(a[t]) * k[t-1]^alpha * n[t]^(1 - alpha) + (1 - delta) * k[t-1]
+                n[t] = 1 - (psi * c[t] * n[t]^alpha) / ((1 - alpha) * exp(a[t]) * k[t-1]^alpha)
+                a[t] = rho * a[t-1] + sigma * e[t]
+            end
+            """)
+            # NOTE: no --n-grid here: it is a tensor-only knob and the
+            # shared guard rejects it alongside --grid smolyak (see rd1).
+            # --n-choice rides along for the grid paths (tensor/smolyak/
+            # auto→grid1d); the explicit-fminbox calls below strip it via
+            # base_fm (upstream n_choice is grid1d-only, and the CLI guard
+            # rejects the dead explicit combo — see rd3).
+            # No --degree here either: it is tensor-path-only like --n-grid
+            # (upstream ignores it on Smolyak; the guard rejects it — rd4).
+            # Tensor-path calls below pass it explicitly.
+            base = ["--n-choice", "15",
+                    "--max-iter", "200", "--tol", "1e-4", "--howard-steps", "10",
+                    "--next-state", "residual"]
+            base_fm = filter(x -> x != "--n-choice" && x != "15", base)
+            # Interior state points (exact values immaterial: identity
+            # compares use the same point on both runs).
+            pt2 = "38.0,0.0"
+            pt4 = "38.0,0.0,0.0,0.0"
+            ptL = "13.9,0.0"
+            _kv(doc) = collect_named_kv(doc, "metric", "value")
+            _V(doc) = Float64(_kv(doc)["V"])
+            _diag(doc, k) = _kv(doc)[k]
+
+            # Smolyak on nx=2: node count is the closed-form N(2,2)=13.
+            rs = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                           "--grid", "smolyak", base..., "--evaluate-at", pt2])
+            assert_envelope_ok(rs; label="vfi smolyak")
+            @test Bool(_diag(rs.doc, "converged")) === true
+            @test String(_diag(rs.doc, "grid_type")) == "smolyak"
+            @test Int(_diag(rs.doc, "n_nodes")) == 13
+            @test Int(_diag(rs.doc, "smolyak_blocks")) > 0
+            @test isfinite(_V(rs.doc))
+            # μ-refinement toward tensor: N(2,3)=29 nodes, strictly closer.
+            # Explicit --n-grid 12 == the default, so this is bit-exact
+            # with the auto run below while still exercising the knob.
+            rt = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                           "--grid", "tensor", "--n-grid", "12",
+                           "--degree", "3",
+                           base..., "--evaluate-at", pt2])
+            assert_envelope_ok(rt; label="vfi tensor baseline")
+            @test Int(_diag(rt.doc, "smolyak_blocks")) == 0
+            rm3 = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--grid", "smolyak", "--smolyak-mu", "3",
+                            base..., "--evaluate-at", pt2])
+            assert_envelope_ok(rm3; label="vfi smolyak mu3")
+            @test Int(_diag(rm3.doc, "n_nodes")) == 29
+            @test abs(_V(rm3.doc) - _V(rt.doc)) < abs(_V(rs.doc) - _V(rt.doc))
+            # μ=2 is coarse on the wide k-grid (gap ≈ 8.9); the band only
+            # excludes garbage (a broken interpolant gives ±150 penalties).
+            @test abs(_V(rs.doc) - _V(rt.doc)) < 15
+            # Anisotropic vector mu + length-mismatch exit class.
+            rmv = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--grid", "smolyak", "--smolyak-mu", "2,3",
+                            base...])
+            assert_envelope_ok(rmv; label="vfi smolyak-mu vector")
+            rmm = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--grid", "smolyak", "--smolyak-mu", "2,2,2",
+                            base...])
+            @test rmm.code == 3
+            @test String(rmm.doc.error.code) == "data/invalid"
+            # Same-path identities are bit-exact (same binary, same point):
+            # auto→tensor on nx=2, and auto→grid1d on 1 control.
+            ra = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                           "--grid", "auto", "--degree", "3",
+                           base..., "--evaluate-at", pt2])
+            assert_envelope_ok(ra; label="vfi auto")
+            @test String(_diag(ra.doc, "grid_type")) == "tensor"
+            @test _V(ra.doc) == _V(rt.doc)
+            rg1 = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--optimizer", "grid1d", "--degree", "3", base...,
+                            "--evaluate-at", pt2])
+            assert_envelope_ok(rg1; label="vfi grid1d")
+            @test _V(rg1.doc) == _V(ra.doc)
+            # fminbox agrees loosely on 1 control (measured ≈ 2.6e-6).
+            rnm = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--optimizer", "fminbox-nm", "--degree", "3",
+                            base_fm..., "--evaluate-at", pt2])
+            assert_envelope_ok(rnm; label="vfi fminbox-nm")
+            @test abs(_V(rnm.doc) - _V(rg1.doc)) < 1e-3
+            rlb = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--optimizer", "fminbox-lbfgs", "--degree", "3",
+                            base_fm..., "--evaluate-at", pt2])
+            assert_envelope_ok(rlb; label="vfi fminbox-lbfgs")
+            @test abs(_V(rlb.doc) - _V(rg1.doc)) < 1e-3
+            # Dead combos + vocabulary: all usage/invalid.
+            rd1 = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--grid", "smolyak", "--n-grid", "8"])
+            @test rd1.code == 2
+            rd2 = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--grid", "tensor", "--smolyak-mu", "2"])
+            @test rd2.code == 2
+            rd3 = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--optimizer", "fminbox-nm", "--n-choice", "15"])
+            @test rd3.code == 2
+            rbo = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--optimizer", "bogus"])
+            @test rbo.code == 2
+            rd4 = run_json(["dsge", "solve", rbc, "--method", "vfi",
+                            "--grid", "smolyak", "--degree", "3"])
+            @test rd4.code == 2
+            @test String(rd4.doc.error.code) == "usage/invalid"
+            # nx=4 routing: auto→smolyak, N(4,2)=41 nodes, bit-exact.
+            b4 = ["--n-choice", "15", "--max-iter", "150",
+                  "--tol", "1e-3", "--howard-steps", "5",
+                  "--next-state", "residual"]
+            r4a = run_json(["dsge", "solve", rbc4s, "--method", "vfi",
+                            "--grid", "auto", b4..., "--evaluate-at", pt4])
+            assert_envelope_ok(r4a; label="vfi auto nx=4")
+            @test Bool(_diag(r4a.doc, "converged")) === true
+            @test String(_diag(r4a.doc, "grid_type")) == "smolyak"
+            @test Int(_diag(r4a.doc, "n_nodes")) == 41
+            r4s = run_json(["dsge", "solve", rbc4s, "--method", "vfi",
+                            "--grid", "smolyak", b4..., "--evaluate-at", pt4])
+            assert_envelope_ok(r4s; label="vfi smolyak nx=4")
+            @test _V(r4a.doc) == _V(r4s.doc)
+            # Two-control labor: auto→fminbox-nm bit-exact (same path).
+            rl = run_json(["dsge", "solve", labor, "--method", "vfi",
+                           "--degree", "3",
+                           base..., "--evaluate-at", ptL])
+            assert_envelope_ok(rl; label="vfi 2-control auto")
+            @test Bool(_diag(rl.doc, "converged")) === true
+            rln = run_json(["dsge", "solve", labor, "--method", "vfi",
+                            "--optimizer", "fminbox-nm", "--degree", "3",
+                            base_fm..., "--evaluate-at", ptL])
+            assert_envelope_ok(rln; label="vfi 2-control nm")
+            @test _V(rl.doc) == _V(rln.doc)
+            # (No nm-vs-lbfgs agreement: the maximizers converge to V's
+            # 1.1 apart here — upstream solver behavior, recorded in the
+            # W1 appendix. lbfgs-2ctrl is upstream-tested (#818); the CLI
+            # threads all four values identically, pinned on 1 control.)
+            # grid1d + 2 controls: exit 2 with explicit controls (CLI
+            # pre-check), exit 3 with default controls (upstream throw).
+            rl1 = run_json(["dsge", "solve", labor, "--method", "vfi",
+                            "--optimizer", "grid1d"])
+            @test rl1.code == 2
+            @test String(rl1.doc.error.code) == "usage/invalid"
+            rl0 = run_json(["dsge", "solve", labor_nc, "--method", "vfi",
+                            "--optimizer", "grid1d", base...])
+            @test rl0.code == 3
+            @test String(rl0.doc.error.code) == "data/invalid"
+            # irf/simulate ride the ProjectionSolution path: smolyak smoke
+            # plus the tensor-simulate regression (antithetic fix) + seed.
+            ri = run_json(["dsge", "irf", rbc, "--method", "vfi",
+                           "--grid", "smolyak", base..., "--horizon", "4"])
+            assert_envelope_ok(ri; label="vfi irf smolyak")
+            rsm = run_json(["dsge", "simulate", rbc, "--method", "vfi",
+                            "--grid", "smolyak", base..., "--periods", "20",
+                            "--burn", "5"])
+            assert_envelope_ok(rsm; label="vfi simulate smolyak")
+            tsm = named_table(rsm.doc, :dsge_simulation)
+            @test tsm !== nothing && length(table_rows(tsm)) == 20
+            rst = run_json(["dsge", "simulate", rbc, "--method", "vfi",
+                            "--degree", "3",
+                            base..., "--periods", "20", "--burn", "5"])
+            assert_envelope_ok(rst; label="vfi simulate tensor")
+            rss = run_json(["dsge", "simulate", rbc, "--method", "vfi",
+                            "--grid", "smolyak", base..., "--periods", "20",
+                            "--burn", "5", "--seed", "7"])
+            assert_envelope_ok(rss; label="vfi simulate smolyak seed")
+        end
+
         @testset "W1 dsge solve --method projection (no order=)" begin
             r = run_json(["dsge", "solve", model_jl, "--method", "projection"])
             assert_envelope_ok(r; label="dsge solve projection")
