@@ -180,3 +180,126 @@ breakage: none exposed (nothing to fix or file).
   the `_status_report` swallow stands.
 - **MEMs 1.0 major watch:** not announced (0.9.x line); adaptation
   pattern holds ready.
+
+## W0/#179 ledger (MEMs 0.9.5: Smolyak + multi-control VFI #817–#821)
+
+Verified against the `v0.9.5` tag sources (`061a48e`, `/tmp` clone
+`src/` diffs clean vs the `Pkg.dependencies`-resolved depot copy).
+Non-test `src/` delta vs 0.9.4: `src/dsge/vfi.jl` rewritten Bellman
+core + new `src/dsge/vfi_smolyak.jl` (152 lines: sparse grid builder,
+Chebyshev-collocation interpolant, shared `_smolyak_*` construction
+with PFI) + one `include` line in `MacroEconometricModels.jl`;
+`Project.toml` is a version-only change. No exports added, removed,
+or renamed. Docs: `changelog.md` / `citation.md` /
+`dsge_nonlinear.md` (Smolyak routing/node-count tables, optimizer
+routing table, tuning guide). Tests: `test_aqua.jl` + `test_dsge.jl`
+only. No `report()`/`show` signature changes.
+
+Must-answer resolutions for W1 (W0-branch line numbers):
+
+- **Exact `vfi_solver` signature** (`vfi.jl:135-161`). New kwargs:
+  `smolyak_mu::Union{Integer,AbstractVector{<:Integer}}=2` (:148),
+  `optimizer::Symbol=:auto` (:152),
+  `optimizer_opts::NamedTuple=(;)` (:153). Everything else keeps its
+  0.9.4 name, position, and default.
+- **Optimizer set is 4 symbols, not 3** (`_VFI_OPTIMIZERS`, `vfi.jl:692`):
+  `(:auto, :grid1d, :fminbox_nm, :fminbox_lbfgs)` — this corrects
+  issue #180's title/body, which names `fminbox-lbfgs` only.
+  `:fminbox_nm` (derivative-free `Optim.Fminbox(NelderMead())`) is the
+  `:auto` choice for control vectors. `:auto` → `:grid1d` iff
+  `n_ctrl == 1`, else `:fminbox_nm` (:703); explicit `:grid1d` with
+  `n_ctrl != 1` throws `ArgumentError` (:704-707), as does any unknown
+  symbol (:701-702).
+- **`optimizer_opts` keys** (`vfi.jl:720`):
+  `(:iterations, :x_tol, :f_tol, :g_tol, :show_trace)`, mapped onto
+  `Optim.Options` (`iterations` default 200 nm / 100 lbfgs;
+  `x_abstol`/`f_reltol`/`g_abstol` 1e-8; `show_trace` false). Unknown
+  keys throw `ArgumentError` fail-fast — but only when the resolved
+  optimizer is not `:grid1d` (`vfi.jl:211-214`). The `:grid1d` branch
+  takes `n_choice` and never sees `optimizer_opts`
+  (`_vfi_maximize`, `vfi.jl:811-818`); symmetrically the fminbox
+  branch takes `optimizer_opts` and never sees `n_choice` (:819-823).
+  Both are silently-ignored-knob pairs upstream — W1 scopes the CLI
+  guards in both directions, with the wrinkle that `:auto` resolves
+  per `n_ctrl`, which is only known after the spec loads.
+- **`grid=:auto` routing** (`vfi.jl:196-198`): `nx <= 3` → `:tensor`,
+  `nx >= 4` → `:smolyak`. 0.9.4 routed `:auto` → `:tensor` always and
+  threw on anything non-tensor (0.9.4 `vfi.jl:164-168`). The CLI
+  currently forces `:tensor` (`shared.jl:2099`), so it is insulated
+  from the routing change pending the W1 decision.
+- **`smolyak_mu` validation** (`_smolyak_level_vector`,
+  `projection.jl:180-190`, shared with PFI): scalar `μ >= 0`, or a
+  vector of length `nx` with all entries `>= 0` (a `μ_k = 0` pins
+  that dimension at level 0); anything else throws `ArgumentError`.
+  Validated on the Smolyak path only; the tensor path ignores it
+  (`vfi.jl:200-206`). VFI default `μ=2` (41 nodes at `nx=4`;
+  PFI's `μ=3` is too rich per-iteration for the refit-every-sweep
+  cost).
+- **`smolyak_levels::Matrix{Int}`** (`types.jl:392`): `n_blocks × nx`
+  level set on the Smolyak path (`vfi.jl:407`), `0×0` on tensor
+  (:433). `degree` on the Smolyak path reports `maximum(levels)`
+  (:409) — W1's diagnostics row reads the field, not the title.
+- **0.9.4 rejected multi-control specs**
+  (`n_ctrl == 1 || throw(ArgumentError(...))`, 0.9.4 `vfi.jl:186-188`)
+  — a CLI TOML with two `controls` errored. The CLI `controls` value
+  is already a vector (`config.jl:407-409` → `controls: a, b`
+  synthesis at `shared.jl:1690-1693`), so multi-control specs are
+  declarable today and newly solvable. → **W1** (multi-control T3).
+- **Threading needs no dispatch change.** `solve(...; method=:vfi)`
+  forwards `kwargs...` verbatim to `vfi_solver` (`gensys.jl:315-316`,
+  same as `:projection`/`:pfi`), so W1 threads the new knobs through
+  `_ra_solve_extra` / `_solve_dsge` (`shared.jl:2036-2179`) only.
+- **VFI-capable leaf set: solve/irf/simulate.** Those three specs
+  carry `RA_SOLVER_KNOB_OPTIONS` (`dsge.jl:57,93,144`); `fevd`/`hd`
+  declare the knobs but handler-reject vfi (`dsge.jl:2187,2841`).
+  This corrects the index: `dsge estimate` does NOT carry the knobs
+  (no `--method vfi` there).
+- **HA `--hh-solver vfi` / PE-VFI: untouched.** Proven by the file
+  list: the `src/` delta is `vfi.jl` + `vfi_smolyak.jl` + the include
+  line; `heterogeneous/` and the PE solvers are byte-identical.
+  **No-op.**
+- **Optim is pre-existing**, not new (`Project.toml` `[deps]`,
+  compat `"1, 2"`; resolves to **2.3.1**). That lands the
+  full-accuracy `:fminbox_nm` path — the `vfi_solver` docstring warns
+  Optim v1's `Fminbox(NelderMead())` stalls at boundary optima.
+  Manifest delta: MEMs `0.9.4→0.9.5` + routine transitive patches
+  (NonlinearSolve stack, Ipopt 1.15→1.16, JSON, SciMLBase),
+  197→197 packages, none added or removed. No C060 bundling note.
+- **No `seed=`/`rng` kwarg on `vfi_solver`** in either version — the
+  `--seed` story is unchanged (global-RNG reproducibility only, same
+  as the other rng-only families).
+
+| Upstream item | Disposition |
+|------|-------------|
+| `#817` Smolyak grid + Chebyshev-collocation interpolant | → **W1** (`--grid smolyak`, `--smolyak-mu`). |
+| `#818` control-vector Bellman optimizer | → **W1** (`--optimizer`, `optimizer_opts` design, multi-control T3). |
+| `#819` Smolyak + multi-control wiring into `vfi_solver` | → **W1** (`auto`-routing decision, knob-scoping guards). |
+| `#820` tests/docs/benchmarks | **No-op.** Upstream tests + solver docs; nothing crosses the CLI boundary. |
+| `#821` anisotropic + adaptive Smolyak levels | → **W1** (vector `--smolyak-mu`). |
+| `test_aqua.jl` change + changelog/citation entries | **No-op.** Upstream lint + release docs. |
+
+W0 audit on `=0.9.5`: T3 **4046/4046** (core 3987 + entry points
+59, exit 0) — the +15 vs the W0-time 4031 is exactly the 15 `@test`s
+W1/#172 added (identity-weighting SMM/GMM cases), verified by diff;
+zero bump drift. Golden regen zero drift (mocks, as expected); docs
+captures OK (6 blocks current, no regen); `check_mock_surface` PASS
+(0 hard, allowlist 7/10, mock stays a subset — no new exports to
+consume); `check_plot_coverage` 179/179 neither ADDED nor REMOVED;
+inventory 453 leaves / 20 top-level unchanged. Manifest delta:
+MEMs-only + routine transitive patches (NonlinearSolve stack, Ipopt,
+JSON, SciMLBase), 197→197 packages, Optim pre-existing at 2.3.1
+(full-accuracy `:fminbox_nm`). Residual breakage: none exposed
+(nothing to fix or file).
+
+## Standing watches (re-checked at 0.9.5 for W0)
+
+- **MEMs#609 (OPEN, no movement):** JuMP/Ipopt/NonlinearSolve still
+  required deps; C060 story and cold-start floor stand.
+- **MEMs#255 (OPEN, no movement):** split undecided; no adapter impact.
+- **`report()` overhaul:** none landed (delta is VFI-only); the
+  `_status_report` swallow stands.
+- **MEMs 1.0 major watch:** not announced (latest release 0.9.5);
+  adaptation pattern holds ready.
+- **Upstream OPEN #814/#815/#816:** watches, not scope (#816 is a
+  `compute_steady_state` error-path shape question — stays
+  upstream-gated per the standing rule).
