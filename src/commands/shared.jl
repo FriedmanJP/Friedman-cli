@@ -1879,6 +1879,31 @@ const _RA_METHOD_MAP = Dict(
 const _RA_METHOD_CHOICES = ["gensys", "klein", "perturbation", "projection", "pfi",
                             "vfi", "blanchard-kahn"]
 
+const _VFI_OPTIMIZER_CHOICES = ["auto", "grid1d", "fminbox-nm", "fminbox-lbfgs"]
+
+const _VFI_OPTIMIZER_MAP = Dict("auto" => :auto, "grid1d" => :grid1d,
+    "fminbox-nm" => :fminbox_nm, "fminbox-lbfgs" => :fminbox_lbfgs)
+
+"""Parse `--smolyak-mu`: `""` (unset) → `nothing`, `"2"` → `2`, `"2,3"` → `[2, 3]`.
+
+Upstream (`_smolyak_level_vector`) wants a scalar `μ ≥ 0` or a length-`nx`
+vector with all entries `≥ 0`; the length-vs-`nx` check needs the solved
+model, so a wrong-length vector surfaces as upstream `ArgumentError` →
+`data/invalid`, while shape/negativity junk is `usage/invalid` here."""
+function _parse_smolyak_mu(s::String)
+    t = strip(s)
+    isempty(t) && return nothing
+    parts = [strip(p) for p in split(t, ",")]
+    (any(isempty, parts) || any(p -> tryparse(Int, p) === nothing, parts)) &&
+        throw(CliError("usage/invalid",
+            "--smolyak-mu must be a non-negative integer or a comma-separated " *
+            "list thereof (got '$s')"))
+    vals = [tryparse(Int, p)::Int for p in parts]
+    any(<(0), vals) && throw(CliError("usage/invalid",
+        "--smolyak-mu entries must be ≥ 0 (got '$s')"))
+    return length(vals) == 1 ? vals[1] : vals
+end
+
 """Map CLI `--method` string to the MEMs `solve` symbol (`:blanchard_kahn` not hyphen)."""
 function _parse_ra_method(method::String)
     key = lowercase(strip(method))
@@ -2037,9 +2062,12 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
                          next_state::String="", howard_steps::Int=-1,
                          n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                          scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
-                         damping::Float64=0.0, anderson_m::Int=0)
+                         damping::Float64=0.0, anderson_m::Int=0,
+                         optimizer::String="", smolyak_mu::String="")
     ns = lowercase(strip(next_state))
-    vfi_exclusive = n_grid != 0 || n_choice != 0
+    os = lowercase(strip(optimizer))
+    mu = _parse_smolyak_mu(smolyak_mu)
+    vfi_exclusive = n_grid != 0 || n_choice != 0 || !isempty(os) || mu !== nothing
     pfi_exclusive = anderson_m != 0
     shared_knobs = howard_steps != -1 || n_quad != 0 || scale != 0.0 ||
                    tol != 0.0 || max_iter != 0 || damping != 0.0 || !isempty(ns)
@@ -2050,17 +2078,38 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
         pfi_exclusive && throw(CliError("usage/invalid",
             "--anderson-m is a PFI option; not valid with --method vfi"))
         g = lowercase(strip(grid))
-        g in ("auto", "tensor") || throw(CliError("usage/invalid",
-            "vfi supports --grid auto|tensor only (Smolyak value-function iteration is not implemented)"))
+        g in ("auto", "tensor", "smolyak") || throw(CliError("usage/invalid",
+            "vfi supports --grid auto|tensor|smolyak only (got '$grid')"))
         n_grid == 0 || n_grid >= 3 || throw(CliError("usage/invalid",
             "--n-grid must be ≥ 3 (got $n_grid)"))
         n_choice == 0 || n_choice >= 3 || throw(CliError("usage/invalid",
             "--n-choice must be ≥ 3 (got $n_choice)"))
+        # Dead-combo guards: upstream silently ignores the losing knob in each
+        # pair, so accept-and-ignore would be a lie. The `auto` corners stay
+        # allowed (resolution needs the solved model) and are documented.
+        g == "smolyak" && n_grid != 0 && throw(CliError("usage/invalid",
+            "--n-grid is a tensor-grid option; not valid with --grid smolyak";
+            hint="use --smolyak-mu to control the sparse-grid level"))
+        g == "smolyak" && degree != 5 && throw(CliError("usage/invalid",
+            "--degree is a tensor-grid option; not valid with --grid smolyak";
+            hint="the Smolyak grid sets its own degree from --smolyak-mu"))
+        g == "tensor" && mu !== nothing && throw(CliError("usage/invalid",
+            "--smolyak-mu is a Smolyak-grid option; not valid with --grid tensor"))
+        os in ("fminbox-nm", "fminbox-lbfgs") && n_choice != 0 &&
+            throw(CliError("usage/invalid",
+                "--n-choice is a grid1d option; not valid with --optimizer $os"))
+        # Parser `choices=` enforces this first; the map lookup below must
+        # never KeyError on a direct call.
+        !isempty(os) && !haskey(_VFI_OPTIMIZER_MAP, os) &&
+            throw(CliError("usage/invalid",
+                "--optimizer must be auto|grid1d|fminbox-nm|fminbox-lbfgs " *
+                "(got '$optimizer')"))
     elseif meth === :pfi
         isempty(ns) || ns in ("linear", "policy", "nonlinear") || throw(CliError("usage/invalid",
             "pfi --next-state must be linear|policy|nonlinear (got '$next_state')"))
         vfi_exclusive && throw(CliError("usage/invalid",
-            "--n-grid/--n-choice are VFI options; not valid with --method pfi"))
+            "--n-grid/--n-choice/--optimizer/--smolyak-mu are VFI options; " *
+            "not valid with --method pfi"))
         anderson_m >= 0 || throw(CliError("usage/invalid",
             "--anderson-m must be ≥ 0 (got $anderson_m)"))
     elseif vfi_exclusive || pfi_exclusive || shared_knobs
@@ -2096,12 +2145,17 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
         damping > 0 && (extra = (; extra..., damping=damping))
         anderson_m > 0 && (extra = (; extra..., anderson_m=anderson_m))
     elseif meth === :vfi
-        gsym = lowercase(strip(grid)) in ("auto", "tensor", "") ? :tensor : Symbol(grid)
+        # `:auto` passes through to upstream routing (nx ≤ 3 → tensor,
+        # nx ≥ 4 → Smolyak) — the W1/#180 decision; `""` matches the default.
+        g = lowercase(strip(grid))
+        gsym = (g == "" || g == "auto") ? :auto : Symbol(g)
         extra = (; extra..., degree=degree, grid=gsym)
         isempty(ns) || (extra = (; extra..., next_state=Symbol(ns)))
         howard_steps >= 0 && (extra = (; extra..., howard_steps=howard_steps))
         n_grid >= 3 && (extra = (; extra..., n_grid=n_grid))
         n_choice >= 3 && (extra = (; extra..., n_choice=n_choice))
+        !isempty(os) && (extra = (; extra..., optimizer=_VFI_OPTIMIZER_MAP[os]))
+        mu !== nothing && (extra = (; extra..., smolyak_mu=mu))
         n_quad > 0 && (extra = (; extra..., n_quad=n_quad))
         scale > 0 && (extra = (; extra..., scale=scale))
         tol > 0 && (extra = (; extra..., tol=tol))
@@ -2136,15 +2190,28 @@ function _solve_dsge(spec::MacroEconometricModels.ModelSpec;
                      next_state::String="", howard_steps::Int=-1,
                      n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                      scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
-                     damping::Float64=0.0, anderson_m::Int=0)
+                     damping::Float64=0.0, anderson_m::Int=0,
+                     optimizer::String="", smolyak_mu::String="")
     _require_ra_spec(spec, "dsge solve")
     meth = _parse_ra_method(method)
     extra = _ra_solve_extra(meth; order=order, degree=degree, grid=grid,
                             next_state=next_state, howard_steps=howard_steps,
                             n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                             scale=scale, tol=tol, max_iter=max_iter,
-                            damping=damping, anderson_m=anderson_m)
+                            damping=damping, anderson_m=anderson_m,
+                            optimizer=optimizer, smolyak_mu=smolyak_mu)
     meth === :vfi && _require_vfi_bellman(spec)
+    # `:grid1d` maximizes one control; with explicitly declared controls the
+    # count is known here, so reject up front (usage, not data). With default
+    # (empty) controls the count resolves inside upstream, whose ArgumentError
+    # maps to data/invalid — same as any other shape mismatch.
+    if meth === :vfi && lowercase(strip(optimizer)) == "grid1d" &&
+       hasproperty(spec, :bellman_controls) && length(spec.bellman_controls) > 1
+        throw(CliError("usage/invalid",
+            "--optimizer grid1d supports one continuous control (model " *
+            "declares $(length(spec.bellman_controls)))";
+            hint="use --optimizer auto (resolves to fminbox-nm) or fminbox-lbfgs"))
+    end
     try
         _status("Computing steady state...")
         ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))

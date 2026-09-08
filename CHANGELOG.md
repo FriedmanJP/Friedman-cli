@@ -4,6 +4,62 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.12.2] — 2026-09-08 — MEMs 0.9.5 adoption program (#178–#181)
+
+CLI v0.12.2 adopts MacroEconometricModels **0.9.5**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed (453 leaves /
+20 top-level, unchanged).
+
+C038 bump, re-resolved from General (MEMs 0.9.4→0.9.5 plus routine
+transitive patches — NonlinearSolve stack, Ipopt, JSON, SciMLBase;
+197→197 packages, none added or removed; Optim pre-existing at 2.3.1).
+The 0.9.5 `src/` delta is `vfi.jl` + new `vfi_smolyak.jl` + one include
+line, absorbed as the Smolyak VFI grid + anisotropic levels
+(#817/#819/#821) and the control-vector Bellman optimizer (#818) — with
+two issue-text corrections (the optimizer set is 4 symbols including
+`:fminbox_nm`, and `dsge estimate` carries no VFI knobs).
+
+Final gates: T3 4084/4084 green; T1/T2 green; golden regen zero drift
+(mocks); docs captures OK with no regen; mock-surface PASS with the
+mock kept a strict subset (no new upstream exports); plot-coverage
+179/179 with neither ADDED nor REMOVED; table-keys PASS; docs reference
+`--check` OK. Full per-issue ledger (MEMs #817–#821) with file:line
+evidence: `docs/src/commands/not-wrapped.md` (W0/#179 section).
+
+### Decision record
+
+- **W0 (#179): 0.9.5 absorption ledger.** → W1: Smolyak VFI grid +
+  anisotropic levels (#817/#819/#821), control-vector Bellman
+  optimizer (#818: `:auto`/`:grid1d`/`:fminbox_nm`/`:fminbox_lbfgs`,
+  `optimizer_opts` keys `iterations`/`x_tol`/`f_tol`/`g_tol`/
+  `show_trace`). No-ops: solver docs + upstream tests (#820),
+  upstream lint + release docs; HA `--hh-solver vfi` / PE-VFI
+  untouched (file-list proof). Verified: `solve(method=:vfi)`
+  forwards kwargs verbatim (threading needs no dispatch change);
+  VFI-capable leaves are solve/irf/simulate only; no `seed=` kwarg
+  (global-RNG story unchanged). Watches re-checked: MEMs#609/#255
+  open with no movement, no `report()` overhaul, MEMs 1.0
+  unannounced, upstream OPEN #814/#815/#816 noted (not scope).
+
+- **W1 (#180): Smolyak VFI + multi-control optimizer.** `dsge
+  solve`/`irf`/`simulate --method vfi` gain `--grid smolyak`,
+  `--optimizer auto|grid1d|fminbox-nm|fminbox-lbfgs`, and
+  `--smolyak-mu` (scalar `μ ≥ 0` or per-dimension vector); the stale
+  "Smolyak value-function iteration is not implemented" guard is
+  gone. `--grid auto` passes through to upstream routing (`nx ≤ 3`
+  → tensor, bit-identical; `nx ≥ 4` → Smolyak — the only behavior
+  move, for previously near-intractable default solves).
+  Provably-dead explicit combos are `usage/invalid`; the `auto`
+  corners stay permissive. Diagnostics gain `n_nodes` +
+  `smolyak_blocks`. Deferred with record: `optimizer_opts`
+  (upstream defaults apply), `--smolyak-mu` for PFI/projection.
+  Pre-existing fixes with T1/T2+T3 regression: `dsge simulate`
+  on projection/pfi/vfi exited 1 on an unsupported `antithetic`
+  kwarg (now type-branched with `seed=` forwarding); the mock
+  `@dsge` spliced `utility:` bare (`UndefVarError` on the first
+  VFI-success test). Full decision record: `docs/src/commands/
+  not-wrapped.md` (W1/#180 appendix).
+
 ## [0.12.1] — 2026-09-06 — MEMs 0.9.4 adoption program (#171–#174)
 
 CLI v0.12.1 adopts MacroEconometricModels **0.9.4**. The machine surface stays

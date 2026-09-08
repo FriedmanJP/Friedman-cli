@@ -1036,11 +1036,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1447,11 +1449,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1487,11 +1491,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1834,11 +1840,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1874,11 +1882,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
