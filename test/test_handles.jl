@@ -153,3 +153,38 @@ end
         @test err.code == "usage/invalid"
     end
 end
+
+@testset "data export and typed fix" begin
+    node = register_data_commands!()
+    @test haskey(node.subcmds, "export")
+    mktempdir() do dir
+        csv = joinpath(dir, "macro.csv")
+        CSV.write(csv, DataFrame(y1=[1.0, NaN, 3.0], y2=[4.0, 5.0, 6.0]))
+        _capture() do
+            _data_import(; data=csv, kind="timeseries", output=joinpath(dir, "macro"))
+        end
+        h = joinpath(dir, "macro.jld2")
+        _capture() do
+            _data_export(; data=joinpath(dir, "macro"), output=joinpath(dir, "round.csv"))
+        end
+        @test isfile(joinpath(dir, "round.csv"))
+
+        _capture() do
+            _data_fix(; data=joinpath(dir, "macro"), method="listwise",
+                      output=joinpath(dir, "macro_clean"))
+        end
+        @test isfile(joinpath(dir, "macro_clean.jld2"))
+        cleaned = load_model_dispatch(joinpath(dir, "macro_clean.jld2"))
+        @test cleaned isa TimeSeriesData
+
+        err = try
+            _capture() do
+                _data_fix(; data=csv, method="listwise",
+                          output=joinpath(dir, "nope.jld2"))
+            end
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "usage/invalid"
+    end
+end

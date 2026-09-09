@@ -1,6 +1,6 @@
 # data
 
-Data management commands: import typed handles, load example datasets, inspect, clean, transform, and validate data. 12 subcommands.
+Data management commands: import/export typed handles, load example datasets, inspect, clean, transform, and validate data. 13 subcommands.
 
 ## data list
 
@@ -123,6 +123,28 @@ Default `-o` is the input basename next to the source (or `fred_md.jld2` for `:f
 
 **Output table:** `imported_data` — `kind`, `n_obs`, `n_vars`, `path`, `frequency`.
 
+## data export
+
+Write a typed handle to CSV (the inverse of `data import`). Panel handles include `group`/`time` columns. Frequency, tcode, and dates are dropped (stderr note). Input must be a data container (`TimeSeriesData` / `PanelData` / `CrossSectionData`); a raw CSV is `data/wrong-kind`.
+
+```bash
+friedman data export macro -o macro.csv
+friedman data export panel
+```
+
+Default `-o` is `<stem>.csv` next to the handle.
+
+| Argument | Description |
+|----------|-------------|
+| `<data>` | Handle stem or path |
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--output` | `-o` | String | `<stem>.csv` | Output CSV path |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+
+No envelope table — writes the CSV directly.
+
 ## data describe
 
 Summary statistics for a dataset.
@@ -160,10 +182,11 @@ friedman data diagnose data.csv
 
 ## data fix
 
-Clean data by handling NaN, Inf, and constant columns.
+Clean data by handling NaN, Inf, and constant columns. A typed handle is cleaned in place as the same type (`*_clean.jld2` by default). CSV input still writes CSV; CSV `-o out.jld2` is `usage/invalid` (run `data import` first). Handle `-o out.csv` writes CSV and notes that metadata was dropped.
 
 ```bash
 friedman data fix data.csv --method=listwise
+friedman data fix macro --method=listwise -o macro_clean
 friedman data fix data.csv --method=interpolate --output=data_clean.csv
 friedman data fix data.csv --method=mean
 ```
@@ -171,7 +194,7 @@ friedman data fix data.csv --method=mean
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--method` | `-m` | String | `listwise` | `listwise`, `interpolate`, `mean` |
-| `--output` | `-o` | String | auto | Output CSV file path |
+| `--output` | `-o` | String | auto | Output stem (handle) or CSV path |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 
 ## data transform
@@ -195,8 +218,10 @@ friedman data transform data.csv --tcodes=5,5,1,6
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--tcodes` | | String | (required) | Comma-separated codes, one per variable |
-| `--output` | `-o` | String | auto | Output CSV file path |
+| `--output` | `-o` | String | auto | Output stem (handle) or CSV path |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+
+`apply_tcode` is defined for time-series and panel data only. A `CrossSectionData` handle is `data/wrong-kind`.
 
 ## data filter
 
@@ -251,7 +276,7 @@ friedman data balance data.csv --output=balanced.csv
 | `--output` | `-o` | String | | Export file path |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 
-**Output:** Balanced panel with imputed values.
+**Output:** Balanced panel with imputed values (envelope table `balanced_panel`). Also persists the cleaned object (`*_balanced.jld2` from a handle, `*_balanced.csv` from CSV).
 
 ## data dropna
 
@@ -276,7 +301,7 @@ dataset.
 | `--output` | `-o` | String | (stdout) | Export results to file |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 
-**Output:** Cleaned dataset with missing rows removed, plus a summary of rows dropped.
+**Output:** Cleaned dataset with missing rows removed, plus a summary of rows dropped (envelope table `cleaned_data`). Also persists the cleaned object (`*_dropna.jld2` from a handle, `*_dropna.csv` from CSV).
 
 ## data keeprows
 
@@ -293,4 +318,4 @@ friedman data keeprows data.csv --rows=1,5,10 --output=subset.csv
 | `--output` | `-o` | String | (stdout) | Export results to file |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 
-**Output:** Filtered dataset containing only the selected rows.
+**Output:** Filtered dataset containing only the selected rows (envelope table `filtered_data`). Also persists the selected object (`*_rows.jld2` from a handle, `*_rows.csv` from CSV).

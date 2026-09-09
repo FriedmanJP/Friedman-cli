@@ -3,15 +3,15 @@
 
 Generated reference for `friedman data` and its subcommands.
 
-**Leaves:** 12
+**Leaves:** 13
 
 ### `friedman data balance`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -61,11 +61,11 @@ Path to CSV data file
 
 ### `friedman data dropna`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -74,6 +74,21 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Output tables:** `cleaned_data` (Rows surviving the NaN/Inf drop, one column per variable)
+
+---
+
+### `friedman data export`
+
+Export a typed handle to CSV (frequency/tcode/dates dropped)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Handle stem or path (TimeSeriesData/PanelData/CrossSectionData) |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--output` | `-o` | `String` | `""` | — | Output CSV path (default: <stem>.csv) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 ---
 
@@ -102,16 +117,16 @@ Path to CSV data file
 
 ### `friedman data fix`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | `-m` | `String` | `listwise` | — | listwise\|interpolate\|mean |
-| `--output` | `-o` | `String` | `""` | — | Output CSV file path |
+| `--output` | `-o` | `String` | `""` | — | Output stem or CSV path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 ---
@@ -143,11 +158,11 @@ Import CSV or :example to a typed .jld2 handle
 
 ### `friedman data keeprows`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -197,16 +212,16 @@ Example dataset name (see 'data list'), or omit and pass --path for a CSV
 
 ### `friedman data transform`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--tcodes` | — | `String` | `""` | — | Comma-separated FRED transformation codes |
-| `--output` | `-o` | `String` | `""` | — | Output CSV file path |
+| `--output` | `-o` | `String` | `""` | — | Output stem or CSV path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 ---

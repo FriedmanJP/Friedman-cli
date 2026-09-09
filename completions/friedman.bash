@@ -8,7 +8,7 @@ _friedman() {
   fi
   case "${words[1]}" in
     completions) COMPREPLY=( $(compgen -W "bash fish zsh" -- "$cur") ) ;;
-    data) COMPREPLY=( $(compgen -W "balance describe diagnose dropna filter fix import keeprows list load transform validate" -- "$cur") ) ;;
+    data) COMPREPLY=( $(compgen -W "balance describe diagnose dropna export filter fix import keeprows list load transform validate" -- "$cur") ) ;;
     did) COMPREPLY=( $(compgen -W "estimate event-study lp-did test" -- "$cur") ) ;;
     dsge) COMPREPLY=( $(compgen -W "bank bayes ct dcegm determinacy-map estimate fevd firm ha hd irf lifecycle moments olg perfect-foresight simulate solve steady-state" -- "$cur") ) ;;
     estimate) COMPREPLY=( $(compgen -W "3sls aparch arch ardl arfima arima bekk bvar ccc cgarch cointreg dcc dynamic egarch elastic-net fastica favar fiegarch figarch garch garch-midas gdfm gjr-garch gmm heckman igarch iv kde kernel-reg lasso logit lowess lp mfvar midas ml mlogit ms ms-ar nardl nbreg ologit oprobit piv plogit pmg poisson pprobit preg probit pvar qreg rdd reg ridge robust sarima sdfm select setar smm star statespace static sur sv svar svec threshold tobit truncreg tvp tvpvar var vecm xtcointreg" -- "$cur") ) ;;

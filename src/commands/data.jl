@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Data commands: list, load, import, describe, diagnose, fix, transform, filter, validate
+# Data commands: list, load, import, export, describe, diagnose, fix, transform, filter, validate
 
 function data_specs()::Vector{CommandSpec}
     return [
@@ -80,11 +80,11 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "fix"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="method", short="m", type=String, default="listwise", description="listwise|interpolate|mean"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
@@ -95,11 +95,11 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "transform"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="tcodes", type=String, default="", description="Comma-separated FRED transformation codes"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
@@ -145,8 +145,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "balance"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="method", type=String, default="dfm", description="dfm"),
                 OptionSpec(name="factors", short="r", type=Int, default=3, description="Number of factors"),
@@ -162,8 +162,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "dropna"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="vars", type=String, default="", description="Column names to check (comma-separated; default: all)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -177,8 +177,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "keeprows"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="rows", type=String, default="", description="Row indices (e.g. 1:100, 1,5,10)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -225,6 +225,24 @@ function data_specs()::Vector{CommandSpec}
             category="data",
             data_kinds=[:csv, :timeseries, :panel, :cross_section],
             handler=wrap_legacy(_data_import),
+        ),
+        CommandSpec(
+            path=["data", "export"],
+            summary="Export a typed handle to CSV (frequency/tcode/dates dropped)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="Handle stem or path (TimeSeriesData/PanelData/CrossSectionData)")],
+            options=[
+                OptionSpec(name="output", short="o", type=String, default="",
+                           description="Output CSV path (default: <stem>.csv)"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table", "csv", "json"]),
+            ],
+            flags=FlagSpec[],
+            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
+            tables=TableSpec[],
+            category="data",
+            data_kinds=[:timeseries, :panel, :cross_section, :io],
+            handler=wrap_legacy(_data_export),
         )
     ]
 end
@@ -232,7 +250,7 @@ end
 function register_data_commands!()
     specs = data_specs()
     register!(specs)
-    return build_node("data", specs; description="Data management: import handles, load example datasets, inspect, clean, transform")
+    return build_node("data", specs; description="Data management: import/export handles, load example datasets, inspect, clean, transform")
 end
 
 
@@ -461,36 +479,31 @@ function _data_diagnose(; data::String, format::String="table", output::String="
     end
 end
 
+_as_macro_data(obj) = obj isa DataFrame ?
+    TimeSeriesData(df_to_matrix(obj); varnames=variable_names(obj)) : obj
+
+function _persist_edit(obj, data::String, output::String, suffix::String)
+    out_default = _default_edit_output(data, suffix)
+    return _write_macro_data(obj, isempty(output) ? out_default : output;
+                             input_path=data, default_stem=dataset_stem(data) * suffix)
+end
+
 function _data_fix(; data::String, method::String="listwise", output::String="", format::String="table")
     validate_method(method, ["listwise", "interpolate", "mean"], "fix method")
-
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
-    n_obs, n_vars = size(Y)
-
-    tsd = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
+    tsd = _as_macro_data(resolve_data(data))
     fixed = fix(tsd; method=Symbol(method))
-    fixed_mat = to_matrix(fixed)
-
-    out_path = if !isempty(output)
-        output
-    else
-        "$(dataset_stem(data))_clean.csv"
-    end
-    _validate_output_path(out_path)
-
-    fixed_df = DataFrame(fixed_mat, vn)
-    CSV.write(out_path, fixed_df)
+    n_obs, n_vars = size(to_matrix(fixed))
     _status("Fixed data ($method): $n_obs observations × $n_vars variables")
-    _status("Written to $out_path")
+    _persist_edit(fixed, data, output, "_clean")
+    return fixed
 end
 
 function _data_transform(; data::String, tcodes::String="", output::String="", format::String="table")
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
-    n_obs, n_vars = size(Y)
+    tsd = _as_macro_data(resolve_data(data))
+    _data_kind_of(tsd) === :cross_section && throw(CliError("data/wrong-kind",
+        "transform does not apply to CrossSectionData"))
+    vn = varnames(tsd)
+    n_vars = length(vn)
 
     isempty(tcodes) && throw(CliError("usage/missing",
         "--tcodes is required";
@@ -500,21 +513,8 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
     length(codes) == n_vars || throw(CliError("usage/invalid",
         "number of tcodes ($(length(codes))) must match number of variables ($n_vars)"))
 
-    tsd = TimeSeriesData(Y; varnames=vn, tcode=codes, time_index=collect(1:n_obs))
     transformed = apply_tcode(tsd, codes)
-    trans_mat = to_matrix(transformed)
-
     tcode_names = Dict(1=>"level", 2=>"Δ", 3=>"Δ²", 4=>"log", 5=>"Δlog", 6=>"Δ²log", 7=>"Δ%")
-
-    out_path = if !isempty(output)
-        output
-    else
-        "$(dataset_stem(data))_transformed.csv"
-    end
-    _validate_output_path(out_path)
-
-    trans_df = DataFrame(trans_mat, vn)
-    CSV.write(out_path, trans_df)
 
     _status("Transformed $n_vars variable(s):")
     for (i, vname) in enumerate(vn)
@@ -522,7 +522,8 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
         label = get(tcode_names, code, "code=$code")
         _status("  $vname: tcode=$code ($label)")
     end
-    _status("Written to $out_path")
+    _persist_edit(transformed, data, output, "_transformed")
+    return transformed
 end
 
 function _data_filter(; data::String, method::String="hp", component::String="cycle",
@@ -614,30 +615,27 @@ end
 
 function _data_balance(; data::String, method::String="dfm", factors::Int=3,
                         lags::Int=2, output::String="", format::String="table")
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
+    ts = _as_macro_data(resolve_data(data))
+    vn = varnames(ts)
+    Y = to_matrix(ts)
 
     _status("Balancing panel via $(method): $(length(vn)) variables, T=$(size(Y, 1))")
     _status()
 
-    ts = TimeSeriesData(Y; varnames=vn)
     balanced = balance_panel(ts; method=Symbol(method), r=factors, p=lags)
-
-    bal_Y = hasproperty(balanced, :data) ? balanced.data : Y
+    written = _persist_edit(balanced, data, output, "_balanced")
+    table_output = _is_handle_path(written) ? "" : output
+    bal_Y = hasproperty(balanced, :data) ? balanced.data : to_matrix(balanced)
     result_df = DataFrame(bal_Y, vn)
-    output_result(result_df; format=Symbol(format), output=output,
+    output_result(result_df; format=Symbol(format), output=table_output,
                   title="Balanced Panel (method=$method, r=$factors, p=$lags)", key="balanced_panel")
 end
 
 function _data_dropna(; data::String, vars::String="",
                        output::String="", format::String="table")
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vnames = variable_names(df)
-    ts = TimeSeriesData(Y; varnames=vnames)
-
-    n_before = size(Y, 1)
+    ts = _as_macro_data(resolve_data(data))
+    vnames = varnames(ts)
+    n_before = size(to_matrix(ts), 1)
     # Real dropna's kwarg is asserted ::Union{Vector{String},Nothing} — a bare
     # strip() comprehension is Vector{SubString} and TypeErrors on every --vars
     # invocation, so materialize Strings and pre-check the names ourselves.
@@ -656,14 +654,16 @@ function _data_dropna(; data::String, vars::String="",
         # "All rows contain NaN or Inf" is an untyped ArgumentError upstream.
         e isa ArgumentError ? throw(CliError("data/invalid", e.msg)) : rethrow()
     end
-    n_after = size(cleaned.data, 1)
+    n_after = size(to_matrix(cleaned), 1)
 
     _status("Drop NA: $data")
     _status("  Rows before: $n_before, after: $n_after, dropped: $(n_before - n_after)")
     _status()
 
-    result_df = DataFrame(cleaned.data, cleaned.varnames)
-    output_result(result_df; format=Symbol(format), output=output, title="Cleaned Data")
+    written = _persist_edit(cleaned, data, output, "_dropna")
+    table_output = _is_handle_path(written) ? "" : output
+    result_df = DataFrame(to_matrix(cleaned), varnames(cleaned))
+    output_result(result_df; format=Symbol(format), output=table_output, title="Cleaned Data")
     return cleaned
 end
 
@@ -672,11 +672,8 @@ function _data_keeprows(; data::String, rows::String="",
     isempty(rows) && throw(CliError("usage/missing",
         "--rows is required (e.g. 1:100, 1,5,10)"))
 
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vnames = variable_names(df)
-    ts = TimeSeriesData(Y; varnames=vnames)
-    n_total = size(Y, 1)
+    ts = _as_macro_data(resolve_data(data))
+    n_total = size(to_matrix(ts), 1)
 
     _rows_err() = throw(CliError("usage/invalid",
         "--rows must be a range like 1:100 (or 1:end) or a comma list like 1,5,10 (got '$rows')"))
@@ -707,8 +704,10 @@ function _data_keeprows(; data::String, rows::String="",
     _status("  Selected $(length(indices)) of $n_total rows")
     _status()
 
-    result_df = DataFrame(filtered.data, filtered.varnames)
-    output_result(result_df; format=Symbol(format), output=output, title="Filtered Data")
+    written = _persist_edit(filtered, data, output, "_rows")
+    table_output = _is_handle_path(written) ? "" : output
+    result_df = DataFrame(to_matrix(filtered), varnames(filtered))
+    output_result(result_df; format=Symbol(format), output=table_output, title="Filtered Data")
     return filtered
 end
 
@@ -897,5 +896,29 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
         "frequency" => string(frequency),
     ]; format=format, output="", title="Imported Data", key="imported_data")
     _status("Imported $k → $out_path")
+    return obj
+end
+
+function _data_export(; data::String, output::String="", format::String="table")
+    obj = resolve_data(data)
+    k = _data_kind_of(obj)
+    k in (:timeseries, :panel, :cross_section, :io) || throw(CliError("data/wrong-kind",
+        "$data is not a data container (got $(typeof(obj)))";
+        hint="pass a TimeSeriesData/PanelData/CrossSectionData handle"))
+    out = if isempty(output)
+        resolved = try
+            resolve_stem(data; slot=:data)
+        catch
+            data
+        end
+        dir = startswith(resolved, ":") ? "" : dirname(resolved)
+        base = dataset_stem(data) * ".csv"
+        (isempty(dir) || dir == ".") ? base : joinpath(dir, base)
+    else
+        output
+    end
+    endswith(lowercase(out), ".csv") || (out = out * ".csv")
+    _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
+                      warn_metadata=true)
     return obj
 end

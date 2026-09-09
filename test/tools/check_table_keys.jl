@@ -106,12 +106,13 @@ violations = String[]
 for (path, spec) in sort!(collect(SPECS); by=first)
     if isempty(spec.tables)
         # Documented no-table leaves (W3/#138): completions emit shell scripts;
-        # data load/fix/transform write CSV directly and data validate reports
-        # on stderr only; serve owns stdout as a JSON-RPC channel (W7/#142).
-        # (estimate sdfm left this list at #147 — it now emits a summary.)
-        # An explicitly empty declaration on these means "emits nothing", not "forgot".
+        # data load/export/fix/transform write CSV (or a handle) directly and
+        # data validate reports on stderr only; serve owns stdout as a JSON-RPC
+        # channel (W7/#142). (estimate sdfm left this list at #147 — it now
+        # emits a summary.) An explicitly empty declaration on these means
+        # "emits nothing", not "forgot".
         startswith(path, "completions") && continue
-        path in ("data load", "data fix", "data transform",
+        path in ("data load", "data export", "data fix", "data transform",
                  "data validate", "serve") && continue
         push!(violations, "$path: declares NO tables (every envelope-emitting leaf must declare its tables)")
         continue

@@ -8057,8 +8057,8 @@ end  # Enhanced Granger handlers
         node = register_data_commands!()
         @test node isa NodeCommand
         @test node.name == "data"
-        @test length(node.subcmds) == 12
-        for cmd in ["list", "load", "import", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance", "dropna", "keeprows"]
+        @test length(node.subcmds) == 13
+        for cmd in ["list", "load", "import", "export", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance", "dropna", "keeprows"]
             @test haskey(node.subcmds, cmd)
             @test node.subcmds[cmd] isa LeafCommand
         end
@@ -8069,6 +8069,7 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["list"].options) == 2
         @test length(node.subcmds["load"].options) == 6
         @test length(node.subcmds["import"].options) == 10
+        @test length(node.subcmds["export"].options) == 2
         @test length(node.subcmds["describe"].options) == 2
         @test length(node.subcmds["diagnose"].options) == 2
         @test length(node.subcmds["fix"].options) == 3
