@@ -315,6 +315,41 @@ end
         catch e; e; end
         @test err isa CliError
         @test err.code == "data/wrong-kind"
+
+        ioh = joinpath(dir, "io.jld2")
+        io = MacroEconometricModels._mock_wiot()
+        @test _data_kind_of(io) === :io
+        _capture() do
+            save_model_dispatch(ioh, io)
+        end
+        err_io = try
+            load_data(ioh)
+            nothing
+        catch e; e; end
+        @test err_io isa CliError
+        @test err_io.code == "data/wrong-kind"
+    end
+end
+
+@testset "load_data skips FRIEDMAN_DATA_ROOT for model://" begin
+    mktempdir() do root
+        outside = tempname() * ".csv"
+        CSV.write(outside, DataFrame(a=[1.0, 2.0]))
+        withenv("FRIEDMAN_DATA_ROOT" => root) do
+            err = try
+                load_data("model://x")
+                nothing
+            catch e; e; end
+            @test err isa CliError
+            @test err.code != "data/bad-path"
+            err_fs = try
+                load_data(outside)
+                nothing
+            catch e; e; end
+            @test err_fs isa CliError
+            @test err_fs.code == "data/bad-path"
+        end
+        rm(outside; force=true)
     end
 end
 

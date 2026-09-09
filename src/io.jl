@@ -346,19 +346,25 @@ A `:name` reference (e.g. `:fred_md`) loads a bundled example dataset instead.
 
 Handle suffix is checked inline (not `_is_handle_path`): `handles.jl` is included
 after `io.jl` and must not be reordered. `load_model_dispatch` / `_data_kind_of`
-resolve at call time.
+resolve at call time. `model://` skips `FRIEDMAN_DATA_ROOT` confinement (same as
+wrap_legacy). Only `:timeseries` / `:panel` / `:cross_section` convert to a
+DataFrame; `:io` and other payloads are `data/wrong-kind`.
 """
 function load_data(path::String)
     if startswith(path, ":")
         return dataset_to_dataframe(load_example(parse_dataset_name(path)))
     end
     path = _expanduser(path)
-    _validate_input_path(path)
+    # Session URIs are not filesystem paths — confinement would map `model://m1`
+    # to `data/bad-path` whenever FRIEDMAN_DATA_ROOT is set.
+    if !startswith(path, "model://")
+        _validate_input_path(path)
+    end
     lc = lowercase(path)
     if endswith(lc, ".jld2") || endswith(lc, ".fmod") || startswith(path, "model://")
         obj = load_model_dispatch(path)
         k = _data_kind_of(obj)
-        k === :unknown && throw(CliError("data/wrong-kind",
+        k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
             "$path is not a data container (got $(typeof(obj)))"))
         df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
         k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
