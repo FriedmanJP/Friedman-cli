@@ -739,11 +739,72 @@ function _frequency_value(s::String)
     end
 end
 
+function _parse_tcodes(tcodes::String, n_vars::Int)
+    codes = if isempty(tcodes)
+        fill(1, n_vars)
+    else
+        out = Int[]
+        for raw in split(tcodes, ",")
+            t = strip(raw)
+            isempty(t) && continue
+            v = tryparse(Int, t)
+            v === nothing && throw(CliError("usage/invalid",
+                "--tcodes must be comma-separated integers (got '$t')"))
+            (1 <= v <= 7) || throw(CliError("usage/invalid",
+                "tcode must be 1:7 (got $v)"))
+            push!(out, v)
+        end
+        out
+    end
+    length(codes) == n_vars || throw(CliError("usage/invalid",
+        "number of tcodes ($(length(codes))) must match number of variables ($n_vars)"))
+    return codes
+end
+
+function _require_columns(df, names_::Vector{String}; label::String="variable")
+    colnames = names(df)
+    for v in names_
+        v in colnames || throw(CliError("data/column-range",
+            "$label '$v' not found";
+            hint="available: $(join(colnames[1:min(5, length(colnames))], ", "))..."))
+    end
+    return nothing
+end
+
+function _reject_missing_numeric(df, vn::Vector{String})
+    for c in vn
+        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    return nothing
+end
+
+function _import_mems_error(e)
+    e isa CliError && return e
+    mapped = _domain_error_class(e)
+    mapped !== nothing && return mapped
+    if e isa ArgumentError
+        msg = _err_message(e)
+        lmsg = lowercase(msg)
+        occursin("not found", lmsg) && return CliError("data/column-range", msg)
+        occursin("tcode", lmsg) && return CliError("usage/invalid", msg)
+        return CliError("data/invalid", msg)
+    end
+    return e
+end
+
 function _data_import(; data::String, kind::String="", frequency::String="other",
                        dates::String="", id_col::String="", time_col::String="",
                        vars::String="", tcodes::String="", note::String="",
                        output::String="", format::String="table")
     src = data
+    if !startswith(src, ":")
+        src = resolve_stem(src; slot=:data)
+        # Import is CSV|:example → handle, not handle → handle.
+        _is_handle_path(src) && throw(CliError("usage/invalid",
+            "data import reads CSV or :example, not an existing handle";
+            hint="use `data export` or pass a CSV path"))
+    end
     out_stem = isempty(output) ? joinpath(dirname(src), dataset_stem(src)) : output
     out_path = resolve_save_path(out_stem)
     _validate_output_path(out_path)
@@ -762,37 +823,56 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
             "--kind is required when importing a CSV";
             hint="--kind timeseries|panel|cross-section"))
         want = _parse_kind(kind)
-        df = load_data(src)
-        if !isempty(vars)
-            keep = String[String(strip(s)) for s in split(vars, ",") if !isempty(strip(s))]
-            want === :panel && (keep = unique(vcat([id_col, time_col], keep)))
-            df = df[!, keep]
-        end
-        if want === :timeseries
-            Y = df_to_matrix(df)
-            vn = variable_names(df)
-            codes = if isempty(tcodes)
-                fill(1, length(vn))
-            else
-                [parse(Int, strip(s)) for s in split(tcodes, ",") if !isempty(strip(s))]
-            end
-            ts = TimeSeriesData(Y; varnames=vn, frequency=_frequency_value(frequency),
-                                tcode=codes, time_index=collect(1:size(Y, 1)))
-            if !isempty(dates)
-                dates in names(df) || throw(CliError("data/column-range",
-                    "dates column '$dates' not found"))
-                set_dates!(ts, string.(df[!, dates]))
-            end
-            ts
-        elseif want === :panel
+        # Panel identifiers are required even when --vars would otherwise subset
+        # them away (DataFrames ArgumentError on the empty name).
+        if want === :panel
             (isempty(id_col) || isempty(time_col)) && throw(CliError("usage/missing",
                 "panel import requires --id-col and --time-col"))
-            xtset(df, Symbol(id_col), Symbol(time_col); frequency=_frequency_value(frequency))
-        else
+        elseif want === :cross_section
             frequency == "other" || throw(CliError("usage/invalid",
                 "--frequency does not apply to --kind cross-section"))
-            Y = df_to_matrix(df)
-            CrossSectionData(Y; varnames=variable_names(df))
+        end
+        df = load_data(src)
+        if want === :panel
+            _require_columns(df, String[id_col]; label="id column")
+            _require_columns(df, String[time_col]; label="time column")
+        end
+        if !isempty(dates)
+            _require_columns(df, String[dates]; label="dates column")
+        end
+        extra = String[]
+        want === :panel && append!(extra, (id_col, time_col))
+        !isempty(dates) && push!(extra, dates)
+        if !isempty(vars)
+            keep = String[String(strip(s)) for s in split(vars, ",") if !isempty(strip(s))]
+            _require_columns(df, keep)
+            df = df[!, unique(vcat(extra, keep))]
+        end
+        # Numeric --dates / panel id-col/time-col are metadata, not variables
+        # (same class as lat/lon in `_load_reg_data`). Keep dates on `df` for set_dates!.
+        exclude = Set{String}(extra)
+        vn = [n for n in variable_names(df) if n ∉ exclude]
+        isempty(vn) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
+        _reject_missing_numeric(df, vn)
+        try
+            if want === :timeseries
+                Y = Matrix{Float64}(df[!, vn])
+                codes = _parse_tcodes(tcodes, length(vn))
+                ts = TimeSeriesData(Y; varnames=vn, frequency=_frequency_value(frequency),
+                                    tcode=codes, time_index=collect(1:size(Y, 1)))
+                if !isempty(dates)
+                    set_dates!(ts, string.(df[!, dates]))
+                end
+                ts
+            elseif want === :panel
+                xtset(df[!, unique(vcat(String[id_col, time_col], vn))],
+                      Symbol(id_col), Symbol(time_col); frequency=_frequency_value(frequency))
+            else
+                Y = Matrix{Float64}(df[!, vn])
+                CrossSectionData(Y; varnames=vn)
+            end
+        catch e
+            throw(_import_mems_error(e))
         end
     end
 

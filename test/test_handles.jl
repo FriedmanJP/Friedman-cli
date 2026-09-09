@@ -109,5 +109,47 @@ end
         obj = load_model_dispatch(joinpath(dir, "macro.jld2"))
         @test obj isa TimeSeriesData
         @test varnames(obj) == ["y1", "y2"]
+
+        dated = joinpath(dir, "dated.csv")
+        CSV.write(dated, DataFrame(dates=1990:1999, y1=randn(10), y2=randn(10)))
+        _capture() do
+            _data_import(; data=dated, kind="timeseries", dates="dates",
+                         output=joinpath(dir, "dated"))
+        end
+        dated_obj = load_model_dispatch(joinpath(dir, "dated.jld2"))
+        @test dated_obj isa TimeSeriesData
+        @test varnames(dated_obj) == ["y1", "y2"]
+
+        miss = joinpath(dir, "miss.csv")
+        CSV.write(miss, DataFrame(y1=[1.0, missing, 3.0], y2=[1.0, 2.0, 3.0]))
+        err = try
+            _capture() do
+                _data_import(; data=miss, kind="timeseries",
+                             output=joinpath(dir, "miss"))
+            end
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "data/missing-values"
+
+        err = try
+            _capture() do
+                _data_import(; data=csv, kind="panel", vars="y1",
+                             output=joinpath(dir, "p"))
+            end
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "usage/missing"
+
+        err = try
+            _capture() do
+                _data_import(; data=joinpath(dir, "macro.jld2"), kind="timeseries",
+                             output=joinpath(dir, "macro2"))
+            end
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "usage/invalid"
     end
 end
