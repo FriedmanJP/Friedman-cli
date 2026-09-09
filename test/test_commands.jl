@@ -71,6 +71,7 @@ include(joinpath(project_root, "src", "cli", "dispatch.jl"))
 # Include command files in dependency order
 include(joinpath(project_root, "src", "commands", "shared.jl"))
 include(joinpath(project_root, "src", "model_handle.jl"))
+include(joinpath(project_root, "src", "handles.jl"))
 include(joinpath(project_root, "src", "registry", "spec.jl"))
 include(joinpath(project_root, "src", "registry", "adapter.jl"))
 include(joinpath(project_root, "src", "commands", "estimate.jl"))

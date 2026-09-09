@@ -47,6 +47,7 @@ include("commands/shared.jl")
 
 # Model handles (.fmod) — after io/errors (uses CliError, _status)
 include("model_handle.jl")
+include("handles.jl")
 
 # Declarative registry (P2-1) — before command files that emit CommandSpecs
 include("registry/spec.jl")
