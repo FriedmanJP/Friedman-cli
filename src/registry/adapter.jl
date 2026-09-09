@@ -59,8 +59,28 @@ function wrap_legacy(handler::Function)
         kwargs[:format] = string(ctx.fmt)
         kwargs[:output] = ctx.output
 
+        # Stem-resolve + type-check the data slot. data= stays a String.
+        if haskey(kwargs, :data) && kwargs[:data] isa AbstractString && !isempty(kwargs[:data])
+            resolved = resolve_stem(String(kwargs[:data]); slot=:data)
+            kwargs[:data] = resolved
+            kinds = ctx.spec.data_kinds
+            if !isempty(kinds) && _is_handle_path(resolved)
+                obj = load_model_dispatch(resolved)
+                k = _data_kind_of(obj)
+                if k ∉ kinds
+                    throw(CliError("data/wrong-kind",
+                        "$resolved is a $k handle ($(nameof(typeof(obj)))); this command accepts $(join(kinds, ", "))";
+                        hint="data import --kind timeseries, or pick a leaf that accepts $k"))
+                end
+            elseif !isempty(kinds) && !_is_handle_path(resolved) && !startswith(resolved, ":")
+                :csv ∉ kinds && throw(CliError("data/wrong-kind",
+                    "$resolved is CSV; this command does not accept :csv";
+                    hint="data import first"))
+            end
+        end
+
         # --save-model is never a handler kwarg
-        save_path = string(get(kwargs, :save_model, ""))
+        save_path = resolve_save_path(string(get(kwargs, :save_model, "")))
         delete!(kwargs, :save_model)
 
         # --model PATH → loaded object; empty → drop so handler default applies.
