@@ -157,6 +157,8 @@ end
 @testset "data export and typed fix" begin
     node = register_data_commands!()
     @test haskey(node.subcmds, "export")
+    export_spec = only(s for s in data_specs() if s.path == ["data", "export"])
+    @test :io ∉ export_spec.data_kinds
     mktempdir() do dir
         csv = joinpath(dir, "macro.csv")
         CSV.write(csv, DataFrame(y1=[1.0, NaN, 3.0], y2=[4.0, 5.0, 6.0]))
@@ -186,5 +188,26 @@ end
         catch e; e; end
         @test err isa CliError
         @test err.code == "usage/invalid"
+
+        dropna_csv = joinpath(dir, "dropna.csv")
+        _capture() do
+            _data_dropna(; data=joinpath(dir, "macro"), output=dropna_csv)
+        end
+        dropna_df = CSV.read(dropna_csv, DataFrame)
+        @test names(dropna_df) == ["y1", "y2"]
+        @test nrow(dropna_df) == 2
+
+        ioh = joinpath(dir, "io.jld2")
+        _capture() do
+            save_model_dispatch(ioh, MacroEconometricModels._mock_wiot())
+        end
+        err = try
+            _capture() do
+                _data_export(; data=ioh, output=joinpath(dir, "io.csv"))
+            end
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "data/wrong-kind"
     end
 end

@@ -241,7 +241,7 @@ function data_specs()::Vector{CommandSpec}
             # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
             tables=TableSpec[],
             category="data",
-            data_kinds=[:timeseries, :panel, :cross_section, :io],
+            data_kinds=[:timeseries, :panel, :cross_section],
             handler=wrap_legacy(_data_export),
         )
     ]
@@ -623,11 +623,10 @@ function _data_balance(; data::String, method::String="dfm", factors::Int=3,
     _status()
 
     balanced = balance_panel(ts; method=Symbol(method), r=factors, p=lags)
-    written = _persist_edit(balanced, data, output, "_balanced")
-    table_output = _is_handle_path(written) ? "" : output
+    _persist_edit(balanced, data, output, "_balanced")
     bal_Y = hasproperty(balanced, :data) ? balanced.data : to_matrix(balanced)
     result_df = DataFrame(bal_Y, vn)
-    output_result(result_df; format=Symbol(format), output=table_output,
+    output_result(result_df; format=Symbol(format), output="",
                   title="Balanced Panel (method=$method, r=$factors, p=$lags)", key="balanced_panel")
 end
 
@@ -660,10 +659,9 @@ function _data_dropna(; data::String, vars::String="",
     _status("  Rows before: $n_before, after: $n_after, dropped: $(n_before - n_after)")
     _status()
 
-    written = _persist_edit(cleaned, data, output, "_dropna")
-    table_output = _is_handle_path(written) ? "" : output
+    _persist_edit(cleaned, data, output, "_dropna")
     result_df = DataFrame(to_matrix(cleaned), varnames(cleaned))
-    output_result(result_df; format=Symbol(format), output=table_output, title="Cleaned Data")
+    output_result(result_df; format=Symbol(format), output="", title="Cleaned Data")
     return cleaned
 end
 
@@ -704,10 +702,9 @@ function _data_keeprows(; data::String, rows::String="",
     _status("  Selected $(length(indices)) of $n_total rows")
     _status()
 
-    written = _persist_edit(filtered, data, output, "_rows")
-    table_output = _is_handle_path(written) ? "" : output
+    _persist_edit(filtered, data, output, "_rows")
     result_df = DataFrame(to_matrix(filtered), varnames(filtered))
-    output_result(result_df; format=Symbol(format), output=table_output, title="Filtered Data")
+    output_result(result_df; format=Symbol(format), output="", title="Filtered Data")
     return filtered
 end
 
@@ -902,7 +899,7 @@ end
 function _data_export(; data::String, output::String="", format::String="table")
     obj = resolve_data(data)
     k = _data_kind_of(obj)
-    k in (:timeseries, :panel, :cross_section, :io) || throw(CliError("data/wrong-kind",
+    k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
         "$data is not a data container (got $(typeof(obj)))";
         hint="pass a TimeSeriesData/PanelData/CrossSectionData handle"))
     out = if isempty(output)
