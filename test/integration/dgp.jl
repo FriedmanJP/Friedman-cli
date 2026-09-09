@@ -64,6 +64,40 @@ function dgp_var2(; T::Int=200, seed::Int=42)
     return write_csv(DataFrame(y1=Y[:,1], y2=Y[:,2], y3=Y[:,3]); prefix="var2")
 end
 
+"""VAR(1) with AR(1) stochastic-volatility structural shocks (W1/#186).
+
+Two heteroskedastic shocks with distinct, persistent log-vol dynamics
+(ρ = 0.97/0.90) drive a NON-recursive impact matrix
+(`B0 = [1 0.4; -0.2 1]`), so Cholesky mislabels while TVV/SV
+identification recovers the impact pattern up to column signs:
+shock 1 hits (y1, y2) with OPPOSITE signs, shock 2 with the SAME
+sign, and every cross-impact is bounded away from zero where
+Cholesky prints exactly 0. The T3 cases assert this
+discriminator (gap-sized, never tight values). Needs T ≥ ~150
+(Lewis requires `T_eff - maxlag ≥ 100` usable observations).
+"""
+function dgp_svvar(; T::Int=300, seed::Int=42)
+    rng = MersenneTwister(seed)
+    n = 2
+    A1 = [0.5 0.1;
+          0.0 0.4]
+    B0 = [1.0 0.4;
+          -0.2 1.0]
+    h = zeros(T, n)
+    rhos = [0.97, 0.90]
+    sigs = [0.25, 0.20]
+    for t in 2:T, i in 1:n
+        h[t, i] = rhos[i] * h[t-1, i] + sigs[i] * randn(rng)
+    end
+    E = randn(rng, T, n) .* exp.(h ./ 2)
+    U = E * B0'
+    Y = zeros(T, n)
+    for t in 2:T
+        Y[t, :] = A1 * Y[t-1, :] + U[t, :]
+    end
+    return write_csv(DataFrame(y1=Y[:,1], y2=Y[:,2]); prefix="svvar")
+end
+
 """Cointegrated pair: x_t random walk, y_t = β x_t + stationary."""
 function dgp_coint(; T::Int=250, β::Float64=1.0, seed::Int=42)
     rng = MersenneTwister(seed)

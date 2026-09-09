@@ -226,7 +226,7 @@ Compute frequentist impulse response functions
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|proxy\|max-share\|gmm-moments\|narrative-adrr |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
@@ -272,7 +272,7 @@ Compute impulse response functions via VECM → VAR representation
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec\|lewis-tvv\|sv-em |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--config` | — | `String` | `""` | — | TOML config for identification |

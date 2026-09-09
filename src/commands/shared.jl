@@ -647,6 +647,8 @@ const ID_METHOD_MAP = Dict(
     "markov_switching"  => :markov_switching,
     "garch_id"          => :garch,
     "uhlig"             => :uhlig,
+    "lewis-tvv"         => :lewis_tvv,
+    "sv-em"             => :sv_em,
 )
 
 # W2/#166: method universes per estimator family. The base map above is shared
@@ -833,9 +835,9 @@ function _build_prior(config_path::String, Y::AbstractMatrix, p::Int)
             # (default moved 2.0 → 1.0), no longer an on/off switch — config-minnesota
             # results shifted at that bump for exactly this reason.
             return MinnesotaHyperparameters(;
-                tau=prior_cfg["lambda1"],
-                decay=prior_cfg["lambda3"],
-                lambda=prior_cfg["lambda2"],
+                tau=get(prior_cfg, "lambda1", 0.2),
+                decay=get(prior_cfg, "lambda3", 1.0),
+                lambda=get(prior_cfg, "lambda2", 0.5),
             )
         end
     end
@@ -1101,7 +1103,9 @@ Build the kwargs dict for irf/fevd/historical_decomposition calls
 based on identification method and config file.
 """
 function _build_identification_kwargs(id::String, config::String;
-                                      methods::Dict=ID_METHOD_MAP)
+                                      methods::Dict=ID_METHOD_MAP,
+                                      nvars::Union{Int,Nothing}=nothing,
+                                      leaf::String="identification")
     # Unknown ids no longer degrade to :cholesky (W2/#166). Families admitting
     # more pass their own allow-set (VAR: _ID_METHODS_VAR; VECM: _ID_METHODS_VECM).
     method = _identification_method(id, methods, "identification")
@@ -1115,7 +1119,50 @@ function _build_identification_kwargs(id::String, config::String;
         kwargs[:narrative_check] = narrative_check
     end
 
+    if id in ("lewis-tvv", "sv-em")
+        # Every call site passes its data width (hetero resolution needs n).
+        nvars === nothing && error("$leaf: --id $id requires nvars (internal)")
+        merge!(kwargs, _id_knob_kwargs(id, config, nvars, leaf))
+    end
+
     return kwargs
+end
+
+"""
+    _id_knob_kwargs(id, config, n, leaf) -> Dict{Symbol,Any}
+
+Estimator knobs for the 0.9.6 statistical-ID methods, threaded into
+irf/fevd/historical_decomposition calls (var/vecm/bvar/favar) whose
+`compute_Q` branch forwards them to `identify_lewis_tvv` /
+`identify_sv_svar` (kwarg names verified collision-free against
+those path signatures at W0; LP leaves use upstream defaults —
+structural_lp pins its own compute_Q allow-list). TOML-authored values
+are validated in the `get_*_params` parsers (`config/invalid`);
+`hetero_shocks` (1-based, TOML-authored) resolves against the
+data width `n` here: out-of-range → `usage/invalid` (the
+`--target-var` precedent — a column reference, not a config
+shape). Empty means all shocks (upstream requires
+`any(hetero)`); duplicates collapse (set semantics).
+"""
+function _id_knob_kwargs(id::String, config::String, n::Int, leaf::String)
+    cfg = isempty(config) ? Dict{String,Any}() : load_config(config)
+    out = Dict{Symbol,Any}()
+    if id == "lewis-tvv"
+        out[:weighting] = get_lewis_tvv_params(cfg)["weighting"]
+    elseif id == "sv-em"
+        sp = get_sv_svar_params(cfg)
+        out[:maxiter] = sp["maxiter"]
+        out[:gibbs_burn] = sp["gibbs_burn"]
+        out[:gibbs_draws] = sp["gibbs_draws"]
+        out[:init] = sp["init"]
+        hs = sp["hetero_shocks"]
+        for h in hs
+            h <= n || throw(CliError("usage/invalid",
+                "$leaf: --id sv-em hetero_shocks index $h out of 1:$n"))
+        end
+        out[:hetero] = isempty(hs) ? trues(n) : BitVector([i in hs for i in 1:n])
+    end
+    return out
 end
 
 """
@@ -1154,6 +1201,10 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
     end
 
     _SEED[] !== nothing && (kwargs[:seed] = _SEED[])
+    # NOTE (W1/#186): no knob merge here — upstream structural_lp pins its
+    # own compute_Q allow-list (lp/core.jl:440-443), so lewis/sv knobs have
+    # no channel on LP leaves (methods run on upstream defaults, same as
+    # the pre-existing uhlig-knob behavior on LP).
     slp = structural_lp(Y, horizons; kwargs...)
     return slp, Y, varnames
 end
@@ -1557,13 +1608,20 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::In
               method=_SDFM_METHODS[method], spectral=_GDFM_SPECTRAL[spectral],
               sign_check=sign_check, instrument=instrument, seed=_SEED[],
               bandwidth=bandwidth, kernel=Symbol(kernel), varnames=varnames)
-    sdfm, q = if factors === nothing
-        _status("Selecting dynamic factors (auto: $q_method)...")
-        m = estimate_structural_dfm(Y, :auto; q_method=_SDFM_Q_METHODS[q_method], est_kw...)
-        _status("  Auto-selected $(m.gdfm.q) dynamic factors")
-        m, m.gdfm.q
-    else
-        estimate_structural_dfm(Y, factors; est_kw...), factors
+    # Upstream rejects unknown `identification` symbols with a bare
+    # ArgumentError — wrap so a bad --id is data/invalid (exit 3),
+    # not an untyped exit 1 (same class as the W1/#186 VAR IRF wrap).
+    sdfm, q = try
+        if factors === nothing
+            _status("Selecting dynamic factors (auto: $q_method)...")
+            m = estimate_structural_dfm(Y, :auto; q_method=_SDFM_Q_METHODS[q_method], est_kw...)
+            _status("  Auto-selected $(m.gdfm.q) dynamic factors")
+            m, m.gdfm.q
+        else
+            estimate_structural_dfm(Y, factors; est_kw...), factors
+        end
+    catch e
+        throw(_domain_or_data_error(e, "SDFM estimation"))
     end
     return sdfm, Y, varnames, q
 end

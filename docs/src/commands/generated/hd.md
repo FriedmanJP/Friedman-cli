@@ -110,7 +110,7 @@ Compute historical decomposition of shocks
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
@@ -143,7 +143,7 @@ Compute historical decomposition via VECM → VAR representation
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec\|lewis-tvv\|sv-em |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

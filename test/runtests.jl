@@ -3678,6 +3678,62 @@ using TOML
         @test uhlig_partial["n_refine"] == 10  # default
     end
 
+    @testset "get_lewis_tvv_params" begin
+        # Empty config → defaults
+        tvv_empty = get_lewis_tvv_params(Dict())
+        @test tvv_empty["weighting"] == :two_step
+
+        # Custom value
+        cfg = Dict("identification" => Dict("lewis_tvv" => Dict("weighting" => "cue")))
+        @test get_lewis_tvv_params(cfg)["weighting"] == :cue
+
+        # Invalid weighting → config/invalid (exit 4)
+        bad = Dict("identification" => Dict("lewis_tvv" => Dict("weighting" => "optimal")))
+        e = try get_lewis_tvv_params(bad); nothing catch ex; ex end
+        @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+
+        # Non-table section → config/invalid
+        bad2 = Dict("identification" => Dict("lewis_tvv" => "cue"))
+        e2 = try get_lewis_tvv_params(bad2); nothing catch ex; ex end
+        @test e2 isa CliError && e2.code == "config/invalid" && exit_class(e2) == 4
+    end
+
+    @testset "get_sv_svar_params" begin
+        # Empty config → defaults
+        sv_empty = get_sv_svar_params(Dict())
+        @test sv_empty["hetero_shocks"] == Int[]
+        @test sv_empty["maxiter"] == 500
+        @test sv_empty["gibbs_burn"] == 5
+        @test sv_empty["gibbs_draws"] == 100
+        @test sv_empty["init"] == :ols_chol
+
+        # Custom values
+        cfg = Dict("identification" => Dict("sv_svar" => Dict(
+            "hetero_shocks" => [1, 3], "maxiter" => 50, "gibbs_burn" => 2,
+            "gibbs_draws" => 20, "init" => "haar")))
+        sv = get_sv_svar_params(cfg)
+        @test sv["hetero_shocks"] == [1, 3]
+        @test sv["maxiter"] == 50
+        @test sv["gibbs_burn"] == 2
+        @test sv["gibbs_draws"] == 20
+        @test sv["init"] == :haar
+
+        # Invalid values → config/invalid (exit 4)
+        for (key, val) in [("hetero_shocks", [0]), ("hetero_shocks", [1.5]),
+                           ("hetero_shocks", [true]), ("hetero_shocks", 2),
+                           ("maxiter", 0), ("gibbs_burn", -1),
+                           ("gibbs_draws", 0), ("init", "newton")]
+            bad = Dict("identification" => Dict("sv_svar" => Dict(key => val)))
+            e = try get_sv_svar_params(bad); nothing catch ex; ex end
+            @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+        end
+
+        # Non-table section → config/invalid
+        bad2 = Dict("identification" => Dict("sv_svar" => "haar"))
+        e2 = try get_sv_svar_params(bad2); nothing catch ex; ex end
+        @test e2 isa CliError && e2.code == "config/invalid" && exit_class(e2) == 4
+    end
+
     @testset "get_dsge — valid model config" begin
         cfg = Dict(
             "model" => Dict(

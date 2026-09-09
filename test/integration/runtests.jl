@@ -2061,6 +2061,251 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "lewis-tvv + sv-em identification (W1/#186)" begin
+        # Non-recursive B0 = [1 0.4; -0.2 1]: Cholesky prints
+        # impact[2,1] == 0 and impact[1,2] == 0, so a nonzero
+        # cross-impact with the right relative sign proves the
+        # TVV/SV path ran (gap-sized thresholds, never tight values).
+        csv = dgp_svvar(; T=300, seed=42)
+
+        # Lewis default (two-step): impact-pattern teeth. --seed pins the
+        # estimator basin (multi-start thetas are rng draws; an unseeded
+        # run can land in a permuted basin — same class as the CUE note).
+        r = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                      "--horizons", "8", "--shock", "1", "--ci", "none",
+                      "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="irf var lewis-tvv")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            h1 = [row for row in rows if row[ci["horizon"]] == 1]
+            @test length(h1) == 2
+            v1 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y1"][1])
+            v2 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y2"][1])
+            @test v1 * v2 < 0 && abs(v2) > 0.05   # opposite signs, y2 impact nonzero
+        end
+        # Determinism: same seed reruns bit-identical values.
+        r2 = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                       "--horizons", "8", "--shock", "1", "--ci", "none",
+                       "--id", "lewis-tvv"])
+        assert_envelope_ok(r2; label="irf var lewis-tvv rerun")
+        _, tbl2 = first_table(r2.doc)
+        if tbl !== nothing && tbl2 !== nothing
+            ci2 = Dict(c => i for (i, c) in enumerate(table_cols(tbl2)))
+            vals = [Float64(row[ci["value"]]) for row in table_rows(tbl)]
+            vals2 = [Float64(row[ci2["value"]]) for row in table_rows(tbl2)]
+            @test vals == vals2
+        end
+        r = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                      "--horizons", "8", "--shock", "2", "--ci", "none",
+                      "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="irf var lewis-tvv shock 2")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            h1 = [row for row in rows if row[ci["horizon"]] == 1]
+            v1 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y1"][1])
+            v2 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y2"][1])
+            @test v1 * v2 > 0 && abs(v1) > 0.1    # same sign, y1 impact nonzero
+        end
+
+        # one_step + cue run (exit 0 + shape only: CUE can land in a
+        # wrong basin on finite samples — correct estimator behavior,
+        # so no recovery assertion here, same class as the
+        # threshold-CI rule).
+        for w in ("one_step", "cue")
+            toml = tempname() * ".toml"
+            write(toml, "[identification.lewis_tvv]\nweighting = \"$w\"\n")
+            r = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                          "--horizons", "8", "--shock", "1", "--ci", "none",
+                          "--id", "lewis-tvv", "--config", toml])
+            assert_envelope_ok(r; label="irf var lewis-tvv $w")
+            _, tbl = first_table(r.doc)
+            @test tbl !== nothing
+            if tbl !== nothing
+                @test length(table_rows(tbl)) == 16
+            end
+            rm(toml; force=true)
+        end
+
+        # fevd / hd smoke on the lewis path.
+        r = run_json(["--seed", "42", "fevd", "var", csv, "--lags", "1",
+                      "--horizons", "8", "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="fevd var lewis-tvv")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            @test all(-1e-8 <= Float64(row[ci["value"]]) <= 1.0 + 1e-8
+                      for row in table_rows(tbl))
+        end
+        # hd var declares no horizon option (full-sample decomposition).
+        r = run_json(["--seed", "42", "hd", "var", csv, "--lags", "1",
+                      "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="hd var lewis-tvv")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test length(table_rows(tbl)) >= 1
+        end
+
+        # SV-SVAR full hetero (tiny MCEM via TOML): same teeth
+        # (probed stable across seeds 42-44 with margin).
+        svtoml = tempname() * ".toml"
+        write(svtoml, "[identification.sv_svar]\nmaxiter = 20\ngibbs_draws = 30\n")
+        r = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                      "--horizons", "8", "--shock", "1", "--ci", "none",
+                      "--id", "sv-em", "--config", svtoml])
+        assert_envelope_ok(r; label="irf var sv-em")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            h1 = [row for row in rows if row[ci["horizon"]] == 1]
+            v1 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y1"][1])
+            v2 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y2"][1])
+            @test v1 * v2 < 0 && abs(v2) > 0.05
+        end
+        r = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                      "--horizons", "8", "--shock", "2", "--ci", "none",
+                      "--id", "sv-em", "--config", svtoml])
+        assert_envelope_ok(r; label="irf var sv-em shock 2")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            ci = Dict(c => i for (i, c) in enumerate(table_cols(tbl)))
+            rows = [collect(row) for row in table_rows(tbl)]
+            h1 = [row for row in rows if row[ci["horizon"]] == 1]
+            v1 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y1"][1])
+            v2 = Float64([row[ci["value"]] for row in h1 if row[ci["variable"]] == "y2"][1])
+            @test v1 * v2 > 0 && abs(v1) > 0.1
+        end
+        rm(svtoml; force=true)
+
+        # SV-SVAR partial hetero=[2]: runs (exit 0 + shape; the
+        # hetero plumbing is unit-pinned at T1/T2).
+        ptoml = tempname() * ".toml"
+        write(ptoml, "[identification.sv_svar]\nhetero_shocks = [2]\nmaxiter = 20\ngibbs_draws = 30\n")
+        r = run_json(["--seed", "42", "irf", "var", csv, "--lags", "1",
+                      "--horizons", "8", "--shock", "2", "--ci", "none",
+                      "--id", "sv-em", "--config", ptoml])
+        assert_envelope_ok(r; label="irf var sv-em partial")
+        _, tbl = first_table(r.doc)
+        @test tbl !== nothing
+        if tbl !== nothing
+            @test length(table_rows(tbl)) == 16
+        end
+        rm(ptoml; force=true)
+
+        # Family smokes (exit 0 + envelope; recovery teeth live on var).
+        cc = dgp_coint(; T=250, seed=21)
+        r = run_json(["--seed", "42", "irf", "vecm", cc, "--lags", "2",
+                      "--rank", "1", "--horizons", "8", "--shock", "1",
+                      "--ci", "none", "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="irf vecm lewis-tvv")
+        rm(cc; force=true)
+        r = run_json(["--seed", "42", "irf", "bvar", csv, "--lags", "1",
+                      "--horizons", "8", "--shock", "1", "--draws", "10",
+                      "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="irf bvar lewis-tvv")
+        r = run_json(["--seed", "42", "irf", "lp", csv, "--lags", "4",
+                      "--horizons", "8", "--shock", "1", "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="irf lp lewis-tvv")
+
+        # Error paths: exit classes pinned.
+        badw = tempname() * ".toml"
+        write(badw, "[identification.lewis_tvv]\nweighting = \"optimal\"\n")
+        r = run_json(["irf", "var", csv, "--lags", "1", "--shock", "1",
+                      "--id", "lewis-tvv", "--config", badw])
+        @test r.code == 4 && String(r.doc.error.code) == "config/invalid"
+        rm(badw; force=true)
+        badoob = tempname() * ".toml"
+        write(badoob, "[identification.sv_svar]\nhetero_shocks = [3]\n")
+        r = run_json(["irf", "var", csv, "--lags", "1", "--shock", "1",
+                      "--id", "sv-em", "--config", badoob])
+        @test r.code == 2 && String(r.doc.error.code) == "usage/invalid"
+        rm(badoob; force=true)
+        badi = tempname() * ".toml"
+        write(badi, "[identification.sv_svar]\ninit = \"newton\"\n")
+        r = run_json(["irf", "var", csv, "--lags", "1", "--shock", "1",
+                      "--id", "sv-em", "--config", badi])
+        @test r.code == 4 && String(r.doc.error.code) == "config/invalid"
+        rm(badi; force=true)
+        csv1 = dgp_ar1(; T=250, φ=0.7, seed=11)
+        r = run_json(["irf", "var", csv1, "--lags", "1", "--shock", "1",
+                      "--id", "lewis-tvv"])
+        @test r.code == 3 && String(r.doc.error.code) == "data/invalid"
+        rm(csv1; force=true)
+        csvs = dgp_var2(; T=100, seed=5)
+        r = run_json(["irf", "var", csvs, "--lags", "1", "--shock", "1",
+                      "--id", "lewis-tvv"])
+        @test r.code == 3 && String(r.doc.error.code) == "data/invalid"
+        rm(csvs; force=true)
+        rm(csv; force=true)
+    end
+
+    @testset "fevd bvar threads method (W1/#186 fix)" begin
+        csv = dgp_var2(; T=200, seed=9)
+        r = run_json(["fevd", "bvar", csv, "--lags", "1", "--horizons", "4",
+                      "--draws", "50", "--id", "cholesky"])
+        assert_envelope_ok(r; label="fevd bvar cholesky")
+        r = run_json(["fevd", "bvar", csv, "--lags", "1", "--horizons", "4",
+                      "--draws", "50", "--id", "bogus"])
+        @test r.code == 2
+        rm(csv; force=true)
+    end
+
+    @testset "fevd/hd bvar lewis-tvv knob threading (W1/#186)" begin
+        # BVARPosterior fevd/hd take method + estimator knobs through
+        # separate inline call sites (not the shared builder) — prove
+        # live that the knobs reach real fevd(post)/hd(post).
+        csv = dgp_svvar(; T=300, seed=42)
+        r = run_json(["--seed", "42", "fevd", "bvar", csv, "--lags", "1",
+                      "--horizons", "8", "--draws", "10", "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="fevd bvar lewis-tvv")
+        # hd bvar declares no horizon option (decomposition over the full
+        # sample, like hd lp/vecm) — no --horizon/--horizons flag here.
+        r = run_json(["--seed", "42", "hd", "bvar", csv, "--lags", "1",
+                      "--draws", "10", "--id", "lewis-tvv"])
+        assert_envelope_ok(r; label="hd bvar lewis-tvv")
+        rm(csv; force=true)
+    end
+
+    @testset "hetero-id error paths (W1/#186 review)" begin
+        # Adversarial-review findings: every one of these was an untyped
+        # exit 1 before the fix. Pins are exit-class-only (never values).
+        # SDFM loader rejects an unknown --id typed (bare ArgumentError
+        # from estimate_structural_dfm used to escape).
+        panel = dgp_panel_matrix(; N=10, T=80, seed=7)
+        r = run_json(["irf", "sdfm", panel, "--factors", "1",
+                      "--id", "lewis-tvv"])
+        @test r.code == 3 && String(r.doc.error.code) == "data/invalid"
+        rm(panel; force=true)
+        # BVAR --config without [prior.hyperparameters] falls back to prior
+        # defaults (direct prior_cfg["lambda1"] indexing used to KeyError).
+        csv = dgp_svvar(; T=300, seed=42)
+        toml = tempname() * ".toml"
+        write(toml, "[identification.sv_svar]\nmaxiter = 20\ngibbs_draws = 30\n")
+        r = run_json(["estimate", "bvar", csv, "--lags", "1", "--draws", "10",
+                      "--config", toml])
+        assert_envelope_ok(r; label="estimate bvar config-no-prior")
+        # sv-em on VECM: upstream raises IdentificationError (non-orthogonal
+        # Q on converted models) — typed model/identification, never exit 1.
+        cc = dgp_coint(; T=250, seed=21)
+        r = run_json(["irf", "vecm", cc, "--lags", "2", "--rank", "1",
+                      "--shock", "1", "--ci", "none",
+                      "--id", "sv-em", "--config", toml])
+        @test r.code == 5 && String(r.doc.error.code) == "model/identification"
+        rm(cc; force=true)
+        rm(toml; force=true)
+        rm(csv; force=true)
+    end
+
     @testset "forecast var (C051 tidy long_table)" begin
         csv = dgp_var2(; T=150, seed=17)
         r = run_json(["forecast", "var", csv, "--lags", "2", "--horizons", "4"])

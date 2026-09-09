@@ -4,6 +4,33 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.12.3] — 2026-09-09 — MEMs 0.9.6 adoption program (#184–#187)
+
+C038 bump, re-resolved from General. Upstream 0.9.6 delta is purely
+additive (1096 insertions, 0 deletions): Lewis TVV-ID
+(`lewis_tvv.jl`) + Bertsche–Braun SV-SVAR (`sv_svar.jl`) + TVV
+shock simulators (`nongaussian/tvv_common.jl`), 4 new exports,
+2 new `plot_result` recipes. Full per-point ledger (MEMs
+#823–#827) with tag-line evidence: `docs/src/commands/not-wrapped.md`
+(W0/#185 section).
+
+- **W1 (#186): heteroskedastic identification exposure.** New
+  `--id` values `lewis-tvv`/`sv-em` on the irf/fevd/hd var+vecm
+  leaves (bvar/lp work through the shared base map, unadvertised;
+  SDFM stays estimation-gated, MEMs#830 filed); TOML-first knobs
+  under `[identification.lewis_tvv]` / `[identification.sv_svar]`
+  (weighting/hetero_shocks/maxiter/gibbs_burn/gibbs_draws/init).
+  No new leaves (453, unchanged), no Q-injection, LP knobs stay
+  default (upstream allow-list has no knob channel). Recovery
+  teeth on a non-recursive SV DGP (seeded, determinism-pinned),
+  per-family smokes, exit-class pins (config/usage/data/model).
+  Review hardening: VAR-IRF + SDFM loader wraps (upstream bare
+  ArgumentErrors → data/invalid, exit 3), BVAR prior-default
+  KeyError fix, ID_METHOD_MAP pin 16→18. Final gates: T3
+  4180/4180 green; T1/T2 green; mock-surface PASS; plot-coverage
+  181/181 (ADDED LewisTVVResult/SVSVARResult, audited); docs
+  reference `--check` OK.
+
 ## [0.12.2] — 2026-09-08 — MEMs 0.9.5 adoption program (#178–#181)
 
 CLI v0.12.2 adopts MacroEconometricModels **0.9.5**. The machine surface stays
