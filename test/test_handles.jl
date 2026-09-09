@@ -30,6 +30,7 @@ end
         @test resolve_stem(jld; slot=:data) == jld
         @test resolve_save_path(joinpath(dir, "out")) == joinpath(dir, "out.jld2")
         @test resolve_save_path(joinpath(dir, "out.csv")) == joinpath(dir, "out.csv")
+        @test resolve_save_path("model://m1") == "model://m1"
 
         loaded = resolve_data(joinpath(dir, "macro"))
         @test loaded isa TimeSeriesData
@@ -278,6 +279,42 @@ end
         Yh, nh = load_multivariate_data(joinpath(dir, "macro"))
         @test nc == nh
         @test Yc == Yh
+    end
+end
+
+@testset "load_data reads .jld2 containers" begin
+    mktempdir() do dir
+        csv = joinpath(dir, "macro.csv")
+        CSV.write(csv, DataFrame(y1=1.0:8.0, y2=2.0:9.0))
+        _capture() do
+            _data_import(; data=csv, kind="timeseries", output=joinpath(dir, "macro"))
+        end
+        df = load_data(joinpath(dir, "macro.jld2"))
+        @test names(df) == ["y1", "y2"]
+        @test size(df, 1) == 8
+        @test Vector(df.y1) == collect(1.0:8.0)
+
+        panel = joinpath(dir, "panel.csv")
+        g = repeat(1:2, inner=4); t = repeat(1:4, outer=2)
+        CSV.write(panel, DataFrame(group=g, time=t, y=randn(8), x=randn(8)))
+        _capture() do
+            _data_import(; data=panel, kind="panel", id_col="group", time_col="time",
+                         output=joinpath(dir, "panel"))
+        end
+        dfp = load_data(joinpath(dir, "panel.jld2"))
+        @test names(dfp)[1:2] == ["group", "time"]
+        @test "y" in names(dfp) && "x" in names(dfp)
+
+        Y, vn = load_multivariate_data(csv)
+        model = estimate_var(Y, 1; varnames=vn)
+        mjld = joinpath(dir, "varmodel.jld2")
+        save_model_dispatch(mjld, model)
+        err = try
+            load_data(mjld)
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "data/wrong-kind"
     end
 end
 

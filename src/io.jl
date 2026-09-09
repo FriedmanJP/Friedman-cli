@@ -338,10 +338,15 @@ end
 """
     load_data(path) → DataFrame
 
-Read a CSV file and return a DataFrame. Validates that the file exists and is non-empty.
+Read a CSV file or a typed data handle (`.jld2`/`.fmod`/`model://`) and return a
+DataFrame. Validates that the file exists and is non-empty.
 
 A `:name` reference (e.g. `:fred_md`) loads a bundled example dataset instead.
 `~` is expanded here rather than relying on the shell, because the REPL has none.
+
+Handle suffix is checked inline (not `_is_handle_path`): `handles.jl` is included
+after `io.jl` and must not be reordered. `load_model_dispatch` / `_data_kind_of`
+resolve at call time.
 """
 function load_data(path::String)
     if startswith(path, ":")
@@ -349,6 +354,16 @@ function load_data(path::String)
     end
     path = _expanduser(path)
     _validate_input_path(path)
+    lc = lowercase(path)
+    if endswith(lc, ".jld2") || endswith(lc, ".fmod") || startswith(path, "model://")
+        obj = load_model_dispatch(path)
+        k = _data_kind_of(obj)
+        k === :unknown && throw(CliError("data/wrong-kind",
+            "$path is not a data container (got $(typeof(obj)))"))
+        df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
+        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
+        return df
+    end
     isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)
     nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))

@@ -1,5 +1,6 @@
 function resolve_save_path(path::String)::String
     isempty(path) && return path
+    startswith(path, "model://") && return path
     occursin(r"\.[A-Za-z0-9]+$", basename(path)) && return path
     return path * ".jld2"
 end

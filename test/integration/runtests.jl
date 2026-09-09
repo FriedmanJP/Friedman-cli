@@ -8404,6 +8404,55 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    # Typed data handles wave 1: import → stem-resolve into estimate var;
+    # panel handle into a timeseries leaf is data/wrong-kind.
+    @testset "typed data handles wave 1" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "macro.csv")
+            Random.seed!(1)
+            CSV.write(csv, DataFrame(y1=randn(40), y2=randn(40), y3=randn(40)))
+            r0 = run_json(["data", "import", csv, "--kind", "timeseries",
+                           "-o", joinpath(dir, "macro")])
+            @test r0.code == 0
+            @test isfile(joinpath(dir, "macro.jld2"))
+            rc = run_json(["estimate", "var", csv, "--lags", "1"])
+            rh = run_json(["estimate", "var", joinpath(dir, "macro"), "--lags", "1"])
+            @test rc.code == 0
+            @test rh.code == 0
+            # Distinctive columns (term/estimate), never first(values(...)) / key substring
+            coef_table(doc) = begin
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :columns)) || continue
+                    cols = table_cols(v)
+                    ("term" in cols && "estimate" in cols) && return v
+                end
+                nothing
+            end
+            tc = coef_table(rc.doc)
+            th = coef_table(rh.doc)
+            @test tc !== nothing
+            @test th !== nothing
+            @test table_cols(tc) == table_cols(th)
+            @test length(table_rows(tc)) == length(table_rows(th))
+            # Existing T3 tolerances (numeric_tables_agree defaults), not ULP equality
+            @test numeric_tables_agree(tc, th)
+
+            panel = joinpath(dir, "panel.csv")
+            # 4 groups × 10 periods
+            g = repeat(1:4, inner=10); t = repeat(1:10, outer=4)
+            CSV.write(panel, DataFrame(group=g, time=t, y=randn(40), x=randn(40)))
+            rp = run_json(["data", "import", panel, "--kind", "panel",
+                           "--id-col", "group", "--time-col", "time",
+                           "-o", joinpath(dir, "panel")])
+            @test rp.code == 0
+            bad = run_json(["estimate", "var", joinpath(dir, "panel"), "--lags", "1"])
+            @test bad.code == 3
+            @test bad.doc !== nothing
+            @test String(bad.doc["error"]["code"]) == "data/wrong-kind"
+        end
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path
