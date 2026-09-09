@@ -692,14 +692,47 @@ function forecast_specs()::Vector{CommandSpec}
     ]
 end
 
+const _FORECAST_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
+    ["forecast", "var"]         => ([:VARModel], [:VARForecast]),
+    ["forecast", "bvar"]        => ([:BVARPosterior], [:BVARForecast]),
+    ["forecast", "lp"]          => ([:LPModel], [:LPForecast]),
+    ["forecast", "arima"]       => ([:ARIMAModel], [:ARIMAForecast]),
+    ["forecast", "arfima"]      => ([:ARFIMAModel], [:ARIMAForecast]),
+    ["forecast", "sarima"]      => ([:SARIMAModel], [:ARIMAForecast]),
+    ["forecast", "setar"]       => ([:ThresholdModel], [:ThresholdForecast]),
+    ["forecast", "star"]        => ([:STARModel], [:STARForecast]),
+    ["forecast", "ms-ar"]       => ([:MSRegModel], [:MSForecast]),
+    ["forecast", "ms"]          => ([:MSRegModel], [:MSForecast]),
+    ["forecast", "static"]      => ([:FactorModel], [:FactorForecast]),
+    ["forecast", "dynamic"]     => ([:DynamicFactorModel], [:FactorForecast]),
+    ["forecast", "gdfm"]        => ([:GeneralizedDynamicFactorModel], [:FactorForecast]),
+    ["forecast", "sdfm"]        => ([:StructuralDFM], [:FactorForecast]),
+    ["forecast", "vecm"]        => ([:VECMModel], [:VECMForecast]),
+    ["forecast", "favar"]       => ([:FAVARModel], [:VARForecast]),
+    ["forecast", "scenario"]    => ([:VARModel, :BVARPosterior], [:ConditionalForecast]),
+    ["forecast", "midas"]       => ([:MidasModel], [:MidasForecast]),
+    ["forecast", "arch"]        => ([:ARCHModel], [:VolatilityForecast]),
+    ["forecast", "garch"]       => ([:GARCHModel], [:VolatilityForecast]),
+    ["forecast", "egarch"]      => ([:EGARCHModel], [:VolatilityForecast]),
+    ["forecast", "gjr-garch"]   => ([:GJRGARCHModel], [:VolatilityForecast]),
+    ["forecast", "sv"]          => ([:SVModel], [:VolatilityForecast]),
+    ["forecast", "igarch"]      => ([:IGARCHModel], [:VolatilityForecast]),
+    ["forecast", "cgarch"]      => ([:CGARCHModel], [:VolatilityForecast]),
+    ["forecast", "aparch"]      => ([:APARCHModel], [:VolatilityForecast]),
+    ["forecast", "figarch"]     => ([:FIGARCHModel], [:VolatilityForecast]),
+    ["forecast", "fiegarch"]    => ([:FIEGARCHModel], [:VolatilityForecast]),
+    ["forecast", "garch-midas"] => ([:GarchMidasModel], Symbol[]),
+)
+
 function register_forecast_commands!()
     all_specs = forecast_specs()
     # The `forecast evaluate` leaves are model-agnostic (plain CSV columns) and take
     # no model handle — don't inject --model onto them, or a stray `--model foo`
     # would MethodError the handler (exit 1) instead of a clean unknown-option usage error.
     is_eval(s) = length(s.path) >= 2 && s.path[2] == "evaluate"
+    producing = _tag_slot_types(filter(!is_eval, all_specs), _FORECAST_SLOT_TYPES)
     specs = with_config_ergonomics(vcat(
-        with_model_option(filter(!is_eval, all_specs)),
+        with_result_handles(with_model_option(producing)),
         filter(is_eval, all_specs)))
     out = CommandSpec[]
     for s in specs
@@ -714,11 +747,13 @@ end
 
 # ── VAR Forecast ─────────────────────────────────────────
 
-function _forecast_var(; data::String="", lags=nothing, horizons::Int=12,
+function _forecast_var(; data::String="", result=nothing, model=nothing, lags=nothing, horizons::Int=12,
                         confidence::Float64=0.95, ci_method::String="analytical",
                         output::String="", format::String="table",
-                        plot::Bool=false, plot_save::String="",
-                        model=nothing)
+                        plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast var")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="VAR Forecast", key="var_forecast", plot, plot_save)
     if isnothing(model)
         model, _, _, p = _load_and_estimate_var(data, lags)
     else
@@ -746,6 +781,7 @@ function _forecast_var(; data::String="", lags=nothing, horizons::Int=12,
     output_result(fc_df; format=Symbol(format), output=output,
                   title="VAR($p) Forecast (h=$horizons, $ci_label)", key="var_forecast")
     _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
+    return (; model, result=fc_result)
 end
 
 # Normal quantile without importing Distributions (Abramowitz & Stegun 26.2.23)
@@ -761,12 +797,15 @@ end
 
 # ── BVAR Forecast ────────────────────────────────────────
 
-function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
+function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons::Int=12,
                          draws::Int=2000, sampler::String="direct",
                          config::String="",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast bvar")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="Bayesian VAR Forecast", key="bvar_forecast", plot, plot_save)
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -791,11 +830,12 @@ function _forecast_bvar(; data::String="", lags::Int=4, horizons::Int=12,
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)",
                   key="bvar_forecast")
+    return (; model=post, result=fc)
 end
 
 # ── LP Forecast ──────────────────────────────────────────
 
-function _forecast_lp(; data::String="", shock::Int=1, horizons::Int=12,
+function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons::Int=12,
                        shock_size::Float64=1.0, lags::Int=4,
                        vcov::String="newey_west",
                        ci_method::String="analytical", conf_level::Float64=0.95,
@@ -803,6 +843,9 @@ function _forecast_lp(; data::String="", shock::Int=1, horizons::Int=12,
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="",
                        model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast lp")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="LP Forecast", key="lp_forecast", plot, plot_save)
     if isnothing(model)
         Y, varnames = load_multivariate_data(data)
         model = estimate_lp(Y, shock, horizons;
@@ -826,17 +869,21 @@ function _forecast_lp(; data::String="", shock::Int=1, horizons::Int=12,
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)",
                   key="lp_forecast")
+    return (; model, result=fc)
 end
 
 # ── ARIMA Forecast ───────────────────────────────────────
 
-function _forecast_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
+function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=nothing, d::Int=0, q::Int=0,
                            max_p::Int=5, max_d::Int=2, max_q::Int=5,
                            criterion::String="bic", horizons::Int=12,
                            confidence::Float64=0.95, method::String="css_mle",
                            format::String="table", output::String="",
                            plot::Bool=false, plot_save::String="",
                            model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast arima")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="ARIMA Forecast", key="arima_forecast", plot, plot_save)
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
         method_sym = Symbol(method)
@@ -873,6 +920,7 @@ function _forecast_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)",
                   key="arima_forecast")
+    return (; model, result=fc)
 end
 
 # ── C065a: SETAR bootstrap forecast ─────────────────────────
@@ -880,9 +928,12 @@ end
 # `forecast(::ThresholdModel, h)`. Both MEMs calls are try-wrapped → typed CliError via
 # the shared `_nonlinear_error`; every option is guarded up-front → usage/invalid. The
 # ThresholdForecast is an AbstractForecastResult, so it renders via the generic long_table.
-function _forecast_setar(; data::String="", column::Int=1, p::Int=1, d::String="1",
+function _forecast_setar(; data::String="", result=nothing, column::Int=1, p::Int=1, d::String="1",
                           horizons::Int=12, reps::Int=1000, ci_level::Float64=0.95,
-                          format::String="table", output::String="")
+                          format::String="table", output::String="", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast setar")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="SETAR Forecast", key="setar_forecast")
     p >= 1 || throw(CliError("usage/invalid", "forecast setar: --p must be ≥ 1 (got $p)"))
     (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
         "forecast setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
@@ -906,6 +957,7 @@ function _forecast_setar(; data::String="", column::Int=1, p::Int=1, d::String="
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
                   key="setar_forecast")
+    return (; model, result=fc)
 end
 
 # ── C065b: STAR bootstrap forecast ──────────────────────────
@@ -913,9 +965,13 @@ end
 # external-s STARs are not forecastable), then simulate `forecast(::STARModel, h)`. Both MEMs
 # calls are try-wrapped → typed CliError via the shared `_nonlinear_error`; every option is
 # guarded up-front → usage/invalid. STARForecast <: AbstractForecastResult → generic long_table.
-function _forecast_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
+function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int=1, d::Int=1,
                          type::String="auto", horizons::Int=12, reps::Int=1000,
-                         ci_level::Float64=0.95, format::String="table", output::String="")
+                         ci_level::Float64=0.95, format::String="table", output::String="",
+                         model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast star")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="STAR Forecast", key="star_forecast")
     p >= 1 || throw(CliError("usage/invalid", "forecast star: --p must be ≥ 1 (got $p)"))
     d >= 1 || throw(CliError("usage/invalid", "forecast star: --d must be ≥ 1 (got $d)"))
     horizons >= 1 || throw(CliError("usage/invalid", "forecast star: --horizons must be ≥ 1 (got $horizons)"))
@@ -942,15 +998,19 @@ function _forecast_star(; data::String="", column::Int=1, p::Int=1, d::Int=1,
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
                   key="star_forecast")
+    return (; model, result=fc)
 end
 
 # ── Factor Model Forecasts ───────────────────────────────
 
-function _forecast_static(; data::String="", nfactors=nothing, horizons::Int=12,
+function _forecast_static(; data::String="", result=nothing, nfactors=nothing, horizons::Int=12,
                             ci_method::String="none", conf_level::Float64=0.95,
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="",
                             model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast static")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="Static Factor Forecast", key="static_factor_forecast", plot, plot_save)
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -989,13 +1049,17 @@ function _forecast_static(; data::String="", nfactors=nothing, horizons::Int=12,
             _status("  $vname: $(avg_se[vi])")
         end
     end
+    return (; model=fm, result=fc)
 end
 
-function _forecast_dynamic(; data::String="", nfactors=nothing, horizons::Int=12,
+function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, horizons::Int=12,
                              factor_lags::Int=1, method::String="twostep",
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="",
                              model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast dynamic")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="Dynamic Factor Forecast", key="dynamic_factor_forecast", plot, plot_save)
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -1027,6 +1091,7 @@ function _forecast_dynamic(; data::String="", nfactors=nothing, horizons::Int=12
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)",
                   key="dynamic_factor_forecast")
+    return (; model=fm, result=fc)
 end
 
 const _GDFM_FORECAST_METHODS = Dict(
@@ -1035,12 +1100,15 @@ const _GDFM_FORECAST_METHODS = Dict(
     "spectral" => :spectral,
 )
 
-function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing,
+function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dynamic_rank=nothing,
                           horizons::Int=12, method::String="ar",
                           spectral::String="lag-window",
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast gdfm")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="GDFM Forecast", key="gdfm_forecast", plot, plot_save)
     haskey(_GDFM_FORECAST_METHODS, method) || throw(CliError("usage/invalid",
         "forecast gdfm: --method must be ar|one-sided|spectral (got '$method')"))
     haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
@@ -1091,9 +1159,10 @@ function _forecast_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothin
     _status()
     var_shares = common_variance_share(fm)
     _status("Average common variance share: $(round(mean(var_shares); digits=4))")
+    return (; model=fm, result=fc)
 end
 
-function _forecast_sdfm(; data::String="", factors=nothing, id::String="cholesky",
+function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::String="cholesky",
                          var_lags::Int=1, horizons::Int=12,
                          config::String="", method::String="fglr",
                          spectral::String="lag-window", instrument::String="",
@@ -1102,6 +1171,9 @@ function _forecast_sdfm(; data::String="", factors=nothing, id::String="cholesky
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast sdfm")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="SDFM Forecast", key="sdfm_forecast", plot, plot_save)
     ci in ("none", "bootstrap") || throw(CliError("usage/invalid",
         "forecast sdfm: --ci must be none|bootstrap (got '$ci')"))
     reps >= 1 || throw(CliError("usage/invalid",
@@ -1126,19 +1198,23 @@ function _forecast_sdfm(; data::String="", factors=nothing, id::String="cholesky
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
                   key="sdfm_forecast")
+    return (; model=sdfm, result=fc)
 end
 
 # Volatility forecast handlers live in shared.jl (VOL_MODELS / _VOL_FORECAST_HANDLERS).
 
 # ── VECM Forecast ───────────────────────────────────────
 
-function _forecast_vecm(; data::String="", lags::Int=2, rank::String="auto",
+function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="auto",
                           deterministic::String="constant", horizons::Int=12,
                           ci_method::String="none", replications::Int=500,
                           confidence::Float64=0.95,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast vecm")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="VECM Forecast", key="vecm_forecast", plot, plot_save)
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
     else
@@ -1159,16 +1235,20 @@ function _forecast_vecm(; data::String="", lags::Int=2, rank::String="auto",
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="VECM Forecast (rank=$r, h=$horizons$ci_label)", key="vecm_forecast")
+    return (; model=vecm, result=fc)
 end
 
 # ── FAVAR Forecast ────────────────────────────────────────
 
-function _forecast_favar(; data::String="", factors=nothing, lags::Int=2,
+function _forecast_favar(; data::String="", result=nothing, factors=nothing, lags::Int=2,
                           key_vars::String="", horizons::Int=12,
                           panel_forecast::Bool=false,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast favar")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="FAVAR Forecast", key="favar_forecast", plot, plot_save)
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
@@ -1190,6 +1270,7 @@ function _forecast_favar(; data::String="", factors=nothing, lags::Int=2,
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     output_result(long_table(fc); format=Symbol(format), output=output,
                   title="FAVAR Forecast (h=$horizons)", key="favar_forecast")
+    return (; model=favar, result=fc)
 end
 
 # ── forecast evaluate: forecast evaluation & combination (C072, M5c) ──
@@ -1526,7 +1607,7 @@ end
 # `"--conditions" in args` across the WHOLE argv to print the GPL notice, so a leaf option
 # of that name is swallowed before dispatch ever runs. Recorded as an engine flaw for the
 # C055 freeze; renaming here is the zero-risk fix.
-function _forecast_scenario(; data::String="", conditions_file::String="", lags=nothing,
+function _forecast_scenario(; data::String="", result=nothing, conditions_file::String="", lags=nothing,
                              horizons::Int=12, method::String="var",
                              draws::Int=2000, sampler::String="direct",
                              replications::Int=1000, confidence::Float64=0.95,
@@ -1534,6 +1615,23 @@ function _forecast_scenario(; data::String="", conditions_file::String="", lags=
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="",
                              model=nothing)
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast scenario")
+    if loaded !== nothing
+        H = loaded.horizon
+        n = length(loaded.varnames)
+        df = DataFrame(
+            horizon       = repeat(1:H, outer=n),
+            variable      = repeat(loaded.varnames; inner=H),
+            value         = vec(Float64.(loaded.forecast)),
+            lower         = vec(Float64.(loaded.ci_lower)),
+            upper         = vec(Float64.(loaded.ci_upper)),
+            unconditional = vec(Float64.(loaded.unconditional)),
+        )
+        output_result(df; format=Symbol(format), output=output,
+                      title="Conditional Forecast", key="conditional_forecast")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
     replications >= 1 || throw(CliError("usage/invalid",
         "--replications must be ≥ 1 (got $replications)"))
@@ -1612,5 +1710,5 @@ function _forecast_scenario(; data::String="", conditions_file::String="", lags=
         "identification" => String(fc.identification),
         "n_draws"        => fc.n_draws,
     ]; format=format, title="Scenario Settings")
-    return fc
+    return (; model=obj, result=fc)
 end

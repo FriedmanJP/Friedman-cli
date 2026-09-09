@@ -418,6 +418,16 @@ using .MacroEconometricModels
         parsed = tokenize(["-b"])
         bound = bind_args(parsed, cmd_short_flag)
         @test bound.bayesian == true
+
+        @testset "bind_args --result makes data optional" begin
+            leaf = LeafCommand("var", (; kwargs...) -> kwargs;
+                args=[Argument("data"; required=true)],
+                options=[Option("result"; type=String, default="")],
+                flags=Flag[])
+            parsed = tokenize(["--result", "irf.jld2"])
+            bound = bind_args(parsed, leaf)
+            @test bound.data == ""
+        end
     end
 
     @testset "Help generation" begin
@@ -4593,6 +4603,10 @@ end
         # data optional when --model set
         leaf = irf.subcmds["var"]
         parsed = tokenize(["--model", tmp])
+        bound = bind_args(parsed, leaf)
+        @test bound.data == "" || bound.data === nothing
+
+        parsed = tokenize(["--result", "irf.jld2"])
         bound = bind_args(parsed, leaf)
         @test bound.data == "" || bound.data === nothing
     finally

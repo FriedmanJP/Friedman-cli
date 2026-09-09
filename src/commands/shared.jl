@@ -485,10 +485,18 @@ function _make_estimate_vol(vol)
 end
 
 function _make_forecast_vol(vol)
-    return function (; data::String="", column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
+    return function (; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
                       dist::String="normal", horizons::Int=12,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="", model=nothing)
+        loaded = _loaded_result(result; data, model, leaf="forecast $(replace(vol.name, '_' => '-'))")
+        if loaded !== nothing
+            h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+            _vol_forecast_output(loaded, "result", vol.label(p, q), h; format=format, output=output,
+                                 key="$(vol.name)_volatility_forecast")
+            _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+            return loaded
+        end
         dsym = _vol_dist_symbol(vol, dist, "forecast $(vol.name)")
         m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws,
                                       dist=dsym, model=model)
@@ -507,7 +515,7 @@ function _make_forecast_vol(vol)
             _status()
             _vol_post_status(m, vol.post_fc)
         end
-        return fc
+        return (; model=m, result=fc)
     end
 end
 
@@ -1657,6 +1665,32 @@ function _load_panel_or_matrix(data::String; id_col::String="", time_col::String
         _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
         return Y, false
     end
+end
+
+# ── Result-handle re-render ────────────────────────────────
+
+"""XOR + compute-flag checks for a loaded `--result`. Returns `nothing` to compute."""
+function _loaded_result(result; data::String="", model=nothing, lags=nothing,
+                        check_lags::Bool=false, leaf::String)
+    result === nothing && return nothing
+    isempty(data) || throw(CliError("usage/invalid",
+        "$leaf: --result cannot be combined with <data>"))
+    model === nothing || throw(CliError("usage/invalid",
+        "$leaf: --result cannot be combined with --model"))
+    if check_lags
+        lags === nothing || throw(CliError("usage/invalid",
+            "$leaf: --lags does not apply with --result"))
+    end
+    return result
+end
+
+function _rerender_long_table(result; format::String="table", output::String="",
+                              title::String="", key::String="",
+                              plot::Bool=false, plot_save::String="")
+    output_result(long_table(result); format=Symbol(format), output=output,
+                  title=title, key=key)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 # ── Plot Helpers ──────────────────────────────────────────

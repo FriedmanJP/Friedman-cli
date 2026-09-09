@@ -176,6 +176,20 @@ function with_result_types(specs::Vector{CommandSpec}, types::Vector{Symbol})
     return [_copy_spec(s; result_types=types) for s in specs]
 end
 
+"""Set `model_types` / `result_types` per leaf from a path-keyed catalog."""
+function _tag_slot_types(specs::Vector{CommandSpec},
+                         catalog::Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}})
+    out = CommandSpec[]
+    for s in specs
+        if haskey(catalog, s.path)
+            mt, rt = catalog[s.path]
+            s = _copy_spec(s; model_types=mt, result_types=rt)
+        end
+        push!(out, s)
+    end
+    return out
+end
+
 with_save_model(specs::Vector{CommandSpec}) = with_options(specs, [SAVE_MODEL_OPTION])
 with_model_option(specs::Vector{CommandSpec}) = with_options(specs, [MODEL_OPTION])
 

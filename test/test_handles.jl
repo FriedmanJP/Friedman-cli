@@ -575,3 +575,61 @@ end
         @test err_nr.code == "model/no-result"
     end
 end
+
+@testset "producing leaf --result re-render" begin
+    irf_node = register_irf_commands!()
+    irf_var = irf_node.subcmds["var"]
+    @test any(o -> o.name == "result", irf_var.options)
+    @test any(o -> o.name == "save-result", irf_var.options)
+    spec = _spec_for_path(["irf", "var"])
+    @test spec !== nothing
+    @test :VARModel in spec.model_types
+    @test :ImpulseResponse in spec.result_types
+    @test !isempty(spec.result_types)
+    @test any(o -> o.name == "result" && o.handle, spec.options)
+
+    fc_node = register_forecast_commands!()
+    @test any(o -> o.name == "result", fc_node.subcmds["var"].options)
+    @test !any(o -> o.name == "result", fc_node.subcmds["evaluate"].subcmds["metrics"].options)
+
+    data_node = register_data_commands!()
+    val_spec = _spec_for_path(["data", "validate"])
+    @test isempty(val_spec.model_types)
+    @test !any(o -> o.name == "model" && o.handle, val_spec.options)
+
+    mktempdir() do dir
+        irf_obj = ImpulseResponse(zeros(4, 2, 2), nothing, nothing)
+        hp = joinpath(dir, "irf.jld2")
+        save_model_dispatch(hp, irf_obj)
+
+        # --lags with --result via wrap_legacy (no full IRF compute)
+        err_lags = try
+            irf_var.handler(; data="", result=joinpath(dir, "irf"), lags=2,
+                            format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_lags isa CliError
+        @test err_lags.code == "usage/invalid"
+        @test occursin("--lags", err_lags.message)
+
+        # XOR still fires at wrap_legacy before the handler
+        csv = joinpath(dir, "x.csv")
+        CSV.write(csv, DataFrame(y1=randn(10), y2=randn(10)))
+        err_xor = try
+            irf_var.handler(; data=csv, result=joinpath(dir, "irf"),
+                            format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_xor isa CliError
+        @test err_xor.code == "usage/invalid"
+
+        # Handler-level --lags without wrap_legacy
+        err_direct = try
+            _irf_var(; data="", result=irf_obj, lags=2, format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_direct isa CliError
+        @test err_direct.code == "usage/invalid"
+        @test occursin("--lags", err_direct.message)
+    end
+end
