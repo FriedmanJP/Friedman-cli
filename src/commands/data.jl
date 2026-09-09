@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Data commands: list, load, describe, diagnose, fix, transform, filter, validate
+# Data commands: list, load, import, describe, diagnose, fix, transform, filter, validate
 
 function data_specs()::Vector{CommandSpec}
     return [
@@ -189,6 +189,42 @@ function data_specs()::Vector{CommandSpec}
                               description="Rows selected by --rows, one column per variable")],
             category="data",
             handler=wrap_legacy(_data_keeprows),
+        ),
+        CommandSpec(
+            path=["data", "import"],
+            summary="Import CSV or :example to a typed .jld2 handle",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing,
+                          description="CSV path, stem, or :example dataset")],
+            options=[
+                OptionSpec(name="kind", type=String, default="",
+                           description="timeseries|panel|cross-section (required for CSV)",
+                           choices=["timeseries", "panel", "cross-section"]),
+                OptionSpec(name="frequency", type=String, default="other",
+                           description="daily|monthly|quarterly|annual|mixed|other",
+                           choices=["daily", "monthly", "quarterly", "annual", "mixed", "other"]),
+                OptionSpec(name="dates", type=String, default="",
+                           description="CSV column of date labels (timeseries)"),
+                OptionSpec(name="id-col", type=String, default="",
+                           description="Panel group column (required for --kind panel)"),
+                OptionSpec(name="time-col", type=String, default="",
+                           description="Panel time column (required for --kind panel)"),
+                OptionSpec(name="vars", type=String, default="",
+                           description="Comma-separated variable subset"),
+                OptionSpec(name="tcodes", type=String, default="",
+                           description="Comma-separated FRED tcode per variable"),
+                OptionSpec(name="note", type=String, default="",
+                           description="Free-form note stored in the handle header"),
+                OptionSpec(name="output", short="o", type=String, default="",
+                           description="Output stem or path (default: input basename)"),
+                OptionSpec(name="format", short="f", type=String, default="table",
+                           description="table|csv|json", choices=["table", "csv", "json"]),
+            ],
+            flags=FlagSpec[],
+            tables=[TableSpec(name=:imported_data,
+                              description="Imported handle kind, dimensions, frequency and path")],
+            category="data",
+            data_kinds=[:csv, :timeseries, :panel, :cross_section],
+            handler=wrap_legacy(_data_import),
         )
     ]
 end
@@ -196,7 +232,7 @@ end
 function register_data_commands!()
     specs = data_specs()
     register!(specs)
-    return build_node("data", specs; description="Data management: load example datasets, inspect, clean, transform")
+    return build_node("data", specs; description="Data management: import handles, load example datasets, inspect, clean, transform")
 end
 
 
@@ -674,4 +710,112 @@ function _data_keeprows(; data::String, rows::String="",
     result_df = DataFrame(filtered.data, filtered.varnames)
     output_result(result_df; format=Symbol(format), output=output, title="Filtered Data")
     return filtered
+end
+
+function _parse_kind(kind::String)
+    k = lowercase(strip(kind))
+    k == "timeseries" && return :timeseries
+    k == "cross-section" && return :cross_section
+    k == "panel" && return :panel
+    throw(CliError("usage/invalid",
+        "--kind must be timeseries|panel|cross-section (got '$kind')"))
+end
+
+function _frequency_value(s::String)
+    key = lowercase(strip(s))
+    key == "annual" && (key = "yearly")
+    # Bare Daily/Monthly/... would be UndefVarError under the mock (no Frequency
+    # enum). Resolve via getfield so this works on mock Symbols and real enums.
+    if isdefined(MacroEconometricModels, :Monthly)
+        M = MacroEconometricModels
+        key == "daily" && return getfield(M, :Daily)
+        key == "monthly" && return getfield(M, :Monthly)
+        key == "quarterly" && return getfield(M, :Quarterly)
+        key == "yearly" && return getfield(M, :Yearly)
+        key == "mixed" && return getfield(M, :Mixed)
+        return getfield(M, :Other)
+    else
+        return Symbol(key)
+    end
+end
+
+function _data_import(; data::String, kind::String="", frequency::String="other",
+                       dates::String="", id_col::String="", time_col::String="",
+                       vars::String="", tcodes::String="", note::String="",
+                       output::String="", format::String="table")
+    src = data
+    out_stem = isempty(output) ? joinpath(dirname(src), dataset_stem(src)) : output
+    out_path = resolve_save_path(out_stem)
+    _validate_output_path(out_path)
+
+    obj = if startswith(src, ":")
+        ds = load_example(parse_dataset_name(src))
+        inferred = _data_kind_of(ds)
+        if !isempty(kind)
+            want = _parse_kind(kind)
+            want === inferred || throw(CliError("data/wrong-kind",
+                ":example is $inferred; --kind $kind does not match"))
+        end
+        ds
+    else
+        isempty(kind) && throw(CliError("usage/invalid",
+            "--kind is required when importing a CSV";
+            hint="--kind timeseries|panel|cross-section"))
+        want = _parse_kind(kind)
+        df = load_data(src)
+        if !isempty(vars)
+            keep = String[String(strip(s)) for s in split(vars, ",") if !isempty(strip(s))]
+            want === :panel && (keep = unique(vcat([id_col, time_col], keep)))
+            df = df[!, keep]
+        end
+        if want === :timeseries
+            Y = df_to_matrix(df)
+            vn = variable_names(df)
+            codes = if isempty(tcodes)
+                fill(1, length(vn))
+            else
+                [parse(Int, strip(s)) for s in split(tcodes, ",") if !isempty(strip(s))]
+            end
+            ts = TimeSeriesData(Y; varnames=vn, frequency=_frequency_value(frequency),
+                                tcode=codes, time_index=collect(1:size(Y, 1)))
+            if !isempty(dates)
+                dates in names(df) || throw(CliError("data/column-range",
+                    "dates column '$dates' not found"))
+                set_dates!(ts, string.(df[!, dates]))
+            end
+            ts
+        elseif want === :panel
+            (isempty(id_col) || isempty(time_col)) && throw(CliError("usage/missing",
+                "panel import requires --id-col and --time-col"))
+            xtset(df, Symbol(id_col), Symbol(time_col); frequency=_frequency_value(frequency))
+        else
+            frequency == "other" || throw(CliError("usage/invalid",
+                "--frequency does not apply to --kind cross-section"))
+            Y = df_to_matrix(df)
+            CrossSectionData(Y; varnames=variable_names(df))
+        end
+    end
+
+    # Always persist first; `note=` is a best-effort native-header rewrite.
+    save_model_dispatch(out_path, obj)
+    if !isempty(note)
+        try
+            MacroEconometricModels.save_model(obj, out_path; note=note)
+        catch e
+            e isa MethodError || rethrow()
+            _status("note= ignored: save_model does not accept note in this build")
+        end
+    end
+    k = _data_kind_of(obj)
+    nobs = hasproperty(obj, :data) ? size(obj.data, 1) : 0
+    nvars = hasproperty(obj, :varnames) ? length(obj.varnames) : 0
+    output_kv(Pair{String,Any}[
+        "kind" => string(k),
+        "n_obs" => nobs,
+        "n_vars" => nvars,
+        "path" => out_path,
+        "frequency" => string(frequency),
+    ]; format=format, output="", title="Imported Data", key="imported_data")
+    _status("Imported $k → $out_path")
+    return obj
 end

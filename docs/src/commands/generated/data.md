@@ -3,7 +3,7 @@
 
 Generated reference for `friedman data` and its subcommands.
 
-**Leaves:** 11
+**Leaves:** 12
 
 ### `friedman data balance`
 
@@ -113,6 +113,31 @@ Path to CSV data file
 | `--method` | `-m` | `String` | `listwise` | — | listwise\|interpolate\|mean |
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+---
+
+### `friedman data import`
+
+Import CSV or :example to a typed .jld2 handle
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | CSV path, stem, or :example dataset |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `""` | `timeseries`, `panel`, `cross-section` | timeseries\|panel\|cross-section (required for CSV) |
+| `--frequency` | — | `String` | `other` | `daily`, `monthly`, `quarterly`, `annual`, `mixed`, `other` | daily\|monthly\|quarterly\|annual\|mixed\|other |
+| `--dates` | — | `String` | `""` | — | CSV column of date labels (timeseries) |
+| `--id-col` | — | `String` | `""` | — | Panel group column (required for --kind panel) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (required for --kind panel) |
+| `--vars` | — | `String` | `""` | — | Comma-separated variable subset |
+| `--tcodes` | — | `String` | `""` | — | Comma-separated FRED tcode per variable |
+| `--note` | — | `String` | `""` | — | Free-form note stored in the handle header |
+| `--output` | `-o` | `String` | `""` | — | Output stem or path (default: input basename) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+
+**Output tables:** `imported_data` (Imported handle kind, dimensions, frequency and path)
 
 ---
 

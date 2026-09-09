@@ -84,3 +84,30 @@ end
         @test saw[] == csv
     end
 end
+
+@testset "data import" begin
+    node = register_data_commands!()
+    @test haskey(node.subcmds, "import")
+    mktempdir() do dir
+        csv = joinpath(dir, "macro.csv")
+        CSV.write(csv, DataFrame(y1=randn(10), y2=randn(10)))
+        err = try
+            _capture() do
+                _data_import(; data=csv, kind="", output=joinpath(dir, "macro"))
+            end
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "usage/invalid"
+        @test occursin("--kind", err.message)
+
+        _capture() do
+            _data_import(; data=csv, kind="timeseries", frequency="quarterly",
+                         output=joinpath(dir, "macro"))
+        end
+        @test isfile(joinpath(dir, "macro.jld2"))
+        obj = load_model_dispatch(joinpath(dir, "macro.jld2"))
+        @test obj isa TimeSeriesData
+        @test varnames(obj) == ["y1", "y2"]
+    end
+end

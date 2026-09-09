@@ -1,6 +1,6 @@
 # data
 
-Data management commands: load example datasets, inspect, clean, transform, and validate data. 11 subcommands.
+Data management commands: import typed handles, load example datasets, inspect, clean, transform, and validate data. 12 subcommands.
 
 ## data list
 
@@ -90,6 +90,38 @@ are given, `--path` wins and a note is written to stderr.
 | `--output` | `-o` | String | auto | Output CSV file path |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--transform` | `-t` | Flag | | Apply FRED transformation codes |
+
+## data import
+
+Import a CSV or a bundled `:example` dataset to a typed `.jld2` handle (`TimeSeriesData`, `PanelData`, or `CrossSectionData`). `--kind` is required for CSV and optional for `:example` (inferred; a mismatch is `data/wrong-kind`).
+
+```bash
+friedman data import macro.csv --kind timeseries --frequency quarterly -o macro
+friedman data import panel.csv --kind panel --id-col group --time-col time -o panel
+friedman data import xs.csv --kind cross-section -o xs
+friedman data import :fred_md -o fred_md
+```
+
+Default `-o` is the input basename next to the source (or `fred_md.jld2` for `:fred_md`). A suffix-less stem becomes `.jld2`.
+
+| Argument | Description |
+|----------|-------------|
+| `<data>` | CSV path, stem, or `:example` dataset |
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--kind` | | String | | `timeseries`, `panel`, `cross-section` (required for CSV) |
+| `--frequency` | | String | `other` | `daily`, `monthly`, `quarterly`, `annual`, `mixed`, `other` (illegal on cross-section) |
+| `--dates` | | String | | CSV column of date labels (timeseries) |
+| `--id-col` | | String | | Panel group column (required for `--kind panel`) |
+| `--time-col` | | String | | Panel time column (required for `--kind panel`) |
+| `--vars` | | String | | Comma-separated variable subset |
+| `--tcodes` | | String | | Comma-separated FRED tcode per variable |
+| `--note` | | String | | Free-form note stored in the handle header |
+| `--output` | `-o` | String | input basename | Output stem or path |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+
+**Output table:** `imported_data` — `kind`, `n_obs`, `n_vars`, `path`, `frequency`.
 
 ## data describe
 
