@@ -2689,9 +2689,24 @@ function describe_data(d::TimeSeriesData)
     DataSummary(n, m, s, mn, p25, med, p75, mx, sk, ku)
 end
 # Real MEMs has describe_data(::PanelData) / (::CrossSectionData) returning the
-# same DataSummary. Mock is a subset: reuse the TimeSeriesData statistics, no
-# extra panel_summary printer.
-describe_data(d::PanelData) = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
+# same DataSummary. PanelData also prints panel_summary to stdout (real
+# summary_stats.jl); the CLI captures that dump onto stderr.
+function panel_summary(io::IO, d::PanelData)
+    println(io, "Panel Structure: $(d.n_groups) groups, $(d.T_obs) total observations")
+    println(io, "  Balance: ", d.balanced ? "balanced" : "unbalanced")
+    println(io, "  Variables: ", join(d.varnames, ", "))
+end
+panel_summary(d::PanelData) = panel_summary(stdout, d)
+
+function describe_data(d::PanelData)
+    s = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
+    try
+        panel_summary(stdout, d)
+    catch e
+        e isa Base.IOError || rethrow()
+    end
+    s
+end
 describe_data(d::CrossSectionData) = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
 
 # Simple std without Distributions dependency
@@ -2877,7 +2892,7 @@ export nowcast_dfm, nowcast_bvar, nowcast_bridge, nowcast, nowcast_news
 
 export TimeSeriesData, CrossSectionData, DataDiagnostic, DataSummary
 export load_example, to_matrix, varnames, frequency, desc, vardesc, nobs, nvars
-export describe_data, diagnose, fix, apply_tcode, validate_for_model, apply_filter
+export describe_data, panel_summary, diagnose, fix, apply_tcode, validate_for_model, apply_filter
 
 # ─── DSGE Types (MEMs 0.9.0 ModelSpec; ModelSpec/HAModelSpec are gone) ──
 

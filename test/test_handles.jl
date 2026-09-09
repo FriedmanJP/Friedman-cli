@@ -236,6 +236,15 @@ end
         rows = JSON3.read(read(outfile, String))
         @test all(r -> r.n isa Integer, rows)
 
+        # Real describe_data(::PanelData) prints panel_summary to stdout. The
+        # handler must capture that dump onto stderr so stdout stays data-only.
+        streams = _capture_all() do
+            _data_describe(; data=joinpath(dir, "panel"), format="json")
+        end
+        @test !occursin("Panel Structure", streams.out)
+        @test occursin("Panel Structure", streams.err)
+        @test JSON3.read(streams.out) isa AbstractVector
+
         csv_out = joinpath(dir, "desc_csv.json")
         _capture() do
             _data_describe(; data=csv, format="json", output=csv_out)

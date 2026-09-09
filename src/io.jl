@@ -59,6 +59,28 @@ function _status_report(f::Function)
 end
 
 """
+Run `f` with stdout captured and replay any text via `_status` (stderr).
+
+Always runs `f` (including `--quiet`) so the return value is kept. Julia 1.12
+has no `redirect_stdout(IOBuffer)` method — capture uses a tempfile.
+"""
+function _status_stdout(f::Function)
+    path, io = mktemp()
+    try
+        val = redirect_stdout(io) do
+            f()
+        end
+        close(io)
+        txt = String(strip(read(path, String)))
+        !isempty(txt) && _status(txt)
+        return val
+    finally
+        try; close(io); catch; end
+        try; rm(path; force=true); catch; end
+    end
+end
+
+"""
     _extract_global_flags!(args) → (remaining, force_json)
 
 Scan argv left-to-right until the first non-flag token (P1-6). Mutates quiet/color/seed

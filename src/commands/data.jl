@@ -413,7 +413,9 @@ end
 
 function _data_describe(; data::String, format::String="table", output::String="")
     tsd = _as_macro_data(data)
-    summary = describe_data(tsd)
+    summary = _status_stdout() do
+        describe_data(tsd)
+    end
     Y = to_matrix(tsd)
     vn = varnames(tsd)
     n_obs, n_vars = size(Y)
