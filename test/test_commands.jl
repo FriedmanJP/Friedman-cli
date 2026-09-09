@@ -8074,7 +8074,7 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["diagnose"].options) == 2
         @test length(node.subcmds["fix"].options) == 3
         @test length(node.subcmds["transform"].options) == 3
-        @test length(node.subcmds["filter"].options) == 10  # +result +save-result
+        @test length(node.subcmds["filter"].options) == 8
         @test length(node.subcmds["validate"].options) == 3
         @test length(node.subcmds["balance"].options) == 5
     end

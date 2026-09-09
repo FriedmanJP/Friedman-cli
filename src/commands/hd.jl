@@ -135,7 +135,7 @@ function hd_specs()::Vector{CommandSpec}
 end
 
 const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["hd", "var"]   => ([:VARModel], [:HistoricalDecomposition, :AriasSVARResult, :UhligSVARResult]),
+    ["hd", "var"]   => ([:VARModel], [:HistoricalDecomposition]),
     ["hd", "bvar"]  => ([:BVARPosterior], [:BayesianHistoricalDecomposition]),
     ["hd", "lp"]    => ([:StructuralLP], [:HistoricalDecomposition]),
     ["hd", "vecm"]  => ([:VECMModel], [:HistoricalDecomposition]),
@@ -157,7 +157,8 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
                   config::String="", instrument::String="", target_var::String="",
                   output::String="", format::String="table",
                   plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="hd var")
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="hd var",
+                            id)
     if loaded !== nothing
         _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
                           id="", title_prefix="Historical Decomposition",
@@ -274,7 +275,7 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="hd bvar")
+    loaded = _loaded_result(result; data, model, leaf="hd bvar", id)
     if loaded !== nothing
         mean_contrib = loaded.point_estimate
         T_eff = size(mean_contrib, 1)
@@ -328,7 +329,7 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
                  output::String="", format::String="table",
                  plot::Bool=false, plot_save::String="",
                  model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="hd lp")
+    loaded = _loaded_result(result; data, model, leaf="hd lp", id)
     if loaded !== nothing
         _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
                           id="", title_prefix="LP Historical Decomposition",
@@ -395,7 +396,7 @@ function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="hd vecm")
+    loaded = _loaded_result(result; data, model, leaf="hd vecm", id)
     if loaded !== nothing
         _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
                           id="", title_prefix="VECM Historical Decomposition",
@@ -466,7 +467,8 @@ function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="hd favar")
+    loaded = _loaded_result(result; data, model, leaf="hd favar",
+                            id, horizons, horizons_default=20)
     if loaded !== nothing
         _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
                           id="", title_prefix="FAVAR Historical Decomposition",

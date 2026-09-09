@@ -1671,7 +1671,10 @@ end
 
 """XOR + compute-flag checks for a loaded `--result`. Returns `nothing` to compute."""
 function _loaded_result(result; data::String="", model=nothing, lags=nothing,
-                        check_lags::Bool=false, leaf::String)
+                        check_lags::Bool=false, leaf::String,
+                        id=nothing, id_default::String="cholesky",
+                        horizons=nothing, horizons_default::Union{Nothing,Int}=nothing,
+                        shock=nothing, shock_default::Int=1)
     result === nothing && return nothing
     isempty(data) || throw(CliError("usage/invalid",
         "$leaf: --result cannot be combined with <data>"))
@@ -1681,14 +1684,43 @@ function _loaded_result(result; data::String="", model=nothing, lags=nothing,
         lags === nothing || throw(CliError("usage/invalid",
             "$leaf: --lags does not apply with --result"))
     end
+    if id !== nothing && id != id_default
+        throw(CliError("usage/invalid",
+            "$leaf: --id does not apply with --result"))
+    end
+    if horizons !== nothing && horizons_default !== nothing && horizons != horizons_default
+        throw(CliError("usage/invalid",
+            "$leaf: --horizons does not apply with --result"))
+    end
+    if shock !== nothing && shock != shock_default
+        throw(CliError("usage/invalid",
+            "$leaf: --shock does not apply with --result"))
+    end
     return result
+end
+
+function _result_varnames(result, n::Int)
+    for f in (:varnames, :variables)
+        hasproperty(result, f) || continue
+        vn = getproperty(result, f)
+        vn isa AbstractVector && length(vn) == n && return String[string(x) for x in vn]
+    end
+    return String["var_$i" for i in 1:n]
 end
 
 function _rerender_long_table(result; format::String="table", output::String="",
                               title::String="", key::String="",
                               plot::Bool=false, plot_save::String="")
-    output_result(long_table(result); format=Symbol(format), output=output,
-                  title=title, key=key)
+    df = try
+        long_table(result)
+    catch e
+        e isa MethodError && throw(CliError(
+            "model/unsupported",
+            "no long_table is defined for $(typeof(result))";
+            hint="this result type cannot be re-rendered as a table; drop --result and recompute"))
+        rethrow()
+    end
+    output_result(df; format=Symbol(format), output=output, title=title, key=key)
     _maybe_plot(result; plot=plot, plot_save=plot_save)
     return result
 end
@@ -1706,6 +1738,215 @@ function _rerender_kv(result; format::String="table", output::String="",
     return result
 end
 
+function _fevd_proportions_from_irf(irf_vals::AbstractArray)
+    n_h = size(irf_vals, 1)
+    n = size(irf_vals, 2)
+    proportions = zeros(n, n, n_h)
+    for h in 1:n_h
+        total_var = zeros(n)
+        for vi in 1:n, si in 1:n
+            cum_sq = sum(irf_vals[t, vi, si]^2 for t in 1:h)
+            proportions[vi, si, h] = cum_sq
+            total_var[vi] += cum_sq
+        end
+        for vi in 1:n
+            total_var[vi] > 0 && (proportions[vi, :, h] ./= total_var[vi])
+        end
+    end
+    return proportions, n_h
+end
+
+function _rerender_arias_irf(result; format::String="table", output::String="",
+                             shock::Int=1, plot::Bool=false, plot_save::String="")
+    irf_vals = irf_mean(result)
+    n = size(irf_vals, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(irf_vals, nothing, nothing, varnames, shock)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="IRF to $shock_name shock (Arias et al. identification)", key="irf")
+    ess = hasproperty(result, :ess) ? Float64(result.ess) : NaN
+    ess_frac = hasproperty(result, :ess_fraction) ? Float64(result.ess_fraction) : NaN
+    output_kv(Pair{String,Any}[
+        "acceptance_rate" => round(Float64(result.acceptance_rate); digits=6),
+        "n_draws"         => length(result.weights),
+        "ess"             => round(ess; digits=4),
+        "ess_fraction"    => round(ess_frac; digits=6),
+    ]; format=format, title="Arias Importance-Sampling Diagnostics")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_uhlig_irf(result; format::String="table", output::String="",
+                             shock::Int=1, plot::Bool=false, plot_save::String="")
+    n = size(result.irf, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(result.irf, nothing, nothing, varnames, shock)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="IRF to $shock_name shock (Uhlig identification)", key="irf")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_identified_set(result; format::String="table", output::String="",
+                                  shock::Int=1, plot::Bool=false, plot_save::String="")
+    lower, upper = irf_bounds(result)
+    med = irf_median(result)
+    n = size(med, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(med, lower, upper, varnames, shock)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="IRF Identified Set (sign, $shock_name shock)",
+                  key="irf_identified_set")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_robust_bayes(result; format::String="table", output::String="",
+                                shock::Int=1, plot::Bool=false, plot_save::String="")
+    H = size(result.lower, 1)
+    n = size(result.lower, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    band_df = DataFrame(horizon=collect(0:(H - 1)))
+    for (vi, vname) in enumerate(varnames)
+        band_df[!, "$(vname)_lower"] = result.lower[:, vi, shock]
+        band_df[!, "$(vname)_upper"] = result.upper[:, vi, shock]
+        band_df[!, "$(vname)_robust_lower"] = result.robust_lower[:, vi, shock]
+        band_df[!, "$(vname)_robust_upper"] = result.robust_upper[:, vi, shock]
+    end
+    output_result(band_df; format=Symbol(format), output=output,
+                  title="Robust Bayes bands to $shock_name shock (Giacomini-Kitagawa)",
+                  key="robust_bayes_bands")
+    output_kv(Pair{String,Any}[
+        "Empty-set probability" => round(Float64(result.empty_set_prob); digits=6),
+        "Informativeness" => round(Float64(result.informativeness); digits=6),
+        "Level" => round(Float64(result.level); digits=4),
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+        title="Robust Bayes Diagnostics", key="robust_bayes_diagnostics")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_irf_result(result; format::String="table", output::String="",
+                              title::String="", key::String="",
+                              plot::Bool=false, plot_save::String="", shock::Int=1)
+    tn = nameof(typeof(result))
+    tn === :AriasSVARResult && return _rerender_arias_irf(result; format, output, shock, plot, plot_save)
+    tn === :UhligSVARResult && return _rerender_uhlig_irf(result; format, output, shock, plot, plot_save)
+    tn === :SignIdentifiedSet && return _rerender_identified_set(result; format, output, shock, plot, plot_save)
+    tn === :RobustBayesResult && return _rerender_robust_bayes(result; format, output, shock, plot, plot_save)
+    return _rerender_long_table(result; format, output, title, key, plot, plot_save)
+end
+
+function _rerender_fevd_result(result; format::String="table", output::String="",
+                               title::String="", key::String="",
+                               plot::Bool=false, plot_save::String="",
+                               key_prefix::String="")
+    tn = nameof(typeof(result))
+    if tn === :AriasSVARResult
+        irf_vals = irf_mean(result)
+        props, n_h = _fevd_proportions_from_irf(irf_vals)
+        vn = _result_varnames(result, size(irf_vals, 2))
+        _output_fevd_tables(props, vn, n_h; id="arias", title_prefix="FEVD",
+                            format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "fevd_by_variable" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :UhligSVARResult
+        props, n_h = _fevd_proportions_from_irf(result.irf)
+        vn = _result_varnames(result, size(result.irf, 2))
+        _output_fevd_tables(props, vn, n_h; id="uhlig", title_prefix="FEVD",
+                            format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "fevd_by_variable" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :LPFEVD
+        n = size(result.bias_corrected, 1)
+        vn = _result_varnames(result, n)
+        _output_fevd_tables(result.bias_corrected, vn, result.horizon;
+                            id="", title_prefix="LP FEVD", format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "lp_fevd" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :BayesianFEVD
+        vn = _result_varnames(result, size(result.point_estimate, 1))
+        H = hasproperty(result, :horizon) ? Int(result.horizon) : size(result.point_estimate, 3)
+        _output_fevd_tables(result.point_estimate, vn, H;
+                            id="", title_prefix="Bayesian FEVD", format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "bayesian_fevd" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    end
+    return _rerender_long_table(result; format, output, title, key, plot, plot_save)
+end
+
+function _rerender_filter_result(result; format::String="table", output::String="",
+                                 title::String="", key::String="",
+                                 plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    if tn === :X13FilterResult
+        T = length(result.trend)
+        tcol = collect(1:T)
+        output_result(DataFrame(t=tcol, adjusted=round.(result.adjusted; digits=6));
+                      format=Symbol(format), output=output, title="X-13 Seasonally Adjusted",
+                      key="x_13_seasonally_adjusted")
+        output_result(DataFrame(t=tcol, trend=round.(result.trend; digits=6));
+                      format=Symbol(format), output=_per_var_output_path(output, "trend"),
+                      title="X-13 Trend", key="x_13_trend")
+        output_result(DataFrame(t=tcol, seasonal=round.(result.seasonal; digits=6));
+                      format=Symbol(format), output=_per_var_output_path(output, "seasonal"),
+                      title="X-13 Seasonal Factors", key="x_13_seasonal_factors")
+        output_result(DataFrame(t=tcol, irregular=round.(result.irregular; digits=6));
+                      format=Symbol(format), output=_per_var_output_path(output, "irregular"),
+                      title="X-13 Irregular", key="x_13_irregular")
+        order = result.arima_order
+        order_str = order isa Tuple ? join(string.(order), ",") : string(order)
+        output_kv(Pair{String,Any}[
+            "method" => string(result.method),
+            "frequency" => result.frequency,
+            "transform" => string(result.transform),
+            "arima_order" => order_str,
+            "aic" => round(Float64(result.aic); digits=4),
+            "sigma2" => round(Float64(result.sigma2); digits=6),
+            "n_outliers" => Int(result.n_outliers),
+            "T_obs" => Int(result.T_obs),
+        ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+            title="X-13 Diagnostics", key="x_13_diagnostics")
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    end
+    t = collect(Float64, trend(result))
+    c = collect(Float64, cycle(result))
+    idx = collect(1:length(t))
+    if hasproperty(result, :valid_range)
+        vr = result.valid_range
+        Tfull = hasproperty(result, :T_obs) ? Int(result.T_obs) : length(t)
+        if length(t) == Tfull
+            t = t[vr]
+            c = c[vr]
+        end
+        idx = collect(vr)
+    end
+    result_df = DataFrame(t=idx, trend=round.(t; digits=6), cycle=round.(c; digits=6))
+    output_result(result_df; format=Symbol(format), output=output, title=title, key=key)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+_is_filter_result(result) = nameof(typeof(result)) === :X13FilterResult ||
+    (applicable(trend, result) && applicable(cycle, result))
+
 """Accept `result=` from wrap_legacy; re-render without calling `handler`."""
 function _with_result(handler, leaf::String; key::String="")
     return function (; result=nothing, kwargs...)
@@ -1720,7 +1961,10 @@ function _with_result(handler, leaf::String; key::String="")
             k = isempty(key) ? replace(leaf, r"[^A-Za-z0-9]+" => "_") : key
             plot = get(kwargs, :plot, false) === true
             plot_save = string(get(kwargs, :plot_save, ""))
-            if applicable(long_table, loaded)
+            if _is_filter_result(loaded)
+                _rerender_filter_result(loaded; format=fmt, output=out, title=leaf, key=k,
+                                        plot=plot, plot_save=plot_save)
+            elseif applicable(long_table, loaded)
                 _rerender_long_table(loaded; format=fmt, output=out, title=leaf, key=k,
                                      plot=plot, plot_save=plot_save)
             else

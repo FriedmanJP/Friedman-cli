@@ -631,6 +631,21 @@ end
         @test err_direct isa CliError
         @test err_direct.code == "usage/invalid"
         @test occursin("--lags", err_direct.message)
+
+        err_id = try
+            _irf_var(; data="", result=irf_obj, id="arias", format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_id isa CliError
+        @test err_id.code == "usage/invalid"
+        @test occursin("--id", err_id.message)
+
+        err_h = try
+            _irf_var(; data="", result=irf_obj, horizons=10, format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_h isa CliError
+        @test occursin("--horizons", err_h.message)
     end
 end
 
@@ -647,7 +662,7 @@ end
     @test isempty(adf_spec.model_types)
 
     dnode = register_data_commands!()
-    @test any(o -> o.name == "result", dnode.subcmds["filter"].options)
+    @test !any(o -> o.name == "result", dnode.subcmds["filter"].options)
     val_spec = _spec_for_path(["data", "validate"])
     @test isempty(val_spec.model_types)
     @test !any(o -> o.name == "model" && o.handle, val_spec.options)
@@ -655,4 +670,52 @@ end
     pnode = register_predict_commands!()
     pspec = _spec_for_path(["predict", "var"])
     @test :VARModel in pspec.model_types
+end
+
+@testset "irf/filter --result re-render tables" begin
+    err = try
+        _rerender_long_table(ADFResult(1.0, 0.1, 1); format="json", output="", title="x", key="x")
+        nothing
+    catch e; e; end
+    @test err isa CliError
+    @test err.code == "model/unsupported"
+
+    n = 2; H = 4; nd = 3
+    restr = SVARRestrictions(n)
+    Qs = [Float64[1.0 0.0; 0.0 1.0] for _ in 1:nd]
+    arias = AriasSVARResult(Qs, ones(nd, H, n, n), ones(nd), 0.5, restr)
+    streams = _capture_all() do
+        _irf_var(; data="", result=arias, format="json", output="")
+    end
+    @test occursin("horizon", streams.out)
+    @test !occursin("MethodError", streams.err)
+
+    mktempdir() do dir
+        csv = joinpath(dir, "y.csv")
+        CSV.write(csv, DataFrame(y=randn(40)))
+        hp_leaf = register_filter_commands!().subcmds["hp"]
+        stem = joinpath(dir, "hp")
+        _capture() do
+            hp_leaf.handler(; data=csv, save_result=stem, format="json", output="")
+        end
+        @test isfile(stem * ".jld2")
+        streams = _capture_all() do
+            hp_leaf.handler(; data="", result=stem, format="json", output="")
+        end
+        @test occursin("cycle", streams.out)
+        @test occursin("trend", streams.out)
+
+        kpss_leaf = register_test_commands!().subcmds["kpss"]
+        kstem = joinpath(dir, "kpss")
+        _capture() do
+            kpss_leaf.handler(; data=csv, save_result=kstem, format="json", output="")
+        end
+        @test isfile(kstem * ".jld2")
+    end
+
+    n = 2; H = 3
+    props = ones(n, n, H) / n
+    lp = LPFEVD(props, props, props, props, props, :R2, H, 200, 0.95, true)
+    @test _result_varnames(lp, n) == ["var_1", "var_2"]
+    @test !any(==("y1"), _result_varnames(lp, n))
 end

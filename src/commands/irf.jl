@@ -280,19 +280,10 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
                    plot::Bool=false, plot_save::String="",
                    cumulative::Bool=false, identified_set::Bool=false,
                    stationary_only::Bool=false, summary::String="none")
-    if result !== nothing
-        isempty(data) || throw(CliError("usage/invalid",
-            "irf var: --result cannot be combined with <data>"))
-        model === nothing || throw(CliError("usage/invalid",
-            "irf var: --result cannot be combined with --model"))
-        lags === nothing || throw(CliError("usage/invalid",
-            "irf var: --lags does not apply with --result"))
-        # render using existing table path
-        output_result(long_table(result); format=Symbol(format), output=output,
-                      title="Impulse Responses", key="irf")
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
-        return result
-    end
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="irf var",
+                            id, horizons, horizons_default=20, shock)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
+        title="Impulse Responses", key="irf", plot, plot_save, shock)
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -507,9 +498,10 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
                     plot::Bool=false, plot_save::String="",
                     cumulative::Bool=false,
                     model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf bvar")
-    loaded === nothing || return _rerender_long_table(loaded; format, output,
-        title="Impulse Responses", key="bayesian_irf", plot, plot_save)
+    loaded = _loaded_result(result; data, model, leaf="irf bvar",
+                            id, horizons, horizons_default=20, shock)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
+        title="Impulse Responses", key="bayesian_irf", plot, plot_save, shock)
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -619,9 +611,10 @@ function _irf_lp(; data::String="", result=nothing, shock::Int=1, shocks::String
                   plot::Bool=false, plot_save::String="",
                   cumulative::Bool=false,
                   model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf lp")
-    loaded === nothing || return _rerender_long_table(loaded; format, output,
-        title="Impulse Responses", key="lp_irf", plot, plot_save)
+    loaded = _loaded_result(result; data, model, leaf="irf lp",
+                            id, horizons, horizons_default=20, shock)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
+        title="Impulse Responses", key="lp_irf", plot, plot_save, shock)
     # Multi-shock mode
     if !isempty(shocks)
         shock_indices = parse.(Int, split(shocks, ","))
@@ -680,9 +673,10 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf vecm")
-    loaded === nothing || return _rerender_long_table(loaded; format, output,
-        title="Impulse Responses", key="vecm_irf", plot, plot_save)
+    loaded = _loaded_result(result; data, model, leaf="irf vecm",
+                            id, horizons, horizons_default=20, shock)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
+        title="Impulse Responses", key="vecm_irf", plot, plot_save, shock)
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)
@@ -745,7 +739,8 @@ function _irf_pvar(; data::String="", result=nothing, id_col::String="", time_co
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf pvar")
+    loaded = _loaded_result(result; data, model, leaf="irf pvar",
+                            horizons, horizons_default=10)
     loaded === nothing || return loaded
     validate_method(irf_type, ["oirf", "girf"], "IRF type")
 
@@ -794,8 +789,9 @@ function _irf_favar(; data::String="", result=nothing, factors=nothing, lags::In
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
                      model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf favar")
-    loaded === nothing || return _rerender_long_table(loaded; format, output,
+    loaded = _loaded_result(result; data, model, leaf="irf favar",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="favar_irf", plot, plot_save)
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
@@ -839,8 +835,9 @@ function _irf_sdfm(; data::String="", result=nothing, factors=nothing, id::Strin
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf sdfm")
-    loaded === nothing || return _rerender_long_table(loaded; format, output,
+    loaded = _loaded_result(result; data, model, leaf="irf sdfm",
+                            id, horizons, horizons_default=40)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="sdfm_irf", plot, plot_save)
     ci in ("none", "bootstrap") || throw(CliError("usage/invalid",
         "irf sdfm: --ci must be none|bootstrap (got '$ci')"))

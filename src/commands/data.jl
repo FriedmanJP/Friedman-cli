@@ -254,13 +254,8 @@ function register_data_commands!()
     specs = CommandSpec[]
     for s in data_specs()
         leaf = s.path[end]
-        if leaf == "filter"
-            rt = [:HPFilterResult, :HamiltonFilterResult, :BeveridgeNelsonResult,
-                  :BaxterKingResult, :BoostedHPResult]
-            h = wrap_legacy(_with_result(s.handler, "data filter"; key="data_filter"))
-            push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv],
-                                    result_types=rt, handler=h))
-        elseif leaf in _DATA_CONTAINER_LEAVES
+        if leaf in _DATA_CONTAINER_LEAVES
+            # data filter returns a DataFrame — do not tag MEMs filter result types.
             push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv]))
         elseif leaf == "load"
             push!(specs, _copy_spec(s; data_kinds=[:csv]))

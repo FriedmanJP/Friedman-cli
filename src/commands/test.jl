@@ -1918,6 +1918,7 @@ function _test_kpss(; data::String, column::Int=1, trend::String="constant",
     else
         _status_styled("-> Cannot reject H0 (stationarity) -- series appears stationary\n"; color=:green)
     end
+    return result
 end
 
 function _test_pp(; data::String, column::Int=1, trend::String="constant",
@@ -1941,6 +1942,7 @@ function _test_pp(; data::String, column::Int=1, trend::String="constant",
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary",
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
+    return result
 end
 
 function _test_za(; data::String, column::Int=1, trend::String="both",
@@ -1963,6 +1965,7 @@ function _test_za(; data::String, column::Int=1, trend::String="both",
 
     _status()
     _status("Estimated structural break at observation $(result.break_index)")
+    return result
 end
 
 function _test_np(; data::String, column::Int=1, trend::String="constant",
@@ -1984,6 +1987,7 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
 
     output_kv(pairs; format=format, output=output, title="Ng-Perron Test: $vname",
               key="ng_perron_test")
+    return result
 end
 
 # ── Long-Memory (fractional integration) ─────────────────
@@ -2020,6 +2024,7 @@ function _test_gph(; data::String, column::Int=1, bandwidth=nothing, trim::Int=0
     interpret_test_result(result.pval,
         "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
         "Cannot reject H0 (d = 0) at 5% -- no evidence of long memory")
+    return result
 end
 
 function _test_local_whittle(; data::String, column::Int=1, bandwidth=nothing,
@@ -2052,6 +2057,7 @@ function _test_local_whittle(; data::String, column::Int=1, bandwidth=nothing,
     interpret_test_result(result.pval,
         "Reject H0 (d = 0) at 5% -- evidence of long memory / fractional integration",
         "Cannot reject H0 (d = 0) at 5% -- no evidence of long memory")
+    return result
 end
 
 # ── Cointegration ────────────────────────────────────────
@@ -2094,6 +2100,7 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
         end
     end
     _status_styled("Estimated cointegration rank: $rank\n"; bold=true)
+    return result
 end
 
 # ── Normality Test Suite ─────────────────────────────────
@@ -2134,6 +2141,7 @@ function _test_normality(; data::String, lags=nothing,
     else
         _status_styled("No tests reject normality at 5% -- Gaussian assumption appears valid\n"; color=:green)
     end
+    return suite
 end
 
 # ── Identifiability Tests ────────────────────────────────
@@ -2330,6 +2338,7 @@ function _test_heteroskedasticity(; data::String, lags=nothing, method::String="
     output_result(b0_df; format=Symbol(format), output=output,
                   title="Structural Impact Matrix (B0) -- $method identification",
                   key="structural_impact_matrix_b0")
+    return result
 end
 
 # ── ARCH-LM Test ─────────────────────────────────────────
@@ -2355,6 +2364,7 @@ function _test_arch_lm(; data::String, column::Int=1, lags::Int=4,
     interpret_test_result(result.pvalue,
         "Reject H0 (no ARCH effects) at 5% -- ARCH effects detected",
         "Cannot reject H0 (no ARCH effects) at 5%")
+    return result
 end
 
 # ── Ljung-Box Squared Test ───────────────────────────────
@@ -2380,6 +2390,7 @@ function _test_ljung_box(; data::String, column::Int=1, lags::Int=10,
     interpret_test_result(result.pvalue,
         "Reject H0 (no serial correlation in squared residuals) at 5%",
         "Cannot reject H0 at 5% -- no significant ARCH effects")
+    return result
 end
 
 # ── C064b: volatility-model residual diagnostics ─────────
@@ -2430,6 +2441,7 @@ function _test_sign_bias(; data::String, column::Int=1, model::String="garch",
     interpret_test_result(result.joint_pvalue,
         "Reject H0 (no remaining asymmetry) at 5% -- leverage/asymmetry present; consider EGARCH/GJR",
         "Cannot reject H0 (no remaining asymmetry) at 5%")
+    return result
 end
 
 function _test_nyblom(; data::String, column::Int=1, model::String="garch",
@@ -2468,6 +2480,7 @@ function _test_nyblom(; data::String, column::Int=1, model::String="garch",
     interpret_test_result(reject_joint ? 0.01 : 0.5,
         "Reject H0 (stable parameters) at 5% -- evidence of parameter instability",
         "Cannot reject H0 (stable parameters) at 5%")
+    return result
 end
 
 # ── C067b: weak-instrument diagnostics for cross-section 2SLS ──────
@@ -4374,6 +4387,7 @@ function _test_var_stability(; data::String, lags=nothing, format::String="table
         _status_styled("VAR($p) is NOT stable (eigenvalue(s) outside unit circle)\n"; color=:red, bold=true)
     end
     _status("  Max modulus: $(round(maximum(moduli); digits=6))")
+    return result
 end
 
 # ── VECM Granger Causality Test ────────────────────────
@@ -4420,6 +4434,7 @@ function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, form
     interpret_test_result(result.strong_pvalue,
         "Reject H0: $cause_name Granger-causes $effect_name (joint short+long-run)",
         "Cannot reject H0: no Granger causality from $cause_name to $effect_name")
+    return result
 end
 
 function _test_granger_var(data, cause, effect, lags, test_all, format, output)
@@ -4453,6 +4468,7 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
 
         output_result(test_df; format=Symbol(format), output=output,
                       title="VAR Granger Causality (all pairwise)")
+        return results
     else
         cause_name = _var_name(varnames, cause)
         effect_name = _var_name(varnames, effect)
@@ -4476,6 +4492,7 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output)
         interpret_test_result(result.pvalue,
             "Reject H0: $cause_name Granger-causes $effect_name at 5%",
             "Cannot reject H0: no Granger causality from $cause_name to $effect_name")
+        return result
     end
 end
 
@@ -4505,6 +4522,7 @@ function _test_pvar_hansen_j(; data::String, id_col::String="", time_col::String
     interpret_test_result(result.pvalue,
         "Reject H0: overidentifying restrictions not valid at 5%",
         "Cannot reject H0: overidentifying restrictions appear valid")
+    return result
 end
 
 function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
@@ -4584,6 +4602,7 @@ function _test_pvar_stability(; data::String, id_col::String="", time_col::Strin
         _status_styled("Panel VAR($lags) is NOT stable (eigenvalue(s) outside unit circle)\n"; color=:red, bold=true)
     end
     _status("  Max modulus: $(round(maximum(result.moduli); digits=6))")
+    return result
 end
 
 # ── LR Test ───────────────────────────────────────────────
@@ -4615,6 +4634,7 @@ function _test_lr(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     interpret_test_result(result.pvalue,
         "Reject H0: restrictions are not supported by the data at 5%",
         "Cannot reject H0: restrictions appear valid")
+    return result
 end
 
 # ── LM Test ───────────────────────────────────────────────
@@ -4645,6 +4665,7 @@ function _test_lm(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     interpret_test_result(result.pvalue,
         "Reject H0: restrictions are not supported at 5%",
         "Cannot reject H0: restrictions appear valid")
+    return result
 end
 
 # ── Andrews Structural Break Test ─────────────────────
@@ -4679,6 +4700,7 @@ function _test_andrews(; data::String, response::Int=1,
     interpret_test_result(result.pvalue,
         "Reject H0: structural break detected at index $(result.break_index)",
         "Cannot reject H0: no structural break detected")
+    return result
 end
 
 # ── Bai-Perron Multiple Break Test ────────────────────
@@ -4715,6 +4737,7 @@ function _test_bai_perron(; data::String, response::Int=1,
             _status("  Regime $i: $(join(round.(coefs; digits=4), ", "))")
         end
     end
+    return result
 end
 
 # ── Panel Unit Root Tests ─────────────────────────────
@@ -4743,6 +4766,7 @@ function _test_panic(; data::String, factors::String="auto",
     interpret_test_result(result.pooled_pvalue,
         "Reject H0: panel has unit roots (after removing common factors)",
         "Cannot reject H0: panel is stationary (after removing common factors)")
+    return result
 end
 
 function _test_cips(; data::String, lags::String="auto",
@@ -4771,6 +4795,7 @@ function _test_cips(; data::String, lags::String="auto",
     interpret_test_result(result.pvalue,
         "Reject H0: panel has unit roots",
         "Cannot reject H0: panel is stationary")
+    return result
 end
 
 function _test_moon_perron(; data::String, factors::String="auto",
@@ -4798,6 +4823,7 @@ function _test_moon_perron(; data::String, factors::String="auto",
     interpret_test_result(min(result.pvalue_a, result.pvalue_b),
         "Reject H0: panel has unit roots",
         "Cannot reject H0: panel is stationary")
+    return result
 end
 
 function _test_factor_break(; data::String, factors::Int=2,
@@ -4841,6 +4867,7 @@ function _test_factor_break(; data::String, factors::Int=2,
     interpret_test_result(result.pvalue,
         "Reject H0: factor structure instability detected at index $(result.break_date)",
         "Cannot reject H0: factor structure appears stable")
+    return result
 end
 
 # ── Fourier ADF Test ──────────────────────────────────
@@ -4883,6 +4910,7 @@ function _test_fourier_adf(; data::String, column::Int=1,
         _status()
         _status_styled("Fourier terms are jointly significant (F=$(round(result.f_statistic; digits=4)), p=$(round(result.f_pvalue; digits=4)))\n"; color=:green)
     end
+    return result
 end
 
 # ── Fourier KPSS Test ────────────────────────────────
@@ -4922,6 +4950,7 @@ function _test_fourier_kpss(; data::String, column::Int=1,
     else
         _status_styled("-> Cannot reject H0 (stationarity) -- series appears stationary (with smooth breaks)\n"; color=:green)
     end
+    return result
 end
 
 # ── DF-GLS Test ──────────────────────────────────────
@@ -4961,6 +4990,7 @@ function _test_dfgls(; data::String, column::Int=1,
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary",
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
+    return result
 end
 
 # ── LM Unit Root Test ───────────────────────────────
@@ -5001,6 +5031,7 @@ function _test_lm_unitroot(; data::String, column::Int=1,
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% -- series appears stationary",
         "Cannot reject H0 (unit root) at 5% -- series appears non-stationary")
+    return result
 end
 
 # ── ADF 2-Break Test ────────────────────────────────
@@ -5042,6 +5073,7 @@ function _test_adf_2break(; data::String, column::Int=1,
 
     _status()
     _status("Estimated structural breaks at observations $(result.break1) and $(result.break2)")
+    return result
 end
 
 # ── Gregory-Hansen Cointegration Test ───────────────
@@ -5094,6 +5126,7 @@ function _test_gregory_hansen(; data::String, model::String="C",
 
     _status()
     _status("Estimated break at observation $(result.adf_break) (ADF* criterion)")
+    return result
 end
 
 # ── VIF (Variance Inflation Factor) ─────────────────
@@ -5154,6 +5187,7 @@ function _test_hausman(; data::String, dep::String="", indep::String="",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (use FE)" : "Fail to reject H0 (RE consistent)",
     ]
     output_kv(pairs; format=format, output=output, title="Hausman Specification Test")
+    return result
 end
 
 function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
@@ -5177,6 +5211,7 @@ function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (RE preferred over pooled OLS)" : "Fail to reject H0 (pooled OLS adequate)",
     ]
     output_kv(pairs; format=format, output=output, title="Breusch-Pagan LM Test")
+    return result
 end
 
 function _test_f_fe(; data::String, dep::String="", indep::String="",
@@ -5200,6 +5235,7 @@ function _test_f_fe(; data::String, dep::String="", indep::String="",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (individual effects significant)" : "Fail to reject H0 (pooled OLS adequate)",
     ]
     output_kv(pairs; format=format, output=output, title="F-Test for Fixed Effects")
+    return result
 end
 
 function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
@@ -5222,6 +5258,7 @@ function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (cross-sectional dependence detected)" : "Fail to reject H0 (no cross-sectional dependence)",
     ]
     output_kv(pairs; format=format, output=output, title="Pesaran CD Test")
+    return result
 end
 
 function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
@@ -5245,6 +5282,7 @@ function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (serial correlation detected)" : "Fail to reject H0 (no serial correlation)",
     ]
     output_kv(pairs; format=format, output=output, title="Wooldridge AR Test")
+    return result
 end
 
 function _test_modified_wald(; data::String, dep::String="", indep::String="",
@@ -5268,6 +5306,7 @@ function _test_modified_wald(; data::String, dep::String="", indep::String="",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (groupwise heteroskedasticity detected)" : "Fail to reject H0 (homoskedastic)",
     ]
     output_kv(pairs; format=format, output=output, title="Modified Wald Test")
+    return result
 end
 
 # ── Spectral/Portmanteau Tests ───────────────────────
@@ -5292,6 +5331,7 @@ function _test_fisher(; data::String, column::Int=1,
     interpret_test_result(result.pvalue,
         "Reject H0 (no periodicity): significant periodic component detected",
         "Cannot reject H0: no significant periodicity")
+    return result
 end
 
 function _test_bartlett_wn(; data::String, column::Int=1,
@@ -5314,6 +5354,7 @@ function _test_bartlett_wn(; data::String, column::Int=1,
     interpret_test_result(result.pvalue,
         "Reject H0 (white noise): series is not white noise",
         "Cannot reject H0: series is consistent with white noise")
+    return result
 end
 
 function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
@@ -5337,6 +5378,7 @@ function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
     interpret_test_result(result.pvalue,
         "Reject H0 (white noise): significant autocorrelation detected",
         "Cannot reject H0: no significant autocorrelation")
+    return result
 end
 
 function _test_durbin_watson(; data::String, column::Int=1,
@@ -5361,6 +5403,7 @@ function _test_durbin_watson(; data::String, column::Int=1,
     interpret_test_result(result.pvalue,
         "Reject H0: residuals are autocorrelated",
         "Cannot reject H0: no first-order autocorrelation")
+    return result
 end
 
 # ── Discrete Choice Tests ────────────────────────────
@@ -5385,6 +5428,7 @@ function _test_brant(; data::String, dep::String="", cov_type::String="hc1",
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (parallel regression assumption violated)" : "Fail to reject H0 (parallel regression assumption holds)",
     ]
     output_kv(pairs; format=format, output=output, title="Brant Test")
+    return result
 end
 
 function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing,
@@ -5411,4 +5455,5 @@ function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (IIA assumption violated)" : "Fail to reject H0 (IIA assumption holds)",
     ]
     output_kv(pairs; format=format, output=output, title="Hausman-McFadden IIA Test")
+    return result
 end

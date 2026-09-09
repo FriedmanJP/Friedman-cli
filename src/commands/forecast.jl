@@ -940,12 +940,17 @@ function _forecast_setar(; data::String="", result=nothing, column::Int=1, p::In
     horizons >= 1 || throw(CliError("usage/invalid", "forecast setar: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast setar: --reps must be ≥ 1 (got $reps)"))
     d_arg = _parse_setar_delay(d)
-    y, vname = load_univariate_series(data, column)
-    _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
-    model = try
-        estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false, _fwd_seed()...)
-    catch e
-        throw(_nonlinear_error(e, "SETAR forecast"))
+    vname = "y"
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+        model = try
+            estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false, _fwd_seed()...)
+        catch e
+            throw(_nonlinear_error(e, "SETAR forecast"))
+        end
+    else
+        _status("SETAR forecast (h=$horizons): loaded model, ci=$ci_level"); _status()
     end
     fc = try
         forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
@@ -981,12 +986,17 @@ function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int
     ttype = Symbol(type)
     ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
         "forecast star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
-    y, vname = load_univariate_series(data, column)
-    _status("STAR forecast (h=$horizons) [$type]: variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
-    model = try
-        estimate_star(y, p; d=d, type=ttype)
-    catch e
-        throw(_nonlinear_error(e, "STAR forecast"))
+    vname = "y"
+    if isnothing(model)
+        y, vname = load_univariate_series(data, column)
+        _status("STAR forecast (h=$horizons) [$type]: variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+        model = try
+            estimate_star(y, p; d=d, type=ttype)
+        catch e
+            throw(_nonlinear_error(e, "STAR forecast"))
+        end
+    else
+        _status("STAR forecast (h=$horizons) [$type]: loaded model, ci=$ci_level"); _status()
     end
     fc = try
         forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)

@@ -7702,9 +7702,10 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
                       no_tvp::Bool=false, no_sv::Bool=false,
                       irf_draws::Int=500, shock::Int=1, no_stationary_only::Bool=false,
                       output::String="", format::String="table", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="irf tvpvar")
-    loaded === nothing || return _rerender_long_table(loaded; format, output,
-        title="Impulse Responses", key="tvpvar_irf")
+    loaded = _loaded_result(result; data, model, leaf="irf tvpvar",
+                            horizons, horizons_default=20, shock)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
+        title="Impulse Responses", key="tvpvar_irf", shock)
     horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
     irf_draws >= 1 || throw(CliError("usage/invalid", "--irf-draws must be ≥ 1 (got $irf_draws)"))
     # The date-t IRF is the entire point of a TVP model, so --date is required rather than

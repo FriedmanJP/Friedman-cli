@@ -26,6 +26,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -52,6 +54,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -84,6 +88,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -118,6 +124,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -146,6 +154,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -175,6 +185,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -202,6 +214,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -230,6 +244,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -395,6 +411,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -427,6 +445,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -458,6 +478,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -486,6 +508,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -545,6 +569,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -573,6 +599,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -601,6 +629,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -632,6 +662,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -665,6 +697,8 @@ Path to low-frequency target CSV
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `midas_forecast` (Direct h-step forecast of the low-frequency target: horizon | forecast | lower | upper | se); `midas_forecast_summary` (Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level)
 
@@ -691,6 +725,8 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -720,6 +756,8 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -760,6 +798,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -794,6 +834,8 @@ Waggoner-Zha conditional (scenario) forecast
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -831,6 +873,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -862,6 +906,8 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `setar_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
 
@@ -887,6 +933,8 @@ Path to CSV data file
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `star_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
 
@@ -910,6 +958,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -936,6 +986,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -963,6 +1015,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -993,6 +1047,8 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
