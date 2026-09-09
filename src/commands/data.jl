@@ -52,8 +52,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "describe"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -66,8 +66,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "diagnose"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -130,8 +130,8 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "validate"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Handle stem or CSV path",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="model", type=String, default="", description="Model type (var|bvar|vecm|arima|garch|sv|lp|gmm|factor)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -412,13 +412,11 @@ function _data_load(; name::String="", output::String="", format::String="table"
 end
 
 function _data_describe(; data::String, format::String="table", output::String="")
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
-    n_obs, n_vars = size(Y)
-
-    tsd = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
+    tsd = _as_macro_data(data)
     summary = describe_data(tsd)
+    Y = to_matrix(tsd)
+    vn = varnames(tsd)
+    n_obs, n_vars = size(Y)
 
     # NaN-padded series (:mp_shocks ships 6 of 8 columns NaN outside their
     # published samples) are valid only inside a window that `n` alone cannot
@@ -445,16 +443,15 @@ function _data_describe(; data::String, format::String="table", output::String="
     _status("Data Summary: $n_obs observations × $n_vars variables")
     _status()
     output_result(result_df; format=Symbol(format), output=output, title="Descriptive Statistics")
+    return tsd
 end
 
 function _data_diagnose(; data::String, format::String="table", output::String="")
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
-    n_obs, n_vars = size(Y)
-
-    tsd = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
+    tsd = _as_macro_data(data)
     diag = diagnose(tsd)
+    Y = to_matrix(tsd)
+    vn = varnames(tsd)
+    n_obs, n_vars = size(Y)
 
     result_df = DataFrame(
         variable=vn,
@@ -477,10 +474,17 @@ function _data_diagnose(; data::String, format::String="table", output::String="
             _status_styled("Warning: series is short ($n_obs observations)\n"; color=:yellow)
         end
     end
+    return tsd
 end
 
-_as_macro_data(obj) = obj isa DataFrame ?
-    TimeSeriesData(df_to_matrix(obj); varnames=variable_names(obj)) : obj
+function _as_macro_data(obj)
+    obj isa DataFrame || return obj
+    Y = df_to_matrix(obj)
+    vn = variable_names(obj)
+    return TimeSeriesData(Y; varnames=vn, tcode=fill(1, length(vn)),
+                          time_index=collect(1:size(Y, 1)))
+end
+_as_macro_data(data::String) = _as_macro_data(resolve_data(data))
 
 function _persist_edit(obj, data::String, output::String, suffix::String)
     out_default = _default_edit_output(data, suffix)
@@ -597,12 +601,8 @@ function _data_validate(; data::String, model::String="", format::String="table"
                        "arch", "egarch", "gjr_garch", "static", "dynamic", "gdfm"]
     validate_method(model, allowed_models, "model type")
 
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
-    n_obs, n_vars = size(Y)
-
-    tsd = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
+    tsd = _as_macro_data(data)
+    n_obs, n_vars = size(to_matrix(tsd))
 
     try
         validate_for_model(tsd, Symbol(model))
@@ -611,6 +611,7 @@ function _data_validate(; data::String, model::String="", format::String="table"
         _status_styled("Data validation failed for $model:\n"; color=:red)
         _status("  ", e.msg)
     end
+    return tsd
 end
 
 function _data_balance(; data::String, method::String="dfm", factors::Int=3,

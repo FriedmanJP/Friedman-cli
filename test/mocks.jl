@@ -2688,6 +2688,11 @@ function describe_data(d::TimeSeriesData)
     ku = fill(3.0, nv)
     DataSummary(n, m, s, mn, p25, med, p75, mx, sk, ku)
 end
+# Real MEMs has describe_data(::PanelData) / (::CrossSectionData) returning the
+# same DataSummary. Mock is a subset: reuse the TimeSeriesData statistics, no
+# extra panel_summary printer.
+describe_data(d::PanelData) = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
+describe_data(d::CrossSectionData) = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
 
 # Simple std without Distributions dependency
 function std_mock(X::AbstractMatrix)
@@ -2705,6 +2710,9 @@ function diagnose(d::TimeSeriesData)
     is_clean = all(n_nan .== 0) && all(n_inf .== 0) && !any(is_const) && !is_short
     DataDiagnostic(n_nan, n_inf, is_const, is_short, is_clean)
 end
+# Real diagnose(::AbstractMacroData) covers PanelData / CrossSectionData.
+diagnose(d::PanelData) = diagnose(TimeSeriesData(d.data; varnames=d.varnames))
+diagnose(d::CrossSectionData) = diagnose(TimeSeriesData(d.data; varnames=d.varnames))
 
 function fix(d::TimeSeriesData; method=:listwise)
     # Mock: return same data (pretend it was cleaned)
@@ -2727,6 +2735,11 @@ function validate_for_model(d::TimeSeriesData, model_type::Symbol)
     end
     nothing
 end
+# Real validate_for_model(::AbstractMacroData, ::Symbol) covers the other containers.
+validate_for_model(d::PanelData, model_type::Symbol) =
+    validate_for_model(TimeSeriesData(d.data; varnames=d.varnames), model_type)
+validate_for_model(d::CrossSectionData, model_type::Symbol) =
+    validate_for_model(TimeSeriesData(d.data; varnames=d.varnames), model_type)
 
 function apply_filter(y::AbstractVector, method::Symbol; kwargs...)
     if method == :hp

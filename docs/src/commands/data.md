@@ -147,11 +147,12 @@ No envelope table — writes the CSV directly.
 
 ## data describe
 
-Summary statistics for a dataset.
+Summary statistics for a dataset. Accepts a CSV path, a `:example` name, or a typed handle stem. A `PanelData` handle is described as panel data (not wrapped as `TimeSeriesData`).
 
 ```bash
 friedman data describe data.csv
 friedman data describe data.csv --format=csv --output=stats.csv
+friedman data describe panel
 ```
 
 | Option | Short | Type | Default | Description |
@@ -167,10 +168,11 @@ value (0 if none), which locate the usable window of NaN-padded series such as t
 
 ## data diagnose
 
-Data quality diagnostics.
+Data quality diagnostics. Same inputs as `data describe` (CSV, `:example`, or typed handle).
 
 ```bash
 friedman data diagnose data.csv
+friedman data diagnose panel
 ```
 
 | Option | Short | Type | Default | Description |
@@ -246,11 +248,12 @@ friedman data filter data.csv --method=bn --columns=1,3,5
 
 ## data validate
 
-Validate data suitability for a model type.
+Validate data suitability for a model type. `--model` is a **model-type string** (`var`, `arima`, …), not a saved-model handle.
 
 ```bash
 friedman data validate data.csv --model=var
 friedman data validate data.csv --model=garch
+friedman data validate panel --model=var
 ```
 
 | Option | Short | Type | Default | Description |

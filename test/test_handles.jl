@@ -211,3 +211,49 @@ end
         @test err.code == "data/wrong-kind"
     end
 end
+
+@testset "data describe on panel handle" begin
+    validate_spec = only(s for s in data_specs() if s.path == ["data", "validate"])
+    model_opt = only(o for o in validate_spec.options if o.name == "model")
+    @test model_opt.handle === false
+    @test model_opt.type === String
+
+    mktempdir() do dir
+        csv = _make_panel_csv(dir)
+        pd = xtset(CSV.read(csv, DataFrame), :group, :time)
+        h = joinpath(dir, "panel.jld2")
+        save_model_dispatch(h, pd)
+        outfile = joinpath(dir, "desc.json")
+        result = Ref{Any}(nothing)
+        _capture() do
+            result[] = _data_describe(; data=joinpath(dir, "panel"), format="json", output=outfile)
+        end
+        @test isfile(outfile)
+        # After implementation, describe_data(::PanelData) is used. Force a CrossSectionData
+        # through describe — today's code always TimeSeriesData()s the matrix, which also
+        # works. Fail by asserting the handler returns the loaded object type:
+        @test result[] isa PanelData
+        rows = JSON3.read(read(outfile, String))
+        @test all(r -> r.n isa Integer, rows)
+
+        csv_out = joinpath(dir, "desc_csv.json")
+        _capture() do
+            _data_describe(; data=csv, format="json", output=csv_out)
+        end
+        @test isfile(csv_out)
+
+        diag_out = joinpath(dir, "diag.json")
+        diag = Ref{Any}(nothing)
+        _capture() do
+            diag[] = _data_diagnose(; data=joinpath(dir, "panel"), format="json", output=diag_out)
+        end
+        @test isfile(diag_out)
+        @test diag[] isa PanelData
+
+        val = Ref{Any}(nothing)
+        _capture() do
+            val[] = _data_validate(; data=h, model="var")
+        end
+        @test val[] isa PanelData
+    end
+end

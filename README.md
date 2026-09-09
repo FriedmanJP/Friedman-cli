@@ -611,11 +611,13 @@ friedman data load --path=mydata.csv --output=loaded.csv
 # Any <data> argument also accepts a `:name` reference to a bundled dataset
 friedman data describe :fred_md
 
-# Describe data (summary statistics)
+# Describe data (summary statistics; CSV, :example, or typed handle)
 friedman data describe data.csv
+friedman data describe panel
 
 # Diagnose data quality (NaN, Inf, constant columns)
 friedman data diagnose data.csv
+friedman data diagnose panel
 
 # Fix data issues
 friedman data fix data.csv --method=interpolate --output=cleaned.csv
@@ -626,8 +628,9 @@ friedman data transform data.csv --tcodes=1,5,5,2 --output=transformed.csv
 # Filter data (unified interface)
 friedman data filter data.csv --method=hp --lambda=1600
 
-# Validate data for a specific model type
+# Validate data for a specific model type (--model is a type string, not a handle)
 friedman data validate data.csv --model=var
+friedman data validate panel --model=var
 
 # Balance panel with missing data via DFM imputation
 friedman data balance data.csv --method=dfm --factors=3

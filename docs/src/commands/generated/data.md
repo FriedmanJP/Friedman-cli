@@ -27,11 +27,11 @@ Handle stem or CSV path
 
 ### `friedman data describe`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -44,11 +44,11 @@ Path to CSV data file
 
 ### `friedman data diagnose`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -228,11 +228,11 @@ Handle stem or CSV path
 
 ### `friedman data validate`
 
-Path to CSV data file
+Handle stem or CSV path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
