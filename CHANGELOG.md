@@ -4,7 +4,7 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [Unreleased] — v0.12.3 wave W0 (#185): MEMs pin `=0.9.5` → `=0.9.6`
+## [0.12.3] — 2026-09-09 — MEMs 0.9.6 adoption program (#184–#187)
 
 C038 bump, re-resolved from General. Upstream 0.9.6 delta is purely
 additive (1096 insertions, 0 deletions): Lewis TVV-ID
