@@ -336,3 +336,24 @@ end
         @test occursin("PanelData", err.message)
     end
 end
+
+@testset "schema x-handle" begin
+    node = register_estimate_commands!()
+    leaf = node.subcmds["var"]
+    sch = _input_schema(leaf, ["estimate", "var"])
+    @test haskey(sch["properties"]["data"], "x-handle")
+    xh = sch["properties"]["data"]["x-handle"]
+    @test xh["role"] == "data"
+    @test "timeseries" in xh["kinds"]
+
+    irf_node = register_irf_commands!()
+    irf_sch = _input_schema(irf_node.subcmds["var"], ["irf", "var"])
+    @test haskey(irf_sch["properties"]["data"], "x-handle")
+    @test irf_sch["properties"]["model"]["x-handle"]["role"] == "model"
+    @test irf_sch["properties"]["model"]["x-handle"]["types"] isa AbstractVector
+
+    data_node = register_data_commands!()
+    val_sch = _input_schema(data_node.subcmds["validate"], ["data", "validate"])
+    @test haskey(val_sch["properties"]["data"], "x-handle")
+    @test !haskey(val_sch["properties"]["model"], "x-handle")
+end
