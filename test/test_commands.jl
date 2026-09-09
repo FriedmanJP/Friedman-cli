@@ -14420,3 +14420,5 @@ end
         end
     end
 end
+
+include(joinpath(project_root, "test", "test_handles.jl"))

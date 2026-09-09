@@ -159,7 +159,7 @@ function to_leaf(spec::CommandSpec)
         output = string(get(o, :output, get(kwargs, :output, "")))
         env = envelope_active() ? _ENVELOPE[] : Envelope(command=join(spec.path, " "))
         status_fn = (parts...) -> _status(parts...)
-        ctx = CmdContext(a, o, fl, fmt, output, env, status_fn)
+        ctx = CmdContext(a, o, fl, fmt, output, env, status_fn, spec)
         return spec.handler(ctx)
     end
 

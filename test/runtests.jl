@@ -4562,11 +4562,12 @@ end
         # wrap_legacy save + load
         h_save = wrap_legacy((; data="", format="table", output="", kwargs...) -> (m=:var, ok=true))
         env = Envelope(command="estimate var")
+        dummy_spec = CommandSpec(path=["estimate", "var"], summary="x")
         ctx = CmdContext(
             Dict{Symbol,Any}(:data => "x.csv"),
             Dict{Symbol,Any}(:save_model => tmp, :format => "table", :output => ""),
             Dict{Symbol,Bool}(),
-            :table, "", env, (parts...) -> nothing,
+            :table, "", env, (parts...) -> nothing, dummy_spec,
         )
         h_save(ctx)
         h_load = wrap_legacy((; data="", model=nothing, format="table", output="", kwargs...) -> model)
@@ -4574,7 +4575,7 @@ end
             Dict{Symbol,Any}(:data => ""),
             Dict{Symbol,Any}(:model => tmp, :format => "table", :output => ""),
             Dict{Symbol,Bool}(),
-            :table, "", env, (parts...) -> nothing,
+            :table, "", env, (parts...) -> nothing, dummy_spec,
         )
         m = h_load(ctx2)
         @test m.m == :var
