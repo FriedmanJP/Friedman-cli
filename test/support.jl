@@ -198,6 +198,34 @@ function _make_uhlig_config(dir)
     return path
 end
 
+"""Create a TOML config for Lewis TVV-ID knobs."""
+function _make_lewis_config(dir; weighting="two_step")
+    path = joinpath(dir, "lewis_tvv.toml")
+    open(path, "w") do io
+        write(io, """
+        [identification.lewis_tvv]
+        weighting = "$weighting"
+        """)
+    end
+    return path
+end
+
+"""Create a TOML config for SV-SVAR EM knobs."""
+function _make_sv_config(dir; hetero_shocks=nothing, maxiter=nothing,
+                         gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
+    path = joinpath(dir, "sv_svar.toml")
+    open(path, "w") do io
+        write(io, "[identification.sv_svar]\n")
+        hetero_shocks !== nothing &&
+            write(io, "hetero_shocks = [$(join(hetero_shocks, ", "))]\n")
+        maxiter !== nothing && write(io, "maxiter = $maxiter\n")
+        gibbs_burn !== nothing && write(io, "gibbs_burn = $gibbs_burn\n")
+        gibbs_draws !== nothing && write(io, "gibbs_draws = $gibbs_draws\n")
+        init !== nothing && write(io, "init = \"$init\"\n")
+    end
+    return path
+end
+
 """Create a TOML config for narrative-ADRR identification (ADRR Type A/B)."""
 function _make_adrr_config(dir)
     path = joinpath(dir, "adrr.toml")

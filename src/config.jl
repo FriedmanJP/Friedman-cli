@@ -25,7 +25,8 @@ const CONFIG_SCHEMA = Dict{String,Vector{String}}(
                          "sign_restrictions", "a0_zero_restrictions",
                          "a0_sign_restrictions", "elasticity_bounds",
                          "magnitude_bounds", "cumulative_restrictions",
-                         "narrative_shocks", "narrative_contributions", "uhlig"],
+                         "narrative_shocks", "narrative_contributions", "uhlig",
+                         "lewis_tvv", "sv_svar"],
     "svar" => ["recursive", "A", "B", "long_run", "n_starts", "max_iter"],
     "svec" => ["long_run_zeros", "short_run_zeros"],
     "gmm" => ["moment_conditions", "instruments", "weighting"],
@@ -47,6 +48,9 @@ const CONFIG_NESTED_SCHEMA = Dict{String,Vector{String}}(
     "identification.narrative" => ["shock_index", "periods", "signs"],
     "identification.uhlig" => ["n_starts", "n_refine", "max_iter_coarse",
                                "max_iter_fine", "tol_coarse", "tol_fine"],
+    "identification.lewis_tvv" => ["weighting"],
+    "identification.sv_svar" => ["hetero_shocks", "maxiter", "gibbs_burn",
+                                 "gibbs_draws", "init"],
 )
 
 """Enum-like string fields validated against allow-lists."""
@@ -57,7 +61,7 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
                                 "svec", "svar",
                                 "fastica", "jade", "sobi", "dcov", "hsic", "student_t",
                                 "mixture_normal", "pml", "skew_normal", "markov_switching",
-                                "garch_id"],
+                                "garch_id", "lewis-tvv", "sv-em"],
     "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step"],
     "smm.weighting" => ["identity", "optimal", "two_step", "iterated", "twostep"],
     "smm.model" => ["ar1", "arp", "var1", "iid_normal"],
@@ -377,6 +381,75 @@ function get_uhlig_params(config::Dict)
         "tol_coarse"      => get(uhlig, "tol_coarse", 1e-4),
         "tol_fine"        => get(uhlig, "tol_fine", 1e-8),
     )
+end
+
+"""
+    get_lewis_tvv_params(config) → Dict
+
+Extract Lewis (2021) TVV-ID estimator knobs from
+`[identification.lewis_tvv]`. Upstream `identify_lewis_tvv`
+takes `weighting` as a Symbol and throws a bare
+`ArgumentError` on anything else (exit 3 for a TOML-authored
+value), so validate here → `config/invalid` (exit 4).
+Remaining estimator knobs (K/lags/n_starts/max_iter/hac/
+bandwidth/tol) stay on upstream defaults (deferred with
+record, W1/#186 appendix).
+"""
+function get_lewis_tvv_params(config::Dict)
+    id_cfg = get(config, "identification", Dict())
+    tvv = get(id_cfg, "lewis_tvv", Dict{String,Any}())
+    tvv isa AbstractDict || throw(CliError("config/invalid",
+        "[identification.lewis_tvv] must be a table (got $tvv)"))
+    w = string(get(tvv, "weighting", "two_step"))
+    w in ("one_step", "two_step", "cue") || throw(CliError("config/invalid",
+        "identification.lewis_tvv.weighting must be one_step|two_step|cue (got '$w')"))
+    Dict{String,Any}("weighting" => Symbol(w))
+end
+
+"""
+    get_sv_svar_params(config) → Dict
+
+Extract Bertsche–Braun (2022) SV-SVAR EM knobs from
+`[identification.sv_svar]`. `hetero_shocks` holds 1-based
+shock indices (resolved against the data width at the call
+site → `usage/invalid` there); empty (default) means every
+shock gets SV treatment. `smoother` is deliberately NOT
+exposed: upstream supports only `:ksc`, so there is no
+choice to offer. Remaining knobs (tol/b_iter/theta_grid/
+phi_init/s_init/c) stay on upstream defaults (deferred with
+record, W1/#186 appendix).
+"""
+function get_sv_svar_params(config::Dict)
+    id_cfg = get(config, "identification", Dict())
+    sv = get(id_cfg, "sv_svar", Dict{String,Any}())
+    sv isa AbstractDict || throw(CliError("config/invalid",
+        "[identification.sv_svar] must be a table (got $sv)"))
+    raw_hs = get(sv, "hetero_shocks", Int[])
+    raw_hs isa AbstractVector || throw(CliError("config/invalid",
+        "identification.sv_svar.hetero_shocks must be a list of 1-based shock indices (got $raw_hs)"))
+    hetero_shocks = Int[]
+    for v in raw_hs
+        (v isa Integer && !(v isa Bool) && v >= 1) || throw(CliError("config/invalid",
+            "identification.sv_svar.hetero_shocks must hold integers ≥ 1 (got $v)"))
+        push!(hetero_shocks, Int(v))
+    end
+    maxiter = get(sv, "maxiter", 500)
+    (maxiter isa Integer && !(maxiter isa Bool) && maxiter >= 1) || throw(CliError("config/invalid",
+        "identification.sv_svar.maxiter must be an integer ≥ 1 (got $maxiter)"))
+    gibbs_burn = get(sv, "gibbs_burn", 5)
+    (gibbs_burn isa Integer && !(gibbs_burn isa Bool) && gibbs_burn >= 0) || throw(CliError("config/invalid",
+        "identification.sv_svar.gibbs_burn must be an integer ≥ 0 (got $gibbs_burn)"))
+    gibbs_draws = get(sv, "gibbs_draws", 100)
+    (gibbs_draws isa Integer && !(gibbs_draws isa Bool) && gibbs_draws >= 1) || throw(CliError("config/invalid",
+        "identification.sv_svar.gibbs_draws must be an integer ≥ 1 (got $gibbs_draws)"))
+    init = string(get(sv, "init", "ols_chol"))
+    init in ("ols_chol", "haar") || throw(CliError("config/invalid",
+        "identification.sv_svar.init must be ols_chol|haar (got '$init')"))
+    Dict{String,Any}("hetero_shocks" => hetero_shocks,
+                     "maxiter" => Int(maxiter),
+                     "gibbs_burn" => Int(gibbs_burn),
+                     "gibbs_draws" => Int(gibbs_draws),
+                     "init" => Symbol(init))
 end
 
 """

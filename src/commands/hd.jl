@@ -31,7 +31,7 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -96,7 +96,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -223,7 +223,8 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
         throw(CliError("usage/invalid",
             "hd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
     end
-    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR)
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
+                                              nvars=length(varnames), leaf="hd var")
     _inject_svar_id_kwargs!(kwargs, id, "hd var", data, varnames, instrument, target_var)
     hd_result = historical_decomposition(model, size(Y, 1) - p; kwargs...)
 
@@ -270,8 +271,9 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
 
     horizon = size(Y, 1) - p
 
+    bhd_kwargs = _id_knob_kwargs(id, config, n, "hd bvar")
     bhd = historical_decomposition(post, horizon;
-        method=method, quantiles=[0.16, 0.5, 0.84], _fwd_seed()...)
+        method=method, quantiles=[0.16, 0.5, 0.84], bhd_kwargs..., _fwd_seed()...)
 
     _status_report(() -> report(bhd))
     _maybe_plot(bhd; plot=plot, plot_save=plot_save)
@@ -378,7 +380,8 @@ function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
             throw(_domain_or_data_error(e, "VECM SVEC historical decomposition"))
         end
     else
-        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM)
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
+                                                  nvars=length(varnames), leaf="hd vecm")
         hd_result = historical_decomposition(var_model, T_eff; kwargs...)
     end
 
@@ -414,7 +417,8 @@ function _hd_favar(; data::String="", factors=nothing, lags::Int=2,
         favar = model
         varnames = favar.varnames
     end
-    kwargs = _build_identification_kwargs(id, config)
+    kwargs = _build_identification_kwargs(id, config; nvars=length(varnames),
+                                              leaf="hd favar")
 
     _status("FAVAR Historical Decomposition: horizon=$horizons, id=$id")
     _status()

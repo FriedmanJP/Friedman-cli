@@ -1097,7 +1097,9 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
              bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
              bias_correct::Bool=false, bias_reps::Int=0,
              instruments=nothing, target=nothing, restrictions=nothing,
-             pattern=nothing)
+             pattern=nothing, weighting=nothing, hetero=nothing,
+             maxiter=nothing, gibbs_burn=nothing, gibbs_draws=nothing,
+             init=nothing)
     bootstrap in (:iid, :wild, :block) || throw(ArgumentError(
         "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
     wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
@@ -1123,7 +1125,9 @@ function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
 end
 function irf(post::BVARPosterior, horizon::Int;
              method=:cholesky, quantiles=[0.16, 0.5, 0.84],
-             check_func=nothing, narrative_check=nothing)
+             check_func=nothing, narrative_check=nothing,
+             weighting=nothing, hetero=nothing, maxiter=nothing,
+             gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
     vals = ones(horizon + 1, n, n) * 0.1
     q_vals = ones(horizon + 1, n, n, length(quantiles)) * 0.1
@@ -1166,7 +1170,9 @@ end
 
 # FEVD
 function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing,
-              instruments=nothing, target=nothing, restrictions=nothing, pattern=nothing)
+              instruments=nothing, target=nothing, restrictions=nothing, pattern=nothing,
+              weighting=nothing, hetero=nothing, maxiter=nothing, gibbs_burn=nothing,
+              gibbs_draws=nothing, init=nothing)
     n = size(model.Y, 2)
     props = ones(n, n, horizon) / n
     # Real carries model.varnames into the result (same gap as irf above).
@@ -1182,7 +1188,9 @@ function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 function fevd(post::BVARPosterior, horizon::Int;
-              quantiles=[0.16, 0.5, 0.84])
+              method=:cholesky, quantiles=[0.16, 0.5, 0.84],
+              weighting=nothing, hetero=nothing, maxiter=nothing,
+              gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
     props = ones(n, n, horizon) / n
     q = ones(n, n, horizon, length(quantiles)) / n
@@ -1193,7 +1201,10 @@ end
 function historical_decomposition(model::VARModel, horizon::Int; method=:cholesky,
                                    check_func=nothing, narrative_check=nothing,
                                    instruments=nothing, target=nothing,
-                                   restrictions=nothing, pattern=nothing)
+                                   restrictions=nothing, pattern=nothing,
+                                   weighting=nothing, hetero=nothing,
+                                   maxiter=nothing, gibbs_burn=nothing,
+                                   gibbs_draws=nothing, init=nothing)
     n = size(model.Y, 2)
     T_eff = min(horizon, size(model.Y, 1) - model.p)
     contribs = ones(T_eff, n, n) * 0.1
@@ -1230,7 +1241,9 @@ function historical_decomposition(chain::MockChains, p::Int, n::Int, horizon::In
 end
 function historical_decomposition(post::BVARPosterior, horizon::Int;
                                    method=:cholesky, quantiles=[0.16, 0.5, 0.84],
-                                   seed=nothing)
+                                   seed=nothing, weighting=nothing, hetero=nothing,
+                                   maxiter=nothing, gibbs_burn=nothing,
+                                   gibbs_draws=nothing, init=nothing)
     n = post.n; p = post.p; data = post.data
     T_eff = size(data, 1) - p
     mean_c = ones(T_eff, n, n) * 0.1

@@ -26,7 +26,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|proxy|max-share|gmm-moments|narrative-adrr"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
@@ -153,7 +153,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec|lewis-tvv|sv-em"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Bootstrap replications"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
@@ -359,7 +359,8 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
         _status("bootstrap options ignored: they apply to --ci bootstrap, not --ci $ci")
     end
 
-    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR)
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
+                                              nvars=length(varnames), leaf="irf var")
     _inject_svar_id_kwargs!(kwargs, id, "irf var", data, varnames, instrument, target_var)
     kwargs[:ci_type] = Symbol(ci)
     kwargs[:reps] = replications
@@ -381,7 +382,14 @@ function _irf_var(; data::String="", lags=nothing, shock::Int=1, horizons::Int=2
     end
     isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + ImpulseResponse manifest (C052/#243)
 
-    irf_result = irf(model, horizons; kwargs...)
+    # Upstream heteroskedasticity guards (lewis-tvv n≥2 / T_eff≥100,
+    # sv-em MCEM) raise bare ArgumentError — wrap so degenerate input
+    # is data/invalid (exit 3), not an untyped exit 1 (W1/#186).
+    irf_result = try
+        irf(model, horizons; kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "VAR IRF"))
+    end
 
     if cumulative
         irf_result = cumulative_irf(irf_result)
@@ -503,6 +511,7 @@ function _irf_bvar(; data::String="", lags::Int=4, shock::Int=1, horizons::Int=2
     if !isnothing(narrative_check)
         kwargs[:narrative_check] = narrative_check
     end
+    merge!(kwargs, _id_knob_kwargs(id, config, length(varnames), "irf bvar"))
 
     birf = irf(post, horizons; kwargs...)
 
@@ -665,7 +674,8 @@ function _irf_vecm(; data::String="", lags::Int=2, rank::String="auto",
             throw(_domain_or_data_error(e, "VECM SVEC IRF"))
         end
     else
-        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM)
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
+                                              nvars=n, leaf="irf vecm")
         kwargs[:ci_type] = Symbol(ci)
         kwargs[:reps] = replications
         isnothing(_SEED[]) || (kwargs[:seed] = _SEED[])  # --seed → bootstrap/sign draws + manifest (C052/#243)
@@ -748,7 +758,7 @@ function _irf_favar(; data::String="", factors=nothing, lags::Int=2,
     end
     n = size(favar.Y, 2)
 
-    id_kwargs = _build_identification_kwargs(id, config)
+    id_kwargs = _build_identification_kwargs(id, config; nvars=n, leaf="irf favar")
 
     _status("FAVAR IRF: horizon=$horizons, id=$id" * (panel_irf ? ", panel-wide" : ""))
     _status()

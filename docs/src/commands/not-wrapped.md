@@ -406,3 +406,267 @@ JSON, SciMLBase), 197→197 packages, Optim pre-existing at 2.3.1
   (`UndefVarError`) — reachable on the first-ever T1/T2
   VFI-success test (only the config-error path existed).
   `QuoteNode` now mirrors real unevaluated storage.
+
+## W0/#185 ledger (MEMs 0.9.6: Lewis TVV-ID + BB SV-SVAR #823–#827)
+
+Verified against the `v0.9.6` tag sources (`51a2588`, `/tmp` clone
+`src/` diffs clean vs the `Pkg.dependencies`-resolved depot copy
+`~/.julia/packages/MacroEconometricModels/xHvag`).
+Non-test `src/` delta vs 0.9.5 is PURELY ADDITIVE — 1096 insertions,
+0 deletions across 8 files: new `src/nongaussian/tvv_common.jl`
+(245 lines: SV/TVV shock simulators, Q-alignment test support) +
+`lewis_tvv.jl` (291) + `sv_svar.jl` (456) + 3 `include` lines;
+`core/identification.jl` +11 (2 `compute_Q` branches + 2 registry
+tuples + doc); `core/serial/registry.jl` +2;
+`plotting/svar_statid.jl` +69 (2 `plot_result` methods);
+`summary_refs.jl` +11 (1 ref entry + type refs + 2 `refs`
+methods); `Project.toml` version-only. 4 new exports
+(`identify_lewis_tvv`, `identify_sv_svar`, `LewisTVVResult`,
+`SVSVARResult`), none removed or renamed. Docs: `id_tvv.md` /
+`id_sv_svar.md` / changelog / citation / API pages. Tests: new
+`test_lewis_tvv` / `test_sv_svar` / `test_tvv_common` + `id_dgps`
+fixtures + #828 FAST-gates. No `report()`/`show` signature
+changes (2 new `show` methods for the 2 new types, additive).
+
+Must-answer resolutions for W1 (upstream tag line numbers; CLI
+lines on the W0 branch):
+
+- **Exact `identify_lewis_tvv` signature**
+  (`lewis_tvv.jl:211-220`): `(model::VARModel{T}; K=5,
+  lags=collect(1:K), weighting=:two_step, hac=true, bandwidth=0,
+  n_starts=10, max_iter=100, tol=1e-8, rng)` — takes a FITTED
+  VARModel (the CLI fits, then calls). All guards `ArgumentError`:
+  `weighting` in one_step/two_step/cue; `n_starts >= 1`; `lags`
+  nonempty and `>= 0`; `n >= 2`; lags supply `>= n(n-1)/2`
+  conditions (order); `T_eff - maxlag >= 100`.
+- **`J_pvalue` is NaN under `:one_step`** (`lewis_tvv.jl:179-181`,
+  same convention as `estimate_gmm`) → W1 renders via the
+  M-29/#172 n/a policy, never a bare NaN or a misread verdict.
+- **`LewisTVVResult`: 18 fields in order** (`lewis_tvv.jl:56-75`):
+  `B0 Q theta vcov se J J_pvalue K lags weighting converged
+  iters weak_id id_strength message shocks varnames shock_names`.
+  `varnames` is copied from the model (the #119 adoption flows
+  automatically); `shock_names` are `"Shock j"`. `weak_id` — not
+  `converged` — is the identification check.
+- **Exact `identify_sv_svar` signature**
+  (`sv_svar.jl:278-291`): `(Y::AbstractMatrix, p::Int;
+  hetero=trues(n), smoother=:ksc, maxiter=500, tol=1e-3,
+  b_iter=5, gibbs_burn=5, gibbs_draws=100, init=:ols_chol,
+  phi_init=0.9, s_init=0.2, theta_grid=12, c=1e-5, rng)` —
+  takes RAW LEVELS + `p` (runs its own OLS/GLS on rows `p+1:T`).
+  All guards `ArgumentError`: `smoother == :ksc` ONLY (do not
+  expose — upstream offers no choice); `n >= 2`; `p >= 1`;
+  `Te >= 100`; `hetero` length `n`; `any(hetero)`;
+  `maxiter >= 1`; `tol > 0`; `init` in haar/ols_chol.
+- **`SVSVARResult`: 12 fields in order** (`sv_svar.jl:65-78`):
+  `B A c mus rhos sigmas hetero H_smooth loglik converged
+  iters message`. NO `varnames`/`shock_names` (W1 supplies names
+  from the CSV side); `A` is per-lag matrices (rendering design
+  for W1); homoskedastic shocks carry NaN SV entries
+  (`mus`/`rhos`/`sigmas`/`H_smooth`) — render honestly.
+- **SV cost is MCEM-heavy** (`maxiter=500` x
+  `gibbs(5+100)` x `n`; upstream FAST-gates its own recovery
+  tests in #828): T3 must use tiny settings. Single-start CLI
+  (the docstring advises multi-`rng` starts in applied work);
+  `rng` kwarg only, no `seed=` — global-seed story unchanged
+  (same for Lewis).
+- **`compute_Q` routing (the per-family map).** The single
+  generic method is on `VARModel` (`identification.jl:868`);
+  both new branches forward `kwargs`+`rng` (Lewis takes the
+  model; SV-EM takes `model.Y`/`model.p` and solves Q via the
+  Cholesky factor — VAR-slope re-estimation ignored at this
+  layer). VECM `irf`/`fevd`/`hd` convert via `to_var` and
+  forward `method`+kwargs (`vecm/analysis.jl:47-85`;
+  svec/long_run take the svec path). BVAR runs per-draw
+  VARModels with kwargs (`bvar/utils.jl:99/126`) and
+  sign-permutation column matching — both new methods match
+  (`_should_match_columns`, :741-743, plus their
+  `(true,false,false)` tuples). LP routes via the auxiliary
+  VAR (`lp/core.jl:440/555`); FAVAR/SDFM via `factor_var`
+  (`factor/structural.jl:587/950`). PVAR has no `compute_Q`
+  path (unaffected). `kwargs` threading confirmed at
+  `core/irf.jl:231-239` (+ bias-correct re-ID :263-271).
+- **Registry 25→27** (count-verified 27 tuples):
+  +`(:lewis_tvv, true, false, false)`,
+  +`(:sv_em, true, false, false)`.
+- **Serialization 350→352.** Both types registered
+  (`registry.jl:128/133`; runtime `haskey` true; the CLI
+  derived set counts 352). The "drop new types" commit
+  (`e836444`) removed them from `api.md`'s table mid-PR; the
+  serialize commit (`4a90946`) registered them ("generic
+  positional reconstruction covers
+  Symbol/BitVector/Vector{Matrix}") and re-added them —
+  final state round-trips both, guarded by the `api.md:665`
+  table/registry drift check.
+- **Plotting +2 methods, 0 removed**
+  (`plotting/svar_statid.jl`): `LewisTVVResult`
+  `view=:mixing` (B0 heatmap); `SVSVARResult` `:B` (impact
+  heatmap) / `:volatility` (`H_smooth` lines); unknown view
+  → `ArgumentError`. Plot audit expects ADDED=2, REMOVED=0.
+- **#823 DGP infra: test-side, no CLI exposure.**
+  `tvv_common.jl` adds no exports (the release's only 4 new
+  exports are #824/#825's); `simulate_sv_shocks` /
+  `simulate_tvv_dgp` / `align_Q` / `q_distance` /
+  `check_orthogonal` are internal utilities. T3 may use
+  `simulate_tvv_dgp` as a DGP (W1 test-harness decision);
+  exposure questions belong to #177, not this program.
+- **#828 is test-only** (5 `test(ci)` commits — FAST-gates,
+  Optim-gate drop, runner/`id_dgps` guards — + merge; no
+  `src/` behavior in the compare file list).
+- **Optim is pre-existing** (the rotation M-step uses
+  `Optim.LBFGS`; the Manifest delta is MEMs-only, 198→198
+  both envs, nothing added/removed — integration
+  additionally stamps the Friedman path dep
+  v0.12.1→v0.12.2). No C060 bundling note.
+- **CLI `--id` inventory for W1** (descriptions are
+  hardcoded per-leaf; the MAP enforces): `irf`
+  var :29 / bvar :73 / lp :128 / vecm :156 / favar :206 /
+  sdfm :226 (tvpvar + pvar declare no `--id`); `fevd`
+  var :28 / bvar :54 / lp :77 / vecm :100 / favar :142 /
+  sdfm :161; `hd` var :34 / bvar :55 / lp :77 / vecm :99 /
+  favar :121; `estimate sdfm` (`estimate.jl:1425`);
+  `forecast sdfm` (`forecast.jl:527`).
+
+| Upstream item | Disposition |
+|------|-------------|
+| `#823` shared TVV/SV DGP infra + fixtures | **No-op** for the CLI (internal test infra, no new exports). T3-harness use of `simulate_tvv_dgp` is a W1 decision; exposure → #177. |
+| `#824` Lewis TVV-ID | → **W1** (`--id` value, weighting/n_starts/lags/hac knobs, J/weak_id rendering). |
+| `#825` BB SV-SVAR EM | → **W1** (`--id` value, hetero/init/maxiter design; `smoother` NOT exposed). |
+| `#826` `compute_Q` wiring | → **W1** (map extension per the verified per-family acceptance). |
+| `#827` recovery table/docs/serialization | Split: serialization → **W1** (types flow automatically; `model info` + T3); recovery table/docs → **no-op**. |
+| `#828` CI/test gates | **No-op** (test-only). |
+| `#609` / `#255` closures | → recorded dispositions in Standing watches below (rows consumed). |
+
+W0 audit on `=0.9.6`: T1/T2 exit 0; T3 **4084/4084** (core,
+19m13s) + 59/59 entry points — identical counts to the 0.12.2
+exit, zero bump drift. Golden regen zero drift (mocks, as
+expected); docs captures OK (6 blocks current, no regen);
+`check_mock_surface` PASS (0 hard, allowlist 7/10, mock stays a
+subset — the 4 new upstream exports not consumed);
+`check_table_keys` PASS (453 leaves); `check_plot_coverage`
+179→181 (ADDED `LewisTVVResult` + `SVSVARResult`, REMOVED
+none — baseline updated; both are W1 sweep-A plot-flag
+candidates); inventory 453 leaves / 20 top-level unchanged.
+Manifest delta: MEMs-only (0.9.5→0.9.6), 198→198 packages both
+envs, nothing added/removed (integration additionally stamps
+the Friedman path dep v0.12.1→v0.12.2). Residual breakage:
+none exposed (nothing to fix or file).
+
+## Standing watches (re-checked at 0.9.6 for W0)
+
+- **MEMs#609 (CLOSED completed 2026-09-08, no shipped effect —
+  row consumed):** manual close by chung9207, no comments, all 5
+  checkboxes still open, no linked commit; MEMs `main`-branch
+  `Project.toml` still lists JuMP/Ipopt/NonlinearSolve under
+  `[deps]` with `[weakdeps]`/`[extensions]` holding only the
+  pre-existing PATHSolver/XLSX/ZipFile entries — the demotion
+  landed nowhere (neither 0.9.6, whose `Project.toml` delta is
+  version-only, nor `main`). Treated as decided-declined/deferred.
+  C060 story + ~2.3 s floor stand.
+- **MEMs#255 (CLOSED completed 2026-09-08, no shipped effect —
+  row consumed):** same close shape (manual, no comments, boxes
+  open); `main`-branch `src/` is still the single package;
+  adapter import paths unaffected. Corroboration: tracker
+  MEMs#373 closed the same minute (program wind-down, not new
+  work landing).
+- **`report()` overhaul:** none landed (additive delta); the
+  `_status_report` swallow stands.
+- **MEMs 1.0 major watch:** not announced (latest release 0.9.6);
+  adaptation pattern holds ready. Any future #609/#255-shaped
+  move arrives via this watch.
+- **Upstream OPEN #814/#815/#816:** watches, not scope (#816 is a
+  `compute_steady_state` error-path shape question — stays
+  upstream-gated per the standing rule).
+
+## W1/#186 appendix (TVV/SV exposure decisions)
+
+- **Knobs are TOML-first** (`[identification.lewis_tvv]` /
+  `[identification.sv_svar]`, the uhlig precedent): weighting /
+  hetero_shocks / maxiter / gibbs_burn / gibbs_draws / init.
+  Zero new CLI options (avoids a `--weighting` vocab collision
+  with smm's different choices and `--n-starts`/`--max-iter`
+  meaning drift vs estimate svar). Lewis K/lags/n_starts/
+  max_iter/hac/bandwidth/tol and SV tol/b_iter/theta_grid/
+  phi_init/s_init/c stay on upstream defaults (deferred with
+  record — the #180 optimizer_opts precedent).
+- **`smoother` deliberately NOT exposed**: upstream supports
+  only `:ksc` (ArgumentError otherwise) — no choice to offer
+  (the pruned-flag lesson).
+- **LP leaves: methods flow, knobs stay default.** Upstream
+  `structural_lp` pins its own compute_Q allow-list
+  (lp/core.jl:440-443 — horizon/checks/max_draws/transition/
+  regime/rng only), so lewis/sv knobs have no channel there;
+  T3 caught the `weighting` MethodError and the knob merge was
+  reverted before merge. Same as the pre-existing uhlig-knob
+  behavior on LP. TOML knob sections are consumed by the
+  var/vecm/bvar/favar leaves.
+- **No Q-injection / no diagnostic pre-call**: `_svec_Q` is
+  consumed only in the `:svec` compute_Q branch
+  (identification.jl:952-953) — no generic pre-computed-Q
+  path exists. A diagnostic pre-call would double estimation
+  (MCEM minutes for SV) AND describe a different rng draw
+  than the rendered estimate. The CLI mirrors the library
+  `irf(model; method=...)` call 1:1, same as the existing
+  stat-ID methods (gmm-moments/markov_switching/garch render
+  no estimator diagnostics either).
+- **J-n/a ledger correction**: the W0 ledger's "W1 renders via
+  the M-29/#172 n/a policy" is moot — no J is rendered on
+  these paths (one_step's NaN J_pvalue never reaches a table),
+  so there is nothing to render. The policy stands for leaves
+  that render J (gmm/smm).
+- **weak_id travels with the estimator result** (library
+  level); not surfaced on irf/fevd/hd (same as
+  MarkovSwitching convergence). A dedicated identified-shock
+  diagnostic leaf is future work, not this wave.
+- **fevd bvar fix (pre-existing silent-ignore, found by the
+  W1 sweep)**: `--id` was validated nowhere and threaded
+  nowhere — every --id rendered cholesky numbers under the
+  requested method's title. Now validates against the base
+  map + threads (irf/hd bvar sibling parity). T1/T2 + T3
+  regression pinned (invalid --id → usage/invalid).
+- **SDFM: estimation-gated, methods flow to the upstream
+  allow-list** (structural.jl:161-167 — excludes lewis/sv AND
+  several existing methods): out-of-set --id → upstream bare
+  ArgumentError, which escaped as exit 1 (found by the W1
+  adversarial probe: `irf sdfm --id lewis-tvv`). Fixed with a
+  loader-level `throw(_domain_or_data_error(...))` wrap
+  (shared.jl `_load_and_estimate_sdfm`) → data/invalid, exit 3.
+  No allow-list mirror (drift risk); enabling needs upstream
+  support (MEMs#830 filed). sdfm --id descriptions stay on
+  the curated safe subset.
+- **estimate svar / test identifiability / policy /
+  predict+residuals: untouched with record.** estimate svar
+  is the classical AB-pattern estimator (recursive/BQ/A/B/AB
+  — estimate.jl:1346/3112); statistical-ID doesn't apply.
+  identifiability tests data properties (test.jl:177/2065),
+  not estimators. policy + fitted declare no --id.
+- **Plot flags: none.** No CLI leaf returns
+  LewisTVVResult/SVSVARResult (irf/fevd/hd return response
+  objects), so the two new upstream recipes have no CLI
+  call site. Plot-coverage ADDED=2 closed with this record.
+- **Bootstrap × identification cost**: irf var defaults to
+  --ci bootstrap × 1000 reps, each re-identifying (GMM 10
+  starts / MCEM). Same shape as the existing expensive ids
+  (markov_switching/garch); T3 uses --ci none throughout.
+  No action (estimator economics, not a CLI defect).
+- **Review hardening (pre-existing defects, W1-exposed)**:
+  (1) `_irf_var`'s `irf(model...)` call had no wrap, so the
+  upstream hetero guards (lewis-tvv n≥2 / T_eff≥100,
+  lewis_tvv.jl:227/237) escaped as exit 1 — now
+  `throw(_domain_or_data_error(e, "VAR IRF"))` (exit 3). The
+  first attempt (bare-ArgumentError branch in
+  `_domain_error_class`) was reverted: it broke the pinned
+  taxonomy contract and would have hidden missing wraps
+  suite-wide. (2) `_build_prior` indexed
+  `prior_cfg["lambda1/2/3"]` directly, so EVERY BVAR-family
+  `--config` without `[prior.hyperparameters]` KeyError'd
+  (exit 1) — now `get` with the documented defaults
+  (0.2/0.5/1.0). (3) `ID_METHOD_MAP` pin 16→18 + entry
+  assertions for the two new methods.
+- **sv-em limits observed (typed, no action)**: `irf vecm
+  --id sv-em` → upstream IdentificationError (non-orthogonal
+  Q, ‖Q'Q−I‖≈6e-4, budget-invariant) → model/identification;
+  `fevd bvar --id sv-em` → all posterior draws unidentified
+  at draws≤30 → model/identification. Both are
+  estimator-raised and correctly typed; no CLI defect.
+  T3 pins the vecm exit class.

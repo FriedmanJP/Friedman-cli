@@ -153,7 +153,7 @@ end
 @testset "Shared utilities" begin
 
     @testset "ID_METHOD_MAP" begin
-        @test length(ID_METHOD_MAP) == 16
+        @test length(ID_METHOD_MAP) == 18   # 16 + lewis-tvv/sv-em (W1/#186)
         @test ID_METHOD_MAP["cholesky"] == :cholesky
         @test ID_METHOD_MAP["sign"] == :sign
         @test ID_METHOD_MAP["narrative"] == :narrative
@@ -170,6 +170,8 @@ end
         @test ID_METHOD_MAP["markov_switching"] == :markov_switching
         @test ID_METHOD_MAP["garch_id"] == :garch
         @test ID_METHOD_MAP["uhlig"] == :uhlig
+        @test ID_METHOD_MAP["lewis-tvv"] == :lewis_tvv
+        @test ID_METHOD_MAP["sv-em"] == :sv_em
     end
 
     @testset "_load_and_estimate_var" begin
@@ -4544,6 +4546,163 @@ end  # Test handlers
                 end
             end
         end
+    end
+
+    @testset "_irf_var — lewis-tvv identification (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_lewis_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="lewis-tvv",
+                              config=cfg, ci="none", format="table")
+                end
+            end
+            # cue weighting threads too
+            cfg_cue = _make_lewis_config(dir; weighting="cue")
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="lewis-tvv",
+                              config=cfg_cue, ci="none", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_var — lewis-tvv invalid weighting (config/invalid)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_lewis_config(dir; weighting="optimal")
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="lewis-tvv",
+                                  config=cfg, ci="none", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+        end
+    end
+
+    @testset "_irf_var — sv-em identification (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sv_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                              config=cfg, ci="none", format="table")
+                end
+            end
+            # partial hetero + non-default knobs thread too
+            cfg_p = _make_sv_config(dir; hetero_shocks=[1, 3], maxiter=50,
+                                    gibbs_burn=2, gibbs_draws=20, init="haar")
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                              config=cfg_p, ci="none", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_var — sv-em hetero out of range (usage/invalid)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sv_config(dir; hetero_shocks=[4])
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                                  config=cfg, ci="none", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+        end
+    end
+
+    @testset "_irf_var — sv-em invalid init (config/invalid)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sv_config(dir; init="newton")
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                                  config=cfg, ci="none", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+        end
+    end
+
+    @testset "_fevd_bvar — threads method (W1/#186 fix)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            # explicit cholesky renders (previously EVERY --id silently rendered cholesky)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_bvar(; data=csv, lags=2, horizons=10, id="cholesky",
+                                draws=100, sampler="direct", config="", format="table")
+                end
+            end
+            # unknown --id is now rejected (previously silently accepted)
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _fevd_bvar(; data=csv, lags=2, horizons=10, id="bogus",
+                                    draws=100, sampler="direct", config="", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+        end
+    end
+
+    @testset "_fevd_lp — lewis-tvv threads through structural_lp (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_lewis_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_lp(; data=csv, horizons=10, lags=4, id="lewis-tvv",
+                              vcov="newey_west", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_build_identification_kwargs — tvv/sv knob threading" begin
+        # defaults flow with upstream kwarg names
+        kw = _build_identification_kwargs("lewis-tvv", ""; nvars=3, leaf="unit")
+        @test kw[:method] == :lewis_tvv && kw[:weighting] == :two_step
+        kw2 = _build_identification_kwargs("sv-em", ""; nvars=3, leaf="unit")
+        @test kw2[:method] == :sv_em && kw2[:hetero] == trues(3)
+        @test kw2[:maxiter] == 500 && kw2[:gibbs_draws] == 100 && kw2[:init] == :ols_chol
+        # duplicates collapse, partial resolves (set semantics)
+        mktempdir() do dir
+            cfg = _make_sv_config(dir; hetero_shocks=[3, 1, 1])
+            kw3 = _build_identification_kwargs("sv-em", cfg; nvars=3, leaf="unit")
+            @test kw3[:hetero] == BitVector([true, false, true])
+        end
+        # other methods unaffected (no knob keys)
+        kw4 = _build_identification_kwargs("cholesky", ""; nvars=3, leaf="unit")
+        @test !haskey(kw4, :weighting) && !haskey(kw4, :hetero)
     end
 
     @testset "_irf_var — W2a proxy/max-share/gmm-moments (mock)" begin

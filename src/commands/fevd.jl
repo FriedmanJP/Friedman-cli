@@ -25,7 +25,7 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -97,7 +97,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -306,7 +306,8 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         throw(CliError("usage/invalid",
             "fevd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
     end
-    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR)
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
+                                              nvars=length(varnames), leaf="fevd var")
     _inject_svar_id_kwargs!(kwargs, id, "fevd var", data, varnames, instrument, target_var)
     fevd_result = fevd(model, horizons; kwargs...)
 
@@ -342,8 +343,13 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
     _status("  Sampler: $sampler, Draws: $draws")
     _status()
 
+    # W1/#186 fix (pre-existing silent-ignore): --id was validated nowhere
+    # and threaded nowhere — every --id rendered cholesky numbers. Validate
+    # against the base map and thread like the irf/hd bvar siblings.
+    method = _identification_method(id, ID_METHOD_MAP, "fevd bvar")
+    bfevd_kwargs = _id_knob_kwargs(id, config, n, "fevd bvar")
     bfevd = fevd(post, horizons;
-        quantiles=[0.16, 0.5, 0.84])
+        method=method, quantiles=[0.16, 0.5, 0.84], bfevd_kwargs...)
 
     _status_report(() -> report(bfevd))
 
@@ -420,7 +426,8 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
             throw(_domain_or_data_error(e, "VECM SVEC FEVD"))
         end
     else
-        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM)
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
+                                                  nvars=n, leaf="fevd vecm")
         fevd_result = fevd(var_model, horizons; kwargs...)
     end
 
@@ -479,7 +486,8 @@ function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
         favar = model
         varnames = favar.varnames
     end
-    id_kwargs = _build_identification_kwargs(id, config)
+    id_kwargs = _build_identification_kwargs(id, config; nvars=length(varnames),
+                                                 leaf="fevd favar")
 
     _status("FAVAR FEVD: horizon=$horizons, id=$id")
     _status()
