@@ -17,20 +17,70 @@ bin/friedman ARGS
 
 ## Data Flow
 
+CSV is the **import** format, not the working format. Commands take a **stem**;
+`.jld2` is native storage (MEMs `save_model` / `load_model`), not part of the
+argv contract. Wave 1 ships **data** and **model** handles; result handles
+(`--result` / `--save-result`) and `friedman show` are Wave 2.
+
 ```
-CSV file → load_data(path)                 # → DataFrame, validates exists & non-empty
-         → df_to_matrix(df)                # → Matrix{Float64}, selects numeric columns
-         → variable_names(df)              # → Vector{String}, numeric column names
-                ↓
-    MacroEconometricModels.jl functions     # estimate_var, irf, forecast, etc.
-                ↓
-    Results → DataFrame                     # command renders the result to a DataFrame
-           → output_result(df; format, output, title)
-                ↓
-              :table → PrettyTables (center-aligned)
-              :csv   → CSV.write
-              :json  → JSON3.write (array of row dicts)
+CSV | :example
+        │
+        ▼
+data import --kind timeseries|panel|cross-section [-o STEM]
+        │
+        ▼
+STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
+        │
+        ├─ data describe|diagnose|validate     (read, real type)
+        ├─ data fix|transform|dropna|keeprows|balance
+        │       -o STEM'     →  same type, STEM'.jld2
+        │       -o file.csv  →  CSV export; stderr: metadata dropped
+        ├─ data export STEM  →  CSV (inverse of import)
+        │
+        ▼
+estimate var STEM --save-model var
+        │
+        ▼
+irf var --model var                        # skip re-estimation
+
+CSV shortcut (unchanged, additive 0.x):
+estimate var macro.csv --lags 2
 ```
+
+### Stem resolution
+
+**Save** (`--save-model`, `data import -o`, data-edit `-o`):
+
+- Empty / omitted: leaf-specific default stem, then the rule below.
+- No suffix → append `.jld2` and use native `save_model`.
+- `.jld2` → native `save_model`.
+- `.fmod` → interim Serialization handle (unregistered types).
+- `.csv` on a **data-edit** output → CSV export (frequency/tcode/dates dropped).
+- CSV `-o out.jld2` → `usage/invalid` (run `data import` first).
+
+**Load** (data positional, `--model` when it is a handle, `data export`):
+
+1. `path.jld2` if that file exists — preferred (typed handle).
+2. **Data slots only:** `path.csv` if that file exists.
+3. Exact `path` if that file exists (`.fmod`, `.toml` DSGE specs, extensionless files).
+4. Else `data/file-not-found` (exit 3).
+
+If both `macro.jld2` and `macro.csv` exist, the handle wins. Explicit suffixes
+skip the search (`macro.csv` is CSV, `var.jld2` is a handle). `model://name` is
+the serve-session URI and is not stem-expanded. `:fred_md` example names are
+unchanged.
+
+`wrap_legacy` type-checks a loaded data handle against the leaf's
+registry-declared `data_kinds` **before** the handler runs. A mismatch is
+`data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate var`. CSV
+remains legal on every leaf that lists `:csv`.
+
+Central resolver: `src/handles.jl`. Native persist: `src/model_handle.jl`.
+
+### Rendering
+
+After the library call, results still go through `output_result` (`:table` →
+PrettyTables, `:csv` → CSV.write, `:json` → the versioned envelope).
 
 **Rendering the result to a DataFrame (C051)** goes through one of three paths, in order of
 preference:
@@ -110,6 +160,11 @@ src/
     dispatch.jl           # dispatch() → dispatch_node() → dispatch_leaf()
     help.jl               # print_help() with colored, column-aligned output
   io.jl                   # load_data, df_to_matrix, variable_names, output_result
+  model_handle.jl         # save_model_dispatch / load_model_dispatch (.jld2 | .fmod | model://)
+  handles.jl              # stem resolver, data-kind check, typed persist (after model_handle.jl)
+  registry/
+    spec.jl               # CommandSpec (data_kinds / model_types / result_types)
+    adapter.jl            # wrap_legacy: stem-resolve + type-check + save
   config.jl               # TOML loader for priors, identification, GMM, non-Gaussian
   commands/
     shared.jl             # ID_METHOD_MAP, shared estimation/output helpers
@@ -122,7 +177,7 @@ src/
     predict.jl            # 16 predict subcommands
     residuals.jl          # 16 residuals subcommands
     filter.jl             # 5 filter subcommands
-    data.jl               # 9 data subcommands
+    data.jl               # 13 data subcommands (incl. import / export)
     nowcast.jl            # 5 nowcast subcommands
     dsge.jl               # DSGE subcommands + bayes node (13 sub-leaves) + HA/CT/OLG nodes
     did.jl                # 7 DID subcommands (3 estimation + 4 test)

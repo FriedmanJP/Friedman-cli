@@ -28,7 +28,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Filters** | HP, Hamilton, Beveridge-Nelson, Baxter-King, Boosted HP | `filter hp`, `filter hamilton`, ... |
 | **Nowcasting** | DFM, BVAR, bridge equations, news decomposition | `nowcast dfm`, `nowcast bvar`, ... |
 | **Input-Output** | Leontief/Ghosh multipliers, linkages, SDA, hypothetical extraction, environmental footprints, Baqaee-Farhi (2019) | `io leontief`, `io multipliers`, `io footprint`, ... |
-| **Data Management** | Example datasets, diagnostics, transformations, validation, balancing | `data list`, `data load`, `data describe`, ... |
+| **Data Management** | Typed import/export (`.jld2` stems), example datasets, diagnostics, transformations, validation, balancing | `data import`, `data export`, `data list`, `data load`, `data describe`, ... |
 | **DSGE** | RA + Bayesian + **HA** + **CT Aiyagari** + **Blanchard OLG** | `dsge solve`, `dsge ha`, `dsge ct`, `dsge olg`, ... |
 | **DID** | TWFE, Callaway-Sant'Anna, Sun-Abraham, BJS, dCdH, event study LP, LP-DiD | `did estimate`, `did event-study`, `did lp-did` |
 | **DID Diagnostics** | Bacon decomposition, pre-trend test, negative weights, HonestDiD | `did test bacon`, `did test pretrend`, ... |
@@ -61,7 +61,11 @@ git clone https://github.com/FriedmanJP/Friedman-cli.git
 cd Friedman-cli
 julia --project -e 'using Pkg; Pkg.instantiate()'
 
-# Estimate a VAR(2) model
+# Import CSV to a typed handle (stem, not suffix), then estimate
+julia --project bin/friedman data import data.csv --kind timeseries -o macro
+julia --project bin/friedman estimate var macro --lags=2 --save-model var
+
+# CSV shortcut (unchanged)
 julia --project bin/friedman estimate var data.csv --lags=2
 
 # Compute impulse responses

@@ -142,6 +142,7 @@ recognized (all are stable identifiers; the set only grows):
 | `model/error` | 5 | other recognized domain failure |
 | `data/serialization` | 3 | saved model handle unreadable or version-incompatible |
 | `data/orientation` | 3 | data matrix transposed relative to the observables |
+| `data/wrong-kind` | 3 | data slot loaded a container not in the leaf's `data_kinds` (e.g. `PanelData` on `estimate var`) |
 
 Anything else surfaces as `usage/*`, `data/*`, `config/*`, or `env/*` per the
 class table above; `internal/error` (exit 1) means a CLI bug — report it.
@@ -176,7 +177,9 @@ the document is fully machine-actionable:
   defaults, `required` = required positionals, `additionalProperties: false`).
   Each property carries an **`x-cli`** annotation (`kind`:
   `argument|option|flag`, `position` for positionals, `long`/`short` spellings)
-  so an exact argv can be reconstructed from a validated object.
+  so an exact argv can be reconstructed from a validated object. Handle slots
+  also carry **`x-handle`** (`role`: `data|model|result`, plus `kinds` /
+  `types` from the registry) — see *Typed handles* below.
 - **`tables`** (leaf docs): the registry-declared result-table keys — `name`,
   `description`, and `family` (`true` means keys are `<name>_<variable-slug>`,
   one per variable/shock; see *Stable table keys*). This is the same
@@ -232,7 +235,42 @@ and Krusell–Smith), so their `ReproManifest` records it and the draws reproduc
 `friedman model reproduce HANDLE` re-runs the recorded estimator and reports a match verdict
 plus per-field diffs (`unverifiable` when no seed was recorded — not a pass).
 
-## Model handles
+## Typed handles (data, model, result)
+
+Three object kinds, each with its own slot. **Wave 1 ships data + model**;
+result flags (`--result` / `--save-result`) and `friedman show` are Wave 2
+and must not be assumed present.
+
+| Kind | Argv slot | Native persist | Wave |
+|------|-----------|----------------|------|
+| data | positional `<data>` / `--data` | `data import -o STEM` → `STEM.jld2` | 1 |
+| model | `--model` / `--save-model` | `--save-model STEM` → `STEM.jld2` | 1 |
+| result | `--result` / `--save-result` | `--save-result STEM` | 2 |
+
+**Stems, not suffixes.** Pass `macro` and `var`, not `macro.jld2` / `var.jld2`.
+`.jld2` is storage. Load prefers `path.jld2` over `path.csv` when both exist;
+an explicit suffix skips the search. `model://name` is the in-session URI
+(serve) and is not stem-expanded. `:fred_md` example names are unchanged.
+
+```bash
+friedman data import macro.csv --kind timeseries -o macro
+friedman estimate var macro --lags 2 --save-model var
+friedman irf var --model var --horizons 12
+# CSV shortcut still works:
+friedman estimate var macro.csv --lags 2
+```
+
+`data import --kind` is required for CSV (no autodetection). Edits do not
+promote CSV to `.jld2` (`usage/invalid` — import first). A handle whose type
+is not in the leaf's `data_kinds` is `data/wrong-kind` (exit 3).
+
+`friedman schema <leaf>` annotates handle slots with **`x-handle`**:
+`{role: "data"|"model"|"result", kinds: [...], types: [...]}` next to the
+existing `x-cli` argv annotations. Empty `kinds`/`types` means the slot is
+not a typed handle on that leaf (`data validate --model=var` is a type
+*string*).
+
+### Model handles
 
 `--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
 `.jld2` is the native, versioned format covering the full upstream serialization registry
