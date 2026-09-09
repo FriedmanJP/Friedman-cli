@@ -247,8 +247,24 @@ function data_specs()::Vector{CommandSpec}
     ]
 end
 
+const _DATA_CONTAINER_LEAVES = Set(["describe", "diagnose", "validate", "fix", "transform",
+    "filter", "balance", "dropna", "keeprows"])
+
 function register_data_commands!()
-    specs = data_specs()
+    specs = CommandSpec[]
+    for s in data_specs()
+        leaf = s.path[end]
+        if leaf in _DATA_CONTAINER_LEAVES
+            push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv]))
+        elseif leaf == "load"
+            push!(specs, _copy_spec(s; data_kinds=[:csv]))
+        else
+            # import already has kinds; export already has three-container kinds without :csv;
+            # list has no data slot.
+            push!(specs, s)
+        end
+    end
+    specs = with_default_csv_kinds(specs)
     register!(specs)
     return build_node("data", specs; description="Data management: import/export handles, load example datasets, inspect, clean, transform")
 end

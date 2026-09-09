@@ -21,39 +21,53 @@
 """
     load_multivariate_data(data) → (Y::Matrix{Float64}, varnames::Vector{String})
 
-Load CSV, convert to numeric matrix and extract variable names.
+Load CSV or a typed data handle, convert to a numeric matrix and extract variable names.
+CSV path is bit-identical to `load_data` + `df_to_matrix`; a handle uses `to_matrix`/`varnames`.
 """
 function load_multivariate_data(data::String)
-    df = load_data(data)
-    varnames = variable_names(df)
-    # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
-    # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
-    # univariate `load_univariate_series` guard so every multivariate estimator surfaces
-    # a `data/missing-values` (exit 3) instead of an internal error.
-    for c in varnames
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
-            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    obj = resolve_data(data)
+    if obj isa DataFrame
+        df = obj
+        vn = variable_names(df)
+        # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
+        # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
+        # univariate `load_univariate_series` guard so every multivariate estimator surfaces
+        # a `data/missing-values` (exit 3) instead of an internal error.
+        for c in vn
+            any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+                "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+        end
+        return df_to_matrix(df), vn
     end
-    Y = df_to_matrix(df)
-    return Y, varnames
+    Y = to_matrix(obj)
+    vn = Vector{String}(varnames(obj))
+    return Y, vn
 end
 
 """
     load_univariate_series(data, column) → (y::Vector{Float64}, vname::String)
 
-Load CSV and extract a single numeric column by index.
+Load CSV or a typed data handle and extract a single numeric column by index.
 """
 function load_univariate_series(data::String, column::Int)
-    df = load_data(data)
-    varnames = variable_names(df)
-    (column < 1 || column > length(varnames)) && throw(CliError("data/column-range",
-        "column $column out of range (data has $(length(varnames)) numeric column(s))";
-        hint="--column is 1-based; pick 1..$(length(varnames))"))
-    col = df[!, varnames[column]]
+    obj = resolve_data(data)
+    if !(obj isa DataFrame)
+        Y = to_matrix(obj)
+        vn = Vector{String}(varnames(obj))
+        (column < 1 || column > length(vn)) && throw(CliError("data/column-range",
+            "column $column out of range (data has $(length(vn)) numeric column(s))";
+            hint="--column is 1-based; pick 1..$(length(vn))"))
+        return Vector{Float64}(Y[:, column]), vn[column]
+    end
+    df = obj
+    varnames_ = variable_names(df)
+    (column < 1 || column > length(varnames_)) && throw(CliError("data/column-range",
+        "column $column out of range (data has $(length(varnames_)) numeric column(s))";
+        hint="--column is 1-based; pick 1..$(length(varnames_))"))
+    col = df[!, varnames_[column]]
     any(ismissing, col) && throw(CliError("data/missing-values",
-        "column '$(varnames[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
-    y = Vector{Float64}(col)
-    return y, varnames[column]
+        "column '$(varnames_[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    return Vector{Float64}(col), varnames_[column]
 end
 
 """

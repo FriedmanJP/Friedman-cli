@@ -701,8 +701,14 @@ function register_forecast_commands!()
     specs = with_config_ergonomics(vcat(
         with_model_option(filter(!is_eval, all_specs)),
         filter(is_eval, all_specs)))
-    register!(specs)
-    return build_node("forecast", specs; description="Forecasting")
+    out = CommandSpec[]
+    for s in specs
+        kinds = is_eval(s) ? [:csv, :timeseries, :panel, :cross_section] : [:timeseries, :csv]
+        push!(out, _copy_spec(s; data_kinds=kinds))
+    end
+    out = with_default_csv_kinds(out)
+    register!(out)
+    return build_node("forecast", out; description="Forecasting")
 end
 
 

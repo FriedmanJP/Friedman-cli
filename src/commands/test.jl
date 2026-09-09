@@ -1781,10 +1781,28 @@ function test_specs()::Vector{CommandSpec}
     ]
 end
 
+const _TEST_PANEL = Set(["cips", "breitung", "fisher", "hadri", "ips", "llc",
+    "moon-perron", "panic", "pedroni", "kao", "westerlund", "pesaran-cd",
+    "factor-break", "fisher-johansen"])
+
 function register_test_commands!()
     specs = with_config_ergonomics(test_specs())
-    register!(specs)
-    return build_node("test", specs; description="Statistical tests (unit root, cointegration, diagnostics)")
+    out = CommandSpec[]
+    for s in specs
+        kinds = if length(s.path) >= 2 && s.path[2] == "pvar"
+            [:panel, :csv]
+        elseif length(s.path) >= 2 && s.path[2] == "var"
+            [:timeseries, :csv]
+        elseif s.path[end] in _TEST_PANEL
+            [:panel, :csv]
+        else
+            [:timeseries, :csv]
+        end
+        push!(out, _copy_spec(s; data_kinds=kinds))
+    end
+    out = with_default_csv_kinds(out)
+    register!(out)
+    return build_node("test", out; description="Statistical tests (unit root, cointegration, diagnostics)")
 end
 
 

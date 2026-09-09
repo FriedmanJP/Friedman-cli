@@ -1832,10 +1832,27 @@ function estimate_specs()::Vector{CommandSpec}
     ]
 end
 
+const _ESTIMATE_PANEL = Set(["pvar", "preg", "piv", "plogit", "pprobit", "pmg", "xtcointreg"])
+const _ESTIMATE_XS = Set(["3sls", "elastic-net", "heckman", "iv", "kde", "kernel-reg",
+    "lasso", "logit", "lowess", "ml", "mlogit", "nbreg", "ologit", "oprobit",
+    "poisson", "probit", "qreg", "rdd", "reg", "ridge", "robust", "select",
+    "sur", "tobit", "truncreg"])
+
+function _data_kinds_for_estimator(leaf::AbstractString)
+    leaf in _ESTIMATE_PANEL ? [:panel, :csv] :
+    leaf in _ESTIMATE_XS    ? [:cross_section, :timeseries, :csv] :
+                              [:timeseries, :csv]
+end
+
 function register_estimate_commands!()
     specs = with_config_ergonomics(with_save_model(estimate_specs()))
-    register!(specs)
-    return build_node("estimate", specs; description="Model estimation")
+    out = CommandSpec[]
+    for s in specs
+        push!(out, _copy_spec(s; data_kinds=_data_kinds_for_estimator(s.path[end])))
+    end
+    out = with_default_csv_kinds(out)
+    register!(out)
+    return build_node("estimate", out; description="Model estimation")
 end
 
 

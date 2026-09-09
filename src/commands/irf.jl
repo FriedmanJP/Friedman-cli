@@ -248,7 +248,8 @@ function irf_specs()::Vector{CommandSpec}
 end
 
 function register_irf_commands!()
-    specs = with_config_ergonomics(with_model_option(irf_specs()))
+    specs = with_default_csv_kinds(with_data_kinds(
+        with_config_ergonomics(with_model_option(irf_specs())), [:timeseries, :csv]))
     register!(specs)
     return build_node("irf", specs; description="Impulse Response Functions")
 end

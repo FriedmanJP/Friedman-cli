@@ -181,7 +181,8 @@ function fevd_specs()::Vector{CommandSpec}
 end
 
 function register_fevd_commands!()
-    specs = with_config_ergonomics(with_model_option(fevd_specs()))
+    specs = with_default_csv_kinds(with_data_kinds(
+        with_config_ergonomics(with_model_option(fevd_specs())), [:timeseries, :csv]))
     register!(specs)
     return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
 end

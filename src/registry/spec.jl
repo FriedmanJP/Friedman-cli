@@ -141,6 +141,15 @@ function with_data_kinds(specs::Vector{CommandSpec}, kinds::Vector{Symbol})
     return [_copy_spec(s; data_kinds=kinds) for s in specs]
 end
 
+function _has_data_slot(s::CommandSpec)
+    any(a -> a.name == "data", s.args) || any(o -> o.name == "data", s.options)
+end
+
+function with_default_csv_kinds(specs::Vector{CommandSpec})
+    [_copy_spec(s; data_kinds = (!isempty(s.data_kinds) || !_has_data_slot(s)) ? s.data_kinds : [:csv])
+     for s in specs]
+end
+
 function with_model_types(specs::Vector{CommandSpec}, types::Vector{Symbol})
     return [_copy_spec(s; model_types=types) for s in specs]
 end

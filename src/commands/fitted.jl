@@ -2240,14 +2240,24 @@ function residuals_specs()::Vector{CommandSpec}
     ])
 end
 
+function _overlay_estimator_data_kinds(specs::Vector{CommandSpec})
+    out = CommandSpec[]
+    for s in specs
+        push!(out, _copy_spec(s; data_kinds=_data_kinds_for_estimator(s.path[end])))
+    end
+    return with_default_csv_kinds(out)
+end
+
 function register_predict_commands!()
-    specs = with_config_ergonomics(with_model_option(predict_specs()))
+    specs = _overlay_estimator_data_kinds(
+        with_config_ergonomics(with_model_option(predict_specs())))
     register!(specs)
     return build_node("predict", specs; description="In-sample fitted values / predictions")
 end
 
 function register_residuals_commands!()
-    specs = with_config_ergonomics(with_model_option(residuals_specs()))
+    specs = _overlay_estimator_data_kinds(
+        with_config_ergonomics(with_model_option(residuals_specs())))
     register!(specs)
     return build_node("residuals", specs; description="Model residuals")
 end

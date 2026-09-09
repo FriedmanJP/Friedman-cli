@@ -150,7 +150,7 @@ function filter_specs()::Vector{CommandSpec}
 end
 
 function register_filter_commands!()
-    specs = filter_specs()
+    specs = with_default_csv_kinds(with_data_kinds(filter_specs(), [:timeseries, :csv]))
     register!(specs)
     return build_node("filter", specs;
         description="Time series filtering and trend-cycle decomposition")

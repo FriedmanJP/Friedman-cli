@@ -266,3 +266,67 @@ end
         @test val[] isa PanelData
     end
 end
+
+@testset "load_multivariate_data from handle" begin
+    mktempdir() do dir
+        csv = joinpath(dir, "macro.csv")
+        CSV.write(csv, DataFrame(y1=randn(20), y2=randn(20), y3=randn(20)))
+        _capture() do
+            _data_import(; data=csv, kind="timeseries", output=joinpath(dir, "macro"))
+        end
+        Yc, nc = load_multivariate_data(csv)
+        Yh, nh = load_multivariate_data(joinpath(dir, "macro"))
+        @test nc == nh
+        @test Yc == Yh
+    end
+end
+
+@testset "estimate var declares timeseries kind" begin
+    specs = with_config_ergonomics(with_save_model(estimate_specs()))
+    # After register overlays:
+    node = register_estimate_commands!()
+    # Look up via REGISTRY — register! appends, so findlast not findfirst.
+    s = findlast(x -> x.path == ["estimate", "var"], REGISTRY)
+    @test s !== nothing
+    @test :timeseries in REGISTRY[s].data_kinds
+    @test :csv in REGISTRY[s].data_kinds
+    @test haskey(node.subcmds, "var")
+
+    s_pvar = findlast(x -> x.path == ["estimate", "pvar"], REGISTRY)
+    @test s_pvar !== nothing
+    @test :panel in REGISTRY[s_pvar].data_kinds
+    @test :csv in REGISTRY[s_pvar].data_kinds
+
+    s_reg = findlast(x -> x.path == ["estimate", "reg"], REGISTRY)
+    @test s_reg !== nothing
+    @test :cross_section in REGISTRY[s_reg].data_kinds
+    @test :timeseries in REGISTRY[s_reg].data_kinds
+    @test :csv in REGISTRY[s_reg].data_kinds
+
+    register_data_commands!()
+    s_imp = findlast(x -> x.path == ["data", "import"], REGISTRY)
+    @test :csv in REGISTRY[s_imp].data_kinds
+    @test :timeseries in REGISTRY[s_imp].data_kinds
+    s_exp = findlast(x -> x.path == ["data", "export"], REGISTRY)
+    @test :csv ∉ REGISTRY[s_exp].data_kinds
+    @test :io ∉ REGISTRY[s_exp].data_kinds
+    s_list = findlast(x -> x.path == ["data", "list"], REGISTRY)
+    @test isempty(REGISTRY[s_list].data_kinds)
+
+    mktempdir() do dir
+        csv = joinpath(dir, "p.csv")
+        CSV.write(csv, DataFrame(group=repeat(1:2, inner=4),
+                                 time=repeat(1:4, outer=2),
+                                 y=randn(8), x=randn(8)))
+        pd = xtset(CSV.read(csv, DataFrame), :group, :time)
+        save_model_dispatch(joinpath(dir, "panel.jld2"), pd)
+        err = try
+            node.subcmds["var"].handler(; data=joinpath(dir, "panel"),
+                                        format="json", output="")
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "data/wrong-kind"
+        @test occursin("PanelData", err.message)
+    end
+end
