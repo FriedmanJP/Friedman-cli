@@ -247,38 +247,48 @@ and must not be assumed present.
 | model | `--model` / `--save-model` | `--save-model STEM` → `STEM.jld2` | 1 |
 | result | `--result` / `--save-result` | `--save-result STEM` | 2 |
 
-**Stems, not suffixes.** Pass `macro` and `var`, not `macro.jld2` / `var.jld2`.
-`.jld2` is storage. Load prefers `path.jld2` over `path.csv` when both exist;
-an explicit suffix skips the search. `model://name` is the in-session URI
-(serve) and is not stem-expanded. `:fred_md` example names are unchanged.
+**Stems vs suffixes (Wave 1).** Data positionals and `--save-model` accept
+suffix-less stems (`macro`, `--save-model var` → `var.jld2`). **Load via
+`--model` and `model info` still need an explicit handle path**
+(`.jld2` / `.fmod` / `model://`) — suffix-less `--model var` is not wired yet.
+Data load prefers `path.jld2` over `path.csv` when both exist; an explicit
+suffix skips the search. `model://name` is the in-session URI (serve) and is
+not stem-expanded. `:fred_md` example names are unchanged.
 
 ```bash
 friedman data import macro.csv --kind timeseries -o macro
-friedman estimate var macro --lags 2 --save-model var
-friedman irf var --model var --horizons 12
+friedman estimate var macro --lags 2 --save-model var   # stem → var.jld2
+friedman irf var --model var.jld2 --horizons 12         # load needs suffix
+friedman model info var.jld2
 # CSV shortcut still works:
 friedman estimate var macro.csv --lags 2
 ```
 
 `data import --kind` is required for CSV (no autodetection). Edits do not
-promote CSV to `.jld2` (`usage/invalid` — import first). A handle whose type
-is not in the leaf's `data_kinds` is `data/wrong-kind` (exit 3).
+promote CSV to `.jld2` (`usage/invalid` — import first; `data import` itself
+is the intended CSV→`.jld2` conversion). A handle whose type is not in the
+leaf's `data_kinds` is `data/wrong-kind` (exit 3).
 
 `friedman schema <leaf>` annotates handle slots with **`x-handle`**:
 `{role: "data"|"model"|"result", kinds: [...], types: [...]}` next to the
-existing `x-cli` argv annotations. Empty `kinds`/`types` means the slot is
-not a typed handle on that leaf (`data validate --model=var` is a type
-*string*).
+existing `x-cli` argv annotations. **Presence vs absence of `x-handle` is the
+signal** — not whether `kinds`/`types` are empty. Empty `types` on a data slot
+is normal (data uses `kinds`); Wave 1 model slots carry `x-handle` with empty
+`types`. `data validate --model` has **no** `x-handle` (it is a type *string*,
+not a model handle).
 
 ### Model handles
 
-`--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
-`.jld2` is the native, versioned format covering the full upstream serialization registry
-(350 types at MacroEconometricModels 0.9.3) — every model `estimate` can fit, including
-DSGE/HA solutions (`dsge solve`, `dsge ha solve`, `dsge ha steady-state`, `dsge bayes estimate`
-all take `--save-model`). `.fmod` remains as the interim handle for unregistered payloads.
-`friedman model info PATH` reads the container header (writing versions, note, bundle layout)
-without re-running estimation — header-only, it never executes stored code.
+`--save-model PATH` persists a fitted model (suffix-less stem → `.jld2`);
+`--model PATH.jld2` (or `.fmod` / `model://`) reloads it (skipping
+re-estimation). `.jld2` is the native, versioned format covering the full
+upstream serialization registry (350 types at MacroEconometricModels 0.9.3) —
+every model `estimate` can fit, including DSGE/HA solutions (`dsge solve`,
+`dsge ha solve`, `dsge ha steady-state`, `dsge bayes estimate` all take
+`--save-model`). `.fmod` remains as the interim handle for unregistered
+payloads. `friedman model info PATH.jld2` reads the container header (writing
+versions, note, bundle layout) without re-running estimation — header-only, it
+never executes stored code.
 Trust caveat (mirrors upstream): a `--model` handle carrying DSGE/HA equations recompiles
 them at load through an AST allowlist (`Core.eval`), the same risk class as
 `Serialization.deserialize` — only load files you trust. Programmatic payloads with

@@ -9,10 +9,14 @@ The preferred unit of work is a MEMs typed container (`TimeSeriesData`,
 `macro.jld2`. `.jld2` is storage. CSV remains legal on every leaf that accepted
 it before (additive 0.x).
 
-- **Load:** `macro.jld2` if it exists (preferred), else `macro.csv`, else the
-  exact path. Explicit suffixes skip the search (`macro.csv` is always CSV).
-- **Save:** a suffix-less `-o` becomes `.jld2`. `data import` is the only
-  CSV → typed conversion; an edit of a CSV with `-o out.jld2` is `usage/invalid`.
+- **Load (data slots):** `macro.jld2` if it exists (preferred), else
+  `macro.csv`, else the exact path. Explicit suffixes skip the search
+  (`macro.csv` is always CSV). Model-handle load (`--model`, `model info`) is
+  separate — Wave 1 still requires `var.jld2` (or `.fmod` / `model://`).
+- **Save:** a suffix-less `-o` / `--save-model` becomes `.jld2`.
+  `data import … -o out.jld2` (or a stem) **is** the CSV → typed conversion.
+  An **edit** of a CSV with `-o out.jld2` is `usage/invalid` (import first).
+  Omitting `--save-model` means do not save (no default stem).
 - **Wrong kind:** a handle whose type is not in the leaf's `data_kinds` is
   `data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate var`, a raw CSV
   on `data export`, or `apply_tcode` on `CrossSectionData`.
@@ -22,7 +26,8 @@ it before (additive 0.x).
 | handle | omitted / stem | same type, default `*_clean.jld2` / `*_transformed.jld2` / … |
 | handle | `out.csv` | CSV export; stderr warns metadata dropped |
 | `.csv` | omitted / stem | CSV (today’s path, default `*_clean.csv`) |
-| `.csv` | `out.jld2` | `usage/invalid` — run `data import` first |
+| `.csv` edit | `out.jld2` | `usage/invalid` — run `data import` first |
+| `data import` CSV | stem / `out.jld2` | typed handle (intended conversion) |
 
 No implicit in-place overwrite. `data fix macro -o macro` is allowed (explicit
 same stem); stderr notes the replace. See [Architecture](../architecture.md)

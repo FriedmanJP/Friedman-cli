@@ -38,10 +38,10 @@ STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
         ├─ data export STEM  →  CSV (inverse of import)
         │
         ▼
-estimate var STEM --save-model var
+estimate var STEM --save-model var         # stem → var.jld2
         │
         ▼
-irf var --model var                        # skip re-estimation
+irf var --model var.jld2                   # Wave 1 load needs suffix
 
 CSV shortcut (unchanged, additive 0.x):
 estimate var macro.csv --lags 2
@@ -49,26 +49,33 @@ estimate var macro.csv --lags 2
 
 ### Stem resolution
 
-**Save** (`--save-model`, `data import -o`, data-edit `-o`):
+**Save** (`data import -o`, data-edit `-o`, and a *present* `--save-model`):
 
-- Empty / omitted: leaf-specific default stem, then the rule below.
+- **Data-edit `-o` only:** empty / omitted → leaf-specific default stem, then
+  the rule below. (`--save-model` omitted means do not save — it is not a
+  default stem.)
 - No suffix → append `.jld2` and use native `save_model`.
-- `.jld2` → native `save_model`.
+- `.jld2` → native `save_model` (including `data import … -o out.jld2`, the
+  intended CSV→typed conversion).
 - `.fmod` → interim Serialization handle (unregistered types).
 - `.csv` on a **data-edit** output → CSV export (frequency/tcode/dates dropped).
-- CSV `-o out.jld2` → `usage/invalid` (run `data import` first).
+- **Data-edit** of a CSV with `-o out.jld2` → `usage/invalid` (run
+  `data import` first). This edit refusal does **not** apply to `data import`
+  itself.
 
-**Load** (data positional, `--model` when it is a handle, `data export`):
+**Load** (data positional / `data export`; `--model` / `model info` separately):
 
-1. `path.jld2` if that file exists — preferred (typed handle).
-2. **Data slots only:** `path.csv` if that file exists.
-3. Exact `path` if that file exists (`.fmod`, `.toml` DSGE specs, extensionless files).
-4. Else `data/file-not-found` (exit 3).
+1. **Data slots:** resolve stem — `path.jld2` if that file exists (preferred),
+   else `path.csv`, else exact `path` (`.fmod`, `.toml` DSGE specs,
+   extensionless files). Else `data/file-not-found` (exit 3).
+2. **`--model` / `model info` (Wave 1):** load only when the value already
+   looks like a handle — `.jld2`, `.fmod`, or `model://`. Suffix-less
+   `--model var` is **not** stem-expanded yet; pass `var.jld2`.
 
-If both `macro.jld2` and `macro.csv` exist, the handle wins. Explicit suffixes
-skip the search (`macro.csv` is CSV, `var.jld2` is a handle). `model://name` is
-the serve-session URI and is not stem-expanded. `:fred_md` example names are
-unchanged.
+If both `macro.jld2` and `macro.csv` exist, the handle wins on data slots.
+Explicit suffixes skip the search (`macro.csv` is CSV, `var.jld2` is a
+handle). `model://name` is the serve-session URI and is not stem-expanded.
+`:fred_md` example names are unchanged.
 
 `wrap_legacy` type-checks a loaded data handle against the leaf's
 registry-declared `data_kinds` **before** the handler runs. A mismatch is

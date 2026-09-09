@@ -613,8 +613,8 @@ friedman data describe :fred_md
 
 # Import CSV to a typed handle (stem; .jld2 is storage, not argv)
 friedman data import data.csv --kind timeseries --frequency quarterly -o macro
-friedman estimate var macro --lags 2 --save-model var
-friedman irf var --model var --horizons 12
+friedman estimate var macro --lags 2 --save-model var   # stem → var.jld2
+friedman irf var --model var.jld2 --horizons 12         # load needs .jld2
 friedman data export macro -o macro.csv          # inverse of import
 
 # Describe data (summary statistics; CSV, :example, or typed handle stem)
@@ -830,12 +830,14 @@ Save a fitted model and reuse it later without re-estimation:
 
 ```bash
 friedman estimate var macro --lags 2 --save-model var   # stem → var.jld2
-friedman irf var --model var --horizons 12              # load, skip re-estimation
-friedman model info var                                 # inspect type / dims / versions
+friedman irf var --model var.jld2 --horizons 12         # load needs suffix (Wave 1)
+friedman model info var.jld2                            # inspect type / dims / versions
 ```
 
-Suffix-less stems append `.jld2`. Explicit `model.jld2` still works. A data
-handle whose type is not in the leaf's `data_kinds` is `data/wrong-kind`
+`--save-model` and data positionals accept suffix-less stems (append `.jld2`).
+Wave 1 `--model` / `model info` load only when the path already looks like a
+handle (`.jld2` / `.fmod` / `model://`) — pass `var.jld2`, not bare `var`. A
+data handle whose type is not in the leaf's `data_kinds` is `data/wrong-kind`
 (exit 3) — e.g. a panel handle on `estimate var`.
 
 Two on-disk formats, chosen by suffix + model type:
