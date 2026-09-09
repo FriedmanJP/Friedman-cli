@@ -1783,7 +1783,9 @@ end
 
 const _TEST_PANEL = Set(["cips", "breitung", "fisher", "hadri", "ips", "llc",
     "moon-perron", "panic", "pedroni", "kao", "westerlund", "pesaran-cd",
-    "factor-break", "fisher-johansen"])
+    "factor-break", "fisher-johansen",
+    "dh-causality", "pmg-hausman", "hausman", "breusch-pagan", "f-fe",
+    "wooldridge-ar", "modified-wald"])
 
 function register_test_commands!()
     specs = with_config_ergonomics(test_specs())

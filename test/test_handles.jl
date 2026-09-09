@@ -313,6 +313,12 @@ end
     s_list = findlast(x -> x.path == ["data", "list"], REGISTRY)
     @test isempty(REGISTRY[s_list].data_kinds)
 
+    register_test_commands!()
+    s_dh = findlast(x -> x.path == ["test", "dh-causality"], REGISTRY)
+    @test s_dh !== nothing
+    @test :panel in REGISTRY[s_dh].data_kinds
+    @test :csv in REGISTRY[s_dh].data_kinds
+
     mktempdir() do dir
         csv = joinpath(dir, "p.csv")
         CSV.write(csv, DataFrame(group=repeat(1:2, inner=4),
