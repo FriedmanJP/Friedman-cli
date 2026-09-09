@@ -65,6 +65,10 @@ function wrap_legacy(handler::Function)
             kwargs[:data] = resolved
             kinds = ctx.spec.data_kinds
             if !isempty(kinds) && _is_handle_path(resolved)
+                # Confine filesystem handles on the resolved path; skip :example and model://.
+                if !startswith(resolved, ":") && !startswith(resolved, "model://")
+                    _validate_input_path(resolved)
+                end
                 obj = load_model_dispatch(resolved)
                 k = _data_kind_of(obj)
                 if k ∉ kinds
