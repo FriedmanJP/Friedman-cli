@@ -633,3 +633,26 @@ end
         @test occursin("--lags", err_direct.message)
     end
 end
+
+@testset "remaining producing families --result" begin
+    filt = register_filter_commands!()
+    @test any(o -> o.name == "result", filt.subcmds["hp"].options)
+    hp_spec = _spec_for_path(["filter", "hp"])
+    @test :HPFilterResult in hp_spec.result_types
+
+    tnode = register_test_commands!()
+    @test any(o -> o.name == "result", tnode.subcmds["adf"].options)
+    adf_spec = _spec_for_path(["test", "adf"])
+    @test :ADFResult in adf_spec.result_types
+    @test isempty(adf_spec.model_types)
+
+    dnode = register_data_commands!()
+    @test any(o -> o.name == "result", dnode.subcmds["filter"].options)
+    val_spec = _spec_for_path(["data", "validate"])
+    @test isempty(val_spec.model_types)
+    @test !any(o -> o.name == "model" && o.handle, val_spec.options)
+
+    pnode = register_predict_commands!()
+    pspec = _spec_for_path(["predict", "var"])
+    @test :VARModel in pspec.model_types
+end

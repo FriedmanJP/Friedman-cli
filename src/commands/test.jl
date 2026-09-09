@@ -38,7 +38,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:adf_test,
                               description="Augmented Dickey-Fuller statistic, selected lag order and p-value")],
             category="test",
-            handler=wrap_legacy(_test_adf),
+            handler=_test_adf,
         ),
         CommandSpec(
             path=["test", "kpss"],
@@ -54,7 +54,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:kpss_test,
                               description="KPSS stationarity statistic (H0 = stationary)")],
             category="test",
-            handler=wrap_legacy(_test_kpss),
+            handler=_test_kpss,
         ),
         CommandSpec(
             path=["test", "pp"],
@@ -70,7 +70,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:phillips_perron_test,
                               description="Phillips-Perron statistic and p-value")],
             category="test",
-            handler=wrap_legacy(_test_pp),
+            handler=_test_pp,
         ),
         CommandSpec(
             path=["test", "za"],
@@ -87,7 +87,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:zivot_andrews_test,
                               description="Zivot-Andrews statistic and the estimated break observation")],
             category="test",
-            handler=wrap_legacy(_test_za),
+            handler=_test_za,
         ),
         CommandSpec(
             path=["test", "np"],
@@ -103,7 +103,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:ng_perron_test,
                               description="Ng-Perron MZa, MZt, MSB and MPT statistics")],
             category="test",
-            handler=wrap_legacy(_test_np),
+            handler=_test_np,
         ),
         CommandSpec(
             path=["test", "gph"],
@@ -120,7 +120,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:gph_test,
                               description="GPH estimate of d with standard error, z-statistic, p-value and bandwidth")],
             category="test",
-            handler=wrap_legacy(_test_gph),
+            handler=_test_gph,
         ),
         CommandSpec(
             path=["test", "local-whittle"],
@@ -136,7 +136,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:local_whittle_test,
                               description="Local Whittle estimate of d with standard error, z-statistic and objective value")],
             category="test",
-            handler=wrap_legacy(_test_local_whittle),
+            handler=_test_local_whittle,
         ),
         CommandSpec(
             path=["test", "johansen"],
@@ -156,7 +156,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Maximum-eigenvalue statistic, p-value and 5% decision by cointegrating rank"),
             ],
             category="test",
-            handler=wrap_legacy(_test_johansen),
+            handler=_test_johansen,
         ),
         CommandSpec(
             path=["test", "normality"],
@@ -171,7 +171,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:normality_tests_for_var_residuals,
                               description="One row per normality test of the VAR residuals: statistic, p-value and df")],
             category="test",
-            handler=wrap_legacy(_test_normality),
+            handler=_test_normality,
         ),
         CommandSpec(
             path=["test", "identifiability"],
@@ -190,7 +190,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:identifiability_test_results,
                               description="One row per identifiability test: statistic, p-value and conclusion")],
             category="test",
-            handler=wrap_legacy(_test_identifiability),
+            handler=_test_identifiability,
         ),
         CommandSpec(
             path=["test", "heteroskedasticity"],
@@ -208,7 +208,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:structural_impact_matrix_b0,
                               description="Structural impact matrix B0, one row per equation (identification chosen by --method)")],
             category="test",
-            handler=wrap_legacy(_test_heteroskedasticity),
+            handler=_test_heteroskedasticity,
         ),
         CommandSpec(
             path=["test", "arch-lm"],
@@ -225,7 +225,7 @@ function test_specs()::Vector{CommandSpec}
                               description="ARCH-LM statistic, p-value and lag order")],
             category="test",
             aliases=["arch_lm"],
-            handler=wrap_legacy(_test_arch_lm),
+            handler=_test_arch_lm,
         ),
         CommandSpec(
             path=["test", "ljung-box"],
@@ -242,7 +242,7 @@ function test_specs()::Vector{CommandSpec}
                               description="Ljung-Box Q statistic on squared residuals, with p-value and lag order")],
             category="test",
             aliases=["ljung_box"],
-            handler=wrap_legacy(_test_ljung_box),
+            handler=_test_ljung_box,
         ),
         # C064b: volatility-model residual diagnostics (Engle-Ng sign bias; Nyblom stability).
         CommandSpec(
@@ -261,7 +261,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:sign_bias_test,
                               description="Engle-Ng sign-bias and size-bias t-statistics with the joint test")],
             category="test",
-            handler=wrap_legacy(_test_sign_bias),
+            handler=_test_sign_bias,
         ),
         CommandSpec(
             path=["test", "nyblom"],
@@ -283,7 +283,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Joint Nyblom LC statistic, its critical value and the 5% decision"),
             ],
             category="test",
-            handler=wrap_legacy(_test_nyblom),
+            handler=_test_nyblom,
         ),
         # C069/C070: randomness/nonlinearity (variance-ratio, BDS) + panel
         # stationarity/cointegration (Hadri; Pedroni/Kao/Westerlund) test batteries.
@@ -307,7 +307,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Chow-Denning joint statistic and p-value across all horizons"),
             ],
             category="test",
-            handler=wrap_legacy(_test_variance_ratio),
+            handler=_test_variance_ratio,
         ),
         CommandSpec(
             path=["test", "bds"],
@@ -324,7 +324,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:bds_test,
                               description="BDS statistic and p-value by embedding dimension")],
             category="test",
-            handler=wrap_legacy(_test_bds),
+            handler=_test_bds,
         ),
         # C069 (remainder). Trend vocabularies differ per family and are NOT shared:
         # engle-granger/phillips-ouliaris use none|constant|trend; hansen-instability/
@@ -349,7 +349,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Joint seasonal F statistics, deterministic terms and lag order"),
             ],
             category="test",
-            handler=wrap_legacy(_test_hegy),
+            handler=_test_hegy,
         ),
         CommandSpec(
             path=["test", "ers"],
@@ -364,7 +364,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:ers_point_optimal_test,
                               description="ERS point-optimal P_T statistic, p-value and critical values")],
             category="test",
-            handler=wrap_legacy(_test_ers),
+            handler=_test_ers,
         ),
         CommandSpec(
             path=["test", "sadf"],
@@ -388,7 +388,7 @@ function test_specs()::Vector{CommandSpec}
                           description="SADF statistic, p-value, critical values and the window/critical-value settings"),
             ],
             category="test",
-            handler=wrap_legacy(_test_sadf),
+            handler=_test_sadf,
         ),
         CommandSpec(
             path=["test", "gsadf"],
@@ -412,7 +412,7 @@ function test_specs()::Vector{CommandSpec}
                           description="GSADF statistic, p-value, critical values and the window/critical-value settings"),
             ],
             category="test",
-            handler=wrap_legacy(_test_gsadf),
+            handler=_test_gsadf,
         ),
         CommandSpec(
             path=["test", "edf"],
@@ -431,7 +431,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:edf_test,
                               description="EDF goodness-of-fit statistic, p-value, fitted parameters and critical values")],
             category="test",
-            handler=wrap_legacy(_test_edf),
+            handler=_test_edf,
         ),
         CommandSpec(
             path=["test", "engle-granger"],
@@ -449,7 +449,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:engle_granger_test,
                               description="Residual ADF statistic, p-value and lag order (H0 = no cointegration)")],
             category="test",
-            handler=wrap_legacy(_test_engle_granger),
+            handler=_test_engle_granger,
         ),
         CommandSpec(
             path=["test", "phillips-ouliaris"],
@@ -471,7 +471,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Deterministic terms, HAC kernel and bandwidth, and sample size"),
             ],
             category="test",
-            handler=wrap_legacy(_test_phillips_ouliaris),
+            handler=_test_phillips_ouliaris,
         ),
         CommandSpec(
             path=["test", "hansen-instability"],
@@ -492,7 +492,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:hansen_instability_test,
                               description="Hansen L_c statistic and p-value (H0 = stable cointegration)")],
             category="test",
-            handler=wrap_legacy(_test_hansen_instability),
+            handler=_test_hansen_instability,
         ),
         CommandSpec(
             path=["test", "park-added"],
@@ -516,7 +516,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:park_added_variables_test,
                               description="Park H(p,q) statistic, p-value and the number of superfluous trends")],
             category="test",
-            handler=wrap_legacy(_test_park_added),
+            handler=_test_park_added,
         ),
         # C067 remainder (#72): cross-section OLS diagnostics. All fit via
         # _load_reg_data + estimate_reg — NOT the panel loader that the existing
@@ -540,7 +540,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:levin_lin_chu_test,
                               description="Levin-Lin-Chu adjusted t statistic, p-value and per-unit lag orders")],
             category="test",
-            handler=wrap_legacy(_test_llc),
+            handler=_test_llc,
         ),
         CommandSpec(
             path=["test", "ips"],
@@ -562,7 +562,7 @@ function test_specs()::Vector{CommandSpec}
                           description="W[t-bar] statistic, p-value and the mean-group t-bar"),
             ],
             category="test",
-            handler=wrap_legacy(_test_ips),
+            handler=_test_ips,
         ),
         CommandSpec(
             path=["test", "breitung"],
@@ -578,7 +578,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:breitung_panel_unit_root_test,
                               description="Breitung statistic, p-value, lag order and panel dimensions")],
             category="test",
-            handler=wrap_legacy(_test_breitung),
+            handler=_test_breitung,
         ),
         CommandSpec(
             path=["test", "fisher-johansen"],
@@ -602,7 +602,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Selected rank, combination rule, deterministic terms and lag order"),
             ],
             category="test",
-            handler=wrap_legacy(_test_fisher_johansen),
+            handler=_test_fisher_johansen,
         ),
         CommandSpec(
             path=["test", "dh-causality"],
@@ -623,7 +623,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:dumitrescu_hurlin_panel_causality,
                               description="W-bar, Z-bar and Z-tilde statistics with p-values for the tested direction")],
             category="test",
-            handler=wrap_legacy(_test_dh_causality),
+            handler=_test_dh_causality,
         ),
         CommandSpec(
             path=["test", "white"],
@@ -639,7 +639,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:white_test,
                               description="White heteroskedasticity statistic, p-value, df and auxiliary R2")],
             category="test",
-            handler=wrap_legacy(_test_white),
+            handler=_test_white,
         ),
         CommandSpec(
             path=["test", "glejser"],
@@ -655,7 +655,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:glejser_test,
                               description="Glejser heteroskedasticity statistic, p-value, df and auxiliary R2")],
             category="test",
-            handler=wrap_legacy(_test_glejser),
+            handler=_test_glejser,
         ),
         CommandSpec(
             path=["test", "harvey"],
@@ -671,7 +671,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:harvey_test,
                               description="Harvey multiplicative-heteroskedasticity statistic, p-value, df and auxiliary R2")],
             category="test",
-            handler=wrap_legacy(_test_harvey),
+            handler=_test_harvey,
         ),
         CommandSpec(
             path=["test", "chow"],
@@ -691,7 +691,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:chow_test,
                               description="Chow structural-break statistic, p-value and df at the requested break(s)")],
             category="test",
-            handler=wrap_legacy(_test_chow),
+            handler=_test_chow,
         ),
         CommandSpec(
             path=["test", "cusum"],
@@ -712,7 +712,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Whether the path leaves the band, the first crossing and the band level"),
             ],
             category="test",
-            handler=wrap_legacy(_test_cusum),
+            handler=_test_cusum,
         ),
         CommandSpec(
             path=["test", "cusumsq"],
@@ -733,7 +733,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Whether the path leaves the band, the first crossing and the band level"),
             ],
             category="test",
-            handler=wrap_legacy(_test_cusumsq),
+            handler=_test_cusumsq,
         ),
         CommandSpec(
             path=["test", "recursive-residuals"],
@@ -753,7 +753,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Count and mean of the recursive residuals, and the number of regressors"),
             ],
             category="test",
-            handler=wrap_legacy(_test_recursive_residuals),
+            handler=_test_recursive_residuals,
         ),
         CommandSpec(
             path=["test", "influence"],
@@ -773,7 +773,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Residual scale plus the flagged high-leverage and influential observations"),
             ],
             category="test",
-            handler=wrap_legacy(_test_influence),
+            handler=_test_influence,
         ),
         # C065a: Hansen (1996) sup-LM / sup-Wald test of linearity vs a two-regime SETAR
         # threshold, with fixed-regressor-bootstrap p-values. Reads `.linearity` off a
@@ -795,7 +795,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:hansen_1996_linearity_test,
                               description="sup-LM and sup-Wald statistics with fixed-regressor bootstrap p-values")],
             category="test",
-            handler=wrap_legacy(_test_hansen_linearity),
+            handler=_test_hansen_linearity,
         ),
         # C065b: Luukkonen–Saikkonen–Teräsvirta LM3 test of linearity vs a smooth-transition
         # (STAR) alternative. Wraps `star_linearity_test` (a deterministic NamedTuple → pure
@@ -816,7 +816,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:star_linearity_test_lm3,
                               description="LM3 chi-square and F statistics with their p-values and df")],
             category="test",
-            handler=wrap_legacy(_test_star_linearity),
+            handler=_test_star_linearity,
         ),
         CommandSpec(
             path=["test", "hadri"],
@@ -831,7 +831,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:hadri_panel_stationarity_test,
                               description="Hadri statistic and p-value (H0 = every unit stationary)")],
             category="test",
-            handler=wrap_legacy(_test_hadri),
+            handler=_test_hadri,
         ),
         CommandSpec(
             path=["test", "pedroni"],
@@ -854,7 +854,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Panel dimensions: units, regressors and observations"),
             ],
             category="test",
-            handler=wrap_legacy(_test_pedroni),
+            handler=_test_pedroni,
         ),
         CommandSpec(
             path=["test", "kao"],
@@ -876,7 +876,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Panel dimensions: units, regressors and observations"),
             ],
             category="test",
-            handler=wrap_legacy(_test_kao),
+            handler=_test_kao,
         ),
         CommandSpec(
             path=["test", "westerlund"],
@@ -899,7 +899,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Panel dimensions: units, regressors and observations"),
             ],
             category="test",
-            handler=wrap_legacy(_test_westerlund),
+            handler=_test_westerlund,
         ),
         # C067b: weak-instrument diagnostics for cross-section 2SLS. Fits `estimate_iv`
         # (shared `_load_iv_data` loader) and reports the stored first-stage/Cragg-Donald/
@@ -921,7 +921,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:weak_instrument_diagnostics,
                               description="First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict")],
             category="test",
-            handler=wrap_legacy(_test_weak_instrument),
+            handler=_test_weak_instrument,
         ),
         # W10/#112: Anderson-Rubin weak-instrument-robust inference. A SEPARATE LEAF rather
         # than a flag on `test weak-instrument`, decided by output shape: AR produces a test
@@ -960,7 +960,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Shape of the AR set, its grid and critical value, and the 2SLS Wald interval for comparison"),
             ],
             category="test",
-            handler=wrap_legacy(_test_anderson_rubin),
+            handler=_test_anderson_rubin,
         ),
         # W10/#112: wild cluster bootstrap (Cameron-Gelbach-Miller 2008), the few-cluster
         # inference procedure matching Stata `boottest`. Tests ONE linear restriction, so it
@@ -991,7 +991,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:wild_cluster_bootstrap,
                               description="Bootstrap and cluster-robust p-values for the tested coefficient, with the bootstrap settings")],
             category="test",
-            handler=wrap_legacy(_test_wild_cluster),
+            handler=_test_wild_cluster,
         ),
         # C062b: ARDL bounds test (Pesaran-Shin-Smith 2001) + NARDL symmetry Wald tests.
         # Both fit a single-equation (N)ARDL via the shared `_load_reg_data` loader + the
@@ -1023,7 +1023,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Statistics, case, level, both decisions and sample size"),
             ],
             category="test",
-            handler=wrap_legacy(_test_ardl_bounds),
+            handler=_test_ardl_bounds,
         ),
         CommandSpec(
             path=["test", "nardl-symmetry"],
@@ -1049,7 +1049,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Degrees of freedom, residual df and the number of asymmetric regressors"),
             ],
             category="test",
-            handler=wrap_legacy(_test_nardl_symmetry),
+            handler=_test_nardl_symmetry,
         ),
         # C062c: PMG Hausman selection test. Fits a long-format panel twice (efficient PMG/DFE
         # vs consistent MG) via the shared `_load_panel_reg` loader, then runs the PMG-typed
@@ -1077,7 +1077,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:pmg_hausman_specification_test,
                               description="Hausman statistic, p-value and df for PMG/DFE against Mean Group")],
             category="test",
-            handler=wrap_legacy(_test_pmg_hausman),
+            handler=_test_pmg_hausman,
         ),
         # C071: VECM cointegration restriction tests (Johansen LR on β / α).
         # Each fits a VECM then tests a linear restriction on the cointegrating
@@ -1100,7 +1100,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:vecm_restriction_h,
                               description="LR statistic, df and p-value for beta = H*phi, with the fitted rank")],
             category="test",
-            handler=wrap_legacy(_test_vecm_beta),
+            handler=_test_vecm_beta,
         ),
         CommandSpec(
             path=["test", "vecm", "alpha"],
@@ -1120,7 +1120,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:vecm_restriction_a,
                               description="LR statistic, df and p-value for alpha = A*psi, with the fitted rank")],
             category="test",
-            handler=wrap_legacy(_test_vecm_alpha),
+            handler=_test_vecm_alpha,
         ),
         CommandSpec(
             path=["test", "vecm", "weak-exog"],
@@ -1140,7 +1140,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:vecm_weak_exogeneity,
                               description="LR statistic, df and p-value for weak exogeneity of the selected variables")],
             category="test",
-            handler=wrap_legacy(_test_vecm_weak_exog),
+            handler=_test_vecm_weak_exog,
         ),
         CommandSpec(
             path=["test", "vecm", "known-beta"],
@@ -1160,7 +1160,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:vecm_known_b,
                               description="LR statistic, df and p-value for a fully specified beta = b")],
             category="test",
-            handler=wrap_legacy(_test_vecm_known_beta),
+            handler=_test_vecm_known_beta,
         ),
         CommandSpec(
             path=["test", "vecm", "joint"],
@@ -1180,7 +1180,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:vecm_joint_h_a,
                               description="LR statistic, df and p-value for the joint beta and alpha restriction")],
             category="test",
-            handler=wrap_legacy(_test_vecm_joint),
+            handler=_test_vecm_joint,
         ),
         CommandSpec(
             path=["test", "var", "lagselect"],
@@ -1200,7 +1200,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Selected lag order and the criterion that chose it (JSON output only)"),
             ],
             category="test",
-            handler=wrap_legacy(_test_var_lagselect),
+            handler=_test_var_lagselect,
         ),
         CommandSpec(
             path=["test", "var", "stability"],
@@ -1215,7 +1215,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:companion_matrix_eigenvalues,
                               description="Companion-matrix eigenvalue and its modulus, one row per root")],
             category="test",
-            handler=wrap_legacy(_test_var_stability),
+            handler=_test_var_stability,
         ),
         CommandSpec(
             path=["test", "granger"],
@@ -1241,7 +1241,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Statistic, df and p-value for every ordered variable pair (--all only)"),
             ],
             category="test",
-            handler=wrap_legacy(_test_granger),
+            handler=_test_granger,
         ),
         CommandSpec(
             path=["test", "pvar", "hansen-j"],
@@ -1259,7 +1259,7 @@ function test_specs()::Vector{CommandSpec}
                               description="Hansen J statistic, p-value, df and the instrument and parameter counts")],
             category="test",
             aliases=["hansen_j"],
-            handler=wrap_legacy(_test_pvar_hansen_j),
+            handler=_test_pvar_hansen_j,
         ),
         CommandSpec(
             path=["test", "pvar", "mmsc"],
@@ -1277,7 +1277,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:mmsc_results,
                               description="BIC, AIC and HQIC by candidate lag order")],
             category="test",
-            handler=wrap_legacy(_test_pvar_mmsc),
+            handler=_test_pvar_mmsc,
         ),
         CommandSpec(
             path=["test", "pvar", "lagselect"],
@@ -1295,7 +1295,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:lag_selection_results,
                               description="BIC, AIC and HQIC by candidate lag order")],
             category="test",
-            handler=wrap_legacy(_test_pvar_lagselect),
+            handler=_test_pvar_lagselect,
         ),
         CommandSpec(
             path=["test", "pvar", "stability"],
@@ -1312,7 +1312,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:panel_var_companion_matrix_eigenvalues,
                               description="Companion-matrix eigenvalue and its modulus, one row per root")],
             category="test",
-            handler=wrap_legacy(_test_pvar_stability),
+            handler=_test_pvar_stability,
         ),
         CommandSpec(
             path=["test", "lr"],
@@ -1328,7 +1328,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:likelihood_ratio_test,
                               description="LR statistic, p-value, df and both log-likelihoods")],
             category="test",
-            handler=wrap_legacy(_test_lr),
+            handler=_test_lr,
         ),
         CommandSpec(
             path=["test", "lm"],
@@ -1344,7 +1344,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:lagrange_multiplier_test,
                               description="LM statistic, p-value, df and sample size")],
             category="test",
-            handler=wrap_legacy(_test_lm),
+            handler=_test_lm,
         ),
         CommandSpec(
             path=["test", "andrews"],
@@ -1364,7 +1364,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:andrews_break_test,
                               description="sup-Wald or sup-LM statistic, p-value and the estimated break index")],
             category="test",
-            handler=wrap_legacy(_test_andrews),
+            handler=_test_andrews,
         ),
         CommandSpec(
             path=["test", "bai-perron"],
@@ -1385,7 +1385,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:bai_perron_test,
                               description="Number of breaks, the break dates, trimming and sample size")],
             category="test",
-            handler=wrap_legacy(_test_bai_perron),
+            handler=_test_bai_perron,
         ),
         CommandSpec(
             path=["test", "panic"],
@@ -1403,7 +1403,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:panic_test_bai_ng,
                               description="Pooled PANIC statistic, p-value and the number of common factors")],
             category="test",
-            handler=wrap_legacy(_test_panic),
+            handler=_test_panic,
         ),
         CommandSpec(
             path=["test", "cips"],
@@ -1421,7 +1421,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:pesaran_cips_test,
                               description="CIPS statistic, p-value, lag order and panel dimensions")],
             category="test",
-            handler=wrap_legacy(_test_cips),
+            handler=_test_cips,
         ),
         CommandSpec(
             path=["test", "moon-perron"],
@@ -1438,7 +1438,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:moon_perron_test,
                               description="t_a* and t_b* statistics with their p-values and the number of factors")],
             category="test",
-            handler=wrap_legacy(_test_moon_perron),
+            handler=_test_moon_perron,
         ),
         CommandSpec(
             path=["test", "factor-break"],
@@ -1460,7 +1460,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Per-series sup statistic and maximizing date, ranked (pooled methods only)"),
             ],
             category="test",
-            handler=wrap_legacy(_test_factor_break),
+            handler=_test_factor_break,
         ),
         CommandSpec(
             path=["test", "fourier-adf"],
@@ -1480,7 +1480,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:fourier_adf_test,
                               description="Fourier ADF statistic, p-value, optimal frequency and the Fourier F-test")],
             category="test",
-            handler=wrap_legacy(_test_fourier_adf),
+            handler=_test_fourier_adf,
         ),
         CommandSpec(
             path=["test", "fourier-kpss"],
@@ -1498,7 +1498,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:fourier_kpss_test,
                               description="Fourier KPSS statistic, p-value, optimal frequency and the Fourier F-test")],
             category="test",
-            handler=wrap_legacy(_test_fourier_kpss),
+            handler=_test_fourier_kpss,
         ),
         CommandSpec(
             path=["test", "dfgls"],
@@ -1516,7 +1516,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:df_gls_test,
                               description="DF-GLS tau and PT statistics with p-value, lag order and the M-GLS statistics")],
             category="test",
-            handler=wrap_legacy(_test_dfgls),
+            handler=_test_dfgls,
         ),
         CommandSpec(
             path=["test", "lm-unitroot"],
@@ -1536,7 +1536,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:lm_unit_root_test,
                               description="LM unit-root statistic, p-value and any estimated break dates")],
             category="test",
-            handler=wrap_legacy(_test_lm_unitroot),
+            handler=_test_lm_unitroot,
         ),
         CommandSpec(
             path=["test", "adf-2break"],
@@ -1555,7 +1555,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:adf_2_break_test,
                               description="Two-break ADF statistic, p-value and both break indices and fractions")],
             category="test",
-            handler=wrap_legacy(_test_adf_2break),
+            handler=_test_adf_2break,
         ),
         CommandSpec(
             path=["test", "gregory-hansen"],
@@ -1573,7 +1573,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:gregory_hansen_test,
                               description="ADF*, Zt* and Za* statistics with p-values and their break indices")],
             category="test",
-            handler=wrap_legacy(_test_gregory_hansen),
+            handler=_test_gregory_hansen,
         ),
         CommandSpec(
             # W2/#107: Cameron & Trivedi (1990) overdispersion test. Refit-based like the
@@ -1601,7 +1601,7 @@ function test_specs()::Vector{CommandSpec}
                           description="Sample size, test level and the recommended count model"),
             ],
             category="test",
-            handler=wrap_legacy(_test_dispersion),
+            handler=_test_dispersion,
         ),
         CommandSpec(
             path=["test", "vif"],
@@ -1617,7 +1617,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:variance_inflation_factors,
                               description="Variance inflation factor and tolerance for each regressor")],
             category="test",
-            handler=wrap_legacy(_test_vif),
+            handler=_test_vif,
         ),
         CommandSpec(
             path=["test", "hausman"],
@@ -1628,7 +1628,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:hausman_specification_test,
                               description="Chi-square statistic, p-value, df and the FE-vs-RE decision")],
             category="test",
-            handler=wrap_legacy(_test_hausman),
+            handler=_test_hausman,
         ),
         CommandSpec(
             path=["test", "breusch-pagan"],
@@ -1639,7 +1639,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:breusch_pagan_lm_test,
                               description="LM statistic, p-value, df and the RE-vs-pooled-OLS decision")],
             category="test",
-            handler=wrap_legacy(_test_breusch_pagan),
+            handler=_test_breusch_pagan,
         ),
         CommandSpec(
             path=["test", "f-fe"],
@@ -1650,7 +1650,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:f_test_for_fixed_effects,
                               description="F statistic, p-value, df and the FE-vs-pooled-OLS decision")],
             category="test",
-            handler=wrap_legacy(_test_f_fe),
+            handler=_test_f_fe,
         ),
         CommandSpec(
             path=["test", "pesaran-cd"],
@@ -1661,7 +1661,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:pesaran_cd_test,
                               description="CD statistic, p-value and the cross-sectional dependence decision")],
             category="test",
-            handler=wrap_legacy(_test_pesaran_cd),
+            handler=_test_pesaran_cd,
         ),
         CommandSpec(
             path=["test", "wooldridge-ar"],
@@ -1672,7 +1672,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:wooldridge_ar_test,
                               description="F statistic, p-value, df and the serial-correlation decision")],
             category="test",
-            handler=wrap_legacy(_test_wooldridge_ar),
+            handler=_test_wooldridge_ar,
         ),
         CommandSpec(
             path=["test", "modified-wald"],
@@ -1683,7 +1683,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:modified_wald_test,
                               description="Chi-square statistic, p-value, df and the groupwise-heteroskedasticity decision")],
             category="test",
-            handler=wrap_legacy(_test_modified_wald),
+            handler=_test_modified_wald,
         ),
         CommandSpec(
             path=["test", "fisher"],
@@ -1698,7 +1698,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:fisher_s_test,
                               description="Fisher periodicity statistic, p-value and sample size")],
             category="test",
-            handler=wrap_legacy(_test_fisher),
+            handler=_test_fisher,
         ),
         CommandSpec(
             path=["test", "bartlett-wn"],
@@ -1713,7 +1713,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:bartlett_white_noise_test,
                               description="Bartlett white-noise statistic, p-value and sample size")],
             category="test",
-            handler=wrap_legacy(_test_bartlett_wn),
+            handler=_test_bartlett_wn,
         ),
         CommandSpec(
             path=["test", "box-pierce"],
@@ -1729,7 +1729,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:box_pierce_test,
                               description="Box-Pierce Q statistic, p-value, df and sample size")],
             category="test",
-            handler=wrap_legacy(_test_box_pierce),
+            handler=_test_box_pierce,
         ),
         CommandSpec(
             path=["test", "durbin-watson"],
@@ -1744,7 +1744,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:durbin_watson_test,
                               description="Durbin-Watson statistic, p-value and sample size")],
             category="test",
-            handler=wrap_legacy(_test_durbin_watson),
+            handler=_test_durbin_watson,
         ),
         CommandSpec(
             path=["test", "brant"],
@@ -1760,7 +1760,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:brant_test,
                               description="Chi-square statistic, p-value, df and the parallel-regression decision")],
             category="test",
-            handler=wrap_legacy(_test_brant),
+            handler=_test_brant,
         ),
         CommandSpec(
             path=["test", "hausman-iia"],
@@ -1776,7 +1776,7 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:hausman_mcfadden_iia_test,
                               description="Chi-square statistic, p-value, df and the IIA decision")],
             category="test",
-            handler=wrap_legacy(_test_hausman_iia),
+            handler=_test_hausman_iia,
         )
     ]
 end
@@ -1787,10 +1787,60 @@ const _TEST_PANEL = Set(["cips", "breitung", "fisher", "hadri", "ips", "llc",
     "dh-causality", "pmg-hausman", "hausman", "breusch-pagan", "f-fe",
     "wooldridge-ar", "modified-wald"])
 
+const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
+    "adf" => [:ADFResult], "kpss" => [:KPSSResult], "pp" => [:PPResult],
+    "za" => [:ZAResult], "np" => [:NgPerronResult], "gph" => [:GPHResult],
+    "local-whittle" => [:LocalWhittleResult], "johansen" => [:JohansenResult],
+    "normality" => [:NormalityTestResult, :NormalityTestSuite],
+    "identifiability" => [:IdentifiabilityTestResult],
+    "heteroskedasticity" => [:IdentificationDiagnostics],
+    "arch-lm" => [:LMTestResult], "ljung-box" => [:LjungBoxResult],
+    "sign-bias" => [:LMTestResult], "nyblom" => [:LMTestResult],
+    "variance-ratio" => [:VarianceRatioResult], "bds" => [:BDSResult],
+    "hegy" => [:HEGYResult], "ers" => [:ERSResult], "sadf" => [:BubbleResult],
+    "gsadf" => [:BubbleResult], "edf" => [:EDFTestResult],
+    "engle-granger" => [:EngleGrangerResult],
+    "phillips-ouliaris" => [:PhillipsOuliarisResult],
+    "hansen-instability" => [:HansenInstabilityResult],
+    "park-added" => [:ParkAddedResult], "llc" => [:LLCResult],
+    "ips" => [:IPSResult], "breitung" => [:BreitungPanelResult],
+    "fisher-johansen" => [:FisherJohansenResult],
+    "dh-causality" => [:DumitrescuHurlinResult], "white" => [:LMTestResult],
+    "glejser" => [:LMTestResult], "harvey" => [:LMTestResult],
+    "chow" => [:LMTestResult], "cusum" => [:LMTestResult],
+    "cusumsq" => [:LMTestResult], "recursive-residuals" => [:LMTestResult],
+    "influence" => [:InfluenceStats], "hansen-linearity" => [:HansenLinearityTest],
+    "star-linearity" => [:HansenLinearityTest], "hadri" => [:HadriResult],
+    "pedroni" => [:PedroniResult], "kao" => [:KaoResult],
+    "westerlund" => [:WesterlundResult], "weak-instrument" => [:MontielOleaPfluegerF],
+    "anderson-rubin" => [:AndersonRubinTest, :AndersonRubinCI],
+    "wild-cluster" => [:WildClusterBootstrap], "ardl-bounds" => [:ARDLBoundsTest],
+    "nardl-symmetry" => [:NARDLSymmetryTest], "pmg-hausman" => [:LMTestResult],
+    "lagselect" => [:ARIMAOrderSelection], "stability" => [:StabilityResult, :VARStationarityResult, :PVARStability],
+    "beta" => [:VECMRestrictionTest], "alpha" => [:VECMRestrictionTest],
+    "weak-exog" => [:VECMRestrictionTest], "known-beta" => [:VECMRestrictionTest],
+    "joint" => [:VECMRestrictionTest], "granger" => [:GrangerCausalityResult, :VECMGrangerResult],
+    "hansen-j" => [:PVARTestResult], "mmsc" => [:PVARTestResult],
+    "lr" => [:LRTestResult], "lm" => [:LMTestResult],
+    "andrews" => [:AndrewsResult], "bai-perron" => [:BaiPerronResult],
+    "panic" => [:PANICResult], "cips" => [:PesaranCIPSResult],
+    "moon-perron" => [:MoonPerronResult], "factor-break" => [:FactorBreakResult],
+    "fourier-adf" => [:FourierADFResult], "fourier-kpss" => [:FourierKPSSResult],
+    "dfgls" => [:DFGLSResult], "lm-unitroot" => [:LMUnitRootResult],
+    "adf-2break" => [:ADF2BreakResult], "gregory-hansen" => [:GregoryHansenResult],
+    "dispersion" => [:DispersionTest], "vif" => [:LMTestResult],
+    "hausman" => [:LMTestResult], "breusch-pagan" => [:LMTestResult],
+    "f-fe" => [:LMTestResult], "pesaran-cd" => [:LMTestResult],
+    "wooldridge-ar" => [:LMTestResult], "modified-wald" => [:LMTestResult],
+    "fisher" => [:FisherPanelResult, :FisherTestResult],
+    "bartlett-wn" => [:BartlettWhiteNoiseResult], "box-pierce" => [:BoxPierceResult],
+    "durbin-watson" => [:DurbinWatsonResult], "brant" => [:LMTestResult],
+    "hausman-iia" => [:LMTestResult],
+)
+
 function register_test_commands!()
-    specs = with_config_ergonomics(test_specs())
-    out = CommandSpec[]
-    for s in specs
+    specs = CommandSpec[]
+    for s in test_specs()
         kinds = if length(s.path) >= 2 && s.path[2] == "pvar"
             [:panel, :csv]
         elseif length(s.path) >= 2 && s.path[2] == "var"
@@ -1800,11 +1850,16 @@ function register_test_commands!()
         else
             [:timeseries, :csv]
         end
-        push!(out, _copy_spec(s; data_kinds=kinds))
+        rt = get(_TEST_RESULT_TYPES, s.path[end], Symbol[])
+        leaf = join(s.path, " ")
+        key = isempty(s.tables) ? "" : string(s.tables[1].name)
+        h = wrap_legacy(_with_result(s.handler, leaf; key=key))
+        push!(specs, _copy_spec(s; data_kinds=kinds, result_types=rt, handler=h))
     end
-    out = with_default_csv_kinds(out)
-    register!(out)
-    return build_node("test", out; description="Statistical tests (unit root, cointegration, diagnostics)")
+    specs = with_result_handles(with_config_ergonomics(specs))
+    specs = with_default_csv_kinds(specs)
+    register!(specs)
+    return build_node("test", specs; description="Statistical tests (unit root, cointegration, diagnostics)")
 end
 
 
@@ -1834,6 +1889,7 @@ function _test_adf(; data::String, column::Int=1, max_lags=nothing,
     interpret_test_result(result.pvalue,
         "Reject H0 (unit root) at 5% level -- series appears stationary",
         "Cannot reject H0 (unit root) at 5% level -- series appears non-stationary")
+    return result
 end
 
 function _test_kpss(; data::String, column::Int=1, trend::String="constant",

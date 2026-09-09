@@ -1693,6 +1693,46 @@ function _rerender_long_table(result; format::String="table", output::String="",
     return result
 end
 
+function _rerender_kv(result; format::String="table", output::String="",
+                      title::String="", key::String="")
+    pairs = Pair{String,Any}[]
+    for n in propertynames(result)
+        v = getproperty(result, n)
+        if v isa Number || v isa AbstractString || v isa Bool || v isa Nothing
+            push!(pairs, String(n) => v)
+        end
+    end
+    output_kv(pairs; format=format, output=output, title=title, key=key)
+    return result
+end
+
+"""Accept `result=` from wrap_legacy; re-render without calling `handler`."""
+function _with_result(handler, leaf::String; key::String="")
+    return function (; result=nothing, kwargs...)
+        data = get(kwargs, :data, "")
+        data_s = data isa AbstractString ? String(data) : ""
+        model = get(kwargs, :model, nothing)
+        model_obj = model isa AbstractString ? nothing : model
+        loaded = _loaded_result(result; data=data_s, model=model_obj, leaf=leaf)
+        if loaded !== nothing
+            fmt = string(get(kwargs, :format, "table"))
+            out = string(get(kwargs, :output, ""))
+            k = isempty(key) ? replace(leaf, r"[^A-Za-z0-9]+" => "_") : key
+            plot = get(kwargs, :plot, false) === true
+            plot_save = string(get(kwargs, :plot_save, ""))
+            if applicable(long_table, loaded)
+                _rerender_long_table(loaded; format=fmt, output=out, title=leaf, key=k,
+                                     plot=plot, plot_save=plot_save)
+            else
+                _rerender_kv(loaded; format=fmt, output=out, title=leaf, key=k)
+                _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+            end
+            return loaded
+        end
+        return handler(; kwargs...)
+    end
+end
+
 # ── Plot Helpers ──────────────────────────────────────────
 
 """

@@ -126,7 +126,7 @@ function data_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:data_filter,
                               description="Selected filter component by time index, one column per variable")],
             category="data",
-            handler=wrap_legacy(_data_filter),
+            handler=_data_filter,
         ),
         CommandSpec(
             path=["data", "validate"],
@@ -254,7 +254,13 @@ function register_data_commands!()
     specs = CommandSpec[]
     for s in data_specs()
         leaf = s.path[end]
-        if leaf in _DATA_CONTAINER_LEAVES
+        if leaf == "filter"
+            rt = [:HPFilterResult, :HamiltonFilterResult, :BeveridgeNelsonResult,
+                  :BaxterKingResult, :BoostedHPResult]
+            h = wrap_legacy(_with_result(s.handler, "data filter"; key="data_filter"))
+            push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv],
+                                    result_types=rt, handler=h))
+        elseif leaf in _DATA_CONTAINER_LEAVES
             push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv]))
         elseif leaf == "load"
             push!(specs, _copy_spec(s; data_kinds=[:csv]))
@@ -264,7 +270,7 @@ function register_data_commands!()
             push!(specs, s)
         end
     end
-    specs = with_default_csv_kinds(specs)
+    specs = with_result_handles(with_default_csv_kinds(specs))
     register!(specs)
     return build_node("data", specs; description="Data management: import/export handles, load example datasets, inspect, clean, transform")
 end
@@ -610,6 +616,7 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
 
     title = "Data Filter: $method ($component component)"
     output_result(result_df; format=Symbol(format), output=output, title=title, key="data_filter")
+    return result_df
 end
 
 function _data_validate(; data::String, model::String="", format::String="table", output::String="")
