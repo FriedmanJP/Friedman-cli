@@ -667,6 +667,17 @@ end
     @test isempty(val_spec.model_types)
     @test !any(o -> o.name == "model" && o.handle, val_spec.options)
 
+    # Registered leaf goes through to_leaf → spec.handler(ctx); bare kwargs handlers MethodError.
+    mktempdir() do dir
+        csv = joinpath(dir, "y.csv")
+        CSV.write(csv, DataFrame(y=Float64.(1:20)))
+        streams = _capture_all() do
+            dnode.subcmds["filter"].handler(; data=csv, method="hp", format="json", output="")
+        end
+        @test occursin("data_filter", streams.out) || occursin("\"y\"", streams.out)
+        @test !occursin("MethodError", streams.err)
+    end
+
     pnode = register_predict_commands!()
     pspec = _spec_for_path(["predict", "var"])
     @test :VARModel in pspec.model_types

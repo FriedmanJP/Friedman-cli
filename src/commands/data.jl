@@ -126,7 +126,7 @@ function data_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:data_filter,
                               description="Selected filter component by time index, one column per variable")],
             category="data",
-            handler=_data_filter,
+            handler=wrap_legacy(_data_filter),
         ),
         CommandSpec(
             path=["data", "validate"],
