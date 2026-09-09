@@ -89,6 +89,24 @@ const MODEL_OPTION = OptionSpec(
     handle=true,
 )
 
+const RESULT_OPTION = OptionSpec(
+    name="result", type=String, default="",
+    description="Load a result handle (skip computation)",
+    handle=true,
+)
+const SAVE_RESULT_OPTION = OptionSpec(
+    name="save-result", type=String, default="",
+    description="Save the result object to a handle (.jld2 native)",
+)
+function with_result_handles(specs::Vector{CommandSpec})
+    out = CommandSpec[]
+    for s in specs
+        isempty(s.result_types) ? push!(out, s) :
+            push!(out, _copy_spec(s; options=vcat(s.options, [RESULT_OPTION, SAVE_RESULT_OPTION])))
+    end
+    return out
+end
+
 # Config ergonomics (P2-8 / C030) — append to every leaf that has --config
 const CONFIG_ERGONOMICS_OPTIONS = [
     OptionSpec(name="config-json", type=String, default="",

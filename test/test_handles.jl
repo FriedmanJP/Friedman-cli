@@ -429,3 +429,149 @@ end
     @test haskey(val_sch["properties"]["data"], "x-handle")
     @test !haskey(val_sch["properties"]["model"], "x-handle")
 end
+
+@testset "save-result NamedTuple" begin
+    mktempdir() do dir
+        fake_model = estimate_var(randn(30, 2), 1; varnames=["y1","y2"])
+        fake_irf = fake_model  # mock may not have ImpulseResponse; use a native type
+        handler = wrap_legacy((; data="", model=nothing, result=nothing, format="table", output="") ->
+            (; model=fake_model, result=fake_model))
+        spec = CommandSpec(path=["irf", "var"], summary="x",
+            args=[ArgSpec(name="data", required=false, default="")],
+            options=[MODEL_OPTION, SAVE_MODEL_OPTION, RESULT_OPTION, SAVE_RESULT_OPTION,
+                     OptionSpec(name="format", default="table"), OptionSpec(name="output", default="")],
+            handler=handler,
+            data_kinds=[:timeseries, :csv],
+            model_types=[:VARModel],
+            result_types=[Symbol(nameof(typeof(fake_model)))])
+        leaf = to_leaf(spec)
+        mp = joinpath(dir, "var"); rp = joinpath(dir, "irf")
+        leaf.handler(; data="", save_model=mp, save_result=rp, format="json", output="")
+        @test isfile(mp * ".jld2")
+        @test isfile(rp * ".jld2")
+    end
+end
+
+@testset "result handle flags in wrap_legacy" begin
+    @test RESULT_OPTION.handle === true
+    @test SAVE_RESULT_OPTION.handle === false
+    s = CommandSpec(path=["irf", "var"], summary="x")
+    @test with_result_handles([s])[1] === s
+    tagged = with_result_handles([_copy_spec(s; result_types=[:ImpulseResponse])])
+    @test any(o -> o.name == "result" && o.handle, tagged[1].options)
+    @test any(o -> o.name == "save-result" && !o.handle, tagged[1].options)
+
+    mktempdir() do dir
+        fake_model = estimate_var(randn(30, 2), 1; varnames=["y1", "y2"])
+        hp = joinpath(dir, "obj.jld2")
+        save_model_dispatch(hp, fake_model)
+        csv = joinpath(dir, "x.csv")
+        CSV.write(csv, DataFrame(y1=randn(10), y2=randn(10)))
+
+        function _leaf(; handler, model_types=[:VARModel], result_types=[:VARModel])
+            spec = CommandSpec(path=["irf", "var"], summary="x",
+                args=[ArgSpec(name="data", required=false, default="")],
+                options=[MODEL_OPTION, SAVE_MODEL_OPTION, RESULT_OPTION, SAVE_RESULT_OPTION,
+                         OptionSpec(name="format", default="table"), OptionSpec(name="output", default="")],
+                handler=handler,
+                data_kinds=[:timeseries, :csv],
+                model_types=model_types,
+                result_types=result_types)
+            return to_leaf(spec)
+        end
+
+        # data/wrong-result: VARModel is not an ImpulseResponse
+        h_wrong = wrap_legacy((; data="", model=nothing, result=nothing, format="table", output="") -> result)
+        leaf_wrong = _leaf(; handler=h_wrong, result_types=[:ImpulseResponse])
+        err_wr = try
+            leaf_wrong.handler(; data="", result=joinpath(dir, "obj"), format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_wr isa CliError
+        @test err_wr.code == "data/wrong-result"
+        @test exit_class(err_wr) == 3
+        @test occursin("VARModel", err_wr.message)
+
+        # XOR: --result + --model
+        err_xor_m = try
+            leaf_wrong.handler(; data="", model=joinpath(dir, "obj"),
+                               result=joinpath(dir, "obj"), format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_xor_m isa CliError
+        @test err_xor_m.code == "usage/invalid"
+        @test exit_class(err_xor_m) == 2
+
+        # XOR: --result + nonempty data
+        err_xor_d = try
+            leaf_wrong.handler(; data=csv, result=joinpath(dir, "obj"),
+                               format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_xor_d isa CliError
+        @test err_xor_d.code == "usage/invalid"
+
+        # --result with empty data injects the loaded object
+        got = Ref{Any}(nothing)
+        h_inj = wrap_legacy((; data="", model=nothing, result=nothing, format="table", output="") ->
+            (got[] = result; result))
+        leaf_inj = _leaf(; handler=h_inj)
+        @test leaf_inj.handler(; data="", result=joinpath(dir, "obj"),
+                               format="json", output="") isa typeof(fake_model)
+        @test got[] isa typeof(fake_model)
+
+        # model/wrong-kind + suffix-less --model when model_types nonempty
+        h_m = wrap_legacy((; data="", model=nothing, result=nothing, format="table", output="") -> model)
+        leaf_m = _leaf(; handler=h_m, model_types=[:BVARPosterior], result_types=Symbol[])
+        err_mk = try
+            leaf_m.handler(; data="", model=joinpath(dir, "obj"), format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_mk isa CliError
+        @test err_mk.code == "model/wrong-kind"
+        @test exit_class(err_mk) == 5
+        @test occursin("VARModel", err_mk.message)
+
+        gotm = Ref{Any}(nothing)
+        h_stem = wrap_legacy((; data="", model=nothing, format="table", output="") ->
+            (gotm[] = model; model))
+        leaf_stem = _leaf(; handler=h_stem, model_types=[:VARModel], result_types=Symbol[])
+        @test leaf_stem.handler(; data="", model=joinpath(dir, "obj"),
+                                format="json", output="") isa typeof(fake_model)
+        @test gotm[] isa typeof(fake_model)
+
+        # Both flags + bare return → usage/invalid
+        h_bare = wrap_legacy((; data="", format="table", output="") -> fake_model)
+        leaf_bare = _leaf(; handler=h_bare)
+        err_both = try
+            leaf_bare.handler(; data="", save_model=joinpath(dir, "m"),
+                              save_result=joinpath(dir, "r"), format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_both isa CliError
+        @test err_both.code == "usage/invalid"
+
+        # Bare return + only --save-result
+        rp = joinpath(dir, "only_result")
+        leaf_bare.handler(; data="", save_result=rp, format="json", output="")
+        @test isfile(rp * ".jld2")
+        @test load_model_dispatch(rp * ".jld2") isa typeof(fake_model)
+
+        # Existing estimate --save-model (bare return, no --save-result) stays green
+        mp = joinpath(dir, "only_model")
+        leaf_bare.handler(; data="", save_model=mp, format="json", output="")
+        @test isfile(mp * ".jld2")
+        @test load_model_dispatch(mp * ".jld2") isa typeof(fake_model)
+
+        # NamedTuple missing field → model/no-result
+        h_half = wrap_legacy((; data="", format="table", output="") -> (; model=fake_model))
+        leaf_half = _leaf(; handler=h_half)
+        err_nr = try
+            leaf_half.handler(; data="", save_result=joinpath(dir, "missing"),
+                              format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_nr isa CliError
+        @test err_nr.code == "model/no-result"
+    end
+end
