@@ -62,6 +62,7 @@ include(joinpath(ROOT, "src", "commands", "spectral.jl"))
 include(joinpath(ROOT, "src", "commands", "schema.jl"))
 include(joinpath(ROOT, "src", "commands", "model.jl"))
 include(joinpath(ROOT, "src", "commands", "completions.jl"))
+include(joinpath(ROOT, "src", "commands", "show.jl"))
 include(joinpath(ROOT, "test", "support.jl"))
 
 # Deterministic fixtures

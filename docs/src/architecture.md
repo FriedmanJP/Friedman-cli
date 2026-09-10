@@ -19,8 +19,8 @@ bin/friedman ARGS
 
 CSV is the **import** format, not the working format. Commands take a **stem**;
 `.jld2` is native storage (MEMs `save_model` / `load_model`), not part of the
-argv contract. Wave 1 ships **data** and **model** handles; result handles
-(`--result` / `--save-result`) and `friedman show` are Wave 2.
+argv contract. Wave 2 ships **result** handles (`--result` / `--save-result`)
+and `friedman show STEM` (render any loadable handle).
 
 ```
 CSV | :example
@@ -41,7 +41,9 @@ STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
 estimate var STEM --save-model var         # stem → var.jld2
         │
         ▼
-irf var --model var.jld2                   # Wave 1 load needs suffix
+irf var --model var.jld2 --save-result irf
+friedman show irf                          # stem → irf.jld2 (no CSV fallback)
+friedman show var                          # fitted model table / fields
 
 CSV shortcut (unchanged, additive 0.x):
 estimate var macro.csv --lags 2
@@ -71,6 +73,12 @@ estimate var macro.csv --lags 2
 2. **`--model` / `model info` (Wave 1):** load only when the value already
    looks like a handle — `.jld2`, `.fmod`, or `model://`. Suffix-less
    `--model var` is **not** stem-expanded yet; pass `var.jld2`.
+3. **`friedman show STEM` (Wave 2):** `resolve_stem(; slot=:result)` —
+   `STEM.jld2` if that file exists, else the exact path. No CSV fallback
+   (show is for loadable handles, not import). Bundles emit a keys-only
+   table (`show_payload`); data containers emit descriptive stats;
+   models/results try `long_table`, then `DataFrame`, then field dump.
+   `--plot` / `--plot-save` call `_maybe_plot` when a recipe exists.
 
 If both `macro.jld2` and `macro.csv` exist, the handle wins on data slots.
 Explicit suffixes skip the search (`macro.csv` is CSV, `var.jld2` is a
@@ -245,4 +253,4 @@ removal at v1.0.0.
 
 ## Totals
 
-20 top-level commands, 455 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+21 top-level commands, 456 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).

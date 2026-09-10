@@ -92,6 +92,7 @@ include(joinpath(project_root, "src", "commands", "policy.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
+include(joinpath(project_root, "src", "commands", "show.jl"))
 
 include(joinpath(project_root, "test", "support.jl"))
 @testset "Command Handlers" begin
@@ -14130,6 +14131,7 @@ if !@isdefined(APP)
             "model"     => register_model_commands!(),
             "completions" => register_completions_commands!(),
             "schema"    => register_schema_command!(),
+            "show"      => register_show_commands!(),
         ), "test tree"); version=v"0.0.0-test")
 end
 

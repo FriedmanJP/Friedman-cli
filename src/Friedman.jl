@@ -74,6 +74,7 @@ include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
 include("commands/completions.jl") # completions bash|zsh|fish (C029)
 include("commands/serve.jl")       # serve --mcp (C057/#61, W7/#142)
+include("commands/show.jl")        # show HANDLE (typed-handles Wave 2)
 
 # REPL (interactive session)
 include("repl.jl")
@@ -113,6 +114,7 @@ function build_app()
         "model"     => register_model_commands!(),
         "completions" => register_completions_commands!(),
         "serve"     => register_serve_commands!(),
+        "show"      => register_show_commands!(),
     )
 
     root = NodeCommand("friedman", root_cmds,

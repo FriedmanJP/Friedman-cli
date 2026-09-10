@@ -730,3 +730,80 @@ end
     @test _result_varnames(lp, n) == ["var_1", "var_2"]
     @test !any(==("y1"), _result_varnames(lp, n))
 end
+
+@testset "friedman show renders any handle" begin
+    leaf = register_show_commands!()
+    @test leaf isa LeafCommand
+    @test leaf.name == "show"
+    @test any(a -> a.name == "path" && a.required, leaf.args)
+    @test any(o -> o.name == "format", leaf.options)
+    @test any(o -> o.name == "plot-save", leaf.options)
+    @test any(f -> f.name == "plot", leaf.flags)
+
+    mktempdir() do dir
+        csv = joinpath(dir, "macro.csv")
+        CSV.write(csv, DataFrame(y1=randn(12), y2=randn(12)))
+        ts = TimeSeriesData(df_to_matrix(CSV.read(csv, DataFrame));
+                            varnames=["y1", "y2"])
+        save_model_dispatch(joinpath(dir, "macro.jld2"), ts)
+
+        outfile = joinpath(dir, "show.json")
+        shown = Ref{Any}(nothing)
+        _capture() do
+            shown[] = _show_handle(; path=joinpath(dir, "macro"),
+                                   format="json", output=outfile)
+        end
+        @test shown[] isa TimeSeriesData
+        @test isfile(outfile)
+        rows = JSON3.read(read(outfile, String))
+        @test all(r -> string(r.variable) in ("y1", "y2"), rows)
+        @test all(r -> haskey(r, :mean) && haskey(r, :n), rows)
+
+        streams = _capture_all() do
+            leaf.handler(; path=joinpath(dir, "macro"), format="json", output="")
+        end
+        @test occursin("y1", streams.out)
+        @test occursin("variable", streams.out)
+
+        pd = xtset(CSV.read(_make_panel_csv(dir), DataFrame), :group, :time)
+        save_model_dispatch(joinpath(dir, "panel.jld2"), pd)
+        streams = _capture_all() do
+            shown[] = _show_handle(; path=joinpath(dir, "panel"), format="json")
+        end
+        @test shown[] isa PanelData
+        @test !occursin("Panel Structure", streams.out)
+        @test occursin("Panel Structure", streams.err)
+
+        m = estimate_var(randn(40, 2), 1; varnames=["y1", "y2"])
+        bundle = Dict{String,Any}("data" => ts, "model" => m)
+        save_model_dispatch(joinpath(dir, "bundle.fmod"), bundle)
+        streams = _capture_all() do
+            _show_handle(; path=joinpath(dir, "bundle.fmod"), format="json")
+        end
+        @test occursin("data", streams.out)
+        @test occursin("model", streams.out)
+        @test occursin("TimeSeriesData", streams.out)
+        @test occursin("VARModel", streams.out)
+        @test occursin("not unpacked", streams.err)
+
+        save_model_dispatch(joinpath(dir, "var.jld2"), m)
+        streams = _capture_all() do
+            shown[] = _show_handle(; path=joinpath(dir, "var"), format="json")
+        end
+        @test shown[] isa VARModel
+        @test occursin("term", streams.out) || occursin("estimate", streams.out)
+
+        err = try
+            _show_handle(; path="", data="")
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "usage/missing-arg"
+
+        streams = _capture_all() do
+            _dispatch_via_app(["show", joinpath(dir, "macro"), "--format", "json"])
+        end
+        doc = JSON3.read(streams.out)
+        @test haskey(doc.data, :show_payload)
+    end
+end

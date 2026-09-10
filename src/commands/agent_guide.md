@@ -237,9 +237,10 @@ plus per-field diffs (`unverifiable` when no seed was recorded — not a pass).
 
 ## Typed handles (data, model, result)
 
-Three object kinds, each with its own slot. **Wave 1 ships data + model**;
-result flags (`--result` / `--save-result`) and `friedman show` are Wave 2
-and must not be assumed present.
+Three object kinds, each with its own slot. **Wave 2 ships result handles and
+`friedman show`.** Data + model shipped in Wave 1; `--result` / `--save-result`
+skip compute and re-render a saved result; `friedman show STEM` renders any
+loadable handle (data, model, result, or a keys-only bundle listing).
 
 | Kind | Argv slot | Native persist | Wave |
 |------|-----------|----------------|------|
@@ -258,7 +259,10 @@ not stem-expanded. `:fred_md` example names are unchanged.
 ```bash
 friedman data import macro.csv --kind timeseries -o macro
 friedman estimate var macro --lags 2 --save-model var   # stem → var.jld2
-friedman irf var --model var.jld2 --horizons 12         # load needs suffix
+friedman irf var --model var.jld2 --horizons 12 --save-result irf
+friedman show macro          # TimeSeriesData descriptive stats
+friedman show var            # fitted model table
+friedman show irf            # re-render the saved ImpulseResponse
 friedman model info var.jld2
 # CSV shortcut still works:
 friedman estimate var macro.csv --lags 2

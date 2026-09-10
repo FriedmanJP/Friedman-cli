@@ -4,7 +4,7 @@
 # Usage (from repo root):
 #   julia --project test/tools/check_handle_kinds.jl
 #
-# Completions, serve, and schema (no CommandSpec) are exempt. A data slot with
+# Completions, serve, schema, and show (path slot, not data) are exempt. A data slot with
 # empty data_kinds is a declaration bug — Task 7's with_default_csv_kinds safety
 # net is what this gate holds.
 #
@@ -70,6 +70,7 @@ include(joinpath(ROOT, "src", "commands", "schema.jl"))
 include(joinpath(ROOT, "src", "commands", "model.jl"))
 include(joinpath(ROOT, "src", "commands", "completions.jl"))
 include(joinpath(ROOT, "src", "commands", "serve.jl"))
+include(joinpath(ROOT, "src", "commands", "show.jl"))
 
 # Populate REGISTRY (register! runs inside each register function)
 register_estimate_commands!()
@@ -92,9 +93,10 @@ register_spectral_commands!()
 register_model_commands!()
 register_completions_commands!()
 register_serve_commands!()
+register_show_commands!()
 
 violations = String[]
-const EXEMPT_NO_DATA = Set(["serve", "schema"])
+const EXEMPT_NO_DATA = Set(["serve", "schema", "show"])
 
 for spec in REGISTRY
     path = join(spec.path, " ")

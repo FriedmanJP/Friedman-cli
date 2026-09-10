@@ -33,6 +33,11 @@ No implicit in-place overwrite. `data fix macro -o macro` is allowed (explicit
 same stem); stderr notes the replace. See [Architecture](../architecture.md)
 for the full pipeline.
 
+`friedman show STEM` renders any loadable handle (data, model, or result).
+Data containers emit the same descriptive-stats table as `data describe`;
+bundles list keys only and are not unpacked. Stem resolution uses the result
+slot (`.jld2`, no CSV fallback).
+
 ## data list
 
 List available example datasets.
