@@ -44,6 +44,8 @@ estimate var STEM --save-model var         # stem → var.jld2
 irf var --model var.jld2 --save-result irf
 friedman show irf                          # stem → irf.jld2 (no CSV fallback)
 friedman show var                          # fitted model table / fields
+forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
+# evaluate --result is a comma-separated string (not RESULT_OPTION)
 
 CSV shortcut (unchanged, additive 0.x):
 estimate var macro.csv --lags 2

@@ -267,6 +267,7 @@ Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: sma
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast columns: small (restricted), big (unrestricted) |
+| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--horizon` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `greater` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -288,6 +289,7 @@ Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 fo
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=2) |
+| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--method` | — | `String` | `equal` | `equal`, `bates-granger`, `granger-ramanathan` | Combination method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -312,6 +314,7 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
+| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) \| ad (absolute) |
 | `--horizon` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
@@ -338,6 +341,7 @@ Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
+| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--lags` | — | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -359,6 +363,7 @@ Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil deco
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=1) |
+| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--seasonal-period` | — | `Int64` | `1` | — | Seasonal lag for MASE naive-forecast scaling |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -384,6 +389,7 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | One forecast column name (required) |
+| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--lags` | — | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |

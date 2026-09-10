@@ -263,6 +263,7 @@ friedman irf var --model var.jld2 --horizons 12 --save-result irf
 friedman show macro          # TimeSeriesData descriptive stats
 friedman show var            # fitted model table
 friedman show irf            # re-render the saved ImpulseResponse
+friedman forecast evaluate metrics macro --actual gdp --result fcst_var,fcst_bvar
 friedman model info var.jld2
 # CSV shortcut still works:
 friedman estimate var macro.csv --lags 2

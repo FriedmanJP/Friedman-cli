@@ -590,7 +590,11 @@ end
 
     fc_node = register_forecast_commands!()
     @test any(o -> o.name == "result", fc_node.subcmds["var"].options)
-    @test !any(o -> o.name == "result", fc_node.subcmds["evaluate"].subcmds["metrics"].options)
+    eval_metrics = fc_node.subcmds["evaluate"].subcmds["metrics"]
+    @test any(o -> o.name == "result", eval_metrics.options)
+    eval_spec = _spec_for_path(["forecast", "evaluate", "metrics"])
+    @test any(o -> o.name == "result" && !o.handle, eval_spec.options)
+    @test isempty(eval_spec.result_types)
 
     data_node = register_data_commands!()
     val_spec = _spec_for_path(["data", "validate"])
@@ -836,5 +840,119 @@ end
         end
         doc = JSON3.read(streams.out)
         @test haskey(doc.data, :show_payload)
+    end
+end
+
+@testset "forecast evaluate --result handles" begin
+    fc_node = register_forecast_commands!()
+    eval_node = fc_node.subcmds["evaluate"]
+    for leaf in ("metrics", "dm", "clark-west", "mincer-zarnowitz", "encompassing", "combine")
+        @test any(o -> o.name == "result", eval_node.subcmds[leaf].options)
+        @test !any(o -> o.name == "model", eval_node.subcmds[leaf].options)
+        @test !any(o -> o.name == "save-result", eval_node.subcmds[leaf].options)
+        spec = _spec_for_path(["forecast", "evaluate", leaf])
+        @test spec !== nothing
+        @test isempty(spec.result_types)
+        @test any(o -> o.name == "result" && !o.handle, spec.options)
+    end
+    metrics_leaf = eval_node.subcmds["metrics"]
+    sch = _input_schema(metrics_leaf, ["forecast", "evaluate", "metrics"])
+    @test haskey(sch["properties"], "result")
+    @test !haskey(sch["properties"]["result"], "x-handle")
+
+    @test _forecast_points((forecast = [1.0, 2.0, 3.0],)) == [1.0, 2.0, 3.0]
+    err_wr = try
+        _forecast_points((not_a_forecast = 1,))
+        nothing
+    catch e; e; end
+    @test err_wr isa CliError
+    @test err_wr.code == "data/wrong-result"
+
+    mktempdir() do dir
+        n = 20
+        y = 5.0 .+ randn(n)
+        f1 = y .+ 0.1 .* randn(n)
+        f2 = y .+ 0.4 .* randn(n)
+        csv = joinpath(dir, "actual.csv")
+        CSV.write(csv, DataFrame(y=y))
+
+        p1 = joinpath(dir, "fcst_var.fmod")
+        p2 = joinpath(dir, "fcst_bvar.fmod")
+        save_model_dispatch(p1, (forecast = f1,))
+        save_model_dispatch(p2, (forecast = f2,))
+
+        y2, names, cols = _fceval_load(csv, "y", ""; leaf="metrics", result="$(p1),$(p2)")
+        @test names == ["fcst_var", "fcst_bvar"]
+        @test length(cols) == 2
+        @test cols[1] ≈ f1
+        @test cols[2] ≈ f2
+        @test length(y2) == n
+
+        a1 = ARIMAForecast(f1, f1, f1, abs.(f1) .* 0.1, n, 0.95)
+        a2 = ARIMAForecast(f2, f2, f2, abs.(f2) .* 0.1, n, 0.95)
+        save_model_dispatch(joinpath(dir, "stem_a.jld2"), a1)
+        save_model_dispatch(joinpath(dir, "stem_b.jld2"), a2)
+        _, nstems, c2 = _fceval_load(csv, "y", ""; leaf="metrics",
+            result="$(joinpath(dir, "stem_a")),$(joinpath(dir, "stem_b"))")
+        @test nstems == ["stem_a", "stem_b"]
+        @test c2[1] ≈ f1
+
+        short = joinpath(dir, "short.fmod")
+        save_model_dispatch(short, (forecast = f1[1:5],))
+        err_sh = try
+            _fceval_load(csv, "y", ""; leaf="metrics", result=short)
+            nothing
+        catch e; e; end
+        @test err_sh isa CliError
+        @test err_sh.code == "data/shape"
+
+        csv2 = joinpath(dir, "both.csv")
+        CSV.write(csv2, DataFrame(y=y, f1=f1, f2=f2))
+        y3, n3, c3 = _fceval_load(csv2, "y", "f1,f2"; leaf="metrics")
+        @test n3 == ["f1", "f2"]
+        @test length(c3) == 2
+        @test y3 ≈ y
+
+        err_both = try
+            _fceval_load(csv2, "y", "f1,f2"; leaf="metrics", result=p1)
+            nothing
+        catch e; e; end
+        @test err_both isa CliError
+        @test err_both.code == "usage/invalid"
+
+        streams = _capture_all() do
+            metrics_leaf.handler(; data=csv, actual="y", result="$(p1),$(p2)",
+                                 format="json", output="")
+        end
+        @test occursin("RMSE", streams.out) || occursin("fcst_var", streams.out)
+        @test !occursin("MethodError", streams.err)
+
+        dm = eval_node.subcmds["dm"]
+        err_ar = try
+            dm.handler(; data=csv, actual="y", result=p1, format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_ar isa CliError
+        @test err_ar.code == "usage/arity"
+
+        mz = eval_node.subcmds["mincer-zarnowitz"]
+        streams = _capture_all() do
+            mz.handler(; data=csv, actual="y", result=p1, format="json", output="")
+        end
+        @test occursin("Mincer-Zarnowitz", streams.out)
+
+        streams = _capture_all() do
+            metrics_leaf.handler(; data=csv2, actual="y", forecasts="f1,f2",
+                                 format="json", output="")
+        end
+        @test occursin("RMSE", streams.out)
+
+        err_m = try
+            _dispatch_via_app(["forecast", "evaluate", "metrics", csv,
+                               "--actual", "y", "--result", p1, "--model", "foo"])
+            nothing
+        catch e; e; end
+        @test err_m !== nothing
+        @test occursin("unknown option", sprint(showerror, err_m))
     end
 end
