@@ -1849,12 +1849,14 @@ end
 
 function _rerender_irf_result(result; format::String="table", output::String="",
                               title::String="", key::String="",
-                              plot::Bool=false, plot_save::String="", shock::Int=1)
+                              plot::Bool=false, plot_save::String="",
+                              shock::Union{Nothing,Int}=nothing)
     tn = nameof(typeof(result))
-    tn === :AriasSVARResult && return _rerender_arias_irf(result; format, output, shock, plot, plot_save)
-    tn === :UhligSVARResult && return _rerender_uhlig_irf(result; format, output, shock, plot, plot_save)
-    tn === :SignIdentifiedSet && return _rerender_identified_set(result; format, output, shock, plot, plot_save)
-    tn === :RobustBayesResult && return _rerender_robust_bayes(result; format, output, shock, plot, plot_save)
+    id_shock = something(shock, 1)
+    tn === :AriasSVARResult && return _rerender_arias_irf(result; format, output, shock=id_shock, plot, plot_save)
+    tn === :UhligSVARResult && return _rerender_uhlig_irf(result; format, output, shock=id_shock, plot, plot_save)
+    tn === :SignIdentifiedSet && return _rerender_identified_set(result; format, output, shock=id_shock, plot, plot_save)
+    tn === :RobustBayesResult && return _rerender_robust_bayes(result; format, output, shock=id_shock, plot, plot_save)
     df = try
         long_table(result)
     catch e
@@ -1864,7 +1866,7 @@ function _rerender_irf_result(result; format::String="table", output::String="",
             hint="this result type cannot be re-rendered as a table; drop --result and recompute"))
         rethrow()
     end
-    if hasproperty(result, :shocks) && "shock" in names(df)
+    if shock isa Int && hasproperty(result, :shocks) && "shock" in names(df)
         shocks = getproperty(result, :shocks)
         if shocks isa AbstractVector
             1 <= shock <= length(shocks) || throw(CliError("usage/invalid",

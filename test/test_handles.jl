@@ -1014,6 +1014,7 @@ end
     vals[:, :, 2] .= 2.0
     irf_obj = ImpulseResponse(vals, nothing, nothing, 4, ["y1", "y2"],
                               ["shock1", "shock2"], :none)
+    shocks_of(out) = Set(String(string(r.shock)) for r in JSON3.read(out))
     err_shock = try
         _irf_var(; data="", result=irf_obj, shock=2, format="json", output="")
         nothing
@@ -1026,6 +1027,48 @@ end
     @test occursin("shock2", streams.out)
     @test !occursin("shock1", streams.out)
     @test !occursin("does not apply with --result", streams.err)
+
+    # Unfiltered callers (irf favar / sdfm) must keep every shock. Filter only
+    # when the caller passes an Int — default nothing must not subset to shock 1.
+    streams = _capture_all() do
+        _rerender_irf_result(irf_obj; format="json", output="",
+                             title="Impulse Responses", key="irf")
+    end
+    @test shocks_of(streams.out) == Set(["shock1", "shock2"])
+    @test length(JSON3.read(streams.out)) == 16  # 4 horizons × 2 vars × 2 shocks
+
+    streams = _capture_all() do
+        _rerender_irf_result(irf_obj; format="json", output="",
+                             title="Impulse Responses", key="irf", shock=1)
+    end
+    @test shocks_of(streams.out) == Set(["shock1"])
+    @test length(JSON3.read(streams.out)) == 8
+    @test !occursin("shock2", streams.out)
+
+    for handler in (_irf_favar, _irf_sdfm)
+        streams = _capture_all() do
+            handler(; data="", result=irf_obj, format="json", output="")
+        end
+        @test shocks_of(streams.out) == Set(["shock1", "shock2"])
+        @test length(JSON3.read(streams.out)) == 16
+    end
+
+    mktempdir() do dir
+        hp = joinpath(dir, "irf.jld2")
+        save_model_dispatch(hp, irf_obj)
+        irf_node = register_irf_commands!()
+        stem = joinpath(dir, "irf")
+        for name in ("favar", "sdfm")
+            leaf = irf_node.subcmds[name]
+            streams = _capture_all() do
+                leaf.handler(; data="", result=stem, format="json", output="")
+            end
+            @test !occursin("wrong-result", streams.out)
+            @test !occursin("MethodError", streams.err)
+            @test shocks_of(streams.out) == Set(["shock1", "shock2"])
+            @test length(JSON3.read(streams.out)) == 16
+        end
+    end
 end
 
 @testset "test result_types catalog matches returns" begin
