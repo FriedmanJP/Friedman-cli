@@ -11,8 +11,9 @@ it before (additive 0.x).
 
 - **Load (data slots):** `macro.jld2` if it exists (preferred), else
   `macro.csv`, else the exact path. Explicit suffixes skip the search
-  (`macro.csv` is always CSV). Model-handle load (`--model`, `model info`) is
-  separate — Wave 1 still requires `var.jld2` (or `.fmod` / `model://`).
+  (`macro.csv` is always CSV). `--model` on typed leaves (nonempty
+  `model_types`) stem-resolves like `--result` (`var` → `var.jld2`, no CSV
+  fallback). `model info` still wants `var.jld2` (or `.fmod` / `model://`).
 - **Save:** a suffix-less `-o` / `--save-model` becomes `.jld2`.
   `data import … -o out.jld2` (or a stem) **is** the CSV → typed conversion.
   An **edit** of a CSV with `-o out.jld2` is `usage/invalid` (import first).

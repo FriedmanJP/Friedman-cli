@@ -710,7 +710,7 @@ const _FORECAST_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Sym
     ["forecast", "var"]         => ([:VARModel], [:VARForecast]),
     ["forecast", "bvar"]        => ([:BVARPosterior], [:BVARForecast]),
     ["forecast", "lp"]          => ([:LPModel], [:LPForecast]),
-    ["forecast", "arima"]       => ([:ARIMAModel], [:ARIMAForecast]),
+    ["forecast", "arima"]       => ([:ARIMAModel, :ARMAModel, :ARModel, :MAModel], [:ARIMAForecast]),
     ["forecast", "arfima"]      => ([:ARFIMAModel], [:ARIMAForecast]),
     ["forecast", "sarima"]      => ([:SARIMAModel], [:ARIMAForecast]),
     ["forecast", "setar"]       => ([:ThresholdModel], [:ThresholdForecast]),
@@ -1307,15 +1307,76 @@ end
 # Clark-West needs f_adj = f_small - f_big (the forecast difference; the library
 # squares it internally).
 
-function _forecast_points(obj)::Vector{Float64}
-    hasproperty(obj, :forecast) && return vec(Float64.(obj.forecast))
-    try
-        return vec(Float64.(point_forecast(obj)))
-    catch
-        throw(CliError("data/wrong-result",
-            "$(typeof(obj)) is not a forecast result";
-            hint="pass VARForecast/BVARForecast/ARIMAForecast/… from forecast * --save-result"))
+function _forecast_wrong_result(obj)
+    throw(CliError("data/wrong-result",
+        "$(typeof(obj)) is not a forecast result";
+        hint="pass VARForecast/BVARForecast/ARIMAForecast/… from forecast * --save-result"))
+end
+
+function _forecast_varnames(obj)::Vector{String}
+    for f in (:varnames, :variables, :names)
+        hasproperty(obj, f) || continue
+        vn = getproperty(obj, f)
+        vn isa AbstractVector || continue
+        return String[string(x) for x in vn]
     end
+    return String[]
+end
+
+"""H×n point forecasts → one series. Match `--actual` against varnames, else column 1."""
+function _forecast_series(raw, obj, actual::String)::Vector{Float64}
+    A = try
+        Float64.(raw)
+    catch
+        _forecast_wrong_result(obj)
+    end
+    if A isa Number
+        return Float64[A]
+    elseif A isa AbstractVector || (A isa AbstractMatrix && size(A, 2) == 1)
+        return vec(Float64.(A))
+    elseif A isa AbstractMatrix
+        j = 1
+        names = _forecast_varnames(obj)
+        if !isempty(actual) && !isempty(names)
+            idx = findfirst(==(actual), names)
+            idx !== nothing && (j = Int(idx))
+        end
+        (1 <= j <= size(A, 2)) || _forecast_wrong_result(obj)
+        return Float64.(A[:, j])
+    end
+    _forecast_wrong_result(obj)
+end
+
+function _forecast_raw(obj)
+    if hasproperty(obj, :forecast)
+        try
+            return obj.forecast
+        catch
+            _forecast_wrong_result(obj)
+        end
+    elseif hasproperty(obj, :levels)
+        return obj.levels
+    elseif hasproperty(obj, :differences)
+        return obj.differences
+    elseif hasproperty(obj, :observables)
+        return obj.observables
+    else
+        try
+            return point_forecast(obj)
+        catch
+            _forecast_wrong_result(obj)
+        end
+    end
+end
+
+function _forecast_points(obj; actual::String="")::Vector{Float64}
+    raw = try
+        _forecast_raw(obj)
+    catch e
+        e isa CliError && rethrow()
+        _forecast_wrong_result(obj)
+    end
+    return _forecast_series(raw, obj, actual)
 end
 
 function _fceval_result_name(stem::String)::String
@@ -1367,7 +1428,7 @@ function _fceval_load(data::String, actual::String, forecasts::String; leaf::Str
             if !startswith(resolved, ":") && !startswith(resolved, "model://")
                 _validate_input_path(resolved)
             end
-            pts = _forecast_points(load_model_dispatch(resolved))
+            pts = _forecast_points(load_model_dispatch(resolved); actual)
             nm = _fceval_result_name(stem)
             length(pts) == length(y) || throw(CliError("data/shape",
                 "forecast evaluate $leaf: result '$nm' has $(length(pts)) points, actual has $(length(y))";

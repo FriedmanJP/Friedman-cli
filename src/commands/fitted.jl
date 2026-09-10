@@ -2249,7 +2249,8 @@ function _overlay_estimator_data_kinds(specs::Vector{CommandSpec})
 end
 
 const _FITTED_MODEL_TYPES = Dict{String,Vector{Symbol}}(
-    "var" => [:VARModel], "bvar" => [:BVARPosterior], "arima" => [:ARIMAModel],
+    "var" => [:VARModel], "bvar" => [:BVARPosterior],
+    "arima" => [:ARIMAModel, :ARMAModel, :ARModel, :MAModel],
     "vecm" => [:VECMModel], "static" => [:FactorModel],
     "dynamic" => [:DynamicFactorModel], "gdfm" => [:GeneralizedDynamicFactorModel],
     "arch" => [:ARCHModel], "garch" => [:GARCHModel], "egarch" => [:EGARCHModel],

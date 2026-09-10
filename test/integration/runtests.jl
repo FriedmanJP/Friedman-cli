@@ -3910,8 +3910,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                        "--draws", "50", "--save-model", bjld])
         assert_envelope_ok(rb; label="w3 seeded bvar save")
         @test isfile(bjld)
-        ri = run_json(["irf", "bvar", "--model", bjld, "--horizons", "4"])
-        assert_envelope_ok(ri; label="w3 irf bvar --model")
+        # Wave 2: the saved object is VARModel, so the typed --model slot is irf var.
+        ri = run_json(["irf", "var", "--model", bjld, "--horizons", "4"])
+        assert_envelope_ok(ri; label="w3 irf var --model posterior-mean")
         rp = run_json(["model", "reproduce", bjld])
         assert_envelope_ok(rp; label="w3 reproduce bvar unverifiable")
         summ = rp.doc.data.model_reproduce_summary
@@ -8450,6 +8451,73 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test bad.code == 3
             @test bad.doc !== nothing
             @test String(bad.doc["error"]["code"]) == "data/wrong-kind"
+        end
+    end
+
+    @testset "typed result handles wave 2" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "macro.csv")
+            Random.seed!(1)
+            CSV.write(csv, DataFrame(y1=randn(40), y2=randn(40), y3=randn(40)))
+            run_json(["data", "import", csv, "--kind", "timeseries", "-o", joinpath(dir, "macro")])
+            r1 = run_json(["estimate", "var", joinpath(dir, "macro"), "--lags", "1",
+                           "--save-model", joinpath(dir, "var")])
+            @test r1.code == 0
+            r2 = run_json(["irf", "var", "--model", joinpath(dir, "var"),
+                           "--horizons", "4", "--save-result", joinpath(dir, "irf")])
+            @test r2.code == 0
+            rm(joinpath(dir, "macro.jld2"); force=true)  # --result must not re-estimate from data
+            r3 = run_json(["irf", "var", "--result", joinpath(dir, "irf")])
+            @test r3.code == 0
+            r4 = run_json(["show", joinpath(dir, "irf")])
+            @test r4.code == 0
+
+            # Distinctive columns (horizon/variable), never first(values(...)) / key substring
+            irf_table(doc) = begin
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :columns)) || continue
+                    cols = table_cols(v)
+                    ("horizon" in cols && "variable" in cols) && return v
+                end
+                nothing
+            end
+            t2 = irf_table(r2.doc)
+            t3 = irf_table(r3.doc)
+            t4 = irf_table(r4.doc)
+            @test t2 !== nothing
+            @test t3 !== nothing
+            @test t4 !== nothing
+            @test "horizon" in table_cols(t2) && "variable" in table_cols(t2)
+            @test "horizon" in table_cols(t3) && "variable" in table_cols(t3)
+            @test "horizon" in table_cols(t4) && "variable" in table_cols(t4)
+            @test !isempty(table_rows(t2)) && !isempty(table_rows(t3)) && !isempty(table_rows(t4))
+            # Compute filters long_table to --shock; --result / show emit the full table.
+            @test length(table_rows(t3)) >= length(table_rows(t2))
+            @test length(table_rows(t4)) >= length(table_rows(t2))
+
+            # VARModel is not an ImpulseResponse
+            wr = run_json(["irf", "var", "--result", joinpath(dir, "var")])
+            @test wr.code == 3
+            @test wr.doc !== nothing
+            @test String(wr.doc["error"]["code"]) == "data/wrong-result"
+
+            rfc = run_json(["forecast", "var", "--model", joinpath(dir, "var"),
+                            "--horizons", "8", "--save-result", joinpath(dir, "fcst")])
+            @test rfc.code == 0
+            actual = joinpath(dir, "actual.csv")
+            CSV.write(actual, DataFrame(y1=randn(8)))
+            reval = run_json(["forecast", "evaluate", "metrics", actual,
+                              "--actual", "y1", "--result", joinpath(dir, "fcst")])
+            @test reval.code == 0
+            acc = nothing
+            for (_, v) in pairs(reval.doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                cols = table_cols(v)
+                ("model" in cols && "RMSE" in cols) && (acc = v; break)
+            end
+            @test acc !== nothing
+            @test !isempty(table_rows(acc))
         end
     end
 

@@ -68,8 +68,10 @@ julia --project bin/friedman estimate var macro --lags=2 --save-model var
 # CSV shortcut (unchanged)
 julia --project bin/friedman estimate var data.csv --lags=2
 
-# Compute impulse responses
+# Compute impulse responses (or from a saved model stem)
 julia --project bin/friedman irf var data.csv --shock=1 --horizons=20
+julia --project bin/friedman irf var --model var --horizons=20 --save-result irf
+julia --project bin/friedman show irf
 
 # Forecast 12 steps ahead
 julia --project bin/friedman forecast var data.csv --horizons=12

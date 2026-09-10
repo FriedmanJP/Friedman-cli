@@ -685,6 +685,11 @@ end
     pnode = register_predict_commands!()
     pspec = _spec_for_path(["predict", "var"])
     @test :VARModel in pspec.model_types
+    aspec = _spec_for_path(["predict", "arima"])
+    @test :ARIMAModel in aspec.model_types
+    @test :ARMAModel in aspec.model_types
+    @test :ARModel in aspec.model_types
+    @test :MAModel in aspec.model_types
 end
 
 @testset "irf/filter --result re-render tables" begin
@@ -954,5 +959,43 @@ end
         catch e; e; end
         @test err_m !== nothing
         @test occursin("unknown option", sprint(showerror, err_m))
+    end
+end
+
+@testset "_forecast_points matrix and result kinds" begin
+    H = 8
+    col1 = collect(1.0:H)
+    col2 = collect(100.0:100.0 + H - 1)
+    M = hcat(col1, col2)  # H×2 — must not vec() to length 2H
+    @test _forecast_points((forecast = M,)) == col1
+    @test _forecast_points((forecast = M, varnames=["y1", "y2"]); actual="y1") == col1
+    @test _forecast_points((forecast = M, varnames=["y1", "y2"]); actual="y2") == col2
+    @test _forecast_points((forecast = M, varnames=["y1", "y2"]); actual="nope") == col1
+
+    err_nn = try
+        _forecast_points((forecast = "not-numeric",))
+        nothing
+    catch e; e; end
+    @test err_nn isa CliError
+    @test err_nn.code == "data/wrong-result"
+
+    levels = hcat(col1, col2)
+    vf = VECMForecast(levels, ones(H, 2), nothing, nothing, H, :none)
+    @test _forecast_points(vf) == col1
+
+    fac = ones(H, 1)
+    ff = FactorForecast(fac, levels, nothing, nothing, nothing, H, 0.95)
+    @test _forecast_points(ff) == col1
+
+    mktempdir() do dir
+        csv = joinpath(dir, "actual.csv")
+        CSV.write(csv, DataFrame(y1=col1, y2=col2))
+        p = joinpath(dir, "fcst.fmod")
+        save_model_dispatch(p, (forecast = M, varnames=["y1", "y2"]))
+        _, _, cols = _fceval_load(csv, "y1", ""; leaf="metrics", result=p)
+        @test length(cols[1]) == H
+        @test cols[1] ≈ col1
+        _, _, cols2 = _fceval_load(csv, "y2", ""; leaf="metrics", result=p)
+        @test cols2[1] ≈ col2
     end
 end

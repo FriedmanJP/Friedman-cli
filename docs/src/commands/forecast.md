@@ -416,10 +416,13 @@ forecast encompassing, accuracy metrics, combination).
 - `--actual <col>` — the realized-values column name (required).
 - `--forecasts <col1,col2,...>` — forecast column names in `data` (CSV path).
 - `--result <stem1,stem2,...>` — comma-separated forecast-result handle stems
-  (`VARForecast` / `BVARForecast` / `ARIMAForecast` / … from `forecast * --save-result`).
+  (`VARForecast` / `BVARForecast` / `ARIMAForecast` / `VECMForecast` /
+  `FactorForecast` / … from `forecast * --save-result`).
   Point forecasts become the columns `--forecasts` would name; model names default to
-  the stem basenames. Do not combine with `--forecasts`. This is a **string** option
-  (`handle=false`) so a comma list is not loaded as one path.
+  the stem basenames. An `H×n` forecast matrix is **not** flattened: the column
+  matching `--actual` (via `varnames`) is used, else column 1. Do not combine
+  with `--forecasts`. This is a **string** option (`handle=false`) so a comma
+  list is not loaded as one path.
 
 The handler forms whatever the underlying statistic needs from those series:
 forecast **errors** `e = actual − forecast` (Diebold–Mariano), the forecast

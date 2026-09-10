@@ -614,7 +614,8 @@ friedman data describe :fred_md
 # Import CSV to a typed handle (stem; .jld2 is storage, not argv)
 friedman data import data.csv --kind timeseries --frequency quarterly -o macro
 friedman estimate var macro --lags 2 --save-model var   # stem → var.jld2
-friedman irf var --model var.jld2 --horizons 12         # load needs .jld2
+friedman irf var --model var --horizons 12 --save-result irf
+friedman show irf                                # re-render the saved ImpulseResponse
 friedman data export macro -o macro.csv          # inverse of import
 
 # Describe data (summary statistics; CSV, :example, or typed handle stem)
@@ -830,15 +831,19 @@ Save a fitted model and reuse it later without re-estimation:
 
 ```bash
 friedman estimate var macro --lags 2 --save-model var   # stem → var.jld2
-friedman irf var --model var.jld2 --horizons 12         # load needs suffix (Wave 1)
+friedman irf var --model var --horizons 12 --save-result irf
+friedman irf var --result irf                           # skip compute, re-render
+friedman show irf
 friedman model info var.jld2                            # inspect type / dims / versions
 ```
 
-`--save-model` and data positionals accept suffix-less stems (append `.jld2`).
-Wave 1 `--model` / `model info` load only when the path already looks like a
-handle (`.jld2` / `.fmod` / `model://`) — pass `var.jld2`, not bare `var`. A
-data handle whose type is not in the leaf's `data_kinds` is `data/wrong-kind`
-(exit 3) — e.g. a panel handle on `estimate var`.
+`--save-model`, `--save-result`, data positionals, `--model` (typed leaves),
+`--result`, and `friedman show` accept suffix-less stems (append `.jld2`).
+`model info` still wants an explicit handle path (`.jld2` / `.fmod` /
+`model://`). A data handle whose type is not in the leaf's `data_kinds` is
+`data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate var`. A
+`--result` handle of the wrong result type is `data/wrong-result` (exit 3);
+a `--model` handle of the wrong model type is `model/wrong-kind` (exit 5).
 
 Two on-disk formats, chosen by suffix + model type:
 

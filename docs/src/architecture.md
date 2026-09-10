@@ -41,7 +41,7 @@ STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
 estimate var STEM --save-model var         # stem → var.jld2
         │
         ▼
-irf var --model var.jld2 --save-result irf
+irf var --model var --save-result irf      # --model stem → var.jld2
 friedman show irf                          # stem → irf.jld2 (no CSV fallback)
 friedman show var                          # fitted model table / fields
 forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
@@ -67,15 +67,17 @@ estimate var macro.csv --lags 2
   `data import` first). This edit refusal does **not** apply to `data import`
   itself.
 
-**Load** (data positional / `data export`; `--model` / `model info` separately):
+**Load** (data positional / `data export`; `--model` / `--result` / `show`):
 
 1. **Data slots:** resolve stem — `path.jld2` if that file exists (preferred),
    else `path.csv`, else exact `path` (`.fmod`, `.toml` DSGE specs,
    extensionless files). Else `data/file-not-found` (exit 3).
-2. **`--model` / `model info` (Wave 1):** load only when the value already
-   looks like a handle — `.jld2`, `.fmod`, or `model://`. Suffix-less
-   `--model var` is **not** stem-expanded yet; pass `var.jld2`.
-3. **`friedman show STEM` (Wave 2):** `resolve_stem(; slot=:result)` —
+2. **`--model` (Wave 2):** when the leaf's `model_types` is nonempty,
+   `resolve_stem(; slot=:result)` — `STEM.jld2` if that file exists (no CSV
+   fallback), then type-check. Empty `model_types` (DSGE builtins,
+   `data validate --model`) still requires an explicit suffix / URI.
+   `model info` is header-only and still wants `.jld2` / `.fmod` / `model://`.
+3. **`--result` / `friedman show STEM` (Wave 2):** `resolve_stem(; slot=:result)` —
    `STEM.jld2` if that file exists, else the exact path. No CSV fallback
    (show is for loadable handles, not import). Bundles emit a keys-only
    table (`show_payload`); `:timeseries`/`:panel`/`:cross_section` emit
@@ -92,7 +94,10 @@ handle). `model://name` is the serve-session URI and is not stem-expanded.
 `wrap_legacy` type-checks a loaded data handle against the leaf's
 registry-declared `data_kinds` **before** the handler runs. A mismatch is
 `data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate var`. CSV
-remains legal on every leaf that lists `:csv`.
+remains legal on every leaf that lists `:csv`. `--result` of a type not in
+`result_types` is `data/wrong-result` (exit 3); `--model` of a type not in
+`model_types` is `model/wrong-kind` (exit 5). `--result` cannot be combined
+with `--model` or a data path (`usage/invalid`).
 
 Central resolver: `src/handles.jl`. Native persist: `src/model_handle.jl`.
 
@@ -202,6 +207,8 @@ src/
     did.jl                # 7 DID subcommands (3 estimation + 4 test)
     multipliers.jl        # multipliers nardl — new top-level (C062b, action-first)
     policy.jl             # policy counterfactuals — new top-level (W4/#126, MEMs 0.8.0 CF module)
+    serve.jl              # serve --mcp
+    show.jl               # show HANDLE (Wave 2)
 ```
 
 The ARDL/NARDL family (`estimate ardl`/`nardl` in `estimate.jl`, `test ardl-bounds`/`nardl-symmetry`
