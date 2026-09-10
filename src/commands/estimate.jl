@@ -3243,8 +3243,6 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
                          method::String="gmm", system::Bool=false, collapse::Bool=false,
                          min_lag_endo::Int=2, max_lag_endo::Int=99,
                          output::String="", format::String="table")
-    isempty(id_col) && error("Panel VAR requires --id-col to specify the group identifier column")
-    isempty(time_col) && error("Panel VAR requires --time-col to specify the time period column")
     validate_method(method, ["gmm", "feols"], "PVAR estimation method")
     validate_method(transformation, ["fd", "fod"], "PVAR transformation")
     validate_method(steps, ["onestep", "twostep"], "PVAR steps")
@@ -7703,7 +7701,7 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
                       irf_draws::Int=500, shock::Int=1, no_stationary_only::Bool=false,
                       output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="irf tvpvar",
-                            horizons, horizons_default=20, shock)
+                            horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="tvpvar_irf", shock)
     horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))

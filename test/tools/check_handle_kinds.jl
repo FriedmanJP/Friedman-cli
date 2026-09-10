@@ -8,12 +8,10 @@
 # empty data_kinds is a declaration bug — Task 7's with_default_csv_kinds safety
 # net is what this gate holds.
 #
-# Wave 2 follow-up: also fail when `o.handle && o.name == "model"` and
-# `isempty(spec.model_types)`, and when `o.handle && o.name == "result"` and
-# `isempty(spec.result_types)`. Wave 1 does not enforce those — irf/forecast/etc.
-# already have MODEL_OPTION.handle=true (Task 1) with empty model_types, so
-# enforcing now would block Wave 1. The brief's model_types/result_types checks
-# land with the type catalogs.
+# Also fail when a handle=true `--model` has empty model_types, or a handle=true
+# `--result` has empty result_types. Key off `handle`, not the option name:
+# FCEVAL_RESULT_OPTION (handle=false) and string `--model` (data validate,
+# test adf --model=level) stay exempt.
 #
 # Exit 1 on any violation.
 
@@ -105,6 +103,12 @@ for spec in REGISTRY
     has_data = any(a -> a.name == "data", spec.args) || any(o -> o.name == "data", spec.options)
     if has_data && isempty(spec.data_kinds)
         push!(violations, "$path: has a data slot but empty data_kinds")
+    end
+    if any(o -> o.handle && o.name == "model", spec.options) && isempty(spec.model_types)
+        push!(violations, "$path: handle --model but empty model_types")
+    end
+    if any(o -> o.handle && o.name == "result", spec.options) && isempty(spec.result_types)
+        push!(violations, "$path: handle --result but empty result_types")
     end
 end
 isempty(violations) || (println.(violations); exit(1))

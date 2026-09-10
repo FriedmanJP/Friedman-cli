@@ -1792,10 +1792,8 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "za" => [:ZAResult], "np" => [:NgPerronResult], "gph" => [:GPHResult],
     "local-whittle" => [:LocalWhittleResult], "johansen" => [:JohansenResult],
     "normality" => [:NormalityTestResult, :NormalityTestSuite],
-    "identifiability" => [:IdentifiabilityTestResult],
     "heteroskedasticity" => [:IdentificationDiagnostics],
-    "arch-lm" => [:LMTestResult], "ljung-box" => [:LjungBoxResult],
-    "sign-bias" => [:LMTestResult], "nyblom" => [:LMTestResult],
+    "ljung-box" => [:LjungBoxResult],
     "variance-ratio" => [:VarianceRatioResult], "bds" => [:BDSResult],
     "hegy" => [:HEGYResult], "ers" => [:ERSResult], "sadf" => [:BubbleResult],
     "gsadf" => [:BubbleResult], "edf" => [:EDFTestResult],
@@ -1805,17 +1803,17 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "park-added" => [:ParkAddedResult], "llc" => [:LLCResult],
     "ips" => [:IPSResult], "breitung" => [:BreitungPanelResult],
     "fisher-johansen" => [:FisherJohansenResult],
-    "dh-causality" => [:DumitrescuHurlinResult], "white" => [:LMTestResult],
-    "glejser" => [:LMTestResult], "harvey" => [:LMTestResult],
-    "chow" => [:LMTestResult], "cusum" => [:LMTestResult],
-    "cusumsq" => [:LMTestResult], "recursive-residuals" => [:LMTestResult],
+    "dh-causality" => [:DumitrescuHurlinResult], "white" => [:RegDiagnosticResult],
+    "glejser" => [:RegDiagnosticResult], "harvey" => [:RegDiagnosticResult],
+    "chow" => [:RegDiagnosticResult], "cusum" => [:StabilityResult],
+    "cusumsq" => [:StabilityResult],
     "influence" => [:InfluenceStats], "hansen-linearity" => [:HansenLinearityTest],
     "star-linearity" => [:HansenLinearityTest], "hadri" => [:HadriResult],
     "pedroni" => [:PedroniResult], "kao" => [:KaoResult],
     "westerlund" => [:WesterlundResult], "weak-instrument" => [:MontielOleaPfluegerF],
     "anderson-rubin" => [:AndersonRubinTest, :AndersonRubinCI],
     "wild-cluster" => [:WildClusterBootstrap], "ardl-bounds" => [:ARDLBoundsTest],
-    "nardl-symmetry" => [:NARDLSymmetryTest], "pmg-hausman" => [:LMTestResult],
+    "nardl-symmetry" => [:NARDLSymmetryTest], "pmg-hausman" => [:PanelTestResult],
     "lagselect" => [:ARIMAOrderSelection], "stability" => [:StabilityResult, :VARStationarityResult, :PVARStability],
     "beta" => [:VECMRestrictionTest], "alpha" => [:VECMRestrictionTest],
     "weak-exog" => [:VECMRestrictionTest], "known-beta" => [:VECMRestrictionTest],
@@ -1828,14 +1826,14 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "fourier-adf" => [:FourierADFResult], "fourier-kpss" => [:FourierKPSSResult],
     "dfgls" => [:DFGLSResult], "lm-unitroot" => [:LMUnitRootResult],
     "adf-2break" => [:ADF2BreakResult], "gregory-hansen" => [:GregoryHansenResult],
-    "dispersion" => [:DispersionTest], "vif" => [:LMTestResult],
-    "hausman" => [:LMTestResult], "breusch-pagan" => [:LMTestResult],
-    "f-fe" => [:LMTestResult], "pesaran-cd" => [:LMTestResult],
-    "wooldridge-ar" => [:LMTestResult], "modified-wald" => [:LMTestResult],
+    "dispersion" => [:DispersionTest],
+    "hausman" => [:PanelTestResult], "breusch-pagan" => [:PanelTestResult],
+    "f-fe" => [:PanelTestResult], "pesaran-cd" => [:PanelTestResult],
+    "wooldridge-ar" => [:PanelTestResult], "modified-wald" => [:PanelTestResult],
     "fisher" => [:FisherPanelResult, :FisherTestResult],
     "bartlett-wn" => [:BartlettWhiteNoiseResult], "box-pierce" => [:BoxPierceResult],
-    "durbin-watson" => [:DurbinWatsonResult], "brant" => [:LMTestResult],
-    "hausman-iia" => [:LMTestResult],
+    "durbin-watson" => [:DurbinWatsonResult], "brant" => [:PanelTestResult],
+    "hausman-iia" => [:PanelTestResult],
 )
 
 function register_test_commands!()
@@ -4500,9 +4498,6 @@ end
 
 function _test_pvar_hansen_j(; data::String, id_col::String="", time_col::String="",
                                lags::Int=1, format::String="table", output::String="")
-    isempty(id_col) && error("Panel VAR test requires --id-col")
-    isempty(time_col) && error("Panel VAR test requires --time-col")
-
     model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
 
     _status("Hansen J Overidentification Test: Panel VAR($lags)")
@@ -4528,9 +4523,6 @@ end
 function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
                            max_lags::Int=4, criterion::String="bic",
                            format::String="table", output::String="")
-    isempty(id_col) && error("Panel VAR test requires --id-col")
-    isempty(time_col) && error("Panel VAR test requires --time-col")
-
     panel = load_panel_data(data, id_col, time_col)
 
     _status("MMSC Model Selection: max lags=$max_lags, criterion=$criterion")
@@ -4557,9 +4549,6 @@ _pvar_best_lag(result, criterion::AbstractString) =
 function _test_pvar_lagselect(; data::String, id_col::String="", time_col::String="",
                                 max_lags::Int=4, criterion::String="bic",
                                 format::String="table", output::String="")
-    isempty(id_col) && error("Panel VAR test requires --id-col")
-    isempty(time_col) && error("Panel VAR test requires --time-col")
-
     panel = load_panel_data(data, id_col, time_col)
 
     _status("Panel VAR Lag Selection: max lags=$max_lags, criterion=$criterion")
@@ -4576,9 +4565,6 @@ end
 
 function _test_pvar_stability(; data::String, id_col::String="", time_col::String="",
                                 lags::Int=1, format::String="table", output::String="")
-    isempty(id_col) && error("Panel VAR test requires --id-col")
-    isempty(time_col) && error("Panel VAR test requires --time-col")
-
     model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
 
     _status("Panel VAR($lags) Stability Check")

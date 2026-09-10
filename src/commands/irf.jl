@@ -263,6 +263,7 @@ function register_irf_commands!()
     specs = _tag_slot_types(irf_specs(), _IRF_SLOT_TYPES)
     specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
+    specs = [s.path == ["irf", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s for s in specs]
     register!(specs)
     return build_node("irf", specs; description="Impulse Response Functions")
 end
@@ -281,7 +282,7 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
                    cumulative::Bool=false, identified_set::Bool=false,
                    stationary_only::Bool=false, summary::String="none")
     loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="irf var",
-                            id, horizons, horizons_default=20, shock)
+                            id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="irf", plot, plot_save, shock)
     if isnothing(model)
@@ -499,7 +500,7 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
                     cumulative::Bool=false,
                     model=nothing)
     loaded = _loaded_result(result; data, model, leaf="irf bvar",
-                            id, horizons, horizons_default=20, shock)
+                            id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="bayesian_irf", plot, plot_save, shock)
     if isnothing(model)
@@ -612,7 +613,7 @@ function _irf_lp(; data::String="", result=nothing, shock::Int=1, shocks::String
                   cumulative::Bool=false,
                   model=nothing)
     loaded = _loaded_result(result; data, model, leaf="irf lp",
-                            id, horizons, horizons_default=20, shock)
+                            id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="lp_irf", plot, plot_save, shock)
     # Multi-shock mode
@@ -674,7 +675,7 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
     loaded = _loaded_result(result; data, model, leaf="irf vecm",
-                            id, horizons, horizons_default=20, shock)
+                            id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="vecm_irf", plot, plot_save, shock)
     if isnothing(model)
@@ -745,8 +746,6 @@ function _irf_pvar(; data::String="", result=nothing, id_col::String="", time_co
     validate_method(irf_type, ["oirf", "girf"], "IRF type")
 
     if isnothing(model)
-        isempty(id_col) && error("Panel VAR IRF requires --id-col")
-        isempty(time_col) && error("Panel VAR IRF requires --time-col")
         model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
     else
         varnames = model.varnames

@@ -194,6 +194,7 @@ function register_fevd_commands!()
     specs = _tag_slot_types(fevd_specs(), _FEVD_SLOT_TYPES)
     specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
+    specs = [s.path == ["fevd", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s for s in specs]
     register!(specs)
     return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
 end
@@ -483,8 +484,6 @@ function _fevd_pvar(; data::String="", result=nothing, id_col::String="", time_c
                             horizons, horizons_default=10)
     loaded === nothing || return loaded
     if isnothing(model)
-        isempty(id_col) && error("Panel VAR FEVD requires --id-col")
-        isempty(time_col) && error("Panel VAR FEVD requires --time-col")
         model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
     else
         varnames = model.varnames

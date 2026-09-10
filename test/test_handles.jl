@@ -428,6 +428,14 @@ end
     val_sch = _input_schema(data_node.subcmds["validate"], ["data", "validate"])
     @test haskey(val_sch["properties"]["data"], "x-handle")
     @test !haskey(val_sch["properties"]["model"], "x-handle")
+
+    show_leaf = register_show_commands!()
+    show_sch = _input_schema(show_leaf, ["show"])
+    @test haskey(show_sch["properties"]["path"], "x-handle")
+    xh_show = show_sch["properties"]["path"]["x-handle"]
+    @test xh_show["role"] == "any"
+    @test xh_show["kinds"] == String[]
+    @test xh_show["types"] == String[]
 end
 
 @testset "save-result NamedTuple" begin
@@ -997,5 +1005,144 @@ end
         @test cols[1] ≈ col1
         _, _, cols2 = _fceval_load(csv, "y2", ""; leaf="metrics", result=p)
         @test cols2[1] ≈ col2
+    end
+end
+
+@testset "irf --result applies shock filter" begin
+    vals = zeros(4, 2, 2)
+    vals[:, :, 1] .= 1.0
+    vals[:, :, 2] .= 2.0
+    irf_obj = ImpulseResponse(vals, nothing, nothing, 4, ["y1", "y2"],
+                              ["shock1", "shock2"], :none)
+    err_shock = try
+        _irf_var(; data="", result=irf_obj, shock=2, format="json", output="")
+        nothing
+    catch e; e; end
+    @test !(err_shock isa CliError && occursin("--shock", err_shock.message))
+
+    streams = _capture_all() do
+        _irf_var(; data="", result=irf_obj, shock=2, format="json", output="")
+    end
+    @test occursin("shock2", streams.out)
+    @test !occursin("shock1", streams.out)
+    @test !occursin("does not apply with --result", streams.err)
+end
+
+@testset "test result_types catalog matches returns" begin
+    register_test_commands!()
+    white = _spec_for_path(["test", "white"])
+    @test white !== nothing
+    @test :RegDiagnosticResult in white.result_types
+    @test :LMTestResult ∉ white.result_types
+    glejser = _spec_for_path(["test", "glejser"])
+    @test :RegDiagnosticResult in glejser.result_types
+    chow = _spec_for_path(["test", "chow"])
+    @test :RegDiagnosticResult in chow.result_types
+    cusum = _spec_for_path(["test", "cusum"])
+    @test :StabilityResult in cusum.result_types
+    @test :LMTestResult ∉ cusum.result_types
+    hausman = _spec_for_path(["test", "hausman"])
+    @test :PanelTestResult in hausman.result_types
+    @test :LMTestResult ∉ hausman.result_types
+
+    for leaf in ("identifiability", "vif", "recursive-residuals", "arch-lm",
+                 "sign-bias", "nyblom")
+        spec = _spec_for_path(["test", leaf])
+        @test spec !== nothing
+        @test isempty(spec.result_types)
+        @test !any(o -> o.name == "result", spec.options)
+        @test !any(o -> o.name == "save-result", spec.options)
+    end
+
+    mktempdir() do dir
+        csv = _make_csv(dir; T=40, n=3)
+        white_leaf = register_test_commands!().subcmds["white"]
+        wstem = joinpath(dir, "white")
+        _capture() do
+            white_leaf.handler(; data=csv, save_result=wstem, format="json", output="")
+        end
+        @test isfile(wstem * ".jld2")
+        loaded = load_model_dispatch(wstem * ".jld2")
+        @test nameof(typeof(loaded)) === :RegDiagnosticResult
+        streams = _capture_all() do
+            white_leaf.handler(; data="", result=wstem, format="json", output="")
+        end
+        @test !occursin("wrong-result", streams.out)
+        @test !occursin("MethodError", streams.err)
+        @test occursin("statistic", streams.out) || occursin("White", streams.out)
+    end
+end
+
+@testset "irf/fevd pvar panel kinds and load_panel_data handle" begin
+    register_irf_commands!()
+    register_fevd_commands!()
+    irf_pvar = _spec_for_path(["irf", "pvar"])
+    @test irf_pvar !== nothing
+    @test irf_pvar.data_kinds == [:panel, :csv]
+    fevd_pvar = _spec_for_path(["fevd", "pvar"])
+    @test fevd_pvar !== nothing
+    @test fevd_pvar.data_kinds == [:panel, :csv]
+    irf_var = _spec_for_path(["irf", "var"])
+    @test :timeseries in irf_var.data_kinds
+
+    mktempdir() do dir
+        csv = joinpath(dir, "macro.csv")
+        CSV.write(csv, DataFrame(y1=randn(20), y2=randn(20)))
+        ts = TimeSeriesData(df_to_matrix(CSV.read(csv, DataFrame));
+                            varnames=["y1", "y2"])
+        save_model_dispatch(joinpath(dir, "ts.jld2"), ts)
+        irf_node = register_irf_commands!()
+        err = try
+            irf_node.subcmds["pvar"].handler(; data=joinpath(dir, "ts"),
+                                            format="json", output="")
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "data/wrong-kind"
+
+        panel_csv = _make_panel_csv(dir; G=4, T_per=10, n=2)
+        pd = xtset(CSV.read(panel_csv, DataFrame), :group, :time)
+        ph = joinpath(dir, "panel.jld2")
+        save_model_dispatch(ph, pd)
+        loaded = load_panel_data(ph, "", "")
+        @test nameof(typeof(loaded)) === :PanelData
+        @test loaded.varnames == pd.varnames
+
+        err_csv = try
+            load_panel_data(panel_csv, "", "")
+            nothing
+        catch e; e; end
+        @test err_csv isa CliError
+        @test err_csv.code == "usage/missing"
+
+        err_est = try
+            _estimate_pvar(; data=panel_csv, format="json", output="")
+            nothing
+        catch e; e; end
+        @test err_est isa CliError
+        @test err_est.code == "usage/missing"
+    end
+end
+
+@testset "data filter kinds are timeseries+csv" begin
+    register_data_commands!()
+    spec = _spec_for_path(["data", "filter"])
+    @test spec !== nothing
+    @test spec.data_kinds == [:timeseries, :csv]
+    @test :panel ∉ spec.data_kinds
+    @test :cross_section ∉ spec.data_kinds
+
+    mktempdir() do dir
+        panel_csv = _make_panel_csv(dir; G=4, T_per=8, n=2)
+        pd = xtset(CSV.read(panel_csv, DataFrame), :group, :time)
+        save_model_dispatch(joinpath(dir, "panel.jld2"), pd)
+        filt = register_data_commands!().subcmds["filter"]
+        err = try
+            filt.handler(; data=joinpath(dir, "panel"), method="hp",
+                         format="json", output="")
+            nothing
+        catch e; e; end
+        @test err isa CliError
+        @test err.code == "data/wrong-kind"
     end
 end

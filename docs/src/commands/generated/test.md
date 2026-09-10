@@ -124,8 +124,6 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags for ARCH-LM test |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `arch_lm_test` (ARCH-LM statistic, p-value and lag order)
 
@@ -1041,8 +1039,6 @@ Path to CSV data file
 | `--n-bootstrap` | — | `Int64` | `999` | — | Bootstrap replications (for label-stability) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `identifiability_test_results` (One row per identifiability test: statistic, p-value and conclusion)
 
@@ -1428,8 +1424,6 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `nyblom_individual_stability` (Per-parameter Nyblom L statistic against the 5% critical value); `nyblom_joint_stability` (Joint Nyblom LC statistic, its critical value and the 5% decision)
 
@@ -1711,8 +1705,6 @@ Path to CSV data file
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `recursive_residuals` (Brown-Durbin-Evans recursive residual by recursion step and observation); `recursive_residuals_summary` (Count and mean of the recursive residuals, and the number of regressors)
 
@@ -1759,8 +1751,6 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `sign_bias_test` (Engle-Ng sign-bias and size-bias t-statistics with the joint test)
 
@@ -2015,8 +2005,6 @@ Path to CSV data file
 | `--cov-type` | — | `String` | `hc1` | — | Covariance estimator (ols\|hc0\|hc1\|hc2\|hc3) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `variance_inflation_factors` (Variance inflation factor and tolerance for each regressor)
 

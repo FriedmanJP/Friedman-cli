@@ -1355,11 +1355,25 @@ function _parse_asym_spec(s::AbstractString)
 end
 
 """
-    load_panel_data(data, id_col, time_col; varnames=nothing) -> PanelData
+    load_panel_data(data, id_col, time_col) -> PanelData
 
-Load CSV data and set panel structure using xtset().
+Load a panel CSV via xtset(), or return a PanelData handle as-is.
+CSV still requires --id-col/--time-col; a `.jld2`/`.fmod`/`model://` PanelData
+handle does not.
 """
 function load_panel_data(data::String, id_col::String, time_col::String)
+    if _is_handle_path(data)
+        obj = load_model_dispatch(data)
+        k = _data_kind_of(obj)
+        k === :panel && return obj
+        throw(CliError("data/wrong-kind",
+            "$data is a $k handle ($(nameof(typeof(obj)))); this command expects PanelData";
+            hint="data import --kind panel, or pass a panel CSV with --id-col/--time-col"))
+    end
+    isempty(id_col) && throw(CliError("usage/missing",
+        "panel data requires --id-col to specify the group identifier column"))
+    isempty(time_col) && throw(CliError("usage/missing",
+        "panel data requires --time-col to specify the time period column"))
     df = load_data(data)
     id_col in names(df) || throw(CliError("data/missing-column", "id column '$id_col' not found in data (columns: $(join(names(df), ", ")))"))
     time_col in names(df) || throw(CliError("data/missing-column", "time column '$time_col' not found in data (columns: $(join(names(df), ", ")))"))
@@ -1673,8 +1687,7 @@ end
 function _loaded_result(result; data::String="", model=nothing, lags=nothing,
                         check_lags::Bool=false, leaf::String,
                         id=nothing, id_default::String="cholesky",
-                        horizons=nothing, horizons_default::Union{Nothing,Int}=nothing,
-                        shock=nothing, shock_default::Int=1)
+                        horizons=nothing, horizons_default::Union{Nothing,Int}=nothing)
     result === nothing && return nothing
     isempty(data) || throw(CliError("usage/invalid",
         "$leaf: --result cannot be combined with <data>"))
@@ -1691,10 +1704,6 @@ function _loaded_result(result; data::String="", model=nothing, lags=nothing,
     if horizons !== nothing && horizons_default !== nothing && horizons != horizons_default
         throw(CliError("usage/invalid",
             "$leaf: --horizons does not apply with --result"))
-    end
-    if shock !== nothing && shock != shock_default
-        throw(CliError("usage/invalid",
-            "$leaf: --shock does not apply with --result"))
     end
     return result
 end
@@ -1846,7 +1855,27 @@ function _rerender_irf_result(result; format::String="table", output::String="",
     tn === :UhligSVARResult && return _rerender_uhlig_irf(result; format, output, shock, plot, plot_save)
     tn === :SignIdentifiedSet && return _rerender_identified_set(result; format, output, shock, plot, plot_save)
     tn === :RobustBayesResult && return _rerender_robust_bayes(result; format, output, shock, plot, plot_save)
-    return _rerender_long_table(result; format, output, title, key, plot, plot_save)
+    df = try
+        long_table(result)
+    catch e
+        e isa MethodError && throw(CliError(
+            "model/unsupported",
+            "no long_table is defined for $(typeof(result))";
+            hint="this result type cannot be re-rendered as a table; drop --result and recompute"))
+        rethrow()
+    end
+    if hasproperty(result, :shocks) && "shock" in names(df)
+        shocks = getproperty(result, :shocks)
+        if shocks isa AbstractVector
+            1 <= shock <= length(shocks) || throw(CliError("usage/invalid",
+                "shock index $shock out of 1:$(length(shocks))"))
+            shock_name = shocks[shock]
+            df = df[df.shock .== shock_name, :]
+        end
+    end
+    output_result(df; format=Symbol(format), output=output, title=title, key=key)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 function _rerender_fevd_result(result; format::String="table", output::String="",

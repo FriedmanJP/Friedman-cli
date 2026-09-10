@@ -52,6 +52,13 @@ end
 
 """`x-handle` annotation for a data slot or `OptionSpec.handle` option, or `nothing`."""
 function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
+    if spec.path == ["show"] && is_arg
+        return Dict{String,Any}(
+            "role" => "any",
+            "kinds" => String[],
+            "types" => String[],
+        )
+    end
     if name == "data"
         return Dict{String,Any}(
             "role" => "data",

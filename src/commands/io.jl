@@ -587,7 +587,7 @@ function register_io_commands!()
                       ["io", "aggregate"], ["io", "balance"])
             with_save_model([s])[1]
         elseif length(s.path) == 3 && s.path[1] == "io" && s.path[2] == "bf"
-            with_model_option([s])[1]
+            with_model_option([_copy_spec(s; model_types=[:ProductionNetwork])])[1]
         else
             s
         end

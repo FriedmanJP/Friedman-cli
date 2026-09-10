@@ -8407,6 +8407,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
     # Typed data handles wave 1: import → stem-resolve into estimate var;
     # panel handle into a timeseries leaf is data/wrong-kind.
+    # The 40×3 synthetic CSV stands in for :fred_md vs `data load` coefficient
+    # agreement (runtime; :fred_md itself is not required for this gate).
     @testset "typed data handles wave 1" begin
         mktempdir() do dir
             csv = joinpath(dir, "macro.csv")
@@ -8451,6 +8453,51 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test bad.code == 3
             @test bad.doc !== nothing
             @test String(bad.doc["error"]["code"]) == "data/wrong-kind"
+
+            # Panel import → estimate pvar on the stem (flags optional on a handle).
+            # 4×10 is too thin for GMM; reuse the existing pvar DGP richness.
+            panel40 = dgp_did_panel(; N=40, T=10, seed=11)
+            rp40 = run_json(["data", "import", panel40, "--kind", "panel",
+                             "--id-col", "id", "--time-col", "time",
+                             "-o", joinpath(dir, "pvarpanel")])
+            @test rp40.code == 0
+            rpvar = run_json(["estimate", "pvar", joinpath(dir, "pvarpanel"), "--lags", "1"])
+            @test rpvar.code == 0
+            @test rpvar.doc !== nothing
+            pvar_tbl = nothing
+            for (_, v) in pairs(rpvar.doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                cols = table_cols(v)
+                ("parameter" in cols && any(endswith(c, "_coef") for c in cols)) && (pvar_tbl = v; break)
+            end
+            @test pvar_tbl !== nothing && !isempty(table_rows(pvar_tbl))
+
+            # data describe on a panel handle is not a TS wrap: id/time are identity.
+            rdesc = run_json(["data", "describe", joinpath(dir, "panel")])
+            @test rdesc.code == 0
+            desc_tbl = nothing
+            for (_, v) in pairs(rdesc.doc.data)
+                (v isa JSON3.Object && haskey(v, :columns)) || continue
+                cols = table_cols(v)
+                ("variable" in cols && ("mean" in cols || "std" in cols || "n" in cols)) &&
+                    (desc_tbl = v; break)
+            end
+            @test desc_tbl !== nothing
+            vi = findfirst(==("variable"), table_cols(desc_tbl))
+            @test vi !== nothing
+            desc_vars = [string(collect(r)[vi]) for r in table_rows(desc_tbl)]
+            @test !any(v -> v in ("group", "time", "id"), desc_vars)
+
+            # data fix on a panel handle preserves type / varnames / frequency.
+            before = Friedman.load_model_dispatch(joinpath(dir, "panel.jld2"))
+            rfix = run_json(["data", "fix", joinpath(dir, "panel"),
+                             "-o", joinpath(dir, "panel_clean")])
+            @test rfix.code == 0
+            after = Friedman.load_model_dispatch(joinpath(dir, "panel_clean.jld2"))
+            @test string(nameof(typeof(after))) == "PanelData"
+            @test string(nameof(typeof(before))) == "PanelData"
+            @test after.varnames == before.varnames
+            @test after.frequency == before.frequency
         end
     end
 
@@ -8492,8 +8539,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test "horizon" in table_cols(t3) && "variable" in table_cols(t3)
             @test "horizon" in table_cols(t4) && "variable" in table_cols(t4)
             @test !isempty(table_rows(t2)) && !isempty(table_rows(t3)) && !isempty(table_rows(t4))
-            # Compute filters long_table to --shock; --result / show emit the full table.
-            @test length(table_rows(t3)) >= length(table_rows(t2))
+            # Default --shock 1: --result re-render matches the compute-path row count.
+            # `show` has no --shock and may still emit the full table.
+            @test length(table_rows(t3)) == length(table_rows(t2))
+            @test table_cols(t3) == table_cols(t2)
             @test length(table_rows(t4)) >= length(table_rows(t2))
 
             # VARModel is not an ImpulseResponse

@@ -254,7 +254,10 @@ function register_data_commands!()
     specs = CommandSpec[]
     for s in data_specs()
         leaf = s.path[end]
-        if leaf in _DATA_CONTAINER_LEAVES
+        if leaf == "filter"
+            # HP/Hamilton on a PanelData handle would treat group/time as series.
+            push!(specs, _copy_spec(s; data_kinds=[:timeseries, :csv]))
+        elseif leaf in _DATA_CONTAINER_LEAVES
             # data filter returns a DataFrame — do not tag MEMs filter result types.
             push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv]))
         elseif leaf == "load"
