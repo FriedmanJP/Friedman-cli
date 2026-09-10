@@ -12,44 +12,46 @@ function _show_handle(; path::String="", data::String="",
         output_result(DataFrame(entry=keys_, type=types); format=Symbol(format),
                       output=output, title="Bundle Entries", key="show_payload")
         _status("pass a single-object handle; bundles are not unpacked")
-        return obj
-    end
-    k = _data_kind_of(obj)
-    if k !== :unknown
-        Y = to_matrix(obj)
-        vn = Vector{String}(varnames(obj))
-        n_obs, n_vars = size(Y)
-        summary = _status_stdout() do
-            describe_data(obj)
-        end
-        fv = [something(findfirst(isfinite, @view Y[:, j]), 0) for j in 1:n_vars]
-        lv = [something(findlast(isfinite, @view Y[:, j]), 0) for j in 1:n_vars]
-        output_result(DataFrame(
-            variable=vn, n=summary.n, first_valid=fv, last_valid=lv,
-            mean=summary.mean, std=summary.std, min=summary.min,
-            p25=summary.p25, median=summary.median, p75=summary.p75,
-            max=summary.max, skewness=summary.skewness, kurtosis=summary.kurtosis,
-        ); format=Symbol(format), output=output, title="Descriptive Statistics",
-           key="show_payload")
-        return obj
-    end
-    tbl = try
-        long_table(obj)
-    catch
-        try
-            DataFrame(obj)
-        catch
-            nothing
-        end
-    end
-    if tbl === nothing
-        fields = String[string(n) for n in propertynames(obj)]
-        values = Any[try string(getproperty(obj, Symbol(n))) catch; missing; end for n in fields]
-        output_result(DataFrame(field=fields, value=values); format=Symbol(format),
-                      output=output, title="Handle Fields", key="show_payload")
     else
-        output_result(tbl; format=Symbol(format), output=output,
-                      title="Handle", key="show_payload")
+        k = _data_kind_of(obj)
+        # Only rectangular data containers have to_matrix / describe_data.
+        # :io (IOData) and other kinds fall through — never to_matrix an IOData.
+        if k in (:timeseries, :panel, :cross_section)
+            Y = to_matrix(obj)
+            vn = Vector{String}(varnames(obj))
+            n_obs, n_vars = size(Y)
+            summary = _status_stdout() do
+                describe_data(obj)
+            end
+            fv = [something(findfirst(isfinite, @view Y[:, j]), 0) for j in 1:n_vars]
+            lv = [something(findlast(isfinite, @view Y[:, j]), 0) for j in 1:n_vars]
+            output_result(DataFrame(
+                variable=vn, n=summary.n, first_valid=fv, last_valid=lv,
+                mean=summary.mean, std=summary.std, min=summary.min,
+                p25=summary.p25, median=summary.median, p75=summary.p75,
+                max=summary.max, skewness=summary.skewness, kurtosis=summary.kurtosis,
+            ); format=Symbol(format), output=output, title="Descriptive Statistics",
+               key="show_payload")
+        else
+            tbl = try
+                long_table(obj)
+            catch
+                try
+                    DataFrame(obj)
+                catch
+                    nothing
+                end
+            end
+            if tbl === nothing
+                fields = String[string(n) for n in propertynames(obj)]
+                values = Any[try string(getproperty(obj, Symbol(n))) catch; missing; end for n in fields]
+                output_result(DataFrame(field=fields, value=values); format=Symbol(format),
+                              output=output, title="Handle Fields", key="show_payload")
+            else
+                output_result(tbl; format=Symbol(format), output=output,
+                              title="Handle", key="show_payload")
+            end
+        end
     end
     _maybe_plot(obj; plot=plot, plot_save=plot_save)
     return obj

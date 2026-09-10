@@ -793,6 +793,37 @@ end
         @test shown[] isa VARModel
         @test occursin("term", streams.out) || occursin("estimate", streams.out)
 
+        ioh = joinpath(dir, "io.jld2")
+        save_model_dispatch(ioh, MacroEconometricModels._mock_wiot())
+        streams = _capture_all() do
+            shown[] = _show_handle(; path=joinpath(dir, "io"), format="json")
+        end
+        @test shown[] isa IOData
+        @test !occursin("MethodError", streams.out)
+        @test !occursin("MethodError", streams.err)
+        io_rows = JSON3.read(streams.out)
+        @test io_rows isa AbstractVector
+        @test !isempty(io_rows)
+        @test any(r -> haskey(r, :field) && string(r.field) in ("sectors", "Z", "Y", "x"),
+                  io_rows) || any(r -> haskey(r, :variable) || haskey(r, :sector), io_rows)
+
+        ir = irf(m, 4)
+        save_model_dispatch(joinpath(dir, "irf.jld2"), ir)
+        streams = _capture_all() do
+            shown[] = _show_handle(; path=joinpath(dir, "irf"), format="json")
+        end
+        @test shown[] isa ImpulseResponse
+        @test occursin("horizon", streams.out) || occursin("variable", streams.out)
+        @test occursin("value", streams.out) || occursin("shock", streams.out)
+
+        # mock plot_result is generic (always succeeds) — skip model/unsupported;
+        # still invoke --plot on TimeSeriesData so the data-path is not a silent no-op.
+        streams = _capture_all() do
+            _show_handle(; path=joinpath(dir, "macro"), format="json", plot=true)
+        end
+        @test occursin("Plot opened", streams.err)
+        @test !occursin("MethodError", streams.err)
+
         err = try
             _show_handle(; path="", data="")
             nothing

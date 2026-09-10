@@ -76,9 +76,11 @@ estimate var macro.csv --lags 2
 3. **`friedman show STEM` (Wave 2):** `resolve_stem(; slot=:result)` —
    `STEM.jld2` if that file exists, else the exact path. No CSV fallback
    (show is for loadable handles, not import). Bundles emit a keys-only
-   table (`show_payload`); data containers emit descriptive stats;
-   models/results try `long_table`, then `DataFrame`, then field dump.
-   `--plot` / `--plot-save` call `_maybe_plot` when a recipe exists.
+   table (`show_payload`); `:timeseries`/`:panel`/`:cross_section` emit
+   descriptive stats; `:io` and other kinds fall through to `long_table` /
+   `DataFrame` / field dump (never `to_matrix` an IOData). `--plot` /
+   `--plot-save` call `_maybe_plot` on every path; missing recipe →
+   `model/unsupported` (exit 5).
 
 If both `macro.jld2` and `macro.csv` exist, the handle wins on data slots.
 Explicit suffixes skip the search (`macro.csv` is CSV, `var.jld2` is a
