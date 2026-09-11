@@ -4,6 +4,32 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [0.13.0] — 2026-09-11 — Typed handles pipeline (#189)
+
+Additive 0.x minor. CSV remains legal on every leaf that already accepted it.
+MEMs pin stays **0.9.6**.
+
+The CLI prefers MEMs typed containers (`TimeSeriesData`, `PanelData`,
+`CrossSectionData`) as the unit of work. Fitted models and result objects
+are first-class inputs via kind-specific flags. Native persist is `.jld2`;
+argv takes a **stem** (`.jld2` is not part of the command language).
+
+- New leaves: `data import`, `data export`, `friedman show` — **456 leaves /
+  21 top-level** (was 453 / 20).
+- Registry: `CommandSpec.data_kinds` / `model_types` / `result_types`;
+  `wrap_legacy` type-checks before the handler (`data/wrong-kind` exit 3,
+  `model/wrong-kind` exit 5, `data/wrong-result` exit 3).
+- Stem load: `.jld2` preferred, then data-slot `.csv`, then exact path.
+  `FRIEDMAN_DATA_ROOT` confinement runs on **resolved** paths.
+- `--result` / `--save-result` on producing leaves; `forecast evaluate
+  --result` takes comma-separated stems (string option, not a single handle
+  load). `friedman schema` advertises `x-handle`.
+- CI drift gate `test/tools/check_handle_kinds.jl` (nonempty `data_kinds` on
+  data slots; nonempty `model_types` / `result_types` on `handle=true`
+  `--model` / `--result`).
+- Gates on #189: T3 integration-core green; T1/T2 Command Handlers 1934/1934;
+  goldens 59/59; docs inventory `--check` 456/21; gitleaks + semgrep clean.
+
 ## [0.12.3] — 2026-09-09 — MEMs 0.9.6 adoption program (#184–#187)
 
 C038 bump, re-resolved from General. Upstream 0.9.6 delta is purely
