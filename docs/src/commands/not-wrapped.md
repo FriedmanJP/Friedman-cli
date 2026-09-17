@@ -44,7 +44,7 @@ Surface that exists upstream and is **not** a CLI leaf. Dispositions live on Git
 | 0.9.3: bundles / `note=` / `compress=` (#772/#785) | **Declined in W3** (see CHANGELOG): no `--compress` flag, no bundle/`note=` surface. Upstream kwargs stay available to library users; CLI saves are single-object uncompressed `.jld2`. |
 | 0.9.3: v1 fixtures (#770) | **Wontwrap.** Upstream repo's own regression files (`test/fixtures/serialization/v1/`); test-only, never user surface. |
 | 0.9.3: persistence-docs caveats | **Mirrored in docs.** Named-function requirement + Core.eval-allowlist trust caveat in the agent guide (`model info` stays header-only, never executes). |
-| MEMs#816 (CLI-filed this wave, OPEN) | **Watch.** LinearSolve generated-`solve!` world-age boom on the steady-state QR-fallback branch masks `DSGESolveError` in stale-image envs. Trigger: upstream close → re-run the W4 bad-model probe set on a fresh depot. |
+| MEMs#816 (CLOSED completed 2026-09-08, shipped in 0.9.7) | **Consumed, W0/#192.** `compute_steady_state` rewrites LinearSolve world-age `MethodError` on the QR-fallback as `DSGESolveError` from the residual gate (`steady_state.jl:163-185`). CLI `_domain_error_class` already maps `DSGESolveError` → `model/solve` (exit 5). T3 4227/4227 on `=0.9.7` — no untyped exit-1 on the bad-model path. |
 
 ## Standing watches (re-checked at 0.9.3 for W4)
 
@@ -624,16 +624,12 @@ none exposed (nothing to fix or file).
   requested method's title. Now validates against the base
   map + threads (irf/hd bvar sibling parity). T1/T2 + T3
   regression pinned (invalid --id → usage/invalid).
-- **SDFM: estimation-gated, methods flow to the upstream
-  allow-list** (structural.jl:161-167 — excludes lewis/sv AND
-  several existing methods): out-of-set --id → upstream bare
-  ArgumentError, which escaped as exit 1 (found by the W1
-  adversarial probe: `irf sdfm --id lewis-tvv`). Fixed with a
-  loader-level `throw(_domain_or_data_error(...))` wrap
-  (shared.jl `_load_and_estimate_sdfm`) → data/invalid, exit 3.
-  No allow-list mirror (drift risk); enabling needs upstream
-  support (MEMs#830 filed). sdfm --id descriptions stay on
-  the curated safe subset.
+- **SDFM: estimation-gated at 0.9.6; MEMs#830 shipped in 0.9.7.**
+  `_SDFM_ID_METHODS` now includes `:lewis_tvv`/`:sv_em`/`:gmm_moments`
+  (`structural.jl:161-168`) and `id_kwargs::NamedTuple` forwards to
+  `compute_Q` (`structural.jl:265`, `:596-599`). Ungate is W1/#193.
+  The loader wrap stays: a still-invalid `--id` is `data/invalid`
+  (exit 3), never exit 1.
 - **estimate svar / test identifiability / policy /
   predict+residuals: untouched with record.** estimate svar
   is the classical AB-pattern estimator (recursive/BQ/A/B/AB
@@ -670,3 +666,68 @@ none exposed (nothing to fix or file).
   at draws≤30 → model/identification. Both are
   estimator-raised and correctly typed; no CLI defect.
   T3 pins the vecm exit class.
+
+## W0/#192 ledger (MEMs 0.9.7: #814–#816, #829, #830)
+
+Verified against the `v0.9.7` tag sources, which match the
+`Pkg.dependencies`-resolved depot copy
+`~/.julia/packages/MacroEconometricModels/3i1Dt` (`Project.toml`
+`version = "0.9.7"`). Patch on the `0.9` series. No exports removed
+or renamed. New export: `physical_nodes`. `GMMModel` gained a
+trailing `first_stage_F` field (default `NaN`; 12-arg constructor
+still works). Plot-coverage 181/181, no ADDED/REMOVED. Mock-surface
+PASS (hard 0; `GMMModel` still a subset — `first_stage_F` is **not**
+added until W3 consumes it). T3 4227/4227 on real 0.9.7; goldens
+59/59 (mocks, no drift); `capture_examples.jl --check` OK (6 blocks,
+no Uhlig-capture drift — the captured examples do not hit `--id uhlig`).
+
+Must-answer resolutions for W1–W3 (upstream tag line numbers):
+
+- **`identify_uhlig` sign-normalization (#814)**
+  (`uhlig.jl:274` `_uhlig_sign_normalize`, applied at `:511`;
+  uniquely determined / `free_dim = 1` skips the 0-parameter
+  Nelder–Mead at `:430`). CLI reach: `irf`/`fevd`/`hd --id uhlig`.
+  Changed numerical output on existing paths; this W0's T3 +
+  captures did not hit a drifted Uhlig golden (goldens are mock)
+  or a captured Uhlig example. W1 does not re-expose Uhlig.
+
+- **`compute_steady_state` (#816)** (`steady_state.jl:163-185`):
+  LinearSolve world-age `MethodError` on the QR-fallback is
+  rewritten as `DSGESolveError` from the residual gate. CLI
+  `_domain_error_class` already maps the type name → `model/solve`
+  (exit 5). Watch row in the W4/#168 table consumed above. No
+  adapter change.
+
+- **SDFM ID allow-list (#830)** (`structural.jl:161-168`):
+  `_SDFM_ID_METHODS` includes `:gmm_moments`, `:lewis_tvv`,
+  `:sv_em` (plus the pre-existing cholesky/sign/proxy/… set).
+  `id_kwargs::NamedTuple=NamedTuple()` on
+  `estimate_structural_dfm` (`structural.jl:265`) splats into
+  `compute_Q` (`:596-599`). Lewis knobs already parsed by
+  `get_lewis_tvv_params` (`weighting`); SV knobs by
+  `get_sv_svar_params` (`hetero_shocks`/`maxiter`/`gibbs_burn`/
+  `gibbs_draws`/`init`). → **W1/#193** forwards those as
+  `id_kwargs`. Do not widen the advertised sdfm `--id`
+  description to the entire tuple — only the three new methods
+  plus the already-advertised `cholesky|sign|proxy`.
+
+- **`physical_nodes(sol)` (#829)** (`projection.jl:996-998`):
+  `physical_nodes(sol::ProjectionSolution) =
+  Matrix(_scale_from_unit(sol.collocation_nodes, sol.state_bounds))`.
+  Exported from `MacroEconometricModels.jl:816`. Bounds live on
+  `sol.state_bounds`. → **W2/#194** / close #182. Tensor and
+  Smolyak share the field, so one render change covers both.
+
+- **`GMMModel.first_stage_F` (#815)** (trailing field, default
+  `NaN`). Populated only when `estimate_gmm(moment_fn, theta0,
+  data; X, Z, endogenous=)` is called. Current `estimate gmm`
+  calls `estimate_lp_gmm` which calls `estimate_gmm` **without**
+  `X`/`Z` (just-identified LP, `Z=X`) — F stays `NaN`. Mock
+  `GMMModel` remains a subset (no `first_stage_F` until W3).
+  → **W3/#195** opt-in IV path (`dep` + `theta0`).
+
+**Watch-list re-check at 0.9.7:** `report()` overhaul — no landed
+overhaul (`_status_report` swallow stands). MEMs 1.0 major watch
+— not announced. #609/#255 already consumed on the 0.9.6 program
+(no `[deps]`/`[weakdeps]`/`[extensions]` delta in 0.9.7 either).
+#816 consumed this wave.
