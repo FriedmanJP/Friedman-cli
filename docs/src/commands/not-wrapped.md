@@ -719,12 +719,12 @@ Must-answer resolutions for W1–W3 (upstream tag line numbers):
   Smolyak share the field, so one render change covers both.
 
 - **`GMMModel.first_stage_F` (#815)** (trailing field, default
-  `NaN`). Populated only when `estimate_gmm(moment_fn, theta0,
-  data; X, Z, endogenous=)` is called. Current `estimate gmm`
-  calls `estimate_lp_gmm` which calls `estimate_gmm` **without**
-  `X`/`Z` (just-identified LP, `Z=X`) — F stays `NaN`. Mock
-  `GMMModel` remains a subset (no `first_stage_F` until W3).
-  → **W3/#195** opt-in IV path (`dep` + `theta0`).
+  `NaN`). **Adopted in W3/#195:** `[gmm].dep` + `[gmm].theta0`
+  switch `estimate gmm` to `estimate_gmm(...; X, Z)` with a
+  CLI-built linear-IV moment. LP-GMM (no `dep`/`theta0`) is
+  unchanged. `first_stage_F` renders in `gmm_diagnostics`;
+  F < 10 warns on stderr. Mock gained the trailing field
+  (8-arg constructor still defaults NaN).
 
 **Watch-list re-check at 0.9.7:** `report()` overhaul — no landed
 overhaul (`_status_report` swallow stands). MEMs 1.0 major watch

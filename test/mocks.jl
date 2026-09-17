@@ -751,7 +751,11 @@ end
 struct GMMModel{T}
     theta::Vector{T}; vcov::Matrix{T}; n_moments::Int; n_params::Int
     W::Matrix{T}; g_bar::Vector{T}; J_stat::T; J_pvalue::T
+    first_stage_F::T
 end
+GMMModel(theta::Vector{T}, vcov::Matrix{T}, n_moments::Int, n_params::Int,
+         W::Matrix{T}, g_bar::Vector{T}, J_stat::T, J_pvalue::T) where {T} =
+    GMMModel(theta, vcov, n_moments, n_params, W, g_bar, J_stat, J_pvalue, T(NaN))
 
 # ─── Volatility Types ────────────────────────────────────
 
@@ -1690,6 +1694,17 @@ function estimate_lp_gmm(Y, shock_var, horizon; lags=4, weighting=:two_step)
     vcov = Matrix{Float64}(I(3)) * 0.01
     [GMMModel(theta, vcov, 4, 3, Matrix{Float64}(I(4)), ones(4)*0.01, 2.5, 0.65)]
 end
+function estimate_gmm(moment_fn, theta0::AbstractVector{T}, data;
+                      weighting::Symbol=:two_step, max_iter::Int=100,
+                      tol::T=T(1e-8), hac::Bool=true, bandwidth::Int=0,
+                      bounds=nothing, X=nothing, Z=nothing,
+                      endogenous=nothing) where {T<:AbstractFloat}
+    n = length(theta0)
+    q = n + 1
+    fs = (X !== nothing && Z !== nothing) ? T(50) : T(NaN)
+    GMMModel(ones(T, n) .* T(0.1), Matrix{T}(I(n)) .* T(0.01),
+             q, n, Matrix{T}(I(q)), ones(T, q) .* T(0.01), T(2.5), T(0.65), fs)
+end
 gmm_summary(model::GMMModel) = (n_moments=model.n_moments, n_params=model.n_params, theta=model.theta)
 j_test(model::GMMModel) = (J_stat=model.J_stat, p_value=model.J_pvalue, df=model.n_moments - model.n_params)
 
@@ -2479,7 +2494,7 @@ export estimate_factors, ic_criteria, scree_plot_data
 export estimate_dynamic_factors, ic_criteria_gdfm, estimate_gdfm, common_variance_share
 export adf_test, kpss_test, pp_test, za_test, ngperron_test, johansen_test
 export gph_test, local_whittle
-export estimate_lp_gmm, gmm_summary, j_test
+export estimate_lp_gmm, estimate_gmm, gmm_summary, j_test
 export estimate_ar, estimate_ma, estimate_arma, estimate_arima, auto_arima, estimate_arfima
 export ar_order, ma_order, diff_order, aic, bic
 export estimate_arch, estimate_garch, estimate_egarch, estimate_gjr_garch, estimate_sv

@@ -598,7 +598,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `gmm_estimates` (GMM parameter estimates with standard errors (written only when --output is given))
+**Output tables:** `gmm_estimates` (GMM parameter estimates with standard errors (LP path: only when --output is given; IV path: always)); `gmm_diagnostics` (IV-GMM first-stage F and identification width (opt-in dep+theta0 path))
 
 ---
 

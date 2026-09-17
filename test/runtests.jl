@@ -3364,6 +3364,10 @@ using TOML
         @test gmm_empty["moment_conditions"] == String[]
         @test gmm_empty["instruments"] == String[]
         @test gmm_empty["weighting"] == "twostep"
+        @test gmm_empty["dep"] == ""
+        @test gmm_empty["endogenous"] == String[]
+        @test gmm_empty["exogenous"] == String[]
+        @test gmm_empty["theta0"] == Float64[]
     end
 
     @testset "get_system (SUR/3SLS, C063)" begin
