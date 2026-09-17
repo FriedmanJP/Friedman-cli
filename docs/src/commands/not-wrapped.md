@@ -624,12 +624,14 @@ none exposed (nothing to fix or file).
   requested method's title. Now validates against the base
   map + threads (irf/hd bvar sibling parity). T1/T2 + T3
   regression pinned (invalid --id → usage/invalid).
-- **SDFM: estimation-gated at 0.9.6; MEMs#830 shipped in 0.9.7.**
-  `_SDFM_ID_METHODS` now includes `:lewis_tvv`/`:sv_em`/`:gmm_moments`
-  (`structural.jl:161-168`) and `id_kwargs::NamedTuple` forwards to
-  `compute_Q` (`structural.jl:265`, `:596-599`). Ungate is W1/#193.
-  The loader wrap stays: a still-invalid `--id` is `data/invalid`
-  (exit 3), never exit 1.
+- **SDFM statistical ID adopted in W1/#193 (MEMs#830).** Advertised
+  `--id` on estimate/irf/fevd/forecast sdfm is
+  `cholesky|sign|proxy|lewis-tvv|sv-em|gmm-moments`. kebab maps via
+  `_SDFM_ID_CLI` (Symbol("lewis-tvv") is not `:lewis_tvv`). Knobs
+  ride `id_kwargs` from `get_lewis_tvv_params` /
+  `get_sv_svar_params`; `hetero_shocks` is width `q` (requires
+  `--factors`). Invalid `--id` stays `data/invalid` (exit 3). T3
+  pins irf sdfm × the three methods (`--ci none`) plus the wrap.
 - **estimate svar / test identifiability / policy /
   predict+residuals: untouched with record.** estimate svar
   is the classical AB-pattern estimator (recursive/BQ/A/B/AB

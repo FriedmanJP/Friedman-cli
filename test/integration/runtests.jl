@@ -3626,6 +3626,20 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rp = run_json(["estimate", "sdfm", icsv, "--factors", "1",
                        "--id", "proxy", "--instrument", "z"])
         assert_envelope_ok(rp; label="estimate sdfm proxy")
+        # W1/#193 (MEMs#830): statistical ID on sdfm. Wide panel, T large
+        # enough for lewis-tvv's T_eff≥100 guard; --ci none (no bootstrap).
+        csv_id = dgp_var2(; T=220, seed=193)
+        for sid in ("lewis-tvv", "sv-em", "gmm-moments")
+            r = run_json(["irf", "sdfm", csv_id, "--factors", "2",
+                          "--horizons", "6", "--ci", "none", "--id", sid])
+            assert_envelope_ok(r; label="irf sdfm $sid")
+        end
+        # still-invalid --id stays data/invalid (exit 3), not exit 1
+        @test run_json(["irf", "sdfm", csv_id, "--factors", "2",
+                        "--id", "not-a-method"]).code == 3
+        @test run_json(["irf", "sdfm", csv_id, "--factors", "2",
+                        "--id", "lewis-tvv", "--instrument", "y1"]).code == 2
+        rm(csv_id; force=true)
         # guards are typed usage errors, never exit 1
         @test run_json(["estimate", "sdfm", icsv, "--factors", "1",
                         "--id", "proxy"]).code == 2

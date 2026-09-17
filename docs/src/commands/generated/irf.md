@@ -157,7 +157,7 @@ Structural DFM impulse response functions (panel-wide)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy (--id proxy requires --instrument) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
 | `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
 | `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |

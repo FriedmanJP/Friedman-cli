@@ -5793,7 +5793,8 @@ function estimate_structural_dfm(X::Matrix{T}, q::Int;
         identification=:cholesky, p=1, H=40, sign_check=nothing,
         max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett,
         spectral=:lag_window, method=:fglr, instrument=nothing, seed=nothing,
-        r=0, varnames::Union{Nothing,Vector{String}}=nothing) where T
+        r=0, varnames::Union{Nothing,Vector{String}}=nothing,
+        id_kwargs::NamedTuple=NamedTuple()) where T
     method in (:fglr, :gdfm_var) ||
         throw(ArgumentError("method must be :fglr or :gdfm_var, got :$method"))
     spectral in (:lag_window, :smoothed_periodogram) ||
@@ -5830,7 +5831,8 @@ function estimate_structural_dfm(X::Matrix{T}, q::Symbol;
         q_method=:hallin_liska, q_max=8, r=0, identification=:cholesky, p=1, H=40,
         method=:fglr, spectral=:lag_window, instrument=nothing, seed=nothing,
         sign_check=nothing,
-        standardize=true, bandwidth=0, kernel=:bartlett, varnames=nothing) where T
+        standardize=true, bandwidth=0, kernel=:bartlett, varnames=nothing,
+        id_kwargs::NamedTuple=NamedTuple()) where T
     q === :auto || throw(ArgumentError("q must be a positive integer or :auto, got :$q"))
     q_method in (:hallin_liska, :bai_ng, :amengual_watson) || throw(ArgumentError(
         "q_method must be :hallin_liska, :bai_ng, or :amengual_watson, got :$q_method"))
@@ -5842,7 +5844,8 @@ function estimate_structural_dfm(X::Matrix{T}, q::Symbol;
     estimate_structural_dfm(X, q_hat; r=r, identification=identification, p=p, H=H,
         method=method, spectral=spectral, instrument=instrument, seed=seed,
         sign_check=sign_check,
-        standardize=standardize, bandwidth=bandwidth, kernel=kernel, varnames=varnames)
+        standardize=standardize, bandwidth=bandwidth, kernel=kernel, varnames=varnames,
+        id_kwargs=id_kwargs)
 end
 
 function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T

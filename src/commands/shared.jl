@@ -1571,6 +1571,47 @@ const _GDFM_SPECTRAL = Dict(
     "smoothed-periodogram" => :smoothed_periodogram,
 )
 
+# W1/#193 (MEMs#830): advertised sdfm --id values. kebab → underscore.
+# Unknown tokens fall through to Symbol(id) and the estimator wrap.
+const _SDFM_ID_CLI = Dict(
+    "cholesky"     => :cholesky,
+    "sign"         => :sign,
+    "proxy"        => :proxy,
+    "lewis-tvv"    => :lewis_tvv,
+    "sv-em"        => :sv_em,
+    "gmm-moments"  => :gmm_moments,
+)
+const _SDFM_ID_DESC = "cholesky|sign|proxy|lewis-tvv|sv-em|gmm-moments (--id proxy requires --instrument)"
+
+"""
+    _sdfm_id_kwargs(id, config, q, leaf) → NamedTuple
+
+Knobs forwarded as `id_kwargs` into `estimate_structural_dfm` (MEMs#830).
+`q` is the factor count when `--factors` is set, else `nothing` (auto).
+`hetero_shocks` is the identification width (q), not the panel width —
+auto + nonempty hetero_shocks is `usage/invalid`.
+"""
+function _sdfm_id_kwargs(id::String, config::String, q, leaf::String)
+    id in ("lewis-tvv", "sv-em") || return NamedTuple()
+    cfg = isempty(config) ? Dict{String,Any}() : load_config(config)
+    if id == "lewis-tvv"
+        return (weighting = get_lewis_tvv_params(cfg)["weighting"],)
+    end
+    sp = get_sv_svar_params(cfg)
+    base = (maxiter = sp["maxiter"], gibbs_burn = sp["gibbs_burn"],
+            gibbs_draws = sp["gibbs_draws"], init = sp["init"])
+    hs = sp["hetero_shocks"]
+    isempty(hs) && return base
+    q isa Integer || throw(CliError("usage/invalid",
+        "$leaf: --id sv-em hetero_shocks requires --factors (identification width is q, not N)"))
+    n = Int(q)
+    for h in hs
+        h <= n || throw(CliError("usage/invalid",
+            "$leaf: --id sv-em hetero_shocks index $h out of 1:$n"))
+    end
+    return merge(base, (hetero = BitVector([i in hs for i in 1:n]),))
+end
+
 """
     _load_instrument(data, column) → Vector{Float64}
 
@@ -1640,10 +1681,18 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::In
     end
     instrument = isempty(instrument_col) ? nothing : _load_instrument(data, instrument_col)
 
-    est_kw = (identification=Symbol(id), p=var_lags, H=horizon,
+    # kebab CLI ids → upstream symbols. `Symbol(id)` would send `lewis-tvv`
+    # as `Symbol("lewis-tvv")`, which is not `:lewis_tvv` (MEMs#830).
+    # Unknown tokens still go to the estimator wrap → data/invalid (exit 3).
+    id_sym = get(_SDFM_ID_CLI, id, Symbol(id))
+    q_for_id = factors isa Integer ? Int(factors) : nothing
+    id_kw = _sdfm_id_kwargs(id, config, q_for_id, "estimate sdfm")
+
+    est_kw = (identification=id_sym, p=var_lags, H=horizon,
               method=_SDFM_METHODS[method], spectral=_GDFM_SPECTRAL[spectral],
               sign_check=sign_check, instrument=instrument, seed=_SEED[],
-              bandwidth=bandwidth, kernel=Symbol(kernel), varnames=varnames)
+              bandwidth=bandwidth, kernel=Symbol(kernel), varnames=varnames,
+              id_kwargs=id_kw)
     # Upstream rejects unknown `identification` symbols with a bare
     # ArgumentError — wrap so a bad --id is data/invalid (exit 3),
     # not an untyped exit 1 (same class as the W1/#186 VAR IRF wrap).

@@ -10774,6 +10774,15 @@ end
             # instrument column hygiene mirrors the weights/coordinates loaders
             e7 = try; _estimate_sdfm(; data=csv, factors=1, id="proxy", instrument="nope", format="table"); nothing; catch e; e; end
             @test e7 isa CliError && e7.code == "data/column-range"
+            # W1/#193: kebab --id maps to :lewis_tvv/:sv_em/:gmm_moments
+            for sid in ("lewis-tvv", "sv-em", "gmm-moments")
+                _capture() do
+                    _estimate_sdfm(; data=csv, factors=2, id=sid, horizon=8, format="table")
+                end
+            end
+            e8 = try; _estimate_sdfm(; data=csv, factors=2, id="lewis-tvv",
+                                     instrument="var1", format="table"); nothing; catch e; e; end
+            @test e8 isa CliError && e8.code == "usage/invalid"
         end
     end
 
