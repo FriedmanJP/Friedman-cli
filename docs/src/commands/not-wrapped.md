@@ -352,12 +352,10 @@ JSON, SciMLBase), 197→197 packages, Optim pre-existing at 2.3.1
   approximation error. T3 therefore pins the μ-refinement property
   and a garbage-excluding band, never tight agreement.
 - **`collocation_nodes` are unit-cube on both paths**
-  (`Matrix{T}(nodes_unit)`, `vfi.jl` solution construction) — so the
-  `vfi_value_function` table's state-named coordinate columns show
-  unit values, and `evaluate_value` (physical levels) disagrees with
-  node coordinates by construction. Pre-existing on tensor (not a
-  0.9.5 regression); out of scope to re-render here. Follow-up:
-  #182.
+  (`Matrix{T}(nodes_unit)`, `vfi.jl` solution construction).
+  **Adopted in W2/#194:** `vfi_value_function` now renders
+  `physical_nodes(sol)` (MEMs#829) so state-named columns are
+  physical levels, matching `--evaluate-at`. #182 closed with W2.
 - **NM-vs-LBFGS fixed-point gap on labor3 (upstream solver
   behavior).** Both converge (`res ≈ 1e-4`) but to V's 1.1 apart —
   distinct local maxima of the 2-control Bellman RHS (labor has no

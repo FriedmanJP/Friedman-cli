@@ -13945,6 +13945,14 @@ end
             @test Int(smkv["smolyak_blocks"]) == 3
             @test Int(smkv["n_nodes"]) == 5
             @test _hascols(sm, ["node", "V"])
+            # W2/#194: mock bounds are [-2,2]; unit-cube nodes would stay in
+            # [-1,1]. physical_nodes must put a coordinate outside the cube.
+            vf = _table(sm, ["node", "V"])
+            scols = filter(c -> c != "node" && c != "V", String.(vf.columns))
+            @test !isempty(scols)
+            si = findfirst(==(scols[1]), String.(vf.columns))
+            svals = [Float64(r[si]) for r in vf.rows]
+            @test any(abs(v) > 1 + 1e-9 for v in svals)
             au = _dsgedoc("dsge", "solve", bell1, "--method", "vfi")
             aukv = _vfikv(au)
             @test string(aukv["grid_type"]) == "tensor"

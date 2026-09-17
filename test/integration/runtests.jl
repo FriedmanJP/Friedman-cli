@@ -5163,6 +5163,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             vals = [Float64(collect(row)[vi]) for row in table_rows(vf)]
             @test length(vals) >= 2
             @test all(isfinite, vals)
+            # W2/#194 / #182: state-named columns are physical levels, not
+            # Chebyshev [-1,1]. RBC capital bounds are not the unit cube.
+            vcols = table_cols(vf)
+            ki = findfirst(==("k"), vcols)
+            @test ki !== nothing
+            kvals = [Float64(collect(row)[ki]) for row in table_rows(vf)]
+            @test any(abs(v) > 1 + 1e-8 for v in kvals)
             # monotone in the collocation order of the 1-state RBC
             @test vals[end] >= vals[1] - 1e-6
             rbk = run_json(["dsge", "solve", model_jl, "--method", "blanchard-kahn"])

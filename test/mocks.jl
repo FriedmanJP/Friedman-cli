@@ -3259,7 +3259,8 @@ function solve(spec::ModelSpec{T}; method=:gensys, order=1, degree=5, grid=:auto
             gres = grid == :auto ? :chebyshev : grid
         end
         vf = method === :vfi ? reshape(T[T(i) for i in 1:5], 5, 1) : zeros(T, 0, 0)
-        nodes = method === :vfi ? hcat(range(T(-1), T(1); length=5)) : zeros(T, 0, 0)
+        nodes = method === :vfi ?
+            repeat(collect(range(T(-1), T(1); length=5)), 1, n_states) : zeros(T, 0, 0)
         vc = method === :vfi ? T[0.1, 0.2, 0.3] : T[]
         lv = (method === :vfi && gres === :smolyak) ? fill(2, 3, n_states) :
             zeros(Int, 0, 0)
@@ -3376,6 +3377,21 @@ end
 function simulate(sol::PerturbationSolution{T}, T_periods::Int; kwargs...) where T
     randn(T, T_periods, sol.spec.n_endog)
 end
+# Real (projection.jl:996): rescale Chebyshev [-1,1] nodes to state levels.
+function physical_nodes(sol::ProjectionSolution{T}) where {T}
+    Z = sol.collocation_nodes
+    bounds = sol.state_bounds
+    n, nx = size(Z)
+    X = similar(Z)
+    for i in 1:n
+        for d in 1:nx
+            a = bounds[d, 1]; b = bounds[d, 2]
+            X[i, d] = a + (Z[i, d] + one(T)) / T(2) * (b - a)
+        end
+    end
+    return X
+end
+
 function simulate(sol::ProjectionSolution{T}, T_periods::Int; kwargs...) where T
     # Real simulate (simulation.jl:206) takes shock_draws/seed/rng only —
     # reject antithetic like real (MethodError → internal/error both tiers).
@@ -3444,7 +3460,7 @@ export LinearDSGE, DSGESolution, PerturbationSolution
 export ProjectionSolution, PerfectForesightPath, DSGEEstimation
 export OccBinConstraint, VariableBound, NonlinearConstraint, nonlinear_constraint, OccBinSolution, OccBinIRF
 export compute_steady_state, linearize, solve, gensys, blanchard_kahn, klein
-export perturbation_solver, collocation_solver, pfi_solver
+export perturbation_solver, collocation_solver, pfi_solver, physical_nodes
 export perfect_foresight, occbin_solve, occbin_irf, parse_constraint, variable_bound
 export estimate_dsge, simulate, is_determined, is_stable, nshocks
 export @dsge
