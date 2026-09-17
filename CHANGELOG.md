@@ -4,14 +4,24 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [Unreleased]
+## [0.13.1] — 2026-09-18 — MEMs 0.9.7 adoption (#191–#196)
 
-### Changed
+Additive 0.x patch. 456 leaves / 21 top-level, unchanged. MEMs pin
+**0.9.6 → 0.9.7**.
 
-- Retired the scheduled **Nightly** workflow (full T3 on pinned MEMs + MEMs
-  `dev`). Push CI (engine / T3 / E2E) and the MEMs-dev canary remain. The
-  local full-suite entry point is still
-  `test/integration/runtests_full.jl`.
+- **Pin** `MacroEconometricModels = "=0.9.7"`. Uhlig sign-normalization
+  (#814) absorbed with no golden/capture drift (goldens are mocks;
+  captured examples do not hit `--id uhlig`). `DSGESolveError` residual
+  gate (#816) already mapped to `model/solve`. Plot-coverage 181/181.
+- **SDFM statistical ID** (`--id lewis-tvv|sv-em|gmm-moments`) via
+  MEMs#830 `id_kwargs`. Invalid `--id` stays `data/invalid`.
+- **`vfi_value_function`** renders `physical_nodes(sol)` (MEMs#829);
+  closes #182.
+- **`estimate gmm` opt-in IV path:** `[gmm].dep` + `theta0` call
+  `estimate_gmm(...; X, Z)` so Stock–Yogo `first_stage_F` renders.
+  LP-GMM remains the default when those keys are omitted.
+- Retired the scheduled Nightly workflow. Push CI and the MEMs-dev
+  canary remain.
 
 ## [0.13.0] — 2026-09-11 — Typed handles pipeline (#189)
 
