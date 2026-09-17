@@ -606,6 +606,61 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(cfg; force=true)
     end
 
+    @testset "estimate gmm IV opt-in first_stage_F (W3/#195, MEMs#815)" begin
+        Random.seed!(195)
+        n = 400
+        z1 = randn(n); z2 = randn(n)
+        x = 0.9 .* z1 .+ 0.9 .* z2 .+ 0.1 .* randn(n)
+        y = 1.0 .+ 0.5 .* x .+ randn(n)
+        csv = write_csv(DataFrame(y=y, x=x, z1=z1, z2=z2); prefix="gmm_iv")
+        cfg = tempname() * "_gmm_iv.toml"
+        write(cfg, """
+        [gmm]
+        dep = "y"
+        endogenous = ["x"]
+        instruments = ["z1", "z2"]
+        theta0 = [0.0, 0.0]
+        """)
+        r = run_json(["estimate", "gmm", csv, "--config", cfg, "--weighting", "twostep"])
+        assert_envelope_ok(r; label="estimate gmm iv")
+        diag = named_table(r.doc, :gmm_diagnostics)
+        @test diag !== nothing
+        kv = collect_named_kv(r.doc, "metric", "value")
+        @test haskey(kv, "first_stage_F")
+        fs = kv["first_stage_F"]
+        @test fs isa Number && isfinite(Float64(fs))
+        # LP default still just-identified
+        cfg_lp = tempname() * "_gmm_lp.toml"
+        write(cfg_lp, """
+        [gmm]
+        moment_conditions = ["y1", "y2"]
+        instruments = ["lag_y1", "lag_y2"]
+        """)
+        csv_lp = dgp_var2(; T=200, seed=9)
+        rlp = run_cli_capture(["estimate", "gmm", csv_lp, "--config", cfg_lp,
+                               "--weighting", "identity"])
+        @test rlp.code == 0
+        @test occursin("Degrees of freedom: 0", rlp.err)
+        @test occursin("p-value: 1.0", rlp.err)
+        # Weak instrument: F < 10 warning
+        zw = randn(n)   # independent of x → weak first stage
+        csv_w = write_csv(DataFrame(y=y, x=x, z=zw); prefix="gmm_weak")
+        cfg_w = tempname() * "_gmm_w.toml"
+        write(cfg_w, """
+        [gmm]
+        dep = "y"
+        endogenous = ["x"]
+        instruments = ["z"]
+        theta0 = [0.0, 0.0]
+        """)
+        rw = run_cli_capture(["estimate", "gmm", csv_w, "--config", cfg_w])
+        @test rw.code == 0
+        @test occursin("Weak instruments", rw.err) || occursin("1st-stage F", rw.err)
+        rm(csv; force=true); rm(cfg; force=true)
+        rm(csv_lp; force=true); rm(cfg_lp; force=true)
+        rm(csv_w; force=true); rm(cfg_w; force=true)
+    end
+
     @testset "estimate sur / 3sls — systems (C063, M5c)" begin
         Random.seed!(4242)
         Tn = 300
@@ -3626,6 +3681,20 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rp = run_json(["estimate", "sdfm", icsv, "--factors", "1",
                        "--id", "proxy", "--instrument", "z"])
         assert_envelope_ok(rp; label="estimate sdfm proxy")
+        # W1/#193 (MEMs#830): statistical ID on sdfm. Wide panel, T large
+        # enough for lewis-tvv's T_eff≥100 guard; --ci none (no bootstrap).
+        csv_id = dgp_var2(; T=220, seed=193)
+        for sid in ("lewis-tvv", "sv-em", "gmm-moments")
+            r = run_json(["irf", "sdfm", csv_id, "--factors", "2",
+                          "--horizons", "6", "--ci", "none", "--id", sid])
+            assert_envelope_ok(r; label="irf sdfm $sid")
+        end
+        # still-invalid --id stays data/invalid (exit 3), not exit 1
+        @test run_json(["irf", "sdfm", csv_id, "--factors", "2",
+                        "--id", "not-a-method"]).code == 3
+        @test run_json(["irf", "sdfm", csv_id, "--factors", "2",
+                        "--id", "lewis-tvv", "--instrument", "y1"]).code == 2
+        rm(csv_id; force=true)
         # guards are typed usage errors, never exit 1
         @test run_json(["estimate", "sdfm", icsv, "--factors", "1",
                         "--id", "proxy"]).code == 2
@@ -5149,6 +5218,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             vals = [Float64(collect(row)[vi]) for row in table_rows(vf)]
             @test length(vals) >= 2
             @test all(isfinite, vals)
+            # W2/#194 / #182: state-named columns are physical levels, not
+            # Chebyshev [-1,1]. RBC capital bounds are not the unit cube.
+            vcols = table_cols(vf)
+            ki = findfirst(==("k"), vcols)
+            @test ki !== nothing
+            kvals = [Float64(collect(row)[ki]) for row in table_rows(vf)]
+            @test any(abs(v) > 1 + 1e-8 for v in kvals)
             # monotone in the collocation order of the 1-state RBC
             @test vals[end] >= vals[1] - 1e-6
             rbk = run_json(["dsge", "solve", model_jl, "--method", "blanchard-kahn"])

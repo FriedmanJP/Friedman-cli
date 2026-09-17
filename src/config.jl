@@ -29,7 +29,8 @@ const CONFIG_SCHEMA = Dict{String,Vector{String}}(
                          "lewis_tvv", "sv_svar"],
     "svar" => ["recursive", "A", "B", "long_run", "n_starts", "max_iter"],
     "svec" => ["long_run_zeros", "short_run_zeros"],
-    "gmm" => ["moment_conditions", "instruments", "weighting"],
+    "gmm" => ["moment_conditions", "instruments", "weighting",
+             "dep", "endogenous", "exogenous", "theta0"],
     "smm" => ["model", "theta0", "lags", "p", "lower", "upper",
               "weighting", "sim_ratio", "burn"],
     "nongaussian" => ["method", "contrast", "distribution", "n_regimes",
@@ -339,11 +340,25 @@ function get_gmm(config::Dict)
     gmm = get(config, "gmm", Dict())
     result = Dict{String,Any}()
 
-    result["moment_conditions"] = get(gmm, "moment_conditions", String[])
-    result["instruments"] = get(gmm, "instruments", String[])
+    result["moment_conditions"] = _gmm_string_vec(get(gmm, "moment_conditions", String[]))
+    result["instruments"] = _gmm_string_vec(get(gmm, "instruments", String[]))
     result["weighting"] = get(gmm, "weighting", "twostep")
+    result["dep"] = strip(string(get(gmm, "dep", "")))
+    result["endogenous"] = _gmm_string_vec(get(gmm, "endogenous", String[]))
+    result["exogenous"] = _gmm_string_vec(get(gmm, "exogenous", String[]))
+    result["theta0"] = _gmm_theta0(get(gmm, "theta0", Float64[]))
 
     return result
+end
+
+_gmm_string_vec(x::AbstractVector) = String[string(v) for v in x]
+_gmm_string_vec(x::AbstractString) = isempty(strip(x)) ? String[] : String[String(x)]
+_gmm_string_vec(::Any) = String[]
+
+function _gmm_theta0(x)
+    x isa AbstractVector && return Float64[Float64(v) for v in x]
+    x isa Number && return Float64[Float64(x)]
+    return Float64[]
 end
 
 """

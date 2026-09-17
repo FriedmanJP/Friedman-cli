@@ -205,9 +205,18 @@ weighting = "twostep"
 
 | Field | Description |
 |-------|-------------|
-| `moment_conditions` | Column names used as moment condition variables |
-| `instruments` | Column names used as instruments |
+| `moment_conditions` | Column names used as LP-GMM moment variables (default path) |
+| `instruments` | Excluded instrument columns (IV path) or unused LP-GMM names (default path) |
 | `weighting` | Weighting matrix method (overridden by `--weighting` flag) |
+| `dep` | Dependent-variable column. **Together with `theta0`, switches to IV-GMM** |
+| `endogenous` | Endogenous regressor columns (IV path) |
+| `exogenous` | Optional included exogenous regressors (IV path) |
+| `theta0` | Starting values, length = 1 (intercept) + endogenous + exogenous |
+
+Omit both `dep` and `theta0` to keep the default LP-GMM (horizon-0) estimator.
+Set both to call `estimate_gmm` with a linear-IV moment `Z'(y − Xθ)` so the
+Stock–Yogo first-stage F is stored and rendered. One without the other is
+`config/invalid`.
 
 ## DSGE Model
 

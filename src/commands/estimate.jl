@@ -363,7 +363,9 @@ function estimate_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:gmm_estimates,
-                              description="GMM parameter estimates with standard errors (written only when --output is given)")],
+                              description="GMM parameter estimates with standard errors (LP path: only when --output is given; IV path: always)"),
+                    TableSpec(name=:gmm_diagnostics,
+                              description="IV-GMM first-stage F and identification width (opt-in dep+theta0 path)")],
             category="estimate",
             handler=wrap_legacy(_estimate_gmm),
         ),
@@ -1422,7 +1424,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|proxy (--id proxy requires --instrument)"),
+                OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
                 OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
@@ -2800,14 +2802,23 @@ function _estimate_gmm(; data::String, config::String="",
                         output::String="", format::String="table")
     isempty(config) && error("GMM requires a --config=<file.toml> specifying moment conditions and instruments")
 
-    Y, varnames = load_multivariate_data(data)
-
     cfg = load_config(config)
     gmm_cfg = get_gmm(cfg)
 
     weighting_map = Dict("identity" => :identity, "optimal" => :optimal,
                          "twostep" => :two_step, "iterated" => :iterated)
     w = get(weighting_map, lowercase(weighting), :two_step)
+
+    has_dep = !isempty(gmm_cfg["dep"])
+    has_theta0 = !isempty(gmm_cfg["theta0"])
+    if has_dep ⊻ has_theta0
+        throw(CliError("config/invalid",
+            "estimate gmm: IV-GMM requires both [gmm].dep and [gmm].theta0 (got dep=$(isempty(gmm_cfg["dep"]) ? "missing" : "set"), theta0=$(has_theta0 ? "set" : "missing"))";
+            hint="omit both to keep the LP-GMM default, or set both for IV-GMM"))
+    end
+    has_dep && return _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
+
+    Y, varnames = load_multivariate_data(data)
 
     _status("Estimating GMM: weighting=$weighting")
     _status("  Moment conditions: $(length(gmm_cfg["moment_conditions"]))")
@@ -2857,6 +2868,114 @@ function _estimate_gmm(; data::String, config::String="",
         end
         return model
     end
+end
+
+"""
+    _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
+
+Opt-in IV-GMM (W3/#195, MEMs#815). Triggered when `[gmm]` has both `dep` and
+`theta0`. Builds Z'(y − Xθ) moments and passes `X=`/`Z=` so `first_stage_F`
+is stored. LP-GMM remains the default path.
+"""
+function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::String,
+                          output::String, format::String)
+    dep = gmm_cfg["dep"]
+    endog = gmm_cfg["endogenous"]
+    exog = gmm_cfg["exogenous"]
+    inst = gmm_cfg["instruments"]
+    theta0 = gmm_cfg["theta0"]
+    isempty(endog) && throw(CliError("config/invalid",
+        "estimate gmm: IV-GMM requires [gmm].endogenous (comma-free TOML array of column names)"))
+    length(inst) >= length(endog) || throw(CliError("data/invalid",
+        "under-identified: need at least as many excluded instruments ($(length(inst))) as endogenous regressors ($(length(endog)))"))
+
+    df = load_data(data)
+    numcols = _numeric_column_names(df)
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
+
+    function colvec(name::AbstractString)
+        nm = String(name)
+        nm in numcols || throw(CliError("data/column-range",
+            "column '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+        any(ismissing, df[!, nm]) && throw(CliError("data/missing-values",
+            "column '$nm' contains missing values; drop or impute them first"))
+        return Float64.(df[!, nm])
+    end
+
+    dep in numcols || throw(CliError("data/column-range",
+        "dependent variable '$dep' not found in numeric columns: $(join(numcols, ", "))"))
+    y = colvec(dep)
+    n = length(y)
+    xparts = Matrix{Float64}[ones(n, 1)]
+    for nm in vcat(endog, exog)
+        nm == dep && throw(CliError("data/column-range",
+            "column '$nm' cannot be both the dependent variable and a regressor"))
+        push!(xparts, reshape(colvec(nm), n, 1))
+    end
+    zparts = Matrix{Float64}[ones(n, 1)]
+    for nm in vcat(exog, inst)
+        nm == dep && throw(CliError("data/column-range",
+            "instrument/exogenous '$nm' cannot be the dependent variable"))
+        push!(zparts, reshape(colvec(nm), n, 1))
+    end
+    X = hcat(xparts...)
+    Z = hcat(zparts...)
+    k = size(X, 2)
+    length(theta0) == k || throw(CliError("config/shape",
+        "estimate gmm: theta0 has length $(length(theta0)) but X has $k columns (intercept + endogenous + exogenous)";
+        hint="theta0[1] is the intercept"))
+    size(Z, 2) < n || throw(CliError("data/invalid",
+        "too many instruments: Z has $(size(Z, 2)) columns but only $n observations"))
+
+    _status("Estimating IV-GMM: weighting=$weighting")
+    _status("  dep=$dep  endogenous=$(join(endog, ","))  instruments=$(join(inst, ","))")
+    _status()
+
+    moment_fn = (theta, dat) -> begin
+        y_, X_, Z_ = dat
+        resid = y_ .- X_ * theta
+        Z_ .* resid
+    end
+    model = try
+        estimate_gmm(moment_fn, theta0, (y, X, Z); weighting=w, X=X, Z=Z)
+    catch e
+        throw(_domain_or_data_error(e, "GMM"))
+    end
+
+    se = stderror(model)
+    names_ = String["(Intercept)"]
+    append!(names_, endog)
+    append!(names_, exog)
+    coef_df = DataFrame(parameter=names_, estimate=model.theta, std_error=se)
+    output_result(coef_df; format=Symbol(format), output=output,
+                  title="GMM Estimates", key="gmm_estimates")
+
+    fs = hasproperty(model, :first_stage_F) ? Float64(model.first_stage_F) : NaN
+    fs_cell = isfinite(fs) ? fs : "n/a"
+    output_kv(Pair{String,Any}[
+        "first_stage_F" => fs_cell,
+        "n_endogenous" => length(endog),
+        "n_instruments" => length(inst),
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="GMM Diagnostics", key="gmm_diagnostics")
+
+    if isfinite(fs) && fs < 10
+        _status_styled("  Weak instruments: 1st-stage F = $(round(fs; digits=2)) < 10\n"; color=:yellow)
+    elseif isfinite(fs)
+        _status("  1st-stage F = $(round(fs; digits=2))")
+    end
+
+    jtest = j_test(model)
+    _status()
+    _status("Hansen's J-test for overidentification:")
+    _status("  J-statistic: $(round(jtest.J_stat; digits=4))")
+    if isnan(jtest.p_value)
+        _status("  p-value: n/a (identity weighting — χ² limit needs efficient weighting)")
+    else
+        _status("  p-value: $(round(jtest.p_value; digits=4))")
+    end
+    _status("  Degrees of freedom: $(jtest.df)")
+    return model
 end
 
 # ── Factor Models ──────────────────────────────────────────

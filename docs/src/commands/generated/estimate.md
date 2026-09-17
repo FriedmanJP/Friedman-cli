@@ -598,7 +598,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `gmm_estimates` (GMM parameter estimates with standard errors (written only when --output is given))
+**Output tables:** `gmm_estimates` (GMM parameter estimates with standard errors (LP path: only when --output is given; IV path: always)); `gmm_diagnostics` (IV-GMM first-stage F and identification width (opt-in dep+theta0 path))
 
 ---
 
@@ -1467,7 +1467,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy (--id proxy requires --instrument) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
 | `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
 | `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |

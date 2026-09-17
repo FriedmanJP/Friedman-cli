@@ -76,7 +76,7 @@ function dsge_specs()::Vector{CommandSpec}
                 TableSpec(name=:perturbation_policy_gx, description="Perturbation control policy gx: control responses to states and shocks"),
                 TableSpec(name=:projection_solution, description="Projection/PFI/VFI basis coefficients, one row per control"),
                 TableSpec(name=:projection_diagnostics, description="Projection/PFI/VFI convergence, iterations, residual norm, grid and degree"),
-                TableSpec(name=:vfi_value_function, description="Bellman value on collocation nodes (--method vfi)"),
+                TableSpec(name=:vfi_value_function, description="Bellman value on physical collocation nodes (--method vfi)"),
                 TableSpec(name=:vfi_value_coefficients, description="Chebyshev coefficients of the Bellman value (--method vfi)"),
                 TableSpec(name=:vfi_value_at, description="evaluate_value at --evaluate-at (--method vfi)"),
                 TableSpec(name=:determinacy_verdict, description="Sims existence/uniqueness pair and the collapsed determinacy verdict"),
@@ -1808,8 +1808,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       title=title, key="projection_solution")
         if hasproperty(sol, :method) && sol.method === :vfi &&
            hasproperty(sol, :value_fn) && !isempty(sol.value_fn)
-            nodes = hasproperty(sol, :collocation_nodes) ? sol.collocation_nodes :
-                    zeros(eltype(sol.value_fn), size(sol.value_fn, 1), 0)
+            nodes = physical_nodes(sol)
             n_nodes = size(sol.value_fn, 1)
             vfi_df = DataFrame(node = 1:n_nodes)
             nx = size(nodes, 2)

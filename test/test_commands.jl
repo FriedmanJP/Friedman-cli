@@ -957,6 +957,53 @@ end  # Shared utilities
         end
     end
 
+    @testset "_estimate_gmm — IV opt-in (W3/#195)" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "iv.csv")
+            CSV.write(csv, DataFrame(y=randn(80), x=randn(80), z1=randn(80), z2=randn(80)))
+            iv = joinpath(dir, "iv.toml")
+            write(iv, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0, 0.0]
+            """)
+            out = _capture() do
+                _estimate_gmm(; data=csv, config=iv, weighting="twostep", format="table")
+            end
+            @test occursin("first_stage_F", out) || occursin("1st-stage F", out)
+            half = joinpath(dir, "half.toml")
+            write(half, """
+            [gmm]
+            dep = "y"
+            instruments = ["z1"]
+            """)
+            e = try; _estimate_gmm(; data=csv, config=half, format="table"); nothing; catch err; err; end
+            @test e isa CliError && e.code == "config/invalid"
+            under = joinpath(dir, "under.toml")
+            write(under, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = []
+            theta0 = [0.0, 0.0]
+            """)
+            e2 = try; _estimate_gmm(; data=csv, config=under, format="table"); nothing; catch err; err; end
+            @test e2 isa CliError && e2.code == "data/invalid"
+            badth = joinpath(dir, "badth.toml")
+            write(badth, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0]
+            """)
+            e3 = try; _estimate_gmm(; data=csv, config=badth, format="table"); nothing; catch err; err; end
+            @test e3 isa CliError && e3.code == "config/shape"
+        end
+    end
+
     @testset "_estimate_smm — ar1 config" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=1)
@@ -10774,6 +10821,15 @@ end
             # instrument column hygiene mirrors the weights/coordinates loaders
             e7 = try; _estimate_sdfm(; data=csv, factors=1, id="proxy", instrument="nope", format="table"); nothing; catch e; e; end
             @test e7 isa CliError && e7.code == "data/column-range"
+            # W1/#193: kebab --id maps to :lewis_tvv/:sv_em/:gmm_moments
+            for sid in ("lewis-tvv", "sv-em", "gmm-moments")
+                _capture() do
+                    _estimate_sdfm(; data=csv, factors=2, id=sid, horizon=8, format="table")
+                end
+            end
+            e8 = try; _estimate_sdfm(; data=csv, factors=2, id="lewis-tvv",
+                                     instrument="var1", format="table"); nothing; catch e; e; end
+            @test e8 isa CliError && e8.code == "usage/invalid"
         end
     end
 
@@ -13936,6 +13992,14 @@ end
             @test Int(smkv["smolyak_blocks"]) == 3
             @test Int(smkv["n_nodes"]) == 5
             @test _hascols(sm, ["node", "V"])
+            # W2/#194: mock bounds are [-2,2]; unit-cube nodes would stay in
+            # [-1,1]. physical_nodes must put a coordinate outside the cube.
+            vf = _table(sm, ["node", "V"])
+            scols = filter(c -> c != "node" && c != "V", String.(vf.columns))
+            @test !isempty(scols)
+            si = findfirst(==(scols[1]), String.(vf.columns))
+            svals = [Float64(r[si]) for r in vf.rows]
+            @test any(abs(v) > 1 + 1e-9 for v in svals)
             au = _dsgedoc("dsge", "solve", bell1, "--method", "vfi")
             aukv = _vfikv(au)
             @test string(aukv["grid_type"]) == "tensor"
