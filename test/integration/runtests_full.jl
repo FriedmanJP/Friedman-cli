@@ -1,6 +1,6 @@
 # Full T3 integration suite (TS-7 / C032) — extends core with more families.
 # Run: julia --project=test/integration test/integration/runtests_full.jl
-# Nightly runs this; every-push CI keeps the faster runtests.jl core.
+# Local/manual full suite; every-push CI keeps the faster runtests.jl core.
 
 using Test
 
