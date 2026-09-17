@@ -4,6 +4,15 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [Unreleased]
+
+### Changed
+
+- Retired the scheduled **Nightly** workflow (full T3 on pinned MEMs + MEMs
+  `dev`). Push CI (engine / T3 / E2E) and the MEMs-dev canary remain. The
+  local full-suite entry point is still
+  `test/integration/runtests_full.jl`.
+
 ## [0.13.0] — 2026-09-11 — Typed handles pipeline (#189)
 
 Additive 0.x minor. CSV remains legal on every leaf that already accepted it.
