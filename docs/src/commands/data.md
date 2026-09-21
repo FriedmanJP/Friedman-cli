@@ -1,6 +1,6 @@
 # data
 
-Data management commands: import/export typed handles, load example datasets, inspect, clean, transform, and validate data. 13 subcommands.
+Data management commands: import/export typed handles, load example datasets, inspect, clean, transform, and validate data, and simulate samples from a known population. 13 data commands plus `data simulate` (21 leaves).
 
 ## Typed handles and stems
 
@@ -38,6 +38,44 @@ for the full pipeline.
 Data containers emit the same descriptive-stats table as `data describe`;
 bundles list keys only and are not unpacked. Stem resolution uses the result
 slot (`.jld2`, no CSV fallback).
+
+## data simulate
+
+Draw a sample and the population that generated it. Every leaf emits the same three tables:
+
+| Table | Contents |
+|-------|----------|
+| `simulated_data` | Observables an estimator would read. Time series carry `time`; panels carry `id` and `time`; cross-sections carry `obs`. |
+| `population_truth` | Population parameters, flattened to `parameter`, `row`, `col`, `value`. A scalar has `row = col = 0`. A vector uses `row`. A matrix uses `row` and `col`. A list of matrices is `A_1`, `A_2`, … |
+| `simulation_settings` | `model`, the effective `seed`, and the kind or distribution. |
+
+`--seed 0` defers to the global `--seed`. With neither set, the draw is `Xoshiro(0)`. The same seed reproduces `simulated_data`. Structural shocks are not copied into the truth table. Conditional variances `h` are included, because that is the latent series a volatility estimator recovers.
+
+The VAR / SVAR / VECM leaves use MacroEconometricModels' reference designs (for `var`: the 3-variable VAR(1) with
+
+```
+A = [0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3]
+B0 = [1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0]
+```
+
+and `Sigma = B0 B0'`). `ardl` reports the long-run multiplier `theta = (beta0 + beta1) / (1 - phi)`. `did` uses the upstream adoption dates 6, 11, and 16 when each date falls inside the sample, and a shorter panel keeps only the dates that are treated in `1:periods`. A cohort with no treated date is not requested, and a non-finite ATT is left out of `population_truth`.
+
+DSGE-family leaves have no `dgp_*` simulator. They solve the model and call MEMs `simulate`:
+
+| Leaf | What it draws |
+|------|----------------|
+| `dsge MODEL` | Representative-agent path (`.jl` or `.toml`). `--meas-sd` adds Gaussian measurement error; the truth table records the standard deviations and `H = sd²`. |
+| `ha MODEL` | Heterogeneous-agent aggregate **deviations** (`--method ssj` or `reiter`). Steady-state levels are `ss_agg:*` and `ss_price:*` in the truth table. |
+| `olg` | Blanchard perpetual-youth saddle path. Deterministic; the truth table holds the steady state. |
+| `ct` | Continuous-time Aiyagari MIT transition after an initial TFP shock. |
+
+```bash
+friedman data simulate var --periods 200 --burn 50 --seed 7 --format json
+friedman data simulate dsge model.jl --periods 80 --burn 20 --seed 7 --meas-sd 0.01
+friedman data simulate ha huggett --method reiter --periods 40 --seed 7
+```
+
+`krusell-smith` has no aggregate `simulate` path (`usage/invalid`). `--order` applies only to `dsge --method perturbation`.
 
 ## data list
 

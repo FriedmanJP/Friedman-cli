@@ -4219,8 +4219,8 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +svar/svec W2/#166)
-    @test length(est_node.subcmds) == 77
+    # 76 primary leaves, no aliases (C055 removed the C044 gjr_garch alias; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +svar/svec W2/#166)
+    @test length(est_node.subcmds) == 76
     @test haskey(est_node.subcmds, "smm")
     @test haskey(est_node.subcmds, "favar")
     @test haskey(est_node.subcmds, "sdfm")
@@ -4232,7 +4232,7 @@ end
         @test haskey(est_node.subcmds, key)
         @test est_node.subcmds[key] isa LeafCommand
     end
-    @test haskey(est_node.subcmds, "gjr_garch")  # hidden alias
+    @test !haskey(est_node.subcmds, "gjr_garch")  # C055: alias removed
 
     # FAVAR has key-vars option
     favar_cmd = est_node.subcmds["favar"]
@@ -4384,9 +4384,9 @@ end
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
+    # Forecast: primaries + evaluate sub-node, no aliases (C055 removed gjr_garch; C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
     fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 31
+    @test length(fc_node.subcmds) == 30
     @test haskey(fc_node.subcmds, "favar")
     @test haskey(fc_node.subcmds, "sdfm")
     @test fc_node.subcmds["sdfm"] isa LeafCommand
@@ -4399,18 +4399,18 @@ end
     fc_favar_flags = [f.name for f in fc_favar.flags]
     @test "panel-forecast" in fc_favar_flags
 
-    # Predict: 23 primary + gjr_garch alias (C044; +ms/ms-ar W3 #101)
+    # Predict: 38 primary leaves, no aliases (C055 removed gjr_garch; +ms/ms-ar W3 #101)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 39
+    @test length(pred_node.subcmds) == 38
     @test haskey(pred_node.subcmds, "favar")
     @test pred_node.subcmds["favar"] isa LeafCommand
 
     pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
-    # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
+    # Residuals: 40 primary leaves, no aliases (C055 removed gjr_garch); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 41
+    @test length(res_node.subcmds) == 40
     @test haskey(res_node.subcmds, "favar")
     @test res_node.subcmds["favar"] isa LeafCommand
 
@@ -4421,8 +4421,8 @@ end
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 80 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-    @test length(test_node.subcmds) == 85
+    # 83 primary leaves, no aliases (C055 removed the C044 arch_lm/ljung_box pair; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+    @test length(test_node.subcmds) == 83
     for leaf in ("hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                  "phillips-ouliaris", "hansen-instability", "park-added",
                  "white", "glejser", "harvey", "chow", "cusum", "cusumsq",

@@ -10,6 +10,7 @@ using Friedman
 using Random
 using Statistics
 using LinearAlgebra
+import MacroEconometricModels
 
 const ROOT = dirname(dirname(@__DIR__))
 const SCHEMA_PATH = joinpath(ROOT, "schema", "envelope-v1.json")
@@ -8643,6 +8644,265 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
             @test acc !== nothing
             @test !isempty(table_rows(acc))
+        end
+    end
+
+    # #177: `data simulate` truth bundles, plus upstream oracles on the VAR leaves.
+    # The hermetic generators in dgp.jl are unchanged. Population parameters are
+    # exact; estimated IRFs are compared to `var_irf` with a tolerance.
+    @testset "data simulate + VAR oracles (#177)" begin
+        function sim_lookup(doc)
+            tbl = named_table(doc, :population_truth)
+            d = Dict{String,Float64}()
+            tbl === nothing && return d
+            ip, ir, ic, iv = col_index(tbl, "parameter"), col_index(tbl, "row"),
+                             col_index(tbl, "col"), col_index(tbl, "value")
+            for rw in table_rows(tbl)
+                r = collect(rw)
+                name = String(r[ip])
+                row, col = Int(r[ir]), Int(r[ic])
+                key = (row == 0 && col == 0) ? name : "$name[$row,$col]"
+                d[key] = Float64(r[iv])
+            end
+            return d
+        end
+        function sample_matrix(doc)
+            tbl = named_table(doc, :simulated_data)
+            return [collect(rw) for rw in table_rows(tbl)]
+        end
+
+        @testset "reference VAR population and seed" begin
+            a = run_json(["data", "simulate", "var", "--periods", "30",
+                          "--burn", "10", "--seed", "11"])
+            assert_envelope_ok(a; label="data simulate var")
+            for key in ("simulated_data", "population_truth", "simulation_settings")
+                @test named_table(a.doc, Symbol(key)) !== nothing
+            end
+            sample = named_table(a.doc, :simulated_data)
+            @test table_cols(sample) == ["time", "y1", "y2", "y3"]
+            @test length(table_rows(sample)) == 30
+            tr = sim_lookup(a.doc)
+            @test tr["A_1[1,1]"] ≈ 0.5 atol=1e-12
+            @test tr["A_1[1,2]"] ≈ 0.1 atol=1e-12
+            @test tr["A_1[2,1]"] ≈ 0.2 atol=1e-12
+            @test tr["B0[1,1]"] ≈ 1.0 atol=1e-12
+            @test tr["B0[2,1]"] ≈ 0.5 atol=1e-12
+            @test tr["B0[1,2]"] ≈ 0.0 atol=1e-12
+            @test tr["B0[3,1]"] ≈ 0.3 atol=1e-12
+            @test tr["c[1,0]"] ≈ 0.0 atol=1e-12
+            b = run_json(["data", "simulate", "var", "--periods", "30",
+                          "--burn", "10", "--seed", "11"])
+            @test sample_matrix(a.doc) == sample_matrix(b.doc)
+            c = run_json(["data", "simulate", "var", "--periods", "30",
+                          "--burn", "10", "--seed", "12"])
+            @test sample_matrix(a.doc) != sample_matrix(c.doc)
+            @test run_json(["data", "simulate", "var", "--periods", "0"]).code == 2
+            @test run_json(["data", "simulate", "svar", "--dist", "nope"]).code == 2
+        end
+
+        @testset "upstream oracles are the VAR population" begin
+            A = [0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3]
+            B0 = [1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0]
+            Θ = MacroEconometricModels.var_irf(A, B0, 4)
+            @test Θ[1, :, :] ≈ B0 atol=1e-12
+            Σ = B0 * B0'
+            Γ = MacroEconometricModels.lyapunov_gamma0(A, Σ)
+            k = 3
+            closed = reshape((Matrix{Float64}(I, k * k, k * k) - kron(A, A)) \ vec(Σ), k, k)
+            @test Γ ≈ closed atol=1e-10
+            F = MacroEconometricModels.var_fevd(A, B0, 4)
+            for h in 1:size(F, 1)
+                @test all(isapprox.(vec(sum(F[h, :, :], dims=2)), ones(k); atol=1e-10))
+            end
+            # Lower-triangular B0: variable 1's impact variance is entirely shock 1.
+            @test F[1, 1, 1] ≈ 1.0 atol=1e-12
+            @test F[1, 1, 2] ≈ 0.0 atol=1e-12
+
+            rng = Random.Xoshiro(11)
+            nt = MacroEconometricModels.dgp_var(rng; T=500, burn=200)
+            csv = tempname() * "_varoracle.csv"
+            CSV.write(csv, DataFrame(nt.Y, [:y1, :y2, :y3]))
+            ir = run_json(["irf", "var", csv, "--lags", "1", "--horizons", "4",
+                           "--ci", "none"])
+            assert_envelope_ok(ir; label="irf var vs var_irf")
+            itbl = named_table(ir.doc, :irf)
+            ih, ivar, ival = col_index(itbl, "horizon"), col_index(itbl, "variable"),
+                             col_index(itbl, "value")
+            impact = Dict{String,Float64}()
+            for rw in table_rows(itbl)
+                r = collect(rw)
+                Int(r[ih]) == 1 && (impact[String(r[ivar])] = Float64(r[ival]))
+            end
+            # Cholesky impact recovers B0's first column. Tolerance is wide relative
+            # to the O(1) responses so a ULP of BLAS noise cannot fail the case.
+            @test impact["y1"] ≈ B0[1, 1] atol=0.45
+            @test impact["y2"] ≈ B0[2, 1] atol=0.45
+            @test impact["y3"] ≈ B0[3, 1] atol=0.45
+
+            fv = run_json(["fevd", "var", csv, "--lags", "1", "--horizons", "4"])
+            assert_envelope_ok(fv; label="fevd var vs var_fevd")
+            ft = named_table(fv.doc, :fevd)
+            fh, fvar, fshock, fval = col_index(ft, "horizon"), col_index(ft, "variable"),
+                                     col_index(ft, "shock"), col_index(ft, "value")
+            shares = Dict{String,Float64}()
+            sums = Dict{String,Float64}()
+            for rw in table_rows(ft)
+                r = collect(rw)
+                Int(r[fh]) == 1 || continue
+                v = String(r[fvar])
+                sums[v] = get(sums, v, 0.0) + Float64(r[fval])
+                String(r[fshock]) == "y1" && (shares[v] = Float64(r[fval]))
+            end
+            # Cholesky: at impact, y1 is exactly shock y1. Every variable's shares sum to 1.
+            @test shares["y1"] ≈ 1.0 atol=1e-8
+            for v in ("y1", "y2", "y3")
+                @test sums[v] ≈ 1.0 atol=1e-8
+            end
+            rm(csv; force=true)
+        end
+
+        @testset "remaining simulators" begin
+            cases = [
+                ["data", "simulate", "svar", "--dist", "gauss", "--periods", "20",
+                 "--burn", "5", "--seed", "3"],
+                ["data", "simulate", "heteroskedastic-var", "--kind", "external",
+                 "--periods", "20", "--burn", "5", "--seed", "3"],
+                ["data", "simulate", "arima", "--phi", "0.4", "--periods", "20",
+                 "--burn", "5", "--seed", "3"],
+                ["data", "simulate", "garch", "--kind", "garch", "--periods", "40",
+                 "--burn", "10", "--seed", "3"],
+                ["data", "simulate", "garch", "--kind", "egarch", "--periods", "40",
+                 "--burn", "10", "--seed", "3"],
+                ["data", "simulate", "sv", "--periods", "30", "--burn", "5", "--seed", "3"],
+                ["data", "simulate", "vecm", "--periods", "40", "--burn", "10", "--seed", "3"],
+                ["data", "simulate", "cointreg", "--periods", "40", "--seed", "3"],
+                ["data", "simulate", "ardl", "--periods", "40", "--burn", "10", "--seed", "3"],
+                ["data", "simulate", "factors", "--series", "6", "--periods", "24",
+                 "--burn", "8", "--seed", "3"],
+                ["data", "simulate", "lp-iv", "--periods", "40", "--pi1", "1.5",
+                 "--theta", "1.0", "--seed", "3"],
+                ["data", "simulate", "panel", "--kind", "linear", "--n", "8",
+                 "--periods", "6", "--seed", "3"],
+                ["data", "simulate", "panel", "--kind", "logit", "--n", "8",
+                 "--periods", "6", "--seed", "3"],
+                ["data", "simulate", "pvar", "--n", "6", "--periods", "8", "--seed", "3"],
+                ["data", "simulate", "did", "--n", "20", "--periods", "12", "--seed", "3"],
+                ["data", "simulate", "gmm", "--kind", "iv", "--n", "40", "--seed", "3"],
+                ["data", "simulate", "gmm", "--kind", "ols", "--n", "40", "--seed", "3"],
+                ["data", "simulate", "regime", "--kind", "ms", "--periods", "30",
+                 "--burn", "5", "--seed", "3"],
+                ["data", "simulate", "regime", "--kind", "setar", "--periods", "30",
+                 "--burn", "5", "--seed", "3"],
+                ["data", "simulate", "cross-section", "--kind", "ols", "--n", "40", "--seed", "3"],
+                ["data", "simulate", "cross-section", "--kind", "logit", "--n", "40", "--seed", "3"],
+                ["data", "simulate", "cross-section", "--kind", "iv", "--n", "40", "--seed", "3"],
+                ["data", "simulate", "olg", "--periods", "8", "--seed", "3"],
+            ]
+            for argv in cases
+                r = run_json(argv)
+                assert_envelope_ok(r; label=join(argv, " "))
+                @test named_table(r.doc, :simulated_data) !== nothing
+                @test named_table(r.doc, :population_truth) !== nothing
+                @test !isempty(sim_lookup(r.doc))
+                # T=12 used to request cohort 16. That date is past the sample,
+                # MEMs returns att_by_cohort[16] = NaN, and the envelope stores
+                # the string "NaN", which Float64 rejects.
+                if argv[3] == "did"
+                    truth = named_table(r.doc, :population_truth)
+                    iv = col_index(truth, "value")
+                    for rw in table_rows(truth)
+                        v = collect(rw)[iv]
+                        @test v isa Number
+                        @test isfinite(Float64(v))
+                    end
+                    tr = sim_lookup(r.doc)
+                    @test tr["att_c:6"] ≈ 1.3 atol=1e-12
+                    @test tr["att_c:11"] ≈ 1.3 atol=1e-12
+                    @test !haskey(tr, "att_c:16")
+                    sample = named_table(r.doc, :simulated_data)
+                    ic = col_index(sample, "cohort")
+                    for rw in table_rows(sample)
+                        c = Int(collect(rw)[ic])
+                        @test c == 0 || c == 6 || c == 11
+                    end
+                end
+            end
+            ardl = run_json(["data", "simulate", "ardl", "--periods", "30",
+                             "--burn", "5", "--seed", "3"])
+            @test sim_lookup(ardl.doc)["theta"] ≈ (0.8 + 0.4) / (1 - 0.6) atol=1e-12
+            @test run_json(["data", "simulate", "ardl", "--phi", "1"]).code == 2
+            @test run_json(["data", "simulate", "cointreg", "--endog-rho", "1"]).code == 2
+        end
+
+        @testset "DSGE, HA, OLG steady state, CT" begin
+            model = tempname() * ".jl"
+            write(model, """
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["data", "simulate", "dsge", model, "--periods", "12",
+                          "--burn", "4", "--seed", "5"])
+            assert_envelope_ok(r; label="data simulate dsge")
+            sample = named_table(r.doc, :simulated_data)
+            @test table_cols(sample) == ["time", "Y", "C"]
+            @test length(table_rows(sample)) == 12
+            tr = sim_lookup(r.doc)
+            @test tr["rho"] ≈ 0.9 atol=1e-12
+            @test tr["sigma"] ≈ 0.01 atol=1e-12
+            @test tr["ss:Y"] ≈ 0.0 atol=1e-8
+            @test tr["ss:C"] ≈ 0.0 atol=1e-8
+            r2 = run_json(["data", "simulate", "dsge", model, "--periods", "12",
+                           "--burn", "4", "--seed", "5"])
+            @test sample_matrix(r.doc) == sample_matrix(r2.doc)
+            noisy = run_json(["data", "simulate", "dsge", model, "--periods", "12",
+                              "--burn", "4", "--seed", "5", "--meas-sd", "0.1"])
+            assert_envelope_ok(noisy; label="data simulate dsge meas-sd")
+            ntr = sim_lookup(noisy.doc)
+            @test ntr["meas_sd[1,0]"] ≈ 0.1 atol=1e-12
+            @test ntr["H[1,0]"] ≈ 0.01 atol=1e-12
+            @test sample_matrix(noisy.doc) != sample_matrix(r.doc)
+            @test run_json(["data", "simulate", "dsge", model, "--order", "2"]).code == 2
+
+            spec = tempname() * ".jl"
+            write(spec, """
+            @dsge begin
+                parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
+                endogenous: Y, K, r, w, Z
+                exogenous: eps_Z
+                heterogeneous: a in [0.0, 50.0], n_grid = 12, utility = log, discount = beta_hh, borrowing = 0.0
+                idiosyncratic: e ~ Rouwenhorst(0.9, 0.3, 2)
+                aggregation: K = sum(a)
+                Y[t] = Z[t] * K[t-1]^alpha
+                r[t] = alpha * Z[t] * K[t-1]^(alpha-1) - delta
+                w[t] = (1 - alpha) * Z[t] * K[t-1]^alpha
+                Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
+            end
+            """)
+            ha = run_json(["data", "simulate", "ha", spec, "--method", "ssj",
+                           "--n-reduced", "4", "--periods", "4", "--seed", "2"])
+            assert_envelope_ok(ha; label="data simulate ha")
+            @test length(table_rows(named_table(ha.doc, :simulated_data))) == 4
+            htr = sim_lookup(ha.doc)
+            @test any(k -> startswith(k, "ss_agg:") || startswith(k, "ss_price:"), keys(htr))
+            @test run_json(["data", "simulate", "ha", "huggett", "--method", "krusell-smith",
+                            "--periods", "2"]).code == 2
+
+            ct = run_json(["data", "simulate", "ct", "--grid-size", "12", "--periods", "4",
+                           "--max-iter", "40", "--seed", "1"])
+            assert_envelope_ok(ct; label="data simulate ct")
+            @test table_cols(named_table(ct.doc, :simulated_data)) ==
+                  ["time", "Z", "K", "r", "w", "C"]
+            @test sim_lookup(ct.doc)["alpha"] ≈ 0.36 atol=1e-12
+
+            rm(model; force=true)
+            rm(spec; force=true)
         end
     end
 

@@ -1,4 +1,7 @@
-# Known-DGP synthetic data generators for integration tests (TS-6 / C031)
+# Known-DGP synthetic data generators for integration tests (TS-6 / C031).
+# These stay hermetic (pinned MersenneTwister streams). Upstream `dgp_*` and the
+# oracle helpers `var_irf` / `var_fevd` / `lyapunov_gamma0` are adopted in the
+# #177 `data simulate` testset, not by replacing the generators below.
 
 using Random
 using LinearAlgebra

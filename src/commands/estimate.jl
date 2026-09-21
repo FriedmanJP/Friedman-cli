@@ -16,8 +16,9 @@
 
 # Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit, preg, piv, plogit, pprobit, ologit, oprobit, mlogit
 
-# C044: kebab primary CLI name; snake kept as hidden alias where renamed
-const _VOL_CLI_NAMES = Dict("gjr_garch" => ("gjr-garch", ["gjr_garch"]))
+# C055: kebab primary CLI name (the C044 snake alias is gone); vol.name stays
+# snake since it feeds stable W3 table keys (gjr_garch_coefficients, …)
+const _VOL_CLI_NAMES = Dict("gjr_garch" => "gjr-garch")
 
 """Generate CommandSpecs for the volatility family — `:estimate` and `:forecast`
 ONLY. The predict/residuals leaves are registered by fitted.jl (#145): wiring
@@ -72,7 +73,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
                 OUTPUT_OPTIONS...,
             ]
         end
-        cli_name, aliases = get(_VOL_CLI_NAMES, vol.name, (vol.name, String[]))
+        cli_name = get(_VOL_CLI_NAMES, vol.name, vol.name)
         label = vol.label(1, 1)
         # W3/#138: the four verbs share the shared.jl emitters, so their keys are
         # `<vol.name>_<what>` — `<label>` (which carries p/q) stays in the title only.
@@ -102,7 +103,6 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
             flags=flags,
             tables=tables,
             category=string(verb),
-            aliases=aliases,
             handler=wrap_legacy(handlers[vol.name]),
         ))
     end
@@ -5836,9 +5836,9 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
         "loglik"           => round(Float64(model.loglik); digits=4),
         "aic"              => round(Float64(model.aic); digits=4),
         "bic"              => round(Float64(model.bic); digits=4),
-        # Render ±Inf bounds as strings: a raw Inf/-Inf Float crashes the legacy
-        # (FRIEDMAN_LEGACY_OUTPUT) JSON writer, which — unlike the envelope path — does not
-        # apply `_json_safe` ("Inf not allowed in JSON spec"). Matches the envelope output.
+        # Render ±Inf bounds as strings: a raw Inf/-Inf Float crashes the direct
+        # JSON writer, which — unlike the envelope path — does not apply
+        # `_json_safe` ("Inf not allowed in JSON spec"). Matches the envelope output.
         "lower"            => isfinite(model.lower) ? Float64(model.lower) : string(model.lower),
         "upper"            => isfinite(model.upper) ? Float64(model.upper) : string(model.upper),
         "n_censored_left"  => model.n_censored_left,

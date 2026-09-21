@@ -144,12 +144,22 @@ without a handler-side `Xoshiro(seed)` construction.
 
 | Item | Disposition |
 |------|-------------|
-| CLI exposure of the DGP library (`data simulate` family) | **Defer to #177** (0.13.0 candidate, sketch recorded there). No v0.12.1 leaf: a useful family is ~15–20 leaves against a patch line; the truth+data bundle envelope needs schema design (upstream NamedTuples are not tables); upstream positions it as a simulation/testing library; zero user demand signal. |
-| T3-harness adoption of upstream DGPs/oracles | **Defer to #177; harness stays hermetic.** The 32 local `MersenneTwister`-seeded CSV-path generators in `test/integration/dgp.jl` match the CLI's CSV boundary with pinned streams — swapping to in-memory upstream NamedTuples buys adapter churn across fixtures/goldens. Follow-up adopts only the oracle helpers (`var_irf`/`var_fevd`/`lyapunov_gamma0`) as closed-form T3 assertions per the W12/#114 lesson. |
+| CLI exposure of the DGP library (`data simulate` family) | **Defer to #177** (0.13.0 candidate, sketch recorded there). No v0.12.1 leaf: a useful family is ~15–20 leaves against a patch line; the truth+data bundle envelope needs schema design (upstream NamedTuples are not tables); upstream positions it as a simulation/testing library; zero user demand signal. **Adopted in v1.0.0 / #177** — see the section below. |
+| T3-harness adoption of upstream DGPs/oracles | **Defer to #177; harness stays hermetic.** The 32 local `MersenneTwister`-seeded CSV-path generators in `test/integration/dgp.jl` match the CLI's CSV boundary with pinned streams — swapping to in-memory upstream NamedTuples buys adapter churn across fixtures/goldens. Follow-up adopts only the oracle helpers (`var_irf`/`var_fevd`/`lyapunov_gamma0`) as closed-form T3 assertions per the W12/#114 lesson. **Adopted in v1.0.0 / #177** for the oracle helpers only; `dgp.jl` is unchanged. |
 | Upstream white-noise lint (`test/dgp/test_dgp_lint.jl` + `ALLOWLIST.md`) | **No-op.** Upstream-internal static check over upstream `test/`; nothing crosses the CLI boundary. |
 | Upstream simulation guide (`docs/src/simulation.md`) | **No-op; no CLI mirror.** User-facing simulation docs live upstream; the CLI documents only leaves it ships. |
 | Upstream DGP API reference (`docs/src/api/simulation.md`) | **No-op; canonical link stands.** `docs/API_REFERENCE.md` already points at the upstream docs as canonical. |
 | #790–#807/#813 remainder not absorbed by W0/W1 | **Closed by the rows above.** Test-seeding halves are upstream-test-only; behavior deltas went to W1 (`#797` J-test NaN) or verified no-ops (W0 ledger). No silent gaps. |
+
+## Adopted in #177 (v1.0.0): `data simulate`
+
+The deferred family shipped as 21 leaves under `data simulate`. Each call emits `simulated_data`, `population_truth` (`parameter` / `row` / `col` / `value`), and `simulation_settings`. Upstream simulators take a positional `rng`; the handler builds `Xoshiro` from `--seed` (0 defers to the global `--seed`).
+
+DGP leaves: `var`, `svar`, `heteroskedastic-var`, `arima`, `garch`, `sv`, `vecm`, `cointreg`, `ardl`, `factors`, `lp-iv`, `panel`, `pvar`, `did`, `gmm`, `regime`, `cross-section`.
+
+DSGE leaves have no `dgp_*`. They solve, then call MEMs `simulate`: `dsge` (representative agent, optional `--meas-sd` through `dgp_dsge_observed`), `ha` (aggregate deviations; steady-state levels in the truth table), `olg` (Blanchard saddle path), `ct` (Aiyagari MIT transition). `dsge firm` / `bank` / `lifecycle` / `dcegm` path simulation stays on those commands.
+
+T3 keeps the hermetic generators in `test/integration/dgp.jl`. It checks `var_irf` / `var_fevd` / `lyapunov_gamma0` against the reference VAR design and against `irf var` / `fevd var` (Cholesky impact shares, not a shape-only table).
 
 ## Standing watches (re-checked at 0.9.4 for W2)
 
@@ -731,3 +741,57 @@ overhaul (`_status_report` swallow stands). MEMs 1.0 major watch
 — not announced. #609/#255 already consumed on the 0.9.6 program
 (no `[deps]`/`[weakdeps]`/`[extensions]` delta in 0.9.7 either).
 #816 consumed this wave.
+
+## W0/v1.0.0 ledger (MEMs 1.0.0: #223, #709 + Julia 1.13 support)
+
+Verified against the `Pkg.dependencies`-resolved depot copy
+`~/.julia/packages/MacroEconometricModels/h2uP9` (General registry,
+`version = "1.0.0"`). First major: downstream compat `"0.9"` no
+longer resolves. **No exports added or removed** — no new leaves,
+no not-wrapped additions. Plot-coverage 181/181, no ADDED/REMOVED.
+Mock-surface PASS (hard 0, soft 0). T3 4255/4255 on real 1.0.0
+(Julia 1.13.0); goldens regen 17 files, all semantic-equal
+(Julia 1.13 key-order churn only — see below);
+`capture_examples.jl --check` OK (6 blocks, no drift).
+
+- **Lead-variable catalog (#223)** (`dsge/types.jl:32,40`):
+  `LinearDSGE.Pi` is now "n × n_expect expectation error
+  selection (one η column per distinct lead variable)". CLI
+  reach: none — the CLI never references `forward_indices` /
+  `n_expect` (`LinearDSGE` appears only in the native save-type
+  list and the mocks). T3 DSGE solve suites green; no adapter
+  change. Mock `Pi` width accepted as-is by the surface gate.
+- **Two-asset closer rewrite (#709)**
+  (`heterogeneous/steady_state.jl:655-656,719`;
+  `egm.jl:461` `stable_iters`; nested bisection): kwargs
+  `rb_init` / `relax_K` / `relax_rb` are gone (zero hits in
+  `src/dsge/`), new closer kwargs `k_lo`, `k_hi`,
+  `inner_max_iter`, `k_atol`, `stable_iters` (+ `hh_max_iter`,
+  `hh_tol`, `howard_steps` documented alongside). CLI reach:
+  none of the removed kwargs were ever exposed (`_solve_ha`
+  forwards only `:K_init, :r_bounds, :max_iter, :tol, :verbose,
+  :price_fn, :clearing, :hh_solver, :distribution`; the HA
+  steady-state leaf forwards only `max_iter`/`tol`), and the
+  new closer knobs are deliberately NOT exposed (auto-selection
+  convention; revisit only on a T3 convergence failure —
+  none). T3 two-asset-hank green; captures show no
+  steady-state value drift from the retuned defaults
+  (`tol=2e-3`, `hh_max_iter=500`, `howard_steps=0`).
+- **Julia 1.13 support:** SVAR internals accept any
+  `LowerTriangular` backing store (the `cholesky().L` wrapper
+  changed in 1.13). CLI reach: none — no direct
+  `cholesky`/`LowerTriangular` use in `src` (only `"cholesky"`
+  id strings). T3 SVAR/identification suites green.
+- **Golden key-order churn (Julia 1.13, not MEMs):** the 17
+  regen files differ byte-wise but are value-identical under a
+  recursive semantic diff — `AbstractString` hashing changed
+  (RapidhashNano), flipping `Dict` iteration order in the
+  emitted JSON. Kept: 1.12 is dropped, so the old byte order
+  is dead.
+
+**Watch-list re-check at 1.0.0:** `report()` overhaul — not
+landed (the v1.0.0 changelog section has no report/show/print
+entry; `_status_report` swallow stands; T3 exercises the
+stderr paths 4255× with zero failures). MEMs 1.0 major watch
+— **TRIGGERED**: this v1.0.0 program is the adaptation series
+(the #104/#121/#135 pattern); issues to be opened on release.

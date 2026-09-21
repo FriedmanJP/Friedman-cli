@@ -1628,15 +1628,11 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     end
 end
 
-# C044 snake→kebab aliases for fitted leaves
-const _FITTED_CLI_ALIASES = Dict("gjr-garch" => ["gjr_garch"])
-
 function _specs_for_verb(verb::Symbol, title_prefix::String)
     specs = CommandSpec[]
     for m in FITTED_MODEL_KINDS
         handler = verb === :predict ? m.pred : m.res
         path0 = verb === :predict ? "predict" : "residuals"
-        aliases = get(_FITTED_CLI_ALIASES, m.name, String[])
         push!(specs, CommandSpec(
             path=[path0, m.name],
             summary="$title_prefix ($(m.name))",
@@ -1645,7 +1641,6 @@ function _specs_for_verb(verb::Symbol, title_prefix::String)
             flags=_flags_for_kind(m.kind, verb),
             tables=_fitted_tables(verb, m.name),
             category=path0,
-            aliases=aliases,
             handler=handler,
         ))
     end

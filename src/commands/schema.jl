@@ -151,8 +151,8 @@ end
 The leaf's registry-declared TableSpecs — the SAME declaration set the W3 key
 drift gate enforces, so these are exactly the envelope `data` keys the leaf can
 emit (`family: true` → keys are `<name>_<variable-slug>`). Lookup is last-wins
-over REGISTRY (matching the adapter's dedup); a hidden-alias path resolves via
-the leaf's primary name. Leaves outside the registry (only `schema` itself)
+over REGISTRY (matching the adapter's dedup). Leaves outside the registry
+(only `schema` itself)
 return an empty list.
 """
 function _registry_tables(path::Vector{String}, leaf::LeafCommand)
@@ -240,8 +240,6 @@ function _schema_node(node::NodeCommand, path::Vector{String})
     cmds = Any[]
     for name in sort!(collect(keys(node.subcmds)))
         sub = node.subcmds[name]
-        # Hide snake_case aliases from machine schema (C044); primary path only
-        is_hidden_alias(name, sub) && continue
         sp = vcat(path, [name])
         if sub isa LeafCommand
             push!(cmds, Dict{String,Any}(

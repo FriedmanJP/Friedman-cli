@@ -55,14 +55,14 @@ jobs:
 
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
-          version: '1.12'
+          version: '1.13'
           arch: ${{ matrix.arch }}
 
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
 
       - name: Install dependencies
         run: |
-          # Registry MacroEconometricModels pinned =0.7.0 via [compat]
+          # Registry MacroEconometricModels pinned =1.0.0 via [compat]
           julia --project -e 'using Pkg; Pkg.instantiate()'
 
       # PackageCompiler building the JuMP+Ipopt-bundled sysimage (0.7.0 line, C060)

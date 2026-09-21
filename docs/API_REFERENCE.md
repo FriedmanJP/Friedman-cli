@@ -4,7 +4,7 @@ This file no longer mirrors the full upstream surface (F44 / D-8).
 
 **Canonical docs:** [MacroEconometricModels.jl](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/)
 
-**Pinned version:** see `Project.toml` `[compat] MacroEconometricModels` (currently **0.9.3** from the Julia General registry; program index #163, waves #164–#169).
+**Pinned version:** see `Project.toml` `[compat] MacroEconometricModels` (currently **1.0.0** from the Julia General registry; v1.0.0 program).
 
 **CLI surface:** generated from the command registry via:
 

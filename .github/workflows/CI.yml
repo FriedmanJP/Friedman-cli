@@ -30,15 +30,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: "1.12"
+          - version: "1.13"
             os: ubuntu-latest
             arch: x64
             allow_failure: false
-          - version: "1.12"
+          - version: "1.13"
             os: macos-latest
             arch: arm64
             allow_failure: false
-          - version: "1.12"
+          - version: "1.13"
             os: windows-latest
             arch: x64
             allow_failure: false
@@ -54,30 +54,33 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+          # TS-10 leg only: track latest tagged incl. prereleases so the
+          # allow-fail leg keeps giving early warning now that `1` == 1.13.
+          include-all-prereleases: ${{ matrix.version == '1' }}
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Install dependencies
         shell: bash
         run: julia --project -e 'using Pkg; Pkg.instantiate()'
       - name: Mock surface vs real MEMs (TS-3 / F32)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_mock_surface.jl
       # W8/#143: plot-recipe drift vs the committed baseline (#95). Was a
       # CLAUDE.md-listed gate that NO workflow ran — a baseline drift could
       # ship silently. Read-only check; `--update` is a local, reviewed action.
       - name: Plot coverage drift (vs baseline)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_plot_coverage.jl
       # W3/#138: envelope data keys must be registry-declared (goldens here;
       # the T3 job re-runs it over the full envelope dump)
       - name: Table-key drift gate (goldens)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_table_keys.jl
       # Typed-handles: every leaf with a data slot must declare nonempty data_kinds.
       - name: Handle-kind drift gate
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_handle_kinds.jl
       - name: Docs generation --check (P2-6 / C028)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: |
           julia --project docs/generate_cli_reference.jl --check
           julia --project docs/capture_examples.jl --check
@@ -86,7 +89,7 @@ jobs:
       # golden envelope. The in-repo validator once had a blind spot that let a
       # broken schema pass every tier; a second implementation is the guard.
       - name: Conformant envelope validation (schema + goldens)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: |
           pip install --quiet jsonschema
           python3 test/tools/validate_envelopes.py
@@ -94,12 +97,12 @@ jobs:
         shell: bash
         run: julia --code-coverage=user --project test/runtests.jl
       - name: Process coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
         with:
           directories: src
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.12'
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -120,7 +123,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
-          version: "1.12"
+          version: "1.13"
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Instantiate integration project
         run: |
@@ -184,7 +187,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
-          version: "1.12"
+          version: "1.13"
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Install dependencies
         run: julia --project -e 'using Pkg; Pkg.instantiate()'

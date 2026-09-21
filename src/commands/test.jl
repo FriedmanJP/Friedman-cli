@@ -224,7 +224,6 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:arch_lm_test,
                               description="ARCH-LM statistic, p-value and lag order")],
             category="test",
-            aliases=["arch_lm"],
             handler=_test_arch_lm,
         ),
         CommandSpec(
@@ -241,7 +240,6 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:ljung_box_squared_test,
                               description="Ljung-Box Q statistic on squared residuals, with p-value and lag order")],
             category="test",
-            aliases=["ljung_box"],
             handler=_test_ljung_box,
         ),
         # C064b: volatility-model residual diagnostics (Engle-Ng sign bias; Nyblom stability).
@@ -1258,7 +1256,6 @@ function test_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:hansen_j_test,
                               description="Hansen J statistic, p-value, df and the instrument and parameter counts")],
             category="test",
-            aliases=["hansen_j"],
             handler=_test_pvar_hansen_j,
         ),
         CommandSpec(
@@ -3501,9 +3498,9 @@ end
 #   * InfluenceStats / Vector — influence, recursive-residuals (per-observation)
 # ─────────────────────────────────────────────────────────────────────────────
 
-"""Round for display, but render a non-finite value as a string — the legacy
-`FRIEDMAN_LEGACY_OUTPUT=1 -f json` writer historically choked on raw Inf/NaN, and a
-string is honest either way. (`_test_weak_instrument` has its own local `_fnum`.)"""
+"""Round for display, but render a non-finite value as a string — the direct
+`-f json` writer (no envelope) chokes on raw Inf/NaN, and a string is honest
+either way. (`_test_weak_instrument` has its own local `_fnum`.)"""
 _finite_or_str(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
 
 """Fit the cross-section OLS that the `reg` diagnostics consume. Mirrors

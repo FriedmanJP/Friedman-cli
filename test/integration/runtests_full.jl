@@ -96,25 +96,25 @@ include(joinpath(@__DIR__, "runtests.jl"))
         rm(csv; force=true)
     end
 
-    @testset "test ljung_box" begin
+    @testset "test ljung-box" begin
         csv = dgp_ar1(; T=150, φ=0.2, seed=111)
-        r = run_json(["test", "ljung_box", csv, "--column", "1"])
+        r = run_json(["test", "ljung-box", csv, "--column", "1"])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
-            assert_envelope_ok(r; label="test ljung_box")
+            assert_envelope_ok(r; label="test ljung-box")
         else
-            @info "ljung_box soft-fail" code=r.code
+            @info "ljung-box soft-fail" code=r.code
             @test true
         end
         rm(csv; force=true)
     end
 
-    @testset "test arch_lm" begin
+    @testset "test arch-lm" begin
         csv = dgp_garch(; T=250, seed=112)
-        r = run_json(["test", "arch_lm", csv, "--column", "1"])
+        r = run_json(["test", "arch-lm", csv, "--column", "1"])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
-            assert_envelope_ok(r; label="test arch_lm")
+            assert_envelope_ok(r; label="test arch-lm")
         else
-            @info "arch_lm soft-fail" code=r.code
+            @info "arch-lm soft-fail" code=r.code
             @test true
         end
         rm(csv; force=true)

@@ -7,7 +7,7 @@
 # thread-audited, and MCP clients serialize by default.
 #
 # stdout discipline: the JSON-RPC channel owns stdout. Every tool call runs
-# under redirect_stdout to a TEMPFILE (Julia 1.12: redirect_stdout(IOBuffer)
+# under redirect_stdout to a TEMPFILE (Julia 1.13: redirect_stdout(IOBuffer)
 # does not work) while responses are written to the `output` IO captured at
 # loop start — so a redirected global stdout never swallows a response. MEMs
 # logging and all CLI status already target stderr.
@@ -16,14 +16,12 @@ const _MCP_PROTOCOL_VERSION = "2024-11-05"
 
 """Enumerate MCP tools: every registry leaf except `serve` itself (a serve
 inside serve would deadlock on stdin). Tool name = path joined with `_`
-(`estimate_var`, `dsge_bayes_estimate`); hidden snake aliases are excluded the
-same way `schema` excludes them."""
+(`estimate_var`, `dsge_bayes_estimate`)."""
 function _mcp_tools()
     tools = Vector{Tuple{String,LeafCommand,Vector{String}}}()
     function walk(node::NodeCommand, path::Vector{String})
         for name in sort!(collect(keys(node.subcmds)))
             sub = node.subcmds[name]
-            is_hidden_alias(name, sub) && continue
             isempty(path) && name == "serve" && continue
             p = vcat(path, [name])
             if sub isa LeafCommand

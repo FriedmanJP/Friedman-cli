@@ -4,6 +4,50 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
+
+First major. 477 leaves / 21 top-level. MEMs pin
+**0.9.7 → 1.0.0** (exact); Julia compat **1.12 → 1.13** (1.12
+dropped). C055 freeze: the 7 hidden snake_case aliases and
+`FRIEDMAN_LEGACY_OUTPUT` are removed; envelope schema v1 is frozen.
+
+- **MEMs 1.0.0**: lead-variable catalog (#223 — `LinearDSGE.Pi` one
+  column per distinct lead) and the two-asset steady-state closer
+  rewrite (#709 — `rb_init`/`relax_K`/`relax_rb` gone,
+  `k_lo`/`k_hi`/`inner_max_iter`/`k_atol`/`stable_iters` added,
+  defaults retuned) absorbed with no adapter change — the CLI never
+  touched the changed names. Plot-coverage 181/181; mock-surface hard 0;
+  captures show no value drift. MEMs 1.0.0 added no exports. Native save
+  registry at **352 types**.
+- **`data simulate` (#177):** 21 leaves. DGP simulators (`var`, `svar`,
+  `heteroskedastic-var`, `arima`, `garch`, `sv`, `vecm`, `cointreg`,
+  `ardl`, `factors`, `lp-iv`, `panel`, `pvar`, `did`, `gmm`, `regime`,
+  `cross-section`) each emit `simulated_data`, a flattened
+  `population_truth` table, and `simulation_settings`. `--seed` builds
+  the positional `Xoshiro` those simulators require. DSGE models have
+  no `dgp_*`: `dsge`, `ha`, `olg`, and `ct` solve and then `simulate`.
+  `dsge --meas-sd` records the measurement-error variance. `did` passes
+  only adoption dates inside the sample (upstream 6, 11, 16 when they
+  fit) and omits a non-finite cohort ATT. The hermetic
+  T3 generators in `test/integration/dgp.jl` stay; `var_irf`,
+  `var_fevd`, and `lyapunov_gamma0` are the closed-form checks on the
+  VAR leaves.
+- **Julia 1.13**: ~30% faster precompile, ~20% faster startup
+  upstream; dev-CLI cold runs measure ~1.8x faster than 1.12
+  (`--version` 5.6s vs 10.3s, `estimate var` 8.6s vs 16.1s, best of
+  3). `redirect_stdout(IOBuffer)` still unavailable — tempfile
+  capture stays.
+- **C055 freeze**: kebab-case only (`gjr_garch`, `arch_lm`,
+  `ljung_box`, `hansen_j` are now unknown commands, exit 2);
+  `--format json` always emits exactly one envelope (the env var is
+  ignored). Goldens regen: 17 files, all value-identical (Julia 1.13
+  key-order churn only).
+- **Build/CI**: matrices, installers, and release launchers require
+  Julia 1.13; TS-10 early-warning leg tracks prereleases;
+  `docs/Manifest.toml` re-resolved on 1.13. C074 latency budgets ride
+  unchanged until the 1.13 floor is measured at release time
+  (recorded on #79).
+
 ## [0.13.1] — 2026-09-18 — MEMs 0.9.7 adoption (#191–#196)
 
 Additive 0.x patch. 456 leaves / 21 top-level, unchanged. MEMs pin

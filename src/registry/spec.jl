@@ -43,7 +43,6 @@ Base.@kwdef struct CommandSpec
     flags::Vector{FlagSpec} = FlagSpec[]
     tables::Vector{TableSpec} = TableSpec[]
     category::String = ""
-    aliases::Vector{String} = String[]
     handler::Function = (ctx) -> ctx  # (ctx::CmdContext) -> Any
     data_kinds::Vector{Symbol} = Symbol[]
     model_types::Vector{Symbol} = Symbol[]
@@ -127,7 +126,6 @@ function _copy_spec(s::CommandSpec; kwargs...)
         flags     = get(kwargs, :flags, s.flags),
         tables    = get(kwargs, :tables, s.tables),
         category  = get(kwargs, :category, s.category),
-        aliases   = get(kwargs, :aliases, s.aliases),
         handler   = get(kwargs, :handler, s.handler),
         data_kinds   = get(kwargs, :data_kinds, s.data_kinds),
         model_types  = get(kwargs, :model_types, s.model_types),

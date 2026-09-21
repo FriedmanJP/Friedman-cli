@@ -12743,4 +12743,307 @@ function sequence_jacobian(spec::ModelSpec, ss::HASteadyState,
 end
 
 
+# ─── #177: DGP simulators (truth-returning; mock ⊆ real return keys) ──────────
+# Handlers read these NamedTuples. Dynamics are not reproduced — the draw uses
+# `rng` so a seed changes the sample, and coefficient fields echo the defaults
+# the real simulators document.
+
+function _mock_dgp_burn(rng, burn::Int, n::Int)
+    burn > 0 && randn(rng, burn, n)
+    return nothing
+end
+
+function dgp_var(rng::AbstractRNG; A=[0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3],
+                 B0=nothing, Sigma=nothing, c=nothing, T::Int=500, burn::Int=200)
+    B0 !== nothing && Sigma !== nothing &&
+        throw(ArgumentError("dgp_var: pass exactly one of B0 and Sigma"))
+    As = A isa AbstractMatrix ? [Matrix{Float64}(A)] : [Matrix{Float64}(a) for a in A]
+    n = size(As[1], 1)
+    L = if B0 !== nothing
+        Matrix{Float64}(B0)
+    elseif Sigma !== nothing
+        Matrix{Float64}(I, n, n)
+    else
+        n == 3 ? [1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0] : Matrix{Float64}(I, n, n)
+    end
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    cc = c === nothing ? zeros(n) : Vector{Float64}(c)
+    return (Y=Y, eps=eps, A=As, Sigma=L * L', B0=L, c=cc)
+end
+
+function dgp_nongaussian_var(rng::AbstractRNG;
+                             A=[0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3],
+                             B0=[1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0],
+                             dist::Symbol=:t, nu::Float64=5.0,
+                             T::Int=1000, burn::Int=200)
+    dist in (:gauss, :t, :laplace, :mixture, :skew) ||
+        throw(ArgumentError("unknown dist :$dist (gauss|t|laplace|mixture|skew)"))
+    A1 = Matrix{Float64}(A)
+    B = Matrix{Float64}(B0)
+    n = size(A1, 1)
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    return (Y=Y, eps=eps, A=[A1], Sigma=B * B', B0=B, dist=dist)
+end
+
+function dgp_heteroskedastic_var(rng::AbstractRNG;
+                                 A=[0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3],
+                                 B0=[1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0],
+                                 kind::Symbol=:markov,
+                                 Lambda=diagm([1.0, 4.0, 0.25]),
+                                 T::Int=1000, burn::Int=200,
+                                 P=[0.95 0.05; 0.05 0.95],
+                                 garch_a::Float64=0.1, garch_b::Float64=0.85,
+                                 gamma::Float64=5.0, break_at::Float64=0.5)
+    kind in (:markov, :garch, :smooth, :external) ||
+        throw(ArgumentError("unknown kind :$kind (markov|garch|smooth|external)"))
+    B = Matrix{Float64}(B0)
+    n = size(B, 1)
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    scales = ones(T, n)
+    path = kind === :smooth ? rand(rng, T) : ones(Int, T)
+    return (Y=Y, eps=eps, scales=scales, B0=B, Sigma_full=B * B',
+            Lambda=Matrix{Float64}(Lambda), path=path, kind=kind)
+end
+
+function dgp_arima(rng::AbstractRNG; phi=Float64[], theta=Float64[], d::Int=0,
+                   Phi=Float64[], Theta=Float64[], s::Int=0,
+                   c::Float64=0.0, sigma::Float64=1.0,
+                   T::Int=500, burn::Int=200)
+    ph, th = Vector{Float64}(phi), Vector{Float64}(theta)
+    _mock_dgp_burn(rng, burn, 1)
+    y = sigma .* randn(rng, T) .+ c
+    return (y=y, phi=ph, theta=th, d=d, Phi=Vector{Float64}(Phi),
+            Theta=Vector{Float64}(Theta), s=s, c=c, sigma=sigma)
+end
+
+function dgp_garch_family(rng::AbstractRNG; kind::Symbol=:garch,
+                          omega::Float64=0.02, alpha::Float64=0.08,
+                          beta::Float64=0.88, gamma::Float64=0.06,
+                          delta::Float64=1.5, d::Float64=0.4,
+                          theta::Float64=-0.05, mu::Float64=0.0,
+                          innov::Symbol=:gauss, nu::Float64=8.0,
+                          T::Int=3000, burn::Int=500)
+    kind in (:arch, :garch, :egarch, :gjr, :aparch, :igarch, :cgarch, :figarch, :fiegarch) ||
+        throw(ArgumentError("unknown kind :$kind"))
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    h = fill(omega / max(0.05, 1 - alpha - (kind === :arch ? 0.0 : beta)), T)
+    eps = randn(rng, T)
+    return (y=y, h=h, eps=eps)
+end
+
+function dgp_sv(rng::AbstractRNG; mu::Float64=-0.5, phi::Float64=0.95,
+                sigma_eta::Float64=0.2, rho_lev::Float64=0.0,
+                nu::Float64=Inf, T::Int=1500, burn::Int=200)
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    h = fill(mu, T)
+    return (y=y, h=h)
+end
+
+function dgp_vecm(rng::AbstractRNG; alpha=[-0.3, 0.1, 0.0],
+                  beta=[1.0, -1.0, 0.0],
+                  Gamma=[0.2 0.0 0.0; 0.0 0.2 0.0; 0.0 0.0 0.2],
+                  mu=nothing, Sigma=nothing, T::Int=400, burn::Int=200)
+    al = reshape(Vector{Float64}(alpha), :, 1)
+    be = reshape(Vector{Float64}(beta), :, 1)
+    n = size(be, 1)
+    Gs = Gamma isa AbstractMatrix ? [Matrix{Float64}(Gamma)] : [Matrix{Float64}(g) for g in Gamma]
+    Sg = Sigma === nothing ? Matrix{Float64}(I, n, n) : Matrix{Float64}(Sigma)
+    mm = mu === nothing ? zeros(n) : Vector{Float64}(mu)
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    return (Y=Y, alpha=al, beta=be, Gamma=Gs, mu=mm, Sigma=Sg, eps=eps)
+end
+
+function dgp_cointreg(rng::AbstractRNG; beta=[2.0, -1.0], T::Int=500,
+                      endog_rho::Float64=0.7, sigma_u::Float64=1.0,
+                      spurious::Bool=false)
+    be = Vector{Float64}(beta)
+    m = length(be)
+    X = randn(rng, T, m)
+    u = randn(rng, T)
+    y = spurious ? randn(rng, T) : X * be + u
+    return (y=y, X=X, beta=be, u=u)
+end
+
+function dgp_ardl(rng::AbstractRNG; phi::Float64=0.6, beta0::Float64=0.8,
+                  beta1::Float64=0.4, rho_x::Float64=0.7, c::Float64=0.5,
+                  T::Int=300, burn::Int=100)
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    x = randn(rng, T)
+    theta = (beta0 + beta1) / (1 - phi)
+    return (y=y, x=x, phi=phi, beta=[beta0, beta1], theta=theta)
+end
+
+function dgp_dynamic_factors(rng::AbstractRNG;
+                             A=[0.6 0.15; 0.1 0.5], Lambda=nothing,
+                             r::Int=2, p::Int=1, N::Int=40, T::Int=400,
+                             Sigma_F=nothing, idio::Symbol=:iid,
+                             idio_ar::Float64=0.5, idio_sd::Float64=1.0,
+                             signal_share::Float64=0.7,
+                             blocks=nothing, burn::Int=200)
+    As = A isa AbstractMatrix ? [Matrix{Float64}(A)] : [Matrix{Float64}(a) for a in A]
+    rr = size(As[1], 1)
+    _mock_dgp_burn(rng, burn, rr)
+    Lam = Lambda === nothing ? randn(rng, N, rr) : Matrix{Float64}(Lambda)
+    X = randn(rng, T, size(Lam, 1))
+    F = randn(rng, T, rr)
+    eps = randn(rng, T, rr)
+    SF = Sigma_F === nothing ? Matrix{Float64}(I, rr, rr) : Matrix{Float64}(Sigma_F)
+    return (X=X, F=F, Lambda=Lam, A=As, Sigma_F=SF, idio_var=1.0, eps=eps, r=rr, p=length(As))
+end
+
+function dgp_lp_iv(rng::AbstractRNG; T::Int=400, pi1::Float64=1.5, theta::Float64=1.0)
+    z = randn(rng, T)
+    Y = randn(rng, T, 3)
+    return (Y=Y, Z=reshape(z, :, 1), pi1=pi1, theta=theta)
+end
+
+function dgp_panel(rng::AbstractRNG; N::Int=200, T::Int=20, beta=[1.0, 0.5],
+                   sigma_u::Float64=1.0, sigma_e::Float64=1.0,
+                   corr_alpha_x::Float64=0.0, rho_ar::Float64=0.0,
+                   common_shock::Bool=false, hetero::Bool=false,
+                   dynamic_rho::Float64=0.0, kind::Symbol=:linear)
+    be = Vector{Float64}(beta)
+    k = length(be)
+    id = repeat(1:N, inner=T)
+    time = repeat(1:T, outer=N)
+    X = randn(rng, N * T, k)
+    y = kind === :linear ? randn(rng, N * T) : Float64.(rand(rng, N * T) .< 0.5)
+    df = DataFrame(id=id, time=time, y=y)
+    for j in 1:k
+        df[!, Symbol("x$j")] = X[:, j]
+    end
+    return (df=df, beta=be, sigma_u=sigma_u, sigma_e=sigma_e,
+            alpha=sigma_u .* randn(rng, N), mundlak=corr_alpha_x .* ones(k),
+            rho_ar=rho_ar, dynamic_rho=dynamic_rho)
+end
+
+function dgp_panel_var(rng::AbstractRNG; A1=[0.8 0.15; 0.05 0.7], N::Int=30,
+                       T::Int=25, mu_sd::Float64=1.0, Sigma=nothing, burn::Int=50)
+    A = Matrix{Float64}(A1)
+    m = size(A, 1)
+    Sg = Sigma === nothing ? Matrix{Float64}(I, m, m) : Matrix{Float64}(Sigma)
+    _mock_dgp_burn(rng, burn, m)
+    Y = randn(rng, N * T, m)
+    return (Y=Y, id=repeat(1:N, inner=T), time=repeat(1:T, outer=N),
+            A1=A, mu=mu_sd .* randn(rng, N, m), Sigma=Sg)
+end
+
+function dgp_staggered_did(rng::AbstractRNG; cohorts=[6, 11, 16],
+                           tau=(g, e) -> 1.0 + 0.1 * e + 0.05 * (g - 6),
+                           never_treated_share::Float64=0.3, N::Int=300,
+                           T::Int=25, violate_pt::Float64=0.0,
+                           covariate_effect::Float64=0.0, cluster_rho::Float64=0.0)
+    id = repeat(1:N, inner=T)
+    time = repeat(1:T, outer=N)
+    y = randn(rng, N * T)
+    D = zeros(Int, N * T)
+    # Real MEMs: a cohort with no date in g:T has att = mean([]) == NaN.
+    requested = Int[Int(g) for g in cohorts]
+    isempty(requested) && throw(ArgumentError("cohorts must be non-empty"))
+    g_of = [requested[mod1(i, length(requested))] for i in 1:N]
+    att_c = Dict{Int,Float64}(g => (1 <= g <= T ? 1.0 : NaN) for g in requested)
+    df = DataFrame(id=id, time=time, y=y, D=D, cohort=g_of[id])
+    return (df=df, att_by_event_time=Dict(0 => 1.0), att_by_cohort=att_c,
+            overall_att=1.0, cohort_of=g_of)
+end
+
+function dgp_gmm(rng::AbstractRNG; kind::Symbol=:iv, beta=[1.0, 0.5],
+                 n::Int=1000, hetero::Bool=true, overid_k::Int=2,
+                 invalid_k::Int=0, pi1::Float64=1.0)
+    kind in (:ols, :iv) || throw(ArgumentError("unknown kind :$kind (ols|iv)"))
+    be = Vector{Float64}(beta)
+    k = length(be)
+    X = hcat(ones(n), randn(rng, n, k - 1))
+    y = X * be[1:size(X, 2)] + randn(rng, n)
+    if kind === :ols
+        Z = X
+    else
+        Z = hcat(ones(n), randn(rng, n, overid_k))
+    end
+    return (y=y, X=X, Z=Z, beta=be[1:size(X, 2)], pi1=pi1)
+end
+
+function dgp_regime_switching(rng::AbstractRNG; kind::Symbol=:ms, T::Int=600,
+                              burn::Int=100, mu=(-1.0, 3.0), phi::Float64=0.4,
+                              sigma::Float64=0.6, P=[0.9 0.1; 0.15 0.85],
+                              phi_lo::Float64=0.8, phi_hi::Float64=0.3,
+                              c::Float64=0.0, d::Int=1, gamma::Float64=3.0,
+                              c_lo::Float64=0.0, c_hi::Float64=0.0)
+    kind in (:ms, :setar, :lstar, :estr) ||
+        throw(ArgumentError("unknown kind :$kind (ms|setar|lstar|estr)"))
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    if kind === :ms
+        return (y=y, s=ones(Int, T), mu=mu, phi=phi, P=Matrix{Float64}(P))
+    elseif kind === :setar
+        return (y=y, regime=ones(Int, T), phi_lo=phi_lo, phi_hi=phi_hi, c=c)
+    else
+        return (y=y, G=rand(rng, T), phi_lo=phi_lo, phi_hi=phi_hi, gamma=gamma, c=c)
+    end
+end
+
+function dgp_cross_section(rng::AbstractRNG; kind::Symbol=:ols,
+                           beta=[1.0, 0.5], n::Int=1000,
+                           hetero::Bool=false, cluster_rho::Float64=0.5,
+                           G::Int=50, endog_rho::Float64=0.6,
+                           pi1::Float64=1.0, overid_k::Int=2,
+                           invalid_k::Int=0,
+                           cutpoints=[-0.5, 0.5, 1.5],
+                           dispersion::Float64=1.5, censor::Float64=0.0,
+                           select_rho::Float64=0.5, iia_rho::Float64=0.0)
+    kind in (:ols, :hc, :cluster, :iv, :logit, :probit, :ordered, :mlogit,
+             :poisson, :nb, :tobit, :truncreg, :heckman, :qreg, :rdd) ||
+        throw(ArgumentError("unknown kind :$kind"))
+    be = Vector{Float64}(beta)
+    k = length(be)
+    X = hcat(ones(n), randn(rng, n, max(k - 1, 1)))
+    X = X[:, 1:k]
+    y = X * be + randn(rng, n)
+    if kind === :iv
+        Z = hcat(ones(n), randn(rng, n, overid_k))
+        return (y=y, X=X, beta=be, Z=Z, pi1=pi1)
+    elseif kind === :logit || kind === :probit
+        yy = rand(rng, n) .< 0.5
+        return (y=yy, X=X, beta=be, ame=be ./ 4, hetero=hetero)
+    elseif kind === :cluster
+        return (y=y, X=X, beta=be, clust=rand(rng, 1:G, n), rho=cluster_rho)
+    elseif kind === :rdd
+        return (y=y, X=X, beta=be, cutoff=0.0, tau=1.0, r=rand(rng, n))
+    elseif kind === :ordered
+        return (y=ones(Int, n), X=X, beta=be, cutpoints=Vector{Float64}(cutpoints))
+    elseif kind === :heckman
+        yy = Vector{Float64}(y)
+        yy[1] = NaN
+        return (y=yy, X=X, beta=be, select_rho=select_rho, selected=rand(rng, Bool, n))
+    else
+        return (y=y, X=X, beta=be)
+    end
+end
+
+function dgp_dsge_observed(rng::AbstractRNG, y_clean::AbstractMatrix;
+                           H=nothing, trends=nothing)
+    Y = Matrix{Float64}(y_clean)
+    Tn, n = size(Y)
+    Hv = H === nothing ? zeros(n) : Vector{Float64}(H)
+    tr = trends === nothing ? zeros(Tn, n) : Matrix{Float64}(trends)
+    return (y_obs=Y + tr + sqrt.(reshape(Hv, 1, n)) .* randn(rng, Tn, n), H=Hv)
+end
+
+export dgp_var, dgp_nongaussian_var, dgp_heteroskedastic_var, dgp_arima,
+       dgp_garch_family, dgp_sv, dgp_vecm, dgp_cointreg, dgp_ardl,
+       dgp_dynamic_factors, dgp_lp_iv, dgp_panel, dgp_panel_var,
+       dgp_staggered_did, dgp_gmm, dgp_regime_switching, dgp_cross_section,
+       dgp_dsge_observed
+
 end # module

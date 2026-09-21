@@ -22,7 +22,7 @@ Example shape (fields abbreviated):
   "meta": {
     "cli_version": "0.9.2",
     "mems_version": "0.8.0",
-    "julia": "1.12.x",
+    "julia": "1.13.x",
     "seed": null,
     "argv": ["estimate", "var", "data.csv", "--lags", "1", "--format", "json"],
     "elapsed_ms": 12.3
@@ -296,7 +296,7 @@ is a comma-separated string (`handle=false`, no `x-handle`).
 `--save-model PATH` persists a fitted model (suffix-less stem → `.jld2`);
 `--model STEM` (or `.jld2` / `.fmod` / `model://`) reloads it (skipping
 re-estimation) on leaves that declare `model_types`. `.jld2` is the native, versioned format covering the full
-upstream serialization registry (350 types at MacroEconometricModels 0.9.3) —
+upstream serialization registry (352 types at MacroEconometricModels 1.0.0) —
 every model `estimate` can fit, including DSGE/HA solutions (`dsge solve`,
 `dsge ha solve`, `dsge ha steady-state`, `dsge bayes estimate` all take
 `--save-model`). `.fmod` remains as the interim handle for unregistered
@@ -319,13 +319,13 @@ anonymous closures (household utilities, `ss_fn`) fail at `--save-model` time wi
 
 Leading globals only (before the first subcommand token).
 
-## Legacy output
+## Removed in v1.0
 
-```bash
-FRIEDMAN_LEGACY_OUTPUT=1 friedman estimate var data.csv --format json
-```
-
-Restores pre-0.5 multi-document / non-envelope JSON for one minor release.
+- `FRIEDMAN_LEGACY_OUTPUT` (pre-0.5 multi-document JSON): the variable is
+  ignored; `--format json` always emits exactly one envelope.
+- Hidden snake_case command aliases (`gjr_garch`, `arch_lm`, `ljung_box`,
+  `hansen_j`): use the kebab-case primaries; the old spellings are now
+  unknown commands (exit 2).
 
 ## Handler rules (for contributors)
 

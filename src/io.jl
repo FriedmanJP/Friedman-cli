@@ -61,7 +61,7 @@ end
 """
 Run `f` with stdout captured and replay any text via `_status` (stderr).
 
-Always runs `f` (including `--quiet`) so the return value is kept. Julia 1.12
+Always runs `f` (including `--quiet`) so the return value is kept. Julia 1.13
 has no `redirect_stdout(IOBuffer)` method — capture uses a tempfile.
 """
 function _status_stdout(f::Function)
@@ -541,8 +541,8 @@ end
 
 function _write_json_raw(data, output::String)
     # Sanitize non-finite floats (Inf/NaN → "Inf"/"NaN" strings) BEFORE JSON3.write, which
-    # rejects them ("… not allowed in JSON spec") and would crash the legacy-output path
-    # (FRIEDMAN_LEGACY_OUTPUT=1 -f json) — unlike the envelope path, which already applies
+    # rejects them ("… not allowed in JSON spec") and would crash direct -f json
+    # rendering (no envelope) — unlike the envelope path, which already applies
     # `_json_safe`. This is the class-fix flagged since C067a: any handler emitting an Inf/NaN
     # in a kv/table is now rendered gracefully on BOTH json paths, not just the envelope.
     json_str = JSON3.write(_json_safe(data))

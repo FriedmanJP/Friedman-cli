@@ -117,9 +117,10 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
         parsed = tokenize(args)
         bound = bind_args(parsed, leaf)
         merged = merge(Dict{Symbol,Any}(pairs(bound)), Dict{Symbol,Any}(extra_kwargs))
-        # Single-envelope JSON accumulation (P1-1 / F17); legacy path when env set
+        # Single-envelope JSON accumulation (P1-1 / F17; C055: the
+        # FRIEDMAN_LEGACY_OUTPUT escape hatch was removed at v1.0.0)
         fmt = get(Dict(pairs(bound)), :format, nothing)
-        use_env = fmt == "json" && get(ENV, "FRIEDMAN_LEGACY_OUTPUT", "") != "1"
+        use_env = fmt == "json"
         t0 = time_ns()
         if use_env
             env = Envelope(command=prog)

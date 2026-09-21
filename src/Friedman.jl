@@ -62,6 +62,7 @@ include("commands/hd.jl")
 include("commands/forecast.jl")
 include("commands/fitted.jl")  # predict + residuals collapsed (C025)
 include("commands/filter.jl")
+include("commands/data_simulate.jl")  # data simulate specs (#177); register_data appends them
 include("commands/data.jl")
 include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")

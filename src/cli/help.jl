@@ -50,13 +50,12 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
     printstyled(io, "Usage:\n"; bold=true, color=:yellow)
     println(io, INDENT, prog, " <command> [args...] [options...]")
 
-    # Commands (hide snake_case aliases — C044: key ≠ leaf.name)
+    # Commands (C055: no hidden aliases remain — every key is primary)
     println(io)
     printstyled(io, "Commands:\n"; bold=true, color=:yellow)
     names = sort(collect(keys(node.subcmds)))
     for name in names
         cmd = node.subcmds[name]
-        is_hidden_alias(name, cmd) && continue
         desc = cmd.description
         print_entry_line(io, name, desc)
     end

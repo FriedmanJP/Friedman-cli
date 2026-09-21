@@ -3,7 +3,7 @@
 
 Generated reference for `friedman data` and its subcommands.
 
-**Leaves:** 13
+**Leaves:** 34
 
 ### `friedman data balance`
 
@@ -207,6 +207,397 @@ Example dataset name (see 'data list'), or omit and pass --path for a CSV
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--transform` | `-t` | Apply FRED transformation codes |
+
+---
+
+### `friedman data simulate ardl`
+
+ARDL(1,1) with the long-run multiplier theta
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--phi` | — | `Float64` | `0.6` | — | Lagged dependent-variable coefficient |
+| `--beta0` | — | `Float64` | `0.8` | — | Contemporaneous regressor coefficient |
+| `--beta1` | — | `Float64` | `0.4` | — | Lagged regressor coefficient |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate arima`
+
+Gaussian ARIMA (optional seasonal AR/MA left at zero)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--phi` | — | `String` | `0.5` | — | AR coefficients, comma-separated |
+| `--theta` | — | `String` | `""` | — | MA coefficients, comma-separated |
+| `--diff` | — | `Int64` | `0` | — | Integration order d |
+| `--sigma` | — | `Float64` | `1.0` | — | Innovation standard deviation |
+| `--drift` | — | `Float64` | `0.0` | — | Intercept in the stationary representation |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate cointreg`
+
+Cointegrating regression with endogenous regressors
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--endog-rho` | — | `Float64` | `0.7` | — | Correlation of the equilibrium error with Δx |
+| `--sigma-u` | — | `Float64` | `1.0` | — | Equilibrium-error scale |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--spurious` | — | Independent random walks (no cointegration) |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate cross-section`
+
+Cross-section DGP (OLS through RDD)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `ols` | `ols`, `hc`, `cluster`, `iv`, `logit`, `probit`, `ordered`, `mlogit`, `poisson`, `nb`, `tobit`, `truncreg`, `heckman`, `qreg`, `rdd` | ols\|hc\|cluster\|iv\|logit\|probit\|ordered\|mlogit\|poisson\|nb\|tobit\|truncreg\|heckman\|qreg\|rdd |
+| `--n` | — | `Int64` | `200` | — | Observations |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate ct`
+
+Continuous-time Aiyagari MIT transition
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--rho` | — | `Float64` | `0.05` | — | Discount rate |
+| `--sigma` | — | `Float64` | `2.0` | — | CRRA |
+| `--delta` | — | `Float64` | `0.05` | — | Depreciation |
+| `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
+| `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP as a fraction of steady-state Z |
+| `--grid-size` | — | `Int64` | `40` | — | Asset grid points |
+| `--a-max` | — | `Float64` | `30.0` | — | Asset-grid upper bound |
+| `--max-iter` | — | `Int64` | `80` | — | Steady-state / transition iterations |
+| `--tol` | — | `Float64` | `1.0e-5` | — | Convergence tolerance |
+| `--dt` | — | `Float64` | `0.25` | — | Transition step |
+| `--periods` | — | `Int64` | `12` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate did`
+
+Staggered adoption with the realized ATT
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n` | — | `Int64` | `80` | — | Units |
+| `--periods` | — | `Int64` | `20` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate dsge`
+
+Representative-agent DSGE path from solve + simulate
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | .jl or .toml DSGE spec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | gensys\|klein\|blanchard-kahn\|perturbation\|projection\|pfi\|vfi |
+| `--order` | — | `Int64` | `1` | — | Perturbation order (1–3; only with --method perturbation) |
+| `--meas-sd` | — | `String` | `""` | — | Measurement-error standard deviations (one value or one per variable) |
+| `--periods` | — | `Int64` | `80` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `20` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate factors`
+
+Dynamic factor model (VAR factors, random loadings)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--series` | — | `Int64` | `12` | — | Number of observed series N |
+| `--periods` | — | `Int64` | `80` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `20` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate garch`
+
+GARCH-family returns with the conditional-variance path in the truth table
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `garch` | `arch`, `garch`, `egarch`, `gjr`, `aparch`, `igarch`, `cgarch`, `figarch`, `fiegarch` | arch\|garch\|egarch\|gjr\|aparch\|igarch\|cgarch\|figarch\|fiegarch |
+| `--periods` | — | `Int64` | `300` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate gmm`
+
+Heteroskedastic OLS or IV moments
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `iv` | `ols`, `iv` | ols\|iv |
+| `--n` | — | `Int64` | `200` | — | Observations |
+| `--pi1` | — | `Float64` | `1.0` | — | First-stage strength (--kind iv) |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate ha`
+
+Heterogeneous-agent aggregate path from solve + simulate
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `model` | `String` | yes | — | HA builtin (huggett, krusell-smith, …) or .jl ModelSpec |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `reiter` | `ssj`, `reiter`, `krusell-smith` | ssj\|reiter (krusell-smith has no aggregate simulate) |
+| `--n-reduced` | — | `Int64` | `10` | — | Reduced states for the linear solution |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | young\|winberry |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | egm\|vfi |
+| `--periods` | — | `Int64` | `20` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate heteroskedastic-var`
+
+Heteroskedastic SVAR (Markov, GARCH, smooth, or break)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `markov` | `markov`, `garch`, `smooth`, `external` | markov\|garch\|smooth\|external |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate lp-iv`
+
+Local-projection IV (instrument z, endogenous s, outcome y)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--pi1` | — | `Float64` | `1.5` | — | First-stage coefficient on the instrument |
+| `--theta` | — | `Float64` | `1.0` | — | Impact response of y to s |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate olg`
+
+Blanchard OLG saddle path (deterministic)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--beta` | — | `Float64` | `0.96` | — | Discount factor |
+| `--delta` | — | `Float64` | `0.08` | — | Depreciation |
+| `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
+| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--debt` | — | `Float64` | `0.0` | — | Government debt b |
+| `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 0.8 × steady state) |
+| `--periods` | — | `Int64` | `40` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate panel`
+
+Linear or binary panel with optional correlated effects
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `linear` | `linear`, `logit`, `probit` | linear\|logit\|probit |
+| `--n` | — | `Int64` | `30` | — | Cross-sectional units |
+| `--periods` | — | `Int64` | `12` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate pvar`
+
+Panel VAR(1) with random effects
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--n` | — | `Int64` | `15` | — | Cross-sectional units |
+| `--periods` | — | `Int64` | `20` | — | Sample length after burn-in |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate regime`
+
+Markov-switching, SETAR, LSTAR, or ESTAR
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--kind` | — | `String` | `ms` | `ms`, `setar`, `lstar`, `estr` | ms\|setar\|lstar\|estr |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `40` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate sv`
+
+Stochastic volatility (Gaussian, no leverage by default)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--mu` | — | `Float64` | `-0.5` | — | Unconditional mean of log variance |
+| `--phi` | — | `Float64` | `0.95` | — | AR(1) persistence of log variance |
+| `--sigma-eta` | — | `Float64` | `0.2` | — | Volatility-of-volatility |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate svar`
+
+Non-Gaussian SVAR (independent structural shocks)
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dist` | — | `String` | `t` | `gauss`, `t`, `laplace`, `mixture`, `skew` | gauss\|t\|laplace\|mixture\|skew |
+| `--nu` | — | `Float64` | `5.0` | — | Student-t degrees of freedom (--dist t; must be > 2) |
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate var`
+
+Reference stationary VAR(1) with population A, B0, Sigma
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
+
+---
+
+### `friedman data simulate vecm`
+
+Rank-1 VECM with population alpha, beta, Gamma, Sigma
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+
+**Output tables:** `simulated_data` (Simulated observables with an index column (time, obs, or id/time)); `population_truth` (Population parameters flattened to parameter, row, col, value (row=col=0 is a scalar)); `simulation_settings` (Simulator name, effective seed, and kind or distribution)
 
 ---
 

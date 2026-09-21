@@ -252,7 +252,7 @@ const _DATA_CONTAINER_LEAVES = Set(["describe", "diagnose", "validate", "fix", "
 
 function register_data_commands!()
     specs = CommandSpec[]
-    for s in data_specs()
+    for s in vcat(data_specs(), data_simulate_specs())
         leaf = s.path[end]
         if leaf == "filter"
             # HP/Hamilton on a PanelData handle would treat group/time as series.

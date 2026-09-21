@@ -168,12 +168,12 @@ set "SYSIMAGE=%SCRIPT_DIR%\\lib\\$(sysimage_name)"
 set "JULIA_LOAD_PATH=%SCRIPT_DIR%;@stdlib"
 
 rem Find Julia: prefer juliaup, fallback to julia on PATH
-rem Prefer julia +1.12 (juliaup channel); juliaup run is not portable on 1.20.x
+rem Prefer julia +1.13 (juliaup channel); juliaup run is not portable on 1.20.x
 where julia >nul 2>&1
 if %errorlevel% neq 0 goto :nojulia
-julia +1.12 --version >nul 2>&1
+julia +1.13 --version >nul 2>&1
 if %errorlevel% equ 0 (
-    julia +1.12 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
+    julia +1.13 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
     exit /b %errorlevel%
 )
 for /f "tokens=3" %%v in ('julia --version 2^>nul') do set "JULIA_VER=%%v"
@@ -183,14 +183,14 @@ for /f "tokens=1,2 delims=." %%a in ("%JULIA_VER%") do (
 )
 if "%JMAJ%"=="" goto :nojulia
 if %JMAJ% lss 1 goto :nojulia
-if %JMAJ% equ 1 if %JMIN% lss 12 goto :nojulia
+if %JMAJ% equ 1 if %JMIN% lss 13 goto :nojulia
 julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
 exit /b %errorlevel%
 
 :nojulia
-echo Error: Julia 1.12+ is required but not found.
+echo Error: Julia 1.13+ is required but not found.
 echo Install via: winget install --id Julialang.Juliaup
-echo Then run: juliaup add 1.12
+echo Then run: juliaup add 1.13
 exit /b 1
 """)
     end
@@ -214,11 +214,11 @@ SYSIMAGE="\$SCRIPT_DIR/lib/$(sysimage_name)"
 
 export JULIA_LOAD_PATH="\$SCRIPT_DIR:@stdlib"
 
-# Find Julia: prefer channel `julia +1.12` (juliaup), then bare julia ≥1.12.
+# Find Julia: prefer channel `julia +1.13` (juliaup), then bare julia ≥1.13.
 # Note: `juliaup run` is not portable across juliaup versions (1.20.x has no `run`).
 if command -v julia >/dev/null 2>&1; then
-    if julia +1.12 --version >/dev/null 2>&1; then
-        exec julia +1.12 \\
+    if julia +1.13 --version >/dev/null 2>&1; then
+        exec julia +1.13 \\
             --project="\$SCRIPT_DIR" \\
             --sysimage="\$SYSIMAGE" \\
             --startup-file=no \\
@@ -228,7 +228,7 @@ if command -v julia >/dev/null 2>&1; then
     JULIA_VER=\$(julia --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+' | head -1)
     JULIA_MAJOR=\$(echo "\$JULIA_VER" | cut -d. -f1)
     JULIA_MINOR=\$(echo "\$JULIA_VER" | cut -d. -f2)
-    if [ "\$JULIA_MAJOR" -ge 1 ] && [ "\$JULIA_MINOR" -ge 12 ]; then
+    if [ "\$JULIA_MAJOR" -ge 1 ] && [ "\$JULIA_MINOR" -ge 13 ]; then
         exec julia \\
             --project="\$SCRIPT_DIR" \\
             --sysimage="\$SYSIMAGE" \\
@@ -238,9 +238,9 @@ if command -v julia >/dev/null 2>&1; then
     fi
 fi
 
-echo "Error: Julia 1.12+ is required but not found." >&2
+echo "Error: Julia 1.13+ is required but not found." >&2
 echo "Install via: curl -fsSL https://install.julialang.org | sh -s -- --yes" >&2
-echo "Then run: juliaup add 1.12" >&2
+echo "Then run: juliaup add 1.13" >&2
 exit 1
 """)
     end

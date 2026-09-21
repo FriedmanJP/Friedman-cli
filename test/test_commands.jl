@@ -82,6 +82,7 @@ include(joinpath(project_root, "src", "commands", "hd.jl"))
 include(joinpath(project_root, "src", "commands", "forecast.jl"))
 include(joinpath(project_root, "src", "commands", "fitted.jl"))
 include(joinpath(project_root, "src", "commands", "filter.jl"))
+include(joinpath(project_root, "src", "commands", "data_simulate.jl"))
 include(joinpath(project_root, "src", "commands", "data.jl"))
 include(joinpath(project_root, "src", "commands", "io.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
@@ -117,14 +118,18 @@ include(joinpath(project_root, "test", "support.jl"))
         @test doc.status == "ok"
     end
 
-    # Legacy path: FRIEDMAN_LEGACY_OUTPUT=1 restores pre-envelope multi-doc/json array output
+    # C055: FRIEDMAN_LEGACY_OUTPUT was removed at v1.0.0 — the var is ignored,
+    # --format json always emits exactly one envelope
     mktempdir() do dir
         csv = _make_csv(dir; T=100, n=3)
         withenv("FRIEDMAN_LEGACY_OUTPUT" => "1") do
             out = _capture() do
                 _dispatch_via_app(["estimate", "var", csv, "--lags", "1", "--format", "json"])
             end
-            # Legacy is not a single envelope (no schema_version at top level required)
+            i = findfirst('{', out)
+            @test i !== nothing
+            doc = JSON3.read(out[i:end])
+            @test doc.schema_version == 1 && doc.status == "ok"
         end
     end
 end
@@ -450,9 +455,9 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +poisson/nbreg W2, +sarima W6,
+        # 76 primary leaves, no aliases (C055 removed the C044 gjr_garch alias; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +poisson/nbreg W2, +sarima W6,
         # +tvpvar/mfvar W7, +svar/svec W2/#166)
-        @test length(node.subcmds) == 77
+        @test length(node.subcmds) == 76
         for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
                      "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -462,34 +467,26 @@ end  # Shared utilities
                      "tobit", "truncreg", "heckman"]
             @test haskey(node.subcmds, cmd)
         end
-        @test haskey(node.subcmds, "gjr_garch")  # hidden alias
-        @test node.subcmds["gjr_garch"].name == "gjr-garch"
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
     end
 
-    @testset "C044 kebab primary + snake alias deprecation" begin
+    @testset "C055 kebab primary only; snake alias is unknown-command" begin
         node = register_estimate_commands!()
-        # Help lists kebab only, not snake alias
+        # Help lists kebab only
         help_io = IOBuffer()
         print_help(help_io, node; prog="friedman estimate")
         help_text = String(take!(help_io))
         @test contains(help_text, "gjr-garch")
         @test !contains(help_text, "gjr_garch")
 
-        # Snake alias dispatches and prints deprecation on stderr
+        # Snake alias no longer dispatches (the C044 deprecation path is gone)
         mktempdir() do dir
             csv = _make_csv(dir; T=80, n=1, colnames=["ret"])
-            streams = cd(dir) do
-                _capture_all() do
-                    _dispatch_via_app(["estimate", "gjr_garch", csv, "--p", "1", "--q", "1",
-                                       "--format", "table"])
-                end
-            end
-            @test contains(streams.err, "deprecated")
-            @test contains(streams.err, "gjr-garch")
-            @test contains(streams.err, "gjr_garch")
+            @test_throws DispatchError _dispatch_via_app(["estimate", "gjr_garch", csv, "--p", "1", "--q", "1",
+                                                           "--format", "table"])
         end
 
-        # Kebab primary: no deprecation line
+        # Kebab primary: dispatches, no deprecation line
         mktempdir() do dir
             csv = _make_csv(dir; T=80, n=1, colnames=["ret"])
             streams = cd(dir) do
@@ -1590,20 +1587,15 @@ end  # Shared utilities
                 @test _err(["reg", misscsv, "--dep", "y"]).code == "data/missing-values"
             end
 
-            @testset "tobit default upper=Inf renders on the legacy JSON path (no Inf crash)" begin
-                # regression (adversarial review C067a): --upper Inf reached JSON3.write on the
-                # FRIEDMAN_LEGACY_OUTPUT path (which does not apply _json_safe) → "Inf not
-                # allowed in JSON spec" → exit-1. Now rendered as the string "Inf".
-                old = get(ENV, "FRIEDMAN_LEGACY_OUTPUT", nothing)
-                ENV["FRIEDMAN_LEGACY_OUTPUT"] = "1"
-                try
-                    e = nothing
-                    try; _capture() do; _dispatch_via_app(String["estimate","tobit",csv,"--dep","y","--lower","0.0","--format","json"]); end
-                    catch ex; e = ex; end
-                    @test e === nothing
-                finally
-                    old === nothing ? delete!(ENV, "FRIEDMAN_LEGACY_OUTPUT") : (ENV["FRIEDMAN_LEGACY_OUTPUT"] = old)
-                end
+            @testset "tobit default upper=Inf renders on the JSON path (no Inf crash)" begin
+                # regression (adversarial review C067a): --upper Inf reached JSON3.write
+                # ("Inf not allowed in JSON spec" → exit-1). Now rendered as the
+                # string "Inf" (C055: the legacy-output escape hatch is gone; the
+                # envelope path applies _json_safe and direct writers sanitize).
+                e = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","tobit",csv,"--dep","y","--lower","0.0","--format","json"]); end
+                catch ex; e = ex; end
+                @test e === nothing
             end
         end
     end
@@ -3106,7 +3098,7 @@ end  # Shared utilities
                 @test _eerr(["kernel-reg", strcsv, "--indep", "b"]).code == "data/invalid"
                 @test _eerr(["lowess", strcsv, "--indep", "b"]).code == "data/invalid"
                 @test _eerr(["reg", strcsv]).code == "data/invalid"           # mirrored _load_reg_data hole
-                # (infra class-fix) the legacy-JSON writer sanitizes non-finite floats (Inf/NaN →
+                # (infra class-fix) the direct JSON writer sanitizes non-finite floats (Inf/NaN →
                 # "Inf"/"NaN" strings) instead of crashing JSON3.write ("… not allowed in JSON spec").
                 out = _capture() do
                     _write_json_raw(Dict("a" => Inf, "b" => NaN, "c" => 1.5), "")
@@ -3477,8 +3469,8 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 80 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 85
+        # 83 primary leaves, no aliases (C055 removed the C044 arch_lm/ljung_box pair; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
+        @test length(node.subcmds) == 83
         for cmd in ["llc", "ips", "breitung", "fisher-johansen", "dh-causality",
                      "white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
                      "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
@@ -3495,19 +3487,19 @@ end  # Estimate handlers
                      "brant", "hausman-iia"]
             @test haskey(node.subcmds, cmd)
         end
-        @test haskey(node.subcmds, "arch_lm") && node.subcmds["arch_lm"].name == "arch-lm"
-        @test haskey(node.subcmds, "ljung_box") && node.subcmds["ljung_box"].name == "ljung-box"
+        @test !haskey(node.subcmds, "arch_lm")  # C055: alias removed
+        @test !haskey(node.subcmds, "ljung_box")  # C055: alias removed
         # VAR is a nested NodeCommand with lagselect and stability
         var_node = node.subcmds["var"]
         @test var_node isa NodeCommand
         @test haskey(var_node.subcmds, "lagselect")
         @test haskey(var_node.subcmds, "stability")
-        # PVAR: 4 primary + 1 alias (hansen_j) = 5 keys (C044)
+        # PVAR: 4 primary leaves, no aliases (C055 removed hansen_j)
         pvar_node = node.subcmds["pvar"]
         @test pvar_node isa NodeCommand
-        @test length(pvar_node.subcmds) == 5
+        @test length(pvar_node.subcmds) == 4
         @test haskey(pvar_node.subcmds, "hansen-j")
-        @test haskey(pvar_node.subcmds, "hansen_j")  # alias
+        @test !haskey(pvar_node.subcmds, "hansen_j")  # C055: alias removed
         @test haskey(pvar_node.subcmds, "mmsc")
         @test haskey(pvar_node.subcmds, "lagselect")
         @test haskey(pvar_node.subcmds, "stability")
@@ -5307,13 +5299,13 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
-        @test length(node.subcmds) == 31
+        # 30 keys: primaries + evaluate sub-node, no aliases (C055 removed the C044 gjr_garch alias; C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101; +sdfm W1 #165)
+        @test length(node.subcmds) == 30
         for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
             @test haskey(node.subcmds, cmd)
         end
-        @test haskey(node.subcmds, "gjr_garch")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
         # C072: nested forecast evaluate sub-node with 6 leaves
         @test haskey(node.subcmds, "evaluate")
         @test node.subcmds["evaluate"] isa NodeCommand
@@ -5843,7 +5835,7 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 77  # 76 primary (+sarima W6, +tvpvar/mfvar W7, +svar/svec W2 #166) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 76  # 76 primary, no aliases (C055 removed gjr_garch; +sarima W6, +tvpvar/mfvar W7, +svar/svec W2 #166, +poisson/nbreg W2 #107, C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
         @test haskey(node.subcmds, "vecm")
         @test node.subcmds["vecm"] isa LeafCommand
     end
@@ -5868,13 +5860,13 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 31  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101; +sdfm W1 #165)
+        @test length(node.subcmds) == 30  # primaries + evaluate node, no aliases (C055 removed gjr_garch; +setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101; +sdfm W1 #165)
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 83  # 83 primary, no aliases (C055 removed arch_lm/ljung_box; +dispersion W2 #107, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
         @test haskey(node.subcmds, "granger")
         @test node.subcmds["granger"] isa LeafCommand
     end
@@ -6245,15 +6237,15 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        # 23 primary + 1 alias = 24 keys (C044; +ms/ms-ar W3 #101)
-        @test length(node.subcmds) == 39  # +poisson/nbreg (W2 #107)
+        # 38 primary leaves, no aliases (C055 removed gjr_garch; +ms/ms-ar W3 #101)
+        @test length(node.subcmds) == 38  # +poisson/nbreg (W2 #107)
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
-        @test haskey(node.subcmds, "gjr_garch")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
     end
 
     @testset "_predict_var" begin
@@ -7004,15 +6996,15 @@ end
         node = register_residuals_commands!()
         @test node isa NodeCommand
         @test node.name == "residuals"
-        # 23 primary + 1 alias = 24 keys (C044); +#70 setar/star/ms-ar/ms => 38
-        @test length(node.subcmds) == 41
+        # 40 primary leaves, no aliases (C055 removed gjr_garch); +#70 setar/star/ms-ar/ms
+        @test length(node.subcmds) == 40
         for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
                      "reg", "logit", "probit",
                      "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
             @test haskey(node.subcmds, cmd)
         end
-        @test haskey(node.subcmds, "gjr_garch")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
         # #70 remainder: the nonlinear-TS models define StatsAPI.residuals upstream
         for cmd in ["setar", "star", "ms-ar", "ms"]
             @test haskey(node.subcmds, cmd)
@@ -7766,7 +7758,7 @@ end  # Filter handlers
         node = register_estimate_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 77  # 76 primary (+sarima W6, +tvpvar/mfvar W7, +svar/svec W2 #166) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test length(node.subcmds) == 76  # 76 primary, no aliases (C055 removed gjr_garch; +sarima W6, +tvpvar/mfvar W7, +svar/svec W2 #166, +poisson/nbreg W2 #107, C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -7787,9 +7779,9 @@ end  # Filter handlers
         node = register_test_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa NodeCommand
-        @test length(node.subcmds["pvar"].subcmds) == 5  # 4 primary + hansen_j alias
+        @test length(node.subcmds["pvar"].subcmds) == 4  # 4 primary, no aliases (C055 removed hansen_j)
         @test haskey(node.subcmds["pvar"].subcmds, "hansen-j")
-        @test haskey(node.subcmds["pvar"].subcmds, "hansen_j")
+        @test !haskey(node.subcmds["pvar"].subcmds, "hansen_j")  # C055: alias removed
         @test haskey(node.subcmds["pvar"].subcmds, "mmsc")
         @test haskey(node.subcmds["pvar"].subcmds, "lagselect")
         @test haskey(node.subcmds["pvar"].subcmds, "stability")
@@ -7797,7 +7789,7 @@ end  # Filter handlers
         @test node.subcmds["lr"] isa LeafCommand
         @test haskey(node.subcmds, "lm")
         @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test length(node.subcmds) == 83  # 83 primary, no aliases (C055 removed arch_lm/ljung_box; +dispersion W2 #107, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
     end
 
     @testset "_parse_varlist" begin
@@ -8105,7 +8097,8 @@ end  # Enhanced Granger handlers
         node = register_data_commands!()
         @test node isa NodeCommand
         @test node.name == "data"
-        @test length(node.subcmds) == 13
+        @test length(node.subcmds) == 14
+        @test node.subcmds["simulate"] isa NodeCommand
         for cmd in ["list", "load", "import", "export", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance", "dropna", "keeprows"]
             @test haskey(node.subcmds, cmd)
             @test node.subcmds[cmd] isa LeafCommand
@@ -8125,6 +8118,181 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["filter"].options) == 8
         @test length(node.subcmds["validate"].options) == 3
         @test length(node.subcmds["balance"].options) == 5
+        sim = node.subcmds["simulate"]
+        @test length(sim.subcmds) == 21
+        @test sim.subcmds["var"] isa LeafCommand
+        @test sim.subcmds["dsge"] isa LeafCommand
+        @test sim.subcmds["ha"] isa LeafCommand
+    end
+
+    @testset "data simulate (#177)" begin
+        dir = mktempdir()
+        out = joinpath(dir, "sim.csv")
+        truth_path(p) = replace(p, "." => "_truth.")
+        function cell(df, name; row=0, col=0)
+            for r in eachrow(df)
+                r.parameter == name && Int(r.row) == row && Int(r.col) == col && return r.value
+            end
+            error("missing truth $name [$row,$col]")
+        end
+
+        _data_simulate_var(; periods=6, burn=2, seed=4, format="csv", output=out)
+        sample = CSV.read(out, DataFrame)
+        @test names(sample) == ["time", "y1", "y2", "y3"]
+        @test nrow(sample) == 6
+        truth = CSV.read(truth_path(out), DataFrame)
+        @test cell(truth, "A_1"; row=1, col=1) ≈ 0.5
+        @test cell(truth, "B0"; row=2, col=1) ≈ 0.5
+        @test cell(truth, "B0"; row=1, col=2) ≈ 0.0
+        out2 = joinpath(dir, "sim2.csv")
+        _data_simulate_var(; periods=6, burn=2, seed=4, format="csv", output=out2)
+        again = CSV.read(out2, DataFrame)
+        @test names(again) == names(sample)
+        @test all(again[!, c] == sample[!, c] for c in names(sample))
+        out3 = joinpath(dir, "sim3.csv")
+        _data_simulate_var(; periods=6, burn=2, seed=5, format="csv", output=out3)
+        other = CSV.read(out3, DataFrame)
+        @test any(other[!, c] != sample[!, c] for c in names(sample) if c != "time")
+        @test_throws CliError _data_simulate_var(; periods=0, burn=0, seed=1,
+                                                 format="csv", output=out)
+
+        _data_simulate_svar(; dist="gauss", periods=5, burn=1, seed=1,
+                            format="csv", output=out)
+        @test nrow(CSV.read(out, DataFrame)) == 5
+        @test_throws CliError _data_simulate_svar(; dist="nope", periods=5, burn=1, seed=1,
+                                                  format="csv", output=out)
+        @test_throws CliError _data_simulate_svar(; dist="t", nu=1.5, periods=5, burn=1,
+                                                  seed=1, format="csv", output=out)
+
+        _data_simulate_hetvar(; kind="external", periods=5, burn=1, seed=1,
+                              format="csv", output=out)
+        @test nrow(CSV.read(out, DataFrame)) == 5
+        _data_simulate_hetvar(; kind="markov", periods=4, burn=1, seed=1,
+                              format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "P"; row=1, col=1) ≈ 0.95
+
+        _data_simulate_arima(; phi="0.5", periods=5, burn=1, seed=1,
+                             format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "phi"; row=1) ≈ 0.5
+        @test cell(CSV.read(truth_path(out), DataFrame), "sigma") ≈ 1.0
+
+        _data_simulate_garch(; kind="egarch", periods=8, burn=2, seed=1,
+                             format="csv", output=out)
+        @test "h" in CSV.read(truth_path(out), DataFrame).parameter
+        _data_simulate_sv(; periods=6, burn=1, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "phi") ≈ 0.95
+        @test_throws CliError _data_simulate_sv(; phi=1.2, periods=4, burn=1, seed=1,
+                                                format="csv", output=out)
+
+        _data_simulate_vecm(; periods=6, burn=1, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "alpha"; row=1, col=1) ≈ -0.3
+        _data_simulate_cointreg(; periods=8, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "beta"; row=1) ≈ 2.0
+        @test_throws CliError _data_simulate_cointreg(; endog_rho=1.0, periods=8, seed=1,
+                                                     format="csv", output=out)
+
+        _data_simulate_ardl(; periods=6, burn=1, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "theta") ≈ 3.0
+        @test_throws CliError _data_simulate_ardl(; phi=1.0, periods=6, burn=1, seed=1,
+                                                  format="csv", output=out)
+
+        _data_simulate_factors(; series=4, periods=5, burn=1, seed=1,
+                               format="csv", output=out)
+        @test names(CSV.read(out, DataFrame)) == ["time", "x1", "x2", "x3", "x4"]
+        _data_simulate_lpiv(; periods=6, pi1=1.5, theta=1.0, seed=1,
+                            format="csv", output=out)
+        @test names(CSV.read(out, DataFrame)) == ["time", "s", "y", "x2", "z1"]
+        @test cell(CSV.read(truth_path(out), DataFrame), "theta") ≈ 1.0
+
+        _data_simulate_panel(; kind="linear", n=4, periods=3, seed=1,
+                             format="csv", output=out)
+        @test names(CSV.read(out, DataFrame))[1:2] == ["id", "time"]
+        _data_simulate_panel(; kind="logit", n=4, periods=3, seed=1,
+                             format="csv", output=out)
+        _data_simulate_pvar(; n=3, periods=4, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "A1"; row=1, col=1) ≈ 0.8
+        _data_simulate_did(; n=6, periods=8, seed=1, format="csv", output=out)
+        did8 = CSV.read(out, DataFrame)
+        @test "D" in names(did8)
+        # periods=8 keeps upstream date 6 and drops 11 and 16 (past the sample).
+        @test all(c -> c == 6, did8.cohort)
+        did8_truth = CSV.read(truth_path(out), DataFrame)
+        @test all(isfinite, did8_truth.value)
+        @test "att_c:6" in did8_truth.parameter
+        @test !("att_c:11" in did8_truth.parameter)
+        @test !("att_c:16" in did8_truth.parameter)
+        @test cell(did8_truth, "overall_att") ≈ 1.0
+        _data_simulate_did(; n=20, periods=12, seed=3, format="csv", output=out)
+        did12 = CSV.read(out, DataFrame)
+        @test all(c -> c == 6 || c == 11, did12.cohort)
+        did12_truth = CSV.read(truth_path(out), DataFrame)
+        @test all(isfinite, did12_truth.value)
+        @test "att_c:6" in did12_truth.parameter
+        @test "att_c:11" in did12_truth.parameter
+        @test !("att_c:16" in did12_truth.parameter)
+
+        _data_simulate_gmm(; kind="iv", n=10, seed=1, format="csv", output=out)
+        @test "z1" in names(CSV.read(out, DataFrame))
+        _data_simulate_gmm(; kind="ols", n=10, seed=1, format="csv", output=out)
+        @test !("z1" in names(CSV.read(out, DataFrame)))
+        _data_simulate_regime(; kind="setar", periods=6, burn=1, seed=1,
+                              format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "phi_lo") ≈ 0.8
+        _data_simulate_regime(; kind="lstar", periods=6, burn=1, seed=1,
+                              format="csv", output=out)
+        _data_simulate_xsec(; kind="logit", n=12, seed=1, format="csv", output=out)
+        @test "y" in names(CSV.read(out, DataFrame))
+        _data_simulate_xsec(; kind="iv", n=12, seed=1, format="csv", output=out)
+        @test "z1" in names(CSV.read(out, DataFrame))
+
+        model = joinpath(dir, "m.jl")
+        write(model, """
+        @dsge begin
+            parameters: rho = 0.9, sigma = 0.01
+            endogenous: Y, C
+            exogenous: e
+            linear: true
+            Y[t] = rho * Y[t-1] + sigma * e[t]
+            C[t] = Y[t]
+        end
+        """)
+        _data_simulate_dsge(; model=model, periods=5, burn=1, seed=3,
+                            format="csv", output=out)
+        ds = CSV.read(out, DataFrame)
+        @test names(ds) == ["time", "Y", "C"]
+        @test nrow(ds) == 5
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss:Y") ≈ 0.0
+        _data_simulate_dsge(; model=model, periods=5, burn=1, seed=3,
+                            meas_sd="0.2", format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "H"; row=1) ≈ 0.04
+        @test_throws CliError _data_simulate_dsge(; model=model, method="gensys", order=2,
+                                                  periods=4, burn=0, seed=1,
+                                                  format="csv", output=out)
+
+        _data_simulate_ha(; model="huggett", method="reiter", periods=4,
+                          n_reduced=4, seed=2, format="csv", output=out)
+        @test nrow(CSV.read(out, DataFrame)) == 4
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss_agg:K") ≈ 10.0
+        @test_throws CliError _data_simulate_ha(; model="huggett", method="krusell-smith",
+                                                periods=2, n_reduced=4, seed=1,
+                                                format="csv", output=out)
+
+        _data_simulate_olg(; periods=4, seed=1, format="csv", output=out)
+        olg = CSV.read(out, DataFrame)
+        @test nrow(olg) == 5
+        @test names(olg) == ["time", "k", "C", "r", "w"]
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss:k") ≈ 5.0
+        @test_throws CliError _data_simulate_olg(; gamma=1.5, periods=4, seed=1,
+                                                 format="csv", output=out)
+
+        _data_simulate_ct(; grid_size=4, periods=3, max_iter=5, seed=1,
+                          format="csv", output=out)
+        ct = CSV.read(out, DataFrame)
+        @test names(ct) == ["time", "Z", "K", "r", "w", "C"]
+        @test nrow(ct) == 3
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss:K") ≈ 3.0
+
+        rm(dir; recursive=true, force=true)
     end
 
     @testset "dataset_to_dataframe — panels keep their identifiers" begin
@@ -13475,7 +13643,7 @@ end
     table = Dict("columns" => ["a", "b"], "rows" => [[1, "x"], [2.5, nothing]])
     base = Dict{String,Any}(
         "schema_version" => 1, "command" => "estimate var", "status" => "ok",
-        "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.12.0",
+        "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.13.0",
                                    "mems_version" => "0.8.0", "seed" => 42),
         "data" => Dict{String,Any}("coefficients" => table),
         "warnings" => Any[], "artifacts" => Any[], "error" => nothing)
@@ -14299,7 +14467,6 @@ end
     nchecked = Ref(0)
     function _walkschema(node, path)
         for (name, sub) in node.subcmds
-            is_hidden_alias(name, sub) && continue
             p = vcat(path, [name])
             if sub isa LeafCommand
                 s = _input_schema(sub, p)
