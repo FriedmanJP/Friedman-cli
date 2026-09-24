@@ -1,6 +1,6 @@
 # Structural Break Tests
 
-Tests for structural breaks in time series regression models. 2 subcommands under `test`.
+Tests for structural breaks in time series regression models, under `test stability`.
 
 ## test andrews
 

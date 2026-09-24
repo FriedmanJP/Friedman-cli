@@ -1,6 +1,6 @@
 # predict & residuals
 
-In-sample fitted values (`predict`) and model residuals (`residuals`). 23 subcommands each, covering time series, volatility, factor, cross-sectional regression, panel regression, and ordered/multinomial choice models.
+In-sample fitted values (`predict`) and model residuals (`residuals`), covering time series, volatility, factor, cross-sectional regression, panel regression, and ordered/multinomial choice models.
 
 Both commands share identical subcommand structure and options. Each subcommand estimates the model and extracts fitted values or residuals.
 

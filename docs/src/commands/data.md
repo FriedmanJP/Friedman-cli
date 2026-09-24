@@ -1,6 +1,6 @@
 # data
 
-Data management commands: import/export typed handles, load example datasets, inspect, clean, transform, and validate data, and simulate samples from a known population. 13 data commands plus `data simulate` (21 leaves).
+Data management commands: import/export typed handles, load example datasets, inspect, clean, transform, and validate data, and simulate samples from a known population via `data simulate`.
 
 ## Typed handles and stems
 

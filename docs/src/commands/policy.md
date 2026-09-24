@@ -1,7 +1,8 @@
 # policy
 
-McKay–Wolf and Barnichon–Mesters policy counterfactuals (MEMs 0.8.0 counterfactual
-module). 23 subcommands across eleven verbs.
+McKay–Wolf and Barnichon–Mesters policy counterfactuals (upstream counterfactual
+module) across the verbs (`counterfactual`, `effects`, `history`, `jacobian`, `moments`,
+`news`, `opp`, `opp-sequence`, `optimal`, `spanning`, `sufficiency`).
 
 The core idea: the causal effects of identified **policy shocks** form a *menu*; a rule
 counterfactual re-weights that menu so an alternative policy rule holds along the

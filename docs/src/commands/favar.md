@@ -1,6 +1,6 @@
 # favar & sdfm
 
-Factor-Augmented VAR (FAVAR) and Structural Dynamic Factor Model (SDFM) commands. FAVAR spans the full analysis pipeline with 7 commands across `estimate`, `irf`, `fevd`, `hd`, `forecast`, `predict`, and `residuals`. SDFM provides 4 commands: `estimate`, `irf`, `fevd`, `forecast`.
+Factor-Augmented VAR (FAVAR) and Structural Dynamic Factor Model (SDFM) commands. FAVAR spans the full analysis pipeline across `estimate`, `irf`, `fevd`, `hd`, `forecast`, `predict`, and `residuals`. SDFM covers `estimate`, `irf`, `fevd`, and `forecast`.
 
 ## FAVAR
 
@@ -14,7 +14,7 @@ FAVAR (Bernanke, Boivin & Eliasz 2005) augments a standard VAR with latent facto
     name (previously `Var 1`, `Var 2`, …). `fevd sdfm` decomposes in **factor space**
     and keeps its `Factor i` labels. `estimate static` stores the names on the
     `FactorModel` as well. `estimate dynamic` is unchanged — its
-    upstream estimator accepts no variable names at MEMs 0.8.0 (its loadings table
+    upstream estimator accepts no variable names (verified at MEMs 1.0.0; its loadings table
     was already labelled CLI-side). `estimate gdfm` takes `--spectral` (FHLR lag-window
     default) and `--plot` since v0.12.0.
 

@@ -60,7 +60,7 @@ warning is worth acting on rather than ignoring.
     Before v0.9.1 this path did not work at all ([#80](https://github.com/FriedmanJP/Friedman-cli/issues/80)):
     every `.jl` HA model failed with `UndefVarError: @dsge`, because the loader's sandbox
     injected the package object but not its exports. Builtin names were unaffected.
-    At MEMs 0.9.0 `HADSGESpec` is gone (`ModelSpec` + `HouseholdSystem`) and HA SSJ
+    Since MEMs 0.9.0 `HADSGESpec` is gone (`ModelSpec` + `HouseholdSystem`) and HA SSJ
     evaluates written aggregate residual closures, so `.jl` HA solves go through the
     world-age barrier. Written aggregate equations are compiled (they were ignored at
     0.8.0). `E[t](...)` is a typed `config/invalid`.

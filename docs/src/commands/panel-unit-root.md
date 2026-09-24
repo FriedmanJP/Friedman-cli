@@ -1,6 +1,6 @@
 # Panel Unit Root Tests
 
-Panel unit root tests that account for cross-sectional dependence via common factors. 4 subcommands under `test`.
+Panel unit root tests that account for cross-sectional dependence via common factors, under `test`.
 
 All panel unit root tests accept CSV data in wide format (rows = time periods, columns = cross-sectional units) or panel format with `--id-col` and `--time-col` options.
 

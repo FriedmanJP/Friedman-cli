@@ -1,6 +1,6 @@
 # hd
 
-Compute historical decomposition of shocks. 5 subcommands: `var`, `bvar`, `lp`, `vecm`, `favar`.
+Compute historical decomposition of shocks across `var`, `bvar`, `lp`, `vecm`, and `favar`.
 
 Historical decomposition decomposes observed data into contributions from each structural shock plus initial conditions.
 
@@ -113,11 +113,11 @@ friedman hd favar data.csv --lags=2 --key-vars=GDP,CPI,FFR
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-## Not available at MEMs 0.6.7 (C043 audit)
+## Coverage audit (re-audited at MEMs 1.0.0)
 
 | Leaf | Status | Reason |
 |------|--------|--------|
-| `hd pvar` | **Not shipped** | MEMs `historical_decomposition` has no method for `PVARModel` at v0.6.7 |
-| `hd sdfm` | **Not shipped** | MEMs `historical_decomposition` has no method for `StructuralDFM` at v0.6.7 |
+| `hd pvar` | **Not shipped** | MEMs `historical_decomposition` still has no method for `PVARModel` at 1.0.0 (only the private `_pvar_fevd_decomp` FEVD helper) |
+| `hd sdfm` | **Wrappable — follow-up** | `historical_decomposition(::StructuralDFM)` exists at 1.0.0 (`space=:panel|:factor`, `include_idiosyncratic`); no CLI leaf yet — ship as a rider |
 
-When upstream adds these methods, ship the leaves as riders. Do not invent CLI wrappers over unsupported APIs.
+When upstream adds a method, ship the leaf as a rider. Do not invent CLI wrappers over unsupported APIs.

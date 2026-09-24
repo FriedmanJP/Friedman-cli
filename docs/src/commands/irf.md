@@ -1,6 +1,6 @@
 # irf
 
-Compute impulse response functions. 7 subcommands: `var`, `bvar`, `lp`, `vecm`, `pvar`, `favar`, `sdfm`.
+Compute impulse response functions across `var`, `bvar`, `tvpvar`, `lp`, `vecm`, `pvar`, `favar`, and `sdfm`.
 
 ## Output format (C051)
 
@@ -115,7 +115,7 @@ See [Configuration](../configuration.md) for restriction TOML formats.
 
 **Output:** Tidy table (`horizon|variable|shock|value|lower|upper`) filtered to `--shock` (the Arias/Uhlig/`--identified-set` paths stay wide — see [Output format](#output-format-c051) above).
 
-Sign/narrative IRFs report the identified-set median with set-robust bands by default (MEMs 0.9.2); `--summary` selects an alternative set summary (Fry–Pagan median target, modal model, joint or sup-t bands) on the `--identified-set` path.
+Sign/narrative IRFs report the identified-set median with set-robust bands by default (since MEMs 0.9.2); `--summary` selects an alternative set summary (Fry–Pagan median target, modal model, joint or sup-t bands) on the `--identified-set` path.
 
 ### Bootstrap schemes and bias correction
 

@@ -3,7 +3,7 @@
 Input-Output analysis: Leontief/Ghosh multiplier models, backward/forward
 linkages, key-sector classification, structural decomposition analysis (SDA),
 hypothetical extraction, environmental footprints, and the Baqaee–Farhi (2019)
-nonlinear IO decomposition. 12 subcommands.
+nonlinear IO decomposition.
 
 Wraps the MacroEconometricModels `io` module. Every **analysis** leaf runs
 offline out of the box: with no `--data`, the bundled **`:wiot`** example — the

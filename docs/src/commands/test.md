@@ -1,6 +1,6 @@
 # test
 
-Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity), Stock-Yogo weak-instrument diagnostics, Anderson-Rubin weak-instrument-robust tests and confidence sets, wild cluster bootstrap (few-cluster inference), panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF). 56 subcommands plus nested `var` (2), `pvar` (4) and `vecm` (5) nodes.
+Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-break), cointegration (including Gregory-Hansen), diagnostics, identification, model comparison, structural breaks, panel unit root, panel specification, discrete choice, volatility-model diagnostics (Engle-Ng sign bias, Nyblom stability), randomness/nonlinearity (variance-ratio, BDS, Hansen (1996) SETAR and Teräsvirta LM3 STAR linearity), Stock-Yogo weak-instrument diagnostics, Anderson-Rubin weak-instrument-robust tests and confidence sets, wild cluster bootstrap (few-cluster inference), panel stationarity (Hadri) and panel cointegration (Pedroni/Kao/Westerlund), ARDL bounds (Pesaran-Shin-Smith) and NARDL symmetry Wald tests, VECM cointegration restriction tests (β/α/weak-exogeneity/known-β/joint), and multicollinearity (VIF).
 
 ## Unit Root Tests
 
@@ -455,7 +455,7 @@ friedman test vecm weak-exog data.csv --vars rate --rank=1
 friedman test vecm joint data.csv --config restr.toml
 ```
 
-Common options (all 5 leaves): `--lags`/`-p` (Int, 2), `--rank`/`-r` (String, `auto`), `--deterministic` (`none`|`constant`|`trend`), `--method` (`johansen`|`engle_granger`), `--significance` (Float64, 0.05), `--format`/`-f`, `--output`/`-o`. The four matrix-based leaves take `--config`; `weak-exog` takes `--vars` (comma-separated indices or names) instead.
+Common options (all leaves in this node): `--lags`/`-p` (Int, 2), `--rank`/`-r` (String, `auto`), `--deterministic` (`none`|`constant`|`trend`), `--method` (`johansen`|`engle_granger`), `--significance` (Float64, 0.05), `--format`/`-f`, `--output`/`-o`. The matrix-based leaves take `--config`; `weak-exog` takes `--vars` (comma-separated indices or names) instead.
 
 ### Residual-Based Cointegration Tests
 
@@ -912,7 +912,7 @@ friedman test lm data_p2.csv data_p4.csv --lags1=2 --lags2=4
 
 ## Panel VAR Diagnostics
 
-Nested under `test pvar`. 4 subcommands for Panel VAR model diagnostics.
+Nested under `test pvar`: Panel VAR model diagnostics.
 
 ### test pvar hansen\_j
 

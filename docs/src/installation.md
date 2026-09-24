@@ -26,13 +26,13 @@ irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1
 ### macOS/Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 0.4.3
+curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 1.0.0
 ```
 
 ### Windows
 
 ```powershell
-$env:FRIEDMAN_VERSION = "0.4.3"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
+$env:FRIEDMAN_VERSION = "1.0.0"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 ```
 
 ## Manual Install from GitHub Releases
@@ -92,14 +92,7 @@ julia build_release.jl
 
 ## Optional Dependencies
 
-**JuMP and Ipopt** (DSGE constrained optimization). On the current 0.6.x release line these are **not** bundled in precompiled builds; install them yourself:
-
-```julia
-using Pkg
-Pkg.add(["JuMP", "Ipopt"])
-```
-
-With **MacroEconometricModels 0.7.0 and later** they are required upstream dependencies and are bundled in the release build — no separate install needed. JuMP is MPL-2.0; the Ipopt Julia wrapper is MIT and the underlying Ipopt library is EPL-2.0, linked dynamically as a separate work.
+**JuMP and Ipopt** (DSGE constrained optimization) are required upstream dependencies and are **bundled** in the release build — no separate install needed. JuMP is MPL-2.0; the Ipopt Julia wrapper is MIT and the underlying Ipopt library is EPL-2.0, linked dynamically as a separate work. (On the retired v0.6.x line they were not bundled; there install them yourself with `Pkg.add(["JuMP", "Ipopt"])`.)
 
 **PATHSolver** (PATH mixed-complementarity solver, used only by a niche DSGE constrained path) is never bundled. Install it if a model requires it:
 
@@ -111,6 +104,9 @@ Pkg.add("PATHSolver")
 ## Testing
 
 ```bash
-# Run all tests (no MacroEconometricModels dependency needed)
+# Fast tiers (engine, handlers on mocks — no MacroEconometricModels needed)
 julia --project test/runtests.jl
+
+# Integration tier on real MacroEconometricModels (the gate for handler changes)
+julia --project test/integration/runtests.jl
 ```

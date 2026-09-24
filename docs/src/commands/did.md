@@ -1,6 +1,6 @@
 # did
 
-Difference-in-differences estimation, event study local projections, and diagnostics. 7 subcommands organized as 3 estimation commands + nested `test` group with 4 diagnostic commands.
+Difference-in-differences estimation and event-study local projections (`did estimate`, `did event-study`, `did lp-did`); diagnostics live under `test did`.
 
 Supports panel data with staggered treatment adoption. All commands accept panel CSV data as a positional argument with `--id-col` and `--time-col` options (default: first and second columns respectively).
 

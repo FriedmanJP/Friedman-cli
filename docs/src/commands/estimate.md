@@ -1,6 +1,6 @@
 # estimate
 
-Estimate econometric models. 65 subcommands covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test) and smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR, Teräsvirta NLS), Markov-switching autoregression (MS-AR, Hamilton mean-switching) and K-state Markov-switching regression (with a wide regime-transition matrix), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
+Estimate econometric models, covering VAR, BVAR, VECM, Panel VAR, FAVAR, Structural DFM, systems estimation (SUR/3SLS), cross-sectional regression (OLS/WLS/IV/Logit/Probit), penalized regression (Lasso/Ridge/Elastic-Net), robust (Huber/bisquare M/MM), Tobit censored, truncated-normal and Heckman sample-selection regression, single-equation (FMOLS/CCR/DOLS) and panel (group-mean/pooled) cointegrating regression, single-equation ARDL and nonlinear/asymmetric NARDL, self-exciting threshold autoregression (SETAR, with an attached Hansen 1996 linearity test) and smooth-transition autoregression (STAR: LSTR1/LSTR2/ESTR, Teräsvirta NLS), Markov-switching autoregression (MS-AR, Hamilton mean-switching) and K-state Markov-switching regression (with a wide regime-transition matrix), structural state-space models (local level / local linear trend) and time-varying-parameter regression, nonparametric estimation (kernel density, kernel/local-polynomial regression, LOWESS), panel regression (FE/RE/IV/Logit/Probit), ordered and multinomial choice models, local projections, ARIMA, ARFIMA long memory, GMM, SMM, factor models, univariate volatility models (ARCH/GARCH/EGARCH/GJR-GARCH/SV plus IGARCH/Component-GARCH/APARCH/FIGARCH/FIEGARCH/GARCH-MIDAS), multivariate GARCH (CCC/DCC/BEKK), and non-Gaussian SVAR identification.
 
 ## Coefficient table format (C051)
 
@@ -150,7 +150,7 @@ quantile and only the intercept shifts — so quantile-varying slopes are the fi
 baseline. `pseudo_r2` is per-quantile and is **not** comparable with an OLS R²: it compares
 the check-function objective against an intercept-only fit *at that quantile*.
 
-No `--plot`: MEMs 0.7.2 ships no plot recipe for `QuantileRegModel`.
+No `--plot`: upstream ships no plot recipe for `QuantileRegModel` (verified at MEMs 1.0.0).
 
 ## estimate rdd
 
@@ -203,7 +203,7 @@ For a fuzzy design, `--fuzzy` names the actual-treatment column and `first_stage
 jump in treatment probability at the cutoff. A weak first stage inflates the ratio estimate
 exactly as a weak instrument does.
 
-No `--plot`: MEMs 0.7.2 ships no plot recipe for `RDDResult`.
+No `--plot`: upstream ships no plot recipe for `RDDResult` (verified at MEMs 1.0.0).
 
 ## estimate tvpvar
 
@@ -235,8 +235,7 @@ The volatility column is a **standard deviation**, σ*ᵢₜ* = exp(*hᵢₜ*/2)
 is a log-*variance*, so a number quoted straight off the state would be wrong by a square
 and a log; the CLI converts.
 
-Requires at least 2 variables. There is no `--plot`: MEMs 0.7.2 ships no plot recipe for
-`TVPVARPosterior`.
+Requires at least 2 variables. There is no `--plot`: upstream ships no plot recipe for `TVPVARPosterior` (verified at MEMs 1.0.0).
 
 ## irf tvpvar
 
@@ -315,7 +314,7 @@ misstates the observation equation, so it is worth being deliberate about.
 high frequency, including the interpolated ones — that interpolation is the point of the
 model. Fully-observed series come back with zero-width bands, which is a useful sanity check.
 
-No `--plot`: MEMs 0.7.2 ships no plot recipe for `MFVARPosterior`.
+No `--plot`: upstream ships no plot recipe for `MFVARPosterior` (verified at MEMs 1.0.0).
 
 !!! note "Seeding"
     `estimate_tvpvar` and `estimate_mfvar` take an RNG rather than a seed, so `--seed`
