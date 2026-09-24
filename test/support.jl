@@ -78,8 +78,8 @@ function _dispatch_via_app(args::Vector{String})
         "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
+        "hadsge"    => register_hadsge_commands!(),
         "did"       => register_did_commands!(),
-        "multipliers" => register_multipliers_commands!(),
         "policy"    => register_policy_commands!(),
         "spectral"  => register_spectral_commands!(),
         "model"     => register_model_commands!(),
@@ -88,6 +88,32 @@ function _dispatch_via_app(args::Vector{String})
     root = NodeCommand("friedman", root_cmds, "test tree")
     entry = Entry("friedman", root; version=v"0.4.3")
     return dispatch(entry, args)
+end
+
+"""Prepend `verb` and the v1.0.0 family segment when `rest` still starts on a leaf token.
+
+Callers that already pass `family model …` (including `var var` and `var bvar`) are left
+unchanged. Family `other` stays flat (`test vif`).
+"""
+function _with_family(verb::AbstractString, rest)
+    args = String.(collect(rest))
+    isempty(args) && return String[String(verb)]
+    token = args[1]
+    fam = if verb in ("estimate", "predict", "residuals", "forecast")
+        get(_MODEL_FAMILY, token, "")
+    elseif verb == "test"
+        get(_TEST_FAMILY, token, "")
+    else
+        ""
+    end
+    if !isempty(fam) && fam != "other"
+        already = length(args) >= 2 && args[1] == fam && (
+            args[2] == token ||
+            (haskey(_MODEL_FAMILY, args[2]) && _MODEL_FAMILY[args[2]] == fam) ||
+            (verb == "test" && haskey(_TEST_FAMILY, args[2]) && _TEST_FAMILY[args[2]] == fam))
+        already || return vcat(String[String(verb), fam], args)
+    end
+    return vcat(String[String(verb)], args)
 end
 
 """Create a temp CSV file with synthetic panel data (group + time columns)."""

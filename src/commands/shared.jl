@@ -190,8 +190,13 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
                             title_prefix::String="Historical Decomposition",
                             format::String="table", output::String="",
                             actual=nothing, initial=nothing,
-                            key_prefix::String="")
+                            key_prefix::String="",
+                            shock_names::Vector{String}=String[])
     n = length(varnames)
+    # Rectangular decompositions (SDFM panel: N variables x q+1 shocks) pass
+    # explicit shock names; the default keeps the square VAR convention where
+    # shock i is identified with variable i.
+    n_shocks = isempty(shock_names) ? n : length(shock_names)
     for vi in 1:n
         hd_df = DataFrame()
         hd_df.period = 1:T_eff
@@ -201,8 +206,10 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
         if !isnothing(initial)
             hd_df.initial = initial[:, vi]
         end
-        for si in 1:n
-            hd_df[!, "contrib_$(_shock_name(varnames, si))"] = get_contrib(vi, si)
+        for si in 1:n_shocks
+            col = isempty(shock_names) ? "contrib_$(_shock_name(varnames, si))" :
+                                         "contrib_$(shock_names[si])"
+            hd_df[!, col] = get_contrib(vi, si)
         end
         vname = _var_name(varnames, vi)
         output_result(hd_df; format=Symbol(format),
@@ -2173,7 +2180,7 @@ end
 _unwrap_loaderror(e) = e isa LoadError ? _unwrap_loaderror(e.error) : e
 
 const _AGENT_KIND_FAMILY = Dict(
-    "HouseholdSystem"            => ("heterogeneous-agent", "`dsge ha …`"),
+    "HouseholdSystem"            => ("heterogeneous-agent", "`hadsge …`"),
     "DCEGMSystem"                => ("DCEGM", "`dsge dcegm …`"),
     "LifeCycleSystem"            => ("life-cycle", "`dsge lifecycle …`"),
     "ContinuousHouseholdSystem"  => ("continuous-time household", "`dsge ct …`"),
@@ -2199,7 +2206,7 @@ function _ha_model_symbol(spec)
     hh = _ha_households(spec)
     length(hh) == 1 || throw(CliError("model/unsupported",
         "this command supports exactly one household population; this spec has $(length(hh))";
-        hint="multi-population HA solve is deferred (see `dsge ha` docs)"))
+        hint="multi-population HA solve is deferred (see `hadsge` docs)"))
     return hh[1].model
 end
 
@@ -2212,8 +2219,8 @@ function _wrong_command_for_kinds(spec, intended::String)
     end
     if length(names) == 1 && names[1] == "HouseholdSystem"
         return CliError("usage/wrong-command",
-            "this is a heterogeneous-agent spec — use `dsge ha …`",
-            hint="e.g. friedman dsge ha solve <file> --method reiter")
+            "this is a heterogeneous-agent spec — use `hadsge …`",
+            hint="e.g. friedman hadsge solve <file> --method reiter")
     end
     families = String[]
     for n in names
@@ -2231,7 +2238,7 @@ function _require_ra_spec(spec, intended::String="dsge solve")
     return spec
 end
 
-function _require_ha_spec(spec, intended::String="dsge ha")
+function _require_ha_spec(spec, intended::String="hadsge")
     _is_model_spec(spec) || throw(CliError("config/invalid",
         "model did not evaluate to a ModelSpec (got $(typeof(spec)))"))
     _is_ha_spec(spec) || throw(_wrong_command_for_kinds(spec, intended))
@@ -2469,7 +2476,7 @@ function _load_ha_model(model::String; distribution::String="young")
             hint="the file should be an `@dsge begin … end` block with heterogeneous:, " *
                  "idiosyncratic: and aggregation: declarations")
     end
-    _require_ha_spec(result, "dsge ha")
+    _require_ha_spec(result, "hadsge")
     _status("Loaded HA ModelSpec from Julia file (model=$(_ha_model_symbol(result)))")
     return result
 end
@@ -2487,7 +2494,7 @@ function _solve_ha(spec::MacroEconometricModels.ModelSpec;
                    n_reduced::Int=30,
                    T_horizon::Int=300,
                    kwargs...)
-    _require_ha_spec(spec, "dsge ha")
+    _require_ha_spec(spec, "hadsge")
     hh = get(kwargs, :hh_solver, :egm)
     if hh === :vfi && method === :krusell_smith
         throw(CliError("usage/invalid",

@@ -233,7 +233,30 @@ function _schema_leaf(leaf::LeafCommand, path::Vector{String})
         # W5/#140 (additive): machine-actionable invocation + result contract
         "input_schema" => _input_schema(leaf, path),
         "tables" => _registry_tables(path, leaf),
+        "family" => leaf.family,
     )
+end
+
+"""Descendant leaves of `node` grouped by `LeafCommand.family`."""
+function _schema_families(node::NodeCommand, path::Vector{String})
+    groups = Dict{String,Vector{Any}}()
+    function walk(n::NodeCommand, p::Vector{String})
+        for name in sort!(collect(keys(n.subcmds)))
+            sub = n.subcmds[name]
+            sp = vcat(p, [name])
+            if sub isa LeafCommand
+                push!(get!(groups, sub.family, Any[]), Dict{String,Any}(
+                    "path" => sp,
+                    "summary" => sub.description,
+                ))
+            else
+                walk(sub, sp)
+            end
+        end
+    end
+    walk(node, path)
+    return [Dict{String,Any}("name" => fam, "leaves" => groups[fam])
+            for fam in sort!(collect(keys(groups)))]
 end
 
 function _schema_node(node::NodeCommand, path::Vector{String})
@@ -261,6 +284,7 @@ function _schema_node(node::NodeCommand, path::Vector{String})
         "path" => path,
         "description" => node.description,
         "commands" => cmds,
+        "families" => _schema_families(node, path),
     )
     if isempty(path)
         # Root doc only: the full output contract (W5/#140)
@@ -275,7 +299,8 @@ function _resolve_schema_path(root::NodeCommand, parts::Vector{String})
     path = String[]
     for (i, p) in enumerate(parts)
         haskey(node.subcmds, p) || throw(CliError("usage/unknown-command",
-            "schema: unknown command path segment '$p' under $(join(path, " "))"))
+            _unknown_command_message(
+                join(vcat(["friedman"], path), " "), p, parts[i+1:end])))
         sub = node.subcmds[p]
         push!(path, p)
         if sub isa LeafCommand
@@ -367,5 +392,6 @@ function register_schema_command!()
             Flag("docs";
                 description="Embed the agent guide as a `docs` markdown string"),
         ],
-        description="Machine-readable CLI self-description (raw JSON, no envelope)")
+        description="Machine-readable CLI self-description (raw JSON, no envelope)",
+        family="schema")
 end

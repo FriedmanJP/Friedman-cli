@@ -77,6 +77,6 @@ function register_show_commands!()
         category="show",
         handler=wrap_legacy(_show_handle),
     )]
-    register!(specs)
+    specs = register!(specs)
     return to_leaf(specs[1])
 end

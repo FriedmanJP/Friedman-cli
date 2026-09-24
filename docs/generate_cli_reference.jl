@@ -202,7 +202,7 @@ function _overview_md(specs::Vector{Friedman.CommandSpec})::String
     println(io, "Every command and subcommand supports `--help`. Machine-readable schema:")
     println(io)
     println(io, "```bash")
-    println(io, "friedman schema estimate var")
+    println(io, "friedman schema estimate var var")
     println(io, "```")
     return String(take!(io))
 end

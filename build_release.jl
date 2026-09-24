@@ -107,15 +107,15 @@ open(precompile_script, "w") do io
     # Real handler paths: estimation, IRF, unit root, filter, forecast,
     # all three render formats. These dominate agent workloads.
     outdir = mktempdir()
-    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1"])
-    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1",
+    Friedman.dispatch(app, ["estimate", "var", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["estimate", "var", "var", fixture, "--lags", "1",
                             "--format", "json"])
-    Friedman.dispatch(app, ["estimate", "var", fixture, "--lags", "1",
+    Friedman.dispatch(app, ["estimate", "var", "var", fixture, "--lags", "1",
                             "--format", "csv", "--output", joinpath(outdir, "o.csv")])
     Friedman.dispatch(app, ["irf", "var", fixture, "--lags", "1"])
-    Friedman.dispatch(app, ["test", "adf", fixture])
+    Friedman.dispatch(app, ["test", "unit-root", "adf", fixture])
     Friedman.dispatch(app, ["filter", "hp", fixture])
-    Friedman.dispatch(app, ["forecast", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["forecast", "var", "var", fixture, "--lags", "1"])
     """)
 end
 

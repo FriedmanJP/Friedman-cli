@@ -1,5 +1,5 @@
 @testset "typed-handles registry fields" begin
-    s = CommandSpec(path=["estimate", "var"], summary="x",
+    s = CommandSpec(path=["estimate", "var", "var"], summary="x",
                     args=[ArgSpec(name="data")],
                     handler=wrap_legacy((; kwargs...) -> nothing))
     @test s.data_kinds == Symbol[]
@@ -62,7 +62,7 @@ end
 
         saw = Ref{String}("")
         handler = wrap_legacy((; data::String="", format="table", output="") -> (saw[] = data; nothing))
-        spec = CommandSpec(path=["estimate", "var"], summary="x",
+        spec = CommandSpec(path=["estimate", "var", "var"], summary="x",
                            args=[ArgSpec(name="data", required=false, default="")],
                            options=[OptionSpec(name="format", default="table"),
                                     OptionSpec(name="output", default="")],
@@ -353,23 +353,23 @@ end
     end
 end
 
-@testset "estimate var declares timeseries kind" begin
+@testset "estimate var var declares timeseries kind" begin
     specs = with_config_ergonomics(with_save_model(estimate_specs()))
     # After register overlays:
     node = register_estimate_commands!()
     # Look up via REGISTRY — register! appends, so findlast not findfirst.
-    s = findlast(x -> x.path == ["estimate", "var"], REGISTRY)
+    s = findlast(x -> x.path == ["estimate", "var", "var"], REGISTRY)
     @test s !== nothing
     @test :timeseries in REGISTRY[s].data_kinds
     @test :csv in REGISTRY[s].data_kinds
     @test haskey(node.subcmds, "var")
 
-    s_pvar = findlast(x -> x.path == ["estimate", "pvar"], REGISTRY)
+    s_pvar = findlast(x -> x.path == ["estimate", "panel", "pvar"], REGISTRY)
     @test s_pvar !== nothing
     @test :panel in REGISTRY[s_pvar].data_kinds
     @test :csv in REGISTRY[s_pvar].data_kinds
 
-    s_reg = findlast(x -> x.path == ["estimate", "reg"], REGISTRY)
+    s_reg = findlast(x -> x.path == ["estimate", "regression", "reg"], REGISTRY)
     @test s_reg !== nothing
     @test :cross_section in REGISTRY[s_reg].data_kinds
     @test :timeseries in REGISTRY[s_reg].data_kinds
@@ -386,7 +386,7 @@ end
     @test isempty(REGISTRY[s_list].data_kinds)
 
     register_test_commands!()
-    s_dh = findlast(x -> x.path == ["test", "dh-causality"], REGISTRY)
+    s_dh = findlast(x -> x.path == ["test", "panel", "dh-causality"], REGISTRY)
     @test s_dh !== nothing
     @test :panel in REGISTRY[s_dh].data_kinds
     @test :csv in REGISTRY[s_dh].data_kinds
@@ -399,7 +399,7 @@ end
         pd = xtset(CSV.read(csv, DataFrame), :group, :time)
         save_model_dispatch(joinpath(dir, "panel.jld2"), pd)
         err = try
-            node.subcmds["var"].handler(; data=joinpath(dir, "panel"),
+            node.subcmds["var"].subcmds["var"].handler(; data=joinpath(dir, "panel"),
                                         format="json", output="")
             nothing
         catch e; e; end
@@ -411,8 +411,8 @@ end
 
 @testset "schema x-handle" begin
     node = register_estimate_commands!()
-    leaf = node.subcmds["var"]
-    sch = _input_schema(leaf, ["estimate", "var"])
+    leaf = node.subcmds["var"].subcmds["var"]
+    sch = _input_schema(leaf, ["estimate", "var", "var"])
     @test haskey(sch["properties"]["data"], "x-handle")
     xh = sch["properties"]["data"]["x-handle"]
     @test xh["role"] == "data"
@@ -597,7 +597,7 @@ end
     @test any(o -> o.name == "result" && o.handle, spec.options)
 
     fc_node = register_forecast_commands!()
-    @test any(o -> o.name == "result", fc_node.subcmds["var"].options)
+    @test any(o -> o.name == "result", fc_node.subcmds["var"].subcmds["var"].options)
     eval_metrics = fc_node.subcmds["evaluate"].subcmds["metrics"]
     @test any(o -> o.name == "result", eval_metrics.options)
     eval_spec = _spec_for_path(["forecast", "evaluate", "metrics"])
@@ -668,8 +668,8 @@ end
     @test :HPFilterResult in hp_spec.result_types
 
     tnode = register_test_commands!()
-    @test any(o -> o.name == "result", tnode.subcmds["adf"].options)
-    adf_spec = _spec_for_path(["test", "adf"])
+    @test any(o -> o.name == "result", tnode.subcmds["unit-root"].subcmds["adf"].options)
+    adf_spec = _spec_for_path(["test", "unit-root", "adf"])
     @test :ADFResult in adf_spec.result_types
     @test isempty(adf_spec.model_types)
 
@@ -691,9 +691,9 @@ end
     end
 
     pnode = register_predict_commands!()
-    pspec = _spec_for_path(["predict", "var"])
+    pspec = _spec_for_path(["predict", "var", "var"])
     @test :VARModel in pspec.model_types
-    aspec = _spec_for_path(["predict", "arima"])
+    aspec = _spec_for_path(["predict", "univariate", "arima"])
     @test :ARIMAModel in aspec.model_types
     @test :ARMAModel in aspec.model_types
     @test :ARModel in aspec.model_types
@@ -733,7 +733,7 @@ end
         @test occursin("cycle", streams.out)
         @test occursin("trend", streams.out)
 
-        kpss_leaf = register_test_commands!().subcmds["kpss"]
+        kpss_leaf = register_test_commands!().subcmds["unit-root"].subcmds["kpss"]
         kstem = joinpath(dir, "kpss")
         _capture() do
             kpss_leaf.handler(; data=csv, save_result=kstem, format="json", output="")
@@ -1073,24 +1073,27 @@ end
 
 @testset "test result_types catalog matches returns" begin
     register_test_commands!()
-    white = _spec_for_path(["test", "white"])
+    white = _spec_for_path(["test", "serial", "white"])
     @test white !== nothing
     @test :RegDiagnosticResult in white.result_types
     @test :LMTestResult ∉ white.result_types
-    glejser = _spec_for_path(["test", "glejser"])
+    glejser = _spec_for_path(["test", "serial", "glejser"])
     @test :RegDiagnosticResult in glejser.result_types
-    chow = _spec_for_path(["test", "chow"])
+    chow = _spec_for_path(["test", "stability", "chow"])
     @test :RegDiagnosticResult in chow.result_types
-    cusum = _spec_for_path(["test", "cusum"])
+    cusum = _spec_for_path(["test", "stability", "cusum"])
     @test :StabilityResult in cusum.result_types
     @test :LMTestResult ∉ cusum.result_types
-    hausman = _spec_for_path(["test", "hausman"])
+    hausman = _spec_for_path(["test", "panel", "hausman"])
     @test :PanelTestResult in hausman.result_types
     @test :LMTestResult ∉ hausman.result_types
 
-    for leaf in ("identifiability", "vif", "recursive-residuals", "arch-lm",
-                 "sign-bias", "nyblom")
-        spec = _spec_for_path(["test", leaf])
+    for path in (["test", "identifiability"], ["test", "vif"],
+                 ["test", "stability", "recursive-residuals"],
+                 ["test", "serial", "arch-lm"],
+                 ["test", "serial", "sign-bias"],
+                 ["test", "stability", "nyblom"])
+        spec = _spec_for_path(path)
         @test spec !== nothing
         @test isempty(spec.result_types)
         @test !any(o -> o.name == "result", spec.options)
@@ -1099,7 +1102,7 @@ end
 
     mktempdir() do dir
         csv = _make_csv(dir; T=40, n=3)
-        white_leaf = register_test_commands!().subcmds["white"]
+        white_leaf = register_test_commands!().subcmds["serial"].subcmds["white"]
         wstem = joinpath(dir, "white")
         _capture() do
             white_leaf.handler(; data=csv, save_result=wstem, format="json", output="")

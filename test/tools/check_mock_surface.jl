@@ -141,7 +141,7 @@ end
 #
 # A mock function that returns a NamedTuple literal can invent keys real MEMs
 # never produces — invisible to the struct/getproperty checks because an NT is
-# neither. `estimate lp --method iv` shipped dead this way (mock invented
+# neither. `estimate var lp --method iv` shipped dead this way (mock invented
 # `F_stat`/`is_weak`; real returns `(F_stats, weak_horizons, min_F,
 # passes_threshold, threshold)`).
 
@@ -259,7 +259,7 @@ Type name → the property symbols a mock `Base.getproperty` method special-case
 
 Field-subset checking is blind to these: an alias is a *method*, not a field, so a
 mock can invent `result.cips` while its declared fields stay a perfect subset of
-real. That is exactly how `test cips` shipped reading a field real MEMs does not
+real. That is exactly how `test unit-root cips` shipped reading a field real MEMs does not
 have (`cips_statistic`) and still passed every gate (#84).
 """
 function _mock_getproperty_aliases(src::String)

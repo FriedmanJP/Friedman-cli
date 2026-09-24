@@ -264,7 +264,7 @@ function register_irf_commands!()
     specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
     specs = [s.path == ["irf", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s for s in specs]
-    register!(specs)
+    specs = register!(specs)
     return build_node("irf", specs; description="Impulse Response Functions")
 end
 

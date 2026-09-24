@@ -60,7 +60,6 @@ makedocs(;
             "HA-DSGE workflow" => "commands/ha-dsge.md",
             "Not wrapped" => "commands/not-wrapped.md",
             "did (guide)" => "commands/did.md",
-            "multipliers (guide)" => "commands/multipliers.md",
             "policy (guide)" => "commands/policy.md",
             "favar & sdfm (guide)" => "commands/favar.md",
             "structural breaks (guide)" => "commands/structural-breaks.md",

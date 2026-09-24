@@ -44,7 +44,7 @@ Data and results cleared
 Estimation results are automatically cached in memory. Downstream commands (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`) reuse cached models:
 
 ```
-friedman> estimate var --lags 4
+friedman> estimate var var --lags 4
 [VAR estimation output]
 
 friedman> irf var --horizons 20
@@ -57,8 +57,8 @@ friedman> fevd var --horizons 20
 Results are keyed by model type. Multiple model types coexist:
 
 ```
-friedman> estimate var --lags 4
-friedman> estimate bvar --lags 4 --draws 2000
+friedman> estimate var var --lags 4
+friedman> estimate var bvar --lags 4 --draws 2000
 friedman> irf var   # uses cached VAR
 friedman> irf bvar  # uses cached BVAR
 ```
@@ -72,7 +72,7 @@ Press Tab to complete commands, subcommands, and options:
 ```
 friedman> est<Tab>     -> estimate
 friedman> estimate v<Tab>  -> var, vecm
-friedman> estimate var --la<Tab>  -> --lags
+friedman> estimate var var --la<Tab>  -> --lags
 ```
 
 ## REPL-Only Commands

@@ -269,7 +269,7 @@ function register_data_commands!()
         end
     end
     specs = with_result_handles(with_default_csv_kinds(specs))
-    register!(specs)
+    specs = register!(specs)
     return build_node("data", specs; description="Data management: import/export handles, load example datasets, inspect, clean, transform")
 end
 

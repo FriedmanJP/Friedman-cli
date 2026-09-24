@@ -52,6 +52,7 @@ include("handles.jl")
 # Declarative registry (P2-1) — before command files that emit CommandSpecs
 include("registry/spec.jl")
 include("registry/adapter.jl")
+include("registry/families.jl")
 
 # Commands (action-first hierarchy)
 include("commands/estimate.jl")
@@ -67,6 +68,7 @@ include("commands/data.jl")
 include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")
 include("commands/dsge.jl")
+include("commands/hadsge.jl")
 include("commands/did.jl")
 include("commands/multipliers.jl")  # multipliers nardl — new top-level (C062b)
 include("commands/policy.jl")       # policy counterfactuals — new top-level (W4/#126)
@@ -107,8 +109,8 @@ function build_app()
         "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
+        "hadsge"    => register_hadsge_commands!(),
         "did"       => register_did_commands!(),
-        "multipliers" => register_multipliers_commands!(),
         "policy"    => register_policy_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),

@@ -6,45 +6,45 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 
 | Category | Models / Tests | Commands |
 |----------|---------------|----------|
-| **VAR** | Frequentist VAR, Bayesian VAR (Minnesota prior, MCMC) | `estimate var`, `estimate bvar` |
-| **VECM** | Vector Error Correction Model (Johansen) | `estimate vecm` |
-| **Panel VAR** | GMM/FE-OLS estimation, OIRF/GIRF | `estimate pvar` |
-| **Local Projections** | Standard, IV, Smooth, State-dependent, Propensity score, Doubly robust | `estimate lp --method=...` |
-| **Factor Models** | Static (PCA), Dynamic, Generalized Dynamic (spectral) | `estimate static`, `dynamic`, `gdfm` |
-| **FAVAR** | Factor-Augmented VAR (Bernanke, Boivin & Eliasz 2005) | `estimate favar`, `irf favar`, `forecast favar`, ... |
-| **Structural DFM** | Structural Dynamic Factor Model (Forni et al. 2009) | `estimate sdfm`, `irf sdfm`, `fevd sdfm` |
-| **ARIMA** | AR, MA, ARMA, ARIMA with auto order selection | `estimate arima` |
-| **Volatility** | ARCH, GARCH, EGARCH, GJR-GARCH, Stochastic Volatility | `estimate arch`, `garch`, ... |
-| **Non-Gaussian SVAR** | FastICA, JADE, SOBI, dCov, HSIC, ML (Student-t, mixture, PML, skew-normal) | `estimate fastica`, `estimate ml` |
-| **GMM** | Identity, optimal, two-step, iterated weighting | `estimate gmm` |
-| **Cross-Sectional** | OLS, WLS, IV (2SLS), Logit, Probit | `estimate reg`, `estimate iv`, `estimate logit`, `estimate probit` |
-| **ARDL / NARDL** | Single-equation ARDL, nonlinear/asymmetric NARDL, PSS bounds test, symmetry Wald tests, cumulative dynamic multipliers | `estimate ardl`, `estimate nardl`, `test ardl-bounds`, `test nardl-symmetry`, `multipliers nardl` |
-| **Panel ARDL (PMG)** | Dynamic heterogeneous-panel ARDL: Pooled Mean Group / Mean Group / Dynamic Fixed Effects, PMG Hausman selection test | `estimate pmg`, `test pmg-hausman` |
+| **VAR** | Frequentist VAR, Bayesian VAR (Minnesota prior, MCMC) | `estimate var var`, `estimate var bvar` |
+| **VECM** | Vector Error Correction Model (Johansen) | `estimate var vecm` |
+| **Panel VAR** | GMM/FE-OLS estimation, OIRF/GIRF | `estimate panel pvar` |
+| **Local Projections** | Standard, IV, Smooth, State-dependent, Propensity score, Doubly robust | `estimate var lp --method=...` |
+| **Factor Models** | Static (PCA), Dynamic, Generalized Dynamic (spectral) | `estimate factor static`, `dynamic`, `gdfm` |
+| **FAVAR** | Factor-Augmented VAR (Bernanke, Boivin & Eliasz 2005) | `estimate var favar`, `irf favar`, `forecast var favar`, ... |
+| **Structural DFM** | Structural Dynamic Factor Model (Forni et al. 2009) | `estimate factor sdfm`, `irf sdfm`, `fevd sdfm` |
+| **ARIMA** | AR, MA, ARMA, ARIMA with auto order selection | `estimate univariate arima` |
+| **Volatility** | ARCH, GARCH, EGARCH, GJR-GARCH, Stochastic Volatility | `estimate volatility arch`, `garch`, ... |
+| **Non-Gaussian SVAR** | FastICA, JADE, SOBI, dCov, HSIC, ML (Student-t, mixture, PML, skew-normal) | `estimate factor fastica`, `estimate regression ml` |
+| **GMM** | Identity, optimal, two-step, iterated weighting | `estimate regression gmm` |
+| **Cross-Sectional** | OLS, WLS, IV (2SLS), Logit, Probit | `estimate regression reg`, `estimate regression iv`, `estimate choice logit`, `estimate choice probit` |
+| **ARDL / NARDL** | Single-equation ARDL, nonlinear/asymmetric NARDL, PSS bounds test, symmetry Wald tests, cumulative dynamic multipliers | `estimate univariate ardl`, `estimate univariate nardl`, `test coint ardl-bounds`, `test nardl-symmetry`, `estimate univariate nardl` |
+| **Panel ARDL (PMG)** | Dynamic heterogeneous-panel ARDL: Pooled Mean Group / Mean Group / Dynamic Fixed Effects, PMG Hausman selection test | `estimate panel pmg`, `test panel pmg-hausman` |
 | **IRF** | Cholesky, sign, narrative, long-run, Arias, Uhlig, non-Gaussian methods | `irf var`, `irf bvar`, `irf lp`, `irf vecm`, `irf pvar` |
 | **FEVD** | Frequentist, Bayesian, LP (bias-corrected), VECM, Panel VAR | `fevd var`, `fevd bvar`, `fevd lp`, `fevd vecm`, `fevd pvar` |
 | **Historical Decomposition** | Frequentist, Bayesian, LP-based, VECM | `hd var`, `hd bvar`, `hd lp`, `hd vecm` |
-| **Forecasting** | VAR, BVAR, LP, ARIMA, factor models, volatility models, VECM | `forecast var`, `forecast arima`, ... |
-| **Predict / Residuals** | In-sample fitted values and model residuals | `predict var`, `residuals var`, ... |
+| **Forecasting** | VAR, BVAR, LP, ARIMA, factor models, volatility models, VECM | `forecast var var`, `forecast univariate arima`, ... |
+| **Predict / Residuals** | In-sample fitted values and model residuals | `predict var var`, `residuals var var`, ... |
 | **Filters** | HP, Hamilton, Beveridge-Nelson, Baxter-King, Boosted HP | `filter hp`, `filter hamilton`, ... |
 | **Nowcasting** | DFM, BVAR, bridge equations, news decomposition | `nowcast dfm`, `nowcast bvar`, ... |
 | **Input-Output** | Leontief/Ghosh multipliers, linkages, SDA, hypothetical extraction, environmental footprints, Baqaee-Farhi (2019) | `io leontief`, `io multipliers`, `io footprint`, ... |
 | **Data Management** | Typed import/export (`.jld2` stems), example datasets, diagnostics, transformations, validation, balancing | `data import`, `data export`, `data list`, `data load`, `data describe`, ... |
-| **DSGE** | RA + Bayesian + **HA** + **CT Aiyagari** + **Blanchard OLG** | `dsge solve`, `dsge ha`, `dsge ct`, `dsge olg`, ... |
+| **DSGE** | RA + Bayesian + closed families; one-household HA is `hadsge` | `dsge solve`, `hadsge solve`, `dsge ct`, `dsge olg`, ... |
 | **DID** | TWFE, Callaway-Sant'Anna, Sun-Abraham, BJS, dCdH, event study LP, LP-DiD | `did estimate`, `did event-study`, `did lp-did` |
-| **DID Diagnostics** | Bacon decomposition, pre-trend test, negative weights, HonestDiD | `did test bacon`, `did test pretrend`, ... |
-| **SMM** | Simulated Method of Moments estimation | `estimate smm` |
-| **Structural Breaks** | Andrews (1993), Bai-Perron (1998) multiple breaks | `test andrews`, `test bai-perron` |
-| **Panel Unit Root** | PANIC (Bai-Ng), CIPS (Pesaran), Moon-Perron, factor break | `test panic`, `test cips`, ... |
-| **Advanced Unit Root** | Fourier ADF, Fourier KPSS, DF-GLS, LM (0/1/2 breaks), ADF 2-break | `test fourier-adf`, `test dfgls`, `test lm-unitroot`, ... |
-| **Cointegration w/ Break** | Gregory-Hansen regime-shift cointegration | `test gregory-hansen` |
+| **DID Diagnostics** | Bacon decomposition, pre-trend test, negative weights, HonestDiD | `test did bacon`, `test did pretrend`, ... |
+| **SMM** | Simulated Method of Moments estimation | `estimate regression smm` |
+| **Structural Breaks** | Andrews (1993), Bai-Perron (1998) multiple breaks | `test stability andrews`, `test stability bai-perron` |
+| **Panel Unit Root** | PANIC (Bai-Ng), CIPS (Pesaran), Moon-Perron, factor break | `test panel panic`, `test unit-root cips`, ... |
+| **Advanced Unit Root** | Fourier ADF, Fourier KPSS, DF-GLS, LM (0/1/2 breaks), ADF 2-break | `test unit-root fourier-adf`, `test unit-root dfgls`, `test unit-root lm-unitroot`, ... |
+| **Cointegration w/ Break** | Gregory-Hansen regime-shift cointegration | `test coint gregory-hansen` |
 | **Multicollinearity** | Variance inflation factors | `test vif` |
-| **Unit Root Tests** | ADF, KPSS, Phillips-Perron, Zivot-Andrews, Ng-Perron | `test adf`, `test kpss`, ... |
-| **Cointegration** | Johansen trace and max eigenvalue | `test johansen` |
+| **Unit Root Tests** | ADF, KPSS, Phillips-Perron, Zivot-Andrews, Ng-Perron | `test unit-root adf`, `test unit-root kpss`, ... |
+| **Cointegration** | Johansen trace and max eigenvalue | `test coint johansen` |
 | **Diagnostics** | Normality, identifiability, ARCH-LM, Ljung-Box, heteroskedasticity | `test normality`, ... |
-| **Model Comparison** | Granger causality, LR test, LM test | `test granger`, `test lr`, `test lm` |
-| **Panel Regression** | FE/RE/BE/pooled OLS, panel IV (2SLS), panel logit/probit | `estimate preg`, `estimate piv`, `estimate plogit`, `estimate pprobit` |
-| **Panel Specification Tests** | Hausman, Breusch-Pagan LM, F-test FE, Pesaran CD, Wooldridge AR, Modified Wald | `test hausman`, `test breusch-pagan`, ... |
-| **Ordered & Multinomial** | Ordered logit/probit, multinomial logit | `estimate ologit`, `estimate oprobit`, `estimate mlogit` |
+| **Model Comparison** | Granger causality, LR test, LM test | `test var granger`, `test var lr`, `test var lm` |
+| **Panel Regression** | FE/RE/BE/pooled OLS, panel IV (2SLS), panel logit/probit | `estimate panel preg`, `estimate panel piv`, `estimate panel plogit`, `estimate panel pprobit` |
+| **Panel Specification Tests** | Hausman, Breusch-Pagan LM, F-test FE, Pesaran CD, Wooldridge AR, Modified Wald | `test panel hausman`, `test serial breusch-pagan`, ... |
+| **Ordered & Multinomial** | Ordered logit/probit, multinomial logit | `estimate choice ologit`, `estimate choice oprobit`, `estimate choice mlogit` |
 | **Discrete Choice Tests** | Brant parallel regression test, Hausman-McFadden IIA test | `test brant`, `test hausman-iia` |
 | **DSGE HD** | Historical decomposition from solved/Bayesian DSGE | `dsge hd`, `dsge bayes hd` |
 | **Policy Counterfactuals** | McKay-Wolf causal-effect menus, rule counterfactuals, optimal policy, second moments, Barnichon-Mesters OPP | `policy effects`, `policy counterfactual`, `policy optimal`, `policy moments`, `policy opp`, ... |
@@ -63,10 +63,10 @@ julia --project -e 'using Pkg; Pkg.instantiate()'
 
 # Import CSV to a typed handle (stem, not suffix), then estimate
 julia --project bin/friedman data import data.csv --kind timeseries -o macro
-julia --project bin/friedman estimate var macro --lags=2 --save-model var
+julia --project bin/friedman estimate var var macro --lags=2 --save-model var
 
 # CSV shortcut (unchanged)
-julia --project bin/friedman estimate var data.csv --lags=2
+julia --project bin/friedman estimate var var data.csv --lags=2
 
 # Compute impulse responses (or from a saved model stem)
 julia --project bin/friedman irf var data.csv --shock=1 --horizons=20
@@ -74,10 +74,10 @@ julia --project bin/friedman irf var --model var --horizons=20 --save-result irf
 julia --project bin/friedman show irf
 
 # Forecast 12 steps ahead
-julia --project bin/friedman forecast var data.csv --horizons=12
+julia --project bin/friedman forecast var var data.csv --horizons=12
 
 # Run unit root test
-julia --project bin/friedman test adf data.csv --column=1
+julia --project bin/friedman test unit-root adf data.csv --column=1
 
 # Nowcast GDP
 julia --project bin/friedman nowcast dfm mixed_freq.csv --factors=3
@@ -95,10 +95,10 @@ julia --project bin/friedman did estimate panel.csv --outcome=y --treatment=trea
 julia --project bin/friedman did event-study panel.csv --outcome=y --treatment=treat
 
 # FAVAR estimation
-julia --project bin/friedman estimate favar macro.csv --key-vars=ffr,cpi --factors=3
+julia --project bin/friedman estimate var favar macro.csv --key-vars=ffr,cpi --factors=3
 
 # Bayesian DSGE estimation
-julia --project bin/friedman dsge bayes rbc.toml --data=macro.csv --params=alpha,beta --priors=priors.toml
+julia --project bin/friedman dsge bayes estimate rbc.toml --data=macro.csv --params=alpha,beta --priors=priors.toml
 ```
 
 All commands support `--format=table|csv|json` and `--output=file.csv` for flexible output.
@@ -122,7 +122,6 @@ Pages = [
     "commands/nowcast.md",
     "commands/dsge.md",
     "commands/did.md",
-    "commands/multipliers.md",
     "commands/policy.md",
     "commands/favar.md",
     "commands/structural-breaks.md",

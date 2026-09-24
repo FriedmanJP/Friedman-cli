@@ -2278,17 +2278,11 @@ function _wrap_fitted_specs(specs::Vector{CommandSpec})
 end
 
 function register_predict_commands!()
-    specs = _overlay_estimator_data_kinds(
-        with_result_handles(with_config_ergonomics(with_model_option(
-            _wrap_fitted_specs(predict_specs())))))
-    register!(specs)
+    specs = register!(catalog_specs("predict"))
     return build_node("predict", specs; description="In-sample fitted values / predictions")
 end
 
 function register_residuals_commands!()
-    specs = _overlay_estimator_data_kinds(
-        with_result_handles(with_config_ergonomics(with_model_option(
-            _wrap_fitted_specs(residuals_specs())))))
-    register!(specs)
+    specs = register!(catalog_specs("residuals"))
     return build_node("residuals", specs; description="Model residuals")
 end

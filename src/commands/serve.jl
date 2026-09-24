@@ -14,10 +14,29 @@
 
 const _MCP_PROTOCOL_VERSION = "2024-11-05"
 
-"""Enumerate MCP tools: every registry leaf except `serve` itself (a serve
-inside serve would deadlock on stdin). Tool name = path joined with `_`
-(`estimate_var`, `dsge_bayes_estimate`)."""
-function _mcp_tools()
+"""
+    _mcp_path_matches(path, family, prefix) → Bool
+
+`prefix` is a space-separated command path. It matches a leading slice of
+`path`, or `verb family` while the leaf's family is that second token
+(`estimate volatility` matches `estimate volatility garch` and, before
+promotion, a leaf whose family is `volatility`).
+"""
+function _mcp_path_matches(path::Vector{String}, family::String, prefix::AbstractString)
+    toks = split(strip(String(prefix)))
+    isempty(toks) && return true
+    if length(toks) <= length(path) && path[1:length(toks)] == String.(toks)
+        return true
+    end
+    if length(toks) >= 2 && !isempty(path) && path[1] == String(toks[1]) && family == String(toks[2])
+        length(toks) == 2 && return true
+        rest = String.(toks[3:end])
+        return length(path) >= 2 + length(rest) && path[3:2+length(rest)] == rest
+    end
+    return false
+end
+
+function _mcp_tools(; prefix::AbstractString="")
     tools = Vector{Tuple{String,LeafCommand,Vector{String}}}()
     function walk(node::NodeCommand, path::Vector{String})
         for name in sort!(collect(keys(node.subcmds)))
@@ -25,6 +44,7 @@ function _mcp_tools()
             isempty(path) && name == "serve" && continue
             p = vcat(path, [name])
             if sub isa LeafCommand
+                _mcp_path_matches(p, sub.family, prefix) || continue
                 push!(tools, (join(p, "_"), sub, p))
             else
                 walk(sub, p)
@@ -33,6 +53,20 @@ function _mcp_tools()
     end
     walk(APP.root, String[])
     return tools
+end
+
+function _mcp_tool_description(leaf::LeafCommand)
+    desc = leaf.description
+    isempty(leaf.family) && return desc
+    startswith(desc, leaf.family) && return desc
+    return leaf.family * " — " * desc
+end
+
+function _mcp_list_prefix(params)::String
+    params === nothing && return ""
+    p = get(params, :prefix, nothing)
+    p === nothing && return ""
+    return strip(string(p))
 end
 
 """
@@ -144,12 +178,15 @@ function _serve_loop(input::IO, output::IO)
             elseif method == "ping"
                 _rpc_send(output, _rpc_result(id, Dict{String,Any}()))
             elseif method == "tools/list"
+                params = get(req, :params, nothing)
+                listed = _mcp_tools(; prefix=_mcp_list_prefix(params))
                 _rpc_send(output, _rpc_result(id, Dict{String,Any}(
                     "tools" => [Dict{String,Any}(
                                     "name" => n,
-                                    "description" => l.description,
+                                    "description" => _mcp_tool_description(l),
+                                    "family" => l.family,
                                     "inputSchema" => _input_schema(l, p))
-                                for (n, l, p) in tools])))
+                                for (n, l, p) in listed])))
             elseif method == "tools/call"
                 params = get(req, :params, nothing)
                 name = params === nothing ? "" : String(get(params, :name, ""))
@@ -201,6 +238,6 @@ end
 
 function register_serve_commands!()
     specs = with_default_csv_kinds(serve_specs())
-    register!(specs)
+    specs = register!(specs)
     return to_leaf(specs[1])
 end

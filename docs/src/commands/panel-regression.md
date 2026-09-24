@@ -6,39 +6,39 @@ Panel regression commands are available under `estimate`, `predict`, `residuals`
 
 | Command | Description |
 |---------|-------------|
-| `estimate preg` | Panel regression (FE/RE/FD/between/CRE, twoway, and `--absorb` HDFE) |
-| `estimate piv` | Panel IV (2SLS) regression |
-| `estimate plogit` | Panel logit (pooled/RE) |
-| `estimate pprobit` | Panel probit (pooled/RE) |
+| `estimate panel preg` | Panel regression (FE/RE/FD/between/CRE, twoway, and `--absorb` HDFE) |
+| `estimate panel piv` | Panel IV (2SLS) regression |
+| `estimate panel plogit` | Panel logit (pooled/RE) |
+| `estimate panel pprobit` | Panel probit (pooled/RE) |
 
 ## Diagnostics
 
 | Command | Description |
 |---------|-------------|
-| `predict preg/piv/plogit/pprobit` | In-sample fitted values |
-| `residuals preg/piv/plogit/pprobit` | Model residuals |
+| `predict panel preg/piv/plogit/pprobit` | In-sample fitted values |
+| `residuals panel preg/piv/plogit/pprobit` | Model residuals |
 
 ## Specification Tests
 
 | Command | Description |
 |---------|-------------|
-| `test hausman` | Hausman specification test (FE vs RE) |
-| `test breusch-pagan` | Breusch-Pagan LM test for random effects |
-| `test f-fe` | F-test for individual fixed effects |
-| `test pesaran-cd` | Pesaran CD test for cross-sectional dependence |
-| `test wooldridge-ar` | Wooldridge test for serial correlation |
-| `test modified-wald` | Modified Wald test for groupwise heteroskedasticity |
+| `test panel hausman` | Hausman specification test (FE vs RE) |
+| `test serial breusch-pagan` | Breusch-Pagan LM test for random effects |
+| `test panel f-fe` | F-test for individual fixed effects |
+| `test panel pesaran-cd` | Pesaran CD test for cross-sectional dependence |
+| `test panel wooldridge-ar` | Wooldridge test for serial correlation |
+| `test panel modified-wald` | Modified Wald test for groupwise heteroskedasticity |
 
 ## High-dimensional fixed effects (`--absorb`)
 
-`estimate preg --absorb` absorbs any number of non-nested fixed-effect dimensions by alternating projections (Guimarães-Portugal / Correia `reghdfe`), without ever forming dummy columns. Dimension names resolve to a panel variable column, or to the reserved indices `entity` (aliases `id`/`unit`/`group`), `time` (alias `period`) and `cohort`.
+`estimate panel preg --absorb` absorbs any number of non-nested fixed-effect dimensions by alternating projections (Guimarães-Portugal / Correia `reghdfe`), without ever forming dummy columns. Dimension names resolve to a panel variable column, or to the reserved indices `entity` (aliases `id`/`unit`/`group`), `time` (alias `period`) and `cohort`.
 
 ```bash
 # Entity × time × region, no dummies formed
-friedman estimate preg panel.csv --dep y --indep x1,x2 --absorb entity,time,region
+friedman estimate panel preg panel.csv --dep y --indep x1,x2 --absorb entity,time,region
 
 # `--absorb entity` reproduces plain one-way FE
-friedman estimate preg panel.csv --dep y --indep x1,x2 --absorb entity
+friedman estimate panel preg panel.csv --dep y --indep x1,x2 --absorb entity
 ```
 
 | Option | Type | Default | Description |
@@ -55,13 +55,13 @@ With `--absorb`, one extra table is emitted, **HDFE Absorption**: `absorb`, `n_a
 
 ```bash
 # Fixed effects regression
-friedman estimate preg panel.csv --dep gdp --indep investment,trade --method fe
+friedman estimate panel preg panel.csv --dep gdp --indep investment,trade --method fe
 
 # Hausman test
-friedman test hausman panel.csv --dep gdp --indep investment,trade
+friedman test panel hausman panel.csv --dep gdp --indep investment,trade
 
 # Panel IV
-friedman estimate piv panel.csv --dep gdp --exog trade --endog investment --instruments lag_inv
+friedman estimate panel piv panel.csv --dep gdp --exog trade --endog investment --instruments lag_inv
 ```
 
 ## Dynamic panel GMM (`--method ab|bb`)
@@ -72,8 +72,8 @@ the lag with its deeper history. Since v0.9.2 (MEMs#549) the Roodman/`xtabond2`
 instrument-proliferation controls are exposed:
 
 ```bash
-friedman estimate preg panel.csv --dep y --indep x --method ab --collapse
-friedman estimate preg panel.csv --dep y --indep x --method bb --min-lag-endo 2 --max-lag-endo 4
+friedman estimate panel preg panel.csv --dep y --indep x --method ab --collapse
+friedman estimate panel preg panel.csv --dep y --indep x --method bb --min-lag-endo 2 --max-lag-endo 4
 ```
 
 | Option | Type | Default | Description |
@@ -97,7 +97,7 @@ settings that produced it (`collapse`, the instrument lag window).
 
 ## Panel IV weak-instrument diagnostics (v0.9.2)
 
-`estimate piv` always emits a **Weak-Instrument Diagnostics** table (populated upstream
+`estimate panel piv` always emits a **Weak-Instrument Diagnostics** table (populated upstream
 since MEMs#553): the minimum excluded-instrument partial first-stage F across the
 endogenous regressors, Cragg–Donald F, Kleibergen–Paap F, the Stock–Yogo 10% critical
 value, and the Sargan overidentification statistic with its p-value.

@@ -4,7 +4,7 @@ Friedman uses TOML configuration files for complex model specifications. Pass th
 
 ## Minnesota Prior
 
-Used by `estimate bvar`, `irf bvar`, `fevd bvar`, `hd bvar`, `forecast bvar`.
+Used by `estimate var bvar`, `irf bvar`, `fevd bvar`, `hd bvar`, `forecast var bvar`.
 
 ```toml
 [prior]
@@ -151,7 +151,7 @@ kind = "most_important"  # or "overwhelming"
 
 ## SVAR AB-model Patterns
 
-Patterns for `estimate svar --pattern`. `recursive` and `blanchard-quah` need no config; the matrix kinds read n×n arrays from the `[svar]` table, where TOML `nan` marks a free parameter and any fixed number a calibrated entry.
+Patterns for `estimate var svar --pattern`. `recursive` and `blanchard-quah` need no config; the matrix kinds read n×n arrays from the `[svar]` table, where TOML `nan` marks a free parameter and any fixed number a calibrated entry.
 
 ```toml
 [svar]
@@ -164,7 +164,7 @@ A = [[1.0, 0.0], [nan, 1.0]]
 
 ## SVEC Restrictions
 
-Optional zero matrices for `estimate svec --config`. Either key absent keeps upstream's KPSW default for that side; no `--config` at all gives the fully default KPSW identification. Same n×n `nan`-means-free convention as `[svar]`.
+Optional zero matrices for `estimate var svec --config`. Either key absent keeps upstream's KPSW default for that side; no `--config` at all gives the fully default KPSW identification. Same n×n `nan`-means-free convention as `[svar]`.
 
 ```toml
 [svec]
@@ -174,7 +174,7 @@ short_run_zeros = [[nan, 0.0], [nan, nan]]
 
 ## Non-Gaussian SVAR
 
-Used by `test heteroskedasticity` with `--method=smooth_transition` or `--method=external`.
+Used by `test serial heteroskedasticity` with `--method=smooth_transition` or `--method=external`.
 
 ```toml
 [nongaussian]
@@ -194,7 +194,7 @@ n_regimes = 2
 
 ## GMM Specification
 
-Used by `estimate gmm`.
+Used by `estimate regression gmm`.
 
 ```toml
 [gmm]
@@ -289,7 +289,7 @@ Each `[[constraints.bounds]]` block specifies a variable with optional `lower` a
 
 ## SMM Specification
 
-Used by `estimate smm --config=...` (required — SMM matches simulated moments to sample
+Used by `estimate regression smm --config=...` (required — SMM matches simulated moments to sample
 moments, so it needs a data-generating `model` and an initial parameter vector `theta0`).
 
 ```toml
@@ -344,7 +344,7 @@ upper  = [0.99, 10.0]
 
 ## Systems Specification (SUR / 3SLS)
 
-Used by `estimate sur --config=...` and `estimate 3sls --config=...`. Each `[[equations]]`
+Used by `estimate regression sur --config=...` and `estimate regression 3sls --config=...`. Each `[[equations]]`
 block defines one equation of the system by naming a dependent column (`dep`) and its
 regressor columns (`indep`) — all column names come from the data CSV. A per-equation
 constant is added unless `--no-intercept` is passed.
@@ -388,7 +388,7 @@ instr = ["gov", "lag_income"]
 
 ## GARCH-MIDAS Driver
 
-Used by `estimate garch-midas --config=...`, and **only required for `--rv macro`** (an
+Used by `estimate volatility garch-midas --config=...`, and **only required for `--rv macro`** (an
 exogenous low-frequency driver). With the default `--rv realized`, the long-run component
 is derived from the returns themselves and no config is needed. The `[garch_midas]` section
 supplies `x_lf`, the low-frequency driver series — one value per calendar block (its length
@@ -476,7 +476,7 @@ All commands support three output formats:
 Terminal-formatted table using PrettyTables with center-aligned columns.
 
 ```bash
-friedman estimate var data.csv
+friedman estimate var var data.csv
 ```
 
 ### CSV
@@ -484,8 +484,8 @@ friedman estimate var data.csv
 Standard CSV output, either to stdout or file.
 
 ```bash
-friedman estimate var data.csv --format=csv
-friedman estimate var data.csv --format=csv --output=results.csv
+friedman estimate var var data.csv --format=csv
+friedman estimate var var data.csv --format=csv --output=results.csv
 ```
 
 ### JSON
@@ -493,8 +493,8 @@ friedman estimate var data.csv --format=csv --output=results.csv
 Array of row dictionaries.
 
 ```bash
-friedman estimate var data.csv --format=json
-friedman estimate var data.csv --format=json --output=results.json
+friedman estimate var var data.csv --format=json
+friedman estimate var var data.csv --format=json --output=results.json
 ```
 
 Example JSON output:

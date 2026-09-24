@@ -14,14 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Historical Decomposition commands: var, bvar, lp, vecm, favar
+# Historical Decomposition commands: var, bvar, lp, vecm, favar, sdfm
 # (action-first: friedman hd var ...)
 #
-# C043 / MEMs 0.6.7 HD parity audit:
-#   historical_decomposition is exported for VAR, BVAR, LP, VECM, FAVAR, DSGE
-#   (linear + perturbation + Bayesian). There is NO method for PVARModel or
-#   StructuralDFM at this pin — do not add `hd pvar` / `hd sdfm` until MEMs
-#   exposes them. Documented in docs/src/commands/hd.md.
+# Coverage audit (re-audited at MEMs 1.0.0):
+#   historical_decomposition is exported for VAR, BVAR, LP, VECM, FAVAR,
+#   SDFM, DSGE (linear + perturbation + Bayesian) — so `hd sdfm` ships.
+#   There is still NO method for PVARModel (only the private
+#   `_pvar_fevd_decomp` FEVD helper) — do not add `hd pvar` until MEMs
+#   exposes it. Documented in docs/src/commands/hd.md.
 
 function hd_specs()::Vector{CommandSpec}
     return [
@@ -130,6 +131,33 @@ function hd_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:favar_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
             category="hd",
             handler=wrap_legacy(_hd_favar),
+        ),
+        CommandSpec(
+            path=["hd", "sdfm"],
+            summary="Structural DFM historical decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="horizons", type=Int, default=20, description="HD horizon (periods decomposed)"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="space", type=String, default="panel", description="Decomposition space: panel|factor", choices=["panel","factor"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="no-idiosyncratic", description="Drop the idiosyncratic column (panel space only)")
+            ],
+            tables=[TableSpec(name=:sdfm_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
+            category="hd",
+            handler=wrap_legacy(_hd_sdfm),
         )
     ]
 end
@@ -140,13 +168,14 @@ const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}
     ["hd", "lp"]    => ([:StructuralLP], [:HistoricalDecomposition]),
     ["hd", "vecm"]  => ([:VECMModel], [:HistoricalDecomposition]),
     ["hd", "favar"] => ([:FAVARModel], [:HistoricalDecomposition]),
+    ["hd", "sdfm"]  => ([:StructuralDFM], [:HistoricalDecomposition]),
 )
 
 function register_hd_commands!()
     specs = _tag_slot_types(hd_specs(), _HD_SLOT_TYPES)
     specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
-    register!(specs)
+    specs = register!(specs)
     return build_node("hd", specs; description="Historical Decomposition")
 end
 
@@ -509,4 +538,81 @@ function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int
                       actual=hd_result.actual, initial=hd_result.initial_conditions,
                       key_prefix="favar_historical_decomposition")
     return (; model=favar, result=hd_result)
+end
+
+# ── SDFM HD ──────────────────────────────────────────────
+
+function _hd_sdfm(; data::String="", result=nothing, factors=nothing, id::String="cholesky",
+                   var_lags::Int=1, horizons::Int=20,
+                   config::String="", method::String="fglr",
+                   spectral::String="lag-window", instrument::String="",
+                   q_method::String="hallin-liska", space::String="panel",
+                   no_idiosyncratic::Bool=false,
+                   output::String="", format::String="table",
+                   plot::Bool=false, plot_save::String="",
+                   model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="hd sdfm",
+                            id, horizons, horizons_default=20)
+    if loaded !== nothing
+        space == "panel" || throw(CliError("usage/invalid",
+            "hd sdfm: --space does not apply with --result"))
+        no_idiosyncratic && throw(CliError("usage/invalid",
+            "hd sdfm: --no-idiosyncratic does not apply with --result"))
+        _output_hd_tables((vi, si) -> contribution(loaded, vi, si),
+                          loaded.variables, loaded.T_eff;
+                          id=id, title_prefix="SDFM Historical Decomposition",
+                          format=format, output=output,
+                          actual=loaded.actual, initial=loaded.initial_conditions,
+                          key_prefix="sdfm_historical_decomposition",
+                          shock_names=loaded.shock_names)
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "hd sdfm: --horizons must be >= 1 (got $horizons)"))
+    # `--space` has registry choices; the guard below is defence in depth for
+    # programmatic callers (same pattern as the loader's method/spectral guards).
+    space in ("panel", "factor") || throw(CliError("usage/invalid",
+        "hd sdfm: --space must be panel|factor (got '$space')"))
+    # Factor space carries no idiosyncratic column: the flag is provably dead
+    # there, so the explicit combination is rejected, not silently ignored.
+    space == "factor" && no_idiosyncratic && throw(CliError("usage/invalid",
+        "hd sdfm: --no-idiosyncratic applies only to --space panel"))
+    if isnothing(model)
+        # Shared estimation surface with `estimate`/`irf`/`fevd` sdfm. HD uses
+        # the identification stored at estimation (upstream #710).
+        sdfm, _, _, _ = _load_and_estimate_sdfm(data, factors, id, var_lags,
+            horizons, config, method, spectral, instrument, q_method)
+    else
+        sdfm = model
+    end
+
+    _status("SDFM HD: id=$id, space=$space, horizon=$horizons")
+    _status()
+
+    hd_result = try
+        historical_decomposition(sdfm, horizons; space=Symbol(space),
+                                 include_idiosyncratic=!no_idiosyncratic)
+    catch e
+        throw(_domain_or_data_error(e, "SDFM historical decomposition"))
+    end
+    _status_report(() -> report(hd_result))
+    _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
+
+    is_valid = verify_decomposition(hd_result)
+    if is_valid
+        _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+    else
+        _status_styled("Decomposition verification failed\n"; color=:yellow)
+    end
+    _status()
+
+    names = space == "panel" ? sdfm.varnames : sdfm.factor_var.varnames
+    _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), names, hd_result.T_eff;
+                      id=id, title_prefix="SDFM Historical Decomposition",
+                      format=format, output=output,
+                      actual=hd_result.actual, initial=hd_result.initial_conditions,
+                      key_prefix="sdfm_historical_decomposition",
+                      shock_names=hd_result.shock_names)
+    return (; model=sdfm, result=hd_result)
 end

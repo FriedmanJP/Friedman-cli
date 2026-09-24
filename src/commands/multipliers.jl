@@ -22,46 +22,8 @@
 # bootstrap band columns are present only when bands are requested. rng-only reproducibility
 # rides the global `Random.seed!` (project contract) — no per-estimator `seed=` here.
 
-function multipliers_specs()::Vector{CommandSpec}
-    return [
-        CommandSpec(
-            path=["multipliers", "nardl"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
-            options=[
-                OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
-                OptionSpec(name="asymmetric", type=String, default="all", description="'all' or comma-separated 1-based regressor indices to split into +/-"),
-                OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
-                OptionSpec(name="q", type=String, default="auto", description="DL order: auto, an integer, or a comma-separated list"),
-                OptionSpec(name="max-p", type=Int, default=4, description="Max AR order for auto IC selection"),
-                OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
-                OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
-                OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
-                OptionSpec(name="horizon", type=Int, default=12, description="Max multiplier horizon H (≥ 0)"),
-                OptionSpec(name="nreps", type=Int, default=500, description="Bootstrap replications for bands (0 = no bands)"),
-                OptionSpec(name="level", type=Float64, default=0.95, description="Bootstrap band coverage level"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
-            ],
-            flags=[FlagSpec(name="no-bootstrap", description="Skip bootstrap bands (point multipliers only)")],
-            tables=[
-                TableSpec(name=:nardl_cumulative_dynamic_multipliers,
-                          description="Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested"),
-                TableSpec(name=:nardl_multipliers_summary,
-                          description="Multiplier settings and long-run theta+/theta- of the underlying NARDL"),
-            ],
-            category="multipliers",
-            handler=wrap_legacy(_multipliers_nardl),
-        ),
-    ]
-end
-
-function register_multipliers_commands!()
-    specs = with_default_csv_kinds(multipliers_specs())
-    register!(specs)
-    return build_node("multipliers", specs;
-        description="Dynamic multipliers: NARDL cumulative asymmetric response curves (m⁺/m⁻)")
-end
+# `multipliers` was a one-leaf top-level. v1.0.0 folds the two tables and the
+# horizon/nreps/level/--no-bootstrap options onto `estimate univariate nardl`.
 
 # --------------------------------------------------------------------------
 # Handler
@@ -103,19 +65,14 @@ function _nardl_multipliers_table(mm)
     return df
 end
 
-function _multipliers_nardl(; data::String, dep::String="", asymmetric::String="all",
-                             p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4,
-                             ic::String="aic", case::Int=3, horizon::Int=12, nreps::Int=500,
-                             level::Float64=0.95, no_bootstrap::Bool=false,
-                             output::String="", format::String="table")
-    horizon >= 0 || throw(CliError("usage/invalid", "multipliers nardl: --horizon must be ≥ 0, got $horizon"))
-    nreps >= 0 || throw(CliError("usage/invalid", "multipliers nardl: --nreps must be ≥ 0, got $nreps"))
-    (0.0 < level < 1.0) || throw(CliError("usage/invalid", "multipliers nardl: --level must be in (0,1), got $level"))
-    y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
-    _status("NARDL dynamic multipliers: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, H=$horizon), n=$(length(y))"); _status()
-    m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
-                   max_p=max_p, max_q=max_q, ic=ic, case=case, label="multipliers nardl")
+"""Emit the two NARDL multiplier tables from an already-fitted model (#204)."""
+function _emit_nardl_multipliers(m, dep_name::String; horizon::Int=12, nreps::Int=500,
+                                 level::Float64=0.95, no_bootstrap::Bool=false,
+                                 output::String="", format::String="table")
+    horizon >= 0 || throw(CliError("usage/invalid", "nardl multipliers: --horizon must be ≥ 0, got $horizon"))
+    nreps >= 0 || throw(CliError("usage/invalid", "nardl multipliers: --nreps must be ≥ 0, got $nreps"))
+    (0.0 < level < 1.0) || throw(CliError("usage/invalid", "nardl multipliers: --level must be in (0,1), got $level"))
+    _status("NARDL dynamic multipliers: $dep_name (H=$horizon)"); _status()
     bootstrap = !no_bootstrap
     mm = try
         # MEMs#786: dynamic_multipliers takes seed= (recorded on NARDLMultipliers.manifest;
@@ -125,7 +82,8 @@ function _multipliers_nardl(; data::String, dep::String="", asymmetric::String="
     catch e
         throw(_garch_variant_error(e, "NARDL dynamic multipliers"))
     end
-    output_result(_nardl_multipliers_table(mm); format=Symbol(format), output=output,
+    output_result(_nardl_multipliers_table(mm); format=Symbol(format),
+                  output=_per_var_output_path(output, "multipliers"),
                   title="NARDL Cumulative Dynamic Multipliers (m⁺ / m⁻ / m⁺−m⁻) ($dep_name)",
                   key="nardl_cumulative_dynamic_multipliers")
     output_kv(Pair{String,Any}[
@@ -136,6 +94,7 @@ function _multipliers_nardl(; data::String, dep::String="", asymmetric::String="
         "bootstrap" => mm.nreps > 0,
         "theta_pos" => join([round(Float64(t); digits=4) for t in mm.theta_pos], ", "),
         "theta_neg" => join([round(Float64(t); digits=4) for t in mm.theta_neg], ", "),
-    ]; format=format, title="NARDL Multipliers Summary")
+    ]; format=format, output=_per_var_output_path(output, "multipliers-summary"),
+       title="NARDL Multipliers Summary", key="nardl_multipliers_summary")
     return mm
 end

@@ -38,7 +38,7 @@ STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
         ├─ data export STEM  →  CSV (inverse of import)
         │
         ▼
-estimate var STEM --save-model var         # stem → var.jld2
+estimate var var STEM --save-model var         # stem → var.jld2
         │
         ▼
 irf var --model var --save-result irf      # --model stem → var.jld2
@@ -48,7 +48,7 @@ forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
 # evaluate --result is a comma-separated string (not RESULT_OPTION)
 
 CSV shortcut (unchanged, additive 0.x):
-estimate var macro.csv --lags 2
+estimate var var macro.csv --lags 2
 ```
 
 ### Stem resolution
@@ -93,7 +93,7 @@ handle). `model://name` is the serve-session URI and is not stem-expanded.
 
 `wrap_legacy` type-checks a loaded data handle against the leaf's
 registry-declared `data_kinds` **before** the handler runs. A mismatch is
-`data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate var`. CSV
+`data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate var var`. CSV
 remains legal on every leaf that lists `:csv`. `--result` of a type not in
 `result_types` is `data/wrong-result` (exit 3); `--model` of a type not in
 `model_types` is `model/wrong-kind` (exit 5). `--result` cannot be combined
@@ -123,14 +123,14 @@ preference:
    nonparametric (KDE/kernel-reg/LOWESS) leaves, the single-equation/panel cointegrating
    regression leaves (`CointRegModel`/`PanelCointRegModel`), the ARDL/NARDL family
    (`ARDLModel`/`NARDLModel`/`ARDLLongRun`/`ARDLBoundsTest`/`NARDLSymmetryTest`/`NARDLMultipliers`
-   — `estimate ardl`/`nardl`, `test ardl-bounds`/`nardl-symmetry`, `multipliers nardl`), and the
-   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate pmg`, `test pmg-hausman`), and the
-   nonlinear-TS family (`ThresholdModel`/`STARModel`/`MSRegModel` — `estimate setar`/`star`/`ms-ar`/`ms`;
+   — `estimate univariate ardl`/`nardl`, `test coint ardl-bounds`/`nardl-symmetry`, `estimate univariate nardl`), and the
+   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate panel pmg`, `test panel pmg-hausman`), and the
+   nonlinear-TS family (`ThresholdModel`/`STARModel`/`MSRegModel` — `estimate regime setar`/`star`/`ms-ar`/`ms`;
    the two `*Forecast` types ARE registered and render via `long_table`) — none of
    these result types are Tables.jl-registered upstream) or where the tidy schema would lose information the command
    needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
    summary). The `io` matrices (Leontief/Ghosh inverses, coefficients), MGARCH conditional
-   correlations, and the Markov-switching K×K regime-transition matrix (`estimate ms-ar`/`ms`) render
+   correlations, and the Markov-switching K×K regime-transition matrix (`estimate regime ms-ar`/`ms`) render
    **wide** (sector×sector / series×series / regime×regime); vector results render one row
    per sector/term.
 

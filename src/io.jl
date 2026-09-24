@@ -309,7 +309,7 @@ end
 Convert a loaded MEMs example dataset to a DataFrame.
 
 Panel datasets keep their identifiers as leading `group`/`time` columns — without
-them every panel command (`estimate pvar`, `test cips`, …) fails on a bundled
+them every panel command (`estimate panel pvar`, `test unit-root cips`, …) fails on a bundled
 panel because `--id-col`/`--time-col` have nothing to bind to.
 """
 function dataset_to_dataframe(dataset)

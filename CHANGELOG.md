@@ -11,6 +11,17 @@ First major. 477 leaves / 21 top-level. MEMs pin
 dropped). C055 freeze: the 7 hidden snake_case aliases and
 `FRIEDMAN_LEGACY_OUTPUT` are removed; envelope schema v1 is frozen.
 
+- **Command tree (#198–#204):** depth-2 leaves under `estimate`,
+  `predict`, `residuals`, `forecast`, and `test` gain their family as
+  the middle segment (`estimate volatility garch`, `test unit-root adf`).
+  Family `other` stays flat (`test vif`). `did test *` is `test did *`.
+  The 11 HouseholdSystem leaves are top-level `hadsge` (`hadsge solve`);
+  representative-agent `dsge` and `dsge ct|olg|dcegm|lifecycle|firm|bank`
+  stay. `multipliers nardl` folds onto `estimate univariate nardl`
+  (same two table keys). Removed spellings exit 2 and name the new path.
+  `data simulate` and `policy` paths are unchanged. Envelope schema
+  stays v1.
+
 - **MEMs 1.0.0**: lead-variable catalog (#223 — `LinearDSGE.Pi` one
   column per distinct lead) and the two-asset steady-state closer
   rewrite (#709 — `rb_init`/`relax_K`/`relax_rb` gone,
@@ -47,6 +58,18 @@ dropped). C055 freeze: the 7 hidden snake_case aliases and
   `docs/Manifest.toml` re-resolved on 1.13. C074 latency budgets ride
   unchanged until the 1.13 floor is measured at release time
   (recorded on #79).
+- **`hd sdfm`**: new leaf wrapping
+  `historical_decomposition(::StructuralDFM)` — `--space panel|factor`,
+  `--no-idiosyncratic` (panel only), shared SDFM estimation surface,
+  `--result`/`--model` handles, `--plot`/`--plot-save`. 477th leaf.
+- **`estimate univariate nardl --plot`**: the multipliers figure
+  (`plot_result(::NARDLModel)`, one panel per asymmetric regressor)
+  is now advertised; 147 of 477 leaves are plot-capable.
+- **`estimate var var` names (#119 follow-up)**: `var_coefficients`
+  forwards `varnames=` like the `irf`/`fevd`/`forecast` family, so
+  equations/terms carry CSV names instead of positional `y1..yn`.
+  Mock SDFM shock/factor names corrected to real
+  (`Shock $i` / `Static factor $i`); one golden regen'd.
 
 ## [0.13.1] — 2026-09-18 — MEMs 0.9.7 adoption (#191–#196)
 

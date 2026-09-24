@@ -601,7 +601,7 @@ function register_io_commands!()
         end
     end
     out = with_default_csv_kinds(out)
-    register!(out)
+    out = register!(out)
     return build_node("io", out;
         description="Input-Output analysis: Leontief/Ghosh, multipliers, linkages, SDA, footprints, Baqaee-Farhi, MRIO")
 end

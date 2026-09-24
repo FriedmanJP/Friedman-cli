@@ -48,7 +48,7 @@ end
 ```
 
 ```bash
-friedman dsge ha steady-state aiyagari.jl
+friedman hadsge steady-state aiyagari.jl
 ```
 
 Set `a in [0.0, a_max]` generously. If too much of the stationary distribution piles up at
@@ -85,17 +85,93 @@ Start with the Huggett builtin. Status lines go to stderr; JSON below is stdout 
 
 <!-- capture -->
 ```bash
-friedman dsge ha steady-state huggett --format json
+friedman hadsge steady-state huggett --format json
 ```
 ```json
 {
-    "meta": {
-    },
-    "error": null,
-    "status": "ok",
-    "command": "friedman dsge ha steady-state",
+    "schema_version": 1,
     "data": {
+        "ha_steady_state_aggregates": {
+            "columns": [
+                "name",
+                "value"
+            ],
+            "rows": [
+                [
+                    "K_demand",
+                    0
+                ],
+                [
+                    "A_policy",
+                    -5.9135575e-9
+                ],
+                [
+                    "A_residual",
+                    0
+                ],
+                [
+                    "K",
+                    -5.9135573e-9
+                ],
+                [
+                    "Y",
+                    0.8826087
+                ],
+                [
+                    "excess_demand",
+                    -5.9135573e-9
+                ]
+            ]
+        },
+        "ha_steady_state_prices": {
+            "columns": [
+                "name",
+                "value"
+            ],
+            "rows": [
+                [
+                    "w",
+                    1
+                ],
+                [
+                    "r",
+                    -0.013070272
+                ]
+            ]
+        },
+        "ha_steady_state_diagnostics": {
+            "columns": [
+                "metric",
+                "value"
+            ],
+            "rows": [
+                [
+                    "converged",
+                    1
+                ],
+                [
+                    "iterations",
+                    28
+                ],
+                [
+                    "euler_error",
+                    -1.9362687
+                ],
+                [
+                    "excess_demand",
+                    -5.9135573e-9
+                ]
+            ]
+        },
         "ha_euler_accuracy_log10_by_convention": {
+            "columns": [
+                "convention",
+                "max",
+                "mean",
+                "n_evaluated",
+                "n_constrained",
+                "n_offgrid"
+            ],
             "rows": [
                 [
                     "midpoints",
@@ -113,94 +189,18 @@ friedman dsge ha steady-state huggett --format json
                     15,
                     0
                 ]
-            ],
-            "columns": [
-                "convention",
-                "max",
-                "mean",
-                "n_evaluated",
-                "n_constrained",
-                "n_offgrid"
-            ]
-        },
-        "ha_steady_state_diagnostics": {
-            "rows": [
-                [
-                    "converged",
-                    1
-                ],
-                [
-                    "iterations",
-                    28
-                ],
-                [
-                    "euler_error",
-                    -1.9362687
-                ],
-                [
-                    "excess_demand",
-                    -5.913559e-9
-                ]
-            ],
-            "columns": [
-                "metric",
-                "value"
-            ]
-        },
-        "ha_steady_state_prices": {
-            "rows": [
-                [
-                    "w",
-                    1
-                ],
-                [
-                    "r",
-                    -0.013070272
-                ]
-            ],
-            "columns": [
-                "name",
-                "value"
-            ]
-        },
-        "ha_steady_state_aggregates": {
-            "rows": [
-                [
-                    "K_demand",
-                    0
-                ],
-                [
-                    "A_policy",
-                    -5.9135589e-9
-                ],
-                [
-                    "A_residual",
-                    0
-                ],
-                [
-                    "K",
-                    -5.913559e-9
-                ],
-                [
-                    "Y",
-                    0.8826087
-                ],
-                [
-                    "excess_demand",
-                    -5.913559e-9
-                ]
-            ],
-            "columns": [
-                "name",
-                "value"
             ]
         }
     },
     "warnings": [
     ],
-    "schema_version": 1,
+    "status": "ok",
     "artifacts": [
-    ]
+    ],
+    "command": "friedman hadsge steady-state",
+    "meta": {
+    },
+    "error": null
 }
 ```
 
@@ -218,8 +218,8 @@ rather than the approximation. Measuring off-node, at the cell midpoints, expose
 interpolation error that a user of the policy function actually incurs:
 
 ```bash
-friedman dsge ha steady-state huggett                       # midpoints (default)
-friedman dsge ha steady-state huggett --euler-points nodes  # the older convention
+friedman hadsge steady-state huggett                       # midpoints (default)
+friedman hadsge steady-state huggett --euler-points nodes  # the older convention
 ```
 
 On `huggett` the same steady state reports `-1.94` at midpoints and `-4.47` at nodes — a
@@ -250,69 +250,49 @@ Linearize with a small reduced basis for a fast interactive solve.
 
 <!-- capture -->
 ```bash
-friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
+friedman hadsge solve huggett --method reiter --n-reduced 8 --format json
 ```
 ```json
 {
-    "meta": {
-    },
-    "error": null,
-    "status": "ok",
-    "command": "friedman dsge ha solve",
+    "schema_version": 1,
     "data": {
-        "ha_euler_accuracy_log10_by_convention": {
-            "rows": [
-                [
-                    "midpoints",
-                    -1.9362687,
-                    -4.5398656,
-                    584,
-                    14,
-                    0
-                ],
-                [
-                    "nodes",
-                    -4.4699492,
-                    -5.6558001,
-                    585,
-                    15,
-                    0
-                ]
-            ],
+        "ha_steady_state_aggregates": {
             "columns": [
-                "convention",
-                "max",
-                "mean",
-                "n_evaluated",
-                "n_constrained",
-                "n_offgrid"
-            ]
-        },
-        "ha_steady_state_diagnostics": {
+                "name",
+                "value"
+            ],
             "rows": [
                 [
-                    "converged",
-                    1
+                    "K_demand",
+                    0
                 ],
                 [
-                    "iterations",
-                    28
+                    "A_policy",
+                    -5.9135575e-9
                 ],
                 [
-                    "euler_error",
-                    -1.9362687
+                    "A_residual",
+                    0
+                ],
+                [
+                    "K",
+                    -5.9135573e-9
+                ],
+                [
+                    "Y",
+                    0.8826087
                 ],
                 [
                     "excess_demand",
-                    -5.913559e-9
+                    -5.9135573e-9
                 ]
-            ],
-            "columns": [
-                "metric",
-                "value"
             ]
         },
         "ha_steady_state_prices": {
+            "columns": [
+                "name",
+                "value"
+            ],
             "rows": [
                 [
                     "w",
@@ -322,45 +302,13 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
                     "r",
                     -0.013070272
                 ]
-            ],
-            "columns": [
-                "name",
-                "value"
-            ]
-        },
-        "ha_steady_state_aggregates": {
-            "rows": [
-                [
-                    "K_demand",
-                    0
-                ],
-                [
-                    "A_policy",
-                    -5.9135589e-9
-                ],
-                [
-                    "A_residual",
-                    0
-                ],
-                [
-                    "K",
-                    -5.913559e-9
-                ],
-                [
-                    "Y",
-                    0.8826087
-                ],
-                [
-                    "excess_demand",
-                    -5.913559e-9
-                ]
-            ],
-            "columns": [
-                "name",
-                "value"
             ]
         },
         "ha_dsge_solve_diagnostics": {
+            "columns": [
+                "metric",
+                "value"
+            ],
             "rows": [
                 [
                     "method",
@@ -386,18 +334,70 @@ friedman dsge ha solve huggett --method reiter --n-reduced 8 --format json
                     "obs_cols",
                     "9"
                 ]
-            ],
+            ]
+        },
+        "ha_steady_state_diagnostics": {
             "columns": [
                 "metric",
                 "value"
+            ],
+            "rows": [
+                [
+                    "converged",
+                    1
+                ],
+                [
+                    "iterations",
+                    28
+                ],
+                [
+                    "euler_error",
+                    -1.9362687
+                ],
+                [
+                    "excess_demand",
+                    -5.9135573e-9
+                ]
+            ]
+        },
+        "ha_euler_accuracy_log10_by_convention": {
+            "columns": [
+                "convention",
+                "max",
+                "mean",
+                "n_evaluated",
+                "n_constrained",
+                "n_offgrid"
+            ],
+            "rows": [
+                [
+                    "midpoints",
+                    -1.9362687,
+                    -4.5398656,
+                    584,
+                    14,
+                    0
+                ],
+                [
+                    "nodes",
+                    -4.4699492,
+                    -5.6558001,
+                    585,
+                    15,
+                    0
+                ]
             ]
         }
     },
     "warnings": [
     ],
-    "schema_version": 1,
+    "status": "ok",
     "artifacts": [
-    ]
+    ],
+    "command": "friedman hadsge solve",
+    "meta": {
+    },
+    "error": null
 }
 ```
 
@@ -411,17 +411,25 @@ Impulse responses on the linearized aggregate system (Reiter or SSJ).
 
 <!-- capture -->
 ```bash
-friedman dsge ha irf huggett --method reiter --n-reduced 8 --horizon 5 --format json
+friedman hadsge irf huggett --method reiter --n-reduced 8 --horizon 5 --format json
 ```
 ```json
 {
-    "meta": {
-    },
-    "error": null,
-    "status": "ok",
-    "command": "friedman dsge ha irf",
+    "schema_version": 1,
     "data": {
         "ha_dsge_irf_epsilon": {
+            "columns": [
+                "horizon",
+                "x_1",
+                "x_2",
+                "x_3",
+                "x_4",
+                "x_5",
+                "x_6",
+                "x_7",
+                "x_8",
+                "x_9"
+            ],
             "rows": [
                 [
                     0,
@@ -483,26 +491,18 @@ friedman dsge ha irf huggett --method reiter --n-reduced 8 --horizon 5 --format 
                     0.00032973828,
                     0.729
                 ]
-            ],
-            "columns": [
-                "horizon",
-                "x_1",
-                "x_2",
-                "x_3",
-                "x_4",
-                "x_5",
-                "x_6",
-                "x_7",
-                "x_8",
-                "x_9"
             ]
         }
     },
     "warnings": [
     ],
-    "schema_version": 1,
+    "status": "ok",
     "artifacts": [
-    ]
+    ],
+    "command": "friedman hadsge irf",
+    "meta": {
+    },
+    "error": null
 }
 ```
 
@@ -511,8 +511,8 @@ friedman dsge ha irf huggett --method reiter --n-reduced 8 --horizon 5 --format 
 Related:
 
 ```bash
-friedman dsge ha fevd huggett --method reiter --n-reduced 8 --horizon 40
-friedman dsge ha simulate huggett --method reiter --n-reduced 8 --periods 200 --seed 1
+friedman hadsge fevd huggett --method reiter --n-reduced 8 --horizon 40
+friedman hadsge simulate huggett --method reiter --n-reduced 8 --periods 200 --seed 1
 ```
 
 ---
@@ -522,8 +522,8 @@ friedman dsge ha simulate huggett --method reiter --n-reduced 8 --periods 200 --
 Wealth-distribution mass deviations and Gini / percentile paths require Reiter’s distribution basis. SSJ returns a usage error for these leaves.
 
 ```bash
-friedman dsge ha distribution-irf huggett --method reiter --n-reduced 8 --horizon 40
-friedman dsge ha inequality-irf huggett --method reiter --n-reduced 8 --horizon 40
+friedman hadsge distribution-irf huggett --method reiter --n-reduced 8 --horizon 40
+friedman hadsge inequality-irf huggett --method reiter --n-reduced 8 --horizon 40
 ```
 
 Use `--shock-index` / `--shock-size` to pick the aggregate shock and scale.
@@ -536,17 +536,19 @@ Draw individual asset paths from steady-state policies (no linearization method 
 
 <!-- capture -->
 ```bash
-friedman dsge ha simulate-panel huggett --n-agents 100 --periods 20 --seed 1 --format json
+friedman hadsge simulate-panel huggett --n-agents 100 --periods 20 --seed 1 --format json
 ```
 ```json
 {
-    "meta": {
-    },
-    "error": null,
-    "status": "ok",
-    "command": "friedman dsge ha simulate-panel",
+    "schema_version": 1,
     "data": {
         "ha_panel_simulation_summary": {
+            "columns": [
+                "period",
+                "mean_assets",
+                "sd_assets",
+                "n_agents"
+            ],
             "rows": [
                 [
                     1,
@@ -668,20 +670,18 @@ friedman dsge ha simulate-panel huggett --n-agents 100 --periods 20 --seed 1 --f
                     0.59750907,
                     100
                 ]
-            ],
-            "columns": [
-                "period",
-                "mean_assets",
-                "sd_assets",
-                "n_agents"
             ]
         }
     },
     "warnings": [
     ],
-    "schema_version": 1,
+    "status": "ok",
     "artifacts": [
-    ]
+    ],
+    "command": "friedman hadsge simulate-panel",
+    "meta": {
+    },
+    "error": null
 }
 ```
 
@@ -699,13 +699,13 @@ friedman dsge ct solve --grid-size 50 --format json
 ```
 ```json
 {
-    "meta": {
-    },
-    "error": null,
-    "status": "ok",
-    "command": "friedman dsge ct solve",
+    "schema_version": 1,
     "data": {
         "ct_aiyagari_aggregates": {
+            "columns": [
+                "name",
+                "value"
+            ],
             "rows": [
                 [
                     "K",
@@ -719,13 +719,13 @@ friedman dsge ct solve --grid-size 50 --format json
                     "converged",
                     1
                 ]
-            ],
-            "columns": [
-                "name",
-                "value"
             ]
         },
         "ct_aiyagari_prices": {
+            "columns": [
+                "name",
+                "value"
+            ],
             "rows": [
                 [
                     "r",
@@ -735,18 +735,18 @@ friedman dsge ct solve --grid-size 50 --format json
                     "w",
                     1.3891603
                 ]
-            ],
-            "columns": [
-                "name",
-                "value"
             ]
         }
     },
     "warnings": [
     ],
-    "schema_version": 1,
+    "status": "ok",
     "artifacts": [
-    ]
+    ],
+    "command": "friedman dsge ct solve",
+    "meta": {
+    },
+    "error": null
 }
 ```
 
@@ -756,13 +756,13 @@ friedman dsge olg solve --format json
 ```
 ```json
 {
-    "meta": {
-    },
-    "error": null,
-    "status": "ok",
-    "command": "friedman dsge olg solve",
+    "schema_version": 1,
     "data": {
         "blanchard_olg_steady_state": {
+            "columns": [
+                "variable",
+                "value"
+            ],
             "rows": [
                 [
                     "k",
@@ -796,13 +796,13 @@ friedman dsge olg solve --format json
                     "converged",
                     1
                 ]
-            ],
-            "columns": [
-                "variable",
-                "value"
             ]
         },
         "blanchard_olg_dynamics": {
+            "columns": [
+                "metric",
+                "value"
+            ],
             "rows": [
                 [
                     "stable_eig",
@@ -824,18 +824,18 @@ friedman dsge olg solve --format json
                     "eig2_mod",
                     1.1896865
                 ]
-            ],
-            "columns": [
-                "metric",
-                "value"
             ]
         }
     },
     "warnings": [
     ],
-    "schema_version": 1,
+    "status": "ok",
     "artifacts": [
-    ]
+    ],
+    "command": "friedman dsge olg solve",
+    "meta": {
+    },
+    "error": null
 }
 ```
 
@@ -850,7 +850,7 @@ See [dsge guide — CT and OLG](dsge.md#continuous-time-ha-dsge-ct--c041) for op
 
 ## 6. Bayesian estimation
 
-`dsge ha estimate` estimates HA-DSGE parameters by Random-Walk Metropolis-Hastings. This shipped in CLI v0.6.0 once upstream **MEMs#228** was fixed (the Kalman observation matrix `Z` is now built from the reduction `C` rows, so observables map to the right reduced states). Each RWMH draw **re-solves the full HA model** (steady state → linearization → Kalman likelihood), the Auclert-Bardóczy-Rognlie-Straub (2021) "offline" approach — so keep `--n-draws` modest and prefer small `--n-reduced` / `--t-horizon` while prototyping.
+`hadsge estimate` estimates HA-DSGE parameters by Random-Walk Metropolis-Hastings. This shipped in CLI v0.6.0 once upstream **MEMs#228** was fixed (the Kalman observation matrix `Z` is now built from the reduction `C` rows, so observables map to the right reduced states). Each RWMH draw **re-solves the full HA model** (steady state → linearization → Kalman likelihood), the Auclert-Bardóczy-Rognlie-Straub (2021) "offline" approach — so keep `--n-draws` modest and prefer small `--n-reduced` / `--t-horizon` while prototyping.
 
 Priors live in a `[priors]` TOML; the two numbers are the distribution's constructor args (`normal` → mean, sd):
 
@@ -863,7 +863,7 @@ b = 0.05
 ```
 
 ```bash
-friedman dsge ha estimate krusell-smith \
+friedman hadsge estimate krusell-smith \
   --data aggregates.csv --priors priors.toml \
   --observables K --method ssj \
   --n-draws 2000 --burnin 500 --t-horizon 300 --n-reduced 15 \
@@ -874,7 +874,7 @@ Output is a posterior summary table (`mean`, `std`, `q05`, `median`, `q95` per p
 
 ---
 
-## Solution accuracy: `dsge ha accuracy`
+## Solution accuracy: `hadsge accuracy`
 
 Den Haan (2010) accuracy of the aggregate law of motion. The law is only an approximation of
 the true aggregate dynamics, and this is the standard way to score how far the two drift
@@ -883,8 +883,8 @@ cross-sectional distribution (the *reference* path) and once letting the law for
 aggregate on its own — and reports the percentage deviation between them.
 
 ```bash
-friedman dsge ha accuracy krusell-smith --t-sim 10000 --t-burn 1000
-friedman dsge ha accuracy krusell-smith --method reiter --t-fit 4000
+friedman hadsge accuracy krusell-smith --t-sim 10000 --t-burn 1000
+friedman hadsge accuracy krusell-smith --method reiter --t-fit 4000
 ```
 
 | Option | Type | Default | Description |
@@ -934,8 +934,8 @@ of a command is a decision rather than an oversight.
 
 | Upstream feature | Status in the CLI |
 |---|---|
-| Den Haan accuracy | **Exposed** as `dsge ha accuracy` (above), for all three solution methods |
-| Winberry parametric distribution dynamics | Reachable via the existing `dsge ha` method surface; note the library's convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines |
+| Den Haan accuracy | **Exposed** as `hadsge accuracy` (above), for all three solution methods |
+| Winberry parametric distribution dynamics | Reachable via the existing `hadsge` method surface; note the library's convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines |
 | SSJ DAG / second-order SSJ | **Deferred.** Block-composition types (`SimpleBlock`/`HetBlock`/`SSJModel`) are a model-*construction* API. Exposing them means a config schema for wiring blocks, which is a design task in its own right, not an option on an existing leaf |
 | DCEGM (discrete–continuous choice) | **Deferred.** Needs a builtin carrying a discrete choice; none of the shipped builtins has one, so a leaf would have nothing to run |
 | Life-cycle OLG (age-EGM) | **Deferred.** A distinct model class with its own steady state and distribution objects, not an option on the existing two-period `dsge olg` leaves |
@@ -949,10 +949,10 @@ today and can be reached from Julia directly.
 Two related items settled with the same audit:
 
 - **Euler-error convention.** Surfaced as `--euler-points midpoints|nodes` on
-  `dsge ha steady-state`, and both statistics are reported unconditionally from
+  `hadsge steady-state`, and both statistics are reported unconditionally from
   `HASteadyState.euler`. See [Euler accuracy](#Euler-accuracy-and---euler-points).
 - **[#80](https://github.com/FriedmanJP/Friedman-cli/issues/80) — HA `.jl` loader.** Fixed
-  here rather than worked around, since `dsge ha accuracy` loads models through the same
+  here rather than worked around, since `hadsge accuracy` loads models through the same
   helper. See [Custom models from a `.jl` file](#Custom-models-from-a-.jl-file).
 
 ---
@@ -962,7 +962,7 @@ Two related items settled with the same audit:
 1. **Distribution / inequality IRF with SSJ** — fails closed; switch to `--method reiter`.
 2. **Large builtins** — `two-asset-hank` is expensive; prototype on `huggett`.
 3. **Agent contract** — with `--format json`, stdout is one envelope; status is stderr ([Agent Guide](../agent-guide.md)).
-4. **Wrong command for HA specs** — a `.jl` file returning `HADSGESpec` under `dsge solve|irf|…` raises `usage/wrong-command` (exit 2) pointing at `dsge ha …`. Conversely, a RA `DSGESpec` under `dsge ha` is rejected the same way.
+4. **Wrong command for HA specs** — a `.jl` file with one `HouseholdSystem` under `dsge solve|irf|…` raises `usage/wrong-command` (exit 2) pointing at `hadsge solve`. Conversely, a representative-agent spec under `hadsge` is rejected the same way.
 
 ---
 

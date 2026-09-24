@@ -1,6 +1,6 @@
 # forecast
 
-Compute forecasts. 16 model subcommands covering VAR, BVAR, LP, ARIMA, SETAR, STAR, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
+Compute forecasts across VAR, BVAR, LP, ARIMA, SETAR, STAR, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family for post-hoc forecast evaluation and combination.
 
 ## Output format (C051)
 
@@ -12,19 +12,19 @@ Univariate forecasts (ARIMA, volatility) reshape to the same schema with a singl
 `variable` value. `bvar`/`dynamic`/`gdfm`/`favar` previously hand-computed their forecasts
 directly from posterior draws / factor loadings; they now route through MEMs'
 `forecast(...)` first so the result is a typed `*Forecast` object `long_table` can render.
-**Left wide on purpose:** the volatility leaves (`arch`/`garch`/`egarch`/`gjr_garch`/`sv`)
+**Left wide on purpose:** the volatility leaves (`arch`/`garch`/`egarch`/`gjr-garch`/`sv`)
 share a domain-specific `horizon | variance | volatility` table — collapsing it into the
 generic tidy schema would drop the `volatility` (= √variance) column, so it stays a
 principled exception (see [Volatility Model Forecasts](#volatility-model-forecasts) below).
 
-## forecast var
+## forecast var var
 
 H-step ahead VAR point forecasts with analytical or bootstrap confidence intervals.
 
 ```bash
-friedman forecast var data.csv --horizons=12 --confidence=0.95
-friedman forecast var data.csv --lags=4 --horizons=24
-friedman forecast var data.csv --ci-method=bootstrap
+friedman forecast var var data.csv --horizons=12 --confidence=0.95
+friedman forecast var var data.csv --lags=4 --horizons=24
+friedman forecast var var data.csv --ci-method=bootstrap
 ```
 
 | Option | Short | Type | Default | Description |
@@ -43,13 +43,13 @@ friedman forecast var data.csv --ci-method=bootstrap
 !!! note "v0.3.0"
     VAR forecasts now return typed `VARForecast` objects with accessor functions: `point_forecast()`, `lower_bound()`, `upper_bound()`, `forecast_horizon()`.
 
-## forecast bvar
+## forecast var bvar
 
 Bayesian forecasts with posterior credible intervals (16th/50th/84th percentiles).
 
 ```bash
-friedman forecast bvar data.csv --horizons=12 --draws=2000
-friedman forecast bvar data.csv --sampler=gibbs --config=prior.toml
+friedman forecast var bvar data.csv --horizons=12 --draws=2000
+friedman forecast var bvar data.csv --sampler=gibbs --config=prior.toml
 ```
 
 | Option | Short | Type | Default | Description |
@@ -67,15 +67,15 @@ friedman forecast bvar data.csv --sampler=gibbs --config=prior.toml
 !!! note "v0.3.0"
     BVAR forecasts now return typed `BVARForecast` objects with the same accessor interface as `VARForecast`.
 
-## forecast scenario
+## forecast var scenario
 
 Waggoner–Zha conditional (scenario) forecasts: pin some variables to chosen paths and let
 the model work out everything else, together with the structural shocks that would deliver
 the scenario.
 
 ```bash
-friedman forecast scenario data.csv --conditions-file=scenario.csv --horizons=12
-friedman forecast scenario data.csv --conditions-file=scenario.csv --method=bvar --draws=2000
+friedman forecast var scenario data.csv --conditions-file=scenario.csv --horizons=12
+friedman forecast var scenario data.csv --conditions-file=scenario.csv --method=bvar --draws=2000
 ```
 
 **Conditions file.** A long-format CSV, one condition per row:
@@ -121,7 +121,7 @@ credible, and the shock table is what reveals that.
     `--conditions` is reserved: it prints the GPL conditions notice, and it is matched
     anywhere in the command line.
 
-## forecast lp
+## forecast var lp
 
 Direct LP forecasts with configurable impulse path and confidence intervals.
 
@@ -129,8 +129,8 @@ Direct LP forecasts with configurable impulse path and confidence intervals.
     `LPForecast` field renamed: `.forecast` (was `.forecasts` in earlier versions).
 
 ```bash
-friedman forecast lp data.csv --shock=1 --horizons=12 --shock-size=1.0
-friedman forecast lp data.csv --ci-method=bootstrap --n-boot=500
+friedman forecast var lp data.csv --shock=1 --horizons=12 --shock-size=1.0
+friedman forecast var lp data.csv --ci-method=bootstrap --n-boot=500
 ```
 
 | Option | Short | Type | Default | Description |
@@ -150,14 +150,14 @@ friedman forecast lp data.csv --ci-method=bootstrap --n-boot=500
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`).
 
-## forecast arima
+## forecast univariate arima
 
 ARIMA forecast with auto model selection when `--p` is omitted.
 
 ```bash
-friedman forecast arima data.csv --horizons=12 --confidence=0.95
-friedman forecast arima data.csv --p=1 --d=1 --q=1 --horizons=24
-friedman forecast arima data.csv --column=2 --criterion=aic
+friedman forecast univariate arima data.csv --horizons=12 --confidence=0.95
+friedman forecast univariate arima data.csv --p=1 --d=1 --q=1 --horizons=24
+friedman forecast univariate arima data.csv --column=2 --criterion=aic
 ```
 
 | Option | Short | Type | Default | Description |
@@ -180,13 +180,13 @@ friedman forecast arima data.csv --column=2 --criterion=aic
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate).
 
-## forecast setar
+## forecast regime setar
 
-Bootstrap-simulation forecast from a **self-exciting threshold autoregression (SETAR)**. The handler re-estimates the SETAR (see [`estimate setar`](estimate.md#estimate-setar)) and then simulates forward paths through the fitted two-regime dynamics, reporting the mean path and percentile bands. `--d` accepts an integer delay or `auto` (=`1:p` grid); `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` (the re-estimated threshold CI uses the Hansen 2000 tabulation). Only self-exciting SETAR models are forecastable, so no external transition-variable option is offered.
+Bootstrap-simulation forecast from a **self-exciting threshold autoregression (SETAR)**. The handler re-estimates the SETAR (see [`estimate regime setar`](estimate.md#estimate-setar)) and then simulates forward paths through the fitted two-regime dynamics, reporting the mean path and percentile bands. `--d` accepts an integer delay or `auto` (=`1:p` grid); `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` (the re-estimated threshold CI uses the Hansen 2000 tabulation). Only self-exciting SETAR models are forecastable, so no external transition-variable option is offered.
 
 ```bash
-friedman forecast setar y.csv --p=1 --d=1 --horizons=12
-friedman forecast setar y.csv --p=2 --d=auto --horizons=6 --ci-level=0.90 --reps=2000
+friedman forecast regime setar y.csv --p=1 --d=1 --horizons=12
+friedman forecast regime setar y.csv --p=2 --d=auto --horizons=6 --ci-level=0.90 --reps=2000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -200,15 +200,15 @@ friedman forecast setar y.csv --p=2 --d=auto --horizons=6 --ci-level=0.90 --reps
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `ThresholdForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Unlike the other `forecast` leaves, `forecast setar` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `ThresholdForecast` (only the fitted `ThresholdModel` from `estimate setar` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
+**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `ThresholdForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Unlike the other `forecast` leaves, `forecast regime setar` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `ThresholdForecast` (only the fitted `ThresholdModel` from `estimate regime setar` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
 
-## forecast star
+## forecast regime star
 
-Bootstrap-simulation forecast from a **smooth-transition autoregression (STAR)**. The handler re-estimates a *self-exciting* STAR (see [`estimate star`](estimate.md#estimate-star)) and simulates forward paths through the fitted smooth-transition dynamics, drawing residuals with replacement and reporting the mean path and percentile bands. `--type` selects the transition shape (or `auto`). Only self-exciting STAR models are forecastable (a future path of an external transition variable would be required), so no `--transition-col` option is offered.
+Bootstrap-simulation forecast from a **smooth-transition autoregression (STAR)**. The handler re-estimates a *self-exciting* STAR (see [`estimate regime star`](estimate.md#estimate-star)) and simulates forward paths through the fitted smooth-transition dynamics, drawing residuals with replacement and reporting the mean path and percentile bands. `--type` selects the transition shape (or `auto`). Only self-exciting STAR models are forecastable (a future path of an external transition variable would be required), so no `--transition-col` option is offered.
 
 ```bash
-friedman forecast star y.csv --p=1 --d=1 --horizons=12
-friedman forecast star y.csv --p=2 --type=lstr1 --horizons=6 --ci-level=0.90 --reps=2000
+friedman forecast regime star y.csv --p=1 --d=1 --horizons=12
+friedman forecast regime star y.csv --p=2 --type=lstr1 --horizons=6 --ci-level=0.90 --reps=2000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -223,15 +223,15 @@ friedman forecast star y.csv --p=2 --type=lstr1 --horizons=6 --ci-level=0.90 --r
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `STARForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Like `forecast setar`, `forecast star` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `STARForecast` (only the fitted `STARModel` from `estimate star` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
+**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `STARForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Like `forecast regime setar`, `forecast regime star` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `STARForecast` (only the fitted `STARModel` from `estimate regime star` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
 
-## forecast static
+## forecast factor static
 
 Forecast observables using a static factor model (PCA).
 
 ```bash
-friedman forecast static data.csv --horizons=12
-friedman forecast static data.csv --nfactors=3 --ci-method=bootstrap
+friedman forecast factor static data.csv --horizons=12
+friedman forecast factor static data.csv --nfactors=3 --ci-method=bootstrap
 ```
 
 | Option | Short | Type | Default | Description |
@@ -247,12 +247,12 @@ friedman forecast static data.csv --nfactors=3 --ci-method=bootstrap
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`).
 
-## forecast dynamic
+## forecast factor dynamic
 
 Forecast observables using a dynamic factor model.
 
 ```bash
-friedman forecast dynamic data.csv --nfactors=2 --factor-lags=1 --horizons=12
+friedman forecast factor dynamic data.csv --nfactors=2 --factor-lags=1 --horizons=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -268,13 +268,13 @@ friedman forecast dynamic data.csv --nfactors=2 --factor-lags=1 --horizons=12
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`).
 
-## forecast gdfm
+## forecast factor gdfm
 
 Forecast observables using a Generalized Dynamic Factor Model. `--method` selects the factor projection: `ar` fits an AR(1) on each two-sided factor (default); `one-sided` and `spectral` are the FHLR (2005) one-sided projection.
 
 ```bash
-friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12
-friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12 --method=one-sided
+friedman forecast factor gdfm data.csv --dynamic-rank=2 --horizons=12
+friedman forecast factor gdfm data.csv --dynamic-rank=2 --horizons=12 --method=one-sided
 ```
 
 | Option | Short | Type | Default | Description |
@@ -295,10 +295,10 @@ friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12 --method=one-side
 
 All volatility forecast commands produce a table with `horizon`, `variance`, and `volatility` (= sqrt of variance) columns. This is a deliberate exception to the [tidy `long_table` schema](#output-format-c051) used elsewhere in `forecast` — collapsing into the generic `horizon|variable|value|lower|upper` shape would drop the `volatility` column, so the shared `_vol_forecast_output` helper keeps its own domain-specific table.
 
-### forecast arch
+### forecast volatility arch
 
 ```bash
-friedman forecast arch data.csv --column=1 --q=1 --horizons=12
+friedman forecast volatility arch data.csv --column=1 --q=1 --horizons=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -311,10 +311,10 @@ friedman forecast arch data.csv --column=1 --q=1 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-### forecast garch
+### forecast volatility garch
 
 ```bash
-friedman forecast garch data.csv --column=1 --p=1 --q=1 --horizons=12
+friedman forecast volatility garch data.csv --column=1 --p=1 --q=1 --horizons=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -328,10 +328,10 @@ friedman forecast garch data.csv --column=1 --p=1 --q=1 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-### forecast egarch
+### forecast volatility egarch
 
 ```bash
-friedman forecast egarch data.csv --column=1 --p=1 --q=1 --horizons=12
+friedman forecast volatility egarch data.csv --column=1 --p=1 --q=1 --horizons=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -345,10 +345,10 @@ friedman forecast egarch data.csv --column=1 --p=1 --q=1 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-### forecast gjr\_garch
+### forecast volatility gjr-garch
 
 ```bash
-friedman forecast gjr_garch data.csv --column=1 --p=1 --q=1 --horizons=12
+friedman forecast volatility gjr-garch data.csv --column=1 --p=1 --q=1 --horizons=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -362,10 +362,10 @@ friedman forecast gjr_garch data.csv --column=1 --p=1 --q=1 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-### forecast sv
+### forecast volatility sv
 
 ```bash
-friedman forecast sv data.csv --column=1 --draws=5000 --horizons=12
+friedman forecast volatility sv data.csv --column=1 --draws=5000 --horizons=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -378,14 +378,14 @@ friedman forecast sv data.csv --column=1 --draws=5000 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-## forecast vecm
+## forecast var vecm
 
 VECM forecasts with bootstrap confidence intervals.
 
 ```bash
-friedman forecast vecm data.csv --horizons=12
-friedman forecast vecm data.csv --rank=2 --deterministic=constant --lags=4
-friedman forecast vecm data.csv --confidence=0.90 --replications=1000
+friedman forecast var vecm data.csv --horizons=12
+friedman forecast var vecm data.csv --rank=2 --deterministic=constant --lags=4
+friedman forecast var vecm data.csv --confidence=0.90 --replications=1000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -432,7 +432,7 @@ validated per leaf (e.g. `dm` requires exactly 2) → usage error; unknown colum
 `data/bad-column`; result length mismatch → `data/shape`.
 
 These result types are not Tables.jl-registered upstream, so their tables are
-hand-built (a documented C051 exception, like the `io` and `estimate sur/3sls`
+hand-built (a documented C051 exception, like the `io` and `estimate regression sur/3sls`
 families): the test leaves emit a `metric | value` key–value table, `metrics` emits
 a wide accuracy table plus the Theil decomposition, and `combine` emits a
 `model | weight | mse` table.
@@ -553,4 +553,4 @@ Combine ≥2 forecasts into one series.
 
 ## See Also
 
-For FAVAR forecasting, see [favar & sdfm](favar.md#forecast-favar); for Structural DFM forecasting, see [forecast sdfm](favar.md#forecast-sdfm). For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).
+For FAVAR forecasting, see [favar & sdfm](favar.md#forecast-favar); for Structural DFM forecasting, see [forecast factor sdfm](favar.md#forecast-sdfm). For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).

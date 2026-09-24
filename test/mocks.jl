@@ -1531,7 +1531,7 @@ function lp_iv_irf(model::LPIVModel; conf_level=0.95)
     LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
 end
 # Real returns (F_stats, weak_horizons, min_F, passes_threshold, threshold) — there is NO
-# `F_stat`/`is_weak`. The old mock invented both, so `estimate lp --method iv` passed T1/T2
+# `F_stat`/`is_weak`. The old mock invented both, so `estimate var lp --method iv` passed T1/T2
 # while exiting 1 on every real invocation (W10/#112). Mirror real's tuple exactly.
 function weak_instrument_test(model::LPIVModel; threshold=10.0)
     F_stats = model.first_stage_F
@@ -5423,7 +5423,7 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
 end
 
 # Real MEMs defines StatsAPI.residuals for all three nonlinear types (nonlinear/types.jl:256,
-# :450, :618) — these mirror it so `residuals setar|star|ms-ar|ms` are exercised at T1/T2.
+# :450, :618) — these mirror it so `residuals regime setar|star|ms-ar|ms` are exercised at T1/T2.
 # Defined HERE, after all three structs: the mock is one flat module included top-to-bottom and
 # a method signature resolves its types immediately, so a forward reference is an include-time
 # UndefVarError. Still NO `predict` for ThresholdModel/STARModel — real has none for those, and
@@ -5844,14 +5844,15 @@ function estimate_structural_dfm(X::Matrix{T}, q::Int;
     B_fvar = ones(T, q * p + 1, q) * T(0.1)
     U_fvar = randn(T, n_obs - p, q)
     Sigma_fvar = Matrix{T}(I(q)) * T(0.5)
-    # Real names the factor VAR "Factor $i" — fevd sdfm labels come from here.
+    # Real names the factor VAR "Static factor $i" — fevd/hd sdfm labels
+    # come from here (verified at MEMs 1.0.0 against the fglr estimate path).
     fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0),
-                       T(-45.0), ["Factor $i" for i in 1:q])
+                       T(-45.0), ["Static factor $i" for i in 1:q])
     B0 = Matrix{T}(I(q))
     Q_mat = Matrix{T}(I(q))
     loadings_td = randn(T, n_vars, q)
     s_irf = ones(T, H + 1, n_vars, q) * T(0.05)
-    snames = ["structural_shock_$i" for i in 1:q]
+    snames = ["Shock $i" for i in 1:q]
     StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames, vn)
 end
 
@@ -5886,10 +5887,40 @@ function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
     ImpulseResponse(vals, nothing, nothing, h, copy(sdfm.varnames), sdfm.shock_names, :structural_dfm)
 end
 
-# Real delegates to the factor VAR (favar/analysis.jl) — labels are "Factor $i".
+# Real delegates to the factor VAR (favar/analysis.jl) — labels are "Static factor $i".
 # No kwargs absorber: the CLI never forwards kwargs here, and mock ⊆ real means
 # stricter is the safe direction (keeps the check_mock_surface absorber budget flat).
 fevd(sdfm::StructuralDFM{T}, horizon::Int) where T = fevd(sdfm.factor_var, horizon)
+
+# Real (favar/analysis.jl): HistoricalDecomposition{T}, same type as the VAR
+# path. Panel space: N variables x (q + include) shocks with an Idiosyncratic
+# column; factor space: q Factor-i variables x q shocks. The shocks matrix
+# always carries q+1 columns (real hcat's the idiosyncratic aggregate even
+# when include_idiosyncratic=false); the horizon is capped at T_eff.
+function historical_decomposition(sdfm::StructuralDFM{T}, horizon::Int;
+        space::Symbol=:panel, include_idiosyncratic::Bool=true) where T
+    space in (:panel, :factor) ||
+        throw(ArgumentError("space must be :panel or :factor, got :$space"))
+    q = length(sdfm.shock_names)
+    n = length(sdfm.varnames)
+    T_eff = min(horizon, size(sdfm.factor_var.Y, 1))
+    if space === :panel
+        n_vars, n_shocks = n, include_idiosyncratic ? q + 1 : q
+        variables = sdfm.varnames
+        snames = include_idiosyncratic ? [sdfm.shock_names; "Idiosyncratic"] :
+                                         copy(sdfm.shock_names)
+    else
+        n_vars, n_shocks = q, q
+        variables = sdfm.factor_var.varnames
+        snames = copy(sdfm.shock_names)
+    end
+    contribs = ones(T, T_eff, n_vars, n_shocks) * T(0.1)
+    initial = ones(T, T_eff, n_vars) * T(0.01)
+    actual = ones(T, T_eff, n_vars)
+    shocks_mat = ones(T, T_eff, q + 1)
+    HistoricalDecomposition{T}(contribs, initial, actual, shocks_mat, T_eff,
+        variables, snames, sdfm.identification)
+end
 
 # Real (favar/analysis.jl): panel forecast from a Structural DFM → FactorForecast.
 # Defined here (after the struct) because mocks.jl is one flat top-to-bottom

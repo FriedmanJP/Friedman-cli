@@ -77,14 +77,16 @@ struct LeafCommand
     options::Vector{Option}
     flags::Vector{Flag}
     description::String
+    family::String
 end
 
 LeafCommand(name::String, handler::Function;
     args::Vector{Argument}=Argument[],
     options::Vector{Option}=Option[],
     flags::Vector{Flag}=Flag[],
-    description::String="") =
-    LeafCommand(name, handler, args, options, flags, description)
+    description::String="",
+    family::String="") =
+    LeafCommand(name, handler, args, options, flags, description, family)
 
 """
     NodeCommand(name, subcmds, description)

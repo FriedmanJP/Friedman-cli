@@ -11,18 +11,18 @@ include(joinpath(@__DIR__, "runtests.jl"))
 # dgp_*, run_json, assert_envelope_ok, first_table already defined
 
 @testset "Integration full extras (TS-7)" begin
-    @testset "estimate arch" begin
+    @testset "estimate volatility arch" begin
         csv = dgp_garch(; T=300, seed=101)
-        r = run_json(["estimate", "arch", csv, "--column", "1", "--q", "1"])
-        assert_envelope_ok(r; label="estimate arch")
+        r = run_json(["estimate", "volatility", "arch", csv, "--column", "1", "--q", "1"])
+        assert_envelope_ok(r; label="estimate volatility arch")
         rm(csv; force=true)
     end
 
-    @testset "estimate egarch" begin
+    @testset "estimate volatility egarch" begin
         csv = dgp_garch(; T=300, seed=102)
-        r = run_json(["estimate", "egarch", csv, "--column", "1", "--p", "1", "--q", "1"])
+        r = run_json(["estimate", "volatility", "egarch", csv, "--column", "1", "--p", "1", "--q", "1"])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
-            assert_envelope_ok(r; label="estimate egarch")
+            assert_envelope_ok(r; label="estimate volatility egarch")
         else
             @info "egarch soft-fail" code=r.code
             @test true
@@ -30,24 +30,24 @@ include(joinpath(@__DIR__, "runtests.jl"))
         rm(csv; force=true)
     end
 
-    @testset "estimate probit" begin
+    @testset "estimate choice probit" begin
         csv = dgp_logit(; T=350, seed=103)
-        r = run_json(["estimate", "probit", csv, "--dep", "y"])
-        assert_envelope_ok(r; label="estimate probit")
+        r = run_json(["estimate", "choice", "probit", csv, "--dep", "y"])
+        assert_envelope_ok(r; label="estimate choice probit")
         rm(csv; force=true)
     end
 
-    @testset "predict var" begin
+    @testset "predict var var" begin
         csv = dgp_var2(; T=120, seed=104)
-        r = run_json(["predict", "var", csv, "--lags", "1"])
-        assert_envelope_ok(r; label="predict var")
+        r = run_json(["predict", "var", "var", csv, "--lags", "1"])
+        assert_envelope_ok(r; label="predict var var")
         rm(csv; force=true)
     end
 
-    @testset "residuals var" begin
+    @testset "residuals var var" begin
         csv = dgp_var2(; T=120, seed=105)
-        r = run_json(["residuals", "var", csv, "--lags", "1"])
-        assert_envelope_ok(r; label="residuals var")
+        r = run_json(["residuals", "var", "var", csv, "--lags", "1"])
+        assert_envelope_ok(r; label="residuals var var")
         rm(csv; force=true)
     end
 
@@ -89,18 +89,18 @@ include(joinpath(@__DIR__, "runtests.jl"))
         rm(csv; force=true)
     end
 
-    @testset "test pp" begin
+    @testset "test unit-root pp" begin
         csv = dgp_ar1(; T=200, φ=0.3, seed=110)
-        r = run_json(["test", "pp", csv, "--column", "1"])
-        assert_envelope_ok(r; label="test pp")
+        r = run_json(["test", "unit-root", "pp", csv, "--column", "1"])
+        assert_envelope_ok(r; label="test unit-root pp")
         rm(csv; force=true)
     end
 
-    @testset "test ljung-box" begin
+    @testset "test serial ljung-box" begin
         csv = dgp_ar1(; T=150, φ=0.2, seed=111)
-        r = run_json(["test", "ljung-box", csv, "--column", "1"])
+        r = run_json(["test", "serial", "ljung-box", csv, "--column", "1"])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
-            assert_envelope_ok(r; label="test ljung-box")
+            assert_envelope_ok(r; label="test serial ljung-box")
         else
             @info "ljung-box soft-fail" code=r.code
             @test true
@@ -108,11 +108,11 @@ include(joinpath(@__DIR__, "runtests.jl"))
         rm(csv; force=true)
     end
 
-    @testset "test arch-lm" begin
+    @testset "test serial arch-lm" begin
         csv = dgp_garch(; T=250, seed=112)
-        r = run_json(["test", "arch-lm", csv, "--column", "1"])
+        r = run_json(["test", "serial", "arch-lm", csv, "--column", "1"])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
-            assert_envelope_ok(r; label="test arch-lm")
+            assert_envelope_ok(r; label="test serial arch-lm")
         else
             @info "arch-lm soft-fail" code=r.code
             @test true
@@ -146,9 +146,9 @@ include(joinpath(@__DIR__, "runtests.jl"))
 
     @testset "estimate static factor" begin
         csv = dgp_var2(; T=150, seed=115)
-        r = run_json(["estimate", "static", csv, "--nfactors", "1"])
+        r = run_json(["estimate", "factor", "static", csv, "--nfactors", "1"])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
-            assert_envelope_ok(r; label="estimate static")
+            assert_envelope_ok(r; label="estimate factor static")
         else
             @info "static factor soft-fail" code=r.code
             @test true
@@ -157,7 +157,7 @@ include(joinpath(@__DIR__, "runtests.jl"))
     end
 
     @testset "schema command is JSON" begin
-        r = run_json(["schema", "estimate", "var"]; quiet=false)
+        r = run_json(["schema", "estimate", "var", "var"]; quiet=false)
         # schema may not use envelope — accept exit 0 + parseable JSON
         @test r.code == 0 || r.doc !== nothing || occursin("{", r.raw)
         if !isempty(strip(r.raw))

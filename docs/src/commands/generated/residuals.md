@@ -5,7 +5,426 @@ Generated reference for `friedman residuals` and its subcommands.
 
 **Leaves:** 40
 
-### `friedman residuals 3sls`
+### `friedman residuals choice logit`
+
+Model residuals (logit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `logit_residuals` (Response residuals y - p, one row per observation)
+
+---
+
+### `friedman residuals choice mlogit`
+
+Model residuals (mlogit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `multinomial_logit_residuals` (Per-alternative residuals (response, pearson or deviance per --kind))
+
+---
+
+### `friedman residuals choice nbreg`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--maxiter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `negative_binomial_residuals` (Negative binomial residuals, one row per observation)
+
+---
+
+### `friedman residuals choice ologit`
+
+Model residuals (ologit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
+
+**Output tables:** `ordered_logit_residuals` (Per-category residuals (response, pearson or deviance per --kind)); `ordered_logit_generalized_residuals` (Length-n Chesher-Irish score residual (--generalized))
+
+---
+
+### `friedman residuals choice oprobit`
+
+Model residuals (oprobit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
+
+**Output tables:** `ordered_probit_residuals` (Per-category residuals (response, pearson or deviance per --kind)); `ordered_probit_generalized_residuals` (Length-n Chesher-Irish score residual (--generalized))
+
+---
+
+### `friedman residuals choice poisson`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
+| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
+| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `poisson_residuals` (Poisson residuals, one row per observation)
+
+---
+
+### `friedman residuals choice probit`
+
+Model residuals (probit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `probit_residuals` (Response residuals y - p, one row per observation)
+
+---
+
+### `friedman residuals factor dynamic`
+
+Model residuals (dynamic)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
+| `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `dynamic_factor_idiosyncratic_component` (Idiosyncratic component of the dynamic factor model, one column per series)
+
+---
+
+### `friedman residuals factor gdfm`
+
+Model residuals (gdfm)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--nfactors` | — | `Int64` | — | — | Number of static factors (unused when --dynamic-rank set) |
+| `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `gdfm_idiosyncratic_component` (Idiosyncratic component of the generalized dynamic factor model, one column per series)
+
+---
+
+### `friedman residuals factor static`
+
+Model residuals (static)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `static_factor_idiosyncratic_component` (Idiosyncratic component of the static factor model, one column per series)
+
+---
+
+### `friedman residuals panel piv`
+
+Model residuals (piv)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--method` | `-m` | `String` | `fe` | — | Estimation method |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `panel_iv_residuals` (Panel IV residuals, one row per observation)
+
+---
+
+### `friedman residuals panel plogit`
+
+Model residuals (plogit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--method` | `-m` | `String` | `fe` | — | Estimation method |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `panel_logit_residuals` (Panel logit residuals, one row per observation)
+
+---
+
+### `friedman residuals panel pprobit`
+
+Model residuals (pprobit)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--method` | `-m` | `String` | `fe` | — | Estimation method |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `panel_probit_residuals` (Panel probit residuals, one row per observation)
+
+---
+
+### `friedman residuals panel preg`
+
+Model residuals (preg)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
+| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--method` | `-m` | `String` | `fe` | — | Estimation method |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `panel_regression_residuals` (Panel regression residuals, one row per observation)
+
+---
+
+### `friedman residuals regime ms`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
+| `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
+| `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
+
+**Output tables:** `ms_regression_residuals` (MS regression residuals (smoothed-probability weighted), one row per observation)
+
+---
+
+### `friedman residuals regime ms-ar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
+| `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
+
+**Output tables:** `ms_ar_residuals` (MS-AR residuals (smoothed-probability weighted), one row per effective period)
+
+---
+
+### `friedman residuals regime setar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `setar_residuals` (SETAR residuals, one row per effective period)
+
+---
+
+### `friedman residuals regime star`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
+| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
+| `--n-gamma` | — | `Int64` | `15` | — | Grid points for the γ start values (≥ 2) |
+| `--n-c` | — | `Int64` | `15` | — | Grid points for the c start values (≥ 2) |
+| `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `star_residuals` (STAR residuals, one row per effective period)
+
+---
+
+### `friedman residuals regression 3sls`
 
 Path to CSV data file
 
@@ -32,7 +451,29 @@ Path to CSV data file
 
 ---
 
-### `friedman residuals aparch`
+### `friedman residuals regression reg`
+
+Model residuals (reg)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--weights` | — | `String` | `""` | — | Weights column |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `reg_residuals` (OLS/WLS residuals, one row per observation)
+
+---
+
+### `friedman residuals regression statespace`
 
 Path to CSV data file
 
@@ -43,21 +484,24 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
-| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
+| `--kind` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | State-space model |
+| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Diffuse initialisation |
+| `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
-**Output tables:** `aparch_standardized_residuals` (Standardized residuals, one row per period)
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--standardized` | — | Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t |
+
+**Output tables:** `state_space_innovations` (Long one-step prediction errors: one row per (period, series), raw or standardized)
 
 ---
 
-### `friedman residuals arch`
+### `friedman residuals regression sur`
 
-Model residuals (arch)
+Path to CSV data file
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -65,16 +509,24 @@ Model residuals (arch)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--config` | — | `String` | `""` | — | TOML with [[equations]] blocks (required) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
-**Output tables:** `arch_standardized_residuals` (Standardized residuals, one row per period)
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--iterate` | — | Iterate the SUR feasible-GLS step to convergence |
+| `--no-intercept` | — | Do not add an intercept to each equation |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `sur_residuals_per_equation` (Long per-equation residuals: one row per (equation, observation))
 
 ---
 
-### `friedman residuals arfima`
+### `friedman residuals univariate arfima`
 
 Path to CSV data file
 
@@ -98,7 +550,7 @@ Path to CSV data file
 
 ---
 
-### `friedman residuals arima`
+### `friedman residuals univariate arima`
 
 Model residuals (arima)
 
@@ -117,606 +569,7 @@ Model residuals (arima)
 
 ---
 
-### `friedman residuals bvar`
-
-Model residuals (bvar)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | Sampler |
-| `--config` | — | `String` | `""` | — | TOML prior config |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `bvar_residuals` (BVAR residuals at the posterior mean, one column per variable)
-
----
-
-### `friedman residuals cgarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `cgarch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals dynamic`
-
-Model residuals (dynamic)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
-| `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `dynamic_factor_idiosyncratic_component` (Idiosyncratic component of the dynamic factor model, one column per series)
-
----
-
-### `friedman residuals egarch`
-
-Model residuals (egarch)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `egarch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals favar`
-
-Model residuals (favar)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
-| `--key-vars` | — | `String` | `""` | — | Key variables |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `favar_residuals` (FAVAR residuals, one column per factor and observed variable)
-
----
-
-### `friedman residuals fiegarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
-| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `fiegarch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals figarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
-| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `figarch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals garch`
-
-Model residuals (garch)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `garch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals garch-midas`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
-| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
-| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
-| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
-| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `garch_midas_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals gdfm`
-
-Model residuals (gdfm)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--nfactors` | — | `Int64` | — | — | Number of static factors (unused when --dynamic-rank set) |
-| `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `gdfm_idiosyncratic_component` (Idiosyncratic component of the generalized dynamic factor model, one column per series)
-
----
-
-### `friedman residuals gjr-garch`
-
-Model residuals (gjr-garch)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `gjr_garch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals igarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `igarch_standardized_residuals` (Standardized residuals, one row per period)
-
----
-
-### `friedman residuals logit`
-
-Model residuals (logit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `logit_residuals` (Response residuals y - p, one row per observation)
-
----
-
-### `friedman residuals mlogit`
-
-Model residuals (mlogit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `multinomial_logit_residuals` (Per-alternative residuals (response, pearson or deviance per --kind))
-
----
-
-### `friedman residuals ms`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
-
-**Output tables:** `ms_regression_residuals` (MS regression residuals (smoothed-probability weighted), one row per observation)
-
----
-
-### `friedman residuals ms-ar`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
-| `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
-
-**Output tables:** `ms_ar_residuals` (MS-AR residuals (smoothed-probability weighted), one row per effective period)
-
----
-
-### `friedman residuals nbreg`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
-| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
-| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--maxiter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `negative_binomial_residuals` (Negative binomial residuals, one row per observation)
-
----
-
-### `friedman residuals ologit`
-
-Model residuals (ologit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
-
-**Output tables:** `ordered_logit_residuals` (Per-category residuals (response, pearson or deviance per --kind)); `ordered_logit_generalized_residuals` (Length-n Chesher-Irish score residual (--generalized))
-
----
-
-### `friedman residuals oprobit`
-
-Model residuals (oprobit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
-
-**Output tables:** `ordered_probit_residuals` (Per-category residuals (response, pearson or deviance per --kind)); `ordered_probit_generalized_residuals` (Length-n Chesher-Irish score residual (--generalized))
-
----
-
-### `friedman residuals piv`
-
-Model residuals (piv)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `panel_iv_residuals` (Panel IV residuals, one row per observation)
-
----
-
-### `friedman residuals plogit`
-
-Model residuals (plogit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `panel_logit_residuals` (Panel logit residuals, one row per observation)
-
----
-
-### `friedman residuals poisson`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
-| `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
-| `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `poisson_residuals` (Poisson residuals, one row per observation)
-
----
-
-### `friedman residuals pprobit`
-
-Model residuals (pprobit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `panel_probit_residuals` (Panel probit residuals, one row per observation)
-
----
-
-### `friedman residuals preg`
-
-Model residuals (preg)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `panel_regression_residuals` (Panel regression residuals, one row per observation)
-
----
-
-### `friedman residuals probit`
-
-Model residuals (probit)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `probit_residuals` (Response residuals y - p, one row per observation)
-
----
-
-### `friedman residuals reg`
-
-Model residuals (reg)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--weights` | — | `String` | `""` | — | Weights column |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `reg_residuals` (OLS/WLS residuals, one row per observation)
-
----
-
-### `friedman residuals sarima`
+### `friedman residuals univariate sarima`
 
 Path to CSV data file
 
@@ -754,31 +607,9 @@ Path to CSV data file
 
 ---
 
-### `friedman residuals setar`
+### `friedman residuals var bvar`
 
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
-| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
-| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `setar_residuals` (SETAR residuals, one row per effective period)
-
----
-
-### `friedman residuals star`
-
-Path to CSV data file
+Model residuals (bvar)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -786,96 +617,27 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
-| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
-| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
-| `--n-gamma` | — | `Int64` | `15` | — | Grid points for the γ start values (≥ 2) |
-| `--n-c` | — | `Int64` | `15` | — | Grid points for the c start values (≥ 2) |
-| `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `star_residuals` (STAR residuals, one row per effective period)
-
----
-
-### `friedman residuals statespace`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--kind` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | State-space model |
-| `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Diffuse initialisation |
-| `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--standardized` | — | Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t |
-
-**Output tables:** `state_space_innovations` (Long one-step prediction errors: one row per (period, series), raw or standardized)
-
----
-
-### `friedman residuals static`
-
-Model residuals (static)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
+| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--sampler` | — | `String` | `direct` | — | Sampler |
+| `--config` | — | `String` | `""` | — | TOML prior config |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `static_factor_idiosyncratic_component` (Idiosyncratic component of the static factor model, one column per series)
-
----
-
-### `friedman residuals sur`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [[equations]] blocks (required) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--iterate` | — | Iterate the SUR feasible-GLS step to convergence |
-| `--no-intercept` | — | Do not add an intercept to each equation |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `sur_residuals_per_equation` (Long per-equation residuals: one row per (equation, observation))
+**Output tables:** `bvar_residuals` (BVAR residuals at the posterior mean, one column per variable)
 
 ---
 
-### `friedman residuals sv`
+### `friedman residuals var favar`
 
-Model residuals (sv)
+Model residuals (favar)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -883,16 +645,18 @@ Model residuals (sv)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--factors` | `-r` | `Int64` | — | — | Number of factors |
+| `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
+| `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
-**Output tables:** `sv_standardized_residuals` (Standardized residuals, one row per period)
+**Output tables:** `favar_residuals` (FAVAR residuals, one column per factor and observed variable)
 
 ---
 
-### `friedman residuals var`
+### `friedman residuals var var`
 
 Model residuals (var)
 
@@ -911,7 +675,7 @@ Model residuals (var)
 
 ---
 
-### `friedman residuals vecm`
+### `friedman residuals var vecm`
 
 Model residuals (vecm)
 
@@ -928,6 +692,242 @@ Model residuals (vecm)
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `vecm_residuals` (VECM residuals (via the VAR representation), one column per variable)
+
+---
+
+### `friedman residuals volatility aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
+| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `aparch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility arch`
+
+Model residuals (arch)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `arch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `cgarch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility egarch`
+
+Model residuals (egarch)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `egarch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `fiegarch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `figarch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility garch`
+
+Model residuals (garch)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `garch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `garch_midas_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility gjr-garch`
+
+Model residuals (gjr-garch)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `gjr_garch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `igarch_standardized_residuals` (Standardized residuals, one row per period)
+
+---
+
+### `friedman residuals volatility sv`
+
+Model residuals (sv)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `sv_standardized_residuals` (Standardized residuals, one row per period)
 
 ---
 

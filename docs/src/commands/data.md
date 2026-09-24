@@ -19,7 +19,7 @@ it before (additive 0.x).
   An **edit** of a CSV with `-o out.jld2` is `usage/invalid` (import first).
   Omitting `--save-model` means do not save (no default stem).
 - **Wrong kind:** a handle whose type is not in the leaf's `data_kinds` is
-  `data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate var`, a raw CSV
+  `data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate var var`, a raw CSV
   on `data export`, or `apply_tcode` on `CrossSectionData`.
 
 | Input | `-o` | Writes |
@@ -733,7 +733,7 @@ dataset, and both separator spellings resolve to the same set:
 
 ```bash
 friedman data describe :fred_md      # equivalently :fred-md, fred_md, fred-md
-friedman test cips :grunfeld --id-col=group --time-col=time
+friedman test unit-root cips :grunfeld --id-col=group --time-col=time
 ```
 
 Panel datasets expose their identifiers as leading `group` and `time` columns, so panel

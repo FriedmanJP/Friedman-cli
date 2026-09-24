@@ -1,6 +1,6 @@
 # hd
 
-Compute historical decomposition of shocks across `var`, `bvar`, `lp`, `vecm`, and `favar`.
+Compute historical decomposition of shocks across `var`, `bvar`, `lp`, `vecm`, `favar`, and `sdfm`.
 
 Historical decomposition decomposes observed data into contributions from each structural shock plus initial conditions.
 
@@ -113,11 +113,41 @@ friedman hd favar data.csv --lags=2 --key-vars=GDP,CPI,FFR
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
+## hd sdfm
+
+Structural DFM historical decomposition. Estimation shares the `estimate`/`irf`/`fevd` SDFM surface (`--factors`, `--id`, `--q-method`, `--method`, `--spectral`, `--instrument`, `--var-lags`); decomposition uses the identification stored at estimation. `--space panel` (default) decomposes the N panel variables into q structural shocks plus an idiosyncratic column; `--space factor` decomposes the q factors (no idiosyncratic column, so `--no-idiosyncratic` is rejected there).
+
+```bash
+friedman hd sdfm data.csv --factors=2 --horizons=20
+friedman hd sdfm data.csv --factors=2 --space=factor
+friedman hd sdfm data.csv --factors=2 --no-idiosyncratic
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--factors` | `-q` | Int | auto | Number of dynamic factors |
+| `--var-lags` | | Int | 1 | Factor VAR lag order |
+| `--id` | | String | `cholesky` | Identification at estimation |
+| `--method` | | String | `fglr` | `fglr`, `gdfm-var` |
+| `--spectral` | | String | `lag-window` | `lag-window`, `smoothed-periodogram` |
+| `--q-method` | | String | `hallin-liska` | Auto factor selection |
+| `--instrument` | | String | | Proxy-instrument column (only with `--id proxy`) |
+| `--horizons` | | Int | 20 | HD horizon (periods decomposed) |
+| `--space` | | String | `panel` | `panel`, `factor` |
+| `--no-idiosyncratic` | | Flag | | Drop the idiosyncratic column (panel space only) |
+| `--config` | | String | | TOML config for sign restrictions |
+| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
+| `--output` | `-o` | String | | Export file path |
+| `--plot` | | Flag | | Open interactive plot in browser |
+| `--plot-save` | | String | | Save plot to HTML file |
+
+**Output:** Per-variable table with columns: period, actual value, initial conditions, contribution from each shock (plus `contrib_Idiosyncratic` in panel space unless `--no-idiosyncratic`). Includes decomposition verification.
+
 ## Coverage audit (re-audited at MEMs 1.0.0)
 
 | Leaf | Status | Reason |
 |------|--------|--------|
 | `hd pvar` | **Not shipped** | MEMs `historical_decomposition` still has no method for `PVARModel` at 1.0.0 (only the private `_pvar_fevd_decomp` FEVD helper) |
-| `hd sdfm` | **Wrappable — follow-up** | `historical_decomposition(::StructuralDFM)` exists at 1.0.0 (`space=:panel|:factor`, `include_idiosyncratic`); no CLI leaf yet — ship as a rider |
+| `hd sdfm` | **Shipped** | `historical_decomposition(::StructuralDFM)` wrapped with `--space panel\|factor` and `--no-idiosyncratic` |
 
 When upstream adds a method, ship the leaf as a rider. Do not invent CLI wrappers over unsupported APIs.

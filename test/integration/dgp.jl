@@ -383,7 +383,7 @@ end
 `m*Tlf`) drives a low-frequency target `y = a + b·Σ_k w_k x_{HF-lag k} + e` through a known
 exp-Almon weight curve (θ=(θ₁,θ₂), decaying, sums to 1). Returns `(lf_csv, hf_csv, b)`: the LF
 target CSV (column `gdp`), the HF indicator CSV (column `ip`, exactly `m` obs per LF period), and
-the true HF loading `b`. Used to check `estimate midas` recovers a positive, finite HF loading
+the true HF loading `b`. Used to check `estimate univariate midas` recovers a positive, finite HF loading
 and a sensible R² (loose — restricted MIDAS NLS is noisy)."""
 function dgp_midas(; Tlf::Int=120, m::Int=3, K::Int=6, a::Float64=1.0, b::Float64=2.0,
                     θ1::Float64=0.3, θ2::Float64=-0.08, seed::Int=42)
@@ -412,7 +412,7 @@ end
 """Genuine two-regime THRESHOLD REGRESSION with an EXTERNAL splitting variable (#70):
 yᵢ = β(zᵢ)·x1ᵢ + 0.5·x2ᵢ + εᵢ, with β = +2 when zᵢ ≤ 0 and β = −2 when zᵢ > 0, and z drawn
 independently of the regressors. The sign flip at the TRUE threshold γ = 0 is what makes
-this a real recovery test rather than a shape smoke test: `estimate threshold` must land γ̂
+this a real recovery test rather than a shape smoke test: `estimate regime threshold` must land γ̂
 near 0 (with 0 inside the Hansen 2000 CI), report ≈ +2 / −2 for x1 in the two regimes, and
 ≈ 0.5 for the regime-invariant x2. Columns: y, x1, x2, z."""
 function dgp_threshold(; n::Int=400, seed::Int=42)
@@ -440,7 +440,7 @@ end
 """Genuine self-exciting LSTAR: yₜ = (1−Gₜ)·0.8 yₜ₋₁ + Gₜ·(−0.4 yₜ₋₁) + εₜ, where the
 logistic weight Gₜ = 1/(1+exp(−5·yₜ₋₁)) switches smoothly in yₜ₋₁. The strong asymmetry
 (0.8 vs −0.4) makes the series clearly nonlinear → the STAR LM3 test rejects linearity and
-`estimate star` recovers a nonzero γ̂ with lm3_pvalue < 0.10 (loose direction only)."""
+`estimate regime star` recovers a nonzero γ̂ with lm3_pvalue < 0.10 (loose direction only)."""
 function dgp_star(; n::Int=400, seed::Int=42)
     rng = MersenneTwister(seed)
     burn = 100
@@ -456,8 +456,8 @@ end
 """Genuine 2-regime mean-switching series: a latent 2-state Markov chain (sticky, stay
 probability 0.95) drives the level μ ∈ {−3, 3} with a common AR(1) φ = 0.5 and unit-variance
 Gaussian noise, `(yₜ − μ_{sₜ}) = 0.5·(y_{t−1} − μ_{s_{t−1}}) + εₜ`. The wide, well-separated
-means make the two regimes recoverable → `estimate ms-ar` converges to an ordered `mu` with a
-row-stochastic P, and `estimate ms` (intercept-only on the same series) recovers two distinct
+means make the two regimes recoverable → `estimate regime ms-ar` converges to an ordered `mu` with a
+row-stochastic P, and `estimate regime ms` (intercept-only on the same series) recovers two distinct
 regime means. Loose/direction-only teeth (EM is noisy)."""
 function dgp_msar(; n::Int=500, seed::Int=42)
     rng = MersenneTwister(seed)
@@ -521,7 +521,7 @@ end
 # ── C067 remainder (#72): cross-section OLS diagnostic DGPs ──────────────────
 
 """Cross-section OLS design with an explicit `const` column (the CLI prepends no
-intercept — same convention as `estimate reg`). `hetero=true` gives the error the
+intercept — same convention as `estimate regression reg`). `hetero=true` gives the error the
 multiplicative form `sigma_i = exp(gamma*x1_i)` — MONOTONE in `x1`, which is what
 Glejser (|resid| on X) and Harvey (log resid^2 on X) can actually detect; a variance
 even in `x1` (e.g. scaling by |x1|) leaves both with a ~zero slope and they do not

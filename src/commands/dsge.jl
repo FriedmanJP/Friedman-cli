@@ -1631,11 +1631,11 @@ function dsge_specs()::Vector{CommandSpec}
     ]
 end
 
-function register_dsge_commands!()
+function _prepared_dsge_specs()
     # --save-model on the solution-returning leaves (W3/#167 adds the HA pair +
     # bayes estimate: HASteadyState / HADSGESolution / KrusellSmithSolution /
     # BayesianDSGE are all natively registered at MEMs 0.9.3, so they persist
-    # via .jld2 — the retired .fmod carve-out).
+    # via .jld2 — the retired .fmod carve-out). Matched on the pre-promotion path.
     specs = map(dsge_specs()) do s
         s.path in (["dsge", "solve"], ["dsge", "ha", "solve"],
                    ["dsge", "ha", "steady-state"],
@@ -1649,9 +1649,13 @@ function register_dsge_commands!()
             push!(out, s)
         end
     end
-    out = with_default_csv_kinds(out)
-    register!(out)
-    return build_node("dsge", out; description="DSGE models: RA, Bayesian, HA, CT, OLG, DCEGM, lifecycle, firm, bank")
+    return CommandSpec[_finalize_spec(s) for s in with_default_csv_kinds(out)]
+end
+
+function register_dsge_commands!()
+    stay = register!(filter(s -> s.path[1] == "dsge", _prepared_dsge_specs()))
+    return build_node("dsge", stay;
+        description="DSGE models: representative-agent, Bayesian, continuous-time, OLG, DCEGM, lifecycle, firm, bank")
 end
 
 

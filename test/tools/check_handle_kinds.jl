@@ -11,7 +11,7 @@
 # Also fail when a handle=true `--model` has empty model_types, or a handle=true
 # `--result` has empty result_types. Key off `handle`, not the option name:
 # FCEVAL_RESULT_OPTION (handle=false) and string `--model` (data validate,
-# test adf --model=level) stay exempt.
+# test unit-root adf --model=level) stay exempt.
 #
 # Exit 1 on any violation.
 
@@ -48,6 +48,7 @@ include(joinpath(ROOT, "src", "model_handle.jl"))
 include(joinpath(ROOT, "src", "handles.jl"))
 include(joinpath(ROOT, "src", "registry", "spec.jl"))
 include(joinpath(ROOT, "src", "registry", "adapter.jl"))
+include(joinpath(ROOT, "src", "registry", "families.jl"))
 include(joinpath(ROOT, "src", "commands", "estimate.jl"))
 include(joinpath(ROOT, "src", "commands", "test.jl"))
 include(joinpath(ROOT, "src", "commands", "irf.jl"))
@@ -56,10 +57,12 @@ include(joinpath(ROOT, "src", "commands", "hd.jl"))
 include(joinpath(ROOT, "src", "commands", "forecast.jl"))
 include(joinpath(ROOT, "src", "commands", "fitted.jl"))
 include(joinpath(ROOT, "src", "commands", "filter.jl"))
+include(joinpath(ROOT, "src", "commands", "data_simulate.jl"))
 include(joinpath(ROOT, "src", "commands", "data.jl"))
 include(joinpath(ROOT, "src", "commands", "io.jl"))
 include(joinpath(ROOT, "src", "commands", "nowcast.jl"))
 include(joinpath(ROOT, "src", "commands", "dsge.jl"))
+include(joinpath(ROOT, "src", "commands", "hadsge.jl"))
 include(joinpath(ROOT, "src", "commands", "did.jl"))
 include(joinpath(ROOT, "src", "commands", "multipliers.jl"))
 include(joinpath(ROOT, "src", "commands", "policy.jl"))
@@ -84,8 +87,8 @@ register_data_commands!()
 register_io_commands!()
 register_nowcast_commands!()
 register_dsge_commands!()
+register_hadsge_commands!()
 register_did_commands!()
-register_multipliers_commands!()
 register_policy_commands!()
 register_spectral_commands!()
 register_model_commands!()

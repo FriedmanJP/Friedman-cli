@@ -32,7 +32,7 @@ function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
     # Pre-dispatch globals are LEADING-ONLY (#117): they fire only as the FIRST
     # token, before any subcommand path is consumed. The old whole-argv match
     # swallowed a leaf option of the same name — the GPL notice printed instead
-    # of the command running, silently, exit 0 (found in W8; `forecast scenario`
+    # of the command running, silently, exit 0 (found in W8; `forecast var scenario`
     # spells its option `--conditions-file` to dodge the old behaviour).
     if !isempty(args)
         if args[1] == "--version" || args[1] == "-V"
@@ -93,7 +93,26 @@ function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=nod
         return
     end
 
-    throw(DispatchError("$prog: unknown command '$subcmd_name'"))
+    throw(DispatchError(_unknown_command_message(prog, subcmd_name, rest)))
+end
+
+"""
+Usage message for an unknown subcommand. Once the registry's replacement map
+exists (#202), a removed v0.13 spelling names the v1.0.0 path. Engine tests
+include this file before that map, so the fallback is the bare message.
+"""
+function _unknown_command_message(prog::AbstractString, subcmd::AbstractString,
+                                  rest::Vector{String}=String[])
+    if isdefined(@__MODULE__, :_replacement_for)
+        parts = String.(split(String(prog)))
+        consumed = length(parts) <= 1 ? String[] : parts[2:end]
+        tokens = vcat(consumed, [String(subcmd)], rest)
+        newp = _replacement_for(tokens)
+        base = "$prog: unknown command '$subcmd'"
+        newp === nothing && return base
+        return base * " — use `$(join(newp, " "))`"
+    end
+    return "$prog: unknown command '$subcmd'"
 end
 
 """

@@ -42,6 +42,7 @@ include(joinpath(ROOT, "src", "model_handle.jl"))
 include(joinpath(ROOT, "src", "handles.jl"))
 include(joinpath(ROOT, "src", "registry", "spec.jl"))
 include(joinpath(ROOT, "src", "registry", "adapter.jl"))
+include(joinpath(ROOT, "src", "registry", "families.jl"))
 include(joinpath(ROOT, "src", "commands", "estimate.jl"))
 include(joinpath(ROOT, "src", "commands", "test.jl"))
 include(joinpath(ROOT, "src", "commands", "irf.jl"))
@@ -51,10 +52,12 @@ include(joinpath(ROOT, "src", "commands", "forecast.jl"))
 # predict + residuals collapsed into fitted.jl (C025)
 include(joinpath(ROOT, "src", "commands", "fitted.jl"))
 include(joinpath(ROOT, "src", "commands", "filter.jl"))
+include(joinpath(ROOT, "src", "commands", "data_simulate.jl"))
 include(joinpath(ROOT, "src", "commands", "data.jl"))
 include(joinpath(ROOT, "src", "commands", "io.jl"))
 include(joinpath(ROOT, "src", "commands", "nowcast.jl"))
 include(joinpath(ROOT, "src", "commands", "dsge.jl"))
+include(joinpath(ROOT, "src", "commands", "hadsge.jl"))
 include(joinpath(ROOT, "src", "commands", "did.jl"))
 include(joinpath(ROOT, "src", "commands", "multipliers.jl"))
 include(joinpath(ROOT, "src", "commands", "policy.jl"))
@@ -117,10 +120,10 @@ function main()
             (["filter", "bn", fix, "--method", "arima", "--format", "json"], ["filter", "bn"]),
             (["filter", "bk", fix, "--pl", "6", "--pu", "32", "--K", "12", "--format", "json"], ["filter", "bk"]),
             (["filter", "bhp", fix, "--lambda", "1600.0", "--stopping", "BIC", "--format", "json"], ["filter", "bhp"]),
-            # #147: estimate sdfm emits an estimation-record table (was status-only)
-            (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
-            # W1/#165: new forecast sdfm leaf (panel FactorForecast long table)
-            (["forecast", "sdfm", fix, "--factors", "1", "--horizons", "4", "--format", "json"], ["forecast", "sdfm"]),
+            # #147: estimate factor sdfm emits an estimation-record table (was status-only)
+            (["estimate", "factor", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "factor", "sdfm"]),
+            # W1/#165: new forecast factor sdfm leaf (panel FactorForecast long table)
+            (["forecast", "factor", "sdfm", fix, "--factors", "1", "--horizons", "4", "--format", "json"], ["forecast", "factor", "sdfm"]),
         ]
         for (argv, gpath) in cases
             Random.seed!(42)
@@ -144,8 +147,8 @@ function main()
         err_cases = [
             (["filter", "hp", "/nope.csv", "--format", "json"],
              ["filter", "hp", "error"]),
-            (["estimate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
-             ["estimate", "bvar", "config-error"]),
+            (["estimate", "var", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "var", "bvar", "config-error"]),
         ]
         for (argv, gpath) in err_cases
             Random.seed!(42)
@@ -177,8 +180,8 @@ function main()
             Y = reduce(hcat, (sin.(1:40) .+ 0.1 .* cos.((1:40) ./ i) for i in 1:3))
             save_model_dispatch("var.jld2", estimate_var(Y, 1; varnames=["y1", "y2", "y3"]))
             handle_err = [
-                (["estimate", "var", "panel", "--lags", "1", "--format", "json"],
-                 ["estimate", "var", "wrong-kind"]),
+                (["estimate", "var", "var", "panel", "--lags", "1", "--format", "json"],
+                 ["estimate", "var", "var", "wrong-kind"]),
                 (["irf", "var", "--result", "var", "--format", "json"],
                  ["irf", "var", "wrong-result"]),
             ]
@@ -203,7 +206,7 @@ function main()
     end
     # Renderer text goldens (table + csv) — centralized output path
     mktempdir() do dir
-        env = Envelope(command="estimate var")
+        env = Envelope(command="estimate var var")
         add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
         # table
         buf = IOBuffer(); render(env, :table, buf)

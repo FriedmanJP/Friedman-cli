@@ -114,7 +114,7 @@ end
 
 function register_nowcast_commands!()
     specs = with_default_csv_kinds(with_data_kinds(nowcast_specs(), [:timeseries, :csv]))
-    register!(specs)
+    specs = register!(specs)
     return build_node("nowcast", specs;
         description="Nowcasting: DFM, BVAR, bridge equations, news decomposition")
 end

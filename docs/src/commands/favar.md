@@ -8,32 +8,32 @@ FAVAR (Bernanke, Boivin & Eliasz 2005) augments a standard VAR with latent facto
 
 !!! note "Variable labels carry the CSV column names (v0.9.2 / MEMs#538)"
     The CSV column names are threaded onto the estimated models, so output labels are
-    real names rather than positions: `irf|fevd|forecast favar` label the key variables
+    real names rather than positions: `irf|fevd|forecast var favar` label the key variables
     inside the augmented VAR by their column names (`F1, F2, infl, ffr` — previously the
     positional `X9`/`X10`), and `irf sdfm` labels every panel response by its column
     name (previously `Var 1`, `Var 2`, …). `fevd sdfm` decomposes in **factor space**
-    and keeps its `Factor i` labels. `estimate static` stores the names on the
-    `FactorModel` as well. `estimate dynamic` is unchanged — its
+    and keeps its `Factor i` labels. `estimate factor static` stores the names on the
+    `FactorModel` as well. `estimate factor dynamic` is unchanged — its
     upstream estimator accepts no variable names (verified at MEMs 1.0.0; its loadings table
-    was already labelled CLI-side). `estimate gdfm` takes `--spectral` (FHLR lag-window
+    was already labelled CLI-side). `estimate factor gdfm` takes `--spectral` (FHLR lag-window
     default) and `--plot` since v0.12.0.
 
-### estimate favar
+### estimate var favar
 
 Estimate a FAVAR model. Supports two-step (PCA + VAR) and Bayesian (one-step MCMC) estimation.
 
 ```bash
 # Two-step estimation with 3 factors
-friedman estimate favar macro.csv --key-vars=ffr,cpi --factors=3 --lags=4
+friedman estimate var favar macro.csv --key-vars=ffr,cpi --factors=3 --lags=4
 
 # Auto-select factor count via information criteria
-friedman estimate favar macro.csv --key-vars=ffr,cpi
+friedman estimate var favar macro.csv --key-vars=ffr,cpi
 
 # Bayesian estimation
-friedman estimate favar macro.csv --key-vars=ffr,cpi --method=bayesian --draws=10000
+friedman estimate var favar macro.csv --key-vars=ffr,cpi --method=bayesian --draws=10000
 
 # Key vars by column index
-friedman estimate favar macro.csv --key-vars=1,3,5 --factors=4
+friedman estimate var favar macro.csv --key-vars=1,3,5 --factors=4
 ```
 
 | Option | Short | Type | Default | Description |
@@ -126,15 +126,15 @@ friedman hd favar macro.csv --key-vars=ffr,cpi --id=cholesky
 
 **Output:** Per-variable shock contribution tables + initial conditions.
 
-### forecast favar
+### forecast var favar
 
 FAVAR forecasting with optional panel-wide output.
 
 ```bash
-friedman forecast favar macro.csv --key-vars=ffr,cpi --horizons=12
+friedman forecast var favar macro.csv --key-vars=ffr,cpi --horizons=12
 
 # Panel-wide forecast (all N original variables)
-friedman forecast favar macro.csv --key-vars=ffr,cpi --horizons=12 --panel-forecast
+friedman forecast var favar macro.csv --key-vars=ffr,cpi --horizons=12 --panel-forecast
 ```
 
 | Option | Short | Type | Default | Description |
@@ -151,12 +151,12 @@ friedman forecast favar macro.csv --key-vars=ffr,cpi --horizons=12 --panel-forec
 
 **Output:** Tidy table (`horizon|variable|value|lower|upper`, [C051](forecast.md#output-format-c051)). With `--panel-forecast`, `variable` covers all original panel variables.
 
-### predict favar
+### predict var favar
 
 FAVAR in-sample fitted values.
 
 ```bash
-friedman predict favar macro.csv --key-vars=ffr,cpi --factors=3
+friedman predict var favar macro.csv --key-vars=ffr,cpi --factors=3
 ```
 
 | Option | Short | Type | Default | Description |
@@ -169,12 +169,12 @@ friedman predict favar macro.csv --key-vars=ffr,cpi --factors=3
 
 **Output:** In-sample fitted values for each variable.
 
-### residuals favar
+### residuals var favar
 
 FAVAR model residuals.
 
 ```bash
-friedman residuals favar macro.csv --key-vars=ffr,cpi --factors=3
+friedman residuals var favar macro.csv --key-vars=ffr,cpi --factors=3
 ```
 
 | Option | Short | Type | Default | Description |
@@ -191,28 +191,28 @@ friedman residuals favar macro.csv --key-vars=ffr,cpi --factors=3
 
 Structural Dynamic Factor Model (Forni et al. 2009) identifies structural shocks in a dynamic factor framework using Cholesky, sign, or proxy (external-instrument) restrictions. The default estimator is FGLR (2009); `--method gdfm-var` restores the legacy GDFM-factor VAR path. Omitting `--factors` selects the dynamic rank automatically via `--q-method` (Hallin–Liška default; deterministic).
 
-### estimate sdfm
+### estimate factor sdfm
 
 Estimate a Structural DFM.
 
 ```bash
 # Cholesky identification (default)
-friedman estimate sdfm macro.csv --factors=3
+friedman estimate factor sdfm macro.csv --factors=3
 
 # Automatic factor selection via Bai–Ng
-friedman estimate sdfm macro.csv --q-method=bai-ng
+friedman estimate factor sdfm macro.csv --q-method=bai-ng
 
 # Sign restrictions
-friedman estimate sdfm macro.csv --factors=3 --id=sign --config=restrictions.toml
+friedman estimate factor sdfm macro.csv --factors=3 --id=sign --config=restrictions.toml
 
 # Proxy identification with an external instrument column
-friedman estimate sdfm macro.csv --factors=3 --id=proxy --instrument=mp_shock
+friedman estimate factor sdfm macro.csv --factors=3 --id=proxy --instrument=mp_shock
 
 # Legacy estimator + legacy spectrum
-friedman estimate sdfm macro.csv --factors=3 --method=gdfm-var --spectral=smoothed-periodogram
+friedman estimate factor sdfm macro.csv --factors=3 --method=gdfm-var --spectral=smoothed-periodogram
 
 # Custom bandwidth and kernel
-friedman estimate sdfm macro.csv --factors=3 --bandwidth=10 --kernel=parzen
+friedman estimate factor sdfm macro.csv --factors=3 --bandwidth=10 --kernel=parzen
 ```
 
 **Output** (since v0.10.0, #147): an estimation-record table
@@ -296,13 +296,13 @@ friedman fevd sdfm macro.csv --factors=3 --horizons=20
 
 **Output:** Tidy table (`horizon|variable|shock|value`, [C051](fevd.md#output-format-c051)) — factor-space shocks, not panel-wide.
 
-### forecast sdfm
+### forecast factor sdfm
 
 Structural DFM panel forecasting (new in v0.12.0).
 
 ```bash
-friedman forecast sdfm macro.csv --factors=3 --horizons=12
-friedman forecast sdfm macro.csv --horizons=12 --ci=bootstrap --reps=200
+friedman forecast factor sdfm macro.csv --factors=3 --horizons=12
+friedman forecast factor sdfm macro.csv --horizons=12 --ci=bootstrap --reps=200
 ```
 
 | Option | Short | Type | Default | Description |

@@ -4,13 +4,13 @@ Statistical tests: unit root (including Fourier, DF-GLS, LM with breaks, ADF 2-b
 
 ## Unit Root Tests
 
-### test adf
+### test unit-root adf
 
 Augmented Dickey-Fuller unit root test. H0: series has a unit root.
 
 ```bash
-friedman test adf data.csv --column=1 --trend=constant
-friedman test adf data.csv --column=2 --max-lags=8 --trend=trend
+friedman test unit-root adf data.csv --column=1 --trend=constant
+friedman test unit-root adf data.csv --column=2 --max-lags=8 --trend=trend
 ```
 
 | Option | Short | Type | Default | Description |
@@ -23,7 +23,6 @@ friedman test adf data.csv --column=2 --max-lags=8 --trend=trend
 
 **Output:** Test statistic, lags, p-value, rejection decision at 5%.
 
-### test kpss
 Shown on the bundled Nile-flow dataset (`:nile`); status lines go to stderr, JSON below is stdout only.
 
 <!-- capture -->
@@ -67,11 +66,12 @@ friedman test unit-root adf :nile --format json
 }
 ```
 
+### test unit-root kpss
 
 KPSS stationarity test. H0: series is stationary (reversed null compared to ADF).
 
 ```bash
-friedman test kpss data.csv --column=1 --trend=constant
+friedman test unit-root kpss data.csv --column=1 --trend=constant
 ```
 
 | Option | Short | Type | Default | Description |
@@ -81,12 +81,12 @@ friedman test kpss data.csv --column=1 --trend=constant
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-### test pp
+### test unit-root pp
 
 Phillips-Perron unit root test. H0: series has a unit root.
 
 ```bash
-friedman test pp data.csv --column=1
+friedman test unit-root pp data.csv --column=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -96,12 +96,12 @@ friedman test pp data.csv --column=1
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-### test za
+### test unit-root za
 
 Zivot-Andrews unit root test with endogenous structural break.
 
 ```bash
-friedman test za data.csv --column=1 --trend=both --trim=0.15
+friedman test unit-root za data.csv --column=1 --trend=both --trim=0.15
 ```
 
 | Option | Short | Type | Default | Description |
@@ -114,12 +114,12 @@ friedman test za data.csv --column=1 --trend=both --trim=0.15
 
 **Output:** Test statistic, estimated break date.
 
-### test np
+### test unit-root np
 
 Ng-Perron unit root test (MZa, MZt, MSB, MPT statistics).
 
 ```bash
-friedman test np data.csv --column=1 --trend=constant
+friedman test unit-root np data.csv --column=1 --trend=constant
 ```
 
 | Option | Short | Type | Default | Description |
@@ -131,7 +131,7 @@ friedman test np data.csv --column=1 --trend=constant
 
 ## Seasonal, Point-Optimal & Explosive-Bubble Tests
 
-### test hegy
+### test unit-root hegy
 
 HEGY (Hylleberg-Engle-Granger-Yoo) test for **seasonal** unit roots. Rejection is
 per-frequency, so there is **no single p-value**: the output is one row per tested
@@ -140,7 +140,7 @@ statistic is *below* the critical value) and a joint F for each complex harmonic
 (right-tailed) — each with its own 5% critical value and decision.
 
 ```bash
-friedman test hegy data.csv --frequency=4 --deterministic=const-trend-seas
+friedman test unit-root hegy data.csv --frequency=4 --deterministic=const-trend-seas
 ```
 
 | Option | Short | Type | Default | Description |
@@ -156,14 +156,14 @@ friedman test hegy data.csv --frequency=4 --deterministic=const-trend-seas
 (joint seasonal F, F over all roots, deterministic spec, lags). H0 at each frequency
 is a unit root, so `reject` means *no* unit root there.
 
-### test ers
+### test unit-root ers
 
 Elliott-Rothenberg-Stock feasible point-optimal `P_T` test. H0 is a unit root, and a
 **small** `P_T` rejects — read the decision off the reported p-value, not the sign.
 Requires at least 30 observations.
 
 ```bash
-friedman test ers data.csv --trend
+friedman test unit-root ers data.csv --trend
 ```
 
 | Option | Short | Type | Default | Description |
@@ -173,7 +173,7 @@ friedman test ers data.csv --trend
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-### test sadf / test gsadf
+### test stability sadf / test stability gsadf
 
 Phillips-Shi-Yu supremum ADF (`sadf`) and generalized supremum ADF (`gsadf`) tests for
 **explosive / bubble** behaviour. Both report the headline statistic against simulated
@@ -181,7 +181,7 @@ critical values and a table of dated explosive **episodes** (an empty table is a
 answer — no bubble detected).
 
 ```bash
-friedman test gsadf prices.csv --r0=auto --mc-reps=999 --cv=asymptotic
+friedman test stability gsadf prices.csv --r0=auto --mc-reps=999 --cv=asymptotic
 ```
 
 | Option | Short | Type | Default | Description |
@@ -223,7 +223,7 @@ friedman test edf resid.csv --dist=normal --params=specified --theta=0,1
 
 Semiparametric estimators of the fractional integration order `d`. Both test
 H₀: d = 0 (no long memory) with a two-sided normal z. `d > 0` indicates long-memory /
-fractional integration; the estimator is complementary to `estimate arfima`.
+fractional integration; the estimator is complementary to `estimate univariate arfima`.
 
 ### test gph
 
@@ -285,12 +285,12 @@ friedman test variance-ratio data.csv --horizons=2,5,10,20
 
 **Output:** Per-horizon table (`horizon|variance_ratio|z_star|p_value`) + joint Chow-Denning statistic and p-value.
 
-### test bds
+### test serial bds
 
 BDS test (Brock-Dechert-Scheinkman) for independence / nonlinear dependence in a series (often applied to model residuals). H0: the series is iid. Reported per embedding dimension.
 
 ```bash
-friedman test bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
+friedman test serial bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
 ```
 
 | Option | Short | Type | Default | Description |
@@ -305,7 +305,7 @@ friedman test bds data.csv --column=1 --max-dim=6 --eps-frac=0.7
 
 ### test hansen-linearity
 
-Hansen (1996) **sup-LM / sup-Wald test of linearity** against a two-regime SETAR threshold alternative, with fixed-regressor-bootstrap p-values. H0 is that the series is linear (`β₁ = β₂`, no threshold); a **low p-value rejects** linearity in favour of a two-regime self-exciting threshold model. Because the threshold `γ` is unidentified under the null (the Davies problem), the distribution is nonstandard and p-values come from Hansen's fixed-regressor bootstrap, not a χ². The handler builds the SETAR design internally by fitting `estimate_setar(y, p, d; linearity=true)` and surfacing its attached test (identical numbers to a standalone build). This is the same test folded into [`estimate setar`](estimate.md#estimate-setar)'s diagnostics, exposed here as a first-class test leaf.
+Hansen (1996) **sup-LM / sup-Wald test of linearity** against a two-regime SETAR threshold alternative, with fixed-regressor-bootstrap p-values. H0 is that the series is linear (`β₁ = β₂`, no threshold); a **low p-value rejects** linearity in favour of a two-regime self-exciting threshold model. Because the threshold `γ` is unidentified under the null (the Davies problem), the distribution is nonstandard and p-values come from Hansen's fixed-regressor bootstrap, not a χ². The handler builds the SETAR design internally by fitting `estimate_setar(y, p, d; linearity=true)` and surfacing its attached test (identical numbers to a standalone build). This is the same test folded into [`estimate regime setar`](estimate.md#estimate-setar)'s diagnostics, exposed here as a first-class test leaf.
 
 ```bash
 friedman test hansen-linearity y.csv --column=1 --p=1 --d=1
@@ -326,7 +326,7 @@ friedman test hansen-linearity y.csv --p=2 --d=1 --reps=2000
 
 ### test star-linearity
 
-Luukkonen–Saikkonen–Teräsvirta **LM3 test of linearity** against a smooth-transition (STAR) alternative. The auxiliary regression augments the linear AR with the interaction blocks `z̃ₜ·sₜ`, `z̃ₜ·sₜ²`, `z̃ₜ·sₜ³` (the third-order Taylor expansion of the transition weight around `γ = 0`); the LM statistic `n·R² ∼ χ²(3p)` and its better-sized F-form `F(3p, n−4p−1)` test H0 = linearity. A **low p-value rejects** linearity in favour of smooth-transition nonlinearity — the natural companion to [`estimate star`](estimate.md#estimate-star). The transition variable is self-exciting (`sₜ = y_{t−d}`) by default; supply an external series with `--transition-col`.
+Luukkonen–Saikkonen–Teräsvirta **LM3 test of linearity** against a smooth-transition (STAR) alternative. The auxiliary regression augments the linear AR with the interaction blocks `z̃ₜ·sₜ`, `z̃ₜ·sₜ²`, `z̃ₜ·sₜ³` (the third-order Taylor expansion of the transition weight around `γ = 0`); the LM statistic `n·R² ∼ χ²(3p)` and its better-sized F-form `F(3p, n−4p−1)` test H0 = linearity. A **low p-value rejects** linearity in favour of smooth-transition nonlinearity — the natural companion to [`estimate regime star`](estimate.md#estimate-star). The transition variable is self-exciting (`sₜ = y_{t−d}`) by default; supply an external series with `--transition-col`.
 
 ```bash
 friedman test star-linearity y.csv --column=1 --p=1 --d=1
@@ -346,15 +346,15 @@ friedman test star-linearity y.csv --p=2 --transition-col=3
 
 ## Instrumental-Variable Diagnostics
 
-### test weak-instrument
+### test iv weak-instrument
 
-Stock-Yogo weak-instrument diagnostics for a cross-section 2SLS regression. Uses the same data layout as [`estimate iv`](estimate.md#estimate-iv): `--endogenous` names the endogenous regressor(s), `--instruments` names the **excluded** instrument(s), and every other numeric column (besides `--dep`) is an exogenous regressor/instrument (include a `const` column for an intercept). Fits `estimate_iv` and reports the excluded-instrument first-stage F, the Cragg-Donald F (the multi-endogenous statistic), the Kleibergen-Paap robust rk-Wald F, and the Stock-Yogo 10%-maximal-bias critical value.
+Stock-Yogo weak-instrument diagnostics for a cross-section 2SLS regression. Uses the same data layout as [`estimate regression iv`](estimate.md#estimate-iv): `--endogenous` names the endogenous regressor(s), `--instruments` names the **excluded** instrument(s), and every other numeric column (besides `--dep`) is an exogenous regressor/instrument (include a `const` column for an intercept). Fits `estimate_iv` and reports the excluded-instrument first-stage F, the Cragg-Donald F (the multi-endogenous statistic), the Kleibergen-Paap robust rk-Wald F, and the Stock-Yogo 10%-maximal-bias critical value.
 
 The verdict compares the Cragg-Donald F (or the first-stage partial F when a single endogenous regressor) against the Stock-Yogo 10% critical value — or, when no critical value is tabulated, the Staiger-Stock rule-of-thumb `--threshold` (default 10). Instruments are flagged **weak** when the statistic falls below that bound.
 
 ```bash
-friedman test weak-instrument data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
-friedman test weak-instrument data.csv --dep=y --endogenous=x_endog --instruments=z1,z2 --threshold=10
+friedman test iv weak-instrument data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
+friedman test iv weak-instrument data.csv --dep=y --endogenous=x_endog --instruments=z1,z2 --threshold=10
 ```
 
 | Option | Short | Type | Default | Description |
@@ -369,22 +369,22 @@ friedman test weak-instrument data.csv --dep=y --endogenous=x_endog --instrument
 
 **Output:** a diagnostics kv block (`n_endogenous`, `n_excluded_instruments`, `first_stage_f`, `cragg_donald_f`, `kleibergen_paap_f`, `stock_yogo_10pct_cv` or `threshold`, `weak`) plus a decision line (H0: instruments are weak — a large F rejects it).
 
-### test anderson-rubin
+### test iv anderson-rubin
 
-Anderson-Rubin (1949) weak-instrument-**robust** inference. A weak first stage does not merely inflate the F: it invalidates the 2SLS Wald interval, whose coverage can be far below nominal at any sample size. The AR test has correct size regardless of instrument strength, and inverting it gives a confidence set with correct coverage. Use it whenever `test weak-instrument` flags a problem — and as a matter of course when the identification is contested.
+Anderson-Rubin (1949) weak-instrument-**robust** inference. A weak first stage does not merely inflate the F: it invalidates the 2SLS Wald interval, whose coverage can be far below nominal at any sample size. The AR test has correct size regardless of instrument strength, and inverting it gives a confidence set with correct coverage. Use it whenever `test iv weak-instrument` flags a problem — and as a matter of course when the identification is contested.
 
-Data layout is identical to [`estimate iv`](estimate.md#estimate-iv) and `test weak-instrument`.
+Data layout is identical to [`estimate regression iv`](estimate.md#estimate-iv) and `test iv weak-instrument`.
 
 ```bash
 # Test H0: beta_educ = 0 and report the inverted confidence set
-friedman test anderson-rubin data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
+friedman test iv anderson-rubin data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
 
 # Test a specific value; cluster-robust
-friedman test anderson-rubin data.csv --dep=y --endogenous=x --instruments=z1,z2 \
+friedman test iv anderson-rubin data.csv --dep=y --endogenous=x --instruments=z1,z2 \
   --beta0=0.5 --cov-type=cluster --clusters=state
 
 # Test only, no confidence set
-friedman test anderson-rubin data.csv --dep=y --endogenous=x --instruments=z --no-ci
+friedman test iv anderson-rubin data.csv --dep=y --endogenous=x --instruments=z --no-ci
 ```
 
 | Option | Short | Type | Default | Description |
@@ -421,13 +421,13 @@ Two constraints worth knowing:
 * Inverting the test requires **exactly one** endogenous regressor. With more, the test at `--beta0` is still reported and the confidence set is skipped with a note on stderr — the test is valid either way.
 * `estimate_iv` upstream fits only `ols`/`hc0`–`hc3`; there is no clustered IV *fit*. Under `--cov-type cluster` the AR statistic is cluster-robust while the comparison Wald interval comes from an `hc1` fit. Both are recorded (`ar_cov_type`, `wald_cov_type`) so the comparison is never read as like-for-like.
 
-### test wild-cluster
+### test iv wild-cluster
 
 Wild cluster bootstrap (Cameron-Gelbach-Miller 2008) of a single linear restriction, with the confidence interval obtained by inverting the test — matching Stata `boottest`. **This is the few-cluster procedure.** The cluster-robust normal approximation over-rejects badly when the number of clusters `G` is small (a nominal 5% test can reject 20%+ at `G ≈ 10`), and the restricted bootstrap corrects it; with many clusters the two agree and this leaf buys you nothing.
 
 ```bash
-friedman test wild-cluster data.csv --dep=y --clusters=state --coefficient=treatment
-friedman test wild-cluster data.csv --dep=y --clusters=firm --coefficient=x1 --null=0 \
+friedman test iv wild-cluster data.csv --dep=y --clusters=state --coefficient=treatment
+friedman test iv wild-cluster data.csv --dep=y --clusters=firm --coefficient=x1 --null=0 \
   --boot-weights=webb --boot-reps=9999
 ```
 
@@ -458,12 +458,12 @@ Notes:
 
 ## Cointegration
 
-### test johansen
+### test coint johansen
 
 Johansen cointegration test with trace and max eigenvalue statistics.
 
 ```bash
-friedman test johansen data.csv --lags=2 --trend=constant
+friedman test coint johansen data.csv --lags=2 --trend=constant
 ```
 
 | Option | Short | Type | Default | Description |
@@ -477,7 +477,7 @@ friedman test johansen data.csv --lags=2 --trend=constant
 
 ### VECM Cointegration Restriction Tests
 
-`test vecm beta | alpha | weak-exog | known-beta | joint` are Johansen likelihood-ratio tests of linear restrictions on the cointegrating structure of a VECM. Each first fits a VECM to the data (same options as `estimate vecm`: `--lags`, `--rank`, `--deterministic`, `--method`, `--significance`) — the fitted cointegrating rank must be **≥ 1** (else `data/no-cointegration`) — then tests the restriction. H0 is that the restriction holds, so a **low p-value rejects** the imposed restriction. Output is a kv block (`LR statistic`, `df`, `p-value`, `rank`, `converged`, restriction description) plus a decision line.
+`test vecm beta | alpha | weak-exog | known-beta | joint` are Johansen likelihood-ratio tests of linear restrictions on the cointegrating structure of a VECM. Each first fits a VECM to the data (same options as `estimate var vecm`: `--lags`, `--rank`, `--deterministic`, `--method`, `--significance`) — the fitted cointegrating rank must be **≥ 1** (else `data/no-cointegration`) — then tests the restriction. H0 is that the restriction holds, so a **low p-value rejects** the imposed restriction. Output is a kv block (`LR statistic`, `df`, `p-value`, `rank`, `converged`, restriction description) plus a decision line.
 
 The restriction matrices are supplied via `--config` in a `[vecm_restriction]` TOML section, given **row-major** (an array of equal-length numeric rows). See [Configuration](../configuration.md).
 
@@ -502,18 +502,18 @@ Common options (all leaves in this node): `--lags`/`-p` (Int, 2), `--rank`/`-r` 
 
 ### Residual-Based Cointegration Tests
 
-`test engle-granger` and `test phillips-ouliaris` test a single cointegrating
+`test coint engle-granger` and `test coint phillips-ouliaris` test a single cointegrating
 relationship between a dependent series (`--dep`, default the first numeric column) and
 every other numeric column. **Note the null flips relative to a unit-root test:** H0 is
 **no cointegration**, so a *low* p-value is evidence *for* a cointegrating relationship.
 
 Their `--trend` takes `none | constant | trend` — this is **not** the same vocabulary as
-`estimate cointreg` (`none | const | linear`) or `estimate ardl` (`none | const | trend`);
+`estimate regression cointreg` (`none | const | linear`) or `estimate univariate ardl` (`none | const | trend`);
 passing the wrong spelling is a usage error, not a silent reinterpretation.
 
 ```bash
-friedman test engle-granger data.csv --dep=y --lags=aic
-friedman test phillips-ouliaris data.csv --dep=y --kernel=bartlett --bandwidth=nw
+friedman test coint engle-granger data.csv --dep=y --lags=aic
+friedman test coint phillips-ouliaris data.csv --dep=y --kernel=bartlett --bandwidth=nw
 ```
 
 | Option | Type | Default | Description |
@@ -528,9 +528,9 @@ friedman test phillips-ouliaris data.csv --dep=y --kernel=bartlett --bandwidth=n
 `phillips-ouliaris` reports **both** the studentized `Z_t` and the normalized-bias
 `Z_alpha`, each with its own p-value.
 
-`test hansen-instability` and `test park-added` are diagnostics *on a fitted
+`test stability hansen-instability` and `test park-added` are diagnostics *on a fitted
 cointegrating regression*: both first estimate a `CointRegModel` (the same options and
-`none|const|linear` trend vocabulary as `estimate cointreg` — `--method`, `--trend`,
+`none|const|linear` trend vocabulary as `estimate regression cointreg` — `--method`, `--trend`,
 `--kernel`, `--bandwidth`, `--leads`, `--lags`) and then test it. **Their nulls differ
 again:**
 
@@ -540,7 +540,7 @@ again:**
   degrees of freedom) rejects in favour of a spurious regression.
 
 ```bash
-friedman test hansen-instability data.csv --dep=y --method=fmols
+friedman test stability hansen-instability data.csv --dep=y --method=fmols
 friedman test park-added data.csv --dep=y --q-add=2 --hac-bandwidth=nw
 ```
 
@@ -551,23 +551,23 @@ statistic, kept separate from the `--kernel` / `--bandwidth` used to fit the reg
 ## OLS Regression Diagnostics
 
 Cross-section diagnostics on an OLS fit. All eight fit the regression the same way
-`estimate reg` does — `--dep` picks the dependent column, every other numeric column
+`estimate regression reg` does — `--dep` picks the dependent column, every other numeric column
 is a regressor, and **no intercept is prepended**, so include a `const` column if you
 want one. `--cov-type` is forwarded to the fit.
 
-Note `test breusch-pagan` is a *different* test: it is the panel random-effects LM
+Note `test serial breusch-pagan` is a *different* test: it is the panel random-effects LM
 test, not a cross-section heteroskedasticity test.
 
-### test white / test glejser / test harvey
+### test serial white / test serial glejser / test serial harvey
 
 Heteroskedasticity tests. H₀ in each case is homoskedasticity, so a **low p-value
 means the errors are heteroskedastic** and you should prefer a robust `--cov-type`.
 
 ```bash
-friedman test white data.csv --dep=y
-friedman test white data.csv --dep=y --no-cross-terms
-friedman test glejser data.csv --dep=y
-friedman test harvey data.csv --dep=y
+friedman test serial white data.csv --dep=y
+friedman test serial white data.csv --dep=y --no-cross-terms
+friedman test serial glejser data.csv --dep=y
+friedman test serial harvey data.csv --dep=y
 ```
 
 | Option | Type | Default | Description |
@@ -579,16 +579,16 @@ friedman test harvey data.csv --dep=y
 **Output:** a kv block — test name, H₀, statistic, p-value, degrees of freedom, the
 F-form where the test reports one, auxiliary R², and the observation count.
 
-### test chow
+### test stability chow
 
 Chow structural-break test. **`--break-at` is required** (note the name: `--break`
 is not usable, since `break` is a reserved word). Pass a comma-separated list for a
 multi-break test. H₀ is that coefficients are constant across the segments.
 
 ```bash
-friedman test chow data.csv --dep=y --break-at=100
-friedman test chow data.csv --dep=y --break-at=60,120
-friedman test chow data.csv --dep=y --break-at=190 --type=forecast
+friedman test stability chow data.csv --dep=y --break-at=100
+friedman test stability chow data.csv --dep=y --break-at=60,120
+friedman test stability chow data.csv --dep=y --break-at=190 --type=forecast
 ```
 
 | Option | Type | Default | Description |
@@ -600,7 +600,7 @@ friedman test chow data.csv --dep=y --break-at=190 --type=forecast
 `type=breakpoint` needs every segment to hold at least `k` observations; use
 `forecast` when a segment is shorter than that.
 
-### test cusum / test cusumsq
+### test stability cusum / test stability cusumsq
 
 Brown-Durbin-Evans recursive-residual stability tests. These report a **path and a
 significance band, not a p-value** — the verdict is whether the path leaves the band,
@@ -609,14 +609,14 @@ significance level to compare. `cusum` is sensitive to drift in the coefficients
 `cusumsq` to a one-off variance shift.
 
 ```bash
-friedman test cusum data.csv --dep=y --level=0.05
-friedman test cusumsq data.csv --dep=y
+friedman test stability cusum data.csv --dep=y --level=0.05
+friedman test stability cusumsq data.csv --dep=y
 ```
 
 **Output:** `observation | cusum (or cusumsq) | lower | upper` plus a summary kv
 (`kind`, `crossed band`, `first crossing`, `level`, observations, regressors).
 
-### test recursive-residuals
+### test stability recursive-residuals
 
 The Brown-Durbin-Evans recursive least-squares residuals themselves, one per
 recursive step (the first `k` observations initialise the recursion).
@@ -640,10 +640,10 @@ regressor).
 
 ## Panel Unit Root, Cointegration & Causality (first generation)
 
-### test llc / test ips / test breitung
+### test unit-root llc / test unit-root ips / test unit-root breitung
 
 First-generation panel unit-root tests on a **T×N matrix** — one column per unit,
-exactly like `test hadri`. **Note the null is the opposite of Hadri's:** H₀ here is
+exactly like `test unit-root hadri`. **Note the null is the opposite of Hadri's:** H₀ here is
 that *every* unit has a unit root, so a **low p-value means the panel is stationary**.
 
 - `llc` — Levin-Lin-Chu, a *common* autoregressive root.
@@ -652,9 +652,9 @@ that *every* unit has a unit root, so a **low p-value means the panel is station
 - `breitung` — Breitung's bias-free pooled statistic.
 
 ```bash
-friedman test llc panel_wide.csv --deterministic=trend
-friedman test ips panel_wide.csv --lags=2
-friedman test breitung panel_wide.csv --cs-demean
+friedman test unit-root llc panel_wide.csv --deterministic=trend
+friedman test unit-root ips panel_wide.csv --lags=2
+friedman test unit-root breitung panel_wide.csv --cs-demean
 ```
 
 | Option | Type | Default | Description |
@@ -666,14 +666,14 @@ friedman test breitung panel_wide.csv --cs-demean
 | `--lags` (breitung) | Int | 0 | Augmentation lags (≥ 0) |
 | `--cs-demean` | Flag | off | Subtract the cross-sectional mean at each `t` (mitigates cross-sectional dependence) |
 
-### test fisher-johansen
+### test coint fisher-johansen
 
 Fisher-type combination of per-unit Johansen cointegration tests, on a **long-format
 panel**. Needs at least two series. Each row is a rank hypothesis (H₀: rank ≤ r), and
 the selected rank is the first not rejected.
 
 ```bash
-friedman test fisher-johansen panel.csv --vars=y,x --lags=2 --combine=mw
+friedman test coint fisher-johansen panel.csv --vars=y,x --lags=2 --combine=mw
 ```
 
 | Option | Type | Default | Description |
@@ -687,15 +687,15 @@ friedman test fisher-johansen panel.csv --vars=y,x --lags=2 --combine=mw
 **Output:** `rank | trace_statistic | trace_p_value | max_statistic | max_p_value` plus
 a summary kv with the selected rank.
 
-### test dh-causality
+### test panel dh-causality
 
 Dumitrescu-Hurlin (2012) panel Granger non-causality. **Direction matters:** this tests
 whether `--cause` Granger-causes `--effect`, so the two are not interchangeable and both
 are required. H₀ is no causality for any unit.
 
 ```bash
-friedman test dh-causality panel.csv --cause=x --effect=y --p=2
-friedman test dh-causality panel.csv --cause=x --effect=y --bootstrap=500
+friedman test panel dh-causality panel.csv --cause=x --effect=y --p=2
+friedman test panel dh-causality panel.csv --cause=x --effect=y --bootstrap=500
 ```
 
 | Option | Type | Default | Description |
@@ -787,15 +787,15 @@ friedman test identifiability data.csv --test=label-stability --n-bootstrap=200
 
 The three W2 riders are opt-in only — `--test all` keeps its historical 5-test set. `lambda-distinct` fits a 2-regime Markov-switching SVAR and aggregates the pairwise Wald tests (max statistic, min Bonferroni p-value); it needs ≥ 2 variables. `label-stability` reports the bootstrap column-match fraction and carries no p-value.
 
-### test heteroskedasticity
+### test serial heteroskedasticity
 
 Heteroskedasticity-based SVAR identification. Estimates structural impact matrix B0 using variance changes across regimes.
 
 ```bash
-friedman test heteroskedasticity data.csv --method=markov --regimes=2
-friedman test heteroskedasticity data.csv --method=garch
-friedman test heteroskedasticity data.csv --method=smooth_transition --config=config.toml
-friedman test heteroskedasticity data.csv --method=external --config=config.toml
+friedman test serial heteroskedasticity data.csv --method=markov --regimes=2
+friedman test serial heteroskedasticity data.csv --method=garch
+friedman test serial heteroskedasticity data.csv --method=smooth_transition --config=config.toml
+friedman test serial heteroskedasticity data.csv --method=external --config=config.toml
 ```
 
 | Option | Short | Type | Default | Description |
@@ -813,12 +813,12 @@ See [Configuration](../configuration.md) for the TOML format specifying transiti
 
 ## Residual Diagnostics
 
-### test arch\_lm
+### test serial arch-lm
 
 ARCH-LM test for conditional heteroskedasticity in a series. H0: no ARCH effects.
 
 ```bash
-friedman test arch_lm data.csv --column=1 --lags=4
+friedman test serial arch-lm data.csv --column=1 --lags=4
 ```
 
 | Option | Short | Type | Default | Description |
@@ -828,12 +828,12 @@ friedman test arch_lm data.csv --column=1 --lags=4
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-### test ljung\_box
+### test serial ljung-box
 
 Ljung-Box test on squared residuals for serial autocorrelation. H0: no serial correlation in squared residuals.
 
 ```bash
-friedman test ljung_box data.csv --column=1 --lags=10
+friedman test serial ljung-box data.csv --column=1 --lags=10
 ```
 
 | Option | Short | Type | Default | Description |
@@ -845,15 +845,15 @@ friedman test ljung_box data.csv --column=1 --lags=10
 
 ## Volatility Model Diagnostics
 
-`test sign-bias` and `test nyblom` first fit a univariate volatility model to the chosen return column, then test its standardized residuals / parameters. `--model` selects the volatility model to fit and is restricted to `garch`, `egarch`, `gjr-garch` — the three that share the `(p,q)` estimator signature and are supported by both diagnostics.
+`test serial sign-bias` and `test stability nyblom` first fit a univariate volatility model to the chosen return column, then test its standardized residuals / parameters. `--model` selects the volatility model to fit and is restricted to `garch`, `egarch`, `gjr-garch` — the three that share the `(p,q)` estimator signature and are supported by both diagnostics.
 
-### test sign-bias
+### test serial sign-bias
 
 Engle-Ng (1993) sign-bias and size-bias test for asymmetry left in a fitted volatility model. H0: no remaining asymmetry (a rejection suggests a leverage/asymmetric model such as EGARCH or GJR-GARCH). Reports the sign bias, negative/positive size bias `t`-statistics and the joint χ²(3) test.
 
 ```bash
-friedman test sign-bias data.csv --column=1 --model=garch
-friedman test sign-bias data.csv --model=egarch --p=1 --q=1
+friedman test serial sign-bias data.csv --column=1 --model=garch
+friedman test serial sign-bias data.csv --model=egarch --p=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -865,12 +865,12 @@ friedman test sign-bias data.csv --model=egarch --p=1 --q=1
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-### test nyblom
+### test stability nyblom
 
 Nyblom (1989) / Hansen (1992) parameter-stability test against the alternative that parameters follow a martingale. H0: stable parameters. Reports per-parameter individual `Lᵢ` statistics and the joint `L_C` against the Hansen (1992) 5% critical values (a critical-value test — no p-value). Supported for `garch`, `egarch`, `gjr-garch` fits.
 
 ```bash
-friedman test nyblom data.csv --column=1 --model=garch
+friedman test stability nyblom data.csv --column=1 --model=garch
 ```
 
 | Option | Short | Type | Default | Description |
@@ -884,14 +884,14 @@ friedman test nyblom data.csv --column=1 --model=garch
 
 ## Model Comparison Tests
 
-### test granger
+### test var granger
 
 Granger causality test for VAR or VECM models.
 
 ```bash
-friedman test granger data.csv --cause=1 --effect=2 --lags=4
-friedman test granger data.csv --cause=1 --effect=2 --model=vecm --rank=1
-friedman test granger data.csv --all --lags=4
+friedman test var granger data.csv --cause=1 --effect=2 --lags=4
+friedman test var granger data.csv --cause=1 --effect=2 --model=vecm --rank=1
+friedman test var granger data.csv --all --lags=4
 ```
 
 | Option | Short | Type | Default | Description |
@@ -907,13 +907,13 @@ friedman test granger data.csv --all --lags=4
 
 **Output:** Test statistic, p-value, rejection decision.
 
-### test lr
+### test var lr
 
 Likelihood ratio test comparing two nested VAR models estimated from separate datasets.
 
 ```bash
-friedman test lr restricted.csv unrestricted.csv
-friedman test lr data_p2.csv data_p4.csv --lags1=2 --lags2=4
+friedman test var lr restricted.csv unrestricted.csv
+friedman test var lr data_p2.csv data_p4.csv --lags1=2 --lags2=4
 ```
 
 | Argument | Description |
@@ -930,13 +930,13 @@ friedman test lr data_p2.csv data_p4.csv --lags1=2 --lags2=4
 
 **Output:** LR statistic, degrees of freedom, p-value, rejection decision.
 
-### test lm
+### test var lm
 
 Lagrange multiplier test comparing two nested VAR models estimated from separate datasets.
 
 ```bash
-friedman test lm restricted.csv unrestricted.csv
-friedman test lm data_p2.csv data_p4.csv --lags1=2 --lags2=4
+friedman test var lm restricted.csv unrestricted.csv
+friedman test var lm data_p2.csv data_p4.csv --lags1=2 --lags2=4
 ```
 
 | Argument | Description |
@@ -957,12 +957,12 @@ friedman test lm data_p2.csv data_p4.csv --lags1=2 --lags2=4
 
 Nested under `test pvar`: Panel VAR model diagnostics.
 
-### test pvar hansen\_j
+### test pvar hansen-j
 
 Hansen's J overidentification test for Panel VAR.
 
 ```bash
-friedman test pvar hansen_j data.csv --id-col=country --time-col=year --lags=2
+friedman test pvar hansen-j data.csv --id-col=country --time-col=year --lags=2
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1038,14 +1038,14 @@ friedman test pvar stability data.csv --id-col=country --time-col=year --lags=2
 
 ## Panel Stationarity & Cointegration
 
-`test hadri` tests panel stationarity from a wide matrix (one column per unit); `test pedroni | kao | westerlund` test panel cointegration from a long-format panel (`id`, `time`, and variable columns — like the panel regression / Panel VAR commands). The three cointegration tests share the same `--id-col`/`--time-col`/`--dep`/`--indep` interface and report a `statistic|value|p_value` table (H0: no cointegration; any p-value < 0.05 rejects). `--id-col`/`--time-col` default to the first/second columns; `--dep` defaults to the first variable and `--indep` to the rest.
+`test unit-root hadri` tests panel stationarity from a wide matrix (one column per unit); `test coint pedroni | kao | westerlund` test panel cointegration from a long-format panel (`id`, `time`, and variable columns — like the panel regression / Panel VAR commands). The three cointegration tests share the same `--id-col`/`--time-col`/`--dep`/`--indep` interface and report a `statistic|value|p_value` table (H0: no cointegration; any p-value < 0.05 rejects). `--id-col`/`--time-col` default to the first/second columns; `--dep` defaults to the first variable and `--indep` to the rest.
 
-### test hadri
+### test unit-root hadri
 
 Hadri (2000) LM test for panel stationarity. H0: all units are (trend-)stationary; a rejection indicates at least one unit has a unit root. Takes a wide numeric matrix (columns = units).
 
 ```bash
-friedman test hadri panel_wide.csv --deterministic=constant
+friedman test unit-root hadri panel_wide.csv --deterministic=constant
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1056,12 +1056,12 @@ friedman test hadri panel_wide.csv --deterministic=constant
 
 **Output:** `statistic`, `p-value`, `n_units`, `observations`.
 
-### test pedroni
+### test coint pedroni
 
 Pedroni residual-based panel cointegration test (seven panel/group statistics).
 
 ```bash
-friedman test pedroni panel.csv --id-col=country --time-col=year --dep=y --indep=x1,x2 --trend=constant
+friedman test coint pedroni panel.csv --id-col=country --time-col=year --dep=y --indep=x1,x2 --trend=constant
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1074,33 +1074,33 @@ friedman test pedroni panel.csv --id-col=country --time-col=year --dep=y --indep
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-### test kao
+### test coint kao
 
-Kao residual-based panel cointegration test (DF/ADF-type statistics). Same interface as `test pedroni` but without `--trend`.
+Kao residual-based panel cointegration test (DF/ADF-type statistics). Same interface as `test coint pedroni` but without `--trend`.
 
 ```bash
-friedman test kao panel.csv --dep=y --indep=x
+friedman test coint kao panel.csv --dep=y --indep=x
 ```
 
-### test westerlund
+### test coint westerlund
 
-Westerlund error-correction panel cointegration test (Gt/Ga/Pt/Pa statistics). Same interface as `test pedroni`.
+Westerlund error-correction panel cointegration test (Gt/Ga/Pt/Pa statistics). Same interface as `test coint pedroni`.
 
 ```bash
-friedman test westerlund panel.csv --dep=y --indep=x --trend=constant
+friedman test coint westerlund panel.csv --dep=y --indep=x --trend=constant
 ```
 
 ## ARDL / NARDL Tests
 
-### test ardl-bounds
+### test coint ardl-bounds
 
-**Pesaran-Shin-Smith (2001) bounds test** for the existence of a level (long-run) relationship. Fits a single-equation ARDL (same loader/options as [`estimate ardl`](estimate.md#estimate-ardl)) then computes the joint bounds `F`-statistic (all error-correction level terms zero) and the Dickey-Fuller-type `t`-statistic on the lagged `y` level.
+**Pesaran-Shin-Smith (2001) bounds test** for the existence of a level (long-run) relationship. Fits a single-equation ARDL (same loader/options as [`estimate univariate ardl`](estimate.md#estimate-ardl)) then computes the joint bounds `F`-statistic (all error-correction level terms zero) and the Dickey-Fuller-type `t`-statistic on the lagged `y` level.
 
 **No p-value.** The null distributions are non-standard functionals of Brownian motion, so the statistics are compared **only** to the tabulated I(0)/I(1) critical-value bounds: above the I(1) upper bound ⇒ `cointegrated`; below the I(0) lower bound ⇒ `not_cointegrated`; in between ⇒ `inconclusive`. The command renders the decision **symbols** plus the bracketing bounds — it never produces a p-value or calls `interpret_test_result`. The `t`-bounds are undefined for cases II and IV (restricted deterministic) and render as `"undefined"` (`t_decision = undefined`).
 
 ```bash
-friedman test ardl-bounds data.csv --dep=y --p=1 --q=1 --case=3 --level=0.05
-friedman test ardl-bounds data.csv --dep=y --p=auto --q=auto --case=2
+friedman test coint ardl-bounds data.csv --dep=y --p=1 --q=1 --case=3 --level=0.05
+friedman test coint ardl-bounds data.csv --dep=y --p=auto --q=auto --case=2
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1119,7 +1119,7 @@ friedman test ardl-bounds data.csv --dep=y --p=auto --q=auto --case=2
 
 ### test nardl-symmetry
 
-Long- and short-run **symmetry Wald tests** for a nonlinear ARDL, one row per asymmetric regressor. Fits a NARDL (same loader/options as [`estimate nardl`](estimate.md#estimate-nardl)) then tests `H₀: θ⁺ = θ⁻` (long-run, a delta-method Wald whose Jacobian carries the `1 − Σφ̂` denominator) and `H₀: Σ_ℓ π⁺_ℓ = Σ_ℓ π⁻_ℓ` (short-run, a linear Wald on the ECM differenced-term coefficients). Each single-restriction statistic is reported as both a `χ²(1)` and an `F(1, n−K)` with the matching p-value — rejecting is evidence of asymmetric adjustment.
+Long- and short-run **symmetry Wald tests** for a nonlinear ARDL, one row per asymmetric regressor. Fits a NARDL (same loader/options as [`estimate univariate nardl`](estimate.md#estimate-nardl)) then tests `H₀: θ⁺ = θ⁻` (long-run, a delta-method Wald whose Jacobian carries the `1 − Σφ̂` denominator) and `H₀: Σ_ℓ π⁺_ℓ = Σ_ℓ π⁻_ℓ` (short-run, a linear Wald on the ECM differenced-term coefficients). Each single-restriction statistic is reported as both a `χ²(1)` and an `F(1, n−K)` with the matching p-value — rejecting is evidence of asymmetric adjustment.
 
 ```bash
 friedman test nardl-symmetry data.csv --dep=y --asymmetric=all --p=1 --q=1
@@ -1138,13 +1138,13 @@ friedman test nardl-symmetry data.csv --dep=y --asymmetric=1,3
 
 **Output:** a tidy multi-row table `regressor|theta_pos|theta_neg|lr_stat|lr_p_chi2|lr_p_f|sr_stat|sr_p_chi2|sr_p_f` + a summary (`df`, `dof_resid`, `n_asym`) and an interpretation of the long-run test on the first regressor. Unlike the bounds test, this test HAS p-values (χ² & F).
 
-### test pmg-hausman
+### test panel pmg-hausman
 
-**PMG Hausman selection test** for dynamic heterogeneous panels (Pesaran, Shin & Smith 1999). Fits the same long-format panel **twice** — the estimator efficient under `H₀` (`--efficient=pmg` or `dfe`) and the always-consistent Mean Group — via the same loader/options as [`estimate pmg`](estimate.md#estimate-pmg), then runs the generalized Hausman quadratic form on the common long-run coefficients `θ`. `H₀` is **long-run homogeneity**: failing to reject supports the pooled (PMG) long-run vector; a low p-value favours the unrestricted Mean Group estimator.
+**PMG Hausman selection test** for dynamic heterogeneous panels (Pesaran, Shin & Smith 1999). Fits the same long-format panel **twice** — the estimator efficient under `H₀` (`--efficient=pmg` or `dfe`) and the always-consistent Mean Group — via the same loader/options as [`estimate panel pmg`](estimate.md#estimate-pmg), then runs the generalized Hausman quadratic form on the common long-run coefficients `θ`. `H₀` is **long-run homogeneity**: failing to reject supports the pooled (PMG) long-run vector; a low p-value favours the unrestricted Mean Group estimator.
 
 ```bash
-friedman test pmg-hausman panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2
-friedman test pmg-hausman panel.csv --dep=y --indep=x1,x2 --efficient=dfe
+friedman test panel pmg-hausman panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2
+friedman test panel pmg-hausman panel.csv --dep=y --indep=x1,x2 --efficient=dfe
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1160,17 +1160,17 @@ friedman test pmg-hausman panel.csv --dep=y --indep=x1,x2 --efficient=dfe
 | `--tol` | | Float64 | `1e-8` | PMG outer-loop convergence tolerance |
 | `--format` / `--output` | `-f`/`-o` | String | | Format / export path |
 
-**Output:** a standard test summary (`test_name`, `statistic`, `pvalue`, `df`, `description`) with an interpretation line. Unlike [`test ardl-bounds`](#test-ardl-bounds), this test HAS a p-value.
+**Output:** a standard test summary (`test_name`, `statistic`, `pvalue`, `df`, `description`) with an interpretation line. Unlike [`test coint ardl-bounds`](#test-ardl-bounds), this test HAS a p-value.
 
 ## Advanced Unit Root Tests
 
-### test fourier-adf
+### test unit-root fourier-adf
 
 Fourier ADF unit root test allowing for smooth structural breaks via Fourier frequencies (Enders & Lee 2012).
 
 ```bash
-friedman test fourier-adf data.csv --column=1 --regression=constant --fmax=3
-friedman test fourier-adf data.csv --column=2 --lags=aic --trim=0.15
+friedman test unit-root fourier-adf data.csv --column=1 --regression=constant --fmax=3
+friedman test unit-root fourier-adf data.csv --column=2 --lags=aic --trim=0.15
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1186,12 +1186,12 @@ friedman test fourier-adf data.csv --column=2 --lags=aic --trim=0.15
 
 **Output:** Test statistic, p-value, optimal frequency, Fourier F-test.
 
-### test fourier-kpss
+### test unit-root fourier-kpss
 
 Fourier KPSS stationarity test with smooth breaks (Becker, Enders & Lee 2006).
 
 ```bash
-friedman test fourier-kpss data.csv --column=1 --regression=constant --fmax=3
+friedman test unit-root fourier-kpss data.csv --column=1 --regression=constant --fmax=3
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1205,13 +1205,13 @@ friedman test fourier-kpss data.csv --column=1 --regression=constant --fmax=3
 
 **Output:** Test statistic, p-value, optimal frequency, bandwidth, Fourier F-test.
 
-### test dfgls
+### test unit-root dfgls
 
 Elliott-Rothenberg-Stock DF-GLS unit root test with GLS detrending.
 
 ```bash
-friedman test dfgls data.csv --column=1 --regression=constant
-friedman test dfgls data.csv --column=1 --lags=aic --max-lags=12
+friedman test unit-root dfgls data.csv --column=1 --regression=constant
+friedman test unit-root dfgls data.csv --column=1 --lags=aic --max-lags=12
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1225,14 +1225,14 @@ friedman test dfgls data.csv --column=1 --lags=aic --max-lags=12
 
 **Output:** DF-GLS tau statistic, PT statistic, p-value, M-GLS statistics.
 
-### test lm-unitroot
+### test unit-root lm-unitroot
 
 LM unit root test with 0, 1, or 2 endogenous structural breaks (Lee & Strazicich 2003, 2013).
 
 ```bash
-friedman test lm-unitroot data.csv --column=1 --breaks=0
-friedman test lm-unitroot data.csv --column=1 --breaks=1 --regression=level --trim=0.15
-friedman test lm-unitroot data.csv --column=1 --breaks=2 --lags=aic
+friedman test unit-root lm-unitroot data.csv --column=1 --breaks=0
+friedman test unit-root lm-unitroot data.csv --column=1 --breaks=1 --regression=level --trim=0.15
+friedman test unit-root lm-unitroot data.csv --column=1 --breaks=2 --lags=aic
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1248,13 +1248,13 @@ friedman test lm-unitroot data.csv --column=1 --breaks=2 --lags=aic
 
 **Output:** LM statistic, p-value, break indices and fractions (when breaks > 0).
 
-### test adf-2break
+### test unit-root adf-2break
 
 ADF unit root test with two endogenous structural breaks.
 
 ```bash
-friedman test adf-2break data.csv --column=1 --model=level
-friedman test adf-2break data.csv --column=1 --model=trend --trim=0.10
+friedman test unit-root adf-2break data.csv --column=1 --model=level
+friedman test unit-root adf-2break data.csv --column=1 --model=trend --trim=0.10
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1269,13 +1269,13 @@ friedman test adf-2break data.csv --column=1 --model=trend --trim=0.10
 
 **Output:** Test statistic, p-value, two estimated break dates with fractions.
 
-### test gregory-hansen
+### test coint gregory-hansen
 
 Gregory-Hansen cointegration test with regime shift (Gregory & Hansen 1996). Tests for cointegration in the presence of a structural break.
 
 ```bash
-friedman test gregory-hansen data.csv --model=C
-friedman test gregory-hansen data.csv --model=C_T --lags=aic --trim=0.15
+friedman test coint gregory-hansen data.csv --model=C
+friedman test coint gregory-hansen data.csv --model=C_T --lags=aic --trim=0.15
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1300,7 +1300,7 @@ auxiliary regression in both the NB2 and NB1 forms.
 friedman test dispersion data.csv --dep=claims --exposure=policy_years
 ```
 
-Fit options mirror [`estimate poisson`](estimate.md#estimate-poisson) (`--dep`, `--offset` /
+Fit options mirror [`estimate choice poisson`](estimate.md#estimate-poisson) (`--dep`, `--offset` /
 `--exposure`, `--cov-type`, `--clusters`, `--maxiter`, `--tol`), plus `--alpha` (default `0.05`)
 for the decision column.
 
@@ -1312,7 +1312,7 @@ the p-value, and a `decision`; then a summary reporting the preferred model.
 
 | Outcome | Reading |
 |---|---|
-| `α > 0`, significant | **Overdispersion** — the Poisson variance is too small; prefer [`estimate nbreg`](estimate.md#estimate-nbreg) |
+| `α > 0`, significant | **Overdispersion** — the Poisson variance is too small; prefer [`estimate choice nbreg`](estimate.md#estimate-nbreg) |
 | `α < 0`, significant | **Underdispersion** — NB2 *cannot* represent this; a generalised-Poisson or Conway–Maxwell–Poisson model is the right remedy, not `nbreg` |
 | not significant | Equidispersion not rejected; Poisson is adequate |
 
@@ -1341,12 +1341,12 @@ friedman test vif data.csv --dep=wage --cov-type=hc1
 
 ## Panel Specification Tests
 
-### test hausman
+### test panel hausman
 
 Hausman specification test for fixed effects vs random effects in panel models.
 
 ```bash
-friedman test hausman panel.csv --dep=gdp --indep=investment,trade
+friedman test panel hausman panel.csv --dep=gdp --indep=investment,trade
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1360,12 +1360,12 @@ friedman test hausman panel.csv --dep=gdp --indep=investment,trade
 
 **Output:** Hausman statistic, degrees of freedom, p-value, recommendation (FE or RE).
 
-### test breusch-pagan
+### test serial breusch-pagan
 
 Breusch-Pagan LM test for random effects. H0: no random effects (pooled OLS is appropriate).
 
 ```bash
-friedman test breusch-pagan panel.csv --dep=gdp --indep=investment,trade
+friedman test serial breusch-pagan panel.csv --dep=gdp --indep=investment,trade
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1379,12 +1379,12 @@ friedman test breusch-pagan panel.csv --dep=gdp --indep=investment,trade
 
 **Output:** LM statistic, p-value, rejection decision.
 
-### test f-fe
+### test panel f-fe
 
 F-test for the joint significance of individual fixed effects. H0: all individual effects are zero.
 
 ```bash
-friedman test f-fe panel.csv --dep=gdp --indep=investment,trade
+friedman test panel f-fe panel.csv --dep=gdp --indep=investment,trade
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1398,12 +1398,12 @@ friedman test f-fe panel.csv --dep=gdp --indep=investment,trade
 
 **Output:** F-statistic, numerator/denominator df, p-value.
 
-### test pesaran-cd
+### test panel pesaran-cd
 
 Pesaran CD test for cross-sectional dependence in panel data. H0: cross-sectional independence.
 
 ```bash
-friedman test pesaran-cd panel.csv --dep=gdp --indep=investment,trade
+friedman test panel pesaran-cd panel.csv --dep=gdp --indep=investment,trade
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1417,12 +1417,12 @@ friedman test pesaran-cd panel.csv --dep=gdp --indep=investment,trade
 
 **Output:** CD statistic, p-value, rejection decision.
 
-### test wooldridge-ar
+### test panel wooldridge-ar
 
 Wooldridge test for first-order serial correlation in panel data. H0: no serial correlation.
 
 ```bash
-friedman test wooldridge-ar panel.csv --dep=gdp --indep=investment,trade
+friedman test panel wooldridge-ar panel.csv --dep=gdp --indep=investment,trade
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1436,12 +1436,12 @@ friedman test wooldridge-ar panel.csv --dep=gdp --indep=investment,trade
 
 **Output:** F-statistic, p-value, rejection decision.
 
-### test modified-wald
+### test panel modified-wald
 
 Modified Wald test for groupwise heteroskedasticity in FE panel models. H0: homoskedastic errors.
 
 ```bash
-friedman test modified-wald panel.csv --dep=gdp --indep=investment,trade
+friedman test panel modified-wald panel.csv --dep=gdp --indep=investment,trade
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1492,4 +1492,4 @@ friedman test hausman-iia data.csv --dep=choice --omit-category=3
 
 ## See Also
 
-For structural break tests (`test andrews`, `test bai-perron`), see [Structural Breaks](structural-breaks.md). For panel unit root tests (`test panic`, `test cips`, `test moon-perron`, `test factor-break`), see [Panel Unit Root](panel-unit-root.md). For panel regression specification tests, see [Panel Regression](panel-regression.md). For ordered/multinomial tests, see [Ordered & Multinomial](ordered-multinomial.md).
+For structural break tests (`test stability andrews`, `test stability bai-perron`), see [Structural Breaks](structural-breaks.md). For panel unit root tests (`test panel panic`, `test unit-root cips`, `test unit-root moon-perron`, `test stability factor-break`), see [Panel Unit Root](panel-unit-root.md). For panel regression specification tests, see [Panel Regression](panel-regression.md). For ordered/multinomial tests, see [Ordered & Multinomial](ordered-multinomial.md).

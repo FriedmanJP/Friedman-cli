@@ -51,7 +51,7 @@ using Friedman
         # usage
         @test Int(Friedman.run_cli(["definitely-not-a-command"])) == 2
         # data
-        @test Int(Friedman.run_cli(["estimate", "var", "/nonexistent/file.csv"])) == 3
+        @test Int(Friedman.run_cli(["estimate", "var", "var", "/nonexistent/file.csv"])) == 3
     end
 
     @testset "pre-dispatch globals are leading-only (#117)" begin
@@ -62,9 +62,9 @@ using Friedman
         # silently swallowed (`io download --version` shipped dead this way).
         redirect_stdout(devnull) do
             redirect_stderr(devnull) do
-                @test Int(Friedman.run_cli(["estimate", "var", "nofile.csv", "--warranty"])) == 2
-                @test Int(Friedman.run_cli(["estimate", "var", "nofile.csv", "--conditions"])) == 2
-                @test Int(Friedman.run_cli(["estimate", "var", "nofile.csv", "--version"])) == 2
+                @test Int(Friedman.run_cli(["estimate", "var", "var", "nofile.csv", "--warranty"])) == 2
+                @test Int(Friedman.run_cli(["estimate", "var", "var", "nofile.csv", "--conditions"])) == 2
+                @test Int(Friedman.run_cli(["estimate", "var", "var", "nofile.csv", "--version"])) == 2
                 @test Int(Friedman.run_cli(["estimate", "--warranty"])) == 2
                 # Leading position still works.
                 @test Int(Friedman.run_cli(["--warranty"])) == 0

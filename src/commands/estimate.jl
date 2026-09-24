@@ -986,16 +986,25 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
                 OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
                 OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="horizon", type=Int, default=12, description="Max cumulative-multiplier horizon H (≥ 0)"),
+                OptionSpec(name="nreps", type=Int, default=500, description="Bootstrap replications for multiplier bands (0 = no bands)"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Bootstrap band coverage level"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=FlagSpec[],
+            flags=[FlagSpec(name="no-bootstrap", description="Skip bootstrap bands (point multipliers only)"),
+                   FlagSpec(name="plot", description="Open interactive plot in browser")],
             tables=[TableSpec(name=:nardl_coefficients,
                               description="Levels-form NARDL coefficients on the split (positive/negative) regressor set"),
                     TableSpec(name=:nardl_asymmetric_long_run_coefficients,
                               description="Asymmetric long-run multipliers theta+ and theta- with standard errors"),
                     TableSpec(name=:nardl_diagnostics,
-                              description="Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision")],
+                              description="Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision"),
+                    TableSpec(name=:nardl_cumulative_dynamic_multipliers,
+                              description="Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested"),
+                    TableSpec(name=:nardl_multipliers_summary,
+                              description="Multiplier settings and long-run theta+/theta- of the underlying NARDL")],
             category="estimate",
             handler=wrap_legacy(_estimate_nardl),
         ),
@@ -1847,14 +1856,8 @@ function _data_kinds_for_estimator(leaf::AbstractString)
 end
 
 function register_estimate_commands!()
-    specs = with_config_ergonomics(with_save_model(estimate_specs()))
-    out = CommandSpec[]
-    for s in specs
-        push!(out, _copy_spec(s; data_kinds=_data_kinds_for_estimator(s.path[end])))
-    end
-    out = with_default_csv_kinds(out)
-    register!(out)
-    return build_node("estimate", out; description="Model estimation")
+    specs = register!(catalog_specs("estimate"))
+    return build_node("estimate", specs; description="Model estimation")
 end
 
 
@@ -1875,7 +1878,9 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
     _status("Trend: $trend, Observations: $(size(Y, 1))")
     _status()
 
-    model = estimate_var(Y, p)
+    # Forward the CSV column names (#119, same as _load_and_estimate_var): without
+    # this DataFrame(model) renders positional y1..yn equations/terms.
+    model = estimate_var(Y, p; varnames=varnames)
     _status_report(() -> report(model))
 
     # C051: MEMs renders coefficient-bearing models as a tidy coef table via Tables.jl
@@ -6612,7 +6617,10 @@ end
 
 function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all",
                           p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4,
-                          ic::String="aic", case::Int=3, output::String="", format::String="table")
+                          ic::String="aic", case::Int=3, horizon::Int=12, nreps::Int=500,
+                          level::Float64=0.95, no_bootstrap::Bool=false,
+                          plot::Bool=false, plot_save::String="",
+                          output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     _status("NARDL: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, p=$p, q=$q, case=$case), n=$(length(y))"); _status()
@@ -6647,7 +6655,11 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
         "f_decision"   => String(b.f_decision),
         "t_decision"   => String(b.t_decision),
     ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))",
-       key="nardl_diagnostics")
+       key="nardl_diagnostics",
+       output=_per_var_output_path(output, "diagnostics"))
+    _emit_nardl_multipliers(m, dep_name; horizon=horizon, nreps=nreps, level=level,
+                            no_bootstrap=no_bootstrap, output=output, format=format)
+    _maybe_plot(m; plot=plot, plot_save=plot_save)
     return m
 end
 

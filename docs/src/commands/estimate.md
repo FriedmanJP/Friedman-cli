@@ -14,14 +14,14 @@ equation); the panel models are the same 7 columns as `reg`/`logit`/`probit`; `o
 pseudo-R²/log-likelihood, convergence) print as a separate small table alongside the
 coefficient table, not merged into it.
 
-## estimate var
+## estimate var var
 
 Estimate a VAR(p) model via OLS. Lag order is auto-selected via AIC when `--lags` is omitted.
 
 ```bash
-friedman estimate var data.csv
-friedman estimate var data.csv --lags=2
-friedman estimate var data.csv --lags=4 --format=csv --output=var_results.csv
+friedman estimate var var data.csv
+friedman estimate var var data.csv --lags=2
+friedman estimate var var data.csv --lags=4 --format=csv --output=var_results.csv
 ```
 
 | Option | Short | Type | Default | Description |
@@ -33,7 +33,6 @@ friedman estimate var data.csv --lags=4 --format=csv --output=var_results.csv
 
 **Output:** Tidy coefficient table (`equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) via `DataFrame(model)`, plus a small AIC/BIC/HQC/log-likelihood fit-stats table.
 
-## estimate bvar
 Shown on the bundled Denmark money dataset (`:denmark`); status lines go to stderr, JSON below is stdout only.
 
 <!-- capture -->
@@ -57,7 +56,7 @@ friedman estimate var var :denmark --lags 1 --format json
             ],
             "rows": [
                 [
-                    "y1",
+                    "LRM",
                     "(Intercept)",
                     3.4288123,
                     0.62645112,
@@ -67,8 +66,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     4.6883767
                 ],
                 [
-                    "y1",
-                    "y1.L1",
+                    "LRM",
+                    "LRM.L1",
                     0.75549524,
                     0.083439926,
                     9.0543613,
@@ -77,8 +76,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.92326245
                 ],
                 [
-                    "y1",
-                    "y2.L1",
+                    "LRM",
+                    "LRY.L1",
                     -0.059877806,
                     0.13484502,
                     -0.44404907,
@@ -87,8 +86,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.21124628
                 ],
                 [
-                    "y1",
-                    "y3.L1",
+                    "LRM",
+                    "LPY.L1",
                     0.061270076,
                     0.016870169,
                     3.631859,
@@ -97,8 +96,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.095189824
                 ],
                 [
-                    "y1",
-                    "y4.L1",
+                    "LRM",
+                    "IBO.L1",
                     -0.99583584,
                     0.29903095,
                     -3.33021,
@@ -107,8 +106,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     -0.39459383
                 ],
                 [
-                    "y1",
-                    "y5.L1",
+                    "LRM",
+                    "IDE.L1",
                     -0.39973257,
                     0.47468227,
                     -0.84210553,
@@ -117,7 +116,7 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.55468011
                 ],
                 [
-                    "y2",
+                    "LRY",
                     "(Intercept)",
                     1.5060334,
                     0.51159296,
@@ -127,8 +126,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     2.53466
                 ],
                 [
-                    "y2",
-                    "y1.L1",
+                    "LRY",
+                    "LRM.L1",
                     0.089413611,
                     0.068141436,
                     1.3121768,
@@ -137,8 +136,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.22642115
                 ],
                 [
-                    "y2",
-                    "y2.L1",
+                    "LRY",
+                    "LRY.L1",
                     0.58192718,
                     0.11012154,
                     5.2844081,
@@ -147,8 +146,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.80334138
                 ],
                 [
-                    "y2",
-                    "y3.L1",
+                    "LRY",
+                    "LPY.L1",
                     0.049987127,
                     0.013777068,
                     3.6282848,
@@ -157,8 +156,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.077687779
                 ],
                 [
-                    "y2",
-                    "y4.L1",
+                    "LRY",
+                    "IBO.L1",
                     0.25023321,
                     0.24420441,
                     1.0246875,
@@ -167,8 +166,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.74123909
                 ],
                 [
-                    "y2",
-                    "y5.L1",
+                    "LRY",
+                    "IDE.L1",
                     -1.1626354,
                     0.38765053,
                     -2.9991844,
@@ -177,7 +176,7 @@ friedman estimate var var :denmark --lags 1 --format json
                     -0.38321181
                 ],
                 [
-                    "y3",
+                    "LPY",
                     "(Intercept)",
                     -0.094685616,
                     0.17432105,
@@ -187,8 +186,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.25581034
                 ],
                 [
-                    "y3",
-                    "y1.L1",
+                    "LPY",
+                    "LRM.L1",
                     -0.014622663,
                     0.023218628,
                     -0.62978153,
@@ -197,8 +196,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.032061517
                 ],
                 [
-                    "y3",
-                    "y2.L1",
+                    "LPY",
+                    "LRY.L1",
                     0.045399714,
                     0.037523001,
                     1.2099169,
@@ -207,8 +206,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.12084476
                 ],
                 [
-                    "y3",
-                    "y3.L1",
+                    "LPY",
+                    "LPY.L1",
                     0.98339248,
                     0.0046944215,
                     209.48108,
@@ -217,8 +216,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.99283125
                 ],
                 [
-                    "y3",
-                    "y4.L1",
+                    "LPY",
+                    "IBO.L1",
                     0.10809135,
                     0.083210624,
                     1.2990091,
@@ -227,8 +226,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.27539753
                 ],
                 [
-                    "y3",
-                    "y5.L1",
+                    "LPY",
+                    "IDE.L1",
                     -0.0053550379,
                     0.1320887,
                     -0.040541227,
@@ -237,7 +236,7 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.26022709
                 ],
                 [
-                    "y4",
+                    "IBO",
                     "(Intercept)",
                     -0.35860737,
                     0.23029215,
@@ -247,8 +246,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.10442602
                 ],
                 [
-                    "y4",
-                    "y1.L1",
+                    "IBO",
+                    "LRM.L1",
                     -0.0076093243,
                     0.030673678,
                     -0.24807343,
@@ -257,8 +256,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.054064238
                 ],
                 [
-                    "y4",
-                    "y2.L1",
+                    "IBO",
+                    "LRY.L1",
                     0.076430821,
                     0.049570906,
                     1.5418484,
@@ -267,8 +266,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.17609981
                 ],
                 [
-                    "y4",
-                    "y3.L1",
+                    "IBO",
+                    "LPY.L1",
                     -0.014373792,
                     0.0062017089,
                     -2.3177147,
@@ -277,8 +276,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     -0.0019044205
                 ],
                 [
-                    "y4",
-                    "y4.L1",
+                    "IBO",
+                    "IBO.L1",
                     1.0100517,
                     0.10992794,
                     9.1883074,
@@ -287,8 +286,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     1.2310766
                 ],
                 [
-                    "y4",
-                    "y5.L1",
+                    "IBO",
+                    "IDE.L1",
                     -0.099428345,
                     0.17449981,
                     -0.56979057,
@@ -297,7 +296,7 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.25142703
                 ],
                 [
-                    "y5",
+                    "IDE",
                     "(Intercept)",
                     -0.26118995,
                     0.13949317,
@@ -307,8 +306,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.019279871
                 ],
                 [
-                    "y5",
-                    "y1.L1",
+                    "IDE",
+                    "LRM.L1",
                     0.012884448,
                     0.018579742,
                     0.69346756,
@@ -317,8 +316,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.050241522
                 ],
                 [
-                    "y5",
-                    "y2.L1",
+                    "IDE",
+                    "LRY.L1",
                     0.01808454,
                     0.030026221,
                     0.60229157,
@@ -327,8 +326,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.078456304
                 ],
                 [
-                    "y5",
-                    "y3.L1",
+                    "IDE",
+                    "LPY.L1",
                     -0.0025295012,
                     0.0037565156,
                     -0.67336369,
@@ -337,8 +336,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.0050234796
                 ],
                 [
-                    "y5",
-                    "y4.L1",
+                    "IDE",
+                    "IBO.L1",
                     0.21452174,
                     0.066585842,
                     3.221732,
@@ -347,8 +346,8 @@ friedman estimate var var :denmark --lags 1 --format json
                     0.34840155
                 ],
                 [
-                    "y5",
-                    "y5.L1",
+                    "IDE",
+                    "IDE.L1",
                     0.64891228,
                     0.10569849,
                     6.1392768,
@@ -395,13 +394,14 @@ friedman estimate var var :denmark --lags 1 --format json
 }
 ```
 
+## estimate var bvar
 
 Estimate a Bayesian VAR with MCMC sampling and posterior extraction.
 
 ```bash
-friedman estimate bvar data.csv --lags=4 --draws=2000
-friedman estimate bvar data.csv --config=prior.toml --method=median
-friedman estimate bvar data.csv --sampler=gibbs --draws=5000
+friedman estimate var bvar data.csv --lags=4 --draws=2000
+friedman estimate var bvar data.csv --config=prior.toml --method=median
+friedman estimate var bvar data.csv --sampler=gibbs --draws=5000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -425,12 +425,12 @@ See [Configuration](../configuration.md) for Minnesota prior TOML format.
     to the library, which now runs the full **Giannone, Lenza & Primiceri (2015)**
     joint optimization of the marginal likelihood over the overall, sum-of-coefficients
     and dummy-initial-observation tightness. Through CLI v0.9.0 this was a `tau`-only
-    grid search, so **`estimate bvar` results change at this version** for runs that do
+    grid search, so **`estimate var bvar` results change at this version** for runs that do
     not pass `--config`. Supplying `--config` pins the hyperparameters explicitly and is
     unaffected, as is `--prior normal`.
 
     Only this leaf is affected. The derived BVAR commands (`irf`/`fevd`/`hd`/`forecast`/
-    `predict`/`residuals bvar`, `nowcast bvar`) default to the **normal** prior when no
+    `predict`/`residuals var bvar`, `nowcast bvar`) default to the **normal** prior when no
     `--config` is given, and hyperparameter selection is never reached under that prior.
 
 ### Choosing and inspecting the hyperparameters
@@ -477,15 +477,15 @@ is emitted; the CLI says so on stderr rather than letting the flag look effectiv
     `lambda1`/`lambda2`/`lambda3` now map to `tau`/`lambda`/`decay` and `mu`/`omega` keep
     the library defaults.
 
-## estimate qreg
+## estimate regression qreg
 
 Quantile regression (Koenker–Bassett). Where OLS fits the conditional mean, this fits a
 conditional quantile — so it shows whether a covariate acts differently at the bottom and
 top of the outcome distribution.
 
 ```bash
-friedman estimate qreg data.csv --dep=wage --tau=0.5
-friedman estimate qreg data.csv --dep=wage --tau=0.1,0.25,0.5,0.75,0.9 --se=robust
+friedman estimate regression qreg data.csv --dep=wage --tau=0.5
+friedman estimate regression qreg data.csv --dep=wage --tau=0.1,0.25,0.5,0.75,0.9 --se=robust
 ```
 
 | Option | Short | Type | Default | Description |
@@ -498,7 +498,7 @@ friedman estimate qreg data.csv --dep=wage --tau=0.1,0.25,0.5,0.75,0.9 --se=robu
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-Every other numeric column is a regressor, as in `estimate reg` — **include a `const_`
+Every other numeric column is a regressor, as in `estimate regression reg` — **include a `const_`
 column of ones if you want an intercept.** A comma-list fits all quantiles in a single call
 and the coefficient table carries a `tau` column, one row per (quantile, term).
 
@@ -513,15 +513,15 @@ the check-function objective against an intercept-only fit *at that quantile*.
 
 No `--plot`: upstream ships no plot recipe for `QuantileRegModel` (verified at MEMs 1.0.0).
 
-## estimate rdd
+## estimate regression rdd
 
 Regression discontinuity with Calonico–Cattaneo–Titiunik robust bias correction. Units just
 above and just below a cutoff are treated as comparable, so the jump in the outcome at the
 cutoff identifies the treatment effect.
 
 ```bash
-friedman estimate rdd data.csv --outcome=y --running=score --cutoff=60
-friedman estimate rdd data.csv --outcome=y --running=score --cutoff=60 --fuzzy=enrolled
+friedman estimate regression rdd data.csv --outcome=y --running=score --cutoff=60
+friedman estimate regression rdd data.csv --outcome=y --running=score --cutoff=60 --fuzzy=enrolled
 ```
 
 | Option | Type | Default | Description |
@@ -566,14 +566,14 @@ exactly as a weak instrument does.
 
 No `--plot`: upstream ships no plot recipe for `RDDResult` (verified at MEMs 1.0.0).
 
-## estimate tvpvar
+## estimate var tvpvar
 
 Time-varying-parameter VAR with stochastic volatility (Primiceri 2005): both the
 coefficients and the shock volatilities drift as random walks, estimated by Gibbs sampling.
 
 ```bash
-friedman estimate tvpvar data.csv --lags=2 --draws=2000 --burnin=1000
-friedman estimate tvpvar data.csv --no-sv          # drifting coefficients, constant volatility
+friedman estimate var tvpvar data.csv --lags=2 --draws=2000 --burnin=1000
+friedman estimate var tvpvar data.csv --no-sv          # drifting coefficients, constant volatility
 ```
 
 | Option | Short | Type | Default | Description |
@@ -616,10 +616,10 @@ friedman irf tvpvar data.csv --date=40 --horizons=20
 | `--no-stationary-only` | | Flag | | Include explosive draws instead of discarding them |
 
 Estimation options (`--lags`, `--draws`, `--burnin`, `--thin`, `--n-train`, `--k-q`/`--k-s`/`--k-w`,
-`--no-tvp`, `--no-sv`) match `estimate tvpvar`.
+`--no-tvp`, `--no-sv`) match `estimate var tvpvar`.
 
 `--date` indexes the **effective** sample, after lags and any training observations — run
-`estimate tvpvar` first and read `T_eff` from the specification table. A missing `--date` is
+`estimate var tvpvar` first and read `T_eff` from the specification table. A missing `--date` is
 rejected before the sampler runs; an out-of-range one can only be caught afterwards, since
 `T_eff` is not known until then.
 
@@ -627,15 +627,15 @@ By default explosive posterior draws are discarded. If *every* draw is explosive
 requested date the command fails with `model/error` naming `--no-stationary-only` as the
 escape hatch — that is a modelling outcome, not a bug.
 
-## estimate mfvar
+## estimate var mfvar
 
 Mixed-frequency VAR (Schorfheide & Song 2015). Series observed at different frequencies are
 combined in a single high-frequency VAR, with the low-frequency series treated as a latent
 high-frequency process observed only periodically.
 
 ```bash
-friedman estimate mfvar monthly_quarterly.csv --freq-ratio=3 --aggregation=average
-friedman estimate mfvar data.csv --low-freq=2,3 --aggregation=growth,flow
+friedman estimate var mfvar monthly_quarterly.csv --freq-ratio=3 --aggregation=average
+friedman estimate var mfvar data.csv --low-freq=2,3 --aggregation=growth,flow
 ```
 
 **Data layout.** One CSV at the **high** frequency. A low-frequency series occupies a normal
@@ -680,29 +680,29 @@ No `--plot`: upstream ships no plot recipe for `MFVARPosterior` (verified at MEM
 !!! note "Seeding"
     `estimate_tvpvar` and `estimate_mfvar` take an RNG rather than a seed, so `--seed`
     cannot be recorded in the result's reproducibility manifest the way it is for
-    `estimate bvar`. Runs remain reproducible through the global seed the CLI sets.
+    `estimate var bvar`. Runs remain reproducible through the global seed the CLI sets.
 
-## estimate lp
+## estimate var lp
 
 Estimate local projections with 6 method variants.
 
 ### Standard LP (Jorda 2005)
 
 ```bash
-friedman estimate lp data.csv --shock=1 --horizons=20 --vcov=newey_west
+friedman estimate var lp data.csv --shock=1 --horizons=20 --vcov=newey_west
 ```
 
 ### LP-IV (Stock & Watson 2018)
 
 ```bash
-friedman estimate lp data.csv --method=iv --shock=1 --instruments=instruments.csv
+friedman estimate var lp data.csv --method=iv --shock=1 --instruments=instruments.csv
 ```
 
 ### Smooth LP (Barnichon & Brownlees 2019)
 
 ```bash
-friedman estimate lp data.csv --method=smooth --shock=1 --horizons=20
-friedman estimate lp data.csv --method=smooth --lambda=0.5 --knots=4
+friedman estimate var lp data.csv --method=smooth --shock=1 --horizons=20
+friedman estimate var lp data.csv --method=smooth --lambda=0.5 --knots=4
 ```
 
 When `--lambda=0` (default), the smoothing parameter is auto-selected via cross-validation.
@@ -710,19 +710,19 @@ When `--lambda=0` (default), the smoothing parameter is auto-selected via cross-
 ### State-Dependent LP (Auerbach & Gorodnichenko 2013)
 
 ```bash
-friedman estimate lp data.csv --method=state --shock=1 --state-var=2 --gamma=1.5
+friedman estimate var lp data.csv --method=state --shock=1 --state-var=2 --gamma=1.5
 ```
 
 ### Propensity Score LP (Angrist et al. 2018)
 
 ```bash
-friedman estimate lp data.csv --method=propensity --treatment=1 --score-method=logit
+friedman estimate var lp data.csv --method=propensity --treatment=1 --score-method=logit
 ```
 
 ### Doubly Robust LP
 
 ```bash
-friedman estimate lp data.csv --method=robust --treatment=1 --score-method=logit
+friedman estimate var lp data.csv --method=robust --treatment=1 --score-method=logit
 ```
 
 | Option | Short | Type | Default | Description |
@@ -756,10 +756,10 @@ The LP-IV summary always reports the per-horizon first-stage F — as a **minimu
 
 ```bash
 # Montiel Olea-Pflueger effective F — the correct weak-IV statistic under heteroskedasticity
-friedman estimate lp data.csv --method=iv --instruments=z.csv --mop-f --mop-tau=0.10
+friedman estimate var lp data.csv --method=iv --instruments=z.csv --mop-f --mop-tau=0.10
 
 # Anderson-Rubin bands — correct coverage at ANY instrument strength
-friedman estimate lp data.csv --method=iv --instruments=z.csv --ar-bands --ar-level=0.95
+friedman estimate var lp data.csv --method=iv --instruments=z.csv --ar-bands --ar-level=0.95
 ```
 
 `--mop-f` emits a **Montiel Olea-Pflueger Effective F** table (`f_effective`, `critical_value`, `tau`, `weak`, `n_instruments`, `bandwidth`, `f_naive`). The effective F is the statistic to act on: the naive first-stage F is valid only under homoskedasticity, and the two diverge exactly when it matters. The critical values are MOP's *simplified* (nuisance-parameter-free) ones — conservative upper bounds — so a pass is a genuine pass.
@@ -770,19 +770,19 @@ One row per horizon × response means the shock variable appears as a response t
 
 Both option groups are rejected with a typed `usage/invalid` under any other `--method` — silently ignoring them would let an agent believe it received robust bands it never got.
 
-## estimate arima
+## estimate univariate arima
 
 Estimate ARIMA(p,d,q) models. Auto-selects order via information criteria when `--p` is omitted.
 
 ```bash
 # Auto-selection
-friedman estimate arima data.csv --criterion=bic
+friedman estimate univariate arima data.csv --criterion=bic
 
 # Explicit order
-friedman estimate arima data.csv --p=1 --d=1 --q=1
+friedman estimate univariate arima data.csv --p=1 --d=1 --q=1
 
 # Specific column
-friedman estimate arima data.csv --column=2 --p=2 --d=0 --q=1
+friedman estimate univariate arima data.csv --column=2 --p=2 --d=0 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -801,16 +801,16 @@ friedman estimate arima data.csv --column=2 --p=2 --d=0 --q=1
 
 **Output:** AR/MA coefficients, AIC/BIC/log-likelihood.
 
-## estimate sarima
+## estimate univariate sarima
 
 Multiplicative seasonal ARIMA, `SARIMA(p,d,q)(P,D,Q)[s]`.
 
 ```bash
 # monthly data with a seasonal AR term
-friedman estimate sarima y.csv --p 1 --q 0 --P 1 --Q 0 --s 12
+friedman estimate univariate sarima y.csv --p 1 --q 0 --P 1 --Q 0 --s 12
 
 # let the library choose the orders (and d/D) for a quarterly series
-friedman estimate sarima y.csv --s 4
+friedman estimate univariate sarima y.csv --s 4
 ```
 
 | Option | Short | Type | Default | Description |
@@ -829,7 +829,7 @@ friedman estimate sarima y.csv --s 4
 | `--plot` / `--plot-save` | | Flag/String | | Plot the fitted model |
 
 **Omitting `--p` means "select automatically"** — the same convention as
-[`estimate arima`](#estimate-arima). In that mode the library also chooses `d` and `D` by
+[`estimate univariate arima`](#estimate-arima). In that mode the library also chooses `d` and `D` by
 seasonal/regular unit-root testing unless you pin them. `--auto` forces selection even when
 orders are supplied.
 
@@ -838,10 +838,10 @@ is rejected as a data error rather than silently fitting a non-seasonal model.
 
 **Output:** coefficient table (`intercept`, `ar*`, `ma*`, `sar*`, `sma*`, `sigma2` — seasonal
 terms are labelled `sar`/`sma` to keep them distinct from their non-seasonal counterparts) and
-information criteria. `predict sarima` / `residuals sarima` give in-sample fitted values and
-residuals; [`forecast sarima`](forecast.md) forecasts through both differencing operators.
+information criteria. `predict univariate sarima` / `residuals univariate sarima` give in-sample fitted values and
+residuals; [`forecast univariate sarima`](forecast.md) forecasts through both differencing operators.
 
-## estimate arfima
+## estimate univariate arfima
 
 Estimate ARFIMA(p,d,q) fractionally-integrated (long-memory) models. The fractional
 integration order `d ∈ (−0.5, 0.5)` is estimated (starting from a GPH pre-estimate
@@ -849,13 +849,13 @@ unless `--d0` is given); `p` and `q` are the short-memory AR and MA orders.
 
 ```bash
 # Pure fractional noise ARFIMA(0,d,0)
-friedman estimate arfima data.csv --p=0 --q=0
+friedman estimate univariate arfima data.csv --p=0 --q=0
 
 # ARFIMA(1,d,1) via exact Gaussian ML
-friedman estimate arfima data.csv --p=1 --q=1 --method=mle
+friedman estimate univariate arfima data.csv --p=1 --q=1 --method=mle
 
 # Custom starting value for d
-friedman estimate arfima data.csv --column=2 --d0=0.2
+friedman estimate univariate arfima data.csv --column=2 --d0=0.2
 ```
 
 | Option | Short | Type | Default | Description |
@@ -872,16 +872,16 @@ friedman estimate arfima data.csv --column=2 --d0=0.2
 **Output:** a hand-built coefficient table (`const`, `d`, `ar*`, `ma*` with standard
 errors, z-stats, p-values) plus a diagnostics block (d estimate and its standard
 error, log-likelihood, AIC/BIC, convergence). `ARFIMAModel` is not one of MEMs'
-coefficient-table types, so — like `estimate arima` and the volatility models — the
+coefficient-table types, so — like `estimate univariate arima` and the volatility models — the
 coefficient table is emitted directly rather than via the tidy `DataFrame(model)`
 path (a documented C051 exception).
 
-## estimate gmm
+## estimate regression gmm
 
 Estimate a GMM model. Requires a TOML config specifying moment conditions and instruments.
 
 ```bash
-friedman estimate gmm data.csv --config=gmm_spec.toml --weighting=twostep
+friedman estimate regression gmm data.csv --config=gmm_spec.toml --weighting=twostep
 ```
 
 | Option | Short | Type | Default | Description |
@@ -895,7 +895,7 @@ friedman estimate gmm data.csv --config=gmm_spec.toml --weighting=twostep
 
 See [Configuration](../configuration.md) for GMM TOML format.
 
-## estimate smm
+## estimate regression smm
 
 Estimate via Simulated Method of Moments (SMM): parameters are chosen so that moments of
 data **simulated** from a parametric model match the moments of the observed data.
@@ -907,8 +907,8 @@ its initial parameter vector `theta0`. Moments are the autocovariance moments
 `--seed` pins the simulation draws for a reproducible fit.
 
 ```bash
-friedman estimate smm gdp.csv --config=smm_ar1.toml
-friedman --seed 42 estimate smm y.csv --config=smm_var1.toml
+friedman estimate regression smm gdp.csv --config=smm_ar1.toml
+friedman --seed 42 estimate regression smm y.csv --config=smm_var1.toml
 ```
 
 | Option | Short | Type | Default | Description |
@@ -927,13 +927,13 @@ J p-value, and convergence.
 See [Configuration](../configuration.md#smm-specification) for the `[smm]` TOML schema and the
 per-model `theta0` layouts.
 
-## estimate static
+## estimate factor static
 
 Estimate a static factor model via PCA. Factor count is auto-selected via Bai-Ng information criteria when `--nfactors` is omitted.
 
 ```bash
-friedman estimate static data.csv
-friedman estimate static data.csv --nfactors=3 --criterion=ic2
+friedman estimate factor static data.csv
+friedman estimate factor static data.csv --nfactors=3 --criterion=ic2
 ```
 
 | Option | Short | Type | Default | Description |
@@ -945,13 +945,13 @@ friedman estimate static data.csv --nfactors=3 --criterion=ic2
 
 **Output:** Scree data (eigenvalues, variance shares), factor loadings.
 
-## estimate dynamic
+## estimate factor dynamic
 
 Estimate a dynamic factor model with a factor VAR.
 
 ```bash
-friedman estimate dynamic data.csv --nfactors=2 --factor-lags=1
-friedman estimate dynamic data.csv --method=em
+friedman estimate factor dynamic data.csv --nfactors=2 --factor-lags=1
+friedman estimate factor dynamic data.csv --method=em
 ```
 
 | Option | Short | Type | Default | Description |
@@ -964,13 +964,13 @@ friedman estimate dynamic data.csv --method=em
 
 **Output:** Factor loadings, companion matrix eigenvalues, stationarity check.
 
-## estimate gdfm
+## estimate factor gdfm
 
 Estimate a generalized dynamic factor model (spectral method).
 
 ```bash
-friedman estimate gdfm data.csv --dynamic-rank=2
-friedman estimate gdfm data.csv --nfactors=5 --dynamic-rank=3
+friedman estimate factor gdfm data.csv --dynamic-rank=2
+friedman estimate factor gdfm data.csv --nfactors=5 --dynamic-rank=3
 ```
 
 | Option | Short | Type | Default | Description |
@@ -985,12 +985,12 @@ friedman estimate gdfm data.csv --nfactors=5 --dynamic-rank=3
 
 **Output:** Common variance shares per variable, average common variance share.
 
-## estimate arch
+## estimate volatility arch
 
 Estimate an ARCH(q) volatility model.
 
 ```bash
-friedman estimate arch data.csv --column=1 --q=1
+friedman estimate volatility arch data.csv --column=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1002,12 +1002,12 @@ friedman estimate arch data.csv --column=1 --q=1
 
 **Output:** Coefficients (mu, omega, alpha), persistence, unconditional variance.
 
-## estimate garch
+## estimate volatility garch
 
 Estimate a GARCH(p,q) volatility model.
 
 ```bash
-friedman estimate garch data.csv --column=1 --p=1 --q=1
+friedman estimate volatility garch data.csv --column=1 --p=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1037,12 +1037,12 @@ conditional-distribution argument at all, and from `figarch`/`fiegarch`, which a
 argument but implement Gaussian QMLE only. Passing `--dist` to any of those is a usage error
 rather than a silently ignored option.
 
-## estimate egarch
+## estimate volatility egarch
 
 Estimate an EGARCH(p,q) volatility model.
 
 ```bash
-friedman estimate egarch data.csv --column=1 --p=1 --q=1
+friedman estimate volatility egarch data.csv --column=1 --p=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1055,12 +1055,12 @@ friedman estimate egarch data.csv --column=1 --p=1 --q=1
 
 **Output:** Coefficients (mu, omega, alpha, gamma, beta), persistence.
 
-## estimate gjr\_garch
+## estimate volatility gjr-garch
 
 Estimate a GJR-GARCH(p,q) volatility model with asymmetric leverage effects.
 
 ```bash
-friedman estimate gjr_garch data.csv --column=1 --p=1 --q=1
+friedman estimate volatility gjr-garch data.csv --column=1 --p=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1073,12 +1073,12 @@ friedman estimate gjr_garch data.csv --column=1 --p=1 --q=1
 
 **Output:** Coefficients (mu, omega, alpha, gamma, beta), persistence, half-life.
 
-## estimate sv
+## estimate volatility sv
 
 Estimate a Stochastic Volatility model via MCMC.
 
 ```bash
-friedman estimate sv data.csv --column=1 --draws=5000
+friedman estimate volatility sv data.csv --column=1 --draws=5000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1090,12 +1090,12 @@ friedman estimate sv data.csv --column=1 --draws=5000
 
 **Output:** Coefficients (mu, phi, sigma_eta), persistence (phi).
 
-## estimate igarch
+## estimate volatility igarch
 
 Estimate an Integrated GARCH(p,q) model — GARCH with the persistence constraint `Σα + Σβ = 1` imposed exactly (a shock to variance never dies out; the RiskMetrics EWMA is the `ω=0` special case).
 
 ```bash
-friedman estimate igarch data.csv --column=1 --p=1 --q=1
+friedman estimate volatility igarch data.csv --column=1 --p=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1108,12 +1108,12 @@ friedman estimate igarch data.csv --column=1 --p=1 --q=1
 
 **Output:** Coefficient table (`parameter | estimate | std_error | z_stat | p_value`; parameters `mu, omega, alpha…, beta…`) plus a `metric | value` diagnostics table (`log_likelihood, aic, bic, persistence` = 1, `converged, iterations`).
 
-## estimate cgarch
+## estimate volatility cgarch
 
 Estimate a Component-GARCH(1,1) model (Engle & Lee 1999) decomposing the conditional variance into a slowly mean-reverting permanent component and a fast transitory component. Orders are fixed at (1,1).
 
 ```bash
-friedman estimate cgarch data.csv --column=1
+friedman estimate volatility cgarch data.csv --column=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1124,13 +1124,13 @@ friedman estimate cgarch data.csv --column=1
 
 **Output:** Coefficient table (parameters `mu, omega, rho, phi, alpha, beta`) plus diagnostics (`log_likelihood, aic, bic, persistence` = ρ, `converged, iterations, transitory_persistence` = α+β, `unconditional_variance` = ω).
 
-## estimate aparch
+## estimate volatility aparch
 
 Estimate an Asymmetric Power ARCH(p,q) model (Ding, Granger & Engle 1993) with a free power `δ` of the conditional standard deviation and a Box-Cox-style leverage term. Pin `δ` and/or `γ` with `--fix-delta` / `--fix-gamma`.
 
 ```bash
-friedman estimate aparch data.csv --column=1 --p=1 --q=1
-friedman estimate aparch data.csv --fix-delta=2 --fix-gamma=0   # ≡ GARCH
+friedman estimate volatility aparch data.csv --column=1 --p=1 --q=1
+friedman estimate volatility aparch data.csv --fix-delta=2 --fix-gamma=0   # ≡ GARCH
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1145,12 +1145,12 @@ friedman estimate aparch data.csv --fix-delta=2 --fix-gamma=0   # ≡ GARCH
 
 **Output:** Coefficient table (parameters `mu, omega, alpha…, gamma…, beta…, delta`) plus diagnostics (`log_likelihood, aic, bic, persistence, converged, iterations, delta, n_params`).
 
-## estimate figarch
+## estimate volatility figarch
 
 Estimate a Fractionally-Integrated GARCH(p,d,q) model (Baillie, Bollerslev & Mikkelsen 1996) — long-memory volatility with hyperbolic decay via the fractional-difference order `d ∈ (0,1)`. Gaussian QMLE (`--dist normal`).
 
 ```bash
-friedman estimate figarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=1000
+friedman estimate volatility figarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=1000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1166,12 +1166,12 @@ friedman estimate figarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=
 
 **Output:** Coefficient table (parameters `mu, omega, phi…, beta…, d`) plus diagnostics (`log_likelihood, aic, bic, persistence` = d, `converged, iterations, d, truncation, n_neg_lambda`).
 
-## estimate fiegarch
+## estimate volatility fiegarch
 
 Estimate a Fractionally-Integrated EGARCH(p,d,q) model (Bollerslev & Mikkelsen 1996) — the log-variance long-memory analogue of FIGARCH with an EGARCH news function (sign term `θ`, magnitude term `γ`). Gaussian QMLE.
 
 ```bash
-friedman estimate fiegarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=1000
+friedman estimate volatility fiegarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation=1000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1187,15 +1187,15 @@ friedman estimate fiegarch data.csv --column=1 --p=1 --q=1 --d0=0.4 --truncation
 
 **Output:** Coefficient table (parameters `mu, omega, theta, gamma, phi…, beta…, d`) plus diagnostics (`log_likelihood, aic, bic, persistence` = d, `converged, iterations, d, truncation`).
 
-## estimate garch-midas
+## estimate volatility garch-midas
 
 Estimate a GARCH-MIDAS model (Engle, Ghysels & Sohn 2013): a mixed-frequency model splitting the conditional variance `σ² = τ·g` into a short-run unit-mean GARCH(1,1) component `g` and a long-run MIDAS-filtered component `τ`. `--m-freq` (high-frequency observations per low-frequency block) is **required**. With `--rv realized` the long-run driver is realized variance computed from the returns (no extra input); with `--rv macro` supply an exogenous low-frequency driver via `--config` (a `[garch_midas]` TOML section — see [Configuration](../configuration.md)).
 
 ```bash
 # realized-variance driver (self-contained)
-friedman estimate garch-midas data.csv --column=1 --m-freq=22 --k=12
+friedman estimate volatility garch-midas data.csv --column=1 --m-freq=22 --k=12
 # exogenous macro driver
-friedman estimate garch-midas data.csv --m-freq=22 --rv=macro --config=gm.toml
+friedman estimate volatility garch-midas data.csv --m-freq=22 --rv=macro --config=gm.toml
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1213,14 +1213,14 @@ friedman estimate garch-midas data.csv --m-freq=22 --rv=macro --config=gm.toml
 
 ## Multivariate GARCH
 
-`estimate ccc`, `estimate dcc`, and `estimate bekk` fit **multivariate** volatility models over the full numeric matrix (T×n, columns are series — there is no `--column`; use at least 2 numeric columns). Each headline output is the **conditional correlation matrix** rendered wide (series×series — the same documented exception as the input-output family), followed by a second-stage dynamics-coefficient table (omitted for CCC, which has none) and a diagnostics block (`loglik, aic, bic, series, observations, converged, kind`). A single-column input, a series with a missing cell, or a non-finite value surfaces a typed `data/*` error rather than an internal failure.
+`estimate volatility ccc`, `estimate volatility dcc`, and `estimate volatility bekk` fit **multivariate** volatility models over the full numeric matrix (T×n, columns are series — there is no `--column`; use at least 2 numeric columns). Each headline output is the **conditional correlation matrix** rendered wide (series×series — the same documented exception as the input-output family), followed by a second-stage dynamics-coefficient table (omitted for CCC, which has none) and a diagnostics block (`loglik, aic, bic, series, observations, converged, kind`). A single-column input, a series with a missing cell, or a non-finite value surfaces a typed `data/*` error rather than an internal failure.
 
-## estimate ccc
+## estimate volatility ccc
 
 Estimate a **Constant Conditional Correlation** (Bollerslev 1990) MGARCH: a univariate GARCH(p,q) margin per series with a single constant correlation matrix. No second-stage optimization (the correlation is the closed-form standardized-residual correlation).
 
 ```bash
-friedman estimate ccc returns.csv --p=1 --q=1
+friedman estimate volatility ccc returns.csv --p=1 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1232,13 +1232,13 @@ friedman estimate ccc returns.csv --p=1 --q=1
 
 **Output:** Conditional correlation matrix (wide) + diagnostics (no dynamics table — CCC has no second-stage parameters).
 
-## estimate dcc
+## estimate volatility dcc
 
 Estimate a **Dynamic Conditional Correlation** (Engle 2002) MGARCH with time-varying correlations, or the **cDCC** correction of Aielli (2013) via `--correction=aielli`. Reports the `[a, b]` correlation dynamics with QML sandwich standard errors and the last-period conditional correlation matrix.
 
 ```bash
-friedman estimate dcc returns.csv --p=1 --q=1
-friedman estimate dcc returns.csv --correction=aielli   # cDCC
+friedman estimate volatility dcc returns.csv --p=1 --q=1
+friedman estimate volatility dcc returns.csv --correction=aielli   # cDCC
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1251,13 +1251,13 @@ friedman estimate dcc returns.csv --correction=aielli   # cDCC
 
 **Output:** Last-period conditional correlation matrix (wide) + dynamics coefficients (`a`, `b`) + diagnostics (adds `correction`, `persistence` = a+b).
 
-## estimate bekk
+## estimate volatility bekk
 
 Estimate a **BEKK(1,1)** (Engle & Kroner 1995) MGARCH, modelling the conditional covariance directly with variance targeting. `--kind=scalar` (default) estimates two news/persistence scalars `a, b`; `--kind=diagonal` estimates per-series `aᵢ, bᵢ`.
 
 ```bash
-friedman estimate bekk returns.csv --kind=scalar
-friedman estimate bekk returns.csv --kind=diagonal
+friedman estimate volatility bekk returns.csv --kind=scalar
+friedman estimate volatility bekk returns.csv --kind=diagonal
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1268,16 +1268,16 @@ friedman estimate bekk returns.csv --kind=diagonal
 
 **Output:** Unconditional correlation matrix (wide) + dynamics coefficients (`a`, `b` for scalar; `aᵢ`, `bᵢ` for diagonal) + diagnostics (adds `bekk_kind`).
 
-## estimate fastica
+## estimate factor fastica
 
 ICA-based non-Gaussian SVAR identification. Supports 5 ICA methods.
 
 ```bash
-friedman estimate fastica data.csv --method=fastica --contrast=logcosh
-friedman estimate fastica data.csv --method=jade
-friedman estimate fastica data.csv --method=sobi
-friedman estimate fastica data.csv --method=dcov
-friedman estimate fastica data.csv --method=hsic
+friedman estimate factor fastica data.csv --method=fastica --contrast=logcosh
+friedman estimate factor fastica data.csv --method=jade
+friedman estimate factor fastica data.csv --method=sobi
+friedman estimate factor fastica data.csv --method=dcov
+friedman estimate factor fastica data.csv --method=hsic
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1290,15 +1290,15 @@ friedman estimate fastica data.csv --method=hsic
 
 **Output:** Structural impact matrix (B0), structural shocks (first 10 observations).
 
-## estimate ml
+## estimate regression ml
 
 Maximum likelihood non-Gaussian SVAR identification.
 
 ```bash
-friedman estimate ml data.csv --distribution=student_t
-friedman estimate ml data.csv --distribution=mixture_normal
-friedman estimate ml data.csv --distribution=pml
-friedman estimate ml data.csv --distribution=skew_normal
+friedman estimate regression ml data.csv --distribution=student_t
+friedman estimate regression ml data.csv --distribution=mixture_normal
+friedman estimate regression ml data.csv --distribution=pml
+friedman estimate regression ml data.csv --distribution=skew_normal
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1310,15 +1310,15 @@ friedman estimate ml data.csv --distribution=skew_normal
 
 **Output:** Structural impact matrix (B0), model fit (log-likelihood, AIC, BIC), distribution parameters, parameter estimates with standard errors.
 
-## estimate vecm
+## estimate var vecm
 
 Estimate a Vector Error Correction Model via Johansen MLE. Cointegration rank is auto-selected via trace test when `--rank` is omitted.
 
 ```bash
-friedman estimate vecm data.csv --lags=2
-friedman estimate vecm data.csv --rank=1 --deterministic=constant
-friedman estimate vecm data.csv --lags=4 --rank=2 --method=johansen
-friedman estimate vecm data.csv --significance=0.01
+friedman estimate var vecm data.csv --lags=2
+friedman estimate var vecm data.csv --rank=1 --deterministic=constant
+friedman estimate var vecm data.csv --lags=4 --rank=2 --method=johansen
+friedman estimate var vecm data.csv --significance=0.01
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1333,15 +1333,15 @@ friedman estimate vecm data.csv --significance=0.01
 
 **Output:** Cointegration rank, loading matrix (alpha), cointegrating vectors (beta), short-run coefficients.
 
-## estimate svar
+## estimate var svar
 
 Maximum-likelihood estimation of the AB-model SVAR (`A u_t = B ε_t`, Amisano–Giannini). `recursive` and `blanchard-quah` are closed-form; overidentified matrix patterns are maximised with LBFGS from `--n-starts` starting values. Matrix patterns come from the `[svar]` config table (`nan` = free parameter); see [Configuration](../configuration.md).
 
 ```bash
-friedman estimate svar data.csv --lags=2
-friedman estimate svar data.csv --pattern=blanchard-quah
-friedman estimate svar data.csv --pattern=a-model --config=svar.toml
-friedman estimate svar data.csv --pattern=ab-model --config=svar.toml --n-starts=10
+friedman estimate var svar data.csv --lags=2
+friedman estimate var svar data.csv --pattern=blanchard-quah
+friedman estimate var svar data.csv --pattern=a-model --config=svar.toml
+friedman estimate var svar data.csv --pattern=ab-model --config=svar.toml --n-starts=10
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1358,13 +1358,13 @@ friedman estimate svar data.csv --pattern=ab-model --config=svar.toml --n-starts
 
 **Output:** Contemporaneous matrix A, structural matrix B, log-likelihood with the LR overidentification test and identification status.
 
-## estimate svec
+## estimate var svec
 
 Structural VECM via King–Plosser–Stock–Watson (default) or custom long/short-run zero matrices from the `[svec]` config table. Without `--config` the identification is fully KPSW.
 
 ```bash
-friedman estimate svec data.csv --lags=2 --rank=1
-friedman estimate svec data.csv --lags=2 --rank=1 --config=svec.toml
+friedman estimate var svec data.csv --lags=2 --rank=1
+friedman estimate var svec data.csv --lags=2 --rank=1 --config=svec.toml
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1384,15 +1384,15 @@ friedman estimate svec data.csv --lags=2 --rank=1 --config=svec.toml
 
 **Output:** Contemporaneous impact matrix B0, long-run impact matrix Xi, permanent-shock count and identification status.
 
-## estimate pvar
+## estimate panel pvar
 
 Estimate a Panel VAR model via GMM or fixed-effects OLS.
 
 ```bash
-friedman estimate pvar data.csv --id-col=country --time-col=year --lags=2
-friedman estimate pvar data.csv --id-col=country --time-col=year --method=feols
-friedman estimate pvar data.csv --id-col=country --time-col=year --vars=gdp,inflation,rate
-friedman estimate pvar data.csv --id-col=country --time-col=year --transformation=fd
+friedman estimate panel pvar data.csv --id-col=country --time-col=year --lags=2
+friedman estimate panel pvar data.csv --id-col=country --time-col=year --method=feols
+friedman estimate panel pvar data.csv --id-col=country --time-col=year --vars=gdp,inflation,rate
+friedman estimate panel pvar data.csv --id-col=country --time-col=year --transformation=fd
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1409,14 +1409,14 @@ friedman estimate pvar data.csv --id-col=country --time-col=year --transformatio
 
 **Output:** Coefficient matrix with standard errors and p-values.
 
-## estimate reg
+## estimate regression reg
 
 OLS/WLS regression. If `--dep` is omitted, the first numeric column is used as the dependent variable and all remaining numeric columns are regressors.
 
 ```bash
-friedman estimate reg data.csv --dep=wage --cov-type=hc1
-friedman estimate reg data.csv --dep=wage --weights=pop_weight --cov-type=hc3
-friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
+friedman estimate regression reg data.csv --dep=wage --cov-type=hc1
+friedman estimate regression reg data.csv --dep=wage --weights=pop_weight --cov-type=hc3
+friedman estimate regression reg data.csv --dep=wage --clusters=state --cov-type=cluster
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1542,17 +1542,14 @@ friedman estimate regression reg :stackloss --dep stack.loss --format json
 
 ```bash
 # Projected coordinates (metres, km, …): euclidean distance, cutoff in the same units
-friedman estimate reg plants.csv --dep=output --cov-type=conley \
 friedman estimate regression reg plants.csv --dep=output --cov-type=conley \
   --lat=coord_y --lon=coord_x --dist-cutoff=50
 
 # Degrees: haversine distance, cutoff in kilometres
-friedman estimate reg counties.csv --dep=wage --cov-type=conley \
 friedman estimate regression reg counties.csv --dep=wage --cov-type=conley \
   --lat=latitude --lon=longitude --conley-metric=haversine --dist-cutoff=100
 
 # Spatial *and* serial correlation (Conley panel): add a time column and a lag cutoff
-friedman estimate reg panel.csv --dep=y --cov-type=conley \
 friedman estimate regression reg panel.csv --dep=y --cov-type=conley \
   --lat=lat --lon=lon --conley-metric=haversine --dist-cutoff=100 \
   --time-col=year --time-cutoff=3
@@ -1572,16 +1569,16 @@ Choosing the cutoff is a judgement call and the result is sensitive to it: too s
 
 ## Penalized, robust & censored regression
 
-`estimate lasso | ridge | elastic-net | robust | tobit` extend the cross-section regression family beyond OLS. Like `estimate reg`, they take the dependent variable via `--dep` (default: first numeric column) and use all remaining numeric columns as regressors. A bad `--dep` surfaces a typed `data/column-range` error. Coefficient tables are hand-built (these result types are not Tables.jl-registered upstream — the C051 exception).
+`estimate regression lasso | ridge | elastic-net | robust | tobit` extend the cross-section regression family beyond OLS. Like `estimate regression reg`, they take the dependent variable via `--dep` (default: first numeric column) and use all remaining numeric columns as regressors. A bad `--dep` surfaces a typed `data/column-range` error. Coefficient tables are hand-built (these result types are not Tables.jl-registered upstream — the C051 exception).
 
-## estimate lasso
+## estimate regression lasso
 
 L1-penalized (Lasso) regression. `--lambda=auto` selects the penalty along a cross-validated path (rule set by `--select`); pass a number to fix it. The intercept is reported as `(Intercept)`; the `nonzero` column flags the active (selected) coefficients.
 
 ```bash
-friedman estimate lasso data.csv --dep=y
-friedman estimate lasso data.csv --dep=y --lambda=0.1
-friedman estimate lasso data.csv --dep=y --select=bic
+friedman estimate regression lasso data.csv --dep=y
+friedman estimate regression lasso data.csv --dep=y --lambda=0.1
+friedman estimate regression lasso data.csv --dep=y --select=bic
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1594,12 +1591,12 @@ friedman estimate lasso data.csv --dep=y --select=bic
 
 **Output:** Coefficient table (`term|estimate|nonzero`, intercept first) + diagnostics (`alpha`, selected `lambda`, `n_active`, `r2`, `aic`, `bic`, `ebic`, `select`).
 
-## estimate ridge
+## estimate regression ridge
 
-L2-penalized (Ridge) regression. Same options and output as `estimate lasso` (Ridge fixes the L1/L2 mix `alpha=0`).
+L2-penalized (Ridge) regression. Same options and output as `estimate regression lasso` (Ridge fixes the L1/L2 mix `alpha=0`).
 
 ```bash
-friedman estimate ridge data.csv --dep=y --lambda=auto
+friedman estimate regression ridge data.csv --dep=y --lambda=auto
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1610,12 +1607,12 @@ friedman estimate ridge data.csv --dep=y --lambda=auto
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-## estimate elastic-net
+## estimate regression elastic-net
 
 Elastic-Net regression — an L1/L2 mix controlled by `--alpha` (`1`=Lasso, `0`=Ridge).
 
 ```bash
-friedman estimate elastic-net data.csv --dep=y --alpha=0.5
+friedman estimate regression elastic-net data.csv --dep=y --alpha=0.5
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1627,13 +1624,13 @@ friedman estimate elastic-net data.csv --dep=y --alpha=0.5
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-## estimate robust
+## estimate regression robust
 
 Robust regression by iteratively reweighted least squares (M) or high-breakdown MM estimation, with a Huber or Tukey-bisquare weight function. Reports coefficients with QML/sandwich standard errors.
 
 ```bash
-friedman estimate robust data.csv --dep=y --psi=huber --method=m
-friedman estimate robust data.csv --dep=y --psi=bisquare --method=mm
+friedman estimate regression robust data.csv --dep=y --psi=huber --method=m
+friedman estimate regression robust data.csv --dep=y --psi=bisquare --method=mm
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1646,13 +1643,13 @@ friedman estimate robust data.csv --dep=y --psi=bisquare --method=mm
 
 **Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`psi`, `method`, `scale`, `robust_r2`, `converged`, `iterations`).
 
-## estimate tobit
+## estimate regression tobit
 
 Tobit (censored) regression by maximum likelihood, for a dependent variable censored at `--lower` and/or `--upper` (defaults: left-censored at 0, no upper bound).
 
 ```bash
-friedman estimate tobit data.csv --dep=y --lower=0
-friedman estimate tobit data.csv --dep=y --lower=0 --upper=100
+friedman estimate regression tobit data.csv --dep=y --lower=0
+friedman estimate regression tobit data.csv --dep=y --lower=0 --upper=100
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1665,13 +1662,13 @@ friedman estimate tobit data.csv --dep=y --lower=0 --upper=100
 
 **Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`sigma`, `loglik`, `aic`, `bic`, `lower`, `upper`, `n_censored_left`, `n_censored_right`, `converged`).
 
-## estimate truncreg
+## estimate regression truncreg
 
 Truncated-normal regression by maximum likelihood (Hausman & Wise 1977). Unlike Tobit, the sample is *truncated* — only observations with `--lower < y < --upper` are in the data (no censored mass). Every `y` must lie strictly inside the bounds or a `data/invalid` error is returned.
 
 ```bash
-friedman estimate truncreg data.csv --dep=y --lower=0
-friedman estimate truncreg data.csv --dep=y --lower=0 --upper=100
+friedman estimate regression truncreg data.csv --dep=y --lower=0
+friedman estimate regression truncreg data.csv --dep=y --lower=0 --upper=100
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1684,14 +1681,14 @@ friedman estimate truncreg data.csv --dep=y --lower=0 --upper=100
 
 **Output:** Coefficient table (`parameter|estimate|std_error|z_stat|p_value`) + diagnostics (`sigma`, `sigma_se`, `loglik`, `aic`, `bic`, `lower`, `upper`, `n_truncated`, `converged`).
 
-## estimate heckman
+## estimate regression heckman
 
-Heckman sample-selection model — two equations: an outcome equation `--dep ~ --outcome-vars` observed only when the binary `--select` indicator is 1, and a selection equation `--select ~ --select-vars` (probit). Estimated by the Heckit two-step (`--method twostep`, default) or full-information MLE (`--method mle`). Include a `const` column in each variable list for an intercept (no auto-intercept, matching `estimate reg`). For identification beyond nonlinearity, `--select-vars` should include an *exclusion restriction* — a variable driving selection but not in `--outcome-vars`.
+Heckman sample-selection model — two equations: an outcome equation `--dep ~ --outcome-vars` observed only when the binary `--select` indicator is 1, and a selection equation `--select ~ --select-vars` (probit). Estimated by the Heckit two-step (`--method twostep`, default) or full-information MLE (`--method mle`). Include a `const` column in each variable list for an intercept (no auto-intercept, matching `estimate regression reg`). For identification beyond nonlinearity, `--select-vars` should include an *exclusion restriction* — a variable driving selection but not in `--outcome-vars`.
 
 ```bash
-friedman estimate heckman data.csv --dep=lwage --select=inlf \
+friedman estimate regression heckman data.csv --dep=lwage --select=inlf \
     --outcome-vars=const,educ,exper --select-vars=const,educ,exper,kids
-friedman estimate heckman data.csv --dep=lwage --select=inlf \
+friedman estimate regression heckman data.csv --dep=lwage --select=inlf \
     --outcome-vars=const,educ --select-vars=const,educ,kids --method=mle
 ```
 
@@ -1707,13 +1704,13 @@ friedman estimate heckman data.csv --dep=lwage --select=inlf \
 
 **Output:** one tidy two-equation coefficient table (`equation|term|estimate|std_error|z_stat|p_value`, where `equation` is `outcome`/`selection`) + diagnostics (`method`, `rho` (+se), `sigma` (+se), `lambda` (+se), `loglik`, `aic`, `bic`, `n_selected`, `n_total`, `converged`). `HeckmanModel` is not Tables.jl-registered upstream, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
-## estimate statespace
+## estimate regression statespace
 
 Structural (linear-Gaussian) state-space models fitted by prediction-error-decomposition maximum likelihood on a single numeric `--column`. `--model local-level` fits the random-walk-plus-noise model (`yₜ = μₜ + εₜ`, `μₜ₊₁ = μₜ + ηₜ`); `--model local-linear-trend` adds a stochastic slope (state `[μₜ, βₜ]`). `--init-mode` selects the Kalman initialization (`kappa` large-variance diffuse by default, or exact `diffuse`).
 
 ```bash
-friedman estimate statespace nile.csv --model=local-level
-friedman estimate statespace gdp.csv --column=2 --model=local-linear-trend --init-mode=diffuse
+friedman estimate regression statespace nile.csv --model=local-level
+friedman estimate regression statespace gdp.csv --column=2 --model=local-linear-trend --init-mode=diffuse
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1756,7 +1753,7 @@ init_mode = "kappa"             # kappa | diffuse | stationary
 ```
 
 ```bash
-friedman estimate statespace two_series.csv --config system.toml
+friedman estimate regression statespace two_series.csv --config system.toml
 ```
 
 Notes:
@@ -1766,13 +1763,13 @@ Notes:
 - Matrices are row-major arrays of arrays; `d`, `c`, `a1` are flat arrays.
 - Every dimensional inconsistency is caught while parsing, so it surfaces as `config/shape` (exit 4) naming the file you wrote, rather than as an error from deep inside the library. A mismatch between `Z`'s implied `n_obs` and the CSV's column count is `data/shape` (exit 3), since that is a property of the data rather than the config.
 
-## estimate tvp
+## estimate regime tvp
 
 Time-varying-parameter regression with random-walk coefficients (`yₜ = Xₜ βₜ + εₜ`, `βₜ₊₁ = βₜ + ηₜ`), fitted via the Kalman filter/RTS smoother by MLE of the variance hyper-parameters. The whole point is the recovered coefficient *path* `βₜ`. A time-varying intercept is prepended automatically unless `--no-intercept` is set, so the data should NOT include a `const` column.
 
 ```bash
-friedman estimate tvp phillips.csv --dep=inflation
-friedman estimate tvp data.csv --dep=y --no-intercept
+friedman estimate regime tvp phillips.csv --dep=inflation
+friedman estimate regime tvp data.csv --dep=y --no-intercept
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1786,13 +1783,13 @@ friedman estimate tvp data.csv --dep=y --no-intercept
 
 **Output:** hyper-parameter table (`parameter|estimate`) + a tidy long coefficient-path table (`period|coefficient|estimate` — one row per time × coefficient) + diagnostics (`loglik`, `converged`, `n_coef`, `intercept`, `method`). Hand-built tables (documented [C051](#coefficient-table-format-c051) exception).
 
-## estimate kde
+## estimate regression kde
 
 Univariate kernel density estimate on an equally-spaced grid, for a single numeric `--column`. Bandwidth `--bw` is a rule (`silverman` = R `bw.nrd0`, `sj` = Sheather-Jones plug-in) or a positive number; `--kernel` selects a unit-variance kernel.
 
 ```bash
-friedman estimate kde returns.csv --kernel=gaussian --bw=silverman
-friedman estimate kde x.csv --column=1 --bw=0.5 --npoints=1024 --kernel=epanechnikov
+friedman estimate regression kde returns.csv --kernel=gaussian --bw=silverman
+friedman estimate regression kde x.csv --column=1 --bw=0.5 --npoints=1024 --kernel=epanechnikov
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1807,13 +1804,13 @@ friedman estimate kde x.csv --column=1 --bw=0.5 --npoints=1024 --kernel=epanechn
 
 **Output:** density grid table (`x|density`) + diagnostics (`kernel`, `bw_method`, `bandwidth`, `nobs`). `KernelDensity` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
-## estimate kernel-reg
+## estimate regression kernel-reg
 
 Nonparametric regression of a response `--dep` on a SINGLE predictor `--indep`: Nadaraya-Watson (`--method nw`), local-linear (`--method ll`, default; boundary-bias corrected), or local-polynomial (`--method lp --degree d`). Bandwidth `--bw` is a rule (`cv` leave-one-out cross-validation, `rot` Silverman rule-of-thumb) or a positive number.
 
 ```bash
-friedman estimate kernel-reg data.csv --dep=y --indep=x --method=ll --bw=cv
-friedman estimate kernel-reg data.csv --dep=y --indep=x --method=lp --degree=2 --bw=0.4
+friedman estimate regression kernel-reg data.csv --dep=y --indep=x --method=ll --bw=cv
+friedman estimate regression kernel-reg data.csv --dep=y --indep=x --method=lp --degree=2 --bw=0.4
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1829,13 +1826,13 @@ friedman estimate kernel-reg data.csv --dep=y --indep=x --method=lp --degree=2 -
 
 **Output:** fitted-curve table (`x|fitted|se`, evaluated at the sorted design points) + diagnostics (`method`, `degree`, `kernel`, `bw_method`, `bandwidth`, `nobs`). `KernelRegression` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
-## estimate lowess
+## estimate regression lowess
 
 Cleveland (1979) LOWESS/LOESS scatterplot smoother of a response `--dep` on a SINGLE predictor `--indep`: tricube-weighted local-linear fits over the `⌊f·n⌋` nearest neighbours, with `--iter` bisquare robustifying passes. `--frac` is the span `f ∈ (0,1]`.
 
 ```bash
-friedman estimate lowess data.csv --dep=y --indep=x
-friedman estimate lowess data.csv --dep=y --indep=x --frac=0.3 --iter=5
+friedman estimate regression lowess data.csv --dep=y --indep=x
+friedman estimate regression lowess data.csv --dep=y --indep=x --frac=0.3 --iter=5
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1849,14 +1846,14 @@ friedman estimate lowess data.csv --dep=y --indep=x --frac=0.3 --iter=5
 
 **Output:** smoothed-curve table (`x|fitted`, sorted by `x`) + diagnostics (`frac`, `iter`, `nobs`). `LowessFit` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
-## estimate cointreg
+## estimate regression cointreg
 
 Single-equation **cointegrating regression** for a long-run relationship `y_t = D_t'δ + x_t'β + u_t` where the `--dep` variable and the other numeric columns are `I(1)` (integrated of order 1). Three estimators correct the OLS-on-levels fit for regressor endogeneity and error serial correlation: `fmols` (Phillips-Hansen fully-modified OLS), `ccr` (Park canonical cointegrating regression), and `dols` (Saikkonen / Stock-Watson dynamic OLS). Deterministics are added via `--trend` (the cointreg vocabulary is `none|const|linear` — do not confuse with the ARDL/PMG trend vocabularies). No intercept is prepended to the regressor matrix — cointreg builds its own deterministic block.
 
 ```bash
-friedman estimate cointreg data.csv --dep=y --method=fmols
-friedman estimate cointreg data.csv --dep=y --method=dols --leads=2 --lags=2 --ic=bic
-friedman estimate cointreg data.csv --dep=y --method=ccr --trend=linear --kernel=qs --bandwidth=nw94
+friedman estimate regression cointreg data.csv --dep=y --method=fmols
+friedman estimate regression cointreg data.csv --dep=y --method=dols --leads=2 --lags=2 --ic=bic
+friedman estimate regression cointreg data.csv --dep=y --method=ccr --trend=linear --kernel=qs --bandwidth=nw94
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1875,13 +1872,13 @@ friedman estimate cointreg data.csv --dep=y --method=ccr --trend=linear --kernel
 
 **Output:** tidy long-run coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`; p-values/CIs use the large-sample normal approximation, the estimators being asymptotically mixed-normal) + diagnostics (`method`, `trend`, `kernel`, resolved `bandwidth`, `omega_uv`, `nobs`, `d`, `k`; DOLS adds `leads`/`lags`). `CointRegModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). `--bandwidth`/`--leads`/`--lags` are dual-type flags parsed in-handler; note `--bandwidth 4` = a fixed truncation lag while `--bandwidth andrews` = data-driven selection.
 
-## estimate xtcointreg
+## estimate panel xtcointreg
 
-**Panel cointegrating regression** across the `N` units of a long-format panel (`--id-col`/`--time-col` default to the first/second columns). Each unit is fit by the single-equation estimator ([`estimate cointreg`](#estimate-cointreg)) and aggregated either group-mean (`--pooling=group`, Pedroni 2001 between-dimension) or pooled (`--pooling=pooled`, within-dimension: Pedroni 2000 FMOLS / Kao-Chiang 2000 DOLS). Only `fmols` and `dols` are available for panels (no `ccr`).
+**Panel cointegrating regression** across the `N` units of a long-format panel (`--id-col`/`--time-col` default to the first/second columns). Each unit is fit by the single-equation estimator ([`estimate regression cointreg`](#estimate-cointreg)) and aggregated either group-mean (`--pooling=group`, Pedroni 2001 between-dimension) or pooled (`--pooling=pooled`, within-dimension: Pedroni 2000 FMOLS / Kao-Chiang 2000 DOLS). Only `fmols` and `dols` are available for panels (no `ccr`).
 
 ```bash
-friedman estimate xtcointreg panel.csv --dep=lc --indep=ly --method=fmols --pooling=group
-friedman estimate xtcointreg panel.csv --id-col=country --time-col=year --dep=lc --indep=ly,r --method=dols --pooling=pooled
+friedman estimate panel xtcointreg panel.csv --dep=lc --indep=ly --method=fmols --pooling=group
+friedman estimate panel xtcointreg panel.csv --id-col=country --time-col=year --dep=lc --indep=ly,r --method=dols --pooling=pooled
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1904,19 +1901,19 @@ friedman estimate xtcointreg panel.csv --id-col=country --time-col=year --dep=lc
 
 **Output:** tidy panel coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`; group-mean reports Pedroni's between-dimension `t`-statistic and a back-solved display SE that can be `Inf` for a degenerate coefficient — rendered non-finite-safe) + diagnostics (`method`, `pooling`, `trend`, `kernel`, `N` units, total `nobs`, `T_i` span, `balanced`, `k`, `d`). `PanelCointRegModel` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception).
 
-## estimate ardl
+## estimate univariate ardl
 
 **Autoregressive distributed-lag** model `ARDL(p, q₁…q_k)`, estimated by OLS on the lagged **levels** of `y` and the regressors. Loads `y` + `X` via the shared regression loader (`--dep` = dependent; all other numeric columns are regressors; **no intercept is prepended** — ARDL adds its own deterministics per the Pesaran-Shin-Smith `--case`). The single leaf folds three views into one call: the levels-form coefficient table, the **long-run** (level) multipliers `θ̂_j = (Σ_ℓ β̂_{jℓ})/(1 − Σ_i φ̂_i)` with delta-method standard errors, and the **error-correction** speed of adjustment `α = Σφ̂ − 1` (in the diagnostics).
 
 ```bash
 # ARDL(1,1): y on x with one AR lag and one distributed lag, unrestricted intercept (case III)
-friedman estimate ardl data.csv --dep=y --p=1 --q=1 --case=3
+friedman estimate univariate ardl data.csv --dep=y --p=1 --q=1 --case=3
 
 # IC-selected lag orders (AIC grid over p∈1:max-p, q∈0:max-q)
-friedman estimate ardl data.csv --dep=y --p=auto --q=auto --max-p=4 --max-q=4 --ic=aic
+friedman estimate univariate ardl data.csv --dep=y --p=auto --q=auto --max-p=4 --max-q=4 --ic=aic
 
 # Per-regressor distributed-lag orders (one entry per regressor)
-friedman estimate ardl data.csv --dep=y --p=2 --q=2,1
+friedman estimate univariate ardl data.csv --dep=y --p=2 --q=2,1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1932,18 +1929,18 @@ friedman estimate ardl data.csv --dep=y --p=2 --q=2,1
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** levels coefficient table (`term|estimate|std_error|stat|p_value`) + a long-run coefficient table + diagnostics (`p`, `q`, `case`, `trend`, `ic`, `selected`, `nobs`, `K`, `sigma2`, `loglik`, `aic`, `bic`, `alpha`, `alpha_se`, `alpha_t`, `longrun_denom` = `1 − Σφ̂`). `ARDLModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). See [`test ardl-bounds`](test.md#test-ardl-bounds) for the Pesaran-Shin-Smith bounds test. **Trend-vocabulary note:** ARDL uses `none|const|trend` (distinct from cointreg's `none|const|linear` and PMG's `:constant`).
+**Output:** levels coefficient table (`term|estimate|std_error|stat|p_value`) + a long-run coefficient table + diagnostics (`p`, `q`, `case`, `trend`, `ic`, `selected`, `nobs`, `K`, `sigma2`, `loglik`, `aic`, `bic`, `alpha`, `alpha_se`, `alpha_t`, `longrun_denom` = `1 − Σφ̂`). `ARDLModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). See [`test coint ardl-bounds`](test.md#test-ardl-bounds) for the Pesaran-Shin-Smith bounds test. **Trend-vocabulary note:** ARDL uses `none|const|trend` (distinct from cointreg's `none|const|linear` and PMG's `:constant`).
 
-## estimate nardl
+## estimate univariate nardl
 
 **Nonlinear (asymmetric) ARDL** of Shin, Yu & Greenwood-Nimmo (2014). Each regressor selected by `--asymmetric` is decomposed into positive/negative partial sums `x⁺, x⁻` (cumulated from `Δx`), and the pair replaces the original column in the ARDL design. The enlarged design is estimated by the same ARDL machinery, so an asymmetric regressor contributes **two** columns to the number-of-regressors `k` that indexes the bounds table. The single leaf folds the split-regressor coefficient table, the asymmetric long-run coefficients (θ⁺/θ⁻), and the cached enlarged-`k` **bounds decision** (F/t decision symbols — no p-value) into one call.
 
 ```bash
 # Split every regressor into +/- partial sums
-friedman estimate nardl data.csv --dep=y --asymmetric=all --p=1 --q=1
+friedman estimate univariate nardl data.csv --dep=y --asymmetric=all --p=1 --q=1
 
 # Split only the 1st and 3rd regressors (others enter symmetrically)
-friedman estimate nardl data.csv --dep=y --asymmetric=1,3
+friedman estimate univariate nardl data.csv --dep=y --asymmetric=1,3
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1958,8 +1955,10 @@ friedman estimate nardl data.csv --dep=y --asymmetric=1,3
 | `--case` | | Int | `3` | PSS deterministic case 1..5 |
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
+| `--plot-save` | | String | | Save multipliers figure to HTML file |
+| `--plot` | | Flag | | Open multipliers figure in browser |
 
-**Output:** split-regressor coefficient table (labels carry `_POS`/`_NEG` suffixes) + asymmetric long-run table (θ⁺/θ⁻) + diagnostics including the enlarged-`k` bounds decision (`k_orig`, `k`, `asym`, `f_stat`, `t_stat`, `f_decision`, `t_decision`, `bounds_level`). NARDL has no `--trend` option (informational-only upstream). See [`test nardl-symmetry`](test.md#test-nardl-symmetry) for the long-/short-run symmetry Wald tests. The same `estimate univariate nardl` leaf emits the cumulative dynamic multipliers (`--horizon`, `--nreps`, `--level`, `--no-bootstrap`).
+**Output:** split-regressor coefficient table (labels carry `_POS`/`_NEG` suffixes) + asymmetric long-run table (θ⁺/θ⁻) + diagnostics including the enlarged-`k` bounds decision (`k_orig`, `k`, `asym`, `f_stat`, `t_stat`, `f_decision`, `t_decision`, `bounds_level`). NARDL has no `--trend` option (informational-only upstream). See [`test nardl-symmetry`](test.md#test-nardl-symmetry) for the long-/short-run symmetry Wald tests. The same `estimate univariate nardl` leaf emits the cumulative dynamic multipliers (`--horizon`, `--nreps`, `--level`, `--no-bootstrap`), plottable via `--plot`/`--plot-save` (one panel per asymmetric regressor: `m⁺`/`m⁻` with bands plus the asymmetry curve).
 
 ### Cumulative dynamic multipliers
 
@@ -2001,11 +2000,11 @@ Each unit's ARDL(`p`, `q`) is written as `Δy_it = φ_i (y_{i,t-1} − θ' x_{i,
 
 ```bash
 # Pooled Mean Group: common long-run theta + heterogeneous short-run
-friedman estimate pmg panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2 --method=pmg
+friedman estimate panel pmg panel.csv --id-col=id --time-col=time --dep=y --indep=x1,x2 --method=pmg
 
 # Mean Group and Dynamic Fixed Effects alternatives
-friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=mg
-friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=dfe --p=2 --q=1
+friedman estimate panel pmg panel.csv --dep=y --indep=x1,x2 --method=mg
+friedman estimate panel pmg panel.csv --dep=y --indep=x1,x2 --method=dfe --p=2 --q=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2023,9 +2022,9 @@ friedman estimate pmg panel.csv --dep=y --indep=x1,x2 --method=dfe --p=2 --q=1
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** a long-run coefficient table `θ` (`term|estimate|std_error|stat|p_value`) + a short-run/error-correction table (`term|estimate|std_error`, with the adjustment speed `φ` as the first row) + diagnostics (`method`, `N`, `p`, `q`, `T_i`, `phi`, `phi_se`, `loglik`, `converged`, `iters`, `n_nonconv`). `PMGModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Display SEs (`φ`, `θ`) can be `Inf` for degenerate units — rendered non-finite-safe. See [`test pmg-hausman`](test.md#test-pmg-hausman) for the PMG-vs-MG selection test. **Trend-vocabulary note:** PMG spells `--trend=constant` out — distinct from ARDL's `none|const|trend` and cointreg's `none|const|linear`; do not carry a `const` value here.
+**Output:** a long-run coefficient table `θ` (`term|estimate|std_error|stat|p_value`) + a short-run/error-correction table (`term|estimate|std_error`, with the adjustment speed `φ` as the first row) + diagnostics (`method`, `N`, `p`, `q`, `T_i`, `phi`, `phi_se`, `loglik`, `converged`, `iters`, `n_nonconv`). `PMGModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Display SEs (`φ`, `θ`) can be `Inf` for degenerate units — rendered non-finite-safe. See [`test panel pmg-hausman`](test.md#test-pmg-hausman) for the PMG-vs-MG selection test. **Trend-vocabulary note:** PMG spells `--trend=constant` out — distinct from ARDL's `none|const|trend` and cointreg's `none|const|linear`; do not carry a `const` value here.
 
-## estimate midas
+## estimate univariate midas
 
 **MIDAS (MIxed-DAta Sampling) regression** (Ghysels, Sinko & Valkanov 2007) of a **low-frequency** target on `--k` **high-frequency** lags of a single indicator, aggregated through a parsimonious weight function `w(θ)`. The equation is `y_t = β₀ + β₁·Σₖ wₖ(θ) x_{t,k} + Σⱼ ρⱼ y_{t−j} + u_t`, where `x_{t,k}` is the `k`-th high-frequency lag (most-recent-first) inside low-frequency period `t`, and the `--p-ar` term makes it an ADL-MIDAS.
 
@@ -2040,13 +2039,13 @@ This is the only estimator with a **two-CSV mixed-frequency contract**: the low-
 
 ```bash
 # Nowcast a quarterly target from a monthly indicator (m = 3, 6 monthly lags)
-friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights expalmon
+friedman estimate univariate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights expalmon
 
 # ADL-MIDAS with one autoregressive lag of the target and Beta weights
-friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights beta2 --p-ar 1
+friedman estimate univariate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights beta2 --p-ar 1
 
 # Unrestricted U-MIDAS (OLS on the K stacked lags)
-friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umidas
+friedman estimate univariate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umidas
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2064,22 +2063,22 @@ friedman estimate midas gdp_q.csv --hf-data ip_m.csv --m 3 --k 6 --weights umida
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** a headline **weight-curve table** (`lag|weight`, length `K`, most-recent-first; for `umidas` these are the raw lag coefficients) + a coefficient table (`term|estimate|std_error|stat|p_value` over `[β; θ]`, normal-approximation p-values) + diagnostics (`weights_kind`, `m`, `K`, `p_ar`, `poly_degree`, `h`, `nobs`, `r2`, `adj_r2`, `ssr`, `sigma2`, `aic`, `bic`, `loglik`, `converged`). `MidasModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). The restricted NLS is noisy on short samples; a "failed to converge from any start" is surfaced as `model/convergence`. **Direct multi-step note (v0.9.2 / MEMs#574):** `--horizon h` fits a genuine direct h-step regression of `y_{t+h−1}` on information dated `t` — at MEMs ≤ 0.7.2 the kwarg was inert (the model *reported* `h` while always fitting `h=1`); since the 0.8.0 pin the target actually shifts, `nobs` drops by `h−1` tail periods, and `--horizon 1` reproduces the default exactly. The fitted horizon is fixed at estimation time — `forecast midas` conditions on a fresh HF block at that same `h`. **Frequency-alignment note:** the loader requires `length(HF) ≥ m × length(LF)` and drops the leading ragged edge (reported on stderr); the estimator then drops any remaining incomplete `K`-block internally.
+**Output:** a headline **weight-curve table** (`lag|weight`, length `K`, most-recent-first; for `umidas` these are the raw lag coefficients) + a coefficient table (`term|estimate|std_error|stat|p_value` over `[β; θ]`, normal-approximation p-values) + diagnostics (`weights_kind`, `m`, `K`, `p_ar`, `poly_degree`, `h`, `nobs`, `r2`, `adj_r2`, `ssr`, `sigma2`, `aic`, `bic`, `loglik`, `converged`). `MidasModel` is not Tables.jl-registered, so tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). The restricted NLS is noisy on short samples; a "failed to converge from any start" is surfaced as `model/convergence`. **Direct multi-step note (v0.9.2 / MEMs#574):** `--horizon h` fits a genuine direct h-step regression of `y_{t+h−1}` on information dated `t` — at MEMs ≤ 0.7.2 the kwarg was inert (the model *reported* `h` while always fitting `h=1`); since the 0.8.0 pin the target actually shifts, `nobs` drops by `h−1` tail periods, and `--horizon 1` reproduces the default exactly. The fitted horizon is fixed at estimation time — `forecast univariate midas` conditions on a fresh HF block at that same `h`. **Frequency-alignment note:** the loader requires `length(HF) ≥ m × length(LF)` and drops the leading ragged edge (reported on stderr); the estimator then drops any remaining incomplete `K`-block internally.
 
-## estimate threshold
+## estimate regime threshold
 
-**Two-regime threshold regression** (Hansen 1996, 2000) — the general case, where the sample is split by a **separate** threshold variable rather than by a lag of the dependent variable. The model is `yᵢ = xᵢ'β₁·1{qᵢ ≤ γ} + xᵢ'β₂·1{qᵢ > γ} + uᵢ`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; each regime is then fit by OLS and `γ`'s confidence interval inverts the Hansen (2000) likelihood-ratio statistic. [`estimate setar`](#estimate-setar) is the self-exciting special case of this command (`q = y_{t−d}`, `X` the lag matrix) and returns the same model type.
+**Two-regime threshold regression** (Hansen 1996, 2000) — the general case, where the sample is split by a **separate** threshold variable rather than by a lag of the dependent variable. The model is `yᵢ = xᵢ'β₁·1{qᵢ ≤ γ} + xᵢ'β₂·1{qᵢ > γ} + uᵢ`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; each regime is then fit by OLS and `γ`'s confidence interval inverts the Hansen (2000) likelihood-ratio statistic. [`estimate regime setar`](#estimate-setar) is the self-exciting special case of this command (`q = y_{t−d}`, `X` the lag matrix) and returns the same model type.
 
-**Column partition:** `--dep` is the dependent variable, **`--threshold-col` is required** and names the splitting variable, and **every other numeric column becomes a regressor**. The threshold variable is deliberately *excluded* from the regressor matrix — including it would make the regressors collinear with the split and silently fit a different model rather than raise an error. No intercept is prepended: add a `const` column if you want one (the same convention as [`estimate reg`](#estimate-reg)).
+**Column partition:** `--dep` is the dependent variable, **`--threshold-col` is required** and names the splitting variable, and **every other numeric column becomes a regressor**. The threshold variable is deliberately *excluded* from the regressor matrix — including it would make the regressors collinear with the split and silently fit a different model rather than raise an error. No intercept is prepended: add a `const` column if you want one (the same convention as [`estimate regression reg`](#estimate-reg)).
 
-As with `estimate setar`, a **Hansen (1996) sup-LM / sup-Wald linearity test** is fitted alongside by default and folded into the diagnostics (`--no-linearity` skips it; `--het` uses a heteroskedastic White bootstrap). `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` — the Hansen (2000) critical values are tabulated only at those levels.
+As with `estimate regime setar`, a **Hansen (1996) sup-LM / sup-Wald linearity test** is fitted alongside by default and folded into the diagnostics (`--no-linearity` skips it; `--het` uses a heteroskedastic White bootstrap). `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` — the Hansen (2000) critical values are tabulated only at those levels.
 
 ```bash
 # Split the sample on z; x1 and x2 are the regressors, y the outcome
-friedman estimate threshold data.csv --dep y --threshold-col z
+friedman estimate regime threshold data.csv --dep y --threshold-col z
 
 # 90% threshold CI, heteroskedastic bootstrap, skip the linearity test
-friedman estimate threshold data.csv --dep y --threshold-col z --ci-level 0.90 --het --no-linearity
+friedman estimate regime threshold data.csv --dep y --threshold-col z --ci-level 0.90 --het --no-linearity
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2098,7 +2097,7 @@ friedman estimate threshold data.csv --dep y --threshold-col z --ci-level 0.90 -
 
 **Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the blocks `regime1 (<q>≤γ)` / `regime2 (<q>>γ)` stacked and labelled with the actual threshold-variable name, normal-approximation z/p) + a diagnostics block (`threshold_var`, `gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `is_setar`, and — unless `--no-linearity` — `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant threshold variable, a sample too small for two regimes, or any other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error.
 
-## estimate setar
+## estimate regime setar
 
 **Self-exciting threshold autoregression (SETAR)** (Tong 1990; Hansen 2000) — a two-regime autoregression whose regime is switched by a lagged value of the series itself. The model is `yₜ = X_t'β₁·1{qₜ ≤ γ} + X_t'β₂·1{qₜ > γ} + uₜ`, with `qₜ = y_{t−d}` the self-exciting threshold variable and `X_t = [1, y_{t−1}, …, y_{t−p}]`. The threshold `γ` is estimated by grid search over the trimmed order statistics of `q`, minimising the concentrated sum of squared residuals; its confidence interval inverts the Hansen (2000) likelihood-ratio statistic (tabulated only for the three levels below).
 
@@ -2106,10 +2105,10 @@ friedman estimate threshold data.csv --dep y --threshold-col z --ci-level 0.90 -
 
 ```bash
 # SETAR(2; 1, 1) with delay d = 1 and 1000 bootstrap replications
-friedman estimate setar y.csv --p 1 --d 1
+friedman estimate regime setar y.csv --p 1 --d 1
 
 # Auto-select the delay over the 1:p grid; heteroskedastic bootstrap, no linearity test
-friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
+friedman estimate regime setar y.csv --p 2 --d auto --het --no-linearity
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2125,9 +2124,9 @@ friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`estimate threshold`](#estimate-threshold) (the general case, split by a separate variable), [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
+**Output:** one **two-regime coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, with the two regime blocks `regime1 (q≤γ)` / `regime2 (q>γ)` stacked, normal-approximation z/p) + a diagnostics block (`gamma`, `gamma_ci_lower`, `gamma_ci_upper`, `gamma_ci_level`, `n`, `n1`, `n2`, `ssr`, `sigma2`, `aic`, `bic`, `p`, `d`, `is_setar`, and — unless `--no-linearity` — the attached `sup_lm`, `pvalue_lm`, `sup_wald`, `pvalue_wald`, `gamma_sup`). `ThresholdModel` is not Tables.jl-registered, so the coefficient table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a too-short series or other estimator failure surfaces as a typed `data/invalid`/`model/error`, never an uncaught internal error. See also [`estimate regime threshold`](#estimate-threshold) (the general case, split by a separate variable), [`test hansen-linearity`](test.md#test-hansen-linearity) (the standalone linearity test) and [`forecast regime setar`](forecast.md#forecast-setar) (bootstrap-simulation forecasts).
 
-## estimate star
+## estimate regime star
 
 **Smooth-transition autoregression (STAR)** (Teräsvirta 1994) — the smooth-transition sibling of SETAR. The conditional mean is a convex combination of two linear autoregressions whose weight is a smooth function `G(sₜ; γ, c) ∈ [0, 1]` of a transition variable `sₜ`: `yₜ = φ₁'zₜ·(1 − G) + φ₂'zₜ·G + uₜ`, with `zₜ = [1, y_{t−1}, …, y_{t−p}]`. Unlike SETAR's abrupt switch, `G` transitions smoothly, and the parameters are estimated by nonlinear least squares.
 
@@ -2135,10 +2134,10 @@ friedman estimate setar y.csv --p 2 --d auto --het --no-linearity
 
 ```bash
 # STAR(1) with auto shape selection, self-exciting transition sₜ = y_{t−1}
-friedman estimate star y.csv --p 1 --d 1 --type auto
+friedman estimate regime star y.csv --p 1 --d 1 --type auto
 
 # Fix a logistic one-location LSTR1(2); external transition variable in column 3
-friedman estimate star y.csv --p 2 --type lstr1 --transition-col 3
+friedman estimate regime star y.csv --p 2 --type lstr1 --transition-col 3
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2153,20 +2152,20 @@ friedman estimate star y.csv --p 2 --type lstr1 --transition-col 3
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** two hand-built tables plus diagnostics — a **regime-weight coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, the two blocks `regime1 (G→0)` / `regime2 (G→1)` stacked) and a **transition-parameters table** (`parameter|estimate|std_error|z_stat|p_value` over `γ` and the location(s) `c`, length 1 for LSTR1/ESTR or 2 for LSTR2), both with normal-approximation z/p; then a diagnostics block (`trans_type`, `sname`, `sigma_s`, `n`, `p`, `d`, `ssr`, `sigma2`, `aic`, `bic`, the Luukkonen–Saikkonen–Teräsvirta LM3 statistics `lm3_stat`/`lm3_pvalue`/`lm3_fstat`/`lm3_fpvalue`, `converged`, and — for `--type auto` only — the Teräsvirta selection triple `sel_H04`/`sel_H03`/`sel_H02`). Note the two **regime weights** here (`1−G` / `G`) are smooth combination weights, unlike SETAR's hard split; the `switching_variance` diagnostic is a Markov-switching concept and does not apply to STAR. `STARModel` is not Tables.jl-registered, so the tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant transition variable, too-short series, or NLS failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error. See also [`test star-linearity`](test.md#test-star-linearity) and [`forecast star`](forecast.md#forecast-star).
+**Output:** two hand-built tables plus diagnostics — a **regime-weight coefficient table** (`regime|term|estimate|std_error|z_stat|p_value`, the two blocks `regime1 (G→0)` / `regime2 (G→1)` stacked) and a **transition-parameters table** (`parameter|estimate|std_error|z_stat|p_value` over `γ` and the location(s) `c`, length 1 for LSTR1/ESTR or 2 for LSTR2), both with normal-approximation z/p; then a diagnostics block (`trans_type`, `sname`, `sigma_s`, `n`, `p`, `d`, `ssr`, `sigma2`, `aic`, `bic`, the Luukkonen–Saikkonen–Teräsvirta LM3 statistics `lm3_stat`/`lm3_pvalue`/`lm3_fstat`/`lm3_fpvalue`, `converged`, and — for `--type auto` only — the Teräsvirta selection triple `sel_H04`/`sel_H03`/`sel_H02`). Note the two **regime weights** here (`1−G` / `G`) are smooth combination weights, unlike SETAR's hard split; the `switching_variance` diagnostic is a Markov-switching concept and does not apply to STAR. `STARModel` is not Tables.jl-registered, so the tables are hand-built (a documented [C051](#coefficient-table-format-c051) exception). Every option is validated up-front (`usage/invalid`); a constant transition variable, too-short series, or NLS failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error. See also [`test star-linearity`](test.md#test-star-linearity) and [`forecast regime star`](forecast.md#forecast-star).
 
-## estimate ms-ar
+## estimate regime ms-ar
 
 **Markov-switching autoregression (MS-AR)** (Hamilton 1989) — the *mean-switching* autoregression `(yₜ − μ_{sₜ}) = Σⱼ φⱼ (y_{t−j} − μ_{s_{t−j}}) + εₜ`, `εₜ ~ N(0, σ²_{sₜ})`, where a latent `K`-state Markov chain `sₜ` (with transition matrix `P`) switches the level `μ` while the AR coefficients `φ` are **common** across regimes. Estimated by the Hamilton forward filter, the Kim smoother, and EM with a maximum-likelihood polish (delta-method standard errors). Regimes are labelled deterministically in order of increasing conditional mean `μ` (defeating label-switching across seeds), so regime 1 is always the lowest-mean state.
 
-> **Note the `switching_variance` polarity:** for `estimate ms-ar` the variance is **common by default** (the Hamilton form) — `--switching-variance` turns per-regime variances *on*. This is the **opposite** default of [`estimate ms`](#estimate-ms), where the variance switches by default (`--no-switching-variance` turns it off). The two are intentionally not unified.
+> **Note the `switching_variance` polarity:** for `estimate regime ms-ar` the variance is **common by default** (the Hamilton form) — `--switching-variance` turns per-regime variances *on*. This is the **opposite** default of [`estimate regime ms`](#estimate-ms), where the variance switches by default (`--no-switching-variance` turns it off). The two are intentionally not unified.
 
 ```bash
 # 2-regime MS-AR(1) with a common variance (Hamilton form)
-friedman estimate ms-ar y.csv --p 1
+friedman estimate regime ms-ar y.csv --p 1
 
 # 3-regime MS-AR(2) with per-regime (switching) variances
-friedman estimate ms-ar y.csv --p 2 --k-regimes 3 --switching-variance
+friedman estimate regime ms-ar y.csv --p 2 --k-regimes 3 --switching-variance
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2183,7 +2182,7 @@ friedman estimate ms-ar y.csv --p 2 --k-regimes 3 --switching-variance
 
 ### Regime probabilities
 
-Both `estimate ms-ar` and `estimate ms` emit a **regime-probability table** — for most applied
+Both `estimate regime ms-ar` and `estimate regime ms` emit a **regime-probability table** — for most applied
 work the point of fitting a Markov-switching model at all, since it answers "which regime were
 we in at time *t*":
 
@@ -2200,22 +2199,22 @@ The table is **long**, not one column per regime: `K` comes from `--k-regimes`, 
 would make the *column set* depend on a user option and every consumer would have to discover
 `K` before reading the table. Long keeps the columns fixed and grows the row count (`n × K`)
 instead — the same reasoning as
-[`predict statespace`](predict_residuals.md#state-space-predict-statespace-residuals-statespace).
+[`predict regression statespace`](predict_residuals.md#state-space-predict-statespace-residuals-statespace).
 With `--output <file>` it is written to a `…_probabilities` path so it does not overwrite the
 coefficient table.
 
-## estimate ms
+## estimate regime ms
 
-**Markov-switching regression (MS)** — a `K`-state switching regression `yₜ = xₜ'β_{sₜ} + εₜ`, `εₜ ~ N(0, σ²_{sₜ})`, where **every** coefficient (not just the level) switches with the latent `K`-state Markov chain, and (by default) the variance switches too. Regressors come from the numeric columns other than `--dep` (**no auto-intercept** — include a `const` column, exactly like [`estimate reg`](#estimate-reg)); when the dependent variable is the **only** numeric column, the command routes to the single-argument intercept-only dispatch (a switching-intercept model, `X = ones(n, 1)`). Regimes are labelled by increasing conditional mean.
+**Markov-switching regression (MS)** — a `K`-state switching regression `yₜ = xₜ'β_{sₜ} + εₜ`, `εₜ ~ N(0, σ²_{sₜ})`, where **every** coefficient (not just the level) switches with the latent `K`-state Markov chain, and (by default) the variance switches too. Regressors come from the numeric columns other than `--dep` (**no auto-intercept** — include a `const` column, exactly like [`estimate regression reg`](#estimate-reg)); when the dependent variable is the **only** numeric column, the command routes to the single-argument intercept-only dispatch (a switching-intercept model, `X = ones(n, 1)`). Regimes are labelled by increasing conditional mean.
 
-> **Note the `switching_variance` polarity:** for `estimate ms` the variance **switches by default** — `--no-switching-variance` forces a common σ². This is the **opposite** default of [`estimate ms-ar`](#estimate-ms-ar) (common variance by default).
+> **Note the `switching_variance` polarity:** for `estimate regime ms` the variance **switches by default** — `--no-switching-variance` forces a common σ². This is the **opposite** default of [`estimate regime ms-ar`](#estimate-ms-ar) (common variance by default).
 
 ```bash
 # 2-regime switching regression: dep = y, regressors = the other numeric columns (add a const)
-friedman estimate ms data.csv --dep y
+friedman estimate regime ms data.csv --dep y
 
 # Intercept-only switching-mean model (dep is the only numeric column), common variance
-friedman estimate ms y.csv --no-switching-variance
+friedman estimate regime ms y.csv --no-switching-variance
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2228,16 +2227,16 @@ friedman estimate ms y.csv --no-switching-variance
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** the same four hand-built tables as [`estimate ms-ar`](#estimate-ms-ar) (including the [regime-probability table](#regime-probabilities)) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
+**Output:** the same four hand-built tables as [`estimate regime ms-ar`](#estimate-ms-ar) (including the [regime-probability table](#regime-probabilities)) rendered by the shared renderer, but the per-regime coefficient table carries the **full per-regime switching coefficients** over the regressor names (`regime|term|estimate|std_error|z_stat|p_value`) rather than a `mu` row + common-AR block; then the per-regime variance table, the wide K×K transition matrix (a documented [C051](#coefficient-table-format-c051) wide exception), and the same diagnostics kv. Every option is validated up-front (`usage/invalid`); a too-short series, a dimension mismatch, or EM failure surfaces as a typed `data/invalid`/`data/shape`/`model/error`, never an uncaught internal error.
 
-## estimate iv
+## estimate regression iv
 
 Instrumental variables (2SLS) regression. `--endogenous` names the endogenous regressor(s) and `--instruments` names the **excluded** instrument(s) — extra columns that identify the endogenous regressors but do not enter the structural equation. Every *other* numeric column (besides `--dep` and the endogenous ones) is treated as an exogenous regressor and instrument; include a `const` column of ones for an intercept. So the regressor matrix `X` = all columns except `{dep, excluded instruments}`, and the instrument matrix `Z` = all columns except `{dep, endogenous}`.
 
 ```bash
 # wage ~ const + exper + educ, with educ endogenous, instrumented by father_educ, mother_educ
-friedman estimate iv data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
-friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instruments=z1,z2,z3 --cov-type=hc1
+friedman estimate regression iv data.csv --dep=wage --endogenous=educ --instruments=father_educ,mother_educ
+friedman estimate regression iv data.csv --dep=log_wage --endogenous=educ,exper --instruments=z1,z2,z3 --cov-type=hc1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2249,7 +2248,7 @@ friedman estimate iv data.csv --dep=log_wage --endogenous=educ,exper --instrumen
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test). See also [`test weak-instrument`](test.md) for the full Stock-Yogo weak-instrument battery.
+**Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan overidentification test). See also [`test iv weak-instrument`](test.md) for the full Stock-Yogo weak-instrument battery.
 
 **k-class family (#72).** `--method` selects the estimator:
 
@@ -2266,25 +2265,25 @@ than upstream failures. The diagnostics block reports the `k-class k` actually u
 for LIML/Fuller, `kappa_hat`.
 
 ```bash
-friedman estimate iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=liml
-friedman estimate iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=kclass --k=1
+friedman estimate regression iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=liml
+friedman estimate regression iv data.csv --dep=y --endogenous=educ --instruments=z1,z2 --method=kclass --k=1
 ```
 
-## estimate select
+## estimate regression select
 
 General-to-specific and stepwise variable selection. This is a **dedicated leaf rather
-than an `estimate reg --select` flag**, so `estimate reg`'s envelope tables stay fixed —
+than an `estimate regression reg --select` flag**, so `estimate regression reg`'s envelope tables stay fixed —
 a leaf whose table set changes with a flag forces every consumer to branch on it.
 
 Regressors are every numeric column except `--dep`, and no intercept is prepended, so
 include a `const` column if you want one. The result carries the refitted final model,
-so the coefficient table is exactly what `estimate reg` would print for the selected
+so the coefficient table is exactly what `estimate regression reg` would print for the selected
 subset.
 
 ```bash
-friedman estimate select data.csv --dep=y
-friedman estimate select data.csv --dep=y --method=gets --criterion=bic
-friedman estimate select data.csv --dep=y --keep=const,x1
+friedman estimate regression select data.csv --dep=y
+friedman estimate regression select data.csv --dep=y --method=gets --criterion=bic
+friedman estimate regression select data.csv --dep=y --keep=const,x1
 ```
 
 | Option | Type | Default | Description |
@@ -2300,14 +2299,14 @@ friedman estimate select data.csv --dep=y --keep=const,x1
 statistic` **selection path** (the audit trail), and a summary kv with the selected set,
 forced-in variables, candidate count and the encompassing F-test where available.
 
-## estimate sur
+## estimate regression sur
 
 Seemingly-unrelated regressions (Zellner 1962), fitted by feasible GLS across a multi-equation system. The equation system is specified in a config TOML; each `[[equations]]` block names a dependent column and its regressors (column names from the data CSV). Efficiency gains over equation-by-equation OLS come from cross-equation error correlation.
 
 ```bash
-friedman estimate sur data.csv --config=system.toml
-friedman estimate sur data.csv --config=system.toml --iterate        # iterate FGLS to the MLE
-friedman estimate sur data.csv --config=system.toml --no-intercept
+friedman estimate regression sur data.csv --config=system.toml
+friedman estimate regression sur data.csv --config=system.toml --iterate        # iterate FGLS to the MLE
+friedman estimate regression sur data.csv --config=system.toml --no-intercept
 ```
 
 ```toml
@@ -2332,13 +2331,13 @@ indep = ["income", "interest"]
 
 **Output:** a tidy `equation \| term \| estimate \| std_error \| stat \| p_value \| ci_lower \| ci_upper` coefficient table (asymptotic normal inference) + a system-statistics table (equations, obs/eq, det(Σ), McElroy R², log-likelihood, FGLS iterations). SUR/3SLS result types are not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception, like the `io` family).
 
-## estimate 3sls
+## estimate regression 3sls
 
 Three-stage least squares (Zellner & Theil 1962) for a simultaneous system: each equation's regressors are projected onto the instrument space, then a system GLS estimator combines instrumentation with the SUR efficiency gain. Instruments are a common set (`[instruments].common`) or per-equation (`instr` in each `[[equations]]` block, with `--instruments perequation`).
 
 ```bash
-friedman estimate 3sls data.csv --config=system.toml                       # common instruments
-friedman estimate 3sls data.csv --config=system.toml --instruments=perequation
+friedman estimate regression 3sls data.csv --config=system.toml                       # common instruments
+friedman estimate regression 3sls data.csv --config=system.toml --instruments=perequation
 ```
 
 ```toml
@@ -2364,13 +2363,13 @@ common = ["gov", "taxes", "lag_income"]
 
 When the instruments span every regressor, 3SLS collapses to SUR; when every equation is exactly identified it collapses to equation-by-equation 2SLS. **Output:** the same tidy coefficient table as `sur` + a system-statistics table (with instruments-per-equation).
 
-## estimate poisson
+## estimate choice poisson
 
 Poisson regression for count outcomes, fitted by IRLS.
 
 ```bash
-friedman estimate poisson data.csv --dep=claims --exposure=policy_years
-friedman estimate poisson data.csv --dep=visits --irr --conf-level=0.99
+friedman estimate choice poisson data.csv --dep=claims --exposure=policy_years
+friedman estimate choice poisson data.csv --dep=visits --irr --conf-level=0.99
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2403,15 +2402,15 @@ intervals — the multiplicative reading of each coefficient.
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + optional IRR table
 + fit statistics (pseudo R², log-likelihood, deviance, AIC, BIC, convergence).
 
-## estimate nbreg
+## estimate choice nbreg
 
 Negative binomial (NB2) regression for overdispersed counts, estimating `(β, log α)` jointly.
 
 ```bash
-friedman estimate nbreg data.csv --dep=claims --exposure=policy_years
+friedman estimate choice nbreg data.csv --dep=claims --exposure=policy_years
 ```
 
-Options are the same as [`estimate poisson`](#estimate-poisson) **except `--cov-type` and
+Options are the same as [`estimate choice poisson`](#estimate-poisson) **except `--cov-type` and
 `--clusters`, which are not offered**: the library's NB2 estimator takes neither, reporting the
 joint information-matrix covariance instead. `--maxiter` defaults to 1000.
 
@@ -2420,13 +2419,13 @@ delta-method standard error (the coefficient covariance block stops at `β`, so 
 the same table), an optional IRR table, and fit statistics. Each table takes a distinct
 `--output` path suffix so nothing is overwritten.
 
-## estimate logit
+## estimate choice logit
 
 Logit (logistic regression) for binary choice models.
 
 ```bash
-friedman estimate logit data.csv --dep=employed --cov-type=hc1
-friedman estimate logit data.csv --dep=default --clusters=state --maxiter=200
+friedman estimate choice logit data.csv --dep=employed --cov-type=hc1
+friedman estimate choice logit data.csv --dep=default --clusters=state --maxiter=200
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2441,13 +2440,13 @@ friedman estimate logit data.csv --dep=default --clusters=state --maxiter=200
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + fit statistics (pseudo R², log-likelihood, AIC, BIC, convergence).
 
-## estimate probit
+## estimate choice probit
 
 Probit regression for binary choice models.
 
 ```bash
-friedman estimate probit data.csv --dep=employed --cov-type=hc1
-friedman estimate probit data.csv --dep=default --clusters=state
+friedman estimate choice probit data.csv --dep=employed --cov-type=hc1
+friedman estimate choice probit data.csv --dep=default --clusters=state
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2464,14 +2463,14 @@ friedman estimate probit data.csv --dep=default --clusters=state
 
 ## Panel Regression Models
 
-### estimate preg
+### estimate panel preg
 
 Panel regression with fixed effects (FE), random effects (RE), between effects (BE), or pooled OLS. Supports two-way fixed effects.
 
 ```bash
-friedman estimate preg panel.csv --dep=gdp --indep=investment,trade --method=fe
-friedman estimate preg panel.csv --dep=gdp --indep=investment,trade --method=re --twoway
-friedman estimate preg panel.csv --id-col=country --time-col=year --dep=gdp --method=pooled
+friedman estimate panel preg panel.csv --dep=gdp --indep=investment,trade --method=fe
+friedman estimate panel preg panel.csv --dep=gdp --indep=investment,trade --method=re --twoway
+friedman estimate panel preg panel.csv --id-col=country --time-col=year --dep=gdp --method=pooled
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2489,13 +2488,13 @@ friedman estimate preg panel.csv --id-col=country --time-col=year --dep=gdp --me
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) with SE, t-stat, p-value; within/between/overall R²; F-statistic.
 
-### estimate piv
+### estimate panel piv
 
 Panel IV (2SLS) regression with panel-robust standard errors.
 
 ```bash
-friedman estimate piv panel.csv --dep=gdp --exog=trade --endog=investment --instruments=lag_inv
-friedman estimate piv panel.csv --dep=gdp --endog=investment,credit --instruments=z1,z2,z3 --method=fe
+friedman estimate panel piv panel.csv --dep=gdp --exog=trade --endog=investment --instruments=lag_inv
+friedman estimate panel piv panel.csv --dep=gdp --endog=investment,credit --instruments=z1,z2,z3 --method=fe
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2512,13 +2511,13 @@ friedman estimate piv panel.csv --dep=gdp --endog=investment,credit --instrument
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + IV diagnostics (first-stage F-statistic, Sargan test).
 
-### estimate plogit
+### estimate panel plogit
 
 Panel logit regression (pooled MLE or random effects).
 
 ```bash
-friedman estimate plogit panel.csv --dep=employed --method=re
-friedman estimate plogit panel.csv --dep=default --method=pooled
+friedman estimate panel plogit panel.csv --dep=employed --method=re
+friedman estimate panel plogit panel.csv --dep=default --method=pooled
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2533,12 +2532,12 @@ friedman estimate plogit panel.csv --dep=default --method=pooled
 
 **Output:** Tidy coefficient table ([C051](#coefficient-table-format-c051)) + fit statistics (pseudo R², log-likelihood, AIC, BIC).
 
-### estimate pprobit
+### estimate panel pprobit
 
 Panel probit regression (pooled MLE or random effects).
 
 ```bash
-friedman estimate pprobit panel.csv --dep=employed --method=pooled
+friedman estimate panel pprobit panel.csv --dep=employed --method=pooled
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2555,13 +2554,13 @@ friedman estimate pprobit panel.csv --dep=employed --method=pooled
 
 ## Ordered & Multinomial Choice Models
 
-### estimate ologit
+### estimate choice ologit
 
 Ordered logit regression for ordered categorical outcomes.
 
 ```bash
-friedman estimate ologit data.csv --dep=satisfaction
-friedman estimate ologit data.csv --dep=rating --cov-type=hc1
+friedman estimate choice ologit data.csv --dep=satisfaction
+friedman estimate choice ologit data.csv --dep=rating --cov-type=hc1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2574,12 +2573,12 @@ friedman estimate ologit data.csv --dep=rating --cov-type=hc1
 
 **Output:** Tidy coefficient table (`block|term|...`, [C051](#coefficient-table-format-c051)) — `block` distinguishes coefficients from cutpoints — plus threshold parameters, pseudo R², log-likelihood, AIC, BIC.
 
-### estimate oprobit
+### estimate choice oprobit
 
 Ordered probit regression for ordered categorical outcomes.
 
 ```bash
-friedman estimate oprobit data.csv --dep=satisfaction
+friedman estimate choice oprobit data.csv --dep=satisfaction
 ```
 
 | Option | Short | Type | Default | Description |
@@ -2592,13 +2591,13 @@ friedman estimate oprobit data.csv --dep=satisfaction
 
 **Output:** Tidy coefficient table (`block|term|...`, [C051](#coefficient-table-format-c051)) — `block` distinguishes coefficients from cutpoints — plus threshold parameters, pseudo R², log-likelihood, AIC, BIC.
 
-### estimate mlogit
+### estimate choice mlogit
 
 Multinomial logit regression for unordered categorical outcomes.
 
 ```bash
-friedman estimate mlogit data.csv --dep=choice
-friedman estimate mlogit data.csv --dep=mode --base-category=1
+friedman estimate choice mlogit data.csv --dep=choice
+friedman estimate choice mlogit data.csv --dep=mode --base-category=1
 ```
 
 | Option | Short | Type | Default | Description |

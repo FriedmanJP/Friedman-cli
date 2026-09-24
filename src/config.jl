@@ -753,7 +753,7 @@ end
     get_statespace(config) -> NamedTuple
 
 Parse a `[statespace]` section describing a GENERAL linear-Gaussian state-space system, for
-`estimate statespace --config`. The system is the standard single-block form
+`estimate regression statespace --config`. The system is the standard single-block form
 
     yₜ   = Z αₜ + d + εₜ,     εₜ ~ N(0, H)
     αₜ₊₁ = T αₜ + c + R ηₜ,   ηₜ ~ N(0, Q)
@@ -773,7 +773,7 @@ untyped `ArgumentError`.
 function get_statespace(config::Dict)
     sec = get(config, "statespace", nothing)
     sec isa AbstractDict || throw(CliError("config/missing",
-        "estimate statespace --config requires a [statespace] section with Z, H, T and Q"))
+        "estimate regression statespace --config requires a [statespace] section with Z, H, T and Q"))
 
     _mat(key) = begin
         haskey(sec, key) || throw(CliError("config/missing-key",

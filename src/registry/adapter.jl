@@ -277,7 +277,8 @@ function to_leaf(spec::CommandSpec)
     end
 
     return LeafCommand(leaf_name, wrapper;
-        args=args, options=options, flags=flags, description=spec.summary)
+        args=args, options=options, flags=flags, description=spec.summary,
+        family=spec.family)
 end
 
 """Register a leaf under its primary name in a subcmds dict. (C055: the C044

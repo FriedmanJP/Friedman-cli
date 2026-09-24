@@ -195,7 +195,7 @@ function register_fevd_commands!()
     specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
     specs = [s.path == ["fevd", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s for s in specs]
-    register!(specs)
+    specs = register!(specs)
     return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
 end
 

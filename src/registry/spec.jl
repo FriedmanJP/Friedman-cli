@@ -47,6 +47,9 @@ Base.@kwdef struct CommandSpec
     data_kinds::Vector{Symbol} = Symbol[]
     model_types::Vector{Symbol} = Symbol[]
     result_types::Vector{Symbol} = Symbol[]
+    # #199: help / schema / MCP grouping. Empty only for serve, show, completions, model.
+    # Not a path segment until #202 promotes depth-2 leaves (family "other" stays flat).
+    family::String = ""
 end
 
 """
@@ -130,6 +133,7 @@ function _copy_spec(s::CommandSpec; kwargs...)
         data_kinds   = get(kwargs, :data_kinds, s.data_kinds),
         model_types  = get(kwargs, :model_types, s.model_types),
         result_types = get(kwargs, :result_types, s.result_types),
+        family       = get(kwargs, :family, s.family),
     )
 end
 
@@ -348,12 +352,14 @@ end
 const REGISTRY = CommandSpec[]
 
 function register!(spec::CommandSpec)
-    push!(REGISTRY, spec)
-    return spec
+    s = _finalize_spec(spec)
+    push!(REGISTRY, s)
+    return s
 end
 
 function register!(specs::Vector{CommandSpec})
-    append!(REGISTRY, specs)
-    return specs
+    out = CommandSpec[_finalize_spec(s) for s in specs]
+    append!(REGISTRY, out)
+    return out
 end
 

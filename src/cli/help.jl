@@ -50,14 +50,48 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
     printstyled(io, "Usage:\n"; bold=true, color=:yellow)
     println(io, INDENT, prog, " <command> [args...] [options...]")
 
-    # Commands (C055: no hidden aliases remain — every key is primary)
-    println(io)
-    printstyled(io, "Commands:\n"; bold=true, color=:yellow)
-    names = sort(collect(keys(node.subcmds)))
-    for name in names
+    # Child nodes are family groups after the v1.0.0 promotion. Direct leaves
+    # with a family (test's `other` heading) are grouped; empty-family leaves
+    # stay one flat list.
+    nodes = Pair{String,NodeCommand}[]
+    leaves = Pair{String,LeafCommand}[]
+    for name in sort!(collect(keys(node.subcmds)))
         cmd = node.subcmds[name]
-        desc = cmd.description
-        print_entry_line(io, name, desc)
+        if cmd isa NodeCommand
+            push!(nodes, name => cmd)
+        else
+            push!(leaves, name => cmd)
+        end
+    end
+    if !isempty(nodes)
+        println(io)
+        printstyled(io, "Commands:\n"; bold=true, color=:yellow)
+        for (name, cmd) in nodes
+            print_entry_line(io, name, cmd.description)
+        end
+    end
+    if !isempty(leaves)
+        grouped = any(!isempty, (cmd.family for (_, cmd) in leaves))
+        if !grouped
+            println(io)
+            printstyled(io, "Commands:\n"; bold=true, color=:yellow)
+            for (name, cmd) in leaves
+                print_entry_line(io, name, cmd.description)
+            end
+        else
+            fams = Dict{String,Vector{Pair{String,LeafCommand}}}()
+            for pair in leaves
+                push!(get!(fams, pair.second.family, Pair{String,LeafCommand}[]), pair)
+            end
+            for fam in sort!(collect(keys(fams)))
+                println(io)
+                label = isempty(fam) ? "Commands" : fam
+                printstyled(io, label, ":\n"; bold=true, color=:yellow)
+                for (name, cmd) in fams[fam]
+                    print_entry_line(io, name, cmd.description)
+                end
+            end
+        end
     end
 
     # Footer
@@ -76,6 +110,10 @@ function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
     if !isempty(leaf.description)
         println(io)
         println(io, leaf.description)
+    end
+    if !isempty(leaf.family)
+        println(io)
+        println(io, "Family: ", leaf.family)
     end
 
     # Usage line

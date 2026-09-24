@@ -136,6 +136,6 @@ end
 
 function register_model_commands!()
     specs = with_default_csv_kinds(model_specs())
-    register!(specs)
+    specs = register!(specs)
     return build_node("model", specs; description="Model handles: inspect .jld2 (native) and .fmod (interim) files")
 end

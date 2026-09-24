@@ -1,18 +1,18 @@
 # dsge
 
-DSGE modeling from the terminal. Representative-agent leaves (`solve`, `irf`, `fevd`, `hd`, `simulate`, `estimate`, `perfect-foresight`, `steady-state`), a `bayes` node (13 sub-leaves), plus heterogeneous-agent / OLG nodes:
+DSGE modeling from the terminal. Representative-agent leaves (`solve`, `irf`, `fevd`, `hd`, `simulate`, `estimate`, `perfect-foresight`, `steady-state`), a `bayes` node (13 sub-leaves), closed-agent nodes, and the top-level `hadsge` command for one-household models:
 
 | Node | Role | Guide |
 |------|------|--------|
 | (top-level leaves) | Linear / nonlinear RA-DSGE, OccBin, estimation | this page |
 | `dsge bayes` | Full Bayesian RA-DSGE workflow | [Bayesian DSGE](#dsge-bayes) |
-| `dsge ha` | Incomplete-markets HA-DSGE (builtins + `HADSGESpec`) | **[HA-DSGE workflow](ha-dsge.md)** |
+| `hadsge` | One-household HA-DSGE (builtins or a `.jl` `HouseholdSystem`) | **[HA-DSGE workflow](ha-dsge.md)** |
 | `dsge ct` | Continuous-time Aiyagari / two-asset KMV | [CT section](#continuous-time-ha-dsge-ct--c041) |
 | `dsge olg` | Blanchard perpetual-youth OLG | [OLG section](#blanchard-olg-dsge-olg--c041) |
 
-**`dsge ha estimate`** (v0.6.0) — Bayesian estimation of HA-DSGE parameters via RWMH, shipped once [MEMs#228](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/228) fixed the Kalman observation matrix. See the [HA-DSGE workflow guide](ha-dsge.md#6-bayesian-estimation).
+**`hadsge estimate`** (v0.6.0) — Bayesian estimation of HA-DSGE parameters via RWMH, shipped once [MEMs#228](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/228) fixed the Kalman observation matrix. See the [HA-DSGE workflow guide](ha-dsge.md#6-bayesian-estimation).
 
-Friedman supports RA models as TOML or Julia (`DSGESpec`) files, and HA models as builtins or `.jl` (`HADSGESpec`). See [Configuration](../configuration.md#dsge-model) for TOML format details. Option tables: [generated `dsge` reference](generated/dsge.md).
+Friedman supports RA models as TOML or Julia (`DSGESpec`) files. One-household HA models are builtins or `.jl` files with one `HouseholdSystem`, and they are run with `hadsge`, not `dsge`. See [Configuration](../configuration.md#dsge-model) for TOML format details. Option tables: [generated `dsge` reference](generated/dsge.md) and [generated `hadsge` reference](generated/hadsge.md).
 
 ## Model Input Formats
 
@@ -66,7 +66,7 @@ The file's **last expression** must evaluate to a `DSGESpec` — typically an `@
 end
 ```
 
-The CLI auto-detects the format by file extension. (A `.jl` file that evaluates to an `HADSGESpec` is rejected with a pointer to `dsge ha …`.)
+The CLI auto-detects the format by file extension. (A `.jl` file that evaluates to a one-household `HouseholdSystem` is rejected with a pointer to `hadsge solve`.)
 
 ## dsge solve
 
@@ -657,21 +657,21 @@ Each parameter must have a `dist` key (distribution name) and shape parameters `
 
 Projection and PFI methods support `--degree` (polynomial degree) and `--grid` (grid type) options.
 
-## HA-DSGE (`dsge ha`) — C040 / MEMs v0.6.7
+## HA-DSGE (`hadsge`)
 
-Heterogeneous-agent DSGE: **builtins** (`huggett`, `krusell-smith`, `one-asset-hank`, `two-asset-hank`) or a `.jl` file evaluating to `HADSGESpec`.
+Heterogeneous-agent DSGE: **builtins** (`huggett`, `krusell-smith`, `one-asset-hank`, `two-asset-hank`) or a `.jl` file with one `HouseholdSystem`. `dsge ha` is not a command.
 
 **Methods:** `ssj` · `reiter` · `krusell-smith`
 
-`dsge ha estimate` (RWMH Bayesian estimation) shipped in v0.6.0 after MEMs#228. Full progressive examples with captured JSON: **[HA-DSGE workflow guide](ha-dsge.md)**.
+`hadsge estimate` (RWMH Bayesian estimation) shipped in v0.6.0 after MEMs#228. Full progressive examples with captured JSON: **[HA-DSGE workflow guide](ha-dsge.md)**.
 
 ```bash
-friedman dsge ha steady-state huggett
-friedman dsge ha solve huggett --method=reiter --n-reduced=20
-friedman dsge ha irf huggett --method=reiter --horizon=40
-friedman dsge ha estimate krusell-smith --data aggregates.csv --priors priors.toml --observables K
-friedman dsge ha distribution-irf huggett --method=reiter   # Reiter only
-friedman dsge ha simulate-panel huggett --n-agents=1000 --seed=1
+friedman hadsge steady-state huggett
+friedman hadsge solve huggett --method=reiter --n-reduced=20
+friedman hadsge irf huggett --method=reiter --horizon=40
+friedman hadsge estimate krusell-smith --data aggregates.csv --priors priors.toml --observables K
+friedman hadsge distribution-irf huggett --method=reiter   # Reiter only
+friedman hadsge simulate-panel huggett --n-agents=1000 --seed=1
 ```
 
 | Subcommand | Method constraint | Notes |

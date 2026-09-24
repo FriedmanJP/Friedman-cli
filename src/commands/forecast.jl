@@ -739,22 +739,10 @@ const _FORECAST_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Sym
 )
 
 function register_forecast_commands!()
-    all_specs = forecast_specs()
-    # Evaluate leaves stay off with_model_option / with_result_handles: they declare
-    # a string --result (FCEVAL_RESULT_OPTION, handle=false) parsed in _fceval_load.
-    is_eval(s) = length(s.path) >= 2 && s.path[2] == "evaluate"
-    producing = _tag_slot_types(filter(!is_eval, all_specs), _FORECAST_SLOT_TYPES)
-    specs = with_config_ergonomics(vcat(
-        with_result_handles(with_model_option(producing)),
-        filter(is_eval, all_specs)))
-    out = CommandSpec[]
-    for s in specs
-        kinds = is_eval(s) ? [:csv, :timeseries, :panel, :cross_section] : [:timeseries, :csv]
-        push!(out, _copy_spec(s; data_kinds=kinds))
-    end
-    out = with_default_csv_kinds(out)
-    register!(out)
-    return build_node("forecast", out; description="Forecasting")
+    # Model leaves come from the catalog (#200). `forecast evaluate` stays
+    # hand-written — it is not a model row.
+    specs = register!(vcat(catalog_specs("forecast"), _prepared_forecast_eval_specs()))
+    return build_node("forecast", specs; description="Forecasting")
 end
 
 

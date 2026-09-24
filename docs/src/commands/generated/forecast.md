@@ -5,256 +5,6 @@ Generated reference for `friedman forecast` and its subcommands.
 
 **Leaves:** 35
 
-### `friedman forecast aparch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
-| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-
-**Output tables:** `aparch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
-
----
-
-### `friedman forecast arch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `arch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
-
----
-
-### `friedman forecast arfima`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `0` | — | AR order |
-| `--q` | — | `Int64` | `0` | — | MA order |
-| `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
-| `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) |
-| `--confidence` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
-| `--trunc-lag` | — | `Int64` | `200` | — | AR(inf) truncation lag for the fractional filter (≥ 1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-
-**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | forecast | lower | upper)
-
----
-
-### `friedman forecast arima`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | — | — | AR order (default: auto selection) |
-| `--d` | — | `Int64` | `0` | — | Differencing order |
-| `--q` | — | `Int64` | `0` | — | MA order |
-| `--max-p` | — | `Int64` | `5` | — | Max AR order for auto selection |
-| `--max-d` | — | `Int64` | `2` | — | Max differencing order for auto selection |
-| `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
-| `--criterion` | — | `String` | `bic` | — | aic\|bic |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `arima_forecast` (Point forecasts with interval bounds, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast bvar`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
-| `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `bvar_forecast` (Posterior-mean forecasts with 68% credible bands, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast cgarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-
-**Output tables:** `cgarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
-
----
-
-### `friedman forecast dynamic`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
-| `--method` | — | `String` | `twostep` | — | twostep\|em |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `dynamic_factor_forecast` (Observable forecasts reconstructed from the factors, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast egarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order |
-| `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `egarch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
-
----
-
 ### `friedman forecast evaluate clark-west`
 
 Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: small then big)
@@ -399,7 +149,7 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 
 ---
 
-### `friedman forecast favar`
+### `friedman forecast factor dynamic`
 
 Path to CSV data file
 
@@ -409,107 +159,10 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
-| `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
-| `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
+| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--panel-forecast` | — | Output panel-wide forecast instead of factor-level |
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `favar_forecast` (Factor-level (or panel-wide under --panel-forecast) forecasts, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast fiegarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
-| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-
-**Output tables:** `fiegarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
-
----
-
-### `friedman forecast figarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
-| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-
-**Output tables:** `figarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
-
----
-
-### `friedman forecast garch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order |
-| `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
+| `--method` | — | `String` | `twostep` | — | twostep\|em |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -521,42 +174,11 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `dynamic_factor_forecast` (Observable forecasts reconstructed from the factors, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
-### `friedman forecast garch-midas`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
-| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
-| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
-| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
-| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `garch_midas_volatility_forecast` (Variance path split into its components: horizon | total_variance | long_run | short_run | volatility)
-
----
-
-### `friedman forecast gdfm`
+### `friedman forecast factor gdfm`
 
 Path to CSV data file
 
@@ -586,7 +208,7 @@ Path to CSV data file
 
 ---
 
-### `friedman forecast gjr-garch`
+### `friedman forecast factor sdfm`
 
 Path to CSV data file
 
@@ -596,11 +218,49 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order |
-| `--q` | — | `Int64` | `1` | — | ARCH order |
+| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
+| `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
+| `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Structural estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
+| `--ci` | — | `String` | `none` | `none`, `bootstrap` | Interval method: none\|bootstrap |
+| `--reps` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `sdfm_forecast` (Panel forecasts from the structural dynamic factor model, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast factor static`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -612,105 +272,11 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `gjr_garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `static_factor_forecast` (Observable forecasts reconstructed from the factors, tidy long form: horizon | variable | value | lower | upper)
 
 ---
 
-### `friedman forecast igarch`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | GARCH order p |
-| `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-
-**Output tables:** `igarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
-
----
-
-### `friedman forecast lp`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--shock-size` | — | `Float64` | `1.0` | — | Impulse shock size |
-| `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
-| `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap\|none |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--n-boot` | — | `Int64` | `500` | — | Bootstrap replications |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `lp_forecast` (Local-projection forecast along the shock path, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast midas`
-
-Path to low-frequency target CSV
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to low-frequency target CSV |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Target column index (1-based) |
-| `--hf-data` | — | `String` | `""` | — | Path to the high-frequency indicator CSV (required) |
-| `--hf-column` | — | `Int64` | `1` | — | High-frequency column index (1-based) |
-| `--m` | — | `Int64` | `0` | — | High-frequency observations per low-frequency period (required, ≥ 1) |
-| `--k` | — | `Int64` | `0` | — | Number of high-frequency lags K (required, ≥ 1) |
-| `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | MIDAS weight family |
-| `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS) |
-| `--poly-degree` | — | `Int64` | `2` | — | Almon polynomial degree (≥ 0) |
-| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `midas_forecast` (Direct h-step forecast of the low-frequency target: horizon | forecast | lower | upper | se); `midas_forecast_summary` (Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level)
-
----
-
-### `friedman forecast ms`
+### `friedman forecast regime ms`
 
 Path to CSV data file
 
@@ -742,7 +308,7 @@ Path to CSV data file
 
 ---
 
-### `friedman forecast ms-ar`
+### `friedman forecast regime ms-ar`
 
 Path to CSV data file
 
@@ -773,7 +339,161 @@ Path to CSV data file
 
 ---
 
-### `friedman forecast sarima`
+### `friedman forecast regime setar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `setar_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast regime star`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
+| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
+| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
+| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `star_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast univariate arfima`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `0` | — | AR order |
+| `--q` | — | `Int64` | `0` | — | MA order |
+| `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
+| `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) |
+| `--confidence` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
+| `--trunc-lag` | — | `Int64` | `200` | — | AR(inf) truncation lag for the fractional filter (≥ 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | forecast | lower | upper)
+
+---
+
+### `friedman forecast univariate arima`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | — | — | AR order (default: auto selection) |
+| `--d` | — | `Int64` | `0` | — | Differencing order |
+| `--q` | — | `Int64` | `0` | — | MA order |
+| `--max-p` | — | `Int64` | `5` | — | Max AR order for auto selection |
+| `--max-d` | — | `Int64` | `2` | — | Max differencing order for auto selection |
+| `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
+| `--criterion` | — | `String` | `bic` | — | aic\|bic |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
+| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `arima_forecast` (Point forecasts with interval bounds, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast univariate midas`
+
+Path to low-frequency target CSV
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to low-frequency target CSV |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Target column index (1-based) |
+| `--hf-data` | — | `String` | `""` | — | Path to the high-frequency indicator CSV (required) |
+| `--hf-column` | — | `Int64` | `1` | — | High-frequency column index (1-based) |
+| `--m` | — | `Int64` | `0` | — | High-frequency observations per low-frequency period (required, ≥ 1) |
+| `--k` | — | `Int64` | `0` | — | Number of high-frequency lags K (required, ≥ 1) |
+| `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | MIDAS weight family |
+| `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS) |
+| `--poly-degree` | — | `Int64` | `2` | — | Almon polynomial degree (≥ 0) |
+| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `midas_forecast` (Direct h-step forecast of the low-frequency target: horizon | forecast | lower | upper | se); `midas_forecast_summary` (Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level)
+
+---
+
+### `friedman forecast univariate sarima`
 
 Path to CSV data file
 
@@ -817,7 +537,103 @@ Path to CSV data file
 
 ---
 
-### `friedman forecast scenario`
+### `friedman forecast var bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
+| `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `bvar_forecast` (Posterior-mean forecasts with 68% credible bands, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast var favar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
+| `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
+| `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--panel-forecast` | — | Output panel-wide forecast instead of factor-level |
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `favar_forecast` (Factor-level (or panel-wide under --panel-forecast) forecasts, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast var lp`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--shock-size` | — | `Float64` | `1.0` | — | Impulse shock size |
+| `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
+| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
+| `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap\|none |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
+| `--n-boot` | — | `Int64` | `500` | — | Bootstrap replications |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `lp_forecast` (Local-projection forecast along the shock path, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast var scenario`
 
 Waggoner-Zha conditional (scenario) forecast
 
@@ -854,156 +670,7 @@ Waggoner-Zha conditional (scenario) forecast
 
 ---
 
-### `friedman forecast sdfm`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
-| `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
-| `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Structural estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
-| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
-| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
-| `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
-| `--ci` | — | `String` | `none` | `none`, `bootstrap` | Interval method: none\|bootstrap |
-| `--reps` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `sdfm_forecast` (Panel forecasts from the structural dynamic factor model, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast setar`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
-| `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `setar_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast star`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
-| `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
-| `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `star_forecast` (Bootstrap-simulated forecasts with bands, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast static`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `static_factor_forecast` (Observable forecasts reconstructed from the factors, tidy long form: horizon | variable | value | lower | upper)
-
----
-
-### `friedman forecast sv`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `sv_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
-
----
-
-### `friedman forecast var`
+### `friedman forecast var var`
 
 Path to CSV data file
 
@@ -1032,7 +699,7 @@ Path to CSV data file
 
 ---
 
-### `friedman forecast vecm`
+### `friedman forecast var vecm`
 
 Path to CSV data file
 
@@ -1061,6 +728,339 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `vecm_forecast` (Level forecasts with optional interval bounds, tidy long form: horizon | variable | value | lower | upper)
+
+---
+
+### `friedman forecast volatility aparch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
+| `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `aparch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+
+---
+
+### `friedman forecast volatility arch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `arch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+
+---
+
+### `friedman forecast volatility cgarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `cgarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+
+---
+
+### `friedman forecast volatility egarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `egarch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+
+---
+
+### `friedman forecast volatility fiegarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `fiegarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+
+---
+
+### `friedman forecast volatility figarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
+| `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
+| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `figarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+
+---
+
+### `friedman forecast volatility garch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+
+---
+
+### `friedman forecast volatility garch-midas`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--m-freq` | — | `Int64` | `0` | — | High-frequency observations per low-frequency block (required, ≥ 1) |
+| `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
+| `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
+| `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Span |
+| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `garch_midas_volatility_forecast` (Variance path split into its components: horizon | total_variance | long_run | short_run | volatility)
+
+---
+
+### `friedman forecast volatility gjr-garch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `gjr_garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+
+---
+
+### `friedman forecast volatility igarch`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order p |
+| `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Display an interactive plot |
+
+**Output tables:** `igarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+
+---
+
+### `friedman forecast volatility sv`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
+| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `sv_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
 
 ---
 

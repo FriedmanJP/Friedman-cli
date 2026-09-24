@@ -167,7 +167,7 @@ function register_filter_commands!()
         push!(specs, _copy_spec(s; handler=h))
     end
     specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv])))
-    register!(specs)
+    specs = register!(specs)
     return build_node("filter", specs;
         description="Time series filtering and trend-cycle decomposition")
 end

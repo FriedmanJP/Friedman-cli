@@ -1846,14 +1846,20 @@ function register_test_commands!()
             [:timeseries, :csv]
         end
         rt = get(_TEST_RESULT_TYPES, s.path[end], Symbol[])
-        leaf = join(s.path, " ")
-        key = isempty(s.tables) ? "" : string(s.tables[1].name)
-        h = wrap_legacy(_with_result(s.handler, leaf; key=key))
-        push!(specs, _copy_spec(s; data_kinds=kinds, result_types=rt, handler=h))
+        push!(specs, _copy_spec(s; data_kinds=kinds, result_types=rt))
     end
     specs = with_result_handles(with_config_ergonomics(specs))
     specs = with_default_csv_kinds(specs)
-    register!(specs)
+    # Promote before wrapping so the saved-result title uses the v1.0.0 path.
+    specs = CommandSpec[_finalize_spec(s) for s in specs]
+    specs = map(specs) do s
+        key = isempty(s.tables) ? "" : string(s.tables[1].name)
+        h = wrap_legacy(_with_result(s.handler, join(s.path, " "); key=key))
+        _copy_spec(s; handler=h)
+    end
+    # `did test *` lands here as `test did *` (#202).
+    append!(specs, _did_test_specs())
+    specs = register!(specs)
     return build_node("test", specs; description="Statistical tests (unit root, cointegration, diagnostics)")
 end
 

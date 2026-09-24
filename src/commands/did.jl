@@ -551,9 +551,19 @@ function did_specs()::Vector{CommandSpec}
     ]
 end
 
-function register_did_commands!()
+"""Prepared DiD specs. `did test *` is rewritten to `test did *` by `_finalize_spec`."""
+function _prepared_did_specs()
     specs = with_default_csv_kinds(with_data_kinds(did_specs(), [:panel, :csv]))
-    register!(specs)
-    return build_node("did", specs; description="Difference-in-differences: estimation, event study LP, diagnostics")
+    return CommandSpec[_finalize_spec(s) for s in specs]
+end
+
+"""The four diagnostic leaves, already moved under `test did`."""
+function _did_test_specs()
+    return filter(s -> s.path[1] == "test", _prepared_did_specs())
+end
+
+function register_did_commands!()
+    stay = register!(filter(s -> s.path[1] == "did", _prepared_did_specs()))
+    return build_node("did", stay; description="Difference-in-differences: estimation, event study LP, diagnostics")
 end
 
