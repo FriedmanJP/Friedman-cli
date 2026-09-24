@@ -352,6 +352,22 @@ function main()
         ok &= _write_or_check(path, _top_page(top, groups[top]); check=CHECK)
     end
 
+    # prune pages for removed top-levels (a regroup orphan must fail --check,
+    # not linger: generated/multipliers.md survived the #198-#204 fold)
+    expected = Set("$top.md" for top in keys(groups))
+    for fname in sort(readdir(gen_dir))
+        endswith(fname, ".md") || continue
+        fname in expected && continue
+        stale = joinpath(gen_dir, fname)
+        if CHECK
+            println(stderr, "generate_cli_reference: stale page $stale (no such top-level)")
+            ok = false
+        else
+            rm(stale)
+            println("pruned $stale")
+        end
+    end
+
     # completions
     comp_dir = joinpath(ROOT, "completions")
     ok &= _write_or_check(joinpath(comp_dir, "friedman.bash"), _bash_completion(specs); check=CHECK)
