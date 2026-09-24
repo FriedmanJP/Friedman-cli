@@ -24,6 +24,49 @@ friedman test adf data.csv --column=2 --max-lags=8 --trend=trend
 **Output:** Test statistic, lags, p-value, rejection decision at 5%.
 
 ### test kpss
+Shown on the bundled Nile-flow dataset (`:nile`); status lines go to stderr, JSON below is stdout only.
+
+<!-- capture -->
+```bash
+friedman test unit-root adf :nile --format json
+```
+```json
+{
+    "schema_version": 1,
+    "data": {
+        "adf_test": {
+            "columns": [
+                "metric",
+                "value"
+            ],
+            "rows": [
+                [
+                    "Test statistic",
+                    -4.0487
+                ],
+                [
+                    "Lags",
+                    1
+                ],
+                [
+                    "p-value",
+                    0.0012
+                ]
+            ]
+        }
+    },
+    "warnings": [
+    ],
+    "status": "ok",
+    "artifacts": [
+    ],
+    "command": "friedman test unit-root adf",
+    "meta": {
+    },
+    "error": null
+}
+```
+
 
 KPSS stationarity test. H0: series is stationary (reversed null compared to ADF).
 

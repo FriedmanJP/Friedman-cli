@@ -34,6 +34,367 @@ friedman estimate var data.csv --lags=4 --format=csv --output=var_results.csv
 **Output:** Tidy coefficient table (`equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) via `DataFrame(model)`, plus a small AIC/BIC/HQC/log-likelihood fit-stats table.
 
 ## estimate bvar
+Shown on the bundled Denmark money dataset (`:denmark`); status lines go to stderr, JSON below is stdout only.
+
+<!-- capture -->
+```bash
+friedman estimate var var :denmark --lags 1 --format json
+```
+```json
+{
+    "schema_version": 1,
+    "data": {
+        "var_coefficients": {
+            "columns": [
+                "equation",
+                "term",
+                "estimate",
+                "std_error",
+                "stat",
+                "p_value",
+                "ci_lower",
+                "ci_upper"
+            ],
+            "rows": [
+                [
+                    "y1",
+                    "(Intercept)",
+                    3.4288123,
+                    0.62645112,
+                    5.4733916,
+                    1.5808111e-6,
+                    2.1692479,
+                    4.6883767
+                ],
+                [
+                    "y1",
+                    "y1.L1",
+                    0.75549524,
+                    0.083439926,
+                    9.0543613,
+                    5.8997252e-12,
+                    0.58772802,
+                    0.92326245
+                ],
+                [
+                    "y1",
+                    "y2.L1",
+                    -0.059877806,
+                    0.13484502,
+                    -0.44404907,
+                    0.65900261,
+                    -0.3310019,
+                    0.21124628
+                ],
+                [
+                    "y1",
+                    "y3.L1",
+                    0.061270076,
+                    0.016870169,
+                    3.631859,
+                    0.0006827661,
+                    0.027350328,
+                    0.095189824
+                ],
+                [
+                    "y1",
+                    "y4.L1",
+                    -0.99583584,
+                    0.29903095,
+                    -3.33021,
+                    0.0016745141,
+                    -1.5970779,
+                    -0.39459383
+                ],
+                [
+                    "y1",
+                    "y5.L1",
+                    -0.39973257,
+                    0.47468227,
+                    -0.84210553,
+                    0.4039052,
+                    -1.3541452,
+                    0.55468011
+                ],
+                [
+                    "y2",
+                    "(Intercept)",
+                    1.5060334,
+                    0.51159296,
+                    2.9438118,
+                    0.0049837046,
+                    0.4774068,
+                    2.53466
+                ],
+                [
+                    "y2",
+                    "y1.L1",
+                    0.089413611,
+                    0.068141436,
+                    1.3121768,
+                    0.19570109,
+                    -0.047593928,
+                    0.22642115
+                ],
+                [
+                    "y2",
+                    "y2.L1",
+                    0.58192718,
+                    0.11012154,
+                    5.2844081,
+                    3.0405248e-6,
+                    0.36051297,
+                    0.80334138
+                ],
+                [
+                    "y2",
+                    "y3.L1",
+                    0.049987127,
+                    0.013777068,
+                    3.6282848,
+                    0.00069020982,
+                    0.022286475,
+                    0.077687779
+                ],
+                [
+                    "y2",
+                    "y4.L1",
+                    0.25023321,
+                    0.24420441,
+                    1.0246875,
+                    0.31064719,
+                    -0.24077268,
+                    0.74123909
+                ],
+                [
+                    "y2",
+                    "y5.L1",
+                    -1.1626354,
+                    0.38765053,
+                    -2.9991844,
+                    0.00428128,
+                    -1.9420591,
+                    -0.38321181
+                ],
+                [
+                    "y3",
+                    "(Intercept)",
+                    -0.094685616,
+                    0.17432105,
+                    -0.543168,
+                    0.58952779,
+                    -0.44518158,
+                    0.25581034
+                ],
+                [
+                    "y3",
+                    "y1.L1",
+                    -0.014622663,
+                    0.023218628,
+                    -0.62978153,
+                    0.53182407,
+                    -0.061306843,
+                    0.032061517
+                ],
+                [
+                    "y3",
+                    "y2.L1",
+                    0.045399714,
+                    0.037523001,
+                    1.2099169,
+                    0.23223578,
+                    -0.030045335,
+                    0.12084476
+                ],
+                [
+                    "y3",
+                    "y3.L1",
+                    0.98339248,
+                    0.0046944215,
+                    209.48108,
+                    0,
+                    0.97395371,
+                    0.99283125
+                ],
+                [
+                    "y3",
+                    "y4.L1",
+                    0.10809135,
+                    0.083210624,
+                    1.2990091,
+                    0.20014629,
+                    -0.059214818,
+                    0.27539753
+                ],
+                [
+                    "y3",
+                    "y5.L1",
+                    -0.0053550379,
+                    0.1320887,
+                    -0.040541227,
+                    0.9678298,
+                    -0.27093716,
+                    0.26022709
+                ],
+                [
+                    "y4",
+                    "(Intercept)",
+                    -0.35860737,
+                    0.23029215,
+                    -1.5571846,
+                    0.12599625,
+                    -0.82164077,
+                    0.10442602
+                ],
+                [
+                    "y4",
+                    "y1.L1",
+                    -0.0076093243,
+                    0.030673678,
+                    -0.24807343,
+                    0.80513582,
+                    -0.069282887,
+                    0.054064238
+                ],
+                [
+                    "y4",
+                    "y2.L1",
+                    0.076430821,
+                    0.049570906,
+                    1.5418484,
+                    0.12967798,
+                    -0.023238167,
+                    0.17609981
+                ],
+                [
+                    "y4",
+                    "y3.L1",
+                    -0.014373792,
+                    0.0062017089,
+                    -2.3177147,
+                    0.024773914,
+                    -0.026843163,
+                    -0.0019044205
+                ],
+                [
+                    "y4",
+                    "y4.L1",
+                    1.0100517,
+                    0.10992794,
+                    9.1883074,
+                    3.7541081e-12,
+                    0.78902674,
+                    1.2310766
+                ],
+                [
+                    "y4",
+                    "y5.L1",
+                    -0.099428345,
+                    0.17449981,
+                    -0.56979057,
+                    0.57147704,
+                    -0.45028372,
+                    0.25142703
+                ],
+                [
+                    "y5",
+                    "(Intercept)",
+                    -0.26118995,
+                    0.13949317,
+                    -1.872421,
+                    0.067246769,
+                    -0.54165977,
+                    0.019279871
+                ],
+                [
+                    "y5",
+                    "y1.L1",
+                    0.012884448,
+                    0.018579742,
+                    0.69346756,
+                    0.49135843,
+                    -0.024472626,
+                    0.050241522
+                ],
+                [
+                    "y5",
+                    "y2.L1",
+                    0.01808454,
+                    0.030026221,
+                    0.60229157,
+                    0.54981486,
+                    -0.042287224,
+                    0.078456304
+                ],
+                [
+                    "y5",
+                    "y3.L1",
+                    -0.0025295012,
+                    0.0037565156,
+                    -0.67336369,
+                    0.50394541,
+                    -0.010082482,
+                    0.0050234796
+                ],
+                [
+                    "y5",
+                    "y4.L1",
+                    0.21452174,
+                    0.066585842,
+                    3.221732,
+                    0.0022903665,
+                    0.080641931,
+                    0.34840155
+                ],
+                [
+                    "y5",
+                    "y5.L1",
+                    0.64891228,
+                    0.10569849,
+                    6.1392768,
+                    1.5357806e-7,
+                    0.43639122,
+                    0.86143333
+                ]
+            ]
+        },
+        "information_criteria": {
+            "columns": [
+                "metric",
+                "value"
+            ],
+            "rows": [
+                [
+                    "AIC",
+                    -44.683245
+                ],
+                [
+                    "BIC",
+                    -43.578254
+                ],
+                [
+                    "HQC",
+                    -44.257093
+                ],
+                [
+                    "Log-likelihood",
+                    853.33421
+                ]
+            ]
+        }
+    },
+    "warnings": [
+    ],
+    "status": "ok",
+    "artifacts": [
+    ],
+    "command": "friedman estimate var var",
+    "meta": {
+    },
+    "error": null
+}
+```
+
 
 Estimate a Bayesian VAR with MCMC sampling and posterior extraction.
 
@@ -1076,6 +1437,105 @@ friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
 
 **Output:** Tidy coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`, [C051](#coefficient-table-format-c051)) + fit statistics (R², Adj R², F-stat, AIC, BIC).
 
+Shown on the bundled stack-loss dataset (`:stackloss`); status lines go to stderr, JSON below is stdout only.
+
+<!-- capture -->
+```bash
+friedman estimate regression reg :stackloss --dep stack.loss --format json
+```
+```json
+{
+    "schema_version": 1,
+    "data": {
+        "fit_statistics": {
+            "columns": [
+                "metric",
+                "value"
+            ],
+            "rows": [
+                [
+                    "R²",
+                    0.85633
+                ],
+                [
+                    "Adj. R²",
+                    0.840366
+                ],
+                [
+                    "F-statistic",
+                    27.2237
+                ],
+                [
+                    "F p-value",
+                    0
+                ],
+                [
+                    "Log-likelihood",
+                    -57.6246
+                ],
+                [
+                    "AIC",
+                    123.2492
+                ],
+                [
+                    "BIC",
+                    127.4272
+                ]
+            ]
+        },
+        "reg_coefficients": {
+            "columns": [
+                "term",
+                "estimate",
+                "std_error",
+                "stat",
+                "p_value",
+                "ci_lower",
+                "ci_upper"
+            ],
+            "rows": [
+                [
+                    "Air.Flow",
+                    0.7967652,
+                    0.18250293,
+                    4.3657666,
+                    0.00037264853,
+                    0.41334077,
+                    1.1801896
+                ],
+                [
+                    "Water.Temp",
+                    1.1114225,
+                    0.50940902,
+                    2.1817879,
+                    0.042625611,
+                    0.041193817,
+                    2.1816511
+                ],
+                [
+                    "Acid.Conc.",
+                    -0.62499326,
+                    0.074792385,
+                    -8.3563756,
+                    1.3102134e-7,
+                    -0.78212623,
+                    -0.46786029
+                ]
+            ]
+        }
+    },
+    "warnings": [
+    ],
+    "status": "ok",
+    "artifacts": [
+    ],
+    "command": "friedman estimate regression reg",
+    "meta": {
+    },
+    "error": null
+}
+```
+
 ### Conley (1999) spatial HAC standard errors
 
 `--cov-type conley` weights every pair of observations by a kernel in their distance, rather than assuming correlation is total within a cluster and zero across it. Use it when dependence is spatial and continuous — neighbouring counties, nearby plants, grid cells — where no clustering partition is defensible.
@@ -1083,14 +1543,17 @@ friedman estimate reg data.csv --dep=wage --clusters=state --cov-type=cluster
 ```bash
 # Projected coordinates (metres, km, …): euclidean distance, cutoff in the same units
 friedman estimate reg plants.csv --dep=output --cov-type=conley \
+friedman estimate regression reg plants.csv --dep=output --cov-type=conley \
   --lat=coord_y --lon=coord_x --dist-cutoff=50
 
 # Degrees: haversine distance, cutoff in kilometres
 friedman estimate reg counties.csv --dep=wage --cov-type=conley \
+friedman estimate regression reg counties.csv --dep=wage --cov-type=conley \
   --lat=latitude --lon=longitude --conley-metric=haversine --dist-cutoff=100
 
 # Spatial *and* serial correlation (Conley panel): add a time column and a lag cutoff
 friedman estimate reg panel.csv --dep=y --cov-type=conley \
+friedman estimate regression reg panel.csv --dep=y --cov-type=conley \
   --lat=lat --lon=lon --conley-metric=haversine --dist-cutoff=100 \
   --time-col=year --time-cutoff=3
 ```
