@@ -1497,9 +1497,37 @@ friedman estimate nardl data.csv --dep=y --asymmetric=1,3
 | `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
 | `--output` | `-o` | String | | Export file path |
 
-**Output:** split-regressor coefficient table (labels carry `_POS`/`_NEG` suffixes) + asymmetric long-run table (θ⁺/θ⁻) + diagnostics including the enlarged-`k` bounds decision (`k_orig`, `k`, `asym`, `f_stat`, `t_stat`, `f_decision`, `t_decision`, `bounds_level`). NARDL has no `--trend` option (informational-only upstream). See [`test nardl-symmetry`](test.md#test-nardl-symmetry) for the long-/short-run symmetry Wald tests and [`multipliers nardl`](multipliers.md) for the cumulative dynamic multipliers.
+**Output:** split-regressor coefficient table (labels carry `_POS`/`_NEG` suffixes) + asymmetric long-run table (θ⁺/θ⁻) + diagnostics including the enlarged-`k` bounds decision (`k_orig`, `k`, `asym`, `f_stat`, `t_stat`, `f_decision`, `t_decision`, `bounds_level`). NARDL has no `--trend` option (informational-only upstream). See [`test nardl-symmetry`](test.md#test-nardl-symmetry) for the long-/short-run symmetry Wald tests. The same `estimate univariate nardl` leaf emits the cumulative dynamic multipliers (`--horizon`, `--nreps`, `--level`, `--no-bootstrap`).
 
-## estimate pmg
+### Cumulative dynamic multipliers
+
+**Cumulative dynamic multipliers** — the response of a variable to a permanent (step) change in a regressor — are emitted by this leaf. (The pre-1.0.0 `multipliers nardl` spelling folded here at the v1.0.0 regroup; the two table keys are unchanged.) For each asymmetric regressor, `m⁺_{j,h}` and `m⁻_{j,h}` are the response of `y` at horizon `h = 0…H` to a unit permanent change in that regressor's positive / negative partial sum, obtained by recursively iterating the estimated ARDL difference equation. They converge to the long-run θ⁺_j / θ⁻_j as `h → ∞`; the asymmetry curve `m⁺ − m⁻` traces how differently `y` reacts to increases vs. decreases. Optional pointwise percentile bands come from a recursive-design (condition-on-`x`) residual bootstrap.
+
+The multipliers share the fit options above (`--dep`, `--asymmetric`, `--p`, `--q`, `--max-p`, `--max-q`, `--ic`, `--case` behave identically); only the band options are multiplier-specific:
+
+```bash
+# Point + bootstrap-band multipliers to horizon 24 (default 500 reps)
+friedman estimate univariate nardl data.csv --dep=y --asymmetric=all --horizon=24
+
+# Point multipliers only (no bands) — fast
+friedman estimate univariate nardl data.csv --dep=y --horizon=12 --no-bootstrap
+
+# Narrower bands with fewer reps
+friedman estimate univariate nardl data.csv --dep=y --horizon=24 --nreps=200 --level=0.90
+```
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--horizon` | | Int | `12` | Maximum multiplier horizon `H` (≥ 0) |
+| `--nreps` | | Int | `500` | Bootstrap replications for the bands (`0` = no bands) |
+| `--level` | | Float64 | `0.95` | Bootstrap band coverage |
+| `--no-bootstrap` | | Flag | | Skip bootstrap bands (point multipliers only) |
+
+**Output:** one **tidy long table** melting the `n_asym × (H+1)` multiplier matrices — `horizon | regressor | m_pos | m_neg | m_diff`, with per-band low/high columns (`m_pos_lo`, `m_pos_hi`, `m_neg_lo`, `m_neg_hi`, `m_diff_lo`, `m_diff_hi`) present **only** when bands are computed (`--nreps > 0` and not `--no-bootstrap`). A summary block reports `horizon`, `n_asym`, `nreps`, `level`, `bootstrap`, and the long-run convergence targets `theta_pos`/`theta_neg`.
+
+`NARDLMultipliers` is not Tables.jl-registered upstream, so the table is hand-built (a documented [C051](#coefficient-table-format-c051) exception). The bootstrap is an rng-only family: reproducibility rides the global `--seed` (there is no per-estimator seed to record in a manifest).
+
+## estimate panel pmg
 
 **Dynamic heterogeneous-panel ARDL** in error-correction form (Pesaran, Shin & Smith 1999), estimated on a long-format panel (`--id-col`/`--time-col` default to the first/second columns; regressors via `--indep`). `--method` selects the estimator:
 
