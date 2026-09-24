@@ -192,30 +192,39 @@ src/
   config.jl               # TOML loader for priors, identification, GMM, non-Gaussian
   commands/
     shared.jl             # ID_METHOD_MAP, shared estimation/output helpers
-    estimate.jl           # 24 estimation subcommands
-    test.jl               # 29+ test subcommands (+ nested var 2, pvar 4)
-    irf.jl                # 7 IRF subcommands
-    fevd.jl               # 7 FEVD subcommands
-    hd.jl                 # 5 HD subcommands
-    forecast.jl           # 14 forecast subcommands
-    predict.jl            # 16 predict subcommands
-    residuals.jl          # 16 residuals subcommands
-    filter.jl             # 5 filter subcommands
-    data.jl               # 13 data subcommands (incl. import / export)
-    nowcast.jl            # 5 nowcast subcommands
-    dsge.jl               # DSGE subcommands + bayes node (13 sub-leaves) + HA/CT/OLG nodes
-    did.jl                # 7 DID subcommands (3 estimation + 4 test)
-    multipliers.jl        # multipliers nardl — new top-level (C062b, action-first)
-    policy.jl             # policy counterfactuals — new top-level (W4/#126, MEMs 0.8.0 CF module)
+    estimate.jl           # estimate <family> <model> leaves
+    test.jl               # test <family> <test> leaves
+    irf.jl                # irf <model> leaves
+    fevd.jl               # fevd <model> leaves
+    hd.jl                 # hd <model> leaves
+    forecast.jl           # forecast leaves (incl. var scenario + evaluate)
+    fitted.jl             # predict + residuals leaves (collapsed family)
+    filter.jl             # filter leaves
+    data.jl               # data management leaves
+    data_simulate.jl      # data simulate <dgp> leaves
+    io.jl                 # io input-output leaves
+    nowcast.jl            # nowcast leaves
+    dsge.jl               # dsge RA + bayes + closed agent families
+    hadsge.jl             # hadsge one-household HA leaves
+    did.jl                # did estimation leaves (tests live under test did)
+    spectral.jl           # spectral leaves
+    policy.jl             # policy counterfactual / optimal-policy leaves
+    completions.jl        # completions bash|fish|zsh
+    model.jl              # model info + reproduce
     serve.jl              # serve --mcp
-    show.jl               # show HANDLE (Wave 2)
+    show.jl               # show HANDLE
+    schema.jl             # schema self-description (registry-hidden)
+    multipliers.jl        # NARDL multiplier tables, emitted by estimate univariate nardl
+  repl.jl                 # interactive REPL session mode
 ```
 
-The ARDL/NARDL family (`estimate ardl`/`nardl` in `estimate.jl`, `test ardl-bounds`/`nardl-symmetry`
-in `test.jl`, and `multipliers nardl` in the new top-level `multipliers.jl`) all fit via the shared
+Per-family leaf counts live in the generated [CLI reference overview](commands/overview.md), not here.
+
+The ARDL/NARDL family (`estimate univariate ardl`/`nardl` in `estimate.jl`, `test coint ardl-bounds`/`nardl-symmetry`
+in `test.jl`, and the cumulative-multiplier tables on `estimate univariate nardl`) all fit via the shared
 `_load_reg_data` (`y` + `X`) loader and the `_fit_ardl`/`_fit_nardl` wrappers in `estimate.jl`, so
 the four leaves share one estimation path and one set of hand-built renderers. The dynamic
-heterogeneous-panel ARDL family (`estimate pmg` in `estimate.jl`, `test pmg-hausman` in `test.jl`)
+heterogeneous-panel ARDL family (`estimate panel pmg` in `estimate.jl`, `test panel pmg-hausman` in `test.jl`)
 similarly shares the hardened `_load_panel_reg` panel loader (`shared.jl`): both resolve `--dep`/`--indep`
 to `Symbol`s over a `PanelData` and splat the regressors into `estimate_pmg(pd, dep, xs...)`; the test
 leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `hausman_test`.
@@ -263,4 +272,4 @@ kebab-case command names only, envelope JSON only.
 
 ## Totals
 
-21 top-level commands, 477 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+Command totals are registry-generated — see the [CLI reference overview](commands/overview.md).

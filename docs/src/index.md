@@ -51,7 +51,7 @@ Macroeconometric analysis from the terminal. A Julia CLI wrapping [MacroEconomet
 | **Spectral Analysis** | ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function | `spectral acf`, `spectral density`, ... |
 | **Data Utilities** | Drop rows with missing values, keep rows by condition | `data dropna`, `data keeprows` |
 
-**21 top-level commands, 477 subcommands.** Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `policy`, `show`, ...) rather than by model type.
+Action-first CLI: commands organized by action (`estimate`, `irf`, `forecast`, `did`, `policy`, `hadsge`, `show`, ...) rather than by model type. See the [CLI reference overview](commands/overview.md) for the full command tree.
 
 ## Quick Start
 
