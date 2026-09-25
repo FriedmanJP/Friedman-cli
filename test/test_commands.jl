@@ -10603,6 +10603,51 @@ end
         end
     end
 
+    @testset "solver failure → typed model/error, never raw exit-1 (PR #205)" begin
+        # Runs f with the mock CT solver `name` throwing SingularException
+        # (mirrors the coarse-grid UMFPACK failure real MEMs raises on Linux);
+        # returns the caught exception. Always resets the flag. (Do-block
+        # passes the block as the FIRST argument, hence (f, name) order.)
+        _run_ct_fault(f, name) = begin
+            MacroEconometricModels._CT_THROW_SOLVER[] = name
+            try
+                try
+                    _capture(f)
+                    nothing
+                catch ex
+                    ex
+                end
+            finally
+                MacroEconometricModels._CT_THROW_SOLVER[] = :none
+            end
+        end
+        _is_model_error(e) =
+            e isa CliError && e.code == "model/error" && exit_class(e) == 5
+        e = _run_ct_fault(:ct_steady_state) do
+            _dsge_ct_solve(; grid_size=30, max_iter=20, tol=1e-4,
+                           format="table", output="")
+        end
+        @test _is_model_error(e)
+        e = _run_ct_fault(:ct_two_asset_solve) do
+            _dsge_ct_solve(; two_asset=true, max_iter=20, tol=1e-4,
+                           format="table", output="")
+        end
+        @test _is_model_error(e)
+        e = _run_ct_fault(:ct_steady_state) do
+            _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
+                                shock_size=0.95, format="table", output="",
+                                plot=false, plot_save="")
+        end
+        @test _is_model_error(e)
+        e = _run_ct_fault(:ct_mit_shock) do
+            _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
+                                shock_size=0.95, format="table", output="",
+                                plot=false, plot_save="")
+        end
+        @test _is_model_error(e)
+        @test MacroEconometricModels._CT_THROW_SOLVER[] === :none
+    end
+
     @testset "_dsge_olg_solve" begin
         out = _capture() do
             sol = _dsge_olg_solve(; debt=0.0, format="table", output="")

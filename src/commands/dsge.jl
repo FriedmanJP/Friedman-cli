@@ -3965,7 +3965,11 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
     if two_asset
         _status("Solving continuous-time two-asset (KMV) model...")
         m = MacroEconometricModels.CTTwoAsset(; sigma=sigma, rho=rho)
-        sol = MacroEconometricModels.ct_two_asset_solve(m; max_iter=max_iter, tol=tol)
+        sol = try
+            MacroEconometricModels.ct_two_asset_solve(m; max_iter=max_iter, tol=tol)
+        catch e
+            throw(_domain_or_data_error(e, "dsge ct solve"))
+        end
         # Summarize two-asset solution
         gsum = sum(sol.g)
         diag_df = DataFrame(
@@ -3984,7 +3988,11 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
 
     _status("Solving continuous-time Aiyagari steady state (I=$grid_size)...")
     m = _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min, a_max, grid_size)
-    ss = MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    ss = try
+        MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "dsge ct solve"))
+    end
     _status_styled("  Converged: $(ss.converged)  r=$(round(ss.r; digits=5))  K=$(round(ss.K; digits=4))\n";
                    color = ss.converged ? :green : :yellow)
     price_df = DataFrame(name=["r", "w"], value=[ss.r, ss.w])
@@ -4025,11 +4033,19 @@ function _dsge_ct_transition(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Fl
         "--periods must be >= 2 (need impact + terminal)"))
     _status("CT MIT-shock transition: periods=$periods, impact Z=$(shock_size)*$z")
     m = _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min=0.0, a_max, grid_size)
-    ss = MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    ss = try
+        MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "dsge ct transition"))
+    end
     # Z_path: impact then reversion to m.Z
     Z_path = fill(Float64(m.Z), periods)
     Z_path[1] = shock_size * Float64(m.Z)
-    tr = MacroEconometricModels.ct_mit_shock(m, ss, Z_path; dt=dt, max_iter=max_iter, tol=tol)
+    tr = try
+        MacroEconometricModels.ct_mit_shock(m, ss, Z_path; dt=dt, max_iter=max_iter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "dsge ct transition"))
+    end
     df = DataFrame(
         t = tr.t,
         Z = tr.Z,

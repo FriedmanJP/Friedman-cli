@@ -10858,9 +10858,18 @@ function blanchard_transition(m::BlanchardOLG{T}, sol::BlanchardOLGSolution{T}, 
     return (k=kpath, C=Cpath, r=rpath, w=wpath)
 end
 
+# Test-only fault injection for the CT solver wraps (PR #205: a coarse-grid
+# UMFPACK SingularException on Linux must surface as typed model/error, never
+# a raw exit-1). Set to a solver name to make that mock solver throw,
+# mirroring a real numerical failure; the underscore name keeps it out of the
+# mock-surface gate. Tests must always reset it (try/finally).
+const _CT_THROW_SOLVER = Ref{Symbol}(:none)
+
 function ct_steady_state(m::CTAiyagari{T}; r_bounds=nothing, max_iter::Int=100,
                           tol::Real=1e-6, hjb_max_iter::Int=100, hjb_tol::Real=1e-6,
                           Delta::Real=1000.0) where T
+    _CT_THROW_SOLVER[] === :ct_steady_state &&
+        throw(LinearAlgebra.SingularException(0))
     a = collect(range(m.a_min, m.a_max; length=m.I))
     g = ones(T, m.I, 2) ./ T(2 * m.I)
     v = ones(T, m.I, 2)
@@ -10872,6 +10881,8 @@ end
 function ct_mit_shock(m::CTAiyagari{T}, ss0::CTSteadyState{T}, Z_path::AbstractVector;
                        dt::Real=0.25, max_iter::Int=300, tol::Real=1e-6,
                        relax::Real=0.3) where T
+    _CT_THROW_SOLVER[] === :ct_mit_shock &&
+        throw(LinearAlgebra.SingularException(0))
     N = length(Z_path)
     t = collect(T, 0:N-1) .* T(dt)
     Z = collect(T, Z_path)
@@ -10885,6 +10896,8 @@ end
 
 function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
                              Delta::Real=1000.0) where T
+    _CT_THROW_SOLVER[] === :ct_two_asset_solve &&
+        throw(LinearAlgebra.SingularException(0))
     b = collect(range(zero(T), m.b_max; length=m.Ib))
     a = collect(range(zero(T), m.a_max; length=m.Ia))
     V = ones(T, m.Ib, m.Ia, 2)
