@@ -8974,7 +8974,11 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["data", "simulate", "ha", "huggett", "--method", "krusell-smith",
                             "--periods", "2"]).code == 2
 
-            ct = run_json(["data", "simulate", "ct", "--grid-size", "12", "--periods", "4",
+            # I=12 is below the robust grid floor: ct_kfe's UMFPACK factor hits an
+            # exact-zero pivot on Linux (SingularException, exit 5) while the same
+            # call converges on macOS. I>=16 verified on both (PR #205 debug sweep);
+            # stay on the leaf default 40 (same as the dsge ct solve T3 above).
+            ct = run_json(["data", "simulate", "ct", "--grid-size", "40", "--periods", "4",
                            "--max-iter", "40", "--seed", "1"])
             assert_envelope_ok(ct; label="data simulate ct")
             @test table_cols(named_table(ct.doc, :simulated_data)) ==
