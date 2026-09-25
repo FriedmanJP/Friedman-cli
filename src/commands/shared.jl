@@ -21,39 +21,53 @@
 """
     load_multivariate_data(data) → (Y::Matrix{Float64}, varnames::Vector{String})
 
-Load CSV, convert to numeric matrix and extract variable names.
+Load CSV or a typed data handle, convert to a numeric matrix and extract variable names.
+CSV path is bit-identical to `load_data` + `df_to_matrix`; a handle uses `to_matrix`/`varnames`.
 """
 function load_multivariate_data(data::String)
-    df = load_data(data)
-    varnames = variable_names(df)
-    # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
-    # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
-    # univariate `load_univariate_series` guard so every multivariate estimator surfaces
-    # a `data/missing-values` (exit 3) instead of an internal error.
-    for c in varnames
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
-            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    obj = resolve_data(data)
+    if obj isa DataFrame
+        df = obj
+        vn = variable_names(df)
+        # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
+        # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
+        # univariate `load_univariate_series` guard so every multivariate estimator surfaces
+        # a `data/missing-values` (exit 3) instead of an internal error.
+        for c in vn
+            any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+                "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+        end
+        return df_to_matrix(df), vn
     end
-    Y = df_to_matrix(df)
-    return Y, varnames
+    Y = to_matrix(obj)
+    vn = Vector{String}(varnames(obj))
+    return Y, vn
 end
 
 """
     load_univariate_series(data, column) → (y::Vector{Float64}, vname::String)
 
-Load CSV and extract a single numeric column by index.
+Load CSV or a typed data handle and extract a single numeric column by index.
 """
 function load_univariate_series(data::String, column::Int)
-    df = load_data(data)
-    varnames = variable_names(df)
-    (column < 1 || column > length(varnames)) && throw(CliError("data/column-range",
-        "column $column out of range (data has $(length(varnames)) numeric column(s))";
-        hint="--column is 1-based; pick 1..$(length(varnames))"))
-    col = df[!, varnames[column]]
+    obj = resolve_data(data)
+    if !(obj isa DataFrame)
+        Y = to_matrix(obj)
+        vn = Vector{String}(varnames(obj))
+        (column < 1 || column > length(vn)) && throw(CliError("data/column-range",
+            "column $column out of range (data has $(length(vn)) numeric column(s))";
+            hint="--column is 1-based; pick 1..$(length(vn))"))
+        return Vector{Float64}(Y[:, column]), vn[column]
+    end
+    df = obj
+    varnames_ = variable_names(df)
+    (column < 1 || column > length(varnames_)) && throw(CliError("data/column-range",
+        "column $column out of range (data has $(length(varnames_)) numeric column(s))";
+        hint="--column is 1-based; pick 1..$(length(varnames_))"))
+    col = df[!, varnames_[column]]
     any(ismissing, col) && throw(CliError("data/missing-values",
-        "column '$(varnames[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
-    y = Vector{Float64}(col)
-    return y, varnames[column]
+        "column '$(varnames_[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    return Vector{Float64}(col), varnames_[column]
 end
 
 """
@@ -176,8 +190,13 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
                             title_prefix::String="Historical Decomposition",
                             format::String="table", output::String="",
                             actual=nothing, initial=nothing,
-                            key_prefix::String="")
+                            key_prefix::String="",
+                            shock_names::Vector{String}=String[])
     n = length(varnames)
+    # Rectangular decompositions (SDFM panel: N variables x q+1 shocks) pass
+    # explicit shock names; the default keeps the square VAR convention where
+    # shock i is identified with variable i.
+    n_shocks = isempty(shock_names) ? n : length(shock_names)
     for vi in 1:n
         hd_df = DataFrame()
         hd_df.period = 1:T_eff
@@ -187,8 +206,10 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
         if !isnothing(initial)
             hd_df.initial = initial[:, vi]
         end
-        for si in 1:n
-            hd_df[!, "contrib_$(_shock_name(varnames, si))"] = get_contrib(vi, si)
+        for si in 1:n_shocks
+            col = isempty(shock_names) ? "contrib_$(_shock_name(varnames, si))" :
+                                         "contrib_$(shock_names[si])"
+            hd_df[!, col] = get_contrib(vi, si)
         end
         vname = _var_name(varnames, vi)
         output_result(hd_df; format=Symbol(format),
@@ -382,7 +403,7 @@ const VOL_MODELS = [
     (
         name = "sv",
         order = :sv,
-        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_sv(y; n_samples=draws),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_sv(y; n_samples=draws, _fwd_seed()...),
         # SV is a stochastic-volatility sampler, not a GARCH likelihood — no `dist`.
         supports_dist = false,
         param_names = (p, q) -> String["mu", "phi", "sigma_eta"],
@@ -471,10 +492,18 @@ function _make_estimate_vol(vol)
 end
 
 function _make_forecast_vol(vol)
-    return function (; data::String="", column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
+    return function (; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
                       dist::String="normal", horizons::Int=12,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="", model=nothing)
+        loaded = _loaded_result(result; data, model, leaf="forecast $(replace(vol.name, '_' => '-'))")
+        if loaded !== nothing
+            h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+            _vol_forecast_output(loaded, "result", vol.label(p, q), h; format=format, output=output,
+                                 key="$(vol.name)_volatility_forecast")
+            _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+            return loaded
+        end
         dsym = _vol_dist_symbol(vol, dist, "forecast $(vol.name)")
         m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws,
                                       dist=dsym, model=model)
@@ -493,7 +522,7 @@ function _make_forecast_vol(vol)
             _status()
             _vol_post_status(m, vol.post_fc)
         end
-        return fc
+        return (; model=m, result=fc)
     end
 end
 
@@ -647,7 +676,90 @@ const ID_METHOD_MAP = Dict(
     "markov_switching"  => :markov_switching,
     "garch_id"          => :garch,
     "uhlig"             => :uhlig,
+    "lewis-tvv"         => :lewis_tvv,
+    "sv-em"             => :sv_em,
 )
+
+# W2/#166: method universes per estimator family. The base map above is shared
+# with the LP/PVAR/FAVAR paths (whose upstream entry points accept exactly it);
+# the VAR and VECM families each admit more. A per-leaf allow-set keeps a method
+# valid on one family from silently degrading to :cholesky on another.
+const _ID_METHODS_VAR = merge(ID_METHOD_MAP, Dict(
+    "proxy"          => :proxy,
+    "max-share"      => :max_share,
+    "gmm-moments"    => :gmm_moments,
+    "narrative-adrr" => :narrative_adrr,
+))
+const _ID_METHODS_VECM = merge(ID_METHOD_MAP, Dict(
+    "svec" => :svec,
+))
+
+"""
+    _identification_method(id, methods, leaf) → Symbol
+
+Resolve a user `--id` against a family allow-set. Unknown ids used to fall back
+to `:cholesky` silently (a mislabelled result with exit 0); now `usage/invalid`.
+"""
+function _identification_method(id::String, methods::Dict, leaf::String)
+    haskey(methods, id) && return methods[id]
+    valid = join(sort!(collect(keys(methods))), "|")
+    throw(CliError("usage/invalid", "$leaf: --id must be one of $valid (got '$id')"))
+end
+
+"""
+    _resolve_target_var(target, varnames, leaf) → Union{Int,String}
+
+A `--target-var` may name a variable or give a 1-based index (upstream accepts
+both); resolve names against the CSV columns up front so a miss is
+`usage/invalid`, never an upstream `BoundsError` (exit 1).
+"""
+function _resolve_target_var(target::String, varnames::Vector{String}, leaf::String)
+    maybe_int = tryparse(Int, target)
+    if maybe_int !== nothing
+        1 <= maybe_int <= length(varnames) || throw(CliError("usage/invalid",
+            "$leaf: --target-var index $maybe_int out of 1:$(length(varnames))"))
+        return maybe_int
+    end
+    target in varnames && return target
+    throw(CliError("usage/invalid",
+        "$leaf: --target-var '$target' not a column; available: $(join(varnames, ", "))"))
+end
+
+"""
+    _inject_svar_id_kwargs!(kwargs, id, leaf, data, varnames, instrument_col, target_var)
+
+W2/#166 extras for the VAR-family `--id` methods that need more than a TOML
+config: proxy needs an instrument column (loaded from the CSV, so the data path
+is required — instruments are not stored on models); max-share needs a target
+variable (name or 1-based index). Both directions guarded: a missing extra is
+`usage/missing`, an extra with the wrong id is `usage/invalid` (never a silent
+no-op, never an upstream `BoundsError`).
+"""
+function _inject_svar_id_kwargs!(kwargs::Dict, id::String, leaf::String, data::String,
+                                 varnames::Vector{String}, instrument_col::String,
+                                 target_var::String)
+    if id == "proxy"
+        isempty(instrument_col) && throw(CliError("usage/missing",
+            "$leaf: --id proxy requires --instrument <column>";
+            hint="name a numeric, missing-free proxy column, e.g. --instrument mp_shock"))
+        isempty(data) && throw(CliError("usage/missing",
+            "$leaf: --id proxy requires --data (the instrument column lives in the CSV)"))
+        kwargs[:instruments] = _load_instrument(data, instrument_col)
+    elseif !isempty(instrument_col)
+        throw(CliError("usage/invalid",
+            "$leaf: --instrument applies only to --id proxy (got --id $id)"))
+    end
+    if id == "max-share"
+        isempty(target_var) && throw(CliError("usage/missing",
+            "$leaf: --id max-share requires --target-var <variable>";
+            hint="a column name or 1-based index, e.g. --target-var gdp"))
+        kwargs[:target] = _resolve_target_var(target_var, varnames, leaf)
+    elseif !isempty(target_var)
+        throw(CliError("usage/invalid",
+            "$leaf: --target-var applies only to --id max-share (got --id $id)"))
+    end
+    return kwargs
+end
 
 """
     _load_and_estimate_var(data, lags) -> (model, Y, varnames, p)
@@ -669,6 +781,18 @@ function _load_and_estimate_var(data::String, lags)
     model = estimate_var(Y, p; varnames=varnames)
     return model, Y, varnames, p
 end
+
+"""
+    _fwd_seed() → NamedTuple
+
+Forward the global `--seed` as estimators' own `seed=` (W3/#167 — extends the
+C052/#243 BVAR pattern to every `seed=`-accepting estimator at MEMs 0.9.3, where
+it additionally records a `ReproManifest` for `reproduce`). Empty when `--seed`
+was not given, so library defaults are untouched — including `seed::Int=<const>`
+estimators (Krusell–Smith, spec tests), which cannot receive `nothing`.
+Splat into estimator kwargs: `estimate_sv(y; n_samples=n, _fwd_seed()...)`.
+"""
+_fwd_seed() = _SEED[] === nothing ? NamedTuple() : (; seed=_SEED[])
 
 """
     _load_and_estimate_bvar(data, lags, config, draws, sampler) -> (post, Y, varnames, p, n)
@@ -698,7 +822,7 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
     end
 
     # Forward --seed as the estimator's own seed (C052/#243): estimate_bvar seeds a
-    # fresh MersenneTwister(seed) and records it in the BVARPosterior ReproManifest,
+    # fresh Xoshiro(seed) and records it in the BVARPosterior ReproManifest,
     # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
@@ -740,13 +864,200 @@ function _build_prior(config_path::String, Y::AbstractMatrix, p::Int)
             # (default moved 2.0 → 1.0), no longer an on/off switch — config-minnesota
             # results shifted at that bump for exactly this reason.
             return MinnesotaHyperparameters(;
-                tau=prior_cfg["lambda1"],
-                decay=prior_cfg["lambda3"],
-                lambda=prior_cfg["lambda2"],
+                tau=get(prior_cfg, "lambda1", 0.2),
+                decay=get(prior_cfg, "lambda3", 1.0),
+                lambda=get(prior_cfg, "lambda2", 0.5),
             )
         end
     end
     return nothing
+end
+
+"""
+    _require_rkeys(entry, keys, listname) → nothing
+
+A TOML restriction entry missing a required key is `config/missing` (never a
+`KeyError` exit 1).
+"""
+function _require_rkeys(entry, keys::Vector{String}, listname::String)
+    for k in keys
+        haskey(entry, k) || throw(CliError("config/missing",
+            "identification.$listname entry $entry is missing required key '$k'"))
+    end
+end
+
+function _parse_horizon_range(raw, what::String)
+    (raw isa AbstractVector && length(raw) == 2) || throw(CliError("config/invalid",
+        "$what must be a 2-element [lo, hi] range (got $raw)"))
+    lo, hi = Int(raw[1]), Int(raw[2])
+    (1 <= lo <= hi) || throw(CliError("config/invalid",
+        "$what range must satisfy 1 ≤ lo ≤ hi (got [$lo, $hi])"))
+    return lo:hi
+end
+
+"""
+    _load_svar_restrictions(config_path, n, label) → (cfg, SVARRestrictions)
+
+W2/#166: one builder for every declarative restriction kind, shared by the
+arias/uhlig/narrative-adrr branches of irf/fevd/hd (which previously each
+hand-rolled the zero/sign subset). Additive schema — old keys keep working:
+
+- `zero_restrictions`: `{var, shock, horizon}`; `horizon = "long_run"` selects
+  the long-run zero (#743).
+- `sign_restrictions`: `{var, shock, sign, horizon}` or `{..., horizons=[lo,hi]}`
+  for a horizon range (#743, expands to one restriction per horizon).
+- `a0_zero_restrictions` / `a0_sign_restrictions`: `{equation, shock[, sign]}`.
+- `elasticity_bounds`: `{numerator, denominator, shock, horizon, lower, upper}`
+  (one-sided bounds allowed — a missing side defaults to ±Inf).
+- `magnitude_bounds`: `{variable, shock, horizon, lower, upper}` (both required).
+- `cumulative_restrictions`: `{variable, shock, sign, horizons=[lo,hi]}`.
+- `narrative_shocks`: `{shock, dates=[...], sign}` (Antolín-Díaz / Rubio-Ramírez).
+- `narrative_contributions`: `{variable, shock, window=[lo,hi], kind}` — ADRR
+  Type A/B (`most_important`/`overwhelming`, default `most_important`).
+
+Index/range/enum validation the builders perform stays upstream (`ArgumentError`
+→ `data/invalid`); structural TOML problems (missing keys, malformed ranges)
+are `config/*` here.
+"""
+function _load_svar_restrictions(config_path::String, n::Int, label::String)
+    isempty(config_path) && throw(CliError("usage/missing",
+        "$label identification requires a --config file with restrictions"))
+    cfg = load_config(config_path)
+    id_cfg = get(cfg, "identification", Dict())
+    zero_restrs = Any[]
+    sign_restrs = Any[]
+    for r in get(id_cfg, "zero_restrictions", [])
+        _require_rkeys(r, ["var", "shock"], "zero_restrictions")
+        h = get(r, "horizon", 0)
+        push!(zero_restrs, h == "long_run" ?
+            zero_restriction(r["var"], r["shock"]; horizon=:long_run) :
+            zero_restriction(r["var"], r["shock"]; horizon=Int(h)))
+    end
+    for r in get(id_cfg, "sign_restrictions", [])
+        _require_rkeys(r, ["var", "shock", "sign"], "sign_restrictions")
+        if haskey(r, "horizons")
+            append!(sign_restrs, sign_restriction(r["var"], r["shock"], Symbol(r["sign"]);
+                                                 horizons=_parse_horizon_range(r["horizons"], "sign_restrictions.horizons")))
+        else
+            push!(sign_restrs, sign_restriction(r["var"], r["shock"], Symbol(r["sign"]);
+                                               horizon=Int(get(r, "horizon", 0))))
+        end
+    end
+    for r in get(id_cfg, "a0_zero_restrictions", [])
+        _require_rkeys(r, ["equation", "shock"], "a0_zero_restrictions")
+        push!(zero_restrs, a0_zero_restriction(r["equation"], r["shock"]))
+    end
+    for r in get(id_cfg, "a0_sign_restrictions", [])
+        _require_rkeys(r, ["equation", "shock", "sign"], "a0_sign_restrictions")
+        push!(sign_restrs, a0_sign_restriction(r["equation"], r["shock"], Symbol(r["sign"])))
+    end
+    for r in get(id_cfg, "elasticity_bounds", [])
+        _require_rkeys(r, ["numerator", "denominator", "shock"], "elasticity_bounds")
+        push!(sign_restrs, elasticity_bound(r["numerator"], r["denominator"], r["shock"];
+                                           horizon=Int(get(r, "horizon", 0)),
+                                           lower=Float64(get(r, "lower", -Inf)),
+                                           upper=Float64(get(r, "upper", Inf))))
+    end
+    for r in get(id_cfg, "magnitude_bounds", [])
+        _require_rkeys(r, ["variable", "shock", "lower", "upper"], "magnitude_bounds")
+        push!(sign_restrs, magnitude_bound(r["variable"], r["shock"];
+                                          horizon=Int(get(r, "horizon", 0)),
+                                          lower=Float64(r["lower"]), upper=Float64(r["upper"])))
+    end
+    for r in get(id_cfg, "cumulative_restrictions", [])
+        _require_rkeys(r, ["variable", "shock", "sign", "horizons"], "cumulative_restrictions")
+        push!(sign_restrs, cumulative_restriction(r["variable"], r["shock"], Symbol(r["sign"]);
+                                                 horizons=_parse_horizon_range(r["horizons"], "cumulative_restrictions.horizons")))
+    end
+    for r in get(id_cfg, "narrative_shocks", [])
+        _require_rkeys(r, ["shock", "dates", "sign"], "narrative_shocks")
+        push!(sign_restrs, narrative_shock_restriction(r["shock"], collect(Int, r["dates"]), Symbol(r["sign"])))
+    end
+    for r in get(id_cfg, "narrative_contributions", [])
+        _require_rkeys(r, ["variable", "shock", "window"], "narrative_contributions")
+        push!(sign_restrs, narrative_contribution_restriction(r["variable"], r["shock"],
+                                                             _parse_horizon_range(r["window"], "narrative_contributions.window");
+                                                             kind=Symbol(get(r, "kind", "most_important"))))
+    end
+    return cfg, SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+end
+
+"""
+    _svar_toml_matrix(mat, n, what, leaf) -> Matrix{Float64}
+
+Read an n×n AB-model pattern matrix from a TOML `[[...]]` array-of-arrays.
+TOML `nan` decodes to `NaN`, which is upstream's free-parameter marker
+(`_ab_is_free(x) = isnan(x)`); any fixed number is a calibrated entry.
+Shape/cell problems are `usage/invalid`; value problems (non-square is
+already excluded here) stay upstream (`ArgumentError` → `data/invalid`).
+"""
+function _svar_toml_matrix(mat, n::Int, what::String, leaf::String; table::String="svar")
+    (mat isa Vector && length(mat) == n &&
+     all(r -> r isa Vector && length(r) == n, mat)) ||
+        throw(CliError("usage/invalid",
+            "$leaf: [$table] $what must be a $n×$n matrix (n rows of n numbers; TOML `nan` = free parameter)"))
+    M = Matrix{Float64}(undef, n, n)
+    for i in 1:n, j in 1:n
+        v = mat[i][j]
+        (v isa Real) || throw(CliError("usage/invalid",
+            "$leaf: [$table] $what cell [$i,$j] must be a number or `nan` (got $(repr(v)))"))
+        M[i, j] = Float64(v)
+    end
+    M
+end
+
+"""
+    _load_svar_pattern(config_path, n, pattern, leaf) -> SVARPattern
+
+W2/#166: build the AB-model pattern for `estimate svar`. `recursive` and
+`blanchard-quah` need only n; the A/B/AB-model kinds read their matrices from
+the `[svar]` TOML table (`A`, `B`, optional `long_run`) via `_svar_toml_matrix`.
+"""
+function _load_svar_pattern(config_path::String, n::Int, pattern::String, leaf::String)
+    pattern == "recursive" && return recursive_pattern(n)
+    pattern == "blanchard-quah" && return blanchard_quah_pattern(n)
+    isempty(config_path) && throw(CliError("usage/missing",
+        "$leaf: --pattern $pattern requires a --config file with [svar] matrices"))
+    cfg = load_config(config_path)
+    svar_cfg = get(cfg, "svar", Dict())
+    if pattern == "a-model"
+        haskey(svar_cfg, "A") || throw(CliError("usage/missing",
+            "$leaf: --pattern a-model requires [svar] A in --config"))
+        return a_model_pattern(_svar_toml_matrix(svar_cfg["A"], n, "A", leaf))
+    elseif pattern == "b-model"
+        haskey(svar_cfg, "B") || throw(CliError("usage/missing",
+            "$leaf: --pattern b-model requires [svar] B in --config"))
+        return b_model_pattern(_svar_toml_matrix(svar_cfg["B"], n, "B", leaf))
+    elseif pattern == "ab-model"
+        (haskey(svar_cfg, "A") && haskey(svar_cfg, "B")) || throw(CliError("usage/missing",
+            "$leaf: --pattern ab-model requires [svar] A and B in --config"))
+        A = _svar_toml_matrix(svar_cfg["A"], n, "A", leaf)
+        B = _svar_toml_matrix(svar_cfg["B"], n, "B", leaf)
+        lr = haskey(svar_cfg, "long_run") ?
+            _svar_toml_matrix(svar_cfg["long_run"], n, "long_run", leaf) : nothing
+        return ab_model_pattern(A, B; long_run=lr)
+    end
+    throw(CliError("usage/invalid", "$leaf: unknown --pattern $pattern"))
+end
+
+"""
+    _load_svec_zeros(config_path, n, leaf) -> (long_run_zeros, short_run_zeros)
+
+W2/#166: read the optional `[svec]` TOML matrices for `estimate svec`
+(`long_run_zeros` / `short_run_zeros`, same n×n `nan`-means-free convention as
+`_svar_toml_matrix`). Either key absent → `nothing`, which keeps upstream's
+KPSW default for that side; no `--config` at all → `(nothing, nothing)`, i.e.
+the fully default KPSW identification.
+"""
+function _load_svec_zeros(config_path::String, n::Int, leaf::String)
+    isempty(config_path) && return nothing, nothing
+    cfg = load_config(config_path)
+    svec_cfg = get(cfg, "svec", Dict())
+    lr = haskey(svec_cfg, "long_run_zeros") ?
+        _svar_toml_matrix(svec_cfg["long_run_zeros"], n, "long_run_zeros", leaf; table="svec") : nothing
+    sr = haskey(svec_cfg, "short_run_zeros") ?
+        _svar_toml_matrix(svec_cfg["short_run_zeros"], n, "short_run_zeros", leaf; table="svec") : nothing
+    return lr, sr
 end
 
 """
@@ -820,8 +1131,13 @@ end
 Build the kwargs dict for irf/fevd/historical_decomposition calls
 based on identification method and config file.
 """
-function _build_identification_kwargs(id::String, config::String)
-    method = get(ID_METHOD_MAP, id, :cholesky)
+function _build_identification_kwargs(id::String, config::String;
+                                      methods::Dict=ID_METHOD_MAP,
+                                      nvars::Union{Int,Nothing}=nothing,
+                                      leaf::String="identification")
+    # Unknown ids no longer degrade to :cholesky (W2/#166). Families admitting
+    # more pass their own allow-set (VAR: _ID_METHODS_VAR; VECM: _ID_METHODS_VECM).
+    method = _identification_method(id, methods, "identification")
     kwargs = Dict{Symbol,Any}(:method => method)
 
     check_func, narrative_check = _build_check_func(config)
@@ -832,7 +1148,50 @@ function _build_identification_kwargs(id::String, config::String)
         kwargs[:narrative_check] = narrative_check
     end
 
+    if id in ("lewis-tvv", "sv-em")
+        # Every call site passes its data width (hetero resolution needs n).
+        nvars === nothing && error("$leaf: --id $id requires nvars (internal)")
+        merge!(kwargs, _id_knob_kwargs(id, config, nvars, leaf))
+    end
+
     return kwargs
+end
+
+"""
+    _id_knob_kwargs(id, config, n, leaf) -> Dict{Symbol,Any}
+
+Estimator knobs for the 0.9.6 statistical-ID methods, threaded into
+irf/fevd/historical_decomposition calls (var/vecm/bvar/favar) whose
+`compute_Q` branch forwards them to `identify_lewis_tvv` /
+`identify_sv_svar` (kwarg names verified collision-free against
+those path signatures at W0; LP leaves use upstream defaults —
+structural_lp pins its own compute_Q allow-list). TOML-authored values
+are validated in the `get_*_params` parsers (`config/invalid`);
+`hetero_shocks` (1-based, TOML-authored) resolves against the
+data width `n` here: out-of-range → `usage/invalid` (the
+`--target-var` precedent — a column reference, not a config
+shape). Empty means all shocks (upstream requires
+`any(hetero)`); duplicates collapse (set semantics).
+"""
+function _id_knob_kwargs(id::String, config::String, n::Int, leaf::String)
+    cfg = isempty(config) ? Dict{String,Any}() : load_config(config)
+    out = Dict{Symbol,Any}()
+    if id == "lewis-tvv"
+        out[:weighting] = get_lewis_tvv_params(cfg)["weighting"]
+    elseif id == "sv-em"
+        sp = get_sv_svar_params(cfg)
+        out[:maxiter] = sp["maxiter"]
+        out[:gibbs_burn] = sp["gibbs_burn"]
+        out[:gibbs_draws] = sp["gibbs_draws"]
+        out[:init] = sp["init"]
+        hs = sp["hetero_shocks"]
+        for h in hs
+            h <= n || throw(CliError("usage/invalid",
+                "$leaf: --id sv-em hetero_shocks index $h out of 1:$n"))
+        end
+        out[:hetero] = isempty(hs) ? trues(n) : BitVector([i in hs for i in 1:n])
+    end
+    return out
 end
 
 """
@@ -849,7 +1208,7 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
                                   conf_level::Float64=0.95)
     Y, varnames = load_multivariate_data(data)
 
-    method = get(ID_METHOD_MAP, id, :cholesky)
+    method = _identification_method(id, ID_METHOD_MAP, "structural lp")
     check_func, narrative_check = _build_check_func(config)
 
     vp = isnothing(var_lags) ? lags : var_lags
@@ -870,6 +1229,11 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
         kwargs[:narrative_check] = narrative_check
     end
 
+    _SEED[] !== nothing && (kwargs[:seed] = _SEED[])
+    # NOTE (W1/#186): no knob merge here — upstream structural_lp pins its
+    # own compute_Q allow-list (lp/core.jl:440-443), so lewis/sv knobs have
+    # no channel on LP leaves (methods run on upstream defaults, same as
+    # the pre-existing uhlig-knob behavior on LP).
     slp = structural_lp(Y, horizons; kwargs...)
     return slp, Y, varnames
 end
@@ -998,11 +1362,25 @@ function _parse_asym_spec(s::AbstractString)
 end
 
 """
-    load_panel_data(data, id_col, time_col; varnames=nothing) -> PanelData
+    load_panel_data(data, id_col, time_col) -> PanelData
 
-Load CSV data and set panel structure using xtset().
+Load a panel CSV via xtset(), or return a PanelData handle as-is.
+CSV still requires --id-col/--time-col; a `.jld2`/`.fmod`/`model://` PanelData
+handle does not.
 """
 function load_panel_data(data::String, id_col::String, time_col::String)
+    if _is_handle_path(data)
+        obj = load_model_dispatch(data)
+        k = _data_kind_of(obj)
+        k === :panel && return obj
+        throw(CliError("data/wrong-kind",
+            "$data is a $k handle ($(nameof(typeof(obj)))); this command expects PanelData";
+            hint="data import --kind panel, or pass a panel CSV with --id-col/--time-col"))
+    end
+    isempty(id_col) && throw(CliError("usage/missing",
+        "panel data requires --id-col to specify the group identifier column"))
+    isempty(time_col) && throw(CliError("usage/missing",
+        "panel data requires --time-col to specify the time period column"))
     df = load_data(data)
     id_col in names(df) || throw(CliError("data/missing-column", "id column '$id_col' not found in data (columns: $(join(names(df), ", ")))"))
     time_col in names(df) || throw(CliError("data/missing-column", "time column '$time_col' not found in data (columns: $(join(names(df), ", ")))"))
@@ -1179,8 +1557,165 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
     favar = estimate_favar(Y, key_indices, r, lags;
                            method=Symbol(method),
                            n_draws=draws,
-                           panel_varnames=varnames)
+                           panel_varnames=varnames,
+                           _fwd_seed()...)
     return favar, Y, varnames
+end
+
+const _SDFM_METHODS = Dict(
+    "fglr" => :fglr,
+    "gdfm-var" => :gdfm_var,
+)
+
+const _SDFM_Q_METHODS = Dict(
+    "hallin-liska" => :hallin_liska,
+    "bai-ng" => :bai_ng,
+    "amengual-watson" => :amengual_watson,
+)
+
+const _GDFM_SPECTRAL = Dict(
+    "lag-window" => :lag_window,
+    "smoothed-periodogram" => :smoothed_periodogram,
+)
+
+# W1/#193 (MEMs#830): advertised sdfm --id values. kebab → underscore.
+# Unknown tokens fall through to Symbol(id) and the estimator wrap.
+const _SDFM_ID_CLI = Dict(
+    "cholesky"     => :cholesky,
+    "sign"         => :sign,
+    "proxy"        => :proxy,
+    "lewis-tvv"    => :lewis_tvv,
+    "sv-em"        => :sv_em,
+    "gmm-moments"  => :gmm_moments,
+)
+const _SDFM_ID_DESC = "cholesky|sign|proxy|lewis-tvv|sv-em|gmm-moments (--id proxy requires --instrument)"
+
+"""
+    _sdfm_id_kwargs(id, config, q, leaf) → NamedTuple
+
+Knobs forwarded as `id_kwargs` into `estimate_structural_dfm` (MEMs#830).
+`q` is the factor count when `--factors` is set, else `nothing` (auto).
+`hetero_shocks` is the identification width (q), not the panel width —
+auto + nonempty hetero_shocks is `usage/invalid`.
+"""
+function _sdfm_id_kwargs(id::String, config::String, q, leaf::String)
+    id in ("lewis-tvv", "sv-em") || return NamedTuple()
+    cfg = isempty(config) ? Dict{String,Any}() : load_config(config)
+    if id == "lewis-tvv"
+        return (weighting = get_lewis_tvv_params(cfg)["weighting"],)
+    end
+    sp = get_sv_svar_params(cfg)
+    base = (maxiter = sp["maxiter"], gibbs_burn = sp["gibbs_burn"],
+            gibbs_draws = sp["gibbs_draws"], init = sp["init"])
+    hs = sp["hetero_shocks"]
+    isempty(hs) && return base
+    q isa Integer || throw(CliError("usage/invalid",
+        "$leaf: --id sv-em hetero_shocks requires --factors (identification width is q, not N)"))
+    n = Int(q)
+    for h in hs
+        h <= n || throw(CliError("usage/invalid",
+            "$leaf: --id sv-em hetero_shocks index $h out of 1:$n"))
+    end
+    return merge(base, (hetero = BitVector([i in hs for i in 1:n]),))
+end
+
+"""
+    _load_instrument(data, column) → Vector{Float64}
+
+Load a proxy-instrument column for SDFM `identification=:proxy`: the column must
+exist, be numeric, and hold no missings (upstream takes an `AbstractVector`, so a
+missing cell would fail deep inside estimation as an untyped error).
+"""
+function _load_instrument(data::String, column::String)
+    df = load_data(data)
+    column in names(df) || throw(CliError("data/column-range",
+        "instrument column '$column' not found; available: $(join(names(df), ", "))"))
+    col = df[!, column]
+    any(ismissing, col) && throw(CliError("data/missing-values",
+        "instrument column '$column' contains missing values"))
+    try
+        return Vector{Float64}(col)
+    catch
+        throw(CliError("data/invalid", "instrument column '$column' is not numeric"))
+    end
+end
+
+"""
+    _load_and_estimate_sdfm(data, factors, id, var_lags, horizon, config, method,
+                            spectral, instrument_col, q_method) → (sdfm, Y, varnames, q)
+
+Shared Structural-DFM estimation for the `estimate`/`irf`/`fevd`/`forecast sdfm`
+data paths (W1/#165): one implementation, one option surface.
+
+- `factors === nothing` → upstream `:auto` q-selection via `q_method`
+  (deterministic; replaces the legacy `ic_criteria_gdfm` auto path).
+- `id == "proxy"` requires `--instrument`; `--instrument` with any other id is a
+  `usage/invalid` no-op guard. `--q-method` with explicit `--factors` is ignored
+  by upstream (selection never runs), so it is `usage/invalid` there too.
+- `--seed` is forwarded as the estimator's own `seed=` (C052/#243 pattern).
+"""
+function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::Int,
+                                 horizon::Int, config::String, method::String,
+                                 spectral::String, instrument_col::String,
+                                 q_method::String; bandwidth::Int=0,
+                                 kernel::String="bartlett")
+    haskey(_SDFM_METHODS, method) || throw(CliError("usage/invalid",
+        "estimate sdfm: --method must be fglr|gdfm-var (got '$method')"))
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "estimate sdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+    haskey(_SDFM_Q_METHODS, q_method) || throw(CliError("usage/invalid",
+        "estimate sdfm: --q-method must be hallin-liska|bai-ng|amengual-watson (got '$q_method')"))
+    if factors !== nothing && q_method != "hallin-liska"
+        throw(CliError("usage/invalid",
+            "estimate sdfm: --q-method '$q_method' applies only to automatic factor " *
+            "selection (omit --factors to use it)"))
+    end
+    if !isempty(instrument_col) && id != "proxy"
+        throw(CliError("usage/invalid",
+            "estimate sdfm: --instrument applies only to --id proxy (got --id $id)"))
+    end
+    if id == "proxy" && isempty(instrument_col)
+        throw(CliError("usage/missing",
+            "estimate sdfm: --id proxy requires --instrument <column>";
+            hint="name a numeric, missing-free proxy column, e.g. --instrument mp_shock"))
+    end
+
+    Y, varnames = load_multivariate_data(data)
+
+    sign_check = nothing
+    if id == "sign" && !isempty(config)
+        sign_check, _ = _build_check_func(config)
+    end
+    instrument = isempty(instrument_col) ? nothing : _load_instrument(data, instrument_col)
+
+    # kebab CLI ids → upstream symbols. `Symbol(id)` would send `lewis-tvv`
+    # as `Symbol("lewis-tvv")`, which is not `:lewis_tvv` (MEMs#830).
+    # Unknown tokens still go to the estimator wrap → data/invalid (exit 3).
+    id_sym = get(_SDFM_ID_CLI, id, Symbol(id))
+    q_for_id = factors isa Integer ? Int(factors) : nothing
+    id_kw = _sdfm_id_kwargs(id, config, q_for_id, "estimate sdfm")
+
+    est_kw = (identification=id_sym, p=var_lags, H=horizon,
+              method=_SDFM_METHODS[method], spectral=_GDFM_SPECTRAL[spectral],
+              sign_check=sign_check, instrument=instrument, seed=_SEED[],
+              bandwidth=bandwidth, kernel=Symbol(kernel), varnames=varnames,
+              id_kwargs=id_kw)
+    # Upstream rejects unknown `identification` symbols with a bare
+    # ArgumentError — wrap so a bad --id is data/invalid (exit 3),
+    # not an untyped exit 1 (same class as the W1/#186 VAR IRF wrap).
+    sdfm, q = try
+        if factors === nothing
+            _status("Selecting dynamic factors (auto: $q_method)...")
+            m = estimate_structural_dfm(Y, :auto; q_method=_SDFM_Q_METHODS[q_method], est_kw...)
+            _status("  Auto-selected $(m.gdfm.q) dynamic factors")
+            m, m.gdfm.q
+        else
+            estimate_structural_dfm(Y, factors; est_kw...), factors
+        end
+    catch e
+        throw(_domain_or_data_error(e, "SDFM estimation"))
+    end
+    return sdfm, Y, varnames, q
 end
 
 # ── Panel/Matrix Loading Helper ──────────────────────────
@@ -1199,6 +1734,333 @@ function _load_panel_or_matrix(data::String; id_col::String="", time_col::String
         Y, varnames = load_multivariate_data(data)
         _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
         return Y, false
+    end
+end
+
+# ── Result-handle re-render ────────────────────────────────
+
+"""XOR + compute-flag checks for a loaded `--result`. Returns `nothing` to compute."""
+function _loaded_result(result; data::String="", model=nothing, lags=nothing,
+                        check_lags::Bool=false, leaf::String,
+                        id=nothing, id_default::String="cholesky",
+                        horizons=nothing, horizons_default::Union{Nothing,Int}=nothing)
+    result === nothing && return nothing
+    isempty(data) || throw(CliError("usage/invalid",
+        "$leaf: --result cannot be combined with <data>"))
+    model === nothing || throw(CliError("usage/invalid",
+        "$leaf: --result cannot be combined with --model"))
+    if check_lags
+        lags === nothing || throw(CliError("usage/invalid",
+            "$leaf: --lags does not apply with --result"))
+    end
+    if id !== nothing && id != id_default
+        throw(CliError("usage/invalid",
+            "$leaf: --id does not apply with --result"))
+    end
+    if horizons !== nothing && horizons_default !== nothing && horizons != horizons_default
+        throw(CliError("usage/invalid",
+            "$leaf: --horizons does not apply with --result"))
+    end
+    return result
+end
+
+function _result_varnames(result, n::Int)
+    for f in (:varnames, :variables)
+        hasproperty(result, f) || continue
+        vn = getproperty(result, f)
+        vn isa AbstractVector && length(vn) == n && return String[string(x) for x in vn]
+    end
+    return String["var_$i" for i in 1:n]
+end
+
+function _rerender_long_table(result; format::String="table", output::String="",
+                              title::String="", key::String="",
+                              plot::Bool=false, plot_save::String="")
+    df = try
+        long_table(result)
+    catch e
+        e isa MethodError && throw(CliError(
+            "model/unsupported",
+            "no long_table is defined for $(typeof(result))";
+            hint="this result type cannot be re-rendered as a table; drop --result and recompute"))
+        rethrow()
+    end
+    output_result(df; format=Symbol(format), output=output, title=title, key=key)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_kv(result; format::String="table", output::String="",
+                      title::String="", key::String="")
+    pairs = Pair{String,Any}[]
+    for n in propertynames(result)
+        v = getproperty(result, n)
+        if v isa Number || v isa AbstractString || v isa Bool || v isa Nothing
+            push!(pairs, String(n) => v)
+        end
+    end
+    output_kv(pairs; format=format, output=output, title=title, key=key)
+    return result
+end
+
+function _fevd_proportions_from_irf(irf_vals::AbstractArray)
+    n_h = size(irf_vals, 1)
+    n = size(irf_vals, 2)
+    proportions = zeros(n, n, n_h)
+    for h in 1:n_h
+        total_var = zeros(n)
+        for vi in 1:n, si in 1:n
+            cum_sq = sum(irf_vals[t, vi, si]^2 for t in 1:h)
+            proportions[vi, si, h] = cum_sq
+            total_var[vi] += cum_sq
+        end
+        for vi in 1:n
+            total_var[vi] > 0 && (proportions[vi, :, h] ./= total_var[vi])
+        end
+    end
+    return proportions, n_h
+end
+
+function _rerender_arias_irf(result; format::String="table", output::String="",
+                             shock::Int=1, plot::Bool=false, plot_save::String="")
+    irf_vals = irf_mean(result)
+    n = size(irf_vals, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(irf_vals, nothing, nothing, varnames, shock)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="IRF to $shock_name shock (Arias et al. identification)", key="irf")
+    ess = hasproperty(result, :ess) ? Float64(result.ess) : NaN
+    ess_frac = hasproperty(result, :ess_fraction) ? Float64(result.ess_fraction) : NaN
+    output_kv(Pair{String,Any}[
+        "acceptance_rate" => round(Float64(result.acceptance_rate); digits=6),
+        "n_draws"         => length(result.weights),
+        "ess"             => round(ess; digits=4),
+        "ess_fraction"    => round(ess_frac; digits=6),
+    ]; format=format, title="Arias Importance-Sampling Diagnostics")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_uhlig_irf(result; format::String="table", output::String="",
+                             shock::Int=1, plot::Bool=false, plot_save::String="")
+    n = size(result.irf, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(result.irf, nothing, nothing, varnames, shock)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="IRF to $shock_name shock (Uhlig identification)", key="irf")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_identified_set(result; format::String="table", output::String="",
+                                  shock::Int=1, plot::Bool=false, plot_save::String="")
+    lower, upper = irf_bounds(result)
+    med = irf_median(result)
+    n = size(med, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    irf_df = build_irf_table(med, lower, upper, varnames, shock)
+    output_result(irf_df; format=Symbol(format), output=output,
+                  title="IRF Identified Set (sign, $shock_name shock)",
+                  key="irf_identified_set")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_robust_bayes(result; format::String="table", output::String="",
+                                shock::Int=1, plot::Bool=false, plot_save::String="")
+    H = size(result.lower, 1)
+    n = size(result.lower, 2)
+    1 <= shock <= n || throw(CliError("usage/invalid",
+        "shock index $shock out of 1:$n"))
+    varnames = _result_varnames(result, n)
+    shock_name = _shock_name(varnames, shock)
+    band_df = DataFrame(horizon=collect(0:(H - 1)))
+    for (vi, vname) in enumerate(varnames)
+        band_df[!, "$(vname)_lower"] = result.lower[:, vi, shock]
+        band_df[!, "$(vname)_upper"] = result.upper[:, vi, shock]
+        band_df[!, "$(vname)_robust_lower"] = result.robust_lower[:, vi, shock]
+        band_df[!, "$(vname)_robust_upper"] = result.robust_upper[:, vi, shock]
+    end
+    output_result(band_df; format=Symbol(format), output=output,
+                  title="Robust Bayes bands to $shock_name shock (Giacomini-Kitagawa)",
+                  key="robust_bayes_bands")
+    output_kv(Pair{String,Any}[
+        "Empty-set probability" => round(Float64(result.empty_set_prob); digits=6),
+        "Informativeness" => round(Float64(result.informativeness); digits=6),
+        "Level" => round(Float64(result.level); digits=4),
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+        title="Robust Bayes Diagnostics", key="robust_bayes_diagnostics")
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_irf_result(result; format::String="table", output::String="",
+                              title::String="", key::String="",
+                              plot::Bool=false, plot_save::String="",
+                              shock::Union{Nothing,Int}=nothing)
+    tn = nameof(typeof(result))
+    id_shock = something(shock, 1)
+    tn === :AriasSVARResult && return _rerender_arias_irf(result; format, output, shock=id_shock, plot, plot_save)
+    tn === :UhligSVARResult && return _rerender_uhlig_irf(result; format, output, shock=id_shock, plot, plot_save)
+    tn === :SignIdentifiedSet && return _rerender_identified_set(result; format, output, shock=id_shock, plot, plot_save)
+    tn === :RobustBayesResult && return _rerender_robust_bayes(result; format, output, shock=id_shock, plot, plot_save)
+    df = try
+        long_table(result)
+    catch e
+        e isa MethodError && throw(CliError(
+            "model/unsupported",
+            "no long_table is defined for $(typeof(result))";
+            hint="this result type cannot be re-rendered as a table; drop --result and recompute"))
+        rethrow()
+    end
+    if shock isa Int && hasproperty(result, :shocks) && "shock" in names(df)
+        shocks = getproperty(result, :shocks)
+        if shocks isa AbstractVector
+            1 <= shock <= length(shocks) || throw(CliError("usage/invalid",
+                "shock index $shock out of 1:$(length(shocks))"))
+            shock_name = shocks[shock]
+            df = df[df.shock .== shock_name, :]
+        end
+    end
+    output_result(df; format=Symbol(format), output=output, title=title, key=key)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+function _rerender_fevd_result(result; format::String="table", output::String="",
+                               title::String="", key::String="",
+                               plot::Bool=false, plot_save::String="",
+                               key_prefix::String="")
+    tn = nameof(typeof(result))
+    if tn === :AriasSVARResult
+        irf_vals = irf_mean(result)
+        props, n_h = _fevd_proportions_from_irf(irf_vals)
+        vn = _result_varnames(result, size(irf_vals, 2))
+        _output_fevd_tables(props, vn, n_h; id="arias", title_prefix="FEVD",
+                            format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "fevd_by_variable" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :UhligSVARResult
+        props, n_h = _fevd_proportions_from_irf(result.irf)
+        vn = _result_varnames(result, size(result.irf, 2))
+        _output_fevd_tables(props, vn, n_h; id="uhlig", title_prefix="FEVD",
+                            format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "fevd_by_variable" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :LPFEVD
+        n = size(result.bias_corrected, 1)
+        vn = _result_varnames(result, n)
+        _output_fevd_tables(result.bias_corrected, vn, result.horizon;
+                            id="", title_prefix="LP FEVD", format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "lp_fevd" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :BayesianFEVD
+        vn = _result_varnames(result, size(result.point_estimate, 1))
+        H = hasproperty(result, :horizon) ? Int(result.horizon) : size(result.point_estimate, 3)
+        _output_fevd_tables(result.point_estimate, vn, H;
+                            id="", title_prefix="Bayesian FEVD", format=format, output=output,
+                            key_prefix=isempty(key_prefix) ? "bayesian_fevd" : key_prefix)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    end
+    return _rerender_long_table(result; format, output, title, key, plot, plot_save)
+end
+
+function _rerender_filter_result(result; format::String="table", output::String="",
+                                 title::String="", key::String="",
+                                 plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    if tn === :X13FilterResult
+        T = length(result.trend)
+        tcol = collect(1:T)
+        output_result(DataFrame(t=tcol, adjusted=round.(result.adjusted; digits=6));
+                      format=Symbol(format), output=output, title="X-13 Seasonally Adjusted",
+                      key="x_13_seasonally_adjusted")
+        output_result(DataFrame(t=tcol, trend=round.(result.trend; digits=6));
+                      format=Symbol(format), output=_per_var_output_path(output, "trend"),
+                      title="X-13 Trend", key="x_13_trend")
+        output_result(DataFrame(t=tcol, seasonal=round.(result.seasonal; digits=6));
+                      format=Symbol(format), output=_per_var_output_path(output, "seasonal"),
+                      title="X-13 Seasonal Factors", key="x_13_seasonal_factors")
+        output_result(DataFrame(t=tcol, irregular=round.(result.irregular; digits=6));
+                      format=Symbol(format), output=_per_var_output_path(output, "irregular"),
+                      title="X-13 Irregular", key="x_13_irregular")
+        order = result.arima_order
+        order_str = order isa Tuple ? join(string.(order), ",") : string(order)
+        output_kv(Pair{String,Any}[
+            "method" => string(result.method),
+            "frequency" => result.frequency,
+            "transform" => string(result.transform),
+            "arima_order" => order_str,
+            "aic" => round(Float64(result.aic); digits=4),
+            "sigma2" => round(Float64(result.sigma2); digits=6),
+            "n_outliers" => Int(result.n_outliers),
+            "T_obs" => Int(result.T_obs),
+        ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+            title="X-13 Diagnostics", key="x_13_diagnostics")
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    end
+    t = collect(Float64, trend(result))
+    c = collect(Float64, cycle(result))
+    idx = collect(1:length(t))
+    if hasproperty(result, :valid_range)
+        vr = result.valid_range
+        Tfull = hasproperty(result, :T_obs) ? Int(result.T_obs) : length(t)
+        if length(t) == Tfull
+            t = t[vr]
+            c = c[vr]
+        end
+        idx = collect(vr)
+    end
+    result_df = DataFrame(t=idx, trend=round.(t; digits=6), cycle=round.(c; digits=6))
+    output_result(result_df; format=Symbol(format), output=output, title=title, key=key)
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
+_is_filter_result(result) = nameof(typeof(result)) === :X13FilterResult ||
+    (applicable(trend, result) && applicable(cycle, result))
+
+"""Accept `result=` from wrap_legacy; re-render without calling `handler`."""
+function _with_result(handler, leaf::String; key::String="")
+    return function (; result=nothing, kwargs...)
+        data = get(kwargs, :data, "")
+        data_s = data isa AbstractString ? String(data) : ""
+        model = get(kwargs, :model, nothing)
+        model_obj = model isa AbstractString ? nothing : model
+        loaded = _loaded_result(result; data=data_s, model=model_obj, leaf=leaf)
+        if loaded !== nothing
+            fmt = string(get(kwargs, :format, "table"))
+            out = string(get(kwargs, :output, ""))
+            k = isempty(key) ? replace(leaf, r"[^A-Za-z0-9]+" => "_") : key
+            plot = get(kwargs, :plot, false) === true
+            plot_save = string(get(kwargs, :plot_save, ""))
+            if _is_filter_result(loaded)
+                _rerender_filter_result(loaded; format=fmt, output=out, title=leaf, key=k,
+                                        plot=plot, plot_save=plot_save)
+            elseif applicable(long_table, loaded)
+                _rerender_long_table(loaded; format=fmt, output=out, title=leaf, key=k,
+                                     plot=plot, plot_save=plot_save)
+            else
+                _rerender_kv(loaded; format=fmt, output=out, title=leaf, key=k)
+                _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+            end
+            return loaded
+        end
+        return handler(; kwargs...)
     end
 end
 
@@ -1318,7 +2180,7 @@ end
 _unwrap_loaderror(e) = e isa LoadError ? _unwrap_loaderror(e.error) : e
 
 const _AGENT_KIND_FAMILY = Dict(
-    "HouseholdSystem"            => ("heterogeneous-agent", "`dsge ha …`"),
+    "HouseholdSystem"            => ("heterogeneous-agent", "`hadsge …`"),
     "DCEGMSystem"                => ("DCEGM", "`dsge dcegm …`"),
     "LifeCycleSystem"            => ("life-cycle", "`dsge lifecycle …`"),
     "ContinuousHouseholdSystem"  => ("continuous-time household", "`dsge ct …`"),
@@ -1344,7 +2206,7 @@ function _ha_model_symbol(spec)
     hh = _ha_households(spec)
     length(hh) == 1 || throw(CliError("model/unsupported",
         "this command supports exactly one household population; this spec has $(length(hh))";
-        hint="multi-population HA solve is deferred (see `dsge ha` docs)"))
+        hint="multi-population HA solve is deferred (see `hadsge` docs)"))
     return hh[1].model
 end
 
@@ -1357,8 +2219,8 @@ function _wrong_command_for_kinds(spec, intended::String)
     end
     if length(names) == 1 && names[1] == "HouseholdSystem"
         return CliError("usage/wrong-command",
-            "this is a heterogeneous-agent spec — use `dsge ha …`",
-            hint="e.g. friedman dsge ha solve <file> --method reiter")
+            "this is a heterogeneous-agent spec — use `hadsge …`",
+            hint="e.g. friedman hadsge solve <file> --method reiter")
     end
     families = String[]
     for n in names
@@ -1376,7 +2238,7 @@ function _require_ra_spec(spec, intended::String="dsge solve")
     return spec
 end
 
-function _require_ha_spec(spec, intended::String="dsge ha")
+function _require_ha_spec(spec, intended::String="hadsge")
     _is_model_spec(spec) || throw(CliError("config/invalid",
         "model did not evaluate to a ModelSpec (got $(typeof(spec)))"))
     _is_ha_spec(spec) || throw(_wrong_command_for_kinds(spec, intended))
@@ -1494,6 +2356,31 @@ const _RA_METHOD_MAP = Dict(
 const _RA_METHOD_CHOICES = ["gensys", "klein", "perturbation", "projection", "pfi",
                             "vfi", "blanchard-kahn"]
 
+const _VFI_OPTIMIZER_CHOICES = ["auto", "grid1d", "fminbox-nm", "fminbox-lbfgs"]
+
+const _VFI_OPTIMIZER_MAP = Dict("auto" => :auto, "grid1d" => :grid1d,
+    "fminbox-nm" => :fminbox_nm, "fminbox-lbfgs" => :fminbox_lbfgs)
+
+"""Parse `--smolyak-mu`: `""` (unset) → `nothing`, `"2"` → `2`, `"2,3"` → `[2, 3]`.
+
+Upstream (`_smolyak_level_vector`) wants a scalar `μ ≥ 0` or a length-`nx`
+vector with all entries `≥ 0`; the length-vs-`nx` check needs the solved
+model, so a wrong-length vector surfaces as upstream `ArgumentError` →
+`data/invalid`, while shape/negativity junk is `usage/invalid` here."""
+function _parse_smolyak_mu(s::String)
+    t = strip(s)
+    isempty(t) && return nothing
+    parts = [strip(p) for p in split(t, ",")]
+    (any(isempty, parts) || any(p -> tryparse(Int, p) === nothing, parts)) &&
+        throw(CliError("usage/invalid",
+            "--smolyak-mu must be a non-negative integer or a comma-separated " *
+            "list thereof (got '$s')"))
+    vals = [tryparse(Int, p)::Int for p in parts]
+    any(<(0), vals) && throw(CliError("usage/invalid",
+        "--smolyak-mu entries must be ≥ 0 (got '$s')"))
+    return length(vals) == 1 ? vals[1] : vals
+end
+
 """Map CLI `--method` string to the MEMs `solve` symbol (`:blanchard_kahn` not hyphen)."""
 function _parse_ra_method(method::String)
     key = lowercase(strip(method))
@@ -1589,7 +2476,7 @@ function _load_ha_model(model::String; distribution::String="young")
             hint="the file should be an `@dsge begin … end` block with heterogeneous:, " *
                  "idiosyncratic: and aggregation: declarations")
     end
-    _require_ha_spec(result, "dsge ha")
+    _require_ha_spec(result, "hadsge")
     _status("Loaded HA ModelSpec from Julia file (model=$(_ha_model_symbol(result)))")
     return result
 end
@@ -1607,7 +2494,7 @@ function _solve_ha(spec::MacroEconometricModels.ModelSpec;
                    n_reduced::Int=30,
                    T_horizon::Int=300,
                    kwargs...)
-    _require_ha_spec(spec, "dsge ha")
+    _require_ha_spec(spec, "hadsge")
     hh = get(kwargs, :hh_solver, :egm)
     if hh === :vfi && method === :krusell_smith
         throw(CliError("usage/invalid",
@@ -1634,9 +2521,13 @@ function _solve_ha(spec::MacroEconometricModels.ModelSpec;
             end
         end
         _status("Solving HA-DSGE with method=$method...")
+        # Krusell–Smith owns its PLM-simulation RNG via seed= (MEMs#769), recorded
+        # on KrusellSmithSolution.manifest. Other HA methods take no seed — only
+        # forward here, never blindly into kwargs (ssj/reiter would reject it).
+        ks_seed = (method === :krusell_smith && _SEED[] !== nothing) ? (; seed=_SEED[]) : NamedTuple()
         return _dsge_call(solve, spec; method=method, ss=ss,
                           n_reduced=n_reduced, T_horizon=T_horizon,
-                          kwargs...)
+                          ks_seed..., kwargs...)
     catch e
         throw(_dsge_solve_error(e, "HA-DSGE solve"))
     end
@@ -1648,9 +2539,12 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
                          next_state::String="", howard_steps::Int=-1,
                          n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                          scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
-                         damping::Float64=0.0, anderson_m::Int=0)
+                         damping::Float64=0.0, anderson_m::Int=0,
+                         optimizer::String="", smolyak_mu::String="")
     ns = lowercase(strip(next_state))
-    vfi_exclusive = n_grid != 0 || n_choice != 0
+    os = lowercase(strip(optimizer))
+    mu = _parse_smolyak_mu(smolyak_mu)
+    vfi_exclusive = n_grid != 0 || n_choice != 0 || !isempty(os) || mu !== nothing
     pfi_exclusive = anderson_m != 0
     shared_knobs = howard_steps != -1 || n_quad != 0 || scale != 0.0 ||
                    tol != 0.0 || max_iter != 0 || damping != 0.0 || !isempty(ns)
@@ -1661,17 +2555,38 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
         pfi_exclusive && throw(CliError("usage/invalid",
             "--anderson-m is a PFI option; not valid with --method vfi"))
         g = lowercase(strip(grid))
-        g in ("auto", "tensor") || throw(CliError("usage/invalid",
-            "vfi supports --grid auto|tensor only (Smolyak value-function iteration is not implemented)"))
+        g in ("auto", "tensor", "smolyak") || throw(CliError("usage/invalid",
+            "vfi supports --grid auto|tensor|smolyak only (got '$grid')"))
         n_grid == 0 || n_grid >= 3 || throw(CliError("usage/invalid",
             "--n-grid must be ≥ 3 (got $n_grid)"))
         n_choice == 0 || n_choice >= 3 || throw(CliError("usage/invalid",
             "--n-choice must be ≥ 3 (got $n_choice)"))
+        # Dead-combo guards: upstream silently ignores the losing knob in each
+        # pair, so accept-and-ignore would be a lie. The `auto` corners stay
+        # allowed (resolution needs the solved model) and are documented.
+        g == "smolyak" && n_grid != 0 && throw(CliError("usage/invalid",
+            "--n-grid is a tensor-grid option; not valid with --grid smolyak";
+            hint="use --smolyak-mu to control the sparse-grid level"))
+        g == "smolyak" && degree != 5 && throw(CliError("usage/invalid",
+            "--degree is a tensor-grid option; not valid with --grid smolyak";
+            hint="the Smolyak grid sets its own degree from --smolyak-mu"))
+        g == "tensor" && mu !== nothing && throw(CliError("usage/invalid",
+            "--smolyak-mu is a Smolyak-grid option; not valid with --grid tensor"))
+        os in ("fminbox-nm", "fminbox-lbfgs") && n_choice != 0 &&
+            throw(CliError("usage/invalid",
+                "--n-choice is a grid1d option; not valid with --optimizer $os"))
+        # Parser `choices=` enforces this first; the map lookup below must
+        # never KeyError on a direct call.
+        !isempty(os) && !haskey(_VFI_OPTIMIZER_MAP, os) &&
+            throw(CliError("usage/invalid",
+                "--optimizer must be auto|grid1d|fminbox-nm|fminbox-lbfgs " *
+                "(got '$optimizer')"))
     elseif meth === :pfi
         isempty(ns) || ns in ("linear", "policy", "nonlinear") || throw(CliError("usage/invalid",
             "pfi --next-state must be linear|policy|nonlinear (got '$next_state')"))
         vfi_exclusive && throw(CliError("usage/invalid",
-            "--n-grid/--n-choice are VFI options; not valid with --method pfi"))
+            "--n-grid/--n-choice/--optimizer/--smolyak-mu are VFI options; " *
+            "not valid with --method pfi"))
         anderson_m >= 0 || throw(CliError("usage/invalid",
             "--anderson-m must be ≥ 0 (got $anderson_m)"))
     elseif vfi_exclusive || pfi_exclusive || shared_knobs
@@ -1707,12 +2622,17 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
         damping > 0 && (extra = (; extra..., damping=damping))
         anderson_m > 0 && (extra = (; extra..., anderson_m=anderson_m))
     elseif meth === :vfi
-        gsym = lowercase(strip(grid)) in ("auto", "tensor", "") ? :tensor : Symbol(grid)
+        # `:auto` passes through to upstream routing (nx ≤ 3 → tensor,
+        # nx ≥ 4 → Smolyak) — the W1/#180 decision; `""` matches the default.
+        g = lowercase(strip(grid))
+        gsym = (g == "" || g == "auto") ? :auto : Symbol(g)
         extra = (; extra..., degree=degree, grid=gsym)
         isempty(ns) || (extra = (; extra..., next_state=Symbol(ns)))
         howard_steps >= 0 && (extra = (; extra..., howard_steps=howard_steps))
         n_grid >= 3 && (extra = (; extra..., n_grid=n_grid))
         n_choice >= 3 && (extra = (; extra..., n_choice=n_choice))
+        !isempty(os) && (extra = (; extra..., optimizer=_VFI_OPTIMIZER_MAP[os]))
+        mu !== nothing && (extra = (; extra..., smolyak_mu=mu))
         n_quad > 0 && (extra = (; extra..., n_quad=n_quad))
         scale > 0 && (extra = (; extra..., scale=scale))
         tol > 0 && (extra = (; extra..., tol=tol))
@@ -1747,15 +2667,28 @@ function _solve_dsge(spec::MacroEconometricModels.ModelSpec;
                      next_state::String="", howard_steps::Int=-1,
                      n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                      scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
-                     damping::Float64=0.0, anderson_m::Int=0)
+                     damping::Float64=0.0, anderson_m::Int=0,
+                     optimizer::String="", smolyak_mu::String="")
     _require_ra_spec(spec, "dsge solve")
     meth = _parse_ra_method(method)
     extra = _ra_solve_extra(meth; order=order, degree=degree, grid=grid,
                             next_state=next_state, howard_steps=howard_steps,
                             n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                             scale=scale, tol=tol, max_iter=max_iter,
-                            damping=damping, anderson_m=anderson_m)
+                            damping=damping, anderson_m=anderson_m,
+                            optimizer=optimizer, smolyak_mu=smolyak_mu)
     meth === :vfi && _require_vfi_bellman(spec)
+    # `:grid1d` maximizes one control; with explicitly declared controls the
+    # count is known here, so reject up front (usage, not data). With default
+    # (empty) controls the count resolves inside upstream, whose ArgumentError
+    # maps to data/invalid — same as any other shape mismatch.
+    if meth === :vfi && lowercase(strip(optimizer)) == "grid1d" &&
+       hasproperty(spec, :bellman_controls) && length(spec.bellman_controls) > 1
+        throw(CliError("usage/invalid",
+            "--optimizer grid1d supports one continuous control (model " *
+            "declares $(length(spec.bellman_controls)))";
+            hint="use --optimizer auto (resolves to fminbox-nm) or fminbox-lbfgs"))
+    end
     try
         _status("Computing steady state...")
         ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))

@@ -4,7 +4,7 @@ Friedman uses TOML configuration files for complex model specifications. Pass th
 
 ## Minnesota Prior
 
-Used by `estimate bvar`, `irf bvar`, `fevd bvar`, `hd bvar`, `forecast bvar`.
+Used by `estimate multivariate bvar`, `irf bvar`, `fevd bvar`, `hd bvar`, `forecast multivariate bvar`.
 
 ```toml
 [prior]
@@ -131,9 +131,50 @@ tol_coarse = 1e-5       # coarse tolerance (default: 1e-4)
 tol_fine = 1e-10        # fine tolerance (default: 1e-8)
 ```
 
+## Narrative ADRR Identification
+
+Antolín-Díaz / Rubio-Ramírez narrative contribution restrictions, run through the Arias importance-sampling pipeline. Used with `--id=narrative-adrr` on the `irf`/`fevd`/`hd` `var` leaves. Takes the same zero/sign restriction blocks as Arias, plus at least one `narrative_contributions` block (Type A `most_important` or Type B `overwhelming`; default `most_important`).
+
+```toml
+[[identification.sign_restrictions]]
+var = 2
+shock = 1
+sign = "positive"
+horizon = 0
+
+[[identification.narrative_contributions]]
+variable = 1
+shock = 1
+window = [1, 4]          # 2-element [lo, hi] horizon range
+kind = "most_important"  # or "overwhelming"
+```
+
+## SVAR AB-model Patterns
+
+Patterns for `estimate multivariate svar --pattern`. `recursive` and `blanchard-quah` need no config; the matrix kinds read n×n arrays from the `[svar]` table, where TOML `nan` marks a free parameter and any fixed number a calibrated entry.
+
+```toml
+[svar]
+# a-model reads A (B = I); b-model reads B (A = I);
+# ab-model reads A and B, with an optional long_run matrix
+A = [[1.0, 0.0], [nan, 1.0]]
+# B = [[nan, 0.0], [0.0, nan]]
+# long_run = [[nan, 0.0], [nan, nan]]
+```
+
+## SVEC Restrictions
+
+Optional zero matrices for `estimate multivariate svec --config`. Either key absent keeps upstream's KPSW default for that side; no `--config` at all gives the fully default KPSW identification. Same n×n `nan`-means-free convention as `[svar]`.
+
+```toml
+[svec]
+long_run_zeros = [[nan, 0.0], [nan, nan]]
+short_run_zeros = [[nan, 0.0], [nan, nan]]
+```
+
 ## Non-Gaussian SVAR
 
-Used by `test heteroskedasticity` with `--method=smooth_transition` or `--method=external`.
+Used by `test serial heteroskedasticity` with `--method=smooth_transition` or `--method=external`.
 
 ```toml
 [nongaussian]
@@ -153,7 +194,7 @@ n_regimes = 2
 
 ## GMM Specification
 
-Used by `estimate gmm`.
+Used by `estimate regression gmm`.
 
 ```toml
 [gmm]
@@ -164,9 +205,18 @@ weighting = "twostep"
 
 | Field | Description |
 |-------|-------------|
-| `moment_conditions` | Column names used as moment condition variables |
-| `instruments` | Column names used as instruments |
+| `moment_conditions` | Column names used as LP-GMM moment variables (default path) |
+| `instruments` | Excluded instrument columns (IV path) or unused LP-GMM names (default path) |
 | `weighting` | Weighting matrix method (overridden by `--weighting` flag) |
+| `dep` | Dependent-variable column. **Together with `theta0`, switches to IV-GMM** |
+| `endogenous` | Endogenous regressor columns (IV path) |
+| `exogenous` | Optional included exogenous regressors (IV path) |
+| `theta0` | Starting values, length = 1 (intercept) + endogenous + exogenous |
+
+Omit both `dep` and `theta0` to keep the default LP-GMM (horizon-0) estimator.
+Set both to call `estimate_gmm` with a linear-IV moment `Z'(y − Xθ)` so the
+Stock–Yogo first-stage F is stored and rendered. One without the other is
+`config/invalid`.
 
 ## DSGE Model
 
@@ -239,7 +289,7 @@ Each `[[constraints.bounds]]` block specifies a variable with optional `lower` a
 
 ## SMM Specification
 
-Used by `estimate smm --config=...` (required — SMM matches simulated moments to sample
+Used by `estimate regression smm --config=...` (required — SMM matches simulated moments to sample
 moments, so it needs a data-generating `model` and an initial parameter vector `theta0`).
 
 ```toml
@@ -294,7 +344,7 @@ upper  = [0.99, 10.0]
 
 ## Systems Specification (SUR / 3SLS)
 
-Used by `estimate sur --config=...` and `estimate 3sls --config=...`. Each `[[equations]]`
+Used by `estimate regression sur --config=...` and `estimate regression 3sls --config=...`. Each `[[equations]]`
 block defines one equation of the system by naming a dependent column (`dep`) and its
 regressor columns (`indep`) — all column names come from the data CSV. A per-equation
 constant is added unless `--no-intercept` is passed.
@@ -338,7 +388,7 @@ instr = ["gov", "lag_income"]
 
 ## GARCH-MIDAS Driver
 
-Used by `estimate garch-midas --config=...`, and **only required for `--rv macro`** (an
+Used by `estimate volatility garch-midas --config=...`, and **only required for `--rv macro`** (an
 exogenous low-frequency driver). With the default `--rv realized`, the long-run component
 is derived from the returns themselves and no config is needed. The `[garch_midas]` section
 supplies `x_lf`, the low-frequency driver series — one value per calendar block (its length
@@ -426,7 +476,7 @@ All commands support three output formats:
 Terminal-formatted table using PrettyTables with center-aligned columns.
 
 ```bash
-friedman estimate var data.csv
+friedman estimate multivariate var data.csv
 ```
 
 ### CSV
@@ -434,8 +484,8 @@ friedman estimate var data.csv
 Standard CSV output, either to stdout or file.
 
 ```bash
-friedman estimate var data.csv --format=csv
-friedman estimate var data.csv --format=csv --output=results.csv
+friedman estimate multivariate var data.csv --format=csv
+friedman estimate multivariate var data.csv --format=csv --output=results.csv
 ```
 
 ### JSON
@@ -443,8 +493,8 @@ friedman estimate var data.csv --format=csv --output=results.csv
 Array of row dictionaries.
 
 ```bash
-friedman estimate var data.csv --format=json
-friedman estimate var data.csv --format=json --output=results.json
+friedman estimate multivariate var data.csv --format=json
+friedman estimate multivariate var data.csv --format=json --output=results.json
 ```
 
 Example JSON output:

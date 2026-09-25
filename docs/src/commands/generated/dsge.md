@@ -3,7 +3,7 @@
 
 Generated reference for `friedman dsge` and its subcommands.
 
-**Leaves:** 62
+**Leaves:** 51
 
 ### `friedman dsge bank irf`
 
@@ -169,6 +169,7 @@ Path to DSGE model file (.toml or .jl)
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1035,11 +1036,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1133,304 +1136,6 @@ Khan–Thomas MIT TFP path (--prices ss|ge)
 
 ---
 
-### `friedman dsge ha accuracy`
-
-Den Haan (2010) accuracy of the aggregate law of motion
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Capital builtin (krusell-smith\|one-asset-hank) or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `krusell-smith` | `krusell-smith`, `ssj`, `reiter` | Solution to score: krusell-smith\|ssj\|reiter |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states |
-| `--t-sim` | — | `Int64` | `10000` | — | Simulation length (must exceed --t-burn by >= 10) |
-| `--t-burn` | — | `Int64` | `1000` | — | Burn-in discarded before scoring |
-| `--t-fit` | — | `Int64` | `4000` | — | Fitting length for the implied law (> 100; ssj\|reiter only) |
-| `--rho-z` | — | `Float64` | `0.95` | — | Aggregate shock persistence, \|rho\| < 1 |
-| `--sigma-z` | — | `Float64` | `0.007` | — | Aggregate shock s.d. (> 0) |
-| `--seed` | — | `Int64` | `98765` | — | Simulation seed |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `den_haan_accuracy` (Max/mean percentage deviation plus the reference and PLM standard deviations); `reference_vs_plm_only_aggregate_path` (Simulated reference and PLM-only aggregate paths side by side); `den_haan_simulation_settings` (Solution method, scored aggregate, simulation lengths and seed)
-
----
-
-### `friedman dsge ha distribution-irf`
-
-Wealth distribution IRF after an aggregate shock (Reiter only)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
-| `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `ha_distribution_irf` (Per-horizon L1 and max wealth-distribution mass deviation with the grid sizes)
-
----
-
-### `friedman dsge ha estimate`
-
-Bayesian estimation of HA-DSGE parameters (MH/SMC; MEMs#228 fixed in 0.6.7)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--data` | — | `String` | `""` | — | Path to observed aggregates CSV (required) |
-| `--priors` | — | `String` | `""` | — | Path to priors TOML with [priors] section (required) |
-| `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
-| `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
-| `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |
-| `--n-draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
-| `--burnin` | — | `Int64` | `500` | — | Burn-in draws to discard |
-| `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA default 500) |
-| `--n-mh-steps` | — | `Int64` | `1` | — | MH mutation steps per SMC stage |
-| `--ess-target` | — | `Float64` | `0.5` | — | ESS target for SMC resampling |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ); default 300 (ABRS 2021) |
-| `--n-reduced` | — | `Int64` | `15` | — | Reduced distribution states |
-| `--proposal-scale` | — | `Float64` | `0.01` | — | Initial RWMH proposal scale |
-| `--adapt-interval` | — | `Int64` | `100` | — | Adapt proposal covariance every N draws |
-| `--measurement-error` | — | `String` | `none` | `none`, `auto` | Measurement error: none\|auto (auto adds 10% per-obs variance) |
-| `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `ha_dsge_bayesian_posterior` (Posterior mean, std, median and 5/95% quantiles per parameter); `ha_dsge_bayesian_settings` (Sampler, solution method, observables and measurement-error provenance)
-
----
-
-### `friedman dsge ha fevd`
-
-Aggregate FEVD from linearized HA-DSGE solution
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `ha_dsge_fevd_*` (Aggregate variance shares by shock across horizons, one table per variable)
-
----
-
-### `friedman dsge ha hd`
-
-Historical decomposition of HA-DSGE aggregates
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file (levels) |
-| `--observables` | — | `String` | `""` | — | Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices) |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `ha_historical_decomposition_*` (Per-variable contribution path of one shock, one table per shock)
-
----
-
-### `friedman dsge ha inequality-irf`
-
-Gini and wealth-percentile IRFs after an aggregate shock
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
-| `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `ha_inequality_irf` (Per-horizon Gini and wealth-percentile (p10-p90) responses)
-
----
-
-### `friedman dsge ha irf`
-
-Aggregate IRFs from linearized HA-DSGE solution
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `ha_dsge_irf_*` (Aggregate responses of every variable to one shock, one table per shock)
-
----
-
-### `friedman dsge ha simulate`
-
-Simulate aggregate paths from linearized HA-DSGE
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--periods` | — | `Int64` | `200` | — | Simulation periods |
-| `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `ha_dsge_simulation` (Simulated path of every aggregate deviation)
-
----
-
-### `friedman dsge ha simulate-panel`
-
-Simulate individual asset holdings from steady-state policies
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--n-agents` | — | `Int64` | `1000` | — | Number of agents |
-| `--periods` | — | `Int64` | `100` | — | Time periods |
-| `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `ha_panel_simulation_summary` (Cross-sectional mean and sd of assets per period with the agent count)
-
----
-
-### `friedman dsge ha solve`
-
-Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin (huggett\|krusell-smith\|one-asset-hank\|two-asset-hank\|endogenous-labor) or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `ssj` | `ssj`, `reiter`, `krusell-smith` | HA solution method: ssj\|reiter\|krusell-smith |
-| `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states (SSJ/Reiter) |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
-
----
-
-### `friedman dsge ha steady-state`
-
-Compute HA-DSGE stationary equilibrium
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--euler-points` | — | `String` | `midpoints` | `midpoints`, `nodes` | Euler-error evaluation points: midpoints\|nodes |
-| `--max-iter` | — | `Int64` | `0` | — | GE iterations (0 = upstream default: 200 one-asset, 60 two-asset closer) |
-| `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = upstream default) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
-
----
-
 ### `friedman dsge hd`
 
 Path to DSGE model file (.toml or .jl)
@@ -1444,11 +1149,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1484,11 +1191,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1831,11 +1540,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1871,11 +1582,13 @@ Path to DSGE model file (.toml or .jl)
 | `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor) |
+| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
-| `--n-grid` | — | `Int64` | `0` | — | VFI tensor nodes per state (≥3; 0 = default 12) |
-| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (≥3; 0 = default 41) |
+| `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
+| `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
+| `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
+| `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
 | `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
 | `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
 | `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
@@ -1889,13 +1602,13 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a .fmod handle file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
+**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on physical collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
 
 ---
 

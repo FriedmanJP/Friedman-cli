@@ -110,6 +110,23 @@ struct ReproManifest
     settings::Dict{String,Any}
 end
 
+# reproduce() report types (W3/#167 — exact field mirror of real ReproFieldDiff /
+# ReproReport, so the mock-surface struct gate holds).
+struct ReproFieldDiff
+    name::String
+    matched::Bool
+    max_abs_diff::Float64
+end
+
+struct ReproReport
+    matched::Union{Bool,Missing}
+    fields::Vector{ReproFieldDiff}
+    seed::Union{Int,Nothing}
+    threads_captured::Int
+    threads_current::Int
+    note::String
+end
+
 capture_manifest(; seed::Union{Integer,Nothing}=nothing,
                    settings::AbstractDict=Dict{String,Any}()) =
     ReproManifest(seed === nothing ? nothing : Int(seed), Threads.nthreads(),
@@ -141,6 +158,24 @@ function load_model(path::AbstractString)
         "unsupported serialization format_version $(c["format_version"]): " *
         "this build reads $SERIALIZATION_FORMAT_VERSION"))
     return c["payload"]
+end
+
+# Header inspection without reconstruction (W3/#167 — mirrors real model_info keys).
+function model_info(path::AbstractString)
+    isfile(path) || throw(SerializationError("no such model file: $path"))
+    c = open(Serialization.deserialize, path)
+    (c isa AbstractDict && haskey(c, "format_version")) ||
+        throw(SerializationError("file '$path' is not a model container"))
+    return Dict{String,Any}(
+        "format_version" => c["format_version"],
+        "package_version" => "0.7.2",
+        "julia_version" => string(VERSION),
+        "created" => "2026-01-01T00:00:00Z",
+        "note" => "",
+        "manifest" => nothing,
+        "bundle" => false,
+        "type" => c["type"],
+    )
 end
 
 # ─── New abstract model supertypes (MEMs 0.7.0 modules; wrapped in C062–C073) ─
@@ -176,9 +211,14 @@ struct BVARPosterior{T}
     data::Matrix{T}
     # Real carries varnames and threads them into posterior_mean/median_model (#119).
     varnames::Vector{String}
+    # Real records a ReproManifest when estimate_bvar was called with seed= (#769).
+    manifest::Union{Nothing,ReproManifest}
 end
 BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T}) where {T} =
-    BVARPosterior(B, S, nd, p, n, data, ["y$i" for i in 1:n])
+    BVARPosterior(B, S, nd, p, n, data, ["y$i" for i in 1:n], nothing)
+BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T},
+              varnames::Vector{String}) where {T} =
+    BVARPosterior(B, S, nd, p, n, data, varnames, nothing)
 
 struct MinnesotaHyperparameters
     # `omega` is a SCALAR weight on the residual-covariance prior in real MEMs. It used to
@@ -289,10 +329,12 @@ struct SignRestriction
     variable::Int; shock::Int; sign::Symbol; horizon::Int
 end
 struct SVARRestrictions
-    n_vars::Int; zeros::Vector{ZeroRestriction}; signs::Vector{SignRestriction}
+    # Untyped vectors: real holds Vector{AbstractSVARRestriction} mixing zero/sign/
+    # long-run/A0/bound/cumulative/narrative restrictions; the mock must too (W2).
+    n_vars::Int; zeros::Vector; signs::Vector
 end
-SVARRestrictions(n::Int; zeros=ZeroRestriction[], signs=SignRestriction[]) =
-    SVARRestrictions(n, zeros, signs)
+SVARRestrictions(n::Int; zeros=[], signs=[]) =
+    SVARRestrictions(n, collect(Any, zeros), collect(Any, signs))
 struct AriasSVARResult{T}
     Q_draws::Vector{Matrix{T}}; irf_draws::Array{T,4}; weights::Vector{T}; acceptance_rate::T
     restrictions::SVARRestrictions
@@ -589,6 +631,84 @@ end
 struct ExternalVolatilitySVARResult{T}
     B0::Matrix{T}
 end
+
+# ─── SVAR Identification Types (0.9.2) ────────────────────
+# Field names mirror real MEMs (mock ⊆ real gate); sign-carrying fields stay
+# Symbols on the mock (CLI-facing convention) — the gate compares names, and the
+# CLI builds restrictions through the builder functions below, never positionally.
+
+struct LongRunZeroRestriction
+    variable::Int; shock::Int
+end
+struct A0ZeroRestriction
+    variable::Int; shock::Int
+end
+struct A0SignRestriction
+    variable::Int; shock::Int; sign::Symbol
+end
+struct ElasticityBound
+    numerator_var::Int; denominator_var::Int; shock::Int; horizon::Int
+    lower::Float64; upper::Float64
+end
+struct MagnitudeBound
+    variable::Int; shock::Int; horizon::Int; lower::Float64; upper::Float64
+end
+struct CumulativeRestriction
+    variable::Int; shock::Int; horizons::UnitRange{Int}; sign::Symbol
+end
+struct NarrativeShockRestriction
+    shock::Int; dates::Vector{Int}; sign::Symbol
+end
+struct NarrativeContributionRestriction
+    variable::Int; shock::Int; window::UnitRange{Int}; kind::Symbol
+end
+struct IdentificationStatus
+    status::Symbol; ranks::Vector{Int}; orders::Vector{Int}; n_overidentifying::Int
+end
+struct SVARPattern{T}
+    A::Matrix{T}; B::Matrix{T}; long_run::Union{Nothing,Matrix{T}}
+    function SVARPattern(A::AbstractMatrix, B::AbstractMatrix; long_run=nothing)
+        size(A, 1) == size(A, 2) || throw(ArgumentError("A must be square"))
+        size(A) == size(B) || throw(ArgumentError("A and B must have the same size"))
+        T = promote_type(float(eltype(A)), float(eltype(B)))
+        lr = if long_run === nothing
+            nothing
+        else
+            size(long_run) == size(A) ||
+                throw(ArgumentError("long_run must be n×n, same as A and B"))
+            Matrix{T}(long_run)
+        end
+        new{T}(Matrix{T}(A), Matrix{T}(B), lr)
+    end
+end
+struct ProxySVARResult{T}
+    Q::Matrix{T}; B0::Matrix{T}; k::Int; first_stage_F::T; reliability::T
+    instruments_names::Vector{String}; varnames::Vector{String}
+    shock_names::Vector{String}; is_partial::Bool
+end
+struct MaxShareResult{T}
+    Q::Vector{T}; q::Vector{T}; target::Int; horizons::Vector{Int}; band::Symbol
+    share::T; eigvals::Vector{T}; varnames::Vector{String}
+    shock_names::Vector{String}; is_partial::Bool
+end
+struct NonGaussianGMMResult{T}
+    B0::Matrix{T}; Q::Matrix{T}; theta::Vector{T}; vcov::Matrix{T}; se::Vector{T}
+    J::T; J_pvalue::T; moments::Symbol; weighting::Symbol
+    shocks::Matrix{T}; varnames::Vector{String}; shock_names::Vector{String}
+end
+struct SVARModel{T}
+    A::Matrix{T}; B::Matrix{T}; Q::Matrix{T}
+    vcov::Union{Nothing,Matrix{T}}; se::Union{Nothing,Matrix{T}}
+    loglik::T; lr_stat::T; lr_df::Int; lr_pvalue::T
+    pattern::SVARPattern{T}; identification::IdentificationStatus
+    varnames::Vector{String}
+end
+struct RobustBayesResult{T}
+    lower::Array{T,3}; upper::Array{T,3}
+    robust_lower::Array{T,3}; robust_upper::Array{T,3}
+    single_prior_lower::Array{T,3}; single_prior_upper::Array{T,3}
+    informativeness::T; empty_set_prob::T; level::T
+end
 struct NormalityTestResult{T}
     test_name::Symbol; statistic::T; pvalue::T; df::Int
 end
@@ -631,7 +751,11 @@ end
 struct GMMModel{T}
     theta::Vector{T}; vcov::Matrix{T}; n_moments::Int; n_params::Int
     W::Matrix{T}; g_bar::Vector{T}; J_stat::T; J_pvalue::T
+    first_stage_F::T
 end
+GMMModel(theta::Vector{T}, vcov::Matrix{T}, n_moments::Int, n_params::Int,
+         W::Matrix{T}, g_bar::Vector{T}, J_stat::T, J_pvalue::T) where {T} =
+    GMMModel(theta, vcov, n_moments, n_params, W, g_bar, J_stat, J_pvalue, T(NaN))
 
 # ─── Volatility Types ────────────────────────────────────
 
@@ -751,6 +875,13 @@ VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
               aic, bic, hqic, loglik, deterministic, method, nothing,
               ["y$i" for i in 1:size(Y, 2)])
 
+# After VECMModel: mocks.jl is one flat top-to-bottom module, so a signature
+# type must already exist at include time.
+struct SVECResult{T}
+    B0::Matrix{T}; Q::Matrix{T}; Xi::Matrix{T}; n_permanent::Int
+    vecm::VECMModel{T}; identification::IdentificationStatus
+end
+
 VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
           Pi::Matrix{T}, Gamma::Vector{Matrix{T}}, mu::Vector{T}, U::Matrix{T},
           Sigma::Matrix{T}, aic::T, bic::T, hqic::T, loglik::T,
@@ -813,7 +944,42 @@ estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing,
               hyperopt::Symbol=:glp, varnames=nothing, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
                   10, p, size(Y,2), Y,
-                  varnames === nothing ? ["y$i" for i in 1:size(Y,2)] : varnames)
+                  varnames === nothing ? ["y$i" for i in 1:size(Y,2)] : varnames,
+                  seed === nothing ? nothing : capture_manifest(; seed=seed))
+
+# reproduce() for the manifest-carrying mock posterior (W3/#167 — mirrors real
+# reproduce(::BVARPosterior): decline without a recorded seed, else re-run from
+# the manifest seed and compare draws; the mock estimator is deterministic so a
+# re-run matches by construction, same simplification class as its ones()*0.1).
+# Lives HERE (not beside save_model): the typed signature resolves at include
+# time, so BVARPosterior must already be defined (forward-reference lesson).
+function reproduce(post::BVARPosterior)
+    m = post.manifest
+    if m === nothing || m.seed === nothing
+        return ReproReport(missing, ReproFieldDiff[], nothing, 1, 1,
+                           "no recorded seed: estimate with seed=N")
+    end
+    fresh = estimate_bvar(post.data, post.p; n_draws=post.n_draws,
+                          varnames=post.varnames, seed=m.seed)
+    diffs = [ReproFieldDiff("B_draws", isequal(post.B_draws, fresh.B_draws), 0.0),
+             ReproFieldDiff("Sigma_draws", isequal(post.Sigma_draws, fresh.Sigma_draws), 0.0)]
+    matched = all(d.matched for d in diffs)
+    return ReproReport(matched, diffs, m.seed, 1, Threads.nthreads(),
+                       matched ? "" : "re-run differs")
+end
+
+# Universal fallback (W3/#167 — mirrors real `reproduce(x)` at MEMs 0.9.3):
+# upstream answers EVERY other type with a missing-verdict ReproReport instead
+# of throwing MethodError, so `model reproduce` reports "unverifiable", never
+# model/unsupported, on real MEMs. Placed AFTER the typed methods above so
+# they win dispatch; the handler's MethodError catch stays as defense-in-depth
+# against a future upstream fallback removal.
+function reproduce(x)
+    return ReproReport(missing, ReproFieldDiff[], nothing, 0, Threads.nthreads(),
+        "reproduce() is not implemented for $(typeof(x)); supported: BVARPosterior, " *
+        "BayesianDSGE, KrusellSmithSolution, bootstrap ImpulseResponse (reproduce(ir, model)), " *
+        "and randomized estimators that record a ReproManifest.")
+end
 posterior_mean_model(post::BVARPosterior; data=nothing) =
     _mock_var(post.data, post.p; varnames=post.varnames)
 posterior_median_model(post::BVARPosterior; data=nothing) =
@@ -888,6 +1054,9 @@ report(::BayesianFEVD) = nothing
 report(::HistoricalDecomposition) = nothing
 report(::BayesianHistoricalDecomposition) = nothing
 report(::UhligSVARResult) = nothing
+report(::RobustBayesResult) = nothing
+report(::SVARModel) = nothing
+report(::SVECResult) = nothing
 
 # Global flag to control mock behavior for testing edge cases
 const _MOCK_FLAGS = Dict{Symbol,Any}(
@@ -930,7 +1099,11 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
              narrative_check=nothing, ci_type=:none, reps=200, conf_level=0.95,
              stationary_only=false, seed=nothing,
              bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
-             bias_correct::Bool=false, bias_reps::Int=0)
+             bias_correct::Bool=false, bias_reps::Int=0,
+             instruments=nothing, target=nothing, restrictions=nothing,
+             pattern=nothing, weighting=nothing, hetero=nothing,
+             maxiter=nothing, gibbs_burn=nothing, gibbs_draws=nothing,
+             init=nothing)
     bootstrap in (:iid, :wild, :block) || throw(ArgumentError(
         "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
     wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
@@ -956,7 +1129,9 @@ function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
 end
 function irf(post::BVARPosterior, horizon::Int;
              method=:cholesky, quantiles=[0.16, 0.5, 0.84],
-             check_func=nothing, narrative_check=nothing)
+             check_func=nothing, narrative_check=nothing,
+             weighting=nothing, hetero=nothing, maxiter=nothing,
+             gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
     vals = ones(horizon + 1, n, n) * 0.1
     q_vals = ones(horizon + 1, n, n, length(quantiles)) * 0.1
@@ -981,22 +1156,27 @@ end
 irf_bounds(s::SignIdentifiedSet; quantiles=[0.16, 0.84]) = (zeros(size(s.irf_draws)[2:4]...), ones(size(s.irf_draws)[2:4]...))
 irf_median(s::SignIdentifiedSet) = fill(0.5, size(s.irf_draws)[2:4]...)
 
-function identify_sign(model::VARModel, horizon::Int, check_func; max_draws=1000, store_all=false)
+function identify_sign(model::VARModel, horizon::Int, check_func; max_draws=1000, store_all=false,
+                       seed=nothing)
     n = size(model.Y, 2)
     if store_all
         n_d = 10
-        irf_draws = ones(n_d, horizon + 1, n, n) * 0.1
+        # Real compute_irf returns (horizon, n, n), impact-first (row 1 = horizon 0).
+        irf_draws = ones(n_d, horizon, n, n) * 0.1
         Q_draws = [Matrix{Float64}(I(n)) for _ in 1:n_d]
         return SignIdentifiedSet(Q_draws, irf_draws, n_d, max_draws, Float64(n_d/max_draws),
             ["var$i" for i in 1:n], ["shock$i" for i in 1:n])
     end
     Q = Matrix{Float64}(I(n))
-    irf_vals = ones(horizon + 1, n, n) * 0.1
+    irf_vals = ones(horizon, n, n) * 0.1
     return (Q, irf_vals)
 end
 
 # FEVD
-function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing)
+function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing,
+              instruments=nothing, target=nothing, restrictions=nothing, pattern=nothing,
+              weighting=nothing, hetero=nothing, maxiter=nothing, gibbs_burn=nothing,
+              gibbs_draws=nothing, init=nothing)
     n = size(model.Y, 2)
     props = ones(n, n, horizon) / n
     # Real carries model.varnames into the result (same gap as irf above).
@@ -1012,7 +1192,9 @@ function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
     BayesianFEVD(props, q, Float64.(quantiles))
 end
 function fevd(post::BVARPosterior, horizon::Int;
-              quantiles=[0.16, 0.5, 0.84])
+              method=:cholesky, quantiles=[0.16, 0.5, 0.84],
+              weighting=nothing, hetero=nothing, maxiter=nothing,
+              gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
     props = ones(n, n, horizon) / n
     q = ones(n, n, horizon, length(quantiles)) / n
@@ -1021,7 +1203,12 @@ end
 
 # Historical Decomposition
 function historical_decomposition(model::VARModel, horizon::Int; method=:cholesky,
-                                   check_func=nothing, narrative_check=nothing)
+                                   check_func=nothing, narrative_check=nothing,
+                                   instruments=nothing, target=nothing,
+                                   restrictions=nothing, pattern=nothing,
+                                   weighting=nothing, hetero=nothing,
+                                   maxiter=nothing, gibbs_burn=nothing,
+                                   gibbs_draws=nothing, init=nothing)
     n = size(model.Y, 2)
     T_eff = min(horizon, size(model.Y, 1) - model.p)
     contribs = ones(T_eff, n, n) * 0.1
@@ -1029,6 +1216,24 @@ function historical_decomposition(model::VARModel, horizon::Int; method=:cholesk
     initial = ones(T_eff, n) * 0.01
     shocks_mat = ones(T_eff, n)
     HistoricalDecomposition(contribs, initial, actual, shocks_mat, T_eff)
+end
+# Real (vecm/analysis.jl): method=:svec/:long_run go through identify_svec on the
+# VECM itself (KPSW default); everything else converts to the levels VAR first.
+# The mock mirrors the routing; the canned shapes come from the VAR path.
+function irf(vecm::VECMModel, horizon::Int; method=:cholesky, kwargs...)
+    (method === :svec || method === :long_run) ?
+        irf(to_var(vecm), horizon; method=:cholesky) :
+        irf(to_var(vecm), horizon; method=method, kwargs...)
+end
+function fevd(vecm::VECMModel, horizon::Int; method=:cholesky, kwargs...)
+    (method === :svec || method === :long_run) ?
+        fevd(to_var(vecm), horizon; method=:cholesky) :
+        fevd(to_var(vecm), horizon; method=method, kwargs...)
+end
+function historical_decomposition(vecm::VECMModel, horizon::Int; method=:cholesky, kwargs...)
+    (method === :svec || method === :long_run) ?
+        historical_decomposition(to_var(vecm), horizon; method=:cholesky) :
+        historical_decomposition(to_var(vecm), horizon; method=method, kwargs...)
 end
 function historical_decomposition(chain::MockChains, p::Int, n::Int, horizon::Int;
                                    data=nothing, method=:cholesky, quantiles=[0.16, 0.5, 0.84])
@@ -1039,7 +1244,10 @@ function historical_decomposition(chain::MockChains, p::Int, n::Int, horizon::In
     BayesianHistoricalDecomposition(mean_c, initial_m, q, Float64.(quantiles))
 end
 function historical_decomposition(post::BVARPosterior, horizon::Int;
-                                   method=:cholesky, quantiles=[0.16, 0.5, 0.84])
+                                   method=:cholesky, quantiles=[0.16, 0.5, 0.84],
+                                   seed=nothing, weighting=nothing, hetero=nothing,
+                                   maxiter=nothing, gibbs_burn=nothing,
+                                   gibbs_draws=nothing, init=nothing)
     n = post.n; p = post.p; data = post.data
     T_eff = size(data, 1) - p
     mean_c = ones(T_eff, n, n) * 0.1
@@ -1059,11 +1267,10 @@ end
 verify_decomposition(hd::HistoricalDecomposition; tol=1e-6) = _MOCK_FLAGS[:verify_decomposition]
 contribution(hd::HistoricalDecomposition, var::Int, shock::Int) = hd.contributions[:, var, shock]
 
-# SVAR restrictions
-zero_restriction(variable, shock; horizon=0) = ZeroRestriction(variable, shock, horizon)
-sign_restriction(variable, shock, sign::Symbol; horizon=0) = SignRestriction(variable, shock, sign, horizon)
+# SVAR restrictions (builders with validation live in the 0.9.2 block below —
+# zero/sign_restriction there cover :long_run and horizon ranges too)
 function identify_arias(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
-                        n_draws=1000, n_rotations=1000)
+                        n_draws=1000, n_rotations=1000, seed=nothing)
     n = size(model.Y, 2)
     n_d = 10
     irf_draws = ones(n_d, horizon + 1, n, n) * 0.1
@@ -1076,11 +1283,196 @@ end
 
 function identify_uhlig(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
                         n_starts=50, n_refine=10, max_iter_coarse=500, max_iter_fine=2000,
-                        tol_coarse=1e-4, tol_fine=1e-8)
+                        tol_coarse=1e-4, tol_fine=1e-8, seed=nothing)
     n = size(model.Y, 2)
     Q = Matrix{Float64}(I(n))
     irf_vals = ones(horizon + 1, n, n) * 0.1
     UhligSVARResult(Q, irf_vals, 1e-6, fill(1e-7, n), restrictions, true)
+end
+function identify_narrative(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
+                            kwargs...)
+    # Real (core/arias.jl) is a thin wrapper around identify_arias for ADRR
+    # narrative restrictions — mirror it exactly.
+    identify_arias(model, restrictions, horizon; kwargs...)
+end
+
+# ─── SVAR restriction builders (0.9.2) ────────────────────
+# Mirror real validation (ArgumentError) so degenerate TOML fails the same way
+# on mocks and real MEMs; sign convention stays Symbol (CLI-facing).
+_mock_parse_sign(s::Symbol) =
+    s === :positive ? s : s === :negative ? s :
+        throw(ArgumentError("sign must be :positive or :negative"))
+_mock_check_range(hs, what) =
+    (all(h -> h isa Integer && h >= 1, hs) ||
+        throw(ArgumentError("$what horizons must be ≥ 1"))) &&
+    UnitRange{Int}(minimum(hs), maximum(hs))
+
+function zero_restriction(variable, shock; horizon=0)
+    horizon === :long_run && return LongRunZeroRestriction(variable, shock)
+    horizon isa Integer && horizon >= 0 ||
+        throw(ArgumentError("restriction horizon must be ≥ 0 or :long_run"))
+    ZeroRestriction(variable, shock, Int(horizon))
+end
+function sign_restriction(variable, shock, sign::Symbol; horizon=0, horizons=nothing)
+    s = _mock_parse_sign(sign)
+    if horizons !== nothing
+        r = _mock_check_range(horizons, "sign restriction")
+        return [SignRestriction(variable, shock, s, h) for h in r]
+    end
+    horizon isa Integer && horizon >= 0 ||
+        throw(ArgumentError("restriction horizon must be ≥ 0"))
+    SignRestriction(variable, shock, s, Int(horizon))
+end
+a0_zero_restriction(equation, shock) = A0ZeroRestriction(equation, shock)
+a0_sign_restriction(equation, shock, sign::Symbol) =
+    A0SignRestriction(equation, shock, _mock_parse_sign(sign))
+function elasticity_bound(numerator_var, denominator_var, shock;
+                          horizon=0, lower=-Inf, upper=Inf)
+    lower <= upper || throw(ArgumentError("elasticity lower bound exceeds upper"))
+    ElasticityBound(numerator_var, denominator_var, shock, Int(horizon),
+                    Float64(lower), Float64(upper))
+end
+function magnitude_bound(variable, shock; horizon=0, lower, upper)
+    lower <= upper || throw(ArgumentError("magnitude lower bound exceeds upper"))
+    MagnitudeBound(variable, shock, Int(horizon), Float64(lower), Float64(upper))
+end
+function cumulative_restriction(variable, shock, sign::Symbol; horizons)
+    r = _mock_check_range(horizons, "cumulative restriction")
+    CumulativeRestriction(variable, shock, r, _mock_parse_sign(sign))
+end
+function narrative_shock_restriction(shock, dates, sign::Symbol)
+    ds = collect(Int, dates)
+    (all(d -> d >= 1, ds) && !isempty(ds)) ||
+        throw(ArgumentError("narrative dates must be nonempty and ≥ 1"))
+    NarrativeShockRestriction(shock, ds, _mock_parse_sign(sign))
+end
+function narrative_contribution_restriction(variable, shock, window; kind=:most_important)
+    kind in (:most_important, :overwhelming, :least_important) || throw(ArgumentError(
+        "kind must be :most_important (Type A), :overwhelming (Type B), or :least_important"))
+    w = _mock_check_range(window, "narrative contribution")
+    NarrativeContributionRestriction(variable, shock, w, kind)
+end
+
+# ─── SVAR identification estimators (0.9.2, canned) ───────
+function identify_proxy(model::VARModel, z::AbstractVector; normalize=1, normalize_value=1.0)
+    (length(z) == size(model.Y, 1) || length(z) == size(model.Y, 1) - model.p) ||
+        throw(ArgumentError("instrument length must match T or T - p"))
+    n = size(model.Y, 2)
+    ProxySVARResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), 1, 25.0, 0.9,
+                    ["z"], model.varnames, ["shock$i" for i in 1:n], false)
+end
+identify_proxy(model::VARModel, Z::AbstractMatrix; normalize=1, normalize_value=1.0) =
+    identify_proxy(model, vec(Z); normalize=normalize, normalize_value=normalize_value)
+function identify_max_share(model::VARModel; target=nothing, horizons=nothing,
+                            band=:auto, kwargs...)
+    target === nothing && throw(ArgumentError("identify_max_share requires `target`"))
+    n = size(model.Y, 2)
+    (target isa Integer ? 1 <= target <= n : target in model.varnames) ||
+        throw(ArgumentError("target must be a variable index or name"))
+    hs = horizons === nothing ? [4, 8] : collect(Int, horizons)
+    MaxShareResult(zeros(n), zeros(n), target isa Integer ? target : 1, hs, band,
+                   0.75, ones(n), model.varnames, ["shock$i" for i in 1:n], false)
+end
+function identify_gmm_moments(model::VARModel; moments=:both, weighting=:two_step,
+                              kwargs...)
+    moments in (:independence, :cumulant, :both) ||
+        throw(ArgumentError("moments must be :independence, :cumulant, or :both"))
+    weighting in (:identity, :two_step, :cue) ||
+        throw(ArgumentError("weighting must be :identity, :two_step, or :cue"))
+    n = size(model.Y, 2)
+    T = size(model.Y, 1)
+    NonGaussianGMMResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), zeros(n),
+                         Matrix{Float64}(I(n)), zeros(n), 1.5, 0.45, moments, weighting,
+                         zeros(T, n), model.varnames, ["shock$i" for i in 1:n])
+end
+function identify_svec(vecm::VECMModel; long_run_zeros=nothing, short_run_zeros=nothing,
+                       pattern=nothing, n_starts=5, max_iter=400, kwargs...)
+    n = size(vecm.Y, 2)
+    SVECResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), zeros(n, n), vecm.rank,
+               vecm, IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0))
+end
+function estimate_svar(model::VARModel, pattern::SVARPattern; n_starts=5, max_iter=400,
+                       long_run_matrix=nothing, rng=nothing, kwargs...)
+    n = size(model.Y, 2)
+    n_starts >= 1 || throw(ArgumentError("n_starts must be ≥ 1, got $n_starts"))
+    (size(pattern.A) == (n, n) && size(pattern.B) == (n, n)) ||
+        throw(ArgumentError("Pattern dimension ($(size(pattern.A, 1))) must match model ($n)"))
+    SVARModel(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), Matrix{Float64}(I(n)),
+              nothing, nothing, -100.0, 0.0, 0, 1.0, pattern,
+              IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0), model.varnames)
+end
+function recursive_pattern(n::Integer)
+    n >= 1 || throw(ArgumentError("n must be positive"))
+    A = Matrix{Float64}(I, n, n)
+    for i in 2:n, j in 1:i-1
+        A[i, j] = NaN
+    end
+    B = zeros(n, n)
+    for i in 1:n
+        B[i, i] = NaN
+    end
+    SVARPattern(A, B)
+end
+function a_model_pattern(A::AbstractMatrix)
+    n = size(A, 1)
+    T = float(eltype(A))
+    SVARPattern(A, Matrix{T}(I, n, n))
+end
+function b_model_pattern(B::AbstractMatrix)
+    n = size(B, 1)
+    T = float(eltype(B))
+    SVARPattern(Matrix{T}(I, n, n), B)
+end
+ab_model_pattern(A::AbstractMatrix, B::AbstractMatrix; long_run=nothing) =
+    SVARPattern(A, B; long_run=long_run)
+function blanchard_quah_pattern(n::Integer)
+    n >= 1 || throw(ArgumentError("n must be positive"))
+    B = fill(NaN, n, n)
+    lr = fill(NaN, n, n)
+    for i in 1:n, j in i+1:n
+        lr[i, j] = 0.0
+    end
+    SVARPattern(Matrix{Float64}(I, n, n), B; long_run=lr)
+end
+function identify_robust_bayes(post::BVARPosterior, restrictions::SVARRestrictions,
+                               horizon::Int; level=0.68, solver=:optimize,
+                               n_draws=200, n_rotations=100, rng=nothing, data=nothing)
+    (0 < level < 1) || throw(ArgumentError("level must lie in (0, 1)"))
+    horizon >= 1 || throw(ArgumentError("horizon must be ≥ 1"))
+    solver === :draws || solver === :optimize ||
+        throw(ArgumentError("solver must be :draws or :optimize, got :$solver"))
+    n = post.n
+    # Real returns (horizon, n, n) arrays (horizon × variable × shock).
+    lo = fill(0.05, horizon, n, n)
+    hi = fill(0.15, horizon, n, n)
+    RobustBayesResult(lo, hi, lo .- 0.05, hi .+ 0.05, lo .+ 0.01, hi .- 0.01,
+                      0.2, 0.0, 0.68)
+end
+label_shocks(result; by=:restrictions, restrictions=nothing, variables=nothing,
+             convention=:unit_effect) = (collect(1:size(result.B0, 2)), ones(Int, size(result.B0, 2)))
+median_target(s::SignIdentifiedSet) =
+    (Q=s.Q_draws[1], irf=s.irf_draws[1, :, :, :], index=1)
+modal_model(s::SignIdentifiedSet; bandwidth=nothing, kwargs...) =
+    (Q=s.Q_draws[1], irf=s.irf_draws[1, :, :, :], index=1)
+joint_band(s::SignIdentifiedSet; level=0.68, kwargs...) =
+    (s.irf_draws[1, :, :, :] .- 0.1, s.irf_draws[1, :, :, :] .+ 0.1)
+sup_t_band(s::SignIdentifiedSet; level=0.68, kwargs...) =
+    (s.irf_draws[1, :, :, :] .- 0.1, s.irf_draws[1, :, :, :] .+ 0.1)
+test_lambda_distinct(result; pairs=:all) =
+    (statistic=[8.0], pvalue=[0.02], pvalue_bonferroni=[0.02], pairs=[(1, 2)])
+test_gaussian_shock_count(result; alpha=0.05) =
+    (statistic=2.0, pvalue=0.35, details=Dict(:n_gaussian => 1))
+test_label_stability(model::VARModel; method=:fastica, n_bootstrap=999, rng=nothing,
+                     transition_var=nothing, regime_indicator=nothing) =
+    (statistic=0.95, pvalue=NaN)
+function check_identification(restrictions::SVARRestrictions, model::VARModel; n_points=10, rng=nothing)
+    IdentificationStatus(:set, fill(1, 1), fill(1, 1), 0)
+end
+function check_identification(pattern::SVARPattern, n::Int)
+    n >= 1 || throw(ArgumentError("n must be positive"))
+    size(pattern.A, 1) == n || throw(ArgumentError(
+        "Pattern dimension ($(size(pattern.A, 1))) must match n=$n"))
+    IdentificationStatus(:exact, fill(1, 1), fill(1, 1), 0)
 end
 
 # Chain parameter extraction (BVAR forecast)
@@ -1139,7 +1531,7 @@ function lp_iv_irf(model::LPIVModel; conf_level=0.95)
     LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
 end
 # Real returns (F_stats, weak_horizons, min_F, passes_threshold, threshold) — there is NO
-# `F_stat`/`is_weak`. The old mock invented both, so `estimate lp --method iv` passed T1/T2
+# `F_stat`/`is_weak`. The old mock invented both, so `estimate var lp --method iv` passed T1/T2
 # while exiting 1 on every real invocation (W10/#112). Mirror real's tuple exactly.
 function weak_instrument_test(model::LPIVModel; threshold=10.0)
     F_stats = model.first_stage_F
@@ -1186,7 +1578,8 @@ doubly_robust_lp(Y, treatment, covariates, horizon; ps_method=:logit) =
 
 function structural_lp(Y, horizon; method=:cholesky, lags=4, var_lags=4,
                        cov_type=:newey_west, ci_type=:none, reps=200, conf_level=0.95,
-                       check_func=nothing, narrative_check=nothing, max_draws=1000)
+                       check_func=nothing, narrative_check=nothing, max_draws=1000,
+                       seed=nothing)
     T_obs, n = size(Y); p = var_lags
     model = _mock_var(Y, p)
     irf_vals = ones(horizon + 1, n, n) * 0.1
@@ -1236,7 +1629,10 @@ end
 function ic_criteria_gdfm(X, max_q; standardize=true)
     (q_ratio=min(2, max_q), q_opt=min(2, max_q))
 end
-function estimate_gdfm(X, q; r=2, standardize=true, bandwidth=0, kernel=:bartlett)
+function estimate_gdfm(X, q; r=2, standardize=true, bandwidth=0, kernel=:bartlett,
+                       spectral=:lag_window)
+    spectral in (:lag_window, :smoothed_periodogram) ||
+        throw(ArgumentError("spectral must be :lag_window or :smoothed_periodogram, got :$spectral"))
     T_obs, n = size(X)
     bw = bandwidth == 0 ? 5 : bandwidth
     fac = ones(T_obs, r) * 0.1
@@ -1297,6 +1693,17 @@ function estimate_lp_gmm(Y, shock_var, horizon; lags=4, weighting=:two_step)
     theta = ones(3) * 0.1
     vcov = Matrix{Float64}(I(3)) * 0.01
     [GMMModel(theta, vcov, 4, 3, Matrix{Float64}(I(4)), ones(4)*0.01, 2.5, 0.65)]
+end
+function estimate_gmm(moment_fn, theta0::AbstractVector{T}, data;
+                      weighting::Symbol=:two_step, max_iter::Int=100,
+                      tol::T=T(1e-8), hac::Bool=true, bandwidth::Int=0,
+                      bounds=nothing, X=nothing, Z=nothing,
+                      endogenous=nothing) where {T<:AbstractFloat}
+    n = length(theta0)
+    q = n + 1
+    fs = (X !== nothing && Z !== nothing) ? T(50) : T(NaN)
+    GMMModel(ones(T, n) .* T(0.1), Matrix{T}(I(n)) .* T(0.01),
+             q, n, Matrix{T}(I(q)), ones(T, q) .* T(0.01), T(2.5), T(0.65), fs)
 end
 gmm_summary(model::GMMModel) = (n_moments=model.n_moments, n_params=model.n_params, theta=model.theta)
 j_test(model::GMMModel) = (J_stat=model.J_stat, p_value=model.J_pvalue, df=model.n_moments - model.n_params)
@@ -1446,7 +1853,7 @@ estimate_egarch(y, p, q; dist::Symbol=:normal) =
     (_mock_dist_check(dist); EGARCHModel(ones(2*q+p+2) * 0.1))
 estimate_gjr_garch(y, p, q; dist::Symbol=:normal) =
     (_mock_dist_check(dist); GJRGARCHModel(ones(2*q+p+2) * 0.1))
-estimate_sv(y; n_samples=5000) = SVModel(ones(3) * 0.1)
+estimate_sv(y; n_samples=5000, seed=nothing) = SVModel(ones(3) * 0.1)
 coef(m::ARCHModel) = [m.mu, m.omega, m.alpha...]
 coef(m::GARCHModel) = [m.mu, m.omega, m.alpha..., m.beta...]
 coef(m::EGARCHModel) = [m.mu, m.omega, m.alpha..., m.gamma..., m.beta...]
@@ -1574,11 +1981,11 @@ function _mock_ica(model::VARModel, method_sym::Symbol)
     ICASVARResult(ones(n,n)*0.3, ones(n,n)*0.3, Matrix{Float64}(I(n)),
                   ones(T_u, n)*0.1, method_sym, true, 50, 0.001)
 end
-identify_fastica(model::VARModel; contrast=:logcosh, max_iter=200, tol=1e-6) = _mock_ica(model, :fastica)
+identify_fastica(model::VARModel; contrast=:logcosh, max_iter=200, tol=1e-6, seed=nothing) = _mock_ica(model, :fastica)
 identify_jade(model::VARModel) = _mock_ica(model, :jade)
 identify_sobi(model::VARModel) = _mock_ica(model, :sobi)
 identify_dcov(model::VARModel) = _mock_ica(model, :dcov)
-identify_hsic(model::VARModel) = _mock_ica(model, :hsic)
+identify_hsic(model::VARModel; seed=nothing) = _mock_ica(model, :hsic)
 
 function _mock_ngml(model::VARModel, dist::Symbol)
     n = size(model.Y, 2); T_u = size(model.U, 1)
@@ -1615,10 +2022,10 @@ function normality_test_suite(model::VARModel)
         ])
     end
 end
-test_identification_strength(model::VARModel) = (statistic=25.0, pvalue=0.001)
+test_identification_strength(model::VARModel; seed=nothing) = (statistic=25.0, pvalue=0.001)
 test_shock_gaussianity(result::ICASVARResult) = (statistic=12.0, pvalue=0.005)
-test_shock_independence(result::ICASVARResult) = (statistic=3.0, pvalue=0.08)
-test_overidentification(model::VARModel, result::ICASVARResult) = (statistic=1.5, pvalue=0.45)
+test_shock_independence(result::ICASVARResult; seed=nothing) = (statistic=3.0, pvalue=0.08)
+test_overidentification(model::VARModel, result::ICASVARResult; seed=nothing) = (statistic=1.5, pvalue=0.45)
 test_overidentification(result::ICASVARResult) = (statistic=1.5, pvalue=0.45)
 test_gaussian_vs_nongaussian(model::VARModel) = (statistic=18.0, pvalue=0.001)
 
@@ -1872,7 +2279,7 @@ end
 # MEMs 0.7.0 (C054): kwargs n_boot→n_draws, conf_level→ci; returns a NamedTuple
 # (irf, lower, upper, draws) of raw (H+1)×n×n arrays, not an ImpulseResponse.
 function pvar_bootstrap_irf(model::PVARModel, horizon::Int;
-                             n_draws=500, ci=0.95, irf_type=:oirf)
+                             n_draws=500, ci=0.95, irf_type=:oirf, seed=nothing)
     n = model.m
     vals = ones(horizon + 1, n, n) * 0.1
     (irf=vals, lower=vals .- 0.5, upper=vals .+ 0.5,
@@ -2038,6 +2445,12 @@ export VARModel, MockChains, BVARPosterior, MinnesotaHyperparameters
 export ImpulseResponse, BayesianImpulseResponse, FEVD, BayesianFEVD
 export HistoricalDecomposition, BayesianHistoricalDecomposition
 export ZeroRestriction, SignRestriction, SVARRestrictions, AriasSVARResult, UhligSVARResult
+export LongRunZeroRestriction, A0ZeroRestriction, A0SignRestriction
+export ElasticityBound, MagnitudeBound, CumulativeRestriction
+export NarrativeShockRestriction, NarrativeContributionRestriction
+export IdentificationStatus, SVARPattern
+export ProxySVARResult, MaxShareResult, NonGaussianGMMResult, SVECResult, SVARModel
+export RobustBayesResult
 export LPModel, LPIVModel, SmoothLPModel, StateLPModel, PropensityLPModel
 export LPImpulseResponse, StructuralLP, LPFEVD, LPForecast
 export FactorModel, DynamicFactorModel, GeneralizedDynamicFactorModel, FactorForecast
@@ -2064,7 +2477,14 @@ export irf, fevd, historical_decomposition, verify_decomposition, contribution
 export cumulative_irf
 export SignIdentifiedSet, identify_sign, irf_bounds, irf_median
 export VARForecast
-export zero_restriction, sign_restriction, identify_arias, irf_mean, identify_uhlig
+export zero_restriction, sign_restriction, identify_arias, irf_mean, identify_uhlig, identify_narrative
+export a0_zero_restriction, a0_sign_restriction, elasticity_bound, magnitude_bound
+export cumulative_restriction, narrative_shock_restriction, narrative_contribution_restriction
+export identify_proxy, identify_max_share, identify_gmm_moments, identify_svec
+export estimate_svar, recursive_pattern, a_model_pattern, b_model_pattern, ab_model_pattern
+export blanchard_quah_pattern, identify_robust_bayes, label_shocks
+export median_target, modal_model, joint_band, sup_t_band, check_identification
+export test_lambda_distinct, test_gaussian_shock_count, test_label_stability
 export estimate_lp, lp_irf, estimate_lp_iv, lp_iv_irf, weak_instrument_test
 export estimate_smooth_lp, smooth_lp_irf, cross_validate_lambda
 export estimate_state_lp, state_irf, test_regime_difference
@@ -2074,7 +2494,7 @@ export estimate_factors, ic_criteria, scree_plot_data
 export estimate_dynamic_factors, ic_criteria_gdfm, estimate_gdfm, common_variance_share
 export adf_test, kpss_test, pp_test, za_test, ngperron_test, johansen_test
 export gph_test, local_whittle
-export estimate_lp_gmm, gmm_summary, j_test
+export estimate_lp_gmm, estimate_gmm, gmm_summary, j_test
 export estimate_ar, estimate_ma, estimate_arma, estimate_arima, auto_arima, estimate_arfima
 export ar_order, ma_order, diff_order, aic, bic
 export estimate_arch, estimate_garch, estimate_egarch, estimate_gjr_garch, estimate_sv
@@ -2113,6 +2533,26 @@ end
 struct CrossSectionData{T<:Real}
     data::Matrix{T}; varnames::Vector{String}; obs_id::Vector{Int}
     N_obs::Int; n_vars::Int; desc::Vector{String}; vardesc::Vector{String}
+end
+# Keyword constructor matching real MEMs `CrossSectionData(data; varnames, obs_id, …)`.
+# Mock `vardesc` is Vector{String} (real is Dict); convert a Dict when given.
+function CrossSectionData(data::AbstractMatrix{T};
+                          varnames=nothing,
+                          obs_id=nothing,
+                          desc::AbstractString="",
+                          vardesc=nothing,
+                          source_refs=Symbol[]) where {T<:Real}
+    N_obs, n_vars = size(data)
+    vn = varnames === nothing ? String["x$i" for i in 1:n_vars] : Vector{String}(varnames)
+    oid = obs_id === nothing ? collect(1:N_obs) : Vector{Int}(obs_id)
+    vd = if vardesc === nothing
+        fill("", n_vars)
+    elseif vardesc isa AbstractDict
+        String[String(get(vardesc, v, "")) for v in vn]
+    else
+        Vector{String}(vardesc)
+    end
+    CrossSectionData{T}(Matrix{T}(data), vn, oid, N_obs, n_vars, [String(desc)], vd)
 end
 
 struct DataDiagnostic
@@ -2263,6 +2703,26 @@ function describe_data(d::TimeSeriesData)
     ku = fill(3.0, nv)
     DataSummary(n, m, s, mn, p25, med, p75, mx, sk, ku)
 end
+# Real MEMs has describe_data(::PanelData) / (::CrossSectionData) returning the
+# same DataSummary. PanelData also prints panel_summary to stdout (real
+# summary_stats.jl); the CLI captures that dump onto stderr.
+function panel_summary(io::IO, d::PanelData)
+    println(io, "Panel Structure: $(d.n_groups) groups, $(d.T_obs) total observations")
+    println(io, "  Balance: ", d.balanced ? "balanced" : "unbalanced")
+    println(io, "  Variables: ", join(d.varnames, ", "))
+end
+panel_summary(d::PanelData) = panel_summary(stdout, d)
+
+function describe_data(d::PanelData)
+    s = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
+    try
+        panel_summary(stdout, d)
+    catch e
+        e isa Base.IOError || rethrow()
+    end
+    s
+end
+describe_data(d::CrossSectionData) = describe_data(TimeSeriesData(d.data; varnames=d.varnames))
 
 # Simple std without Distributions dependency
 function std_mock(X::AbstractMatrix)
@@ -2280,6 +2740,9 @@ function diagnose(d::TimeSeriesData)
     is_clean = all(n_nan .== 0) && all(n_inf .== 0) && !any(is_const) && !is_short
     DataDiagnostic(n_nan, n_inf, is_const, is_short, is_clean)
 end
+# Real diagnose(::AbstractMacroData) covers PanelData / CrossSectionData.
+diagnose(d::PanelData) = diagnose(TimeSeriesData(d.data; varnames=d.varnames))
+diagnose(d::CrossSectionData) = diagnose(TimeSeriesData(d.data; varnames=d.varnames))
 
 function fix(d::TimeSeriesData; method=:listwise)
     # Mock: return same data (pretend it was cleaned)
@@ -2302,6 +2765,11 @@ function validate_for_model(d::TimeSeriesData, model_type::Symbol)
     end
     nothing
 end
+# Real validate_for_model(::AbstractMacroData, ::Symbol) covers the other containers.
+validate_for_model(d::PanelData, model_type::Symbol) =
+    validate_for_model(TimeSeriesData(d.data; varnames=d.varnames), model_type)
+validate_for_model(d::CrossSectionData, model_type::Symbol) =
+    validate_for_model(TimeSeriesData(d.data; varnames=d.varnames), model_type)
 
 function apply_filter(y::AbstractVector, method::Symbol; kwargs...)
     if method == :hp
@@ -2437,9 +2905,9 @@ end
 export AbstractNowcastModel, NowcastDFM, NowcastBVAR, NowcastBridge, NowcastResult, NowcastNews
 export nowcast_dfm, nowcast_bvar, nowcast_bridge, nowcast, nowcast_news
 
-export TimeSeriesData, DataDiagnostic, DataSummary
+export TimeSeriesData, CrossSectionData, DataDiagnostic, DataSummary
 export load_example, to_matrix, varnames, frequency, desc, vardesc, nobs, nvars
-export describe_data, diagnose, fix, apply_tcode, validate_for_model, apply_filter
+export describe_data, panel_summary, diagnose, fix, apply_tcode, validate_for_model, apply_filter
 
 # ─── DSGE Types (MEMs 0.9.0 ModelSpec; ModelSpec/HAModelSpec are gone) ──
 
@@ -2614,7 +3082,11 @@ macro dsge(block)
     util_decl = _mock_dsge_extract(block, :utility)
     beta_decl = _mock_dsge_extract(block, :beta)
     ctrl_decl = Symbol[v for v in _mock_dsge_extract(block, :controls) if v isa Symbol]
-    bu = isempty(util_decl) ? nothing : (util_decl[1] === :log ? log : util_decl[1])
+    # Quote: real @dsge stores the utility form unevaluated, and splicing it
+    # bare evaluates `C` in the caller's scope (UndefVarError). Latent until
+    # the first T1/T2 VFI-success test (only the config-error path existed).
+    bu = isempty(util_decl) ? nothing :
+        (util_decl[1] === :log ? log : QuoteNode(util_decl[1]))
     bb = isempty(beta_decl) ? nothing : beta_decl[1]
     bc = isempty(ctrl_decl) ? nothing : ctrl_decl[1]
     agents = if is_ha
@@ -2661,6 +3133,8 @@ struct ProjectionSolution{T<:Real}
     value_fn::Matrix{T}
     collocation_nodes::Matrix{T}
     value_coefficients::Vector{T}
+    # Real field (MEMs ≥ 0.9.0): n_blocks × nx level set, 0×0 off Smolyak.
+    smolyak_levels::Matrix{Int}
 end
 
 struct PerfectForesightPath{T<:Real}
@@ -2777,12 +3251,37 @@ function solve(spec::ModelSpec{T}; method=:gensys, order=1, degree=5, grid=:auto
         ss = zeros(T, n)
         state_idx = collect(1:n_states)
         control_idx = collect(n_states+1:n)
+        # VFI-only mirrors of the real 0.9.5 validation (exit-class parity).
+        # n_ctrl follows the real rule: explicit bellman_controls, else the
+        # non-state endogenous (the mock's own control block). Unknown
+        # optimizer symbols are CLI-unreachable (parser choices + map guard).
+        opt = get(kwargs, :optimizer, :auto)
+        mu = get(kwargs, :smolyak_mu, nothing)
+        if method === :vfi
+            nctrl = isempty(spec.bellman_controls) ? n_controls :
+                length(spec.bellman_controls)
+            opt === :grid1d && nctrl != 1 && throw(ArgumentError(
+                "optimizer=:grid1d supports one continuous control (got $nctrl)"))
+            gres = grid === :auto ? (n_states <= 3 ? :tensor : :smolyak) : grid
+            if gres === :smolyak && mu !== nothing
+                muv = mu isa Integer ? fill(Int(mu), n_states) : collect(Int, mu)
+                ((mu isa Integer && mu >= 0) || all(>=(0), muv)) ||
+                    throw(ArgumentError("smolyak_mu must be ≥ 0"))
+                length(muv) == n_states || throw(ArgumentError(
+                    "smolyak_mu must be a scalar or a vector of length nx=$n_states"))
+            end
+        else
+            gres = grid == :auto ? :chebyshev : grid
+        end
         vf = method === :vfi ? reshape(T[T(i) for i in 1:5], 5, 1) : zeros(T, 0, 0)
-        nodes = method === :vfi ? hcat(range(T(-1), T(1); length=5)) : zeros(T, 0, 0)
+        nodes = method === :vfi ?
+            repeat(collect(range(T(-1), T(1); length=5)), 1, n_states) : zeros(T, 0, 0)
         vc = method === :vfi ? T[0.1, 0.2, 0.3] : T[]
-        return ProjectionSolution{T}(coeffs, bounds, grid == :auto ? :chebyshev : grid, degree,
+        lv = (method === :vfi && gres === :smolyak) ? fill(2, 3, n_states) :
+            zeros(Int, 0, 0)
+        return ProjectionSolution{T}(coeffs, bounds, gres, degree,
             T(1e-8), true, 50, method, spec, ld, ss, state_idx, control_idx,
-            vf, nodes, vc)
+            vf, nodes, vc, lv)
     else
         return _mock_solution(spec; method=method)
     end
@@ -2893,7 +3392,27 @@ end
 function simulate(sol::PerturbationSolution{T}, T_periods::Int; kwargs...) where T
     randn(T, T_periods, sol.spec.n_endog)
 end
+# Real (projection.jl:996): rescale Chebyshev [-1,1] nodes to state levels.
+function physical_nodes(sol::ProjectionSolution{T}) where {T}
+    Z = sol.collocation_nodes
+    bounds = sol.state_bounds
+    n, nx = size(Z)
+    X = similar(Z)
+    for i in 1:n
+        for d in 1:nx
+            a = bounds[d, 1]; b = bounds[d, 2]
+            X[i, d] = a + (Z[i, d] + one(T)) / T(2) * (b - a)
+        end
+    end
+    return X
+end
+
 function simulate(sol::ProjectionSolution{T}, T_periods::Int; kwargs...) where T
+    # Real simulate (simulation.jl:206) takes shock_draws/seed/rng only —
+    # reject antithetic like real (MethodError → internal/error both tiers).
+    # Regression net for the W1 dsge-simulate fix: the CLI must never pass
+    # antithetic here, so this fires only if the fix regresses.
+    haskey(kwargs, :antithetic) && throw(MethodError(simulate, (sol, T_periods)))
     randn(T, T_periods, sol.spec.n_endog)
 end
 
@@ -2956,7 +3475,7 @@ export LinearDSGE, DSGESolution, PerturbationSolution
 export ProjectionSolution, PerfectForesightPath, DSGEEstimation
 export OccBinConstraint, VariableBound, NonlinearConstraint, nonlinear_constraint, OccBinSolution, OccBinIRF
 export compute_steady_state, linearize, solve, gensys, blanchard_kahn, klein
-export perturbation_solver, collocation_solver, pfi_solver
+export perturbation_solver, collocation_solver, pfi_solver, physical_nodes
 export perfect_foresight, occbin_solve, occbin_irf, parse_constraint, variable_bound
 export estimate_dsge, simulate, is_determined, is_stable, nshocks
 export @dsge
@@ -4344,7 +4863,8 @@ function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVec
                             ci_level::Real=0.95, het::Bool=false,
                             rng::Random.AbstractRNG=Random.default_rng(),
                             xnames::Union{Nothing,Vector{String}}=nothing,
-                            qname::String="q", p::Int=0, d::Int=0, is_setar::Bool=false)
+                            qname::String="q", p::Int=0, d::Int=0, is_setar::Bool=false,
+                            seed=nothing)
     yv = Vector{Float64}(collect(Float64, y))
     Xm = Matrix{Float64}(X)
     qv = Vector{Float64}(collect(Float64, q))
@@ -4384,7 +4904,7 @@ end
 
 function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, linearity::Bool=true,
                         reps::Int=1000, ci_level::Real=0.95, het::Bool=false,
-                        rng::Random.AbstractRNG=Random.default_rng())
+                        rng::Random.AbstractRNG=Random.default_rng(), seed=nothing)
     p >= 1 || throw(ArgumentError("SETAR order p must be ≥ 1; got $p."))
     (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
     (ci_level ≈ 0.90 || ci_level ≈ 0.95 || ci_level ≈ 0.99) ||
@@ -4448,7 +4968,7 @@ function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, lineari
 end
 
 function forecast(m::ThresholdModel, h::Int; reps::Int=1000, level::Real=0.95,
-                  rng::Random.AbstractRNG=Random.default_rng())
+                  rng::Random.AbstractRNG=Random.default_rng(), seed=nothing)
     m.is_setar || throw(ArgumentError(
         "forecast is only defined for SETAR models (from estimate_setar)."))
     h >= 1 || throw(ArgumentError("horizon h must be ≥ 1."))
@@ -4627,7 +5147,7 @@ function star_linearity_test(y::AbstractVector, p::Int; s=nothing, d::Int=1)
 end
 
 function forecast(m::STARModel, h::Int; reps::Int=1000, level::Real=0.95,
-                  rng::Random.AbstractRNG=Random.default_rng())
+                  rng::Random.AbstractRNG=Random.default_rng(), seed=nothing)
     startswith(m.sname, "y[t-") || throw(ArgumentError(
         "forecast is only defined for self-exciting STAR models (sₜ = y_{t-d})."))
     h >= 1 || throw(ArgumentError("horizon h must be ≥ 1."))
@@ -4903,7 +5423,7 @@ function estimate_ms_ar(y::AbstractVector, p::Int; k_regimes::Int=2,
 end
 
 # Real MEMs defines StatsAPI.residuals for all three nonlinear types (nonlinear/types.jl:256,
-# :450, :618) — these mirror it so `residuals setar|star|ms-ar|ms` are exercised at T1/T2.
+# :450, :618) — these mirror it so `residuals regime setar|star|ms-ar|ms` are exercised at T1/T2.
 # Defined HERE, after all three structs: the mock is one flat module included top-to-bottom and
 # a method signature resolves its types immediately, so a forward reference is an include-time
 # UndefVarError. Still NO `predict` for ThresholdModel/STARModel — real has none for those, and
@@ -5082,7 +5602,7 @@ end
 function estimate_did(pd::PanelData{T}, outcome, treatment;
         method=:twfe, leads=0, horizon=5, covariates=String[],
         control_group=:never_treated, cluster=:unit,
-        conf_level=0.95, n_boot=200, base_period=:varying) where T
+        conf_level=0.95, n_boot=200, base_period=:varying, seed=nothing) where T
     et = collect(-leads:horizon)
     n_et = length(et)
     att = fill(T(0.5), n_et)
@@ -5213,7 +5733,8 @@ struct BayesianFAVAR{T<:Real}
 end
 
 function estimate_favar(X::Matrix{T}, key_indices::Vector{Int}, r::Int, p::Int;
-                        method=:two_step, n_draws=5000, panel_varnames=nothing) where T
+                        method=:two_step, n_draws=5000, panel_varnames=nothing,
+                        seed=nothing) where T
     n_obs, n_vars = size(X)
     n_key = length(key_indices)
     n_aug = r + n_key
@@ -5302,26 +5823,61 @@ end
 function estimate_structural_dfm(X::Matrix{T}, q::Int;
         identification=:cholesky, p=1, H=40, sign_check=nothing,
         max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett,
-        varnames::Union{Nothing,Vector{String}}=nothing) where T
+        spectral=:lag_window, method=:fglr, instrument=nothing, seed=nothing,
+        r=0, varnames::Union{Nothing,Vector{String}}=nothing,
+        id_kwargs::NamedTuple=NamedTuple()) where T
+    method in (:fglr, :gdfm_var) ||
+        throw(ArgumentError("method must be :fglr or :gdfm_var, got :$method"))
+    spectral in (:lag_window, :smoothed_periodogram) ||
+        throw(ArgumentError("spectral must be :lag_window or :smoothed_periodogram, got :$spectral"))
+    # Real (factor/structural.jl) requires an instrument for proxy identification.
+    identification === :proxy && instrument === nothing && throw(ArgumentError(
+        "identification=:proxy requires `instrument`"))
     n_obs, n_vars = size(X)
     # Real (factor/structural.jl, MEMs#538) defaults and validates the length.
     vn = varnames === nothing ? ["Var $i" for i in 1:n_vars] : varnames
     length(vn) == n_vars || throw(ArgumentError(
         "varnames has $(length(vn)) entries but panel has $n_vars columns"))
-    gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel)
+    gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel,
+                         spectral=spectral)
     factor_Y = randn(T, n_obs - p, q)
     B_fvar = ones(T, q * p + 1, q) * T(0.1)
     U_fvar = randn(T, n_obs - p, q)
     Sigma_fvar = Matrix{T}(I(q)) * T(0.5)
-    # Real names the factor VAR "Factor $i" — fevd sdfm labels come from here.
+    # Real names the factor VAR "Static factor $i" — fevd/hd sdfm labels
+    # come from here (verified at MEMs 1.0.0 against the fglr estimate path).
     fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0),
-                       T(-45.0), ["Factor $i" for i in 1:q])
+                       T(-45.0), ["Static factor $i" for i in 1:q])
     B0 = Matrix{T}(I(q))
     Q_mat = Matrix{T}(I(q))
     loadings_td = randn(T, n_vars, q)
     s_irf = ones(T, H + 1, n_vars, q) * T(0.05)
-    snames = ["structural_shock_$i" for i in 1:q]
+    snames = ["Shock $i" for i in 1:q]
     StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames, vn)
+end
+
+# Real (factor/structural.jl): q=:auto selects via q_method (hallin_liska default).
+# Deterministic canned selection matching the old ic_criteria_gdfm auto (2 factors
+# when the panel allows it).
+function estimate_structural_dfm(X::Matrix{T}, q::Symbol;
+        q_method=:hallin_liska, q_max=8, r=0, identification=:cholesky, p=1, H=40,
+        method=:fglr, spectral=:lag_window, instrument=nothing, seed=nothing,
+        sign_check=nothing,
+        standardize=true, bandwidth=0, kernel=:bartlett, varnames=nothing,
+        id_kwargs::NamedTuple=NamedTuple()) where T
+    q === :auto || throw(ArgumentError("q must be a positive integer or :auto, got :$q"))
+    q_method in (:hallin_liska, :bai_ng, :amengual_watson) || throw(ArgumentError(
+        "q_method must be :hallin_liska, :bai_ng, or :amengual_watson, got :$q_method"))
+    n_obs, n_vars = size(X)
+    q_cap = min(q_max, max(1, n_vars - 1), max(1, n_obs - 1))
+    q_hat = max(min(q_cap, 2), 1)
+    # No `; kwargs...` absorber here (the mock budget in check_mock_surface.jl is
+    # frozen): the forwarded set is enumerated explicitly, matching the CLI surface.
+    estimate_structural_dfm(X, q_hat; r=r, identification=identification, p=p, H=H,
+        method=method, spectral=spectral, instrument=instrument, seed=seed,
+        sign_check=sign_check,
+        standardize=standardize, bandwidth=bandwidth, kernel=kernel, varnames=varnames,
+        id_kwargs=id_kwargs)
 end
 
 function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
@@ -5331,10 +5887,56 @@ function irf(sdfm::StructuralDFM{T}, horizon::Int; kwargs...) where T
     ImpulseResponse(vals, nothing, nothing, h, copy(sdfm.varnames), sdfm.shock_names, :structural_dfm)
 end
 
-# Real delegates to the factor VAR (favar/analysis.jl) — labels are "Factor $i".
+# Real delegates to the factor VAR (favar/analysis.jl) — labels are "Static factor $i".
 # No kwargs absorber: the CLI never forwards kwargs here, and mock ⊆ real means
 # stricter is the safe direction (keeps the check_mock_surface absorber budget flat).
 fevd(sdfm::StructuralDFM{T}, horizon::Int) where T = fevd(sdfm.factor_var, horizon)
+
+# Real (favar/analysis.jl): HistoricalDecomposition{T}, same type as the VAR
+# path. Panel space: N variables x (q + include) shocks with an Idiosyncratic
+# column; factor space: q Factor-i variables x q shocks. The shocks matrix
+# always carries q+1 columns (real hcat's the idiosyncratic aggregate even
+# when include_idiosyncratic=false); the horizon is capped at T_eff.
+function historical_decomposition(sdfm::StructuralDFM{T}, horizon::Int;
+        space::Symbol=:panel, include_idiosyncratic::Bool=true) where T
+    space in (:panel, :factor) ||
+        throw(ArgumentError("space must be :panel or :factor, got :$space"))
+    q = length(sdfm.shock_names)
+    n = length(sdfm.varnames)
+    T_eff = min(horizon, size(sdfm.factor_var.Y, 1))
+    if space === :panel
+        n_vars, n_shocks = n, include_idiosyncratic ? q + 1 : q
+        variables = sdfm.varnames
+        snames = include_idiosyncratic ? [sdfm.shock_names; "Idiosyncratic"] :
+                                         copy(sdfm.shock_names)
+    else
+        n_vars, n_shocks = q, q
+        variables = sdfm.factor_var.varnames
+        snames = copy(sdfm.shock_names)
+    end
+    contribs = ones(T, T_eff, n_vars, n_shocks) * T(0.1)
+    initial = ones(T, T_eff, n_vars) * T(0.01)
+    actual = ones(T, T_eff, n_vars)
+    shocks_mat = ones(T, T_eff, q + 1)
+    HistoricalDecomposition{T}(contribs, initial, actual, shocks_mat, T_eff,
+        variables, snames, sdfm.identification)
+end
+
+# Real (favar/analysis.jl): panel forecast from a Structural DFM → FactorForecast.
+# Defined here (after the struct) because mocks.jl is one flat top-to-bottom
+# module — a signature type must already exist at include time.
+function forecast(sdfm::StructuralDFM{T}, h::Int;
+        ci_method=:none, reps=200, conf_level=0.95, rng=nothing) where T
+    h >= 1 || throw(ArgumentError("h must be ≥ 1"))
+    ci_method in (:none, :bootstrap) ||
+        throw(ArgumentError("ci_method must be :none or :bootstrap, got :$ci_method"))
+    n = length(sdfm.varnames)
+    r = size(sdfm.loadings_td, 2)
+    factors = ones(h, r) * 0.1
+    obs = ones(h, n) * 0.1
+    FactorForecast(factors, obs, factors, factors, obs .- 0.5, obs .+ 0.5,
+        abs.(factors) .* 0.1, ones(h, n)*0.1, h, conf_level, :analytical)
+end
 
 export StructuralDFM, estimate_structural_dfm
 
@@ -5364,7 +5966,7 @@ function estimate_dsge_bayes(spec::ModelSpec{T},
         prefilter::Symbol=:none, hp_lambda::Real=1600,
         observation_trends=nothing, warn_trends::Bool=true,
         ha_method::Symbol=:ssj, ha_kwargs=NamedTuple(),
-        proposal_scale=0.01, adapt_interval::Int=100) where T
+        proposal_scale=0.01, adapt_interval::Int=100, seed=nothing) where T
     if has_kind(spec, HouseholdSystem)
         np = length(theta0 isa AbstractDict ? collect(values(theta0)) :
                     theta0 isa NamedTuple ? collect(theta0) : collect(theta0))
@@ -5534,7 +6136,8 @@ end
 
 function prior_predictive(spec, priors; n_draws::Int=500, T_periods::Int=200,
                           observables=Symbol[], stats=nothing, solver::Symbol=:gensys,
-                          solver_kwargs=NamedTuple(), rng=Random.default_rng())
+                          solver_kwargs=NamedTuple(), rng=Random.default_rng(),
+                          seed=nothing)
     n_draws >= 1 || throw(ArgumentError("n_draws must be ≥ 1"))
     T_periods >= 1 || throw(ArgumentError("T_periods must be ≥ 1"))
     obs = isempty(observables) ? [:Y] : observables
@@ -6924,7 +7527,7 @@ function prior_posterior_table(result::BayesianDSGE{T}) where T
 end
 
 function posterior_predictive(result::BayesianDSGE{T}, n_sim::Int;
-        T_periods=100, rng=nothing) where T
+        T_periods=100, rng=nothing, seed=nothing) where T
     nv = length(result.param_names)
     randn(T, n_sim, T_periods, nv)
 end
@@ -7978,7 +8581,7 @@ function policy_causal_effects(slp::StructuralLP{T}, shocks::AbstractVector,
                                outcomes::AbstractVector{<:Pair},
                                instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
                                H::Int=slp.irf.horizon, normalize::Symbol=:none,
-                               n_draws::Int=500, rng=nothing) where T
+                               n_draws::Int=500, rng=nothing, seed=nothing) where T
     n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
     Hh, nv, ns = size(slp.irf.values)
     draws4 = reshape(slp.irf.values, 1, Hh, nv, ns) .+
@@ -8485,7 +9088,7 @@ function policy_forecast(outcomes::AbstractVector{Symbol},
                          sd=nothing, rho::Real=0.9, n_draws::Int=1000, rng=nothing,
                          H::Int=isempty(values) ? 0 : length(first(values)),
                          cross_corr=:independent, min_sd::Real=0.0,
-                         origin::AbstractString="")
+                         origin::AbstractString="", seed=nothing)
     isempty(outcomes) && throw(ArgumentError("outcomes: expected at least one outcome"))
     length(values) == length(outcomes) || throw(ArgumentError(
         "values: expected $(length(outcomes)) paths (one per outcome), got $(length(values))"))
@@ -8553,7 +9156,7 @@ end
 function estimate_opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
                       loss::PolicyLoss; instrument_path=nothing, z_wedge=nothing,
                       independent::Bool=true, levels=(0.60, 0.75, 0.90),
-                      n_sim::Int=2000, rng=nothing) where T
+                      n_sim::Int=2000, rng=nothing, seed=nothing) where T
     all(l -> 0 < l < 1, levels) || throw(ArgumentError(
         "levels: expected levels in (0, 1), got $levels"))
     (pf.draws === nothing && ce.Theta_x_draws === nothing) && throw(ArgumentError(
@@ -8581,7 +9184,7 @@ function constrained_opp(pf::PolicyForecast{T}, ce::PolicyCausalEffects{T},
                          instrument_path=nothing, z_wedge=nothing,
                          method::Symbol=:auto, delta0=nothing, multistart::Int=1,
                          rng=nothing, n_sim::Int=0, levels=(0.6, 0.75, 0.9),
-                         independent::Bool=true) where T
+                         independent::Bool=true, seed=nothing) where T
     method in (:auto, :slsqp, :projection) || throw(ArgumentError(
         "method: expected :auto, :slsqp or :projection, got :$method"))
     instrument_path === nothing && throw(ArgumentError(
@@ -8598,7 +9201,7 @@ function opp_sequence(forecasts::AbstractVector, ce::PolicyCausalEffects{T},
                       loss::PolicyLoss; dates=nothing, ce_by_date=nothing,
                       instrument_paths=nothing, constraints=OPPConstraint[],
                       z_wedge=nothing, n_sim::Int=0, levels=(0.6, 0.75, 0.9),
-                      independent::Bool=true, rng=nothing) where T
+                      independent::Bool=true, rng=nothing, seed=nothing) where T
     nd = length(forecasts)
     nd >= 2 || throw(ArgumentError("opp_sequence: expected >= 2 dates, got $nd"))
     ds = dates === nothing ? [string("t", i) for i in 1:nd] : collect(String, dates)
@@ -8711,7 +9314,7 @@ function spanning_diagnostic(base::BaselinePath, ce_emp::PolicyCausalEffects,
                              ce_full::PolicyCausalEffects,
                              policy::Union{PolicyRule,PolicyLoss};
                              draws::Symbol=:auto, tol::Real=0.1, n_sim::Int=200,
-                             quantiles=(0.16, 0.5, 0.84), rng=nothing)
+                             quantiles=(0.16, 0.5, 0.84), rng=nothing, seed=nothing)
     is_square(ce_full) || throw(ArgumentError(
         "ce_full must be a square (model-implied) container"))
     ce_emp.H == ce_full.H || throw(ArgumentError(
@@ -10255,9 +10858,18 @@ function blanchard_transition(m::BlanchardOLG{T}, sol::BlanchardOLGSolution{T}, 
     return (k=kpath, C=Cpath, r=rpath, w=wpath)
 end
 
+# Test-only fault injection for the CT solver wraps (PR #205: a coarse-grid
+# UMFPACK SingularException on Linux must surface as typed model/error, never
+# a raw exit-1). Set to a solver name to make that mock solver throw,
+# mirroring a real numerical failure; the underscore name keeps it out of the
+# mock-surface gate. Tests must always reset it (try/finally).
+const _CT_THROW_SOLVER = Ref{Symbol}(:none)
+
 function ct_steady_state(m::CTAiyagari{T}; r_bounds=nothing, max_iter::Int=100,
                           tol::Real=1e-6, hjb_max_iter::Int=100, hjb_tol::Real=1e-6,
                           Delta::Real=1000.0) where T
+    _CT_THROW_SOLVER[] === :ct_steady_state &&
+        throw(LinearAlgebra.SingularException(0))
     a = collect(range(m.a_min, m.a_max; length=m.I))
     g = ones(T, m.I, 2) ./ T(2 * m.I)
     v = ones(T, m.I, 2)
@@ -10269,6 +10881,8 @@ end
 function ct_mit_shock(m::CTAiyagari{T}, ss0::CTSteadyState{T}, Z_path::AbstractVector;
                        dt::Real=0.25, max_iter::Int=300, tol::Real=1e-6,
                        relax::Real=0.3) where T
+    _CT_THROW_SOLVER[] === :ct_mit_shock &&
+        throw(LinearAlgebra.SingularException(0))
     N = length(Z_path)
     t = collect(T, 0:N-1) .* T(dt)
     Z = collect(T, Z_path)
@@ -10282,6 +10896,8 @@ end
 
 function ct_two_asset_solve(m::CTTwoAsset{T}; max_iter::Int=200, tol::Real=1e-6,
                              Delta::Real=1000.0) where T
+    _CT_THROW_SOLVER[] === :ct_two_asset_solve &&
+        throw(LinearAlgebra.SingularException(0))
     b = collect(range(zero(T), m.b_max; length=m.Ib))
     a = collect(range(zero(T), m.a_max; length=m.Ia))
     V = ones(T, m.Ib, m.Ia, 2)
@@ -10962,7 +11578,8 @@ function _mock_iterate_multiplier(phi::Vector{T}, beta::Vector{T}, H::Int) where
 end
 
 function dynamic_multipliers(m::NARDLModel{T}, H::Int; bootstrap::Bool=true, nreps::Int=500,
-                             level::Real=0.95, rng::AbstractRNG=Random.default_rng()) where {T}
+                             level::Real=0.95, rng::AbstractRNG=Random.default_rng(),
+                             seed=nothing) where {T}
     H >= 0 || throw(ArgumentError("H must be ≥ 0; got $H"))
     a = m.ardl; na = length(m.asym); Hp1 = H + 1
     m_pos = zeros(T, na, Hp1); m_neg = zeros(T, na, Hp1); m_dif = zeros(T, na, Hp1)
@@ -11352,7 +11969,7 @@ end
 function estimate_tvpvar(Y, p::Int; tvp::Bool=true, sv::Bool=true,
                          n_draws::Int=2000, n_burn::Int=1000, thin::Int=1,
                          n_train::Int=0, k_Q::Real=0.01, k_S::Real=0.1, k_W::Real=0.01,
-                         varnames::Vector{String}=String[], rng=nothing)
+                         varnames::Vector{String}=String[], rng=nothing, seed=nothing)
     T_obs, n = size(Y)
     n >= 2 || throw(ArgumentError("TVP-VAR requires at least 2 variables, got $n"))
     p >= 1 || throw(ArgumentError("p must be at least 1, got $p"))
@@ -11420,7 +12037,7 @@ end
 function estimate_mfvar(data, p::Int; low_freq::Vector{Int}=Int[], freq_ratio::Int=3,
                         aggregation=:growth, n_draws::Int=1000, n_burn::Int=500,
                         prior::Symbol=:minnesota, hyper=nothing,
-                        varnames::Vector{String}=String[], rng=nothing)
+                        varnames::Vector{String}=String[], rng=nothing, seed=nothing)
     p >= 1 || throw(ArgumentError("p must be at least 1, got $p"))
     prior in (:minnesota, :diffuse) ||
         throw(ArgumentError("prior must be :minnesota or :diffuse, got :$prior"))
@@ -11564,10 +12181,10 @@ function _mock_conditional_forecast(varnames::Vector{String}, conds, h::Int,
 end
 
 conditional_forecast(model::VARModel, conditions, h::Int; Q=nothing, reps::Int=1000,
-                     conf_level::Real=0.95, rng=nothing) =
+                     conf_level::Real=0.95, rng=nothing, seed=nothing) =
     _mock_conditional_forecast(model.varnames, conditions, h, reps, conf_level)
 conditional_forecast(post::BVARPosterior, conditions, h::Int; Q=nothing, reps::Int=1000,
-                     conf_level::Real=0.95, rng=nothing) =
+                     conf_level::Real=0.95, rng=nothing, seed=nothing) =
     _mock_conditional_forecast(post.varnames, conditions, h, reps, conf_level)
 
 report(fc::ConditionalForecast) = "ConditionalForecast mock report"
@@ -11599,7 +12216,7 @@ end
 
 function estimate_qreg(y::AbstractVector, X::AbstractMatrix, tau=0.5;
                        se::Symbol=:iid, varnames=nothing, n_boot::Int=500,
-                       rng=nothing, alpha::Real=0.05)
+                       rng=nothing, alpha::Real=0.05, seed=nothing)
     n, k = length(y), size(X, 2)
     size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
     n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
@@ -11785,7 +12402,7 @@ function wild_cluster_bootstrap(model::RegModel, coefficient, null_value::Real=0
                                 clusters=nothing, n_boot::Int=999,
                                 weights::Symbol=:rademacher, imposenull::Bool=true,
                                 ci::Bool=true, level::Real=0.95, ci_gridpoints::Int=25,
-                                enumerate=nothing, rng=nothing)
+                                enumerate=nothing, rng=nothing, seed=nothing)
     # Mirror real's guards: clusters are REQUIRED for a RegModel, and the weight scheme is
     # a closed two-member enum (the `--wild-dist` lesson — never infer enum members).
     clusters === nothing && throw(ArgumentError(
@@ -12049,34 +12666,90 @@ export DeterminacyMap, determinacy_region, determinacy_boundary, determinacy_lab
 # included top-to-bottom, so every referenced type must already be defined (the same
 # forward-reference trap that broke the C051 `DataFrame(::Union{...})` dispatches).
 #
-# The names are upstream's 56 at MEMs 0.7.2, filtered to those this mock actually
-# defines. Filtering keeps the mock a SUBSET of real, which is the safe direction (#84):
-# a mock that accepted a type real rejects would turn a guaranteed production
-# `SerializationError` into a green suite. The DSGE/HA solution types are absent from
-# upstream's registry on purpose (compiled `@dsge` closures do not round-trip), so they
-# are absent here too and keep falling back to the CLI's `.fmod` handle.
+# The names are upstream's 350 at MEMs 0.9.3 (RSER-02–14), filtered to those this
+# mock actually defines. Filtering keeps the mock a SUBSET of real, which is the safe
+# direction (#84): a mock that accepted a type real rejects would turn a guaranteed
+# production `SerializationError` into a green suite. At 0.9.3 the DSGE/HA solution
+# types ARE registered upstream (their equations recompile at load under an AST
+# allowlist), so any the mock defines round-trip through the mock `save_model` too —
+# per-type fidelity is proven on real MEMs by the T3 serialization round-trips.
 const _SERIALIZABLE_TYPE_NAMES = (
-    "APARCHModel", "ARCHModel", "ARDLModel", "ARFIMAModel", "ARIMAModel", "ARMAModel",
-    "ARModel", "BVARPosterior", "BFElasticities", "BFEquilibrium", "BFLocal",
-    "BFMisallocation", "BFShockCurve", "BFWedgeDecomp", "BaqaeeFarhiResult",
-    "CGARCHModel", "CointRegModel", "CrossSectionData",
-    "DynamicFactorModel", "EGARCHModel", "ExportDecomposition", "ExtractionResult",
-    "FAVARModel", "FIEGARCHModel", "FIGARCHModel",
-    "FactorModel", "GARCHModel", "GJRGARCHModel", "GMMModel", "GarchMidasModel",
-    "GeneralizedDynamicFactorModel", "IOData", "IOMetaData", "ImpactResult",
-    "LPIVModel", "LPModel",
-    "LogitModel", "MAModel", "MGARCHModel", "MidasModel", "MultinomialLogitModel",
-    "NARDLModel", "NetworkStatsResult", "OrderedLogitModel", "OrderedProbitModel",
-    "PMGModel", "PVARModel",
-    "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
-    "PanelProbitModel", "PanelRegModel", "PriceModelResult", "ProbitModel",
-    "ProductionNetwork", "PropensityLPModel", "RASResult", "RegModel",
-    "RegionalFootprintResult", "SDAResult",
-    "SMMModel", "SURModel", "SVModel", "SmoothLPModel", "StateLPModel", "StateSpaceModel",
-    "StructuralDFM", "ThresholdModel", "TimeSeriesData", "VARModel", "VECMModel",
-    "VerticalSpecialization",
+    "ACFResult", "ADF2BreakResult", "ADFResult", "AmengualWatsonResult", "AndersonRubinCI",
+    "AndersonRubinTest", "AndrewsResult", "APARCHModel", "ARCHModel", "ARDLBoundsTest",
+    "ARDLLongRun", "ARDLModel", "ARFIMAModel", "AriasSVARResult", "ARIMAForecast", "ARIMAModel",
+    "ARIMAOrderSelection", "ARMAModel", "ARModel", "BaconDecomposition", "BaiNgQResult",
+    "BaiPerronResult", "BaqaeeFarhiResult", "BartlettWhiteNoiseResult", "BaselinePath",
+    "BaxterKingResult", "BayesianDSGE", "BayesianDSGESimulation", "BayesianFAVAR", "BayesianFEVD",
+    "BayesianHistoricalDecomposition", "BayesianImpulseResponse", "BayesianSetIdentifiedSVAR",
+    "BDSResult", "BeveridgeNelsonResult", "BFElasticities", "BFEquilibrium", "BFLocal",
+    "BFMisallocation", "BFShockCurve", "BFWedgeDecomp", "BlanchardOLG", "BlanchardOLGSolution",
+    "BlanchardOLGSteadyState", "BoostedHPResult", "BoxPierceResult", "BreitungPanelResult",
+    "BSplineBasis", "BubbleResult", "BVARForecast", "BVARPosterior", "CGARCHModel",
+    "ClarkWestResult", "CointRegModel", "ConditionalForecast", "ContinuousHouseholdSystem",
+    "CorTestResult", "CounterfactualHistory", "CounterfactualMoments", "CrossSectionData",
+    "CrossSpectrumResult", "CTAiyagari", "CTPoissonIncome", "CTSteadyState", "CTTransition",
+    "CTTwoAsset", "CTTwoAssetGE", "CTTwoAssetSolution", "CTTwoAssetTransition", "DataDiagnostic",
+    "DataSummary", "DCEGMDistribution", "DCEGMEquilibrium", "DCEGMFirm", "DCEGMProblem",
+    "DCEGMSolution", "DCEGMSystem", "DCEGMTransition", "DenHaanAccuracy", "DeterminacyMap",
+    "DFGLSResult", "DIDResult", "DispersionTest", "DMTestResult", "DSGEEstimation", "DSGEPrior",
+    "DSGESolution", "DSGEStateSpace", "DumitrescuHurlinResult", "DurbinWatsonResult",
+    "DynamicFactorModel", "EDFTestResult", "EGARCHModel", "EngleGrangerResult",
+    "EqualityTestResult", "ERSResult", "EventStudyLP", "ExportDecomposition",
+    "ExternalVolatilitySVARResult", "ExtractionResult", "FactorBreakResult", "FactorForecast",
+    "FactorModel", "FAVARModel", "FEVD", "FIEGARCHModel", "FIGARCHModel", "FirmSystem",
+    "FisherJohansenResult", "FisherPanelResult", "FisherTestResult", "FootprintResult",
+    "ForecastCombination", "ForecastCondition", "ForecastEncompassingResult", "ForecastEvaluation",
+    "ForecastSufficiency", "FourierADFResult", "FourierKPSSResult", "FunctionConstraint",
+    "GarchMidasModel", "GARCHModel", "GARCHSVARResult", "GeneralizedDynamicFactorModel",
+    "GJRGARCHModel", "GLPHyperparameters", "GMMModel", "GMMWeighting", "GPHResult",
+    "GrangerCausalityResult", "GregoryHansenResult", "HadriResult", "HADSGESolution", "HAGrid",
+    "HAGridDiagnostics", "HallinLiskaResult", "HamiltonFilterResult", "HansenInstabilityResult",
+    "HansenLinearityTest", "HASteadyState", "HeckmanModel", "HEGYResult", "HetBlock",
+    "HistoricalDecomposition", "HonestDiDResult", "HouseholdSystem", "HPFilterResult",
+    "ICASVARResult", "IdentifiabilityTestResult", "IdentificationDiagnostics", "IGARCHModel",
+    "ImpactResult", "ImpulseResponse", "IncomeProcess", "IndividualProblem", "InfluenceStats",
+    "IntermediaryPE", "IntermediarySteadyState", "IntermediarySystem", "IntermediaryTransition",
+    "IOData", "IOExtension", "IOMetaData", "IOMultipliers", "IPSResult", "IRDecl", "IREquation",
+    "JohansenResult", "KalmanSmootherResult", "KaoResult", "KernelDensity", "KernelRegression",
+    "KhanThomasSteadyState", "KhanThomasTransition", "KPSSResult", "KrusellSmithSolution",
+    "LearningRateCheck", "LifeCycleOLG", "LifeCycleSteadyState", "LifeCycleSystem",
+    "LifeCycleTransition", "LinearDSGE", "LinkageResult", "LjungBoxResult", "LLCResult",
+    "LMTestResult", "LMUnitRootResult", "LocalWhittleResult", "LogitModel", "LowessFit",
+    "LPDiDResult", "LPFEVD", "LPForecast", "LPImpulseResponse", "LPIVARBand", "LPIVModel",
+    "LPModel", "LRTestResult", "MAModel", "MarginalEffects", "MarkovSwitchingSVARResult",
+    "MaxShareResult", "MCMCDiagnostics", "MFVARPosterior", "MGARCHModel", "MidasForecast",
+    "MidasModel", "MincerZarnowitzResult", "MinnesotaHyperparameters", "MitBlock",
+    "ModelBankMember", "ModelIR", "ModelSpec", "MontielOleaPfluegerF", "MoonPerronResult",
+    "MSForecast", "MSRegModel", "MultinomialLogitModel", "MultinomialMarginalEffects",
+    "NamedEquation", "NARDLModel", "NARDLMultipliers", "NARDLSymmetryTest", "NegativeWeightResult",
+    "NegBinModel", "NetworkStatsResult", "NgPerronResult", "NonGaussianGMMResult",
+    "NonGaussianMLResult", "NonlinearStateSpace", "NormalityTestResult", "NormalityTestSuite",
+    "NowcastBridge", "NowcastBVAR", "NowcastDFM", "NowcastForecast", "NowcastNews",
+    "NowcastResult", "ObservationTrends", "OccBinConstraint", "OccBinIRF", "OccBinRegime",
+    "OccBinSolution", "OddsRatio", "OPPResult", "OPPSequence", "OrderedLogitModel",
+    "OrderedProbitModel", "PanelCointRegModel", "PanelData", "PanelIVModel", "PanelLogitModel",
+    "PanelProbitModel", "PanelRegModel", "PanelTestResult", "PanelUnitRootSummary", "PANICResult",
+    "ParameterTransform", "ParkAddedResult", "PathFloorConstraint", "PedroniResult",
+    "PenalizedRegModel", "PerfectForesightPath", "PerturbationSolution", "PesaranCIPSResult",
+    "PhillipsOuliarisResult", "PMGModel", "PoissonModel", "PolicyCausalEffects",
+    "PolicyCounterfactual", "PolicyForecast", "PolicyLoss", "PolicyRule", "PosteriorMode",
+    "PosteriorPredictiveCheck", "PPResult", "PrefilterSpec", "PretrendTestResult",
+    "PriceModelResult", "PriorPosteriorOverlap", "PriorPredictiveResult", "ProbitModel",
+    "ProductionNetwork", "ProjectionSolution", "ProjectionStateSpace", "PropensityLPModel",
+    "PropensityScoreConfig", "ProxySVARResult", "PrunedStateSpace", "PVARModel", "PVARStability",
+    "PVARTestResult", "QuantileRegModel", "RASResult", "RDDResult", "RegDiagnosticResult",
+    "RegionalFootprintResult", "RegModel", "RobustBayesResult", "RobustRegModel", "SARIMAModel",
+    "SDAResult", "SelectionResult", "SignIdentifiedSet", "SimpleBlock", "SMMModel",
+    "SmoothLPModel", "SmoothTransitionSVARResult", "SpanningDiagnostic", "SpectralDensityResult",
+    "SSJGEJacobian", "SSJImpulseResponse", "SSJModel", "StabilityResult", "STARForecast",
+    "STARModel", "StateLPModel", "StateSpaceModel", "StructuralDFM", "StructuralLP", "SURModel",
+    "SVARModel", "SVECResult", "SVModel", "ThreeSLSModel", "ThresholdForecast", "ThresholdModel",
+    "TimeSeriesData", "TimingInfo", "TobitModel", "TransferFunctionResult", "TruncRegModel",
+    "TVPVARPosterior", "UhligSVARResult", "VARForecast", "VarianceRatioResult", "VARModel",
+    "VARStationarityResult", "VECMForecast", "VECMGrangerResult", "VECMModel",
+    "VECMRestrictionTest", "VerticalSpecialization", "VolatilityForecast", "WesterlundResult",
+    "WildClusterBootstrap", "WinberryFamily", "WoldRepresentation", "X13FilterResult", "ZAResult"
 )
-
 const _SERIALIZABLE_TYPES = Dict{String,Type}(
     n => getfield(@__MODULE__, Symbol(n))
     for n in _SERIALIZABLE_TYPE_NAMES if isdefined(@__MODULE__, Symbol(n))
@@ -12113,5 +12786,308 @@ function sequence_jacobian(spec::ModelSpec, ss::HASteadyState,
     [Float64(0.7)^(abs(i - j)) * 0.1 for i in 1:T_horizon, j in 1:T_horizon]
 end
 
+
+# ─── #177: DGP simulators (truth-returning; mock ⊆ real return keys) ──────────
+# Handlers read these NamedTuples. Dynamics are not reproduced — the draw uses
+# `rng` so a seed changes the sample, and coefficient fields echo the defaults
+# the real simulators document.
+
+function _mock_dgp_burn(rng, burn::Int, n::Int)
+    burn > 0 && randn(rng, burn, n)
+    return nothing
+end
+
+function dgp_var(rng::AbstractRNG; A=[0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3],
+                 B0=nothing, Sigma=nothing, c=nothing, T::Int=500, burn::Int=200)
+    B0 !== nothing && Sigma !== nothing &&
+        throw(ArgumentError("dgp_var: pass exactly one of B0 and Sigma"))
+    As = A isa AbstractMatrix ? [Matrix{Float64}(A)] : [Matrix{Float64}(a) for a in A]
+    n = size(As[1], 1)
+    L = if B0 !== nothing
+        Matrix{Float64}(B0)
+    elseif Sigma !== nothing
+        Matrix{Float64}(I, n, n)
+    else
+        n == 3 ? [1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0] : Matrix{Float64}(I, n, n)
+    end
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    cc = c === nothing ? zeros(n) : Vector{Float64}(c)
+    return (Y=Y, eps=eps, A=As, Sigma=L * L', B0=L, c=cc)
+end
+
+function dgp_nongaussian_var(rng::AbstractRNG;
+                             A=[0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3],
+                             B0=[1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0],
+                             dist::Symbol=:t, nu::Float64=5.0,
+                             T::Int=1000, burn::Int=200)
+    dist in (:gauss, :t, :laplace, :mixture, :skew) ||
+        throw(ArgumentError("unknown dist :$dist (gauss|t|laplace|mixture|skew)"))
+    A1 = Matrix{Float64}(A)
+    B = Matrix{Float64}(B0)
+    n = size(A1, 1)
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    return (Y=Y, eps=eps, A=[A1], Sigma=B * B', B0=B, dist=dist)
+end
+
+function dgp_heteroskedastic_var(rng::AbstractRNG;
+                                 A=[0.5 0.1 0.0; 0.2 0.4 0.1; 0.0 0.1 0.3],
+                                 B0=[1.0 0.0 0.0; 0.5 1.0 0.0; 0.3 0.2 1.0],
+                                 kind::Symbol=:markov,
+                                 Lambda=diagm([1.0, 4.0, 0.25]),
+                                 T::Int=1000, burn::Int=200,
+                                 P=[0.95 0.05; 0.05 0.95],
+                                 garch_a::Float64=0.1, garch_b::Float64=0.85,
+                                 gamma::Float64=5.0, break_at::Float64=0.5)
+    kind in (:markov, :garch, :smooth, :external) ||
+        throw(ArgumentError("unknown kind :$kind (markov|garch|smooth|external)"))
+    B = Matrix{Float64}(B0)
+    n = size(B, 1)
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    scales = ones(T, n)
+    path = kind === :smooth ? rand(rng, T) : ones(Int, T)
+    return (Y=Y, eps=eps, scales=scales, B0=B, Sigma_full=B * B',
+            Lambda=Matrix{Float64}(Lambda), path=path, kind=kind)
+end
+
+function dgp_arima(rng::AbstractRNG; phi=Float64[], theta=Float64[], d::Int=0,
+                   Phi=Float64[], Theta=Float64[], s::Int=0,
+                   c::Float64=0.0, sigma::Float64=1.0,
+                   T::Int=500, burn::Int=200)
+    ph, th = Vector{Float64}(phi), Vector{Float64}(theta)
+    _mock_dgp_burn(rng, burn, 1)
+    y = sigma .* randn(rng, T) .+ c
+    return (y=y, phi=ph, theta=th, d=d, Phi=Vector{Float64}(Phi),
+            Theta=Vector{Float64}(Theta), s=s, c=c, sigma=sigma)
+end
+
+function dgp_garch_family(rng::AbstractRNG; kind::Symbol=:garch,
+                          omega::Float64=0.02, alpha::Float64=0.08,
+                          beta::Float64=0.88, gamma::Float64=0.06,
+                          delta::Float64=1.5, d::Float64=0.4,
+                          theta::Float64=-0.05, mu::Float64=0.0,
+                          innov::Symbol=:gauss, nu::Float64=8.0,
+                          T::Int=3000, burn::Int=500)
+    kind in (:arch, :garch, :egarch, :gjr, :aparch, :igarch, :cgarch, :figarch, :fiegarch) ||
+        throw(ArgumentError("unknown kind :$kind"))
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    h = fill(omega / max(0.05, 1 - alpha - (kind === :arch ? 0.0 : beta)), T)
+    eps = randn(rng, T)
+    return (y=y, h=h, eps=eps)
+end
+
+function dgp_sv(rng::AbstractRNG; mu::Float64=-0.5, phi::Float64=0.95,
+                sigma_eta::Float64=0.2, rho_lev::Float64=0.0,
+                nu::Float64=Inf, T::Int=1500, burn::Int=200)
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    h = fill(mu, T)
+    return (y=y, h=h)
+end
+
+function dgp_vecm(rng::AbstractRNG; alpha=[-0.3, 0.1, 0.0],
+                  beta=[1.0, -1.0, 0.0],
+                  Gamma=[0.2 0.0 0.0; 0.0 0.2 0.0; 0.0 0.0 0.2],
+                  mu=nothing, Sigma=nothing, T::Int=400, burn::Int=200)
+    al = reshape(Vector{Float64}(alpha), :, 1)
+    be = reshape(Vector{Float64}(beta), :, 1)
+    n = size(be, 1)
+    Gs = Gamma isa AbstractMatrix ? [Matrix{Float64}(Gamma)] : [Matrix{Float64}(g) for g in Gamma]
+    Sg = Sigma === nothing ? Matrix{Float64}(I, n, n) : Matrix{Float64}(Sigma)
+    mm = mu === nothing ? zeros(n) : Vector{Float64}(mu)
+    _mock_dgp_burn(rng, burn, n)
+    Y = randn(rng, T, n)
+    eps = randn(rng, T, n)
+    return (Y=Y, alpha=al, beta=be, Gamma=Gs, mu=mm, Sigma=Sg, eps=eps)
+end
+
+function dgp_cointreg(rng::AbstractRNG; beta=[2.0, -1.0], T::Int=500,
+                      endog_rho::Float64=0.7, sigma_u::Float64=1.0,
+                      spurious::Bool=false)
+    be = Vector{Float64}(beta)
+    m = length(be)
+    X = randn(rng, T, m)
+    u = randn(rng, T)
+    y = spurious ? randn(rng, T) : X * be + u
+    return (y=y, X=X, beta=be, u=u)
+end
+
+function dgp_ardl(rng::AbstractRNG; phi::Float64=0.6, beta0::Float64=0.8,
+                  beta1::Float64=0.4, rho_x::Float64=0.7, c::Float64=0.5,
+                  T::Int=300, burn::Int=100)
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    x = randn(rng, T)
+    theta = (beta0 + beta1) / (1 - phi)
+    return (y=y, x=x, phi=phi, beta=[beta0, beta1], theta=theta)
+end
+
+function dgp_dynamic_factors(rng::AbstractRNG;
+                             A=[0.6 0.15; 0.1 0.5], Lambda=nothing,
+                             r::Int=2, p::Int=1, N::Int=40, T::Int=400,
+                             Sigma_F=nothing, idio::Symbol=:iid,
+                             idio_ar::Float64=0.5, idio_sd::Float64=1.0,
+                             signal_share::Float64=0.7,
+                             blocks=nothing, burn::Int=200)
+    As = A isa AbstractMatrix ? [Matrix{Float64}(A)] : [Matrix{Float64}(a) for a in A]
+    rr = size(As[1], 1)
+    _mock_dgp_burn(rng, burn, rr)
+    Lam = Lambda === nothing ? randn(rng, N, rr) : Matrix{Float64}(Lambda)
+    X = randn(rng, T, size(Lam, 1))
+    F = randn(rng, T, rr)
+    eps = randn(rng, T, rr)
+    SF = Sigma_F === nothing ? Matrix{Float64}(I, rr, rr) : Matrix{Float64}(Sigma_F)
+    return (X=X, F=F, Lambda=Lam, A=As, Sigma_F=SF, idio_var=1.0, eps=eps, r=rr, p=length(As))
+end
+
+function dgp_lp_iv(rng::AbstractRNG; T::Int=400, pi1::Float64=1.5, theta::Float64=1.0)
+    z = randn(rng, T)
+    Y = randn(rng, T, 3)
+    return (Y=Y, Z=reshape(z, :, 1), pi1=pi1, theta=theta)
+end
+
+function dgp_panel(rng::AbstractRNG; N::Int=200, T::Int=20, beta=[1.0, 0.5],
+                   sigma_u::Float64=1.0, sigma_e::Float64=1.0,
+                   corr_alpha_x::Float64=0.0, rho_ar::Float64=0.0,
+                   common_shock::Bool=false, hetero::Bool=false,
+                   dynamic_rho::Float64=0.0, kind::Symbol=:linear)
+    be = Vector{Float64}(beta)
+    k = length(be)
+    id = repeat(1:N, inner=T)
+    time = repeat(1:T, outer=N)
+    X = randn(rng, N * T, k)
+    y = kind === :linear ? randn(rng, N * T) : Float64.(rand(rng, N * T) .< 0.5)
+    df = DataFrame(id=id, time=time, y=y)
+    for j in 1:k
+        df[!, Symbol("x$j")] = X[:, j]
+    end
+    return (df=df, beta=be, sigma_u=sigma_u, sigma_e=sigma_e,
+            alpha=sigma_u .* randn(rng, N), mundlak=corr_alpha_x .* ones(k),
+            rho_ar=rho_ar, dynamic_rho=dynamic_rho)
+end
+
+function dgp_panel_var(rng::AbstractRNG; A1=[0.8 0.15; 0.05 0.7], N::Int=30,
+                       T::Int=25, mu_sd::Float64=1.0, Sigma=nothing, burn::Int=50)
+    A = Matrix{Float64}(A1)
+    m = size(A, 1)
+    Sg = Sigma === nothing ? Matrix{Float64}(I, m, m) : Matrix{Float64}(Sigma)
+    _mock_dgp_burn(rng, burn, m)
+    Y = randn(rng, N * T, m)
+    return (Y=Y, id=repeat(1:N, inner=T), time=repeat(1:T, outer=N),
+            A1=A, mu=mu_sd .* randn(rng, N, m), Sigma=Sg)
+end
+
+function dgp_staggered_did(rng::AbstractRNG; cohorts=[6, 11, 16],
+                           tau=(g, e) -> 1.0 + 0.1 * e + 0.05 * (g - 6),
+                           never_treated_share::Float64=0.3, N::Int=300,
+                           T::Int=25, violate_pt::Float64=0.0,
+                           covariate_effect::Float64=0.0, cluster_rho::Float64=0.0)
+    id = repeat(1:N, inner=T)
+    time = repeat(1:T, outer=N)
+    y = randn(rng, N * T)
+    D = zeros(Int, N * T)
+    # Real MEMs: a cohort with no date in g:T has att = mean([]) == NaN.
+    requested = Int[Int(g) for g in cohorts]
+    isempty(requested) && throw(ArgumentError("cohorts must be non-empty"))
+    g_of = [requested[mod1(i, length(requested))] for i in 1:N]
+    att_c = Dict{Int,Float64}(g => (1 <= g <= T ? 1.0 : NaN) for g in requested)
+    df = DataFrame(id=id, time=time, y=y, D=D, cohort=g_of[id])
+    return (df=df, att_by_event_time=Dict(0 => 1.0), att_by_cohort=att_c,
+            overall_att=1.0, cohort_of=g_of)
+end
+
+function dgp_gmm(rng::AbstractRNG; kind::Symbol=:iv, beta=[1.0, 0.5],
+                 n::Int=1000, hetero::Bool=true, overid_k::Int=2,
+                 invalid_k::Int=0, pi1::Float64=1.0)
+    kind in (:ols, :iv) || throw(ArgumentError("unknown kind :$kind (ols|iv)"))
+    be = Vector{Float64}(beta)
+    k = length(be)
+    X = hcat(ones(n), randn(rng, n, k - 1))
+    y = X * be[1:size(X, 2)] + randn(rng, n)
+    if kind === :ols
+        Z = X
+    else
+        Z = hcat(ones(n), randn(rng, n, overid_k))
+    end
+    return (y=y, X=X, Z=Z, beta=be[1:size(X, 2)], pi1=pi1)
+end
+
+function dgp_regime_switching(rng::AbstractRNG; kind::Symbol=:ms, T::Int=600,
+                              burn::Int=100, mu=(-1.0, 3.0), phi::Float64=0.4,
+                              sigma::Float64=0.6, P=[0.9 0.1; 0.15 0.85],
+                              phi_lo::Float64=0.8, phi_hi::Float64=0.3,
+                              c::Float64=0.0, d::Int=1, gamma::Float64=3.0,
+                              c_lo::Float64=0.0, c_hi::Float64=0.0)
+    kind in (:ms, :setar, :lstar, :estr) ||
+        throw(ArgumentError("unknown kind :$kind (ms|setar|lstar|estr)"))
+    _mock_dgp_burn(rng, burn, 1)
+    y = randn(rng, T)
+    if kind === :ms
+        return (y=y, s=ones(Int, T), mu=mu, phi=phi, P=Matrix{Float64}(P))
+    elseif kind === :setar
+        return (y=y, regime=ones(Int, T), phi_lo=phi_lo, phi_hi=phi_hi, c=c)
+    else
+        return (y=y, G=rand(rng, T), phi_lo=phi_lo, phi_hi=phi_hi, gamma=gamma, c=c)
+    end
+end
+
+function dgp_cross_section(rng::AbstractRNG; kind::Symbol=:ols,
+                           beta=[1.0, 0.5], n::Int=1000,
+                           hetero::Bool=false, cluster_rho::Float64=0.5,
+                           G::Int=50, endog_rho::Float64=0.6,
+                           pi1::Float64=1.0, overid_k::Int=2,
+                           invalid_k::Int=0,
+                           cutpoints=[-0.5, 0.5, 1.5],
+                           dispersion::Float64=1.5, censor::Float64=0.0,
+                           select_rho::Float64=0.5, iia_rho::Float64=0.0)
+    kind in (:ols, :hc, :cluster, :iv, :logit, :probit, :ordered, :mlogit,
+             :poisson, :nb, :tobit, :truncreg, :heckman, :qreg, :rdd) ||
+        throw(ArgumentError("unknown kind :$kind"))
+    be = Vector{Float64}(beta)
+    k = length(be)
+    X = hcat(ones(n), randn(rng, n, max(k - 1, 1)))
+    X = X[:, 1:k]
+    y = X * be + randn(rng, n)
+    if kind === :iv
+        Z = hcat(ones(n), randn(rng, n, overid_k))
+        return (y=y, X=X, beta=be, Z=Z, pi1=pi1)
+    elseif kind === :logit || kind === :probit
+        yy = rand(rng, n) .< 0.5
+        return (y=yy, X=X, beta=be, ame=be ./ 4, hetero=hetero)
+    elseif kind === :cluster
+        return (y=y, X=X, beta=be, clust=rand(rng, 1:G, n), rho=cluster_rho)
+    elseif kind === :rdd
+        return (y=y, X=X, beta=be, cutoff=0.0, tau=1.0, r=rand(rng, n))
+    elseif kind === :ordered
+        return (y=ones(Int, n), X=X, beta=be, cutpoints=Vector{Float64}(cutpoints))
+    elseif kind === :heckman
+        yy = Vector{Float64}(y)
+        yy[1] = NaN
+        return (y=yy, X=X, beta=be, select_rho=select_rho, selected=rand(rng, Bool, n))
+    else
+        return (y=y, X=X, beta=be)
+    end
+end
+
+function dgp_dsge_observed(rng::AbstractRNG, y_clean::AbstractMatrix;
+                           H=nothing, trends=nothing)
+    Y = Matrix{Float64}(y_clean)
+    Tn, n = size(Y)
+    Hv = H === nothing ? zeros(n) : Vector{Float64}(H)
+    tr = trends === nothing ? zeros(Tn, n) : Matrix{Float64}(trends)
+    return (y_obs=Y + tr + sqrt.(reshape(Hv, 1, n)) .* randn(rng, Tn, n), H=Hv)
+end
+
+export dgp_var, dgp_nongaussian_var, dgp_heteroskedastic_var, dgp_arima,
+       dgp_garch_family, dgp_sv, dgp_vecm, dgp_cointreg, dgp_ardl,
+       dgp_dynamic_factors, dgp_lp_iv, dgp_panel, dgp_panel_var,
+       dgp_staggered_did, dgp_gmm, dgp_regime_switching, dgp_cross_section,
+       dgp_dsge_observed
 
 end # module

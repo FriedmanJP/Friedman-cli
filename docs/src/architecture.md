@@ -17,20 +17,94 @@ bin/friedman ARGS
 
 ## Data Flow
 
+CSV is the **import** format, not the working format. Commands take a **stem**;
+`.jld2` is native storage (MEMs `save_model` / `load_model`), not part of the
+argv contract. Wave 2 ships **result** handles (`--result` / `--save-result`)
+and `friedman show STEM` (render any loadable handle).
+
 ```
-CSV file → load_data(path)                 # → DataFrame, validates exists & non-empty
-         → df_to_matrix(df)                # → Matrix{Float64}, selects numeric columns
-         → variable_names(df)              # → Vector{String}, numeric column names
-                ↓
-    MacroEconometricModels.jl functions     # estimate_var, irf, forecast, etc.
-                ↓
-    Results → DataFrame                     # command renders the result to a DataFrame
-           → output_result(df; format, output, title)
-                ↓
-              :table → PrettyTables (center-aligned)
-              :csv   → CSV.write
-              :json  → JSON3.write (array of row dicts)
+CSV | :example
+        │
+        ▼
+data import --kind timeseries|panel|cross-section [-o STEM]
+        │
+        ▼
+STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
+        │
+        ├─ data describe|diagnose|validate     (read, real type)
+        ├─ data fix|transform|dropna|keeprows|balance
+        │       -o STEM'     →  same type, STEM'.jld2
+        │       -o file.csv  →  CSV export; stderr: metadata dropped
+        ├─ data export STEM  →  CSV (inverse of import)
+        │
+        ▼
+estimate multivariate var STEM --save-model var         # stem → var.jld2
+        │
+        ▼
+irf var --model var --save-result irf      # --model stem → var.jld2
+friedman show irf                          # stem → irf.jld2 (no CSV fallback)
+friedman show var                          # fitted model table / fields
+forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
+# evaluate --result is a comma-separated string (not RESULT_OPTION)
+
+CSV shortcut (unchanged, additive 0.x):
+estimate multivariate var macro.csv --lags 2
 ```
+
+### Stem resolution
+
+**Save** (`data import -o`, data-edit `-o`, and a *present* `--save-model`):
+
+- **Data-edit `-o` only:** empty / omitted → leaf-specific default stem, then
+  the rule below. (`--save-model` omitted means do not save — it is not a
+  default stem.)
+- No suffix → append `.jld2` and use native `save_model`.
+- `.jld2` → native `save_model` (including `data import … -o out.jld2`, the
+  intended CSV→typed conversion).
+- `.fmod` → interim Serialization handle (unregistered types).
+- `.csv` on a **data-edit** output → CSV export (frequency/tcode/dates dropped).
+- **Data-edit** of a CSV with `-o out.jld2` → `usage/invalid` (run
+  `data import` first). This edit refusal does **not** apply to `data import`
+  itself.
+
+**Load** (data positional / `data export`; `--model` / `--result` / `show`):
+
+1. **Data slots:** resolve stem — `path.jld2` if that file exists (preferred),
+   else `path.csv`, else exact `path` (`.fmod`, `.toml` DSGE specs,
+   extensionless files). Else `data/file-not-found` (exit 3).
+2. **`--model` (Wave 2):** when the leaf's `model_types` is nonempty,
+   `resolve_stem(; slot=:result)` — `STEM.jld2` if that file exists (no CSV
+   fallback), then type-check. Empty `model_types` (DSGE builtins,
+   `data validate --model`) still requires an explicit suffix / URI.
+   `model info` is header-only and still wants `.jld2` / `.fmod` / `model://`.
+3. **`--result` / `friedman show STEM` (Wave 2):** `resolve_stem(; slot=:result)` —
+   `STEM.jld2` if that file exists, else the exact path. No CSV fallback
+   (show is for loadable handles, not import). Bundles emit a keys-only
+   table (`show_payload`); `:timeseries`/`:panel`/`:cross_section` emit
+   descriptive stats; `:io` and other kinds fall through to `long_table` /
+   `DataFrame` / field dump (never `to_matrix` an IOData). `--plot` /
+   `--plot-save` call `_maybe_plot` on every path; missing recipe →
+   `model/unsupported` (exit 5).
+
+If both `macro.jld2` and `macro.csv` exist, the handle wins on data slots.
+Explicit suffixes skip the search (`macro.csv` is CSV, `var.jld2` is a
+handle). `model://name` is the serve-session URI and is not stem-expanded.
+`:fred_md` example names are unchanged.
+
+`wrap_legacy` type-checks a loaded data handle against the leaf's
+registry-declared `data_kinds` **before** the handler runs. A mismatch is
+`data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate multivariate var`. CSV
+remains legal on every leaf that lists `:csv`. `--result` of a type not in
+`result_types` is `data/wrong-result` (exit 3); `--model` of a type not in
+`model_types` is `model/wrong-kind` (exit 5). `--result` cannot be combined
+with `--model` or a data path (`usage/invalid`).
+
+Central resolver: `src/handles.jl`. Native persist: `src/model_handle.jl`.
+
+### Rendering
+
+After the library call, results still go through `output_result` (`:table` →
+PrettyTables, `:csv` → CSV.write, `:json` → the versioned envelope).
 
 **Rendering the result to a DataFrame (C051)** goes through one of three paths, in order of
 preference:
@@ -49,14 +123,14 @@ preference:
    nonparametric (KDE/kernel-reg/LOWESS) leaves, the single-equation/panel cointegrating
    regression leaves (`CointRegModel`/`PanelCointRegModel`), the ARDL/NARDL family
    (`ARDLModel`/`NARDLModel`/`ARDLLongRun`/`ARDLBoundsTest`/`NARDLSymmetryTest`/`NARDLMultipliers`
-   — `estimate ardl`/`nardl`, `test ardl-bounds`/`nardl-symmetry`, `multipliers nardl`), and the
-   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate pmg`, `test pmg-hausman`), and the
-   nonlinear-TS family (`ThresholdModel`/`STARModel`/`MSRegModel` — `estimate setar`/`star`/`ms-ar`/`ms`;
+   — `estimate univariate ardl`/`nardl`, `test coint ardl-bounds`/`nardl-symmetry`, `estimate univariate nardl`), and the
+   dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate panel pmg`, `test panel pmg-hausman`), and the
+   nonlinear-TS family (`ThresholdModel`/`STARModel`/`MSRegModel` — `estimate regime setar`/`star`/`ms-ar`/`ms`;
    the two `*Forecast` types ARE registered and render via `long_table`) — none of
    these result types are Tables.jl-registered upstream) or where the tidy schema would lose information the command
    needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
    summary). The `io` matrices (Leontief/Ghosh inverses, coefficients), MGARCH conditional
-   correlations, and the Markov-switching K×K regime-transition matrix (`estimate ms-ar`/`ms`) render
+   correlations, and the Markov-switching K×K regime-transition matrix (`estimate regime ms-ar`/`ms`) render
    **wide** (sector×sector / series×series / regime×regime); vector results render one row
    per sector/term.
 
@@ -110,31 +184,47 @@ src/
     dispatch.jl           # dispatch() → dispatch_node() → dispatch_leaf()
     help.jl               # print_help() with colored, column-aligned output
   io.jl                   # load_data, df_to_matrix, variable_names, output_result
+  model_handle.jl         # save_model_dispatch / load_model_dispatch (.jld2 | .fmod | model://)
+  handles.jl              # stem resolver, data-kind check, typed persist (after model_handle.jl)
+  registry/
+    spec.jl               # CommandSpec (data_kinds / model_types / result_types)
+    adapter.jl            # wrap_legacy: stem-resolve + type-check + save
   config.jl               # TOML loader for priors, identification, GMM, non-Gaussian
   commands/
     shared.jl             # ID_METHOD_MAP, shared estimation/output helpers
-    estimate.jl           # 24 estimation subcommands
-    test.jl               # 29+ test subcommands (+ nested var 2, pvar 4)
-    irf.jl                # 7 IRF subcommands
-    fevd.jl               # 7 FEVD subcommands
-    hd.jl                 # 5 HD subcommands
-    forecast.jl           # 14 forecast subcommands
-    predict.jl            # 16 predict subcommands
-    residuals.jl          # 16 residuals subcommands
-    filter.jl             # 5 filter subcommands
-    data.jl               # 9 data subcommands
-    nowcast.jl            # 5 nowcast subcommands
-    dsge.jl               # DSGE subcommands + bayes node (13 sub-leaves) + HA/CT/OLG nodes
-    did.jl                # 7 DID subcommands (3 estimation + 4 test)
-    multipliers.jl        # multipliers nardl — new top-level (C062b, action-first)
-    policy.jl             # policy counterfactuals — new top-level (W4/#126, MEMs 0.8.0 CF module)
+    estimate.jl           # estimate <family> <model> leaves
+    test.jl               # test <family> <test> leaves
+    irf.jl                # irf <model> leaves
+    fevd.jl               # fevd <model> leaves
+    hd.jl                 # hd <model> leaves
+    forecast.jl           # forecast leaves (incl. var scenario + evaluate)
+    fitted.jl             # predict + residuals leaves (collapsed family)
+    filter.jl             # filter leaves
+    data.jl               # data management leaves
+    data_simulate.jl      # data simulate <dgp> leaves
+    io.jl                 # io input-output leaves
+    nowcast.jl            # nowcast leaves
+    dsge.jl               # dsge RA + bayes + closed agent families
+    hadsge.jl             # hadsge one-household HA leaves
+    did.jl                # did estimation leaves (tests live under test did)
+    spectral.jl           # spectral leaves
+    policy.jl             # policy counterfactual / optimal-policy leaves
+    completions.jl        # completions bash|fish|zsh
+    model.jl              # model info + reproduce
+    serve.jl              # serve --mcp
+    show.jl               # show HANDLE
+    schema.jl             # schema self-description (registry-hidden)
+    multipliers.jl        # NARDL multiplier tables, emitted by estimate univariate nardl
+  repl.jl                 # interactive REPL session mode
 ```
 
-The ARDL/NARDL family (`estimate ardl`/`nardl` in `estimate.jl`, `test ardl-bounds`/`nardl-symmetry`
-in `test.jl`, and `multipliers nardl` in the new top-level `multipliers.jl`) all fit via the shared
+Per-family leaf counts live in the generated [CLI reference overview](commands/overview.md), not here.
+
+The ARDL/NARDL family (`estimate univariate ardl`/`nardl` in `estimate.jl`, `test coint ardl-bounds`/`nardl-symmetry`
+in `test.jl`, and the cumulative-multiplier tables on `estimate univariate nardl`) all fit via the shared
 `_load_reg_data` (`y` + `X`) loader and the `_fit_ardl`/`_fit_nardl` wrappers in `estimate.jl`, so
 the four leaves share one estimation path and one set of hand-built renderers. The dynamic
-heterogeneous-panel ARDL family (`estimate pmg` in `estimate.jl`, `test pmg-hausman` in `test.jl`)
+heterogeneous-panel ARDL family (`estimate panel pmg` in `estimate.jl`, `test panel pmg-hausman` in `test.jl`)
 similarly shares the hardened `_load_panel_reg` panel loader (`shared.jl`): both resolve `--dep`/`--indep`
 to `Symbol`s over a `PanelData` and splat the regressors into `estimate_pmg(pd, dep, xs...)`; the test
 leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `hausman_test`.
@@ -166,21 +256,20 @@ leaf fits the panel twice (efficient vs Mean Group) and runs the PMG-typed `haus
 
 | | Version |
 |---|---------|
-| Julia | `>= 1.12` |
-| MacroEconometricModels | `0.7.0` |
+| Julia | `>= 1.13` |
+| MacroEconometricModels | `1.0.0` |
 
 ## Stability policy
 
 Declared at v0.10.0: the machine surface is the API — the command tree, the
 option/flag surface, the envelope schema (`schema/envelope-v1.json`), the
 stable `data` table keys, the error-code taxonomy, and the exit codes.
-Envelope schema v1 is **additive-only from v0.10.0** (a breaking envelope
-change bumps `schema_version` to 2 and is a major release; the formal freeze
-declaration lands at v1.0.0). 0.x minors are additive-only; removals and
-renames happen only at majors after at least one minor of deprecation alias.
-The hidden snake_case aliases and `FRIEDMAN_LEGACY_OUTPUT` are scheduled for
-removal at v1.0.0.
+Envelope schema v1 is **frozen at v1.0.0** (a breaking envelope change bumps
+`schema_version` to 2 and is a major release). Removals and renames happen
+only at majors after at least one minor of deprecation alias. The v1.0.0
+freeze removed the hidden snake_case aliases and `FRIEDMAN_LEGACY_OUTPUT`:
+kebab-case command names only, envelope JSON only.
 
 ## Totals
 
-20 top-level commands, 449 subcommands (registry-generated — see the inventory at the bottom of `CLAUDE.md`).
+Command totals are registry-generated — see the [CLI reference overview](commands/overview.md).

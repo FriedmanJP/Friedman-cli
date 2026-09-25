@@ -1,6 +1,6 @@
 # nowcast
 
-Real-time nowcasting with mixed-frequency data. 5 subcommands: `dfm`, `bvar`, `bridge`, `news`, `forecast`.
+Real-time nowcasting with mixed-frequency data: `dfm`, `bvar`, `bridge`, `news`, `forecast`.
 
 All nowcast methods accept `--monthly-vars` and `--quarterly-vars` to specify the frequency split. When omitted, defaults to all-but-last as monthly and last column as the quarterly target.
 

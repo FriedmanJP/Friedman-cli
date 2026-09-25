@@ -418,6 +418,16 @@ using .MacroEconometricModels
         parsed = tokenize(["-b"])
         bound = bind_args(parsed, cmd_short_flag)
         @test bound.bayesian == true
+
+        @testset "bind_args --result makes data optional" begin
+            leaf = LeafCommand("var", (; kwargs...) -> kwargs;
+                args=[Argument("data"; required=true)],
+                options=[Option("result"; type=String, default="")],
+                flags=Flag[])
+            parsed = tokenize(["--result", "irf.jld2"])
+            bound = bind_args(parsed, leaf)
+            @test bound.data == ""
+        end
     end
 
     @testset "Help generation" begin
@@ -979,14 +989,14 @@ using .MacroEconometricModels
         @test length(estimate_node.subcmds["pvar"].options) == 13
         @test length(estimate_node.subcmds["pvar"].flags) == 2
 
-        # Arg binding: estimate var
+        # Arg binding: estimate multivariate var
         parsed = tokenize(["data.csv", "--lags=4", "--trend=both"])
         bound = bind_args(parsed, est_var)
         @test bound.data == "data.csv"
         @test bound.lags == 4
         @test bound.trend == "both"
 
-        # Arg binding: estimate bvar
+        # Arg binding: estimate multivariate bvar
         parsed = tokenize(["data.csv", "--draws=5000", "--sampler=hmc"])
         bound = bind_args(parsed, est_bvar)
         @test bound.data == "data.csv"
@@ -994,7 +1004,7 @@ using .MacroEconometricModels
         @test bound.sampler == "hmc"
         @test bound.lags == 4  # default
 
-        # Arg binding: estimate lp
+        # Arg binding: estimate multivariate lp
         parsed = tokenize(["data.csv", "--method=iv", "--instruments=inst.csv"])
         bound = bind_args(parsed, est_lp)
         @test bound.data == "data.csv"
@@ -1002,7 +1012,7 @@ using .MacroEconometricModels
         @test bound.instruments == "inst.csv"
         @test bound.horizons == 20  # default
 
-        # Dispatch: estimate var test.csv --lags=4
+        # Dispatch: estimate multivariate var test.csv --lags=4
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1017,7 +1027,7 @@ using .MacroEconometricModels
         @test called_with[][:data] == "test.csv"
         @test called_with[][:lags] == 4
 
-        # Dispatch: estimate lp test.csv --method=iv
+        # Dispatch: estimate multivariate lp test.csv --method=iv
         est_lp_d = LeafCommand("lp", dispatch_handler;
             args=[Argument("data"; description="Data file")],
             options=[Option("method"; type=String, default="standard", description="Method")],
@@ -1351,7 +1361,7 @@ using .MacroEconometricModels
         @test bound.lags == 4
         @test bound.trend == "none"
 
-        # Dispatch through nested var node: friedman test var lagselect test.csv
+        # Dispatch through nested var node: friedman test multivariate lagselect test.csv
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1928,14 +1938,14 @@ using .MacroEconometricModels
         @test contains(help_text, "arch")
         @test contains(help_text, "sv")
 
-        # Arg binding: forecast var
+        # Arg binding: forecast multivariate var
         parsed = tokenize(["data.csv", "--horizons=24", "--confidence=0.90"])
         bound = bind_args(parsed, fc_var)
         @test bound.data == "data.csv"
         @test bound.horizons == 24
         @test bound.confidence == 0.90
 
-        # Arg binding: forecast arima
+        # Arg binding: forecast univariate arima
         parsed = tokenize(["data.csv", "--column=2", "--p=3", "--d=1", "--q=1", "--horizons=24"])
         bound = bind_args(parsed, fc_arima)
         @test bound.data == "data.csv"
@@ -1946,7 +1956,7 @@ using .MacroEconometricModels
         @test bound.horizons == 24
         @test bound.confidence == 0.95  # default
 
-        # Dispatch: friedman forecast var test.csv --horizons=24
+        # Dispatch: friedman forecast multivariate var test.csv --horizons=24
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1961,7 +1971,7 @@ using .MacroEconometricModels
         @test called_with[][:data] == "test.csv"
         @test called_with[][:horizons] == 24
 
-        # Dispatch: friedman forecast arima test.csv --column=1
+        # Dispatch: friedman forecast univariate arima test.csv --column=1
         fc_arima_d = LeafCommand("arima", dispatch_handler;
             args=[Argument("data"; description="Data file")],
             options=[Option("column"; short="c", type=Int, default=1, description="Column")],
@@ -2158,13 +2168,13 @@ using .MacroEconometricModels
             @test contains(help_text, key)
         end
 
-        # Arg binding: predict var
+        # Arg binding: predict multivariate var
         parsed = tokenize(["data.csv", "--lags=3"])
         bound = bind_args(parsed, pred_var)
         @test bound.data == "data.csv"
         @test bound.lags == 3
 
-        # Dispatch: friedman predict var test.csv --lags=2
+        # Dispatch: friedman predict multivariate var test.csv --lags=2
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2364,7 +2374,7 @@ using .MacroEconometricModels
             @test contains(help_text, key)
         end
 
-        # Dispatch: friedman residuals var test.csv
+        # Dispatch: friedman residuals multivariate var test.csv
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2715,7 +2725,7 @@ function _write_table(df::DataFrame, output::String, title::String)
 end
 
 @testset "envelope core" begin
-    env = Envelope(command="estimate var")
+    env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
     add_table!(env, :criteria, DataFrame(metric=["aic"], value=[NaN]))
     buf = IOBuffer(); render(env, :json, buf)
@@ -2731,7 +2741,7 @@ end
     buf = IOBuffer(); render(env, :csv, buf)
     @test startswith(String(take!(buf)), "variable,est")  # primary table only
 
-    err = Envelope(command="estimate var")
+    err = Envelope(command="estimate multivariate var")
     set_error!(err, "data/file-not-found", "file not found: x.csv"; hint="check the path")
     buf = IOBuffer(); render(err, :json, buf)
     doc = JSON3.read(String(take!(buf)))
@@ -2740,7 +2750,7 @@ end
     # C047: validity_warning! is envelope-visible AND quiet-proof (never suppressed)
     let prev_q = _QUIET[], prev_env = _ENVELOPE[]
         try
-            venv = Envelope(command="did test honest")
+            venv = Envelope(command="test did honest")
             _ENVELOPE[] = venv
             _QUIET[] = true   # must NOT suppress a validity warning (it is data, not status)
             redirect_stderr(devnull) do
@@ -2768,18 +2778,18 @@ end
 
 # W2/#137: the raw-argv JSON pre-scan feeding run_cli's usage-error net.
 @testset "_argv_wants_json forms (W2/#137)" begin
-    @test _argv_wants_json(["estimate", "var", "d.csv", "--format", "json"])
-    @test _argv_wants_json(["estimate", "var", "--format=json"])
-    @test _argv_wants_json(["estimate", "var", "-f", "json"])
-    @test _argv_wants_json(["estimate", "var", "-f=json"])
-    @test _argv_wants_json(["--json", "estimate", "var"])
-    @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "var"])
-    @test !_argv_wants_json(["estimate", "var", "d.csv"])
-    @test !_argv_wants_json(["estimate", "var", "--format", "csv"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "d.csv", "--format", "json"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "--format=json"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "-f", "json"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "-f=json"])
+    @test _argv_wants_json(["--json", "estimate", "multivariate", "var"])
+    @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "multivariate", "var"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "d.csv"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "--format", "csv"])
     # --json is a LEADING global; mid-argv it belongs to the leaf parser (#117)
-    @test !_argv_wants_json(["estimate", "var", "--json"])
-    @test !_argv_wants_json(["estimate", "var", "-f", "table"])
-    @test !_argv_wants_json(["--seed=42", "estimate", "var"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "--json"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "-f", "table"])
+    @test !_argv_wants_json(["--seed=42", "estimate", "multivariate", "var"])
 end
 
 # W2/#137: error objects carry exit_code from the SAME prefix map as the
@@ -2909,7 +2919,7 @@ end
 @testset "C061: no active validity warnings" begin
     # C047 shipped the validity_warning! mechanism with ZERO active warnings —
     # every targeted upstream defect (#122/#130/#163) was fixed within the pin,
-    # and re-verified sound on 0.7.0 (dsge bayes compare, did test honest). This
+    # and re-verified sound on 0.7.0 (dsge bayes compare, test did honest). This
     # guards that no command handler re-introduces a validity_warning! call site.
     cmd_dir = joinpath(dirname(@__DIR__), "src", "commands")
     offenders = String[]
@@ -3354,6 +3364,10 @@ using TOML
         @test gmm_empty["moment_conditions"] == String[]
         @test gmm_empty["instruments"] == String[]
         @test gmm_empty["weighting"] == "twostep"
+        @test gmm_empty["dep"] == ""
+        @test gmm_empty["endogenous"] == String[]
+        @test gmm_empty["exogenous"] == String[]
+        @test gmm_empty["theta0"] == Float64[]
     end
 
     @testset "get_system (SUR/3SLS, C063)" begin
@@ -3678,6 +3692,62 @@ using TOML
         @test uhlig_partial["n_refine"] == 10  # default
     end
 
+    @testset "get_lewis_tvv_params" begin
+        # Empty config → defaults
+        tvv_empty = get_lewis_tvv_params(Dict())
+        @test tvv_empty["weighting"] == :two_step
+
+        # Custom value
+        cfg = Dict("identification" => Dict("lewis_tvv" => Dict("weighting" => "cue")))
+        @test get_lewis_tvv_params(cfg)["weighting"] == :cue
+
+        # Invalid weighting → config/invalid (exit 4)
+        bad = Dict("identification" => Dict("lewis_tvv" => Dict("weighting" => "optimal")))
+        e = try get_lewis_tvv_params(bad); nothing catch ex; ex end
+        @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+
+        # Non-table section → config/invalid
+        bad2 = Dict("identification" => Dict("lewis_tvv" => "cue"))
+        e2 = try get_lewis_tvv_params(bad2); nothing catch ex; ex end
+        @test e2 isa CliError && e2.code == "config/invalid" && exit_class(e2) == 4
+    end
+
+    @testset "get_sv_svar_params" begin
+        # Empty config → defaults
+        sv_empty = get_sv_svar_params(Dict())
+        @test sv_empty["hetero_shocks"] == Int[]
+        @test sv_empty["maxiter"] == 500
+        @test sv_empty["gibbs_burn"] == 5
+        @test sv_empty["gibbs_draws"] == 100
+        @test sv_empty["init"] == :ols_chol
+
+        # Custom values
+        cfg = Dict("identification" => Dict("sv_svar" => Dict(
+            "hetero_shocks" => [1, 3], "maxiter" => 50, "gibbs_burn" => 2,
+            "gibbs_draws" => 20, "init" => "haar")))
+        sv = get_sv_svar_params(cfg)
+        @test sv["hetero_shocks"] == [1, 3]
+        @test sv["maxiter"] == 50
+        @test sv["gibbs_burn"] == 2
+        @test sv["gibbs_draws"] == 20
+        @test sv["init"] == :haar
+
+        # Invalid values → config/invalid (exit 4)
+        for (key, val) in [("hetero_shocks", [0]), ("hetero_shocks", [1.5]),
+                           ("hetero_shocks", [true]), ("hetero_shocks", 2),
+                           ("maxiter", 0), ("gibbs_burn", -1),
+                           ("gibbs_draws", 0), ("init", "newton")]
+            bad = Dict("identification" => Dict("sv_svar" => Dict(key => val)))
+            e = try get_sv_svar_params(bad); nothing catch ex; ex end
+            @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+        end
+
+        # Non-table section → config/invalid
+        bad2 = Dict("identification" => Dict("sv_svar" => "haar"))
+        e2 = try get_sv_svar_params(bad2); nothing catch ex; ex end
+        @test e2 isa CliError && e2.code == "config/invalid" && exit_class(e2) == 4
+    end
+
     @testset "get_dsge — valid model config" begin
         cfg = Dict(
             "model" => Dict(
@@ -3972,7 +4042,7 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "perfect-foresight")
     @test haskey(dsge_node.subcmds, "steady-state")
     @test haskey(dsge_node.subcmds, "hd")
-    @test haskey(dsge_node.subcmds, "ha")
+    @test !haskey(dsge_node.subcmds, "ha")
     @test haskey(dsge_node.subcmds, "ct")
     @test haskey(dsge_node.subcmds, "olg")
     @test haskey(dsge_node.subcmds, "determinacy-map")   # W12/#114
@@ -3981,24 +4051,24 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "lifecycle")
     @test haskey(dsge_node.subcmds, "firm")
     @test haskey(dsge_node.subcmds, "bank")
-    @test length(dsge_node.subcmds) == 18
+    @test length(dsge_node.subcmds) == 17
 
     # Nested nodes vs remaining leaves
     for (name, cmd) in dsge_node.subcmds
-        if name in ("bayes", "ha", "ct", "olg", "dcegm", "lifecycle", "firm", "bank")
+        if name in ("bayes", "ct", "olg", "dcegm", "lifecycle", "firm", "bank")
             @test cmd isa NodeCommand
         else
             @test cmd isa LeafCommand
         end
     end
 
-    ha_node = dsge_node.subcmds["ha"]
+    ha_node = register_hadsge_commands!()
+    @test ha_node.name == "hadsge"
     for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
-                 "distribution-irf", "inequality-irf", "simulate-panel", "estimate", "hd")
+                 "distribution-irf", "inequality-irf", "simulate-panel", "estimate", "hd", "accuracy")
         @test haskey(ha_node.subcmds, leaf)
         @test ha_node.subcmds[leaf] isa LeafCommand
     end
-    @test haskey(ha_node.subcmds, "estimate")  # un-deferred (C048): MEMs#228 fixed in 0.6.7
 
     ct_node = dsge_node.subcmds["ct"]
     @test haskey(ct_node.subcmds, "solve")
@@ -4136,10 +4206,11 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test any(o -> o.name == "constraint-solver", bayes_est.options)
 end
 
-@testset "estimate smm command structure" begin
+@testset "estimate regression smm command structure" begin
     est_node = register_estimate_commands!()
-    @test haskey(est_node.subcmds, "smm")
-    smm_cmd = est_node.subcmds["smm"]
+    @test length(est_node.subcmds) == 8
+    @test est_node.subcmds["regression"] isa NodeCommand
+    smm_cmd = est_node.subcmds["regression"].subcmds["smm"]
     @test smm_cmd isa LeafCommand
     @test length(smm_cmd.args) == 1
     @test smm_cmd.args[1].name == "data"
@@ -4149,23 +4220,21 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # 65 primary leaves + 1 snake alias (gjr_garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c)
-    @test length(est_node.subcmds) == 75
-    @test haskey(est_node.subcmds, "smm")
-    @test haskey(est_node.subcmds, "favar")
-    @test haskey(est_node.subcmds, "sdfm")
-    @test haskey(est_node.subcmds, "arfima")
+    # Same 76 estimate leaves, grouped under the eight family nodes.
+    nleaves = sum(c isa NodeCommand ? length(c.subcmds) : 0 for c in values(est_node.subcmds))
+    @test nleaves == 76
     for key in ["var", "bvar", "lp", "arima", "arfima", "gmm", "static", "dynamic", "gdfm",
                  "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml",
                  "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit",
                  "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas"]
-        @test haskey(est_node.subcmds, key)
-        @test est_node.subcmds[key] isa LeafCommand
+        fam = _MODEL_FAMILY[key]
+        @test haskey(est_node.subcmds[fam].subcmds, key)
+        @test est_node.subcmds[fam].subcmds[key] isa LeafCommand
     end
-    @test haskey(est_node.subcmds, "gjr_garch")  # hidden alias
+    @test !haskey(est_node.subcmds["volatility"].subcmds, "gjr_garch")  # C055: alias removed
 
     # FAVAR has key-vars option
-    favar_cmd = est_node.subcmds["favar"]
+    favar_cmd = est_node.subcmds["multivariate"].subcmds["favar"]
     @test length(favar_cmd.args) == 1
     @test favar_cmd.args[1].name == "data"
     favar_opt_names = [o.name for o in favar_cmd.options]
@@ -4176,11 +4245,15 @@ end
     @test "draws" in favar_opt_names
 
     # SDFM has identification and spectral options
-    sdfm_cmd = est_node.subcmds["sdfm"]
+    sdfm_cmd = est_node.subcmds["factor"].subcmds["sdfm"]
     @test length(sdfm_cmd.args) == 1
     sdfm_opt_names = [o.name for o in sdfm_cmd.options]
     @test "factors" in sdfm_opt_names
     @test "id" in sdfm_opt_names
+    @test "q-method" in sdfm_opt_names
+    @test "method" in sdfm_opt_names
+    @test "spectral" in sdfm_opt_names
+    @test "instrument" in sdfm_opt_names
     @test "var-lags" in sdfm_opt_names
     @test "bandwidth" in sdfm_opt_names
     @test "kernel" in sdfm_opt_names
@@ -4194,14 +4267,15 @@ end
     @test haskey(did_node.subcmds, "estimate")
     @test haskey(did_node.subcmds, "event-study")
     @test haskey(did_node.subcmds, "lp-did")
-    @test haskey(did_node.subcmds, "test")
-    @test length(did_node.subcmds) == 4
+    @test !haskey(did_node.subcmds, "test")
+    @test length(did_node.subcmds) == 3
 
     @test did_node.subcmds["estimate"] isa LeafCommand
     @test did_node.subcmds["event-study"] isa LeafCommand
     @test did_node.subcmds["lp-did"] isa LeafCommand
 
-    test_node = did_node.subcmds["test"]
+    # bacon/pretrend/negweight/honest live under `test did` (#202)
+    test_node = register_test_commands!().subcmds["did"]
     @test test_node isa NodeCommand
     @test haskey(test_node.subcmds, "bacon")
     @test haskey(test_node.subcmds, "pretrend")
@@ -4300,70 +4374,72 @@ end
     @test "key-vars" in fevd_favar_opts
     @test "horizons" in fevd_favar_opts
 
-    # HD: 5 subcommands (4 original + favar)
+    # HD: 6 subcommands (4 original + favar + sdfm)
     hd_node = register_hd_commands!()
-    @test length(hd_node.subcmds) == 5
+    @test length(hd_node.subcmds) == 6
     @test haskey(hd_node.subcmds, "favar")
     @test hd_node.subcmds["favar"] isa LeafCommand
+    @test haskey(hd_node.subcmds, "sdfm")
+    @test hd_node.subcmds["sdfm"] isa LeafCommand
 
     hd_favar_opts = [o.name for o in hd_node.subcmds["favar"].options]
     @test "key-vars" in hd_favar_opts
     @test "id" in hd_favar_opts
 
-    # Forecast: 16 primary + gjr_garch alias + evaluate sub-node (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
-    fc_node = register_forecast_commands!()
-    @test length(fc_node.subcmds) == 30
-    @test haskey(fc_node.subcmds, "favar")
-    @test fc_node.subcmds["favar"] isa LeafCommand
+    hd_sdfm_opts = [o.name for o in hd_node.subcmds["sdfm"].options]
+    @test "factors" in hd_sdfm_opts
+    @test "space" in hd_sdfm_opts
+    hd_sdfm_flags = [f.name for f in hd_node.subcmds["sdfm"].flags]
+    @test "no-idiosyncratic" in hd_sdfm_flags
 
-    fc_favar = fc_node.subcmds["favar"]
+    # Forecast model leaves sit under family nodes; evaluate stays a sub-node.
+    fc_node = register_forecast_commands!()
+    @test haskey(fc_node.subcmds, "evaluate")
+    @test fc_node.subcmds["multivariate"].subcmds["favar"] isa LeafCommand
+    @test fc_node.subcmds["factor"].subcmds["sdfm"] isa LeafCommand
+
+    fc_favar = fc_node.subcmds["multivariate"].subcmds["favar"]
     fc_favar_opts = [o.name for o in fc_favar.options]
     @test "key-vars" in fc_favar_opts
     @test "horizons" in fc_favar_opts
     fc_favar_flags = [f.name for f in fc_favar.flags]
     @test "panel-forecast" in fc_favar_flags
 
-    # Predict: 23 primary + gjr_garch alias (C044; +ms/ms-ar W3 #101)
     pred_node = register_predict_commands!()
-    @test length(pred_node.subcmds) == 39
-    @test haskey(pred_node.subcmds, "favar")
-    @test pred_node.subcmds["favar"] isa LeafCommand
+    @test pred_node.subcmds["multivariate"].subcmds["favar"] isa LeafCommand
 
-    pred_favar_opts = [o.name for o in pred_node.subcmds["favar"].options]
+    pred_favar_opts = [o.name for o in pred_node.subcmds["multivariate"].subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
-    # Residuals: 23 primary + gjr_garch alias (C044); +#70 setar/star/ms-ar/ms
     res_node = register_residuals_commands!()
-    @test length(res_node.subcmds) == 41
-    @test haskey(res_node.subcmds, "favar")
-    @test res_node.subcmds["favar"] isa LeafCommand
+    @test res_node.subcmds["multivariate"].subcmds["favar"] isa LeafCommand
 
-    res_favar_opts = [o.name for o in res_node.subcmds["favar"].options]
+    res_favar_opts = [o.name for o in res_node.subcmds["multivariate"].subcmds["favar"].options]
     @test "key-vars" in res_favar_opts
 end
 
 @testset "Structural break test command structure" begin
     test_node = register_test_commands!()
 
-    # 80 primary + 2 snake aliases (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-    @test length(test_node.subcmds) == 85
+    # Family nodes plus flat `other` leaves. VECM stays a nested node (C071).
+    @test test_node.subcmds["vecm"] isa NodeCommand
+    @test length(test_node.subcmds["vecm"].subcmds) == 5
+    _tleaf(name) = begin
+        fam = get(_TEST_FAMILY, name, "")
+        fam == "" || fam == "other" ? test_node.subcmds[name] :
+            test_node.subcmds[fam].subcmds[name]
+    end
     for leaf in ("hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
                  "phillips-ouliaris", "hansen-instability", "park-added",
                  "white", "glejser", "harvey", "chow", "cusum", "cusumsq",
                  "recursive-residuals", "influence",
-                 "llc", "ips", "breitung", "fisher-johansen", "dh-causality")
-        @test haskey(test_node.subcmds, leaf)
+                 "llc", "ips", "breitung", "fisher-johansen", "dh-causality",
+                 "gph", "local-whittle")
+        @test _tleaf(leaf) isa LeafCommand
     end
-    @test haskey(test_node.subcmds, "gph")
-    @test haskey(test_node.subcmds, "local-whittle")
-    # C071: nested VECM restriction-test node
-    @test haskey(test_node.subcmds, "vecm")
-    @test test_node.subcmds["vecm"] isa NodeCommand
-    @test length(test_node.subcmds["vecm"].subcmds) == 5
 
     # Andrews structural break test
-    @test haskey(test_node.subcmds, "andrews")
-    andrews_cmd = test_node.subcmds["andrews"]
+    andrews_cmd = _tleaf("andrews")
     @test andrews_cmd isa LeafCommand
     @test length(andrews_cmd.args) == 1
     andrews_opts = [o.name for o in andrews_cmd.options]
@@ -4374,8 +4450,7 @@ end
     @test "plot" in andrews_flags
 
     # Bai-Perron multiple structural break test
-    @test haskey(test_node.subcmds, "bai-perron")
-    bp_cmd = test_node.subcmds["bai-perron"]
+    bp_cmd = _tleaf("bai-perron")
     @test bp_cmd isa LeafCommand
     @test length(bp_cmd.args) == 1
     bp_opts = [o.name for o in bp_cmd.options]
@@ -4390,9 +4465,13 @@ end
 @testset "Panel unit root test command structure" begin
     test_node = register_test_commands!()
 
+    _tleaf(name) = begin
+        fam = get(_TEST_FAMILY, name, "")
+        fam == "" || fam == "other" ? test_node.subcmds[name] :
+            test_node.subcmds[fam].subcmds[name]
+    end
     # PANIC test
-    @test haskey(test_node.subcmds, "panic")
-    panic_cmd = test_node.subcmds["panic"]
+    panic_cmd = _tleaf("panic")
     @test panic_cmd isa LeafCommand
     @test length(panic_cmd.args) == 1
     panic_opts = [o.name for o in panic_cmd.options]
@@ -4402,8 +4481,7 @@ end
     @test "time-col" in panic_opts
 
     # Pesaran CIPS test
-    @test haskey(test_node.subcmds, "cips")
-    cips_cmd = test_node.subcmds["cips"]
+    cips_cmd = _tleaf("cips")
     @test cips_cmd isa LeafCommand
     cips_opts = [o.name for o in cips_cmd.options]
     @test "lags" in cips_opts
@@ -4411,16 +4489,14 @@ end
     @test "id-col" in cips_opts
 
     # Moon-Perron test
-    @test haskey(test_node.subcmds, "moon-perron")
-    mp_cmd = test_node.subcmds["moon-perron"]
+    mp_cmd = _tleaf("moon-perron")
     @test mp_cmd isa LeafCommand
     mp_opts = [o.name for o in mp_cmd.options]
     @test "factors" in mp_opts
     @test "id-col" in mp_opts
 
     # Factor break test
-    @test haskey(test_node.subcmds, "factor-break")
-    fb_cmd = test_node.subcmds["factor-break"]
+    fb_cmd = _tleaf("factor-break")
     @test fb_cmd isa LeafCommand
     fb_opts = [o.name for o in fb_cmd.options]
     @test "factors" in fb_opts
@@ -4499,12 +4575,13 @@ end
 
         # wrap_legacy save + load
         h_save = wrap_legacy((; data="", format="table", output="", kwargs...) -> (m=:var, ok=true))
-        env = Envelope(command="estimate var")
+        env = Envelope(command="estimate multivariate var")
+        dummy_spec = CommandSpec(path=["estimate", "multivariate", "var"], summary="x")
         ctx = CmdContext(
             Dict{Symbol,Any}(:data => "x.csv"),
             Dict{Symbol,Any}(:save_model => tmp, :format => "table", :output => ""),
             Dict{Symbol,Bool}(),
-            :table, "", env, (parts...) -> nothing,
+            :table, "", env, (parts...) -> nothing, dummy_spec,
         )
         h_save(ctx)
         h_load = wrap_legacy((; data="", model=nothing, format="table", output="", kwargs...) -> model)
@@ -4512,7 +4589,7 @@ end
             Dict{Symbol,Any}(:data => ""),
             Dict{Symbol,Any}(:model => tmp, :format => "table", :output => ""),
             Dict{Symbol,Bool}(),
-            :table, "", env, (parts...) -> nothing,
+            :table, "", env, (parts...) -> nothing, dummy_spec,
         )
         m = h_load(ctx2)
         @test m.m == :var
@@ -4520,7 +4597,7 @@ end
         # registry options present (use register_* — no test_main build_app mirror)
         est = register_estimate_commands!()
         irf = register_irf_commands!()
-        @test any(o -> o.name == "save-model", est.subcmds["var"].options)
+        @test any(o -> o.name == "save-model", est.subcmds["multivariate"].subcmds["var"].options)
         @test any(o -> o.name == "model", irf.subcmds["var"].options)
         mod = register_model_commands!()
         @test haskey(mod.subcmds, "info")
@@ -4530,6 +4607,10 @@ end
         # data optional when --model set
         leaf = irf.subcmds["var"]
         parsed = tokenize(["--model", tmp])
+        bound = bind_args(parsed, leaf)
+        @test bound.data == "" || bound.data === nothing
+
+        parsed = tokenize(["--result", "irf.jld2"])
         bound = bind_args(parsed, leaf)
         @test bound.data == "" || bound.data === nothing
     finally

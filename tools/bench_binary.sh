@@ -30,7 +30,7 @@ run_pair() {
 
 run_pair "--version" "$BIN" --version
 run_pair "--help" "$BIN" --help
-run_pair "estimate var <fixture> --lags 1" "$BIN" estimate var "$FIX" --lags 1
-run_pair "estimate var <fixture> --lags 1 --format json" "$BIN" estimate var "$FIX" --lags 1 --format json
+run_pair "estimate multivariate <fixture> --lags 1" "$BIN" estimate multivariate "$FIX" --lags 1
+run_pair "estimate multivariate <fixture> --lags 1 --format json" "$BIN" estimate multivariate "$FIX" --lags 1 --format json
 
 rm -f "$FIX"

@@ -25,8 +25,10 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -95,7 +97,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -155,10 +157,15 @@ function fevd_specs()::Vector{CommandSpec}
             summary="Structural DFM forecast error variance decomposition",
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
-                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizons", type=Int, default=20, description="FEVD horizon"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -173,21 +180,38 @@ function fevd_specs()::Vector{CommandSpec}
     ]
 end
 
+const _FEVD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
+    ["fevd", "var"]   => ([:VARModel], [:FEVD, :AriasSVARResult, :UhligSVARResult]),
+    ["fevd", "bvar"]  => ([:BVARPosterior], [:BayesianFEVD]),
+    ["fevd", "lp"]    => ([:StructuralLP], [:LPFEVD]),
+    ["fevd", "vecm"]  => ([:VECMModel], [:FEVD]),
+    ["fevd", "pvar"]  => ([:PVARModel], Symbol[]),
+    ["fevd", "favar"] => ([:FAVARModel], [:FEVD]),
+    ["fevd", "sdfm"]  => ([:StructuralDFM], [:FEVD]),
+)
+
 function register_fevd_commands!()
-    specs = with_config_ergonomics(with_model_option(fevd_specs()))
-    register!(specs)
+    specs = _tag_slot_types(fevd_specs(), _FEVD_SLOT_TYPES)
+    specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
+    specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
+    specs = [s.path == ["fevd", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s for s in specs]
+    specs = register!(specs)
     return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
 end
 
 
 # ── VAR FEVD ─────────────────────────────────────────────
 
-function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
+function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothing, horizons::Int=20,
                     id::String="cholesky", config::String="",
+                    instrument::String="", target_var::String="",
                     generalized::Bool=false, normalize::Bool=false,
                     output::String="", format::String="table",
-                    plot::Bool=false, plot_save::String="",
-                    model=nothing)
+                    plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="fevd var",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_fevd_result(loaded; format, output,
+        title="Forecast Error Variance Decomposition", key="fevd", plot, plot_save)
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -200,16 +224,17 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
     _status()
 
     # Arias identification: use identify_arias → irf_mean → compute FEVD from structural IRFs
-    if id == "arias"
-        isempty(config) && error("Arias identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
-        arias_result = identify_arias(model, restrictions, horizons)
+    # (narrative-adrr shares the pipeline via identify_narrative)
+    if id in ("arias", "narrative-adrr")
+        cfg2, restrictions = _load_svar_restrictions(config, n, id == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
+        if id == "narrative-adrr"
+            isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
+                throw(CliError("usage/missing",
+                    "fevd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
+            arias_result = identify_narrative(model, restrictions, horizons; _fwd_seed()...)
+        else
+            arias_result = identify_arias(model, restrictions, horizons; _fwd_seed()...)
+        end
         irf_vals = irf_mean(arias_result)  # H x n x n
         n_h = size(irf_vals, 1)
         # Compute FEVD proportions from structural IRFs
@@ -232,24 +257,18 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         _output_fevd_tables(proportions, varnames, n_h;
                             id="arias", title_prefix="FEVD", format=format, output=output,
                             key_prefix="fevd_by_variable")
-        return
+        return (; model, result=arias_result)
     end
 
     # Uhlig identification: use identify_uhlig → compute FEVD from structural IRFs
     if id == "uhlig"
-        isempty(config) && error("Uhlig identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+        cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
         uhlig_result = identify_uhlig(model, restrictions, horizons;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
             max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
+            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+            _fwd_seed()...)
         irf_vals = uhlig_result.irf  # H x n x n
         n_h = size(irf_vals, 1)
         # Compute FEVD proportions from structural IRFs
@@ -272,7 +291,7 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         _output_fevd_tables(proportions, varnames, n_h;
                             id="uhlig", title_prefix="FEVD", format=format, output=output,
                             key_prefix="fevd_by_variable")
-        return
+        return (; model, result=uhlig_result)
     end
 
     # W8/#110 (MEMs#364): Pesaran-Shin generalized FEVD. It is NOT an identification
@@ -294,10 +313,18 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
         note = normalize ? "normalized to sum to 1" : "shares do NOT sum to 1 across shocks"
         output_result(long_table(fevd_result); format=Symbol(format), output=output,
                       title="Generalized FEVD (Pesaran-Shin, $note)", key="generalized_fevd")
-        return
+        return (; model, result=fevd_result)
     end
 
-    kwargs = _build_identification_kwargs(id, config)
+    # W2/#166: VAR-family allow-set (proxy/max-share/gmm-moments) + extras.
+    _identification_method(id, _ID_METHODS_VAR, "fevd var")
+    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "fevd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
+                                              nvars=length(varnames), leaf="fevd var")
+    _inject_svar_id_kwargs!(kwargs, id, "fevd var", data, varnames, instrument, target_var)
     fevd_result = fevd(model, horizons; kwargs...)
 
     _status_report(() -> report(fevd_result))
@@ -309,16 +336,22 @@ function _fevd_var(; data::String="", lags=nothing, horizons::Int=20,
     # build proportions by hand with no FEVD result type, so they keep the wide helper.)
     output_result(long_table(fevd_result); format=Symbol(format), output=output,
                   title="FEVD ($id identification)", key="fevd")
+    return (; model, result=fevd_result)
 end
 
 # ── BVAR FEVD ────────────────────────────────────────────
 
-function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
+function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::Int=20,
                      id::String="cholesky", draws::Int=2000, sampler::String="direct",
                      config::String="",
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
                      model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="fevd bvar",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_fevd_result(loaded; format, output,
+        title="Bayesian FEVD", key="bayesian_fevd", plot, plot_save,
+        key_prefix="bayesian_fevd")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -332,8 +365,13 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
     _status("  Sampler: $sampler, Draws: $draws")
     _status()
 
+    # W1/#186 fix (pre-existing silent-ignore): --id was validated nowhere
+    # and threaded nowhere — every --id rendered cholesky numbers. Validate
+    # against the base map and thread like the irf/hd bvar siblings.
+    method = _identification_method(id, ID_METHOD_MAP, "fevd bvar")
+    bfevd_kwargs = _id_knob_kwargs(id, config, n, "fevd bvar")
     bfevd = fevd(post, horizons;
-        quantiles=[0.16, 0.5, 0.84])
+        method=method, quantiles=[0.16, 0.5, 0.84], bfevd_kwargs...)
 
     _status_report(() -> report(bfevd))
 
@@ -344,15 +382,20 @@ function _fevd_bvar(; data::String="", lags::Int=4, horizons::Int=20,
     _output_fevd_tables(bfevd.point_estimate, varnames, horizons;
                         id=id, title_prefix="Bayesian FEVD", format=format, output=output,
                         key_prefix="bayesian_fevd")
+    return (; model=post, result=bfevd)
 end
 
 # ── LP FEVD ──────────────────────────────────────────────
 
-function _fevd_lp(; data::String="", horizons::Int=20, lags::Int=4, var_lags=nothing,
+function _fevd_lp(; data::String="", result=nothing, horizons::Int=20, lags::Int=4, var_lags=nothing,
                    id::String="cholesky", vcov::String="newey_west", config::String="",
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="fevd lp",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_fevd_result(loaded; format, output,
+        title="LP FEVD", key="lp_fevd", plot, plot_save, key_prefix="lp_fevd")
     if isnothing(model)
         slp, Y, varnames = _load_and_structural_lp(data, horizons, lags, var_lags,
             id, vcov, config)
@@ -373,16 +416,21 @@ function _fevd_lp(; data::String="", horizons::Int=20, lags::Int=4, var_lags=not
     _output_fevd_tables(fevd_result.bias_corrected, varnames, horizons;
                         id=id, title_prefix="LP FEVD", format=format, output=output,
                         key_prefix="lp_fevd")
+    return (; model=slp, result=fevd_result)
 end
 
 # ── VECM FEVD ───────────────────────────────────────────
 
-function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
+function _fevd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="auto",
                      deterministic::String="constant", horizons::Int=20,
                      id::String="cholesky", config::String="",
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
                      model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="fevd vecm",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_fevd_result(loaded; format, output,
+        title="Forecast Error Variance Decomposition", key="vecm_fevd", plot, plot_save)
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)
@@ -398,8 +446,22 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     _status("Computing VECM FEVD: rank=$r, VAR($p), horizons=$horizons, id=$id")
     _status()
 
-    kwargs = _build_identification_kwargs(id, config)
-    fevd_result = fevd(var_model, horizons; kwargs...)
+    _identification_method(id, _ID_METHODS_VECM, "fevd vecm")
+    if id == "svec"
+        lr_zeros, sr_zeros = _load_svec_zeros(config, n, "fevd vecm")
+        svec_kwargs = Dict{Symbol,Any}(:method => :svec)
+        lr_zeros !== nothing && (svec_kwargs[:long_run_zeros] = lr_zeros)
+        sr_zeros !== nothing && (svec_kwargs[:short_run_zeros] = sr_zeros)
+        fevd_result = try
+            fevd(vecm, horizons; svec_kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM SVEC FEVD"))
+        end
+    else
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
+                                                  nvars=n, leaf="fevd vecm")
+        fevd_result = fevd(var_model, horizons; kwargs...)
+    end
 
     _status_report(() -> report(fevd_result))
 
@@ -408,18 +470,20 @@ function _fevd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     # C051: tidy long_table (see fevd var).
     output_result(long_table(fevd_result); format=Symbol(format), output=output,
                   title="VECM FEVD ($id identification)", key="vecm_fevd")
+    return (; model=vecm, result=fevd_result)
 end
 
 # ── Panel VAR FEVD ─────────────────────────────────────────
 
-function _fevd_pvar(; data::String="", id_col::String="", time_col::String="",
+function _fevd_pvar(; data::String="", result=nothing, id_col::String="", time_col::String="",
                      lags::Int=1, horizons::Int=10,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
                      model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="fevd pvar",
+                            horizons, horizons_default=10)
+    loaded === nothing || return loaded
     if isnothing(model)
-        isempty(id_col) && error("Panel VAR FEVD requires --id-col")
-        isempty(time_col) && error("Panel VAR FEVD requires --time-col")
         model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
     else
         varnames = model.varnames
@@ -440,23 +504,29 @@ function _fevd_pvar(; data::String="", id_col::String="", time_col::String="",
     _output_fevd_tables(proportions, varnames, horizons;
                         id="cholesky", title_prefix="Panel VAR FEVD",
                         format=format, output=output, key_prefix="panel_var_fevd")
+    return (; model, result=fevd_arr)
 end
 
 # ── FAVAR FEVD ─────────────────────────────────────────
 
-function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
+function _fevd_favar(; data::String="", result=nothing, factors=nothing, lags::Int=2,
                       key_vars::String="", horizons::Int=20,
                       id::String="cholesky", config::String="",
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="",
                       model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="fevd favar",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_fevd_result(loaded; format, output,
+        title="Forecast Error Variance Decomposition", key="favar_fevd", plot, plot_save)
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
         favar = model
         varnames = favar.varnames
     end
-    id_kwargs = _build_identification_kwargs(id, config)
+    id_kwargs = _build_identification_kwargs(id, config; nvars=length(varnames),
+                                                 leaf="fevd favar")
 
     _status("FAVAR FEVD: horizon=$horizons, id=$id")
     _status()
@@ -469,25 +539,33 @@ function _fevd_favar(; data::String="", factors=nothing, lags::Int=2,
     fevd_df = long_table(result)
     output_result(fevd_df; format=Symbol(format), output=output,
                   title="FAVAR FEVD ($id identification)", key="favar_fevd")
+    return (; model=favar, result=result)
 end
 
 # ── Structural DFM FEVD ──────────────────────────────
 
-function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
+function _fevd_sdfm(; data::String="", result=nothing, factors=nothing, id::String="cholesky",
                      var_lags::Int=1, horizons::Int=20,
+                     config::String="", method::String="fglr",
+                     spectral::String="lag-window", instrument::String="",
+                     q_method::String="hallin-liska",
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
                      model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="fevd sdfm",
+                            id, horizons, horizons_default=20)
+    loaded === nothing || return _rerender_fevd_result(loaded; format, output,
+        title="Forecast Error Variance Decomposition", key="sdfm_fevd", plot, plot_save)
     if isnothing(model)
-        Y, varnames = load_multivariate_data(data)
-        q = factors === nothing ? ic_criteria_gdfm(Y, min(10, size(Y, 2) - 1)).q_opt : factors
-        sdfm = estimate_structural_dfm(Y, q; identification=Symbol(id), p=var_lags,
-                                       H=horizons, varnames=varnames)
+        # W1/#165: shared estimation surface with `estimate sdfm`. FEVD uses the
+        # identification stored at estimation (upstream #710).
+        sdfm, _, _, q = _load_and_estimate_sdfm(data, factors, id, var_lags,
+            horizons, config, method, spectral, instrument, q_method)
     else
         sdfm = model
     end
 
-    _status("SDFM FEVD: $q factors, horizon=$horizons")
+    _status("SDFM FEVD: id=$id, method=$method, horizon=$horizons")
     _status()
 
     result = fevd(sdfm, horizons)
@@ -497,4 +575,5 @@ function _fevd_sdfm(; data::String="", factors=nothing, id::String="cholesky",
     # fevd(sdfm.factor_var,...) — the same FEVD type as fevd var, in factor space.
     fevd_df = long_table(result)
     output_result(fevd_df; format=Symbol(format), output=output, title="SDFM FEVD")
+    return (; model=sdfm, result=result)
 end

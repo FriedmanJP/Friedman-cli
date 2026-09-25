@@ -16,8 +16,9 @@
 
 # Estimate commands: var, bvar, lp, arima, gmm, smm, static, dynamic, gdfm, arch, garch, egarch, gjr_garch, sv, fastica, ml, favar, sdfm, reg, iv, logit, probit, preg, piv, plogit, pprobit, ologit, oprobit, mlogit
 
-# C044: kebab primary CLI name; snake kept as hidden alias where renamed
-const _VOL_CLI_NAMES = Dict("gjr_garch" => ("gjr-garch", ["gjr_garch"]))
+# C055: kebab primary CLI name (the C044 snake alias is gone); vol.name stays
+# snake since it feeds stable W3 table keys (gjr_garch_coefficients, …)
+const _VOL_CLI_NAMES = Dict("gjr_garch" => "gjr-garch")
 
 """Generate CommandSpecs for the volatility family — `:estimate` and `:forecast`
 ONLY. The predict/residuals leaves are registered by fitted.jl (#145): wiring
@@ -72,7 +73,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
                 OUTPUT_OPTIONS...,
             ]
         end
-        cli_name, aliases = get(_VOL_CLI_NAMES, vol.name, (vol.name, String[]))
+        cli_name = get(_VOL_CLI_NAMES, vol.name, vol.name)
         label = vol.label(1, 1)
         # W3/#138: the four verbs share the shared.jl emitters, so their keys are
         # `<vol.name>_<what>` — `<label>` (which carries p/q) stays in the title only.
@@ -102,7 +103,6 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
             flags=flags,
             tables=tables,
             category=string(verb),
-            aliases=aliases,
             handler=wrap_legacy(handlers[vol.name]),
         ))
     end
@@ -363,7 +363,9 @@ function estimate_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:gmm_estimates,
-                              description="GMM parameter estimates with standard errors (written only when --output is given)")],
+                              description="GMM parameter estimates with standard errors (LP path: only when --output is given; IV path: always)"),
+                    TableSpec(name=:gmm_diagnostics,
+                              description="IV-GMM first-stage F and identification width (opt-in dep+theta0 path)")],
             category="estimate",
             handler=wrap_legacy(_estimate_gmm),
         ),
@@ -415,10 +417,14 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="Spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
             tables=[TableSpec(name=:gdfm_common_variance_shares,
                               description="Share of each variable variance explained by the common component")],
             category="estimate",
@@ -980,16 +986,25 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
                 OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
                 OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
+                OptionSpec(name="horizon", type=Int, default=12, description="Max cumulative-multiplier horizon H (≥ 0)"),
+                OptionSpec(name="nreps", type=Int, default=500, description="Bootstrap replications for multiplier bands (0 = no bands)"),
+                OptionSpec(name="level", type=Float64, default=0.95, description="Bootstrap band coverage level"),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=FlagSpec[],
+            flags=[FlagSpec(name="no-bootstrap", description="Skip bootstrap bands (point multipliers only)"),
+                   FlagSpec(name="plot", description="Open interactive plot in browser")],
             tables=[TableSpec(name=:nardl_coefficients,
                               description="Levels-form NARDL coefficients on the split (positive/negative) regressor set"),
                     TableSpec(name=:nardl_asymmetric_long_run_coefficients,
                               description="Asymmetric long-run multipliers theta+ and theta- with standard errors"),
                     TableSpec(name=:nardl_diagnostics,
-                              description="Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision")],
+                              description="Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision"),
+                    TableSpec(name=:nardl_cumulative_dynamic_multipliers,
+                              description="Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested"),
+                    TableSpec(name=:nardl_multipliers_summary,
+                              description="Multiplier settings and long-run theta+/theta- of the underlying NARDL")],
             category="estimate",
             handler=wrap_legacy(_estimate_nardl),
         ),
@@ -1316,6 +1331,61 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_vecm),
         ),
         CommandSpec(
+            path=["estimate", "svar"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                OptionSpec(name="pattern", type=String, default="recursive", description="AB-model pattern: recursive|blanchard-quah|a-model|b-model|ab-model", choices=["recursive", "blanchard-quah", "a-model", "b-model", "ab-model"]),
+                OptionSpec(name="config", type=String, default="", description="TOML config with [svar] A/B matrices (a/b/ab-model)"),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (overidentified patterns)"),
+                OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:svar_a,
+                              description="SVAR contemporaneous A matrix, one row per equation"),
+                    TableSpec(name=:svar_b,
+                              description="SVAR structural B matrix, one row per equation"),
+                    TableSpec(name=:svar_summary,
+                              description="Log-likelihood, LR overidentification test and identification status")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_svar),
+        ),
+        CommandSpec(
+            path=["estimate", "svec"],
+            summary="Path to CSV data file",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                OptionSpec(name="config", type=String, default="", description="TOML config with optional [svec] long/short-run zero matrices"),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (restricted patterns)"),
+                OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser")
+            ],
+            tables=[TableSpec(name=:svec_b0,
+                              description="SVEC contemporaneous impact matrix B0, one row per equation"),
+                    TableSpec(name=:svec_xi,
+                              description="SVEC long-run impact matrix Xi, one row per equation"),
+                    TableSpec(name=:svec_summary,
+                              description="Permanent-shock count and identification status")],
+            category="estimate",
+            handler=wrap_legacy(_estimate_svec),
+        ),
+        CommandSpec(
             path=["estimate", "smm"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
@@ -1362,8 +1432,12 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign"),
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
@@ -1769,9 +1843,20 @@ function estimate_specs()::Vector{CommandSpec}
     ]
 end
 
+const _ESTIMATE_PANEL = Set(["pvar", "preg", "piv", "plogit", "pprobit", "pmg", "xtcointreg"])
+const _ESTIMATE_XS = Set(["3sls", "elastic-net", "heckman", "iv", "kde", "kernel-reg",
+    "lasso", "logit", "lowess", "ml", "mlogit", "nbreg", "ologit", "oprobit",
+    "poisson", "probit", "qreg", "rdd", "reg", "ridge", "robust", "select",
+    "sur", "tobit", "truncreg"])
+
+function _data_kinds_for_estimator(leaf::AbstractString)
+    leaf in _ESTIMATE_PANEL ? [:panel, :csv] :
+    leaf in _ESTIMATE_XS    ? [:cross_section, :timeseries, :csv] :
+                              [:timeseries, :csv]
+end
+
 function register_estimate_commands!()
-    specs = with_config_ergonomics(with_save_model(estimate_specs()))
-    register!(specs)
+    specs = register!(catalog_specs("estimate"))
     return build_node("estimate", specs; description="Model estimation")
 end
 
@@ -1793,7 +1878,9 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
     _status("Trend: $trend, Observations: $(size(Y, 1))")
     _status()
 
-    model = estimate_var(Y, p)
+    # Forward the CSV column names (#119, same as _load_and_estimate_var): without
+    # this DataFrame(model) renders positional y1..yn equations/terms.
+    model = estimate_var(Y, p; varnames=varnames)
     _status_report(() -> report(model))
 
     # C051: MEMs renders coefficient-bearing models as a tidy coef table via Tables.jl
@@ -2432,14 +2519,17 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
     return model
 end
 
-function _forecast_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q::Int=0,
+function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=nothing, d::Int=0, q::Int=0,
                            P::Int=0, D::Int=0, Q::Int=0, s::Int=12, auto::Bool=false,
                            max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
                            criterion::String="aic", method::String="css_mle",
                            max_iter::Int=500, no_intercept::Bool=false,
                            horizons::Int=12, ci_level::Float64=0.95,
                            plot::Bool=false, plot_save::String="",
-                           output::String="", format::String="table")
+                           output::String="", format::String="table", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast sarima")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="SARIMA Forecast", key="sarima_forecast", plot, plot_save)
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast sarima: --horizons must be ≥ 1 (got $horizons)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
@@ -2458,7 +2548,7 @@ function _forecast_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
                   title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
                   key="sarima_forecast")
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    return fc
+    return (; model, result=fc)
 end
 
 function _predict_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, q::Int=0,
@@ -2587,11 +2677,14 @@ function _arfima_refit(data, column, p, q, method, d0, max_iter, model)
     return m, vname
 end
 
-function _forecast_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
+function _forecast_arfima(; data::String="", result=nothing, column::Int=1, p::Int=0, q::Int=0,
         method::String="css", d0=nothing, max_iter::Int=500,
         horizons::Int=12, confidence::Float64=0.95, trunc_lag::Int=200,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast arfima")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="ARFIMA Forecast", key="arfima_forecast", plot, plot_save)
     horizons >= 1 || throw(CliError("usage/invalid", "forecast arfima: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < confidence < 1.0) || throw(CliError("usage/invalid",
         "forecast arfima: --confidence must be in (0, 1) (got $confidence)"))
@@ -2612,7 +2705,7 @@ function _forecast_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
             upper = round.(Float64.(collect(fc.ci_upper)); digits=6));
         format=Symbol(format), output=output,
         title="ARFIMA($p,d,$q) Forecast for $vname", key="arfima_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
@@ -2714,14 +2807,23 @@ function _estimate_gmm(; data::String, config::String="",
                         output::String="", format::String="table")
     isempty(config) && error("GMM requires a --config=<file.toml> specifying moment conditions and instruments")
 
-    Y, varnames = load_multivariate_data(data)
-
     cfg = load_config(config)
     gmm_cfg = get_gmm(cfg)
 
     weighting_map = Dict("identity" => :identity, "optimal" => :optimal,
                          "twostep" => :two_step, "iterated" => :iterated)
     w = get(weighting_map, lowercase(weighting), :two_step)
+
+    has_dep = !isempty(gmm_cfg["dep"])
+    has_theta0 = !isempty(gmm_cfg["theta0"])
+    if has_dep ⊻ has_theta0
+        throw(CliError("config/invalid",
+            "estimate gmm: IV-GMM requires both [gmm].dep and [gmm].theta0 (got dep=$(isempty(gmm_cfg["dep"]) ? "missing" : "set"), theta0=$(has_theta0 ? "set" : "missing"))";
+            hint="omit both to keep the LP-GMM default, or set both for IV-GMM"))
+    end
+    has_dep && return _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
+
+    Y, varnames = load_multivariate_data(data)
 
     _status("Estimating GMM: weighting=$weighting")
     _status("  Moment conditions: $(length(gmm_cfg["moment_conditions"]))")
@@ -2744,10 +2846,20 @@ function _estimate_gmm(; data::String, config::String="",
         _status()
         _status("Hansen's J-test for overidentification:")
         _status("  J-statistic: $(round(jtest.J_stat; digits=4))")
-        _status("  p-value: $(round(jtest.p_value; digits=4))")
+        # M-29 (MEMs#797): j_test(::GMMModel) shares the SMM NaN-under-identity
+        # policy (stored NaN p-value) — render n/a with the reason, never a number.
+        if isnan(jtest.p_value)
+            _status("  p-value: n/a (identity weighting — χ² limit needs efficient weighting)")
+        else
+            _status("  p-value: $(round(jtest.p_value; digits=4))")
+        end
         _status("  Degrees of freedom: $(jtest.df)")
 
-        if jtest.p_value < 0.05
+        # NaN < 0.05 is false, so a bare comparison would misreport
+        # "Cannot reject" on an undefined p-value — verdict stays silent on NaN.
+        if isnan(jtest.p_value)
+            _status_styled("  -> J-test n/a under identity weighting (χ² limit needs efficient weighting)\n"; color=:yellow)
+        elseif jtest.p_value < 0.05
             _status_styled("  -> Reject valid moment conditions at 5%\n"; color=:yellow)
         else
             _status_styled("  -> Cannot reject valid moment conditions\n"; color=:green)
@@ -2761,6 +2873,114 @@ function _estimate_gmm(; data::String, config::String="",
         end
         return model
     end
+end
+
+"""
+    _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
+
+Opt-in IV-GMM (W3/#195, MEMs#815). Triggered when `[gmm]` has both `dep` and
+`theta0`. Builds Z'(y − Xθ) moments and passes `X=`/`Z=` so `first_stage_F`
+is stored. LP-GMM remains the default path.
+"""
+function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::String,
+                          output::String, format::String)
+    dep = gmm_cfg["dep"]
+    endog = gmm_cfg["endogenous"]
+    exog = gmm_cfg["exogenous"]
+    inst = gmm_cfg["instruments"]
+    theta0 = gmm_cfg["theta0"]
+    isempty(endog) && throw(CliError("config/invalid",
+        "estimate gmm: IV-GMM requires [gmm].endogenous (comma-free TOML array of column names)"))
+    length(inst) >= length(endog) || throw(CliError("data/invalid",
+        "under-identified: need at least as many excluded instruments ($(length(inst))) as endogenous regressors ($(length(endog)))"))
+
+    df = load_data(data)
+    numcols = _numeric_column_names(df)
+    isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
+
+    function colvec(name::AbstractString)
+        nm = String(name)
+        nm in numcols || throw(CliError("data/column-range",
+            "column '$nm' not found in numeric columns: $(join(numcols, ", "))"))
+        any(ismissing, df[!, nm]) && throw(CliError("data/missing-values",
+            "column '$nm' contains missing values; drop or impute them first"))
+        return Float64.(df[!, nm])
+    end
+
+    dep in numcols || throw(CliError("data/column-range",
+        "dependent variable '$dep' not found in numeric columns: $(join(numcols, ", "))"))
+    y = colvec(dep)
+    n = length(y)
+    xparts = Matrix{Float64}[ones(n, 1)]
+    for nm in vcat(endog, exog)
+        nm == dep && throw(CliError("data/column-range",
+            "column '$nm' cannot be both the dependent variable and a regressor"))
+        push!(xparts, reshape(colvec(nm), n, 1))
+    end
+    zparts = Matrix{Float64}[ones(n, 1)]
+    for nm in vcat(exog, inst)
+        nm == dep && throw(CliError("data/column-range",
+            "instrument/exogenous '$nm' cannot be the dependent variable"))
+        push!(zparts, reshape(colvec(nm), n, 1))
+    end
+    X = hcat(xparts...)
+    Z = hcat(zparts...)
+    k = size(X, 2)
+    length(theta0) == k || throw(CliError("config/shape",
+        "estimate gmm: theta0 has length $(length(theta0)) but X has $k columns (intercept + endogenous + exogenous)";
+        hint="theta0[1] is the intercept"))
+    size(Z, 2) < n || throw(CliError("data/invalid",
+        "too many instruments: Z has $(size(Z, 2)) columns but only $n observations"))
+
+    _status("Estimating IV-GMM: weighting=$weighting")
+    _status("  dep=$dep  endogenous=$(join(endog, ","))  instruments=$(join(inst, ","))")
+    _status()
+
+    moment_fn = (theta, dat) -> begin
+        y_, X_, Z_ = dat
+        resid = y_ .- X_ * theta
+        Z_ .* resid
+    end
+    model = try
+        estimate_gmm(moment_fn, theta0, (y, X, Z); weighting=w, X=X, Z=Z)
+    catch e
+        throw(_domain_or_data_error(e, "GMM"))
+    end
+
+    se = stderror(model)
+    names_ = String["(Intercept)"]
+    append!(names_, endog)
+    append!(names_, exog)
+    coef_df = DataFrame(parameter=names_, estimate=model.theta, std_error=se)
+    output_result(coef_df; format=Symbol(format), output=output,
+                  title="GMM Estimates", key="gmm_estimates")
+
+    fs = hasproperty(model, :first_stage_F) ? Float64(model.first_stage_F) : NaN
+    fs_cell = isfinite(fs) ? fs : "n/a"
+    output_kv(Pair{String,Any}[
+        "first_stage_F" => fs_cell,
+        "n_endogenous" => length(endog),
+        "n_instruments" => length(inst),
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="GMM Diagnostics", key="gmm_diagnostics")
+
+    if isfinite(fs) && fs < 10
+        _status_styled("  Weak instruments: 1st-stage F = $(round(fs; digits=2)) < 10\n"; color=:yellow)
+    elseif isfinite(fs)
+        _status("  1st-stage F = $(round(fs; digits=2))")
+    end
+
+    jtest = j_test(model)
+    _status()
+    _status("Hansen's J-test for overidentification:")
+    _status("  J-statistic: $(round(jtest.J_stat; digits=4))")
+    if isnan(jtest.p_value)
+        _status("  p-value: n/a (identity weighting — χ² limit needs efficient weighting)")
+    else
+        _status("  p-value: $(round(jtest.p_value; digits=4))")
+    end
+    _status("  Degrees of freedom: $(jtest.df)")
+    return model
 end
 
 # ── Factor Models ──────────────────────────────────────────
@@ -2846,7 +3066,9 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
 end
 
 function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
-                         output::String="", format::String="table")
+                         spectral::String="lag-window",
+                         output::String="", format::String="table",
+                         plot::Bool=false, plot_save::String="")
     X, varnames = load_multivariate_data(data)
 
     q = if isnothing(dynamic_rank)
@@ -2869,15 +3091,18 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
         nfactors
     end
 
-    _status("Estimating GDFM: static rank=$r, dynamic rank=$q")
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "estimate gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+    _status("Estimating GDFM: static rank=$r, dynamic rank=$q, spectral=$spectral")
     _status()
 
-    model = estimate_gdfm(X, q; r=r)
+    model = estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral])
 
     var_shares = common_variance_share(model)
     var_df = DataFrame(variable=varnames, common_variance_share=round.(var_shares; digits=4))
     output_result(var_df; format=Symbol(format), output=output,
                   title="GDFM Common Variance Shares")
+    _maybe_plot(model; plot=plot, plot_save=plot_save)
 
     _status()
     _status("Average common variance share: $(round(mean(var_shares); digits=4))")
@@ -2903,9 +3128,9 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
     elseif method == "dcov"
         identify_dcov(model)
     elseif method == "hsic"
-        identify_hsic(model)
+        identify_hsic(model; _fwd_seed()...)
     else
-        identify_fastica(model; contrast=Symbol(contrast))
+        identify_fastica(model; contrast=Symbol(contrast), _fwd_seed()...)
     end
 
     if hasproperty(result, :converged)
@@ -3029,6 +3254,111 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
     return vecm
 end
 
+# ── SVAR (AB-model ML) ─────────────────────────────────────
+
+function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive", config::String="",
+                        n_starts::Int=5, max_iter::Int=400,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate svar: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate svar: --max-iter must be ≥ 1 (got $max_iter)"))
+    model, Y, varnames, p = _load_and_estimate_var(data, lags)
+    n = size(Y, 2)
+    pat = _load_svar_pattern(config, n, pattern, "estimate svar")
+
+    _status("Estimating SVAR($p) with $n variables: $(join(varnames, ", "))")
+    _status("Pattern: $pattern, Starts: $n_starts, Max iterations: $max_iter")
+    _status()
+
+    svar = try
+        estimate_svar(model, pat; n_starts=n_starts, max_iter=max_iter)
+    catch e
+        throw(_domain_or_data_error(e, "SVAR estimation"))
+    end
+    _status_report(() -> report(svar))
+    _status()
+
+    a_df = DataFrame(svar.A, varnames)
+    insertcols!(a_df, 1, :equation => varnames)
+    output_result(a_df; format=Symbol(format), output=output,
+                  title="SVAR Contemporaneous Matrix (A)", key="svar_a")
+    _status()
+
+    b_df = DataFrame(svar.B, varnames)
+    insertcols!(b_df, 1, :equation => varnames)
+    output_result(b_df; format=Symbol(format), output=_per_var_output_path(output, "b"),
+                  title="SVAR Structural Matrix (B)", key="svar_b")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Log-likelihood" => round(Float64(svar.loglik); digits=4),
+        "LR statistic" => round(Float64(svar.lr_stat); digits=4),
+        "LR df" => svar.lr_df,
+        "LR p-value" => round(Float64(svar.lr_pvalue); digits=6),
+        "Identification" => string(svar.identification.status),
+        "Overidentifying restrictions" => svar.identification.n_overidentifying,
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="SVAR Identification Summary",
+        key="svar_summary")
+
+    _maybe_plot(svar; plot=plot, plot_save=plot_save)
+    return svar
+end
+
+# ── SVEC (VECM structural) ─────────────────────────────────
+
+function _estimate_svec(; data::String, lags::Int=2, rank::String="auto",
+                        deterministic::String="constant", method::String="johansen",
+                        significance::Float64=0.05, config::String="",
+                        n_starts::Int=5, max_iter::Int=400,
+                        output::String="", format::String="table",
+                        plot::Bool=false, plot_save::String="")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate svec: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate svec: --max-iter must be ≥ 1 (got $max_iter)"))
+    vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
+    n = size(Y, 2)
+    lr_zeros, sr_zeros = _load_svec_zeros(config, n, "estimate svec")
+
+    _status("Estimating SVEC($(p-1)) with $n variables: $(join(varnames, ", "))")
+    _status("Cointegration rank: $(cointegrating_rank(vecm)), Restrictions: " *
+            (lr_zeros === nothing && sr_zeros === nothing ? "default (KPSW)" : "custom [svec]"))
+    _status()
+
+    svec = try
+        identify_svec(vecm; long_run_zeros=lr_zeros, short_run_zeros=sr_zeros,
+                      n_starts=n_starts, max_iter=max_iter)
+    catch e
+        throw(_domain_or_data_error(e, "SVEC identification"))
+    end
+    _status_report(() -> report(svec))
+    _status()
+
+    b0_df = DataFrame(svec.B0, varnames)
+    insertcols!(b0_df, 1, :equation => varnames)
+    output_result(b0_df; format=Symbol(format), output=output,
+                  title="SVEC Contemporaneous Impact Matrix (B0)", key="svec_b0")
+    _status()
+
+    xi_df = DataFrame(svec.Xi, varnames)
+    insertcols!(xi_df, 1, :equation => varnames)
+    output_result(xi_df; format=Symbol(format), output=_per_var_output_path(output, "xi"),
+                  title="SVEC Long-Run Impact Matrix (Xi)", key="svec_xi")
+    _status()
+
+    output_kv(Pair{String,Any}[
+        "Permanent shocks" => svec.n_permanent,
+        "Identification" => string(svec.identification.status),
+        "Overidentifying restrictions" => svec.identification.n_overidentifying,
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="SVEC Identification Summary",
+        key="svec_summary")
+
+    _maybe_plot(svec; plot=plot, plot_save=plot_save)
+    return svec
+end
+
 # ── Panel VAR ─────────────────────────────────────────────
 
 function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
@@ -3037,8 +3367,6 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
                          method::String="gmm", system::Bool=false, collapse::Bool=false,
                          min_lag_endo::Int=2, max_lag_endo::Int=99,
                          output::String="", format::String="table")
-    isempty(id_col) && error("Panel VAR requires --id-col to specify the group identifier column")
-    isempty(time_col) && error("Panel VAR requires --time-col to specify the time period column")
     validate_method(method, ["gmm", "feols"], "PVAR estimation method")
     validate_method(transformation, ["fd", "fod"], "PVAR transformation")
     validate_method(steps, ["onestep", "twostep"], "PVAR steps")
@@ -3234,7 +3562,8 @@ function _estimate_smm(; data::String, config::String="",
     model = try
         estimate_smm(simulator_fn, moments_fn, theta0, Y;
                      weighting=wsym, sim_ratio=sim_ratio, burn=burn,
-                     contributions_fn=contributions_fn, bounds=bounds, rng=rng)
+                     contributions_fn=contributions_fn, bounds=bounds, rng=rng,
+                     _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         (e isa ArgumentError || e isa AssertionError || e isa BoundsError ||
@@ -3260,7 +3589,13 @@ function _estimate_smm(; data::String, config::String="",
 
     _status()
     _status_styled("  J-statistic: $(round(model.J_stat; digits=4))\n"; color=:cyan)
-    _status_styled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
+    # M-29 (MEMs#797): the χ² limit needs efficient weighting — under identity
+    # model.J_pvalue is NaN, so render n/a with the reason instead of bare NaN.
+    if isnan(model.J_pvalue)
+        _status_styled("  J p-value:   n/a (identity weighting — χ² limit needs efficient weighting)\n"; color=:cyan)
+    else
+        _status_styled("  J p-value:   $(round(model.J_pvalue; digits=4))\n"; color=:cyan)
+    end
     _status_styled("  Converged:   $(model.converged)\n";
                 color = model.converged ? :green : :red)
     return model
@@ -3304,31 +3639,19 @@ end
 function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
                          var_lags::Int=1, horizon::Int=40,
                          config::String="", bandwidth::Int=0,
-                         kernel::String="bartlett",
+                         kernel::String="bartlett", method::String="fglr",
+                         spectral::String="lag-window", instrument::String="",
+                         q_method::String="hallin-liska",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data)
-    n = size(Y, 2)
+    # W1/#165: one shared data path (see `_load_and_estimate_sdfm`); --factors
+    # omitted selects q via upstream `:auto` + `--q-method` (deterministic).
+    sdfm, Y, varnames, q = _load_and_estimate_sdfm(data, factors, id, var_lags, horizon,
+        config, method, spectral, instrument, q_method;
+        bandwidth=bandwidth, kernel=kernel)
+    n = length(varnames)
 
-    q = if factors === nothing
-        auto_q = ic_criteria_gdfm(Y, min(10, n - 1))
-        _status_styled("  Auto-selected dynamic factors: $(auto_q.q_opt)\n"; color=:cyan)
-        auto_q.q_opt
-    else
-        factors
-    end
-
-    sign_check = nothing
-    if id == "sign" && !isempty(config)
-        sign_check, _ = _build_check_func(config)
-    end
-
-    _status("Estimating Structural DFM: $q factors, id=$id, VAR lags=$var_lags, horizon=$horizon")
-
-    sdfm = estimate_structural_dfm(Y, q;
-        identification=Symbol(id), p=var_lags, H=horizon,
-        sign_check=sign_check, bandwidth=bandwidth, kernel=Symbol(kernel),
-        varnames=varnames)   # panel names on the model (MEMs#538) → irf sdfm labels
+    _status("Estimating Structural DFM: $q factors, id=$id, method=$method, VAR lags=$var_lags, horizon=$horizon")
 
     _status("  Identification: $(sdfm.identification)")
     _status("  Factor VAR lags: $(sdfm.p_var)")
@@ -4802,9 +5125,17 @@ _vol_variant_cond_var(m) = hasmethod(predict, Tuple{typeof(m)}) ? predict(m) :
 # sibling's option set so the model can be refit, then renders through the shared
 # helpers above.
 
-function _forecast_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, horizons::Int=10,
+function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, leaf="forecast igarch")
+    if loaded !== nothing
+        h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+        _vol_forecast_output(loaded, "result", "IGARCH($p,$q)", h; format=format, output=output,
+                             key="igarch_volatility_forecast")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast igarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast igarch: --conf-level must be in (0, 1) (got $conf_level)"))
@@ -4820,7 +5151,7 @@ function _forecast_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, hor
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _vol_forecast_output(fc, vname, "IGARCH($p,$q)", horizons; format=format, output=output,
                          key="igarch_volatility_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
@@ -4843,9 +5174,17 @@ function _residuals_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, mo
         key="igarch_standardized_residuals")
 end
 
-function _forecast_cgarch(; data::String, column::Int=1, horizons::Int=10,
+function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, leaf="forecast cgarch")
+    if loaded !== nothing
+        h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+        _vol_forecast_output(loaded, "result", "Component-GARCH(1,1)", h; format=format, output=output,
+                             key="cgarch_volatility_forecast")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast cgarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
@@ -4861,7 +5200,7 @@ function _forecast_cgarch(; data::String, column::Int=1, horizons::Int=10,
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _vol_forecast_output(fc, vname, "Component-GARCH(1,1)", horizons; format=format, output=output,
                          key="cgarch_volatility_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
@@ -4884,9 +5223,17 @@ function _residuals_cgarch(; data::String, column::Int=1, model=nothing, output:
         key="cgarch_standardized_residuals")
 end
 
-function _forecast_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
+function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, leaf="forecast aparch")
+    if loaded !== nothing
+        h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+        _vol_forecast_output(loaded, "result", "APARCH($p,$q)", h; format=format, output=output,
+                             key="aparch_volatility_forecast")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast aparch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast aparch: --conf-level must be in (0, 1) (got $conf_level)"))
@@ -4902,7 +5249,7 @@ function _forecast_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _vol_forecast_output(fc, vname, "APARCH($p,$q)", horizons; format=format, output=output,
                          key="aparch_volatility_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
@@ -4925,9 +5272,17 @@ function _residuals_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fi
         key="aparch_standardized_residuals")
 end
 
-function _forecast_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
+function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, leaf="forecast figarch")
+    if loaded !== nothing
+        h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+        _vol_forecast_output(loaded, "result", "FIGARCH($p,d,$q)", h; format=format, output=output,
+                             key="figarch_volatility_forecast")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast figarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast figarch: --conf-level must be in (0, 1) (got $conf_level)"))
@@ -4943,7 +5298,7 @@ function _forecast_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _vol_forecast_output(fc, vname, "FIGARCH($p,d,$q)", horizons; format=format, output=output,
                          key="figarch_volatility_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
@@ -4966,9 +5321,17 @@ function _residuals_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d
         key="figarch_standardized_residuals")
 end
 
-function _forecast_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
+function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, leaf="forecast fiegarch")
+    if loaded !== nothing
+        h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
+        _vol_forecast_output(loaded, "result", "FIEGARCH($p,d,$q)", h; format=format, output=output,
+                             key="fiegarch_volatility_forecast")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast fiegarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
@@ -4984,7 +5347,7 @@ function _forecast_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _vol_forecast_output(fc, vname, "FIEGARCH($p,d,$q)", horizons; format=format, output=output,
                          key="fiegarch_volatility_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
@@ -5033,9 +5396,11 @@ function _garch_midas_refit(data, column, m_freq, k, rv, span, config, model=not
     return m, vname
 end
 
-function _forecast_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+function _forecast_garch_midas(; data::String="", result=nothing, column::Int=1, m_freq::Int=0, k::Int=12,
         rv::String="realized", span::String="fixed", config::String="", horizons::Int=10,
         model=nothing, output::String="", format::String="table")
+    loaded = _loaded_result(result; data, model, leaf="forecast garch-midas")
+    loaded === nothing || return loaded
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast garch-midas: --horizons must be ≥ 1 (got $horizons)"))
     m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
@@ -5058,7 +5423,7 @@ function _forecast_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
             volatility = round.(sqrt.(abs.(tot)); digits=6));
         format=Symbol(format), output=output,
         title="GARCH-MIDAS Volatility Forecast ($vname)", key="garch_midas_volatility_forecast")
-    return fc
+    return (; model=m, result=fc)
 end
 
 function _predict_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
@@ -5438,7 +5803,7 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
     _status("Robust regression ($psi $method-estimator): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
     _status()
     model = try
-        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method))
+        estimate_robust(y, X; psi=Symbol(psi), method=Symbol(method), _fwd_seed()...)
     catch e
         throw(_garch_variant_error(e, "Robust regression"))
     end
@@ -5476,9 +5841,9 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
         "loglik"           => round(Float64(model.loglik); digits=4),
         "aic"              => round(Float64(model.aic); digits=4),
         "bic"              => round(Float64(model.bic); digits=4),
-        # Render ±Inf bounds as strings: a raw Inf/-Inf Float crashes the legacy
-        # (FRIEDMAN_LEGACY_OUTPUT) JSON writer, which — unlike the envelope path — does not
-        # apply `_json_safe` ("Inf not allowed in JSON spec"). Matches the envelope output.
+        # Render ±Inf bounds as strings: a raw Inf/-Inf Float crashes the direct
+        # JSON writer, which — unlike the envelope path — does not apply
+        # `_json_safe` ("Inf not allowed in JSON spec"). Matches the envelope output.
         "lower"            => isfinite(model.lower) ? Float64(model.lower) : string(model.lower),
         "upper"            => isfinite(model.upper) ? Float64(model.upper) : string(model.upper),
         "n_censored_left"  => model.n_censored_left,
@@ -6252,7 +6617,10 @@ end
 
 function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all",
                           p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4,
-                          ic::String="aic", case::Int=3, output::String="", format::String="table")
+                          ic::String="aic", case::Int=3, horizon::Int=12, nreps::Int=500,
+                          level::Float64=0.95, no_bootstrap::Bool=false,
+                          plot::Bool=false, plot_save::String="",
+                          output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     _status("NARDL: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, p=$p, q=$q, case=$case), n=$(length(y))"); _status()
@@ -6287,7 +6655,11 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
         "f_decision"   => String(b.f_decision),
         "t_decision"   => String(b.t_decision),
     ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))",
-       key="nardl_diagnostics")
+       key="nardl_diagnostics",
+       output=_per_var_output_path(output, "diagnostics"))
+    _emit_nardl_multipliers(m, dep_name; horizon=horizon, nreps=nreps, level=level,
+                            no_bootstrap=no_bootstrap, output=output, format=format)
+    _maybe_plot(m; plot=plot, plot_save=plot_save)
     return m
 end
 
@@ -6451,10 +6823,13 @@ end
 #
 # `y_lags` is left to upstream: with `p_ar > 0` it defaults to the most recent in-sample
 # target values, which is exactly what forecasting the next period means here.
-function _forecast_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
+function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_data::String="", hf_column::Int=1,
         m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
         poly_degree::Int=2, horizon::Int=1, max_iter::Int=500, level::Float64=0.95,
         output::String="", format::String="table", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast midas")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="MIDAS Forecast", key="midas_forecast")
     (0.0 < level < 1.0) || throw(CliError("usage/invalid",
         "forecast midas: --level must be in (0, 1) (got $level)"))
     poly_degree >= 0 || throw(CliError("usage/invalid",
@@ -6498,7 +6873,7 @@ function _forecast_midas(; data::String, column::Int=1, hf_data::String="", hf_c
         "weights" => String(mdl.weights_kind),
         "level" => fc.conf_level];
         format=format, title="MIDAS Forecast Summary")
-    return fc
+    return (; model=mdl, result=fc)
 end
 
 function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
@@ -6626,7 +7001,8 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
     _status()
     model = try
         estimate_threshold(y, X, q; trim=trim, linearity=!no_linearity, reps=reps,
-                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col)
+                           ci_level=ci_level, het=het, xnames=xcols, qname=threshold_col,
+                           _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "threshold regression"))
     end
@@ -6687,7 +7063,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     _status()
     model = try
         estimate_setar(y, p, d_arg; trim=trim, linearity=!no_linearity, reps=reps,
-                       ci_level=ci_level, het=het)
+                       ci_level=ci_level, het=het, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
@@ -7070,7 +7446,7 @@ function _setar_refit(data::String, column::Int, p::Int, d::String, trim::Float6
     d_arg = _parse_setar_delay(d)
     y, vname = load_univariate_series(data, column)
     model = try
-        estimate_setar(y, p, d_arg; trim=trim, linearity=false)
+        estimate_setar(y, p, d_arg; trim=trim, linearity=false, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
@@ -7256,10 +7632,13 @@ function _predict_ms(; data::String="", dep::String="", k_regimes::Int=2,
                               key_prefix="ms_regression")
 end
 
-function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
+function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::Int=1, k_regimes::Int=2,
         switching_variance::Bool=false, max_iter::Int=1000, horizons::Int=12,
         reps::Int=1000, ci_level::Float64=0.90,
         output::String="", format::String="table", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast ms-ar")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="MS-AR Forecast", key="ms_ar_forecast")
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast ms-ar: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast ms-ar: --reps must be ≥ 1 (got $reps)"))
@@ -7269,18 +7648,22 @@ function _forecast_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::
         _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
     _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
     fc = try
-        forecast(m, horizons; reps=reps, level=ci_level)
+        forecast(m, horizons; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS-AR forecast"))
     end
-    return _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, ci_level, format, output;
-                               key_prefix="ms_ar")
+    _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, ci_level, format, output;
+                        key_prefix="ms_ar")
+    return (; model=m, result=fc)
 end
 
-function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
+function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regimes::Int=2,
         no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
         horizons::Int=12, x_future::String="", reps::Int=1000, ci_level::Float64=0.90,
         output::String="", format::String="table", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="forecast ms")
+    loaded === nothing || return _rerender_long_table(loaded; format, output,
+        title="MS Forecast", key="ms_forecast")
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast ms: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast ms: --reps must be ≥ 1 (got $reps)"))
@@ -7318,12 +7701,13 @@ function _forecast_ms(; data::String="", dep::String="", k_regimes::Int=2,
 
     _status("MS regression forecast (h=$(size(X_new,1))): ci=$ci_level"); _status()
     fc = try
-        forecast(m, X_new; reps=reps, level=ci_level)
+        forecast(m, X_new; reps=reps, level=ci_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS regression forecast"))
     end
-    return _ms_forecast_output(fc, "MS Regression", vname, size(X_new, 1), ci_level,
-                               format, output; key_prefix="ms_regression")
+    _ms_forecast_output(fc, "MS Regression", vname, size(X_new, 1), ci_level,
+                        format, output; key_prefix="ms_regression")
+    return (; model=m, result=fc)
 end
 
 """Load the future-regressor matrix for `forecast ms`.
@@ -7405,7 +7789,7 @@ function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::
     post = try
         estimate_tvpvar(Y, lags; tvp=!no_tvp, sv=!no_sv, n_draws=draws, n_burn=burnin,
                         thin=thin, n_train=n_train, k_Q=k_q, k_S=k_s, k_W=k_w,
-                        varnames=varnames)
+                        varnames=varnames, _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate tvpvar"))
@@ -7441,12 +7825,16 @@ function _estimate_tvpvar(; data::String, lags::Int=2, draws::Int=2000, burnin::
     return post
 end
 
-function _irf_tvpvar(; data::String, date::Int=0, horizons::Int=20, lags::Int=2,
+function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::Int=20, lags::Int=2,
                       draws::Int=2000, burnin::Int=1000, thin::Int=1, n_train::Int=0,
                       k_q::Float64=0.01, k_s::Float64=0.1, k_w::Float64=0.01,
                       no_tvp::Bool=false, no_sv::Bool=false,
                       irf_draws::Int=500, shock::Int=1, no_stationary_only::Bool=false,
-                      output::String="", format::String="table")
+                      output::String="", format::String="table", model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="irf tvpvar",
+                            horizons, horizons_default=20)
+    loaded === nothing || return _rerender_irf_result(loaded; format, output,
+        title="Impulse Responses", key="tvpvar_irf", shock)
     horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
     irf_draws >= 1 || throw(CliError("usage/invalid", "--irf-draws must be ≥ 1 (got $irf_draws)"))
     # The date-t IRF is the entire point of a TVP model, so --date is required rather than
@@ -7461,8 +7849,13 @@ function _irf_tvpvar(; data::String, date::Int=0, horizons::Int=20, lags::Int=2,
     date >= 1 || throw(CliError("usage/invalid",
         "irf tvpvar: --date must be ≥ 1, got $date"))
 
-    post, varnames = _load_and_estimate_tvpvar(data, lags, draws, burnin, thin, n_train,
-                                               k_q, k_s, k_w, no_tvp, no_sv)
+    if isnothing(model)
+        post, varnames = _load_and_estimate_tvpvar(data, lags, draws, burnin, thin, n_train,
+                                                   k_q, k_s, k_w, no_tvp, no_sv)
+    else
+        post = model
+        varnames = post.varnames
+    end
 
     date <= post.T_eff || throw(CliError("usage/invalid",
         "irf tvpvar: --date must be in 1:$(post.T_eff), got $date"))
@@ -7489,7 +7882,7 @@ function _irf_tvpvar(; data::String, date::Int=0, horizons::Int=20, lags::Int=2,
     output_result(df; format=Symbol(format), output=output,
                   title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)",
                   key="tvpvar_irf")
-    return birf
+    return (; model=post, result=birf)
 end
 
 const _MF_AGGREGATIONS = ("stock", "flow", "average", "growth")
@@ -7584,7 +7977,8 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
             "ratio $freq_ratio, aggregation $(join(aggs, ","))")
     post = try
         estimate_mfvar(Y, lags; low_freq=lf, freq_ratio=freq_ratio, aggregation=agg_arg,
-                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames)
+                       n_draws=draws, n_burn=burnin, prior=Symbol(pr), varnames=varnames,
+                       _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate mfvar"))
@@ -7658,7 +8052,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
 
     model = try
         estimate_qreg(y, X, length(taus) == 1 ? taus[1] : taus;
-                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha)
+                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha,
+                      _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "estimate qreg"))

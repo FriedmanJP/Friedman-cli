@@ -14,14 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Historical Decomposition commands: var, bvar, lp, vecm, favar
+# Historical Decomposition commands: var, bvar, lp, vecm, favar, sdfm
 # (action-first: friedman hd var ...)
 #
-# C043 / MEMs 0.6.7 HD parity audit:
-#   historical_decomposition is exported for VAR, BVAR, LP, VECM, FAVAR, DSGE
-#   (linear + perturbation + Bayesian). There is NO method for PVARModel or
-#   StructuralDFM at this pin — do not add `hd pvar` / `hd sdfm` until MEMs
-#   exposes them. Documented in docs/src/commands/hd.md.
+# Coverage audit (re-audited at MEMs 1.0.0):
+#   historical_decomposition is exported for VAR, BVAR, LP, VECM, FAVAR,
+#   SDFM, DSGE (linear + perturbation + Bayesian) — so `hd sdfm` ships.
+#   There is still NO method for PVARModel (only the private
+#   `_pvar_fevd_decomp` FEVD helper) — do not add `hd pvar` until MEMs
+#   exposes it. Documented in docs/src/commands/hd.md.
 
 function hd_specs()::Vector{CommandSpec}
     return [
@@ -31,8 +32,10 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -94,7 +97,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec|lewis-tvv|sv-em"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -128,24 +131,72 @@ function hd_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:favar_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
             category="hd",
             handler=wrap_legacy(_hd_favar),
+        ),
+        CommandSpec(
+            path=["hd", "sdfm"],
+            summary="Structural DFM historical decomposition",
+            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            options=[
+                OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
+                OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
+                OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="horizons", type=Int, default=20, description="HD horizon (periods decomposed)"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="space", type=String, default="panel", description="Decomposition space: panel|factor", choices=["panel","factor"]),
+                OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
+            ],
+            flags=[
+                FlagSpec(name="plot", description="Open interactive plot in browser"),
+                FlagSpec(name="no-idiosyncratic", description="Drop the idiosyncratic column (panel space only)")
+            ],
+            tables=[TableSpec(name=:sdfm_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock")],
+            category="hd",
+            handler=wrap_legacy(_hd_sdfm),
         )
     ]
 end
 
+const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
+    ["hd", "var"]   => ([:VARModel], [:HistoricalDecomposition]),
+    ["hd", "bvar"]  => ([:BVARPosterior], [:BayesianHistoricalDecomposition]),
+    ["hd", "lp"]    => ([:StructuralLP], [:HistoricalDecomposition]),
+    ["hd", "vecm"]  => ([:VECMModel], [:HistoricalDecomposition]),
+    ["hd", "favar"] => ([:FAVARModel], [:HistoricalDecomposition]),
+    ["hd", "sdfm"]  => ([:StructuralDFM], [:HistoricalDecomposition]),
+)
+
 function register_hd_commands!()
-    specs = with_config_ergonomics(with_model_option(hd_specs()))
-    register!(specs)
+    specs = _tag_slot_types(hd_specs(), _HD_SLOT_TYPES)
+    specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
+    specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
+    specs = register!(specs)
     return build_node("hd", specs; description="Historical Decomposition")
 end
 
 
 # ── VAR HD ───────────────────────────────────────────────
 
-function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
-                  config::String="",
+function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing, id::String="cholesky",
+                  config::String="", instrument::String="", target_var::String="",
                   output::String="", format::String="table",
-                  plot::Bool=false, plot_save::String="",
-                  model=nothing)
+                  plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="hd var",
+                            id)
+    if loaded !== nothing
+        _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
+                          id="", title_prefix="Historical Decomposition",
+                          format=format, output=output,
+                          actual=loaded.actual, initial=loaded.initial_conditions,
+                          key_prefix="historical_decomposition")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -159,16 +210,17 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
     _status()
 
     # Arias identification: use Q from identify_arias to compute structural shocks
-    if id == "arias"
-        isempty(config) && error("Arias identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
-        arias_result = identify_arias(model, restrictions, size(Y, 1) - p)
+    # (narrative-adrr shares the pipeline via identify_narrative)
+    if id in ("arias", "narrative-adrr")
+        cfg2, restrictions = _load_svar_restrictions(config, n, id == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
+        if id == "narrative-adrr"
+            isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
+                throw(CliError("usage/missing",
+                    "hd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
+            arias_result = identify_narrative(model, restrictions, size(Y, 1) - p; _fwd_seed()...)
+        else
+            arias_result = identify_arias(model, restrictions, size(Y, 1) - p; _fwd_seed()...)
+        end
         # Use Cholesky HD as base, labelled with Arias id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
         _status_report(() -> report(hd_result))
@@ -184,24 +236,18 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
                           format=format, output=output,
                           actual=hd_result.actual, initial=hd_result.initial_conditions,
                           key_prefix="historical_decomposition")
-        return
+        return (; model, result=hd_result)
     end
 
     # Uhlig identification: use Q from identify_uhlig to compute structural shocks
     if id == "uhlig"
-        isempty(config) && error("Uhlig identification requires a --config file with restrictions")
-        cfg = load_config(config)
-        id_cfg = get(cfg, "identification", Dict())
-        zeros_list = get(id_cfg, "zero_restrictions", [])
-        signs_list = get(id_cfg, "sign_restrictions", [])
-        zero_restrs = [zero_restriction(r["var"], r["shock"]; horizon=r["horizon"]) for r in zeros_list]
-        sign_restrs = [sign_restriction(r["var"], r["shock"], Symbol(r["sign"]); horizon=r["horizon"]) for r in signs_list]
-        restrictions = SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+        cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
         uhlig_result = identify_uhlig(model, restrictions, size(Y, 1) - p;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
             max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"])
+            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+            _fwd_seed()...)
         # Use Cholesky HD as base, labelled with Uhlig id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
         _status_report(() -> report(hd_result))
@@ -217,10 +263,18 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
                           format=format, output=output,
                           actual=hd_result.actual, initial=hd_result.initial_conditions,
                           key_prefix="historical_decomposition")
-        return
+        return (; model, result=hd_result)
     end
 
-    kwargs = _build_identification_kwargs(id, config)
+    # W2/#166: VAR-family allow-set (proxy/max-share/gmm-moments) + extras.
+    _identification_method(id, _ID_METHODS_VAR, "hd var")
+    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "hd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
+    kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
+                                              nvars=length(varnames), leaf="hd var")
+    _inject_svar_id_kwargs!(kwargs, id, "hd var", data, varnames, instrument, target_var)
     hd_result = historical_decomposition(model, size(Y, 1) - p; kwargs...)
 
     _status_report(() -> report(hd_result))
@@ -239,16 +293,29 @@ function _hd_var(; data::String="", lags=nothing, id::String="cholesky",
                       format=format, output=output,
                       actual=hd_result.actual, initial=hd_result.initial_conditions,
                       key_prefix="historical_decomposition")
+    return (; model, result=hd_result)
 end
 
 # ── BVAR HD ──────────────────────────────────────────────
 
-function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
+function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="cholesky",
                    draws::Int=2000, sampler::String="direct",
                    config::String="",
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="hd bvar", id)
+    if loaded !== nothing
+        mean_contrib = loaded.point_estimate
+        T_eff = size(mean_contrib, 1)
+        _output_hd_tables((vi, si) -> mean_contrib[:, vi, si], loaded.variables, T_eff;
+                          id="", title_prefix="Bayesian HD",
+                          format=format, output=output,
+                          initial=loaded.initial_point_estimate,
+                          key_prefix="bayesian_hd")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -258,7 +325,7 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
         n = length(varnames)
         Y = post.data
     end
-    method = get(ID_METHOD_MAP, id, :cholesky)
+    method = _identification_method(id, ID_METHOD_MAP, "hd bvar")
 
     _status("Computing Bayesian Historical Decomposition: BVAR($p), id=$id")
     _status("  Sampler: $sampler, Draws: $draws")
@@ -266,8 +333,9 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
 
     horizon = size(Y, 1) - p
 
+    bhd_kwargs = _id_knob_kwargs(id, config, n, "hd bvar")
     bhd = historical_decomposition(post, horizon;
-        method=method, quantiles=[0.16, 0.5, 0.84])
+        method=method, quantiles=[0.16, 0.5, 0.84], bhd_kwargs..., _fwd_seed()...)
 
     _status_report(() -> report(bhd))
     _maybe_plot(bhd; plot=plot, plot_save=plot_save)
@@ -280,15 +348,26 @@ function _hd_bvar(; data::String="", lags::Int=4, id::String="cholesky",
                       format=format, output=output,
                       initial=bhd.initial_point_estimate,
                       key_prefix="bayesian_hd")
+    return (; model=post, result=bhd)
 end
 
 # ── LP HD ────────────────────────────────────────────────
 
-function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
+function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing,
                  id::String="cholesky", vcov::String="newey_west", config::String="",
                  output::String="", format::String="table",
                  plot::Bool=false, plot_save::String="",
                  model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="hd lp", id)
+    if loaded !== nothing
+        _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
+                          id="", title_prefix="LP Historical Decomposition",
+                          format=format, output=output,
+                          actual=loaded.actual, initial=loaded.initial_conditions,
+                          key_prefix="lp_historical_decomposition")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     if isnothing(model)
         Y, varnames = load_multivariate_data(data)
         T_obs, n = size(Y)
@@ -298,7 +377,7 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
         lp_horizon = min(hd_horizon, T_obs ÷ 2 - lags - 1)
         lp_horizon < 1 && error("Not enough observations for LP historical decomposition (T=$T_obs, lags=$lags)")
 
-        method = get(ID_METHOD_MAP, id, :cholesky)
+        method = _identification_method(id, ID_METHOD_MAP, "hd lp")
         check_func, narrative_check = _build_check_func(config)
         kwargs = Dict{Symbol,Any}(
             :method => method, :lags => lags, :var_lags => vp,
@@ -306,6 +385,7 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
         )
         if !isnothing(check_func);      kwargs[:check_func] = check_func; end
         if !isnothing(narrative_check);  kwargs[:narrative_check] = narrative_check; end
+        _SEED[] !== nothing && (kwargs[:seed] = _SEED[])
 
         slp = structural_lp(Y, lp_horizon; kwargs...)
     else
@@ -334,16 +414,27 @@ function _hd_lp(; data::String="", lags::Int=4, var_lags=nothing,
                       format=format, output=output,
                       actual=hd_result.actual, initial=hd_result.initial_conditions,
                       key_prefix="lp_historical_decomposition")
+    return (; model=slp, result=hd_result)
 end
 
 # ── VECM HD ─────────────────────────────────────────────
 
-function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
+function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="auto",
                    deterministic::String="constant",
                    id::String="cholesky", config::String="",
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="hd vecm", id)
+    if loaded !== nothing
+        _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
+                          id="", title_prefix="VECM Historical Decomposition",
+                          format=format, output=output,
+                          actual=loaded.actual, initial=loaded.initial_conditions,
+                          key_prefix="vecm_historical_decomposition")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)
@@ -360,9 +451,23 @@ function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
     _status("Computing VECM Historical Decomposition: rank=$r, VAR($p), id=$id")
     _status()
 
-    kwargs = _build_identification_kwargs(id, config)
+    _identification_method(id, _ID_METHODS_VECM, "hd vecm")
     T_eff = size(Y, 1) - p
-    hd_result = historical_decomposition(var_model, T_eff; kwargs...)
+    if id == "svec"
+        lr_zeros, sr_zeros = _load_svec_zeros(config, n, "hd vecm")
+        svec_kwargs = Dict{Symbol,Any}(:method => :svec)
+        lr_zeros !== nothing && (svec_kwargs[:long_run_zeros] = lr_zeros)
+        sr_zeros !== nothing && (svec_kwargs[:short_run_zeros] = sr_zeros)
+        hd_result = try
+            historical_decomposition(vecm, T_eff; svec_kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM SVEC historical decomposition"))
+        end
+    else
+        kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
+                                                  nvars=length(varnames), leaf="hd vecm")
+        hd_result = historical_decomposition(var_model, T_eff; kwargs...)
+    end
 
     _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
@@ -380,23 +485,36 @@ function _hd_vecm(; data::String="", lags::Int=2, rank::String="auto",
                       format=format, output=output,
                       actual=hd_result.actual, initial=hd_result.initial_conditions,
                       key_prefix="vecm_historical_decomposition")
+    return (; model=vecm, result=hd_result)
 end
 
 # ── FAVAR HD ──────────────────────────────────────────────
 
-function _hd_favar(; data::String="", factors=nothing, lags::Int=2,
+function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int=2,
                     key_vars::String="", horizons::Int=20,
                     id::String="cholesky", config::String="",
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
                     model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="hd favar",
+                            id, horizons, horizons_default=20)
+    if loaded !== nothing
+        _output_hd_tables((vi, si) -> contribution(loaded, vi, si), loaded.variables, loaded.T_eff;
+                          id="", title_prefix="FAVAR Historical Decomposition",
+                          format=format, output=output,
+                          actual=loaded.actual, initial=loaded.initial_conditions,
+                          key_prefix="favar_historical_decomposition")
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
         favar = model
         varnames = favar.varnames
     end
-    kwargs = _build_identification_kwargs(id, config)
+    kwargs = _build_identification_kwargs(id, config; nvars=length(varnames),
+                                              leaf="hd favar")
 
     _status("FAVAR Historical Decomposition: horizon=$horizons, id=$id")
     _status()
@@ -419,4 +537,82 @@ function _hd_favar(; data::String="", factors=nothing, lags::Int=2,
                       format=format, output=output,
                       actual=hd_result.actual, initial=hd_result.initial_conditions,
                       key_prefix="favar_historical_decomposition")
+    return (; model=favar, result=hd_result)
+end
+
+# ── SDFM HD ──────────────────────────────────────────────
+
+function _hd_sdfm(; data::String="", result=nothing, factors=nothing, id::String="cholesky",
+                   var_lags::Int=1, horizons::Int=20,
+                   config::String="", method::String="fglr",
+                   spectral::String="lag-window", instrument::String="",
+                   q_method::String="hallin-liska", space::String="panel",
+                   no_idiosyncratic::Bool=false,
+                   output::String="", format::String="table",
+                   plot::Bool=false, plot_save::String="",
+                   model=nothing)
+    loaded = _loaded_result(result; data, model, leaf="hd sdfm",
+                            id, horizons, horizons_default=20)
+    if loaded !== nothing
+        space == "panel" || throw(CliError("usage/invalid",
+            "hd sdfm: --space does not apply with --result"))
+        no_idiosyncratic && throw(CliError("usage/invalid",
+            "hd sdfm: --no-idiosyncratic does not apply with --result"))
+        _output_hd_tables((vi, si) -> contribution(loaded, vi, si),
+                          loaded.variables, loaded.T_eff;
+                          id=id, title_prefix="SDFM Historical Decomposition",
+                          format=format, output=output,
+                          actual=loaded.actual, initial=loaded.initial_conditions,
+                          key_prefix="sdfm_historical_decomposition",
+                          shock_names=loaded.shock_names)
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
+    horizons >= 1 || throw(CliError("usage/invalid",
+        "hd sdfm: --horizons must be >= 1 (got $horizons)"))
+    # `--space` has registry choices; the guard below is defence in depth for
+    # programmatic callers (same pattern as the loader's method/spectral guards).
+    space in ("panel", "factor") || throw(CliError("usage/invalid",
+        "hd sdfm: --space must be panel|factor (got '$space')"))
+    # Factor space carries no idiosyncratic column: the flag is provably dead
+    # there, so the explicit combination is rejected, not silently ignored.
+    space == "factor" && no_idiosyncratic && throw(CliError("usage/invalid",
+        "hd sdfm: --no-idiosyncratic applies only to --space panel"))
+    if isnothing(model)
+        # Shared estimation surface with `estimate`/`irf`/`fevd` sdfm. HD uses
+        # the identification stored at estimation (upstream #710).
+        sdfm, _, _, _ = _load_and_estimate_sdfm(data, factors, id, var_lags,
+            horizons, config, method, spectral, instrument, q_method)
+    else
+        sdfm = model
+    end
+
+    _status("SDFM HD: id=$id, space=$space, horizon=$horizons")
+    _status()
+
+    hd_result = try
+        historical_decomposition(sdfm, horizons; space=Symbol(space),
+                                 include_idiosyncratic=!no_idiosyncratic)
+    catch e
+        throw(_domain_or_data_error(e, "SDFM historical decomposition"))
+    end
+    _status_report(() -> report(hd_result))
+    _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
+
+    is_valid = verify_decomposition(hd_result)
+    if is_valid
+        _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
+    else
+        _status_styled("Decomposition verification failed\n"; color=:yellow)
+    end
+    _status()
+
+    names = space == "panel" ? sdfm.varnames : sdfm.factor_var.varnames
+    _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), names, hd_result.T_eff;
+                      id=id, title_prefix="SDFM Historical Decomposition",
+                      format=format, output=output,
+                      actual=hd_result.actual, initial=hd_result.initial_conditions,
+                      key_prefix="sdfm_historical_decomposition",
+                      shock_names=hd_result.shock_names)
+    return (; model=sdfm, result=hd_result)
 end

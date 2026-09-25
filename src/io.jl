@@ -59,6 +59,28 @@ function _status_report(f::Function)
 end
 
 """
+Run `f` with stdout captured and replay any text via `_status` (stderr).
+
+Always runs `f` (including `--quiet`) so the return value is kept. Julia 1.13
+has no `redirect_stdout(IOBuffer)` method — capture uses a tempfile.
+"""
+function _status_stdout(f::Function)
+    path, io = mktemp()
+    try
+        val = redirect_stdout(io) do
+            f()
+        end
+        close(io)
+        txt = String(strip(read(path, String)))
+        !isempty(txt) && _status(txt)
+        return val
+    finally
+        try; close(io); catch; end
+        try; rm(path; force=true); catch; end
+    end
+end
+
+"""
     _extract_global_flags!(args) → (remaining, force_json)
 
 Scan argv left-to-right until the first non-flag token (P1-6). Mutates quiet/color/seed
@@ -287,7 +309,7 @@ end
 Convert a loaded MEMs example dataset to a DataFrame.
 
 Panel datasets keep their identifiers as leading `group`/`time` columns — without
-them every panel command (`estimate pvar`, `test cips`, …) fails on a bundled
+them every panel command (`estimate panel pvar`, `test unit-root cips`, …) fails on a bundled
 panel because `--id-col`/`--time-col` have nothing to bind to.
 """
 function dataset_to_dataframe(dataset)
@@ -316,17 +338,38 @@ end
 """
     load_data(path) → DataFrame
 
-Read a CSV file and return a DataFrame. Validates that the file exists and is non-empty.
+Read a CSV file or a typed data handle (`.jld2`/`.fmod`/`model://`) and return a
+DataFrame. Validates that the file exists and is non-empty.
 
 A `:name` reference (e.g. `:fred_md`) loads a bundled example dataset instead.
 `~` is expanded here rather than relying on the shell, because the REPL has none.
+
+Handle suffix is checked inline (not `_is_handle_path`): `handles.jl` is included
+after `io.jl` and must not be reordered. `load_model_dispatch` / `_data_kind_of`
+resolve at call time. `model://` skips `FRIEDMAN_DATA_ROOT` confinement (same as
+wrap_legacy). Only `:timeseries` / `:panel` / `:cross_section` convert to a
+DataFrame; `:io` and other payloads are `data/wrong-kind`.
 """
 function load_data(path::String)
     if startswith(path, ":")
         return dataset_to_dataframe(load_example(parse_dataset_name(path)))
     end
     path = _expanduser(path)
-    _validate_input_path(path)
+    # Session URIs are not filesystem paths — confinement would map `model://m1`
+    # to `data/bad-path` whenever FRIEDMAN_DATA_ROOT is set.
+    if !startswith(path, "model://")
+        _validate_input_path(path)
+    end
+    lc = lowercase(path)
+    if endswith(lc, ".jld2") || endswith(lc, ".fmod") || startswith(path, "model://")
+        obj = load_model_dispatch(path)
+        k = _data_kind_of(obj)
+        k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
+            "$path is not a data container (got $(typeof(obj)))"))
+        df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
+        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
+        return df
+    end
     isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)
     nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
@@ -498,8 +541,8 @@ end
 
 function _write_json_raw(data, output::String)
     # Sanitize non-finite floats (Inf/NaN → "Inf"/"NaN" strings) BEFORE JSON3.write, which
-    # rejects them ("… not allowed in JSON spec") and would crash the legacy-output path
-    # (FRIEDMAN_LEGACY_OUTPUT=1 -f json) — unlike the envelope path, which already applies
+    # rejects them ("… not allowed in JSON spec") and would crash direct -f json
+    # rendering (no envelope) — unlike the envelope path, which already applies
     # `_json_safe`. This is the class-fix flagged since C067a: any handler emitting an Inf/NaN
     # in a kv/table is now rendered gracefully on BOTH json paths, not just the envelope.
     json_str = JSON3.write(_json_safe(data))

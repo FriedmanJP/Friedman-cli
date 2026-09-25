@@ -1,6 +1,6 @@
 # filter
 
-Time series filtering and trend-cycle decomposition. 6 subcommands: `hp`, `hamilton`, `bn`, `bk`, `bhp`, `x13`.
+Time series filtering and trend-cycle decomposition across `hp`, `hamilton`, `bn`, `bk`, `bhp`, and `x13`.
 
 All filter commands produce trend and cycle components, plus variance ratio diagnostics.
 
@@ -145,7 +145,7 @@ friedman filter x13 data.csv --columns=1 --transform=log --outliers=true
 (ARIMA order, AIC, outlier count).
 
 **Errors:** `data/too-short` if T < 3×frequency; `env/x13-missing` (exit 6) if the
-backend is unavailable (reserved; MEMs 0.7.0 ships pure-Julia X-13).
+backend is unavailable (reserved — the X-13 implementation is pure Julia, so this never fires today).
 
 **Note:** Upstream MEMs #205 discusses exact-ML likelihood determinant questions for
 some SEATS paths — treat SEATS AIC as diagnostic, not a formal likelihood ratio.

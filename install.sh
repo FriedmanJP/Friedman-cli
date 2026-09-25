@@ -82,28 +82,28 @@ echo "Installing Friedman-cli v${VERSION}..."
 ARCHIVE_NAME="friedman-v${VERSION}-${PLATFORM}-${ARCH_NAME}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ARCHIVE_NAME}"
 
-# --- Ensure Julia 1.12 is available ---
+# --- Ensure Julia 1.13 is available ---
 ensure_julia() {
     # Check if juliaup is available
     if command -v juliaup >/dev/null 2>&1; then
-        echo "Found juliaup. Ensuring Julia 1.12 is installed..."
-        juliaup add 1.12 2>/dev/null || true
+        echo "Found juliaup. Ensuring Julia 1.13 is installed..."
+        juliaup add 1.13 2>/dev/null || true
         return 0
     fi
 
-    # Check if julia >= 1.12 is on PATH
+    # Check if julia >= 1.13 is on PATH
     if command -v julia >/dev/null 2>&1; then
         JULIA_VER=$(julia --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
         JULIA_MAJOR=$(echo "$JULIA_VER" | cut -d. -f1)
         JULIA_MINOR=$(echo "$JULIA_VER" | cut -d. -f2)
-        if [ "$JULIA_MAJOR" -ge 1 ] && [ "$JULIA_MINOR" -ge 12 ]; then
+        if [ "$JULIA_MAJOR" -ge 1 ] && [ "$JULIA_MINOR" -ge 13 ]; then
             echo "Found Julia $(julia --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
             return 0
         fi
     fi
 
     # Install juliaup
-    echo "Julia 1.12+ not found. Installing juliaup..."
+    echo "Julia 1.13+ not found. Installing juliaup..."
     curl -fsSL https://install.julialang.org | sh -s -- --yes || {
         echo "Error: Failed to install juliaup." >&2
         echo "Install Julia manually: https://julialang.org/downloads/" >&2
@@ -113,8 +113,8 @@ ensure_julia() {
     # Source juliaup into current shell
     export PATH="$HOME/.juliaup/bin:$PATH"
 
-    echo "Installing Julia 1.12..."
-    juliaup add 1.12
+    echo "Installing Julia 1.13..."
+    juliaup add 1.13
 }
 
 ensure_julia

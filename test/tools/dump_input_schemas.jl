@@ -18,7 +18,6 @@ n = 0
 function _walk(node, path)
     for name in sort!(collect(keys(node.subcmds)))
         sub = node.subcmds[name]
-        Friedman.is_hidden_alias(name, sub) && continue
         p = vcat(path, [name])
         if sub isa Friedman.LeafCommand
             schema = Friedman._input_schema(sub, p)

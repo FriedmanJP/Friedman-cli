@@ -1,56 +1,56 @@
 # predict & residuals
 
-In-sample fitted values (`predict`) and model residuals (`residuals`). 23 subcommands each, covering time series, volatility, factor, cross-sectional regression, panel regression, and ordered/multinomial choice models.
+In-sample fitted values (`predict`) and model residuals (`residuals`), covering time series, volatility, factor, cross-sectional regression, panel regression, and ordered/multinomial choice models.
 
 Both commands share identical subcommand structure and options. Each subcommand estimates the model and extracts fitted values or residuals.
 
 ## Supported Models
 
-| Subcommand | Model |
+| Path under `predict` / `residuals` | Model |
 |------------|-------|
-| `var` | Frequentist VAR |
-| `bvar` | Bayesian VAR |
-| `arima` | ARIMA |
-| `vecm` | Vector Error Correction Model |
-| `static` | Static factor model (PCA) |
-| `dynamic` | Dynamic factor model |
-| `gdfm` | Generalized dynamic factor model |
-| `arch` | ARCH volatility |
-| `garch` | GARCH volatility |
-| `egarch` | EGARCH volatility |
-| `gjr_garch` | GJR-GARCH volatility |
-| `sv` | Stochastic volatility |
-| `favar` | Factor-Augmented VAR |
-| `reg` | OLS/WLS regression |
-| `logit` | Logit regression |
-| `probit` | Probit regression |
-| `preg` | Panel regression (FE/RE/BE/pooled) |
-| `piv` | Panel IV (2SLS) regression |
-| `plogit` | Panel logit |
-| `pprobit` | Panel probit |
-| `ologit` | Ordered logit |
-| `oprobit` | Ordered probit |
-| `mlogit` | Multinomial logit |
-| `statespace` | Structural state-space model (local level / local linear trend) |
-| `sur` | Seemingly unrelated regressions |
-| `3sls` | Three-stage least squares |
+| `multivariate var` | Frequentist VAR |
+| `multivariate bvar` | Bayesian VAR |
+| `univariate arima` | ARIMA |
+| `multivariate vecm` | Vector Error Correction Model |
+| `factor static` | Static factor model (PCA) |
+| `factor dynamic` | Dynamic factor model |
+| `factor gdfm` | Generalized dynamic factor model |
+| `volatility arch` | ARCH volatility |
+| `volatility garch` | GARCH volatility |
+| `volatility egarch` | EGARCH volatility |
+| `volatility gjr-garch` | GJR-GARCH volatility |
+| `volatility sv` | Stochastic volatility |
+| `multivariate favar` | Factor-Augmented VAR |
+| `regression reg` | OLS/WLS regression |
+| `choice logit` | Logit regression |
+| `choice probit` | Probit regression |
+| `panel preg` | Panel regression (FE/RE/BE/pooled) |
+| `panel piv` | Panel IV (2SLS) regression |
+| `panel plogit` | Panel logit |
+| `panel pprobit` | Panel probit |
+| `choice ologit` | Ordered logit |
+| `choice oprobit` | Ordered probit |
+| `choice mlogit` | Multinomial logit |
+| `regression statespace` | Structural state-space model (local level / local linear trend) |
+| `regression sur` | Seemingly unrelated regressions |
+| `regression 3sls` | Three-stage least squares |
 
 ## predict
 
 ```bash
-friedman predict var data.csv --lags=2
-friedman predict arima data.csv --p=1 --d=1 --q=1
-friedman predict garch data.csv --column=1 --p=1 --q=1
-friedman predict vecm data.csv --lags=4 --rank=2
+friedman predict multivariate var data.csv --lags=2
+friedman predict univariate arima data.csv --p=1 --d=1 --q=1
+friedman predict volatility garch data.csv --column=1 --p=1 --q=1
+friedman predict multivariate vecm data.csv --lags=4 --rank=2
 ```
 
 ## residuals
 
 ```bash
-friedman residuals var data.csv --lags=2
-friedman residuals arima data.csv --p=1 --d=1 --q=1
-friedman residuals garch data.csv --column=1 --p=1 --q=1
-friedman residuals vecm data.csv --lags=4 --rank=2
+friedman residuals multivariate var data.csv --lags=2
+friedman residuals univariate arima data.csv --p=1 --d=1 --q=1
+friedman residuals volatility garch data.csv --column=1 --p=1 --q=1
+friedman residuals multivariate vecm data.csv --lags=4 --rank=2
 ```
 
 ## Common Options
@@ -85,7 +85,7 @@ Options match those in the corresponding `estimate` command for each model type.
 | `--rank` | `-r` | Int | auto | Cointegration rank |
 | `--deterministic` | | String | `constant` | `none`, `constant`, `trend` |
 
-### Volatility Models (arch, garch, egarch, gjr\_garch, sv)
+### Volatility Models (`volatility arch`, `garch`, `egarch`, `gjr-garch`, `sv`)
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
@@ -109,7 +109,7 @@ Options match those in the corresponding `estimate` command for each model type.
 
 ### Logit/Probit Predict Flags
 
-`predict logit` and `predict probit` support additional flags for alternative output:
+`predict choice logit` and `predict choice probit` support additional flags for alternative output:
 
 | Flag | Description |
 |------|-------------|
@@ -122,7 +122,7 @@ Options match those in the corresponding `estimate` command for each model type.
 pass them bare, without a value. They are mutually exclusive with the default
 fitted-values output. `--threshold` takes a value.
 
-### Panel Regression Models (preg, piv, plogit, pprobit)
+### Panel Regression Models (`panel preg`, `piv`, `plogit`, `pprobit`)
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
@@ -140,10 +140,10 @@ For `piv`, also requires `--endog` and `--instruments`.
 | `--dep` | | String | (1st col) | Dependent variable column name |
 | `--cov-type` | | String | `hc1` | Covariance type |
 
-`predict ologit`, `predict oprobit`, and `predict mlogit` return one predicted-probability
+`predict choice ologit`, `predict choice oprobit`, and `predict choice mlogit` return one predicted-probability
 column per category (`prob_<category>`), plus an `observation` index.
 
-`residuals ologit`, `residuals oprobit` and `residuals mlogit` return one residual column
+`residuals choice ologit`, `residuals choice oprobit` and `residuals choice mlogit` return one residual column
 per category (`resid_<category>`), plus an `observation` index — a `J`-category response
 has `J` residuals per observation, so there is no meaningful single `residual` column.
 `--kind` selects the definition:
@@ -168,23 +168,23 @@ error (exit 2).
     models. [MEMs#507](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/507)
     settled both the definition and the return shape in 0.7.2.
 
-## State space: `predict statespace`, `residuals statespace`
+## State space: `predict regression statespace`, `residuals regression statespace`
 
 A structural state-space model has no single vector of "fitted values": it has a **state
 path**, one series per state (a local level has one state, a local linear trend has two).
-`predict statespace` therefore emits a tidy long table `period | state | filtered | smoothed`
+`predict regression statespace` therefore emits a tidy long table `period | state | filtered | smoothed`
 — the Kalman-filtered `a_{t|t}` and the smoothed `a_{t|T}` side by side, so the same table
 shape serves both models and the row count grows with the number of states rather than the
 column set. `--state filtered|smoothed` restricts the output to one of the two.
 
-`residuals statespace` emits the one-step-ahead prediction errors `v_t = y_t − Z a_{t|t−1}`
+`residuals regression statespace` emits the one-step-ahead prediction errors `v_t = y_t − Z a_{t|t−1}`
 (`period | residual`). `--standardized` divides by `sqrt(F_t)` instead, which is the form to
 use for diagnostic checking — the raw innovations are heteroskedastic while the filter
 converges out of its diffuse initialisation.
 
 The model type is selected with **`--kind`**, not `--model`: on `predict`/`residuals`,
 `--model` is reserved for a saved model handle. Options otherwise mirror
-[`estimate statespace`](estimate.md#estimate-statespace).
+[`estimate regression statespace`](estimate.md#estimate-statespace).
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
@@ -196,12 +196,12 @@ The model type is selected with **`--kind`**, not `--model`: on `predict`/`resid
 | `--standardized` | | Flag | off | Standardized innovations `v_t/√F_t` (residuals only) |
 
 ```bash
-friedman predict statespace y.csv --kind local-linear-trend
-friedman predict statespace y.csv --state smoothed
-friedman residuals statespace y.csv --standardized
+friedman predict regression statespace y.csv --kind local-linear-trend
+friedman predict regression statespace y.csv --state smoothed
+friedman residuals regression statespace y.csv --standardized
 ```
 
-## Nonlinear time series: `residuals setar | star | ms-ar | ms`, `predict`/`forecast ms | ms-ar`
+## Nonlinear time series: `residuals regime setar | star | ms-ar | ms`, `predict`/`forecast regime ms | ms-ar`
 
 All four have a `residuals` leaf. **`predict` and `forecast` exist for the Markov-switching
 models only** (`ms`, `ms-ar`) — SETAR and STAR still have neither, and that asymmetry is
@@ -209,12 +209,12 @@ upstream, not a design choice here: MacroEconometricModels defines `predict`/`fo
 `MSRegModel` but not for `ThresholdModel` or `STARModel`.
 
 !!! note "Added in CLI v0.9.1"
-    `predict ms|ms-ar` and `forecast ms|ms-ar` were previously absent because upstream stored
+    `predict regime ms|ms-ar` and `forecast regime ms|ms-ar` were previously absent because upstream stored
     no fitted values and offered no Markov-switching forecast.
     [MEMs#510](https://github.com/FriedmanJP/MacroEconometricModels.jl/issues/510) shipped both
     in 0.7.2.
 
-### `predict ms | ms-ar`
+### `predict regime ms | ms-ar`
 
 Emits the regime-probability-weighted conditional mean `ŷₜ = Σₖ Pr(sₜ=k) · E[yₜ | sₜ=k]` as a
 tidy `t | fitted` table. `--probs` chooses the weighting:
@@ -227,14 +227,14 @@ tidy `t | fitted` table. `--probs` chooses the weighting:
 The two are genuinely different series, so `predict --probs filtered` is **not** a restatement
 of `residuals`: only the smoothed weighting satisfies the residual identity.
 
-### `forecast ms | ms-ar`
+### `forecast regime ms | ms-ar`
 
-`forecast ms-ar` projects the model itself over `--horizons`. The path is the exact analytic
+`forecast regime ms-ar` projects the model itself over `--horizons`. The path is the exact analytic
 conditional mean; because the predictive density is a Gaussian *mixture* over regime paths, the
 bands come from simulating `--reps` regime paths at `--ci-level`. Two tables are emitted: the
 tidy forecast path, and the `h × K` **predicted regime probabilities** `ξ_{t+h|t} = (P')ʰ ξ_{t|t}`.
 
-`forecast ms` is a switching **regression**, which cannot project itself — it needs future
+`forecast regime ms` is a switching **regression**, which cannot project itself — it needs future
 regressors. Pass them with `--x-future <csv>` (`h` rows × `k` columns, matching the fitted
 design). The one exception is an intercept-only fit, where the future design is just a column of
 ones and `--horizons` alone is enough. A model with regressors and no `--x-future` is a usage
@@ -244,37 +244,37 @@ Neither forecast leaf offers `--plot`/`--plot-save`: MacroEconometricModels 0.7.
 `plot_result` recipe for `MSForecast` (the same gap as `ThresholdForecast`/`STARForecast`).
 
 ```bash
-friedman predict  ms-ar y.csv --p 1 --probs filtered
-friedman forecast ms-ar y.csv --p 1 --horizons 8 --ci-level 0.90
-friedman forecast ms    data.csv --dep y --x-future future_x.csv
+friedman predict regime ms-ar y.csv --p 1 --probs filtered
+friedman forecast regime ms-ar y.csv --p 1 --horizons 8 --ci-level 0.90
+friedman forecast regime ms    data.csv --dep y --x-future future_x.csv
 ```
 
 Each leaf mirrors its `estimate` sibling's options so any fit that changes the residuals can be
-reproduced. Options that affect **only** the attached inference are omitted: `estimate setar`'s
+reproduced. Options that affect **only** the attached inference are omitted: `estimate regime setar`'s
 `--reps`, `--ci-level` and `--het` drive the Hansen bootstrap and the threshold confidence
-interval, neither of which touches the residuals, so `residuals setar` does not accept them and
+interval, neither of which touches the residuals, so `residuals regime setar` does not accept them and
 skips that bootstrap entirely.
 
 Output is one tidy `period | residual` table. **`period` is the effective-sample index**, not
 calendar time: SETAR, STAR and MS-AR all drop leading observations to build their lag matrices,
-so `residuals setar --p 3` returns three fewer rows than the input. The MS *regression* is fit on
+so `residuals regime setar --p 3` returns three fewer rows than the input. The MS *regression* is fit on
 levels and drops nothing.
 
 ```bash
-friedman residuals setar y.csv --p 1 --d auto
-friedman residuals star  y.csv --p 1 --type lstr1
-friedman residuals ms-ar y.csv --p 1 --k-regimes 3
-friedman residuals ms    data.csv --dep y
+friedman residuals regime setar y.csv --p 1 --d auto
+friedman residuals regime star  y.csv --p 1 --type lstr1
+friedman residuals regime ms-ar y.csv --p 1 --k-regimes 3
+friedman residuals regime ms    data.csv --dep y
 ```
 
-## Count models: `predict poisson | nbreg`, `residuals poisson | nbreg`
+## Count models: `predict choice poisson | nbreg`, `residuals choice poisson | nbreg`
 
 `predict` returns the conditional mean `μ̂ᵢ = exp(xᵢ'β̂ + offsetᵢ)` as an `observation | fitted`
 table; `residuals` returns `yᵢ − μ̂ᵢ` as `observation | residual`.
 
 Both leaves mirror their `estimate` sibling's fit options so the refit matches
-([`estimate poisson`](estimate.md#estimate-poisson) /
-[`estimate nbreg`](estimate.md#estimate-nbreg)), including `--offset` / `--exposure`. The
+([`estimate choice poisson`](estimate.md#estimate-poisson) /
+[`estimate choice nbreg`](estimate.md#estimate-nbreg)), including `--offset` / `--exposure`. The
 reporting-only options are omitted: `--irr` and `--conf-level` affect the incidence-rate-ratio
 table, which neither verb emits.
 
@@ -282,11 +282,11 @@ There is **no `--kind`**: MacroEconometricModels exposes a single residual vecto
 models, so offering a choice would be advertising something the library cannot honour.
 
 ```bash
-friedman predict   poisson data.csv --dep claims --exposure policy_years
-friedman residuals nbreg   data.csv --dep claims
+friedman predict choice poisson data.csv --dep claims --exposure policy_years
+friedman residuals choice nbreg   data.csv --dep claims
 ```
 
-## Systems: `predict sur | 3sls`, `residuals sur | 3sls`
+## Systems: `predict regression sur | 3sls`, `residuals regression sur | 3sls`
 
 SUR and 3SLS carry **per-equation** fitted values and residuals. Both verbs render them as
 **one tidy long table** — `equation | t | fitted` (resp. `residual`) — rather than one
@@ -298,6 +298,6 @@ there is nothing to refit. The other options mirror the matching `estimate` leaf
 (`--iterate`/`--no-intercept` for SUR, `--instruments`/`--no-intercept` for 3SLS).
 
 ```bash
-friedman predict sur data.csv --config system.toml
-friedman residuals 3sls data.csv --config system.toml --instruments=common
+friedman predict regression sur data.csv --config system.toml
+friedman residuals regression 3sls data.csv --config system.toml --instruments=common
 ```

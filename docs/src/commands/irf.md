@@ -1,6 +1,6 @@
 # irf
 
-Compute impulse response functions. 7 subcommands: `var`, `bvar`, `lp`, `vecm`, `pvar`, `favar`, `sdfm`.
+Compute impulse response functions across `var`, `bvar`, `tvpvar`, `lp`, `vecm`, `pvar`, `favar`, and `sdfm`.
 
 ## Output format (C051)
 
@@ -19,6 +19,11 @@ the older wide, per-shock-file layout.
 Frequentist IRFs with multiple identification schemes and confidence intervals.
 
 ```bash
+# From a saved model stem (Wave 2); persist the IRF and re-render later
+friedman irf var --model var --horizons=20 --save-result irf
+friedman irf var --result irf
+friedman show irf
+
 # Cholesky identification (default)
 friedman irf var data.csv --shock=1 --horizons=20
 
@@ -33,6 +38,9 @@ friedman irf var data.csv --id=longrun --horizons=40
 
 # Arias et al. (2018) zero/sign restrictions
 friedman irf var data.csv --id=arias --config=arias_restrictions.toml
+
+# Narrative ADRR (Arias pipeline + narrative contribution restrictions)
+friedman irf var data.csv --id=narrative-adrr --config=adrr_restrictions.toml
 
 # Non-Gaussian identification methods
 friedman irf var data.csv --id=fastica
@@ -54,6 +62,10 @@ friedman irf var data.csv --shock=1 --cumulative
 # Full identified set for sign restrictions
 friedman irf var data.csv --id=sign --config=sign.toml --identified-set
 
+# Set-identified summaries (Fry-Pagan median target, modal model, joint bands)
+friedman irf var data.csv --id=sign --config=sign.toml --identified-set --summary=median-target
+friedman irf var data.csv --id=sign --config=sign.toml --identified-set --summary=joint-band
+
 # Filter non-stationary draws
 friedman irf var data.csv --shock=1 --ci=bootstrap --stationary-only
 ```
@@ -73,6 +85,7 @@ friedman irf var data.csv --shock=1 --ci=bootstrap --stationary-only
 | `--plot-save` | | String | | Save plot to HTML file |
 | `--cumulative` | | Flag | | Compute cumulative IRFs (for differenced data) |
 | `--identified-set` | | Flag | | Return full identified set (sign restrictions only) |
+| `--summary` | | String | `none` | Set-identified summary: `median-target`, `modal-model`, `joint-band`, `sup-t-band` (only with `--identified-set`) |
 | `--stationary-only` | | Flag | | Filter non-stationary bootstrap draws |
 
 ### Identification Methods
@@ -84,6 +97,7 @@ friedman irf var data.csv --shock=1 --ci=bootstrap --stationary-only
 | `narrative` | Narrative sign restrictions | Yes (narrative block) |
 | `longrun` | Long-run (Blanchard-Quah) | No |
 | `arias` | Arias et al. zero + sign | Yes (restrictions) |
+| `narrative-adrr` | Arias pipeline + Antolín-Díaz/Rubio-Ramírez narrative contributions | Yes (restrictions + narrative_contributions) |
 | `uhlig` | Uhlig (Mountford & Uhlig 2009) penalty-based | Yes (restrictions + uhlig params) |
 | `fastica` | FastICA | No |
 | `jade` | JADE | No |
@@ -100,6 +114,8 @@ friedman irf var data.csv --shock=1 --ci=bootstrap --stationary-only
 See [Configuration](../configuration.md) for restriction TOML formats.
 
 **Output:** Tidy table (`horizon|variable|shock|value|lower|upper`) filtered to `--shock` (the Arias/Uhlig/`--identified-set` paths stay wide — see [Output format](#output-format-c051) above).
+
+Sign/narrative IRFs report the identified-set median with set-robust bands by default (since MEMs 0.9.2); `--summary` selects an alternative set summary (Fry–Pagan median target, modal model, joint or sup-t bands) on the `--identified-set` path.
 
 ### Bootstrap schemes and bias correction
 
@@ -158,6 +174,7 @@ Bayesian IRFs with 68% credible intervals (16th/50th/84th percentiles).
 friedman irf bvar data.csv --shock=1 --horizons=20
 friedman irf bvar data.csv --draws=5000 --sampler=gibbs --config=prior.toml
 friedman irf bvar data.csv --id=sign --config=sign_restrictions.toml
+friedman irf bvar data.csv --id=robust-bayes --config=bvar_restrictions.toml
 friedman irf bvar data.csv --shock=1 --cumulative
 ```
 
@@ -166,7 +183,7 @@ friedman irf bvar data.csv --shock=1 --cumulative
 | `--lags` | `-p` | Int | 4 | Lag order |
 | `--shock` | | Int | 1 | Shock variable index (1-based) |
 | `--horizons` | `-h` | Int | 20 | IRF horizon |
-| `--id` | | String | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun` |
+| `--id` | | String | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `robust-bayes` (Giacomini–Kitagawa bands; config must carry both `[prior]` and `[identification]`) |
 | `--draws` | `-n` | Int | 2000 | MCMC draws |
 | `--sampler` | | String | `direct` | `direct`, `gibbs` |
 | `--config` | | String | | TOML config for identification/prior |
@@ -225,6 +242,7 @@ IRFs for Vector Error Correction Models. The VECM is converted to its VAR repres
 friedman irf vecm data.csv --shock=1 --horizons=20
 friedman irf vecm data.csv --rank=2 --deterministic=constant --lags=4
 friedman irf vecm data.csv --id=cholesky --ci=bootstrap --replications=500
+friedman irf vecm data.csv --id=svec --ci=none --rank=1
 ```
 
 | Option | Short | Type | Default | Description |
@@ -234,7 +252,7 @@ friedman irf vecm data.csv --id=cholesky --ci=bootstrap --replications=500
 | `--horizons` | `-h` | Int | 20 | IRF horizon |
 | `--rank` | `-r` | String | `auto` | Cointegration rank (auto via Johansen, or explicit) |
 | `--deterministic` | | String | `constant` | `none`, `constant`, `trend` |
-| `--id` | | String | `cholesky` | Identification method |
+| `--id` | | String | `cholesky` | Identification method (`cholesky`, `sign`, `narrative`, `longrun`, `svec`; `svec` requires `--ci none` and accepts an optional `[svec]` config) |
 | `--ci` | | String | `bootstrap` | `none`, `bootstrap`, `theoretical` |
 | `--replications` | | Int | 1000 | Bootstrap replications |
 | `--config` | | String | | TOML config for identification restrictions |

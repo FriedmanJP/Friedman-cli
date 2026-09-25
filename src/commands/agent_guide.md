@@ -9,22 +9,28 @@ the documentation site renders the same file.
 With `--format=json`, **stdout is exactly one JSON document** (the result envelope). Status and diagnostics go to **stderr**.
 
 ```bash
-friedman estimate var data.csv --lags 1 --format json | jq .
+friedman estimate multivariate var data.csv --lags 1 --format json | jq .
 ```
+
+Model commands are `verb family model` (`estimate volatility garch`,
+`test unit-root adf`). `hadsge solve` is the HouseholdSystem command;
+`dsge solve` stays representative-agent. `friedman schema estimate`
+groups leaves by `family`. `tools/list` takes an optional `prefix`
+(`estimate volatility`, `hadsge`).
 
 Example shape (fields abbreviated):
 
 ```json
 {
   "schema_version": 1,
-  "command": "friedman estimate var",
+  "command": "friedman estimate multivariate var",
   "status": "ok",
   "meta": {
     "cli_version": "0.9.2",
     "mems_version": "0.8.0",
-    "julia": "1.12.x",
+    "julia": "1.13.x",
     "seed": null,
-    "argv": ["estimate", "var", "data.csv", "--lags", "1", "--format", "json"],
+    "argv": ["estimate", "multivariate", "var", "data.csv", "--lags", "1", "--format", "json"],
     "elapsed_ms": 12.3
   },
   "data": {
@@ -65,7 +71,7 @@ directly.
 `data` keys are **predictable before you run the command**: they come from each
 leaf's registry-declared table names, never from runtime values.
 
-- **Singleton tables** use the declared name verbatim: `estimate var` always
+- **Singleton tables** use the declared name verbatim: `estimate multivariate var` always
   answers under `var_coefficients` + `information_criteria` — regardless of
   `--lags`, your column names, or anything estimated. (Before v0.10.0 the same
   table was `var_2_coefficients` — the lag order baked into the address.)
@@ -91,12 +97,12 @@ object carries the machine-readable failure:
 ```json
 {
   "schema_version": 1,
-  "command": "friedman estimate var",
+  "command": "friedman estimate multivariate var",
   "status": "error",
   "data": {},
   "error": {
     "code": "usage/parse",
-    "message": "friedman estimate var: unknown option --lgas — did you mean --lags?",
+    "message": "friedman estimate multivariate var: unknown option --lgas — did you mean --lags?",
     "exit_code": 2
   }
 }
@@ -126,7 +132,7 @@ object carries the machine-readable failure:
 
 ```bash
 friedman nosuchcmd; echo $?          # 2
-friedman estimate var /nope.csv; echo $?   # 3
+friedman estimate multivariate var /nope.csv; echo $?   # 3
 ```
 
 Domain failures carry **typed codes** where the underlying failure mode is
@@ -142,6 +148,9 @@ recognized (all are stable identifiers; the set only grows):
 | `model/error` | 5 | other recognized domain failure |
 | `data/serialization` | 3 | saved model handle unreadable or version-incompatible |
 | `data/orientation` | 3 | data matrix transposed relative to the observables |
+| `data/wrong-kind` | 3 | data slot loaded a container not in the leaf's `data_kinds` (e.g. `PanelData` on `estimate multivariate var`) |
+| `data/wrong-result` | 3 | `--result` loaded a type not in the leaf's `result_types` (e.g. a `VARModel` on `irf var --result`) |
+| `model/wrong-kind` | 5 | `--model` loaded a type not in the leaf's `model_types` (e.g. an `ImpulseResponse` on `irf var --model`) |
 
 Anything else surfaces as `usage/*`, `data/*`, `config/*`, or `env/*` per the
 class table above; `internal/error` (exit 1) means a CLI bug — report it.
@@ -151,7 +160,7 @@ class table above; `internal/error` (exit 1) means a CLI bug — report it.
 Unknown options throw with a suggestion when the edit distance is small:
 
 ```text
-Error: friedman estimate var: unknown option --lgas — did you mean --lags?
+Error: friedman estimate multivariate var: unknown option --lgas — did you mean --lags?
 ```
 
 `--format` is restricted to `table|csv|json`. Negative numerics bind: `--threshold -0.5`.
@@ -160,9 +169,9 @@ Error: friedman estimate var: unknown option --lgas — did you mean --lags?
 
 ```bash
 friedman schema | jq '.commands | length'            # top-level command count
-friedman schema estimate var | jq '.options[].name'  # leaf options
-friedman schema estimate var | jq '.input_schema'    # draft-07 invocation schema
-friedman schema estimate var | jq '.tables'          # declared result-table keys
+friedman schema estimate multivariate var | jq '.options[].name'  # leaf options
+friedman schema estimate multivariate var | jq '.input_schema'    # draft-07 invocation schema
+friedman schema estimate multivariate var | jq '.tables'          # declared result-table keys
 friedman schema | jq '.contract.exit_codes'          # exit-code taxonomy
 friedman schema | jq -r '.docs'                      # this guide (--docs)
 ```
@@ -176,7 +185,9 @@ the document is fully machine-actionable:
   defaults, `required` = required positionals, `additionalProperties: false`).
   Each property carries an **`x-cli`** annotation (`kind`:
   `argument|option|flag`, `position` for positionals, `long`/`short` spellings)
-  so an exact argv can be reconstructed from a validated object.
+  so an exact argv can be reconstructed from a validated object. Handle slots
+  also carry **`x-handle`** (`role`: `data|model|result`, plus `kinds` /
+  `types` from the registry) — see *Typed handles* below.
 - **`tables`** (leaf docs): the registry-declared result-table keys — `name`,
   `description`, and `family` (`true` means keys are `<name>_<variable-slug>`,
   one per variable/shock; see *Stable table keys*). This is the same
@@ -201,8 +212,13 @@ friedman serve --mcp    # JSON-RPC 2.0 / Model Context Protocol on stdio
 Every command becomes an MCP **tool** — one process, no per-call spawn:
 
 - **`tools/list`** mirrors the registry: tool name = command path joined with
-  `_` (`estimate_var`, `dsge_bayes_estimate`); `inputSchema` is the same
-  draft-07 schema `friedman schema` reports.
+  `_` (`estimate_multivariate_var`, `estimate_volatility_garch`, `dsge_bayes_estimate`).
+  Each tool has a `family` field, and its description starts with that family.
+  `inputSchema` is the same draft-07 schema `friedman schema` reports.
+  Pass `params.prefix` to keep one slice (`"estimate volatility"` returns only
+  that family's estimate leaves; `"hadsge"` returns the household leaves).
+  An unknown prefix returns `"tools": []` and a successful RPC result, not a
+  JSON-RPC error. Omit `prefix`, or pass `""`, to list every leaf except `serve`.
 - **`tools/call`** reconstructs the exact argv from your arguments object,
   forces `--format json`, and returns the **envelope verbatim** as text
   content — same bytes as the CLI, same stable `data` keys, same typed
@@ -219,24 +235,90 @@ Every command becomes an MCP **tool** — one process, no per-call spawn:
 ## Determinism & reproducibility
 
 ```bash
-friedman --seed 42 estimate var data.csv --format json
+friedman --seed 42 estimate multivariate var data.csv --format json
 ```
 
 `meta.seed` echoes the seed; use the same seed for reproducible stochastic paths. Every JSON
 envelope also carries `meta.manifest` — the MacroEconometricModels.jl reproducibility manifest
 (seed, threads, OS, Julia + package + dependency versions, git, timestamp) — for provenance.
-`--seed` is additionally forwarded as the estimator's own `seed=` for the BVAR family and
-VAR/VECM IRFs, so their `ReproManifest` records it and the draws reproduce bit-for-bit.
+`--seed` is additionally forwarded as the estimator's own `seed=` everywhere upstream
+supports it (BVAR/IRF plus SV, MFVAR/TVPVAR, FAVAR/SDFM, SMM, quantile/robust/nonlinear,
+DiD, LP, PVAR bootstrap, conditional forecasts, set-identification, policy/OPP, DSGE Bayes
+and Krusell–Smith), so their `ReproManifest` records it and the draws reproduce bit-for-bit.
+`friedman model reproduce HANDLE` re-runs the recorded estimator and reports a match verdict
+plus per-field diffs (`unverifiable` when no seed was recorded — not a pass).
 
-## Model handles
+## Typed handles (data, model, result)
 
-`--save-model PATH` persists a fitted model; `--model PATH` reloads it (skipping re-estimation).
-`.jld2` is the native, versioned format and since CLI v0.9.1 covers the full upstream
-serialization registry (56 types at MacroEconometricModels 0.7.2) — in practice every model
-`estimate` can fit. `.fmod` is the interim handle, now needed only for the DSGE/heterogeneous-agent
-*solutions* reachable via `dsge solve --save-model`, whose compiled model closures cannot be
-stored portably; saving one of those to `.jld2` fails with `model/unsupported-save` (exit 5) and
-writes nothing. `friedman model info PATH` inspects either format without re-running estimation.
+Three object kinds, each with its own slot. **Wave 2 ships result handles and
+`friedman show`.** Data + model shipped in Wave 1; `--result` / `--save-result`
+skip compute and re-render a saved result; `friedman show STEM` renders any
+loadable handle (data, model, result, or a keys-only bundle listing).
+
+| Kind | Argv slot | Native persist | Wave |
+|------|-----------|----------------|------|
+| data | positional `<data>` / `--data` | `data import -o STEM` → `STEM.jld2` | 1 |
+| model | `--model` / `--save-model` | `--save-model STEM` → `STEM.jld2` | 1 |
+| result | `--result` / `--save-result` | `--save-result STEM` | 2 |
+
+**Stems vs suffixes.** Data positionals, `--save-model`, `--save-result`,
+`--model` (when the leaf declares `model_types`), `--result`, and
+`friedman show` accept suffix-less stems (`macro`, `--save-model var` →
+`var.jld2`, `--model var` loads `var.jld2`). `model info` still wants an
+explicit handle path (`.jld2` / `.fmod` / `model://`). Data load prefers
+`path.jld2` over `path.csv` when both exist; `--model` / `--result` / `show`
+have no CSV fallback. An explicit suffix skips the search. `model://name` is
+the in-session URI (serve) and is not stem-expanded. `:fred_md` example names
+are unchanged.
+
+```bash
+friedman data import macro.csv --kind timeseries -o macro
+friedman estimate multivariate var macro --lags 2 --save-model var   # stem → var.jld2
+friedman irf var --model var --horizons 12 --save-result irf
+friedman irf var --result irf                            # re-render; no data
+friedman show macro          # TimeSeriesData descriptive stats
+friedman show var            # fitted model table
+friedman show irf            # re-render the saved ImpulseResponse
+friedman forecast evaluate metrics macro --actual gdp --result fcst_var,fcst_bvar
+friedman model info var.jld2
+# CSV shortcut still works:
+friedman estimate multivariate var macro.csv --lags 2
+```
+
+`data import --kind` is required for CSV (no autodetection). Edits do not
+promote CSV to `.jld2` (`usage/invalid` — import first; `data import` itself
+is the intended CSV→`.jld2` conversion). A handle whose type is not in the
+leaf's `data_kinds` is `data/wrong-kind` (exit 3). `--result` of the wrong
+result type is `data/wrong-result` (exit 3); `--model` of the wrong model
+type is `model/wrong-kind` (exit 5). `--result` cannot be combined with
+`--model` or a data path (`usage/invalid`).
+
+`friedman schema <leaf>` annotates handle slots with **`x-handle`**:
+`{role: "data"|"model"|"result", kinds: [...], types: [...]}` next to the
+existing `x-cli` argv annotations. **Presence vs absence of `x-handle` is the
+signal** — not whether `kinds`/`types` are empty. Empty `types` on a data slot
+is normal (data uses `kinds`); producing-leaf `--model` / `--result` slots
+carry `types` from the registry. `data validate --model` has **no**
+`x-handle` (it is a type *string*, not a model handle). Evaluate `--result`
+is a comma-separated string (`handle=false`, no `x-handle`).
+
+### Model handles
+
+`--save-model PATH` persists a fitted model (suffix-less stem → `.jld2`);
+`--model STEM` (or `.jld2` / `.fmod` / `model://`) reloads it (skipping
+re-estimation) on leaves that declare `model_types`. `.jld2` is the native, versioned format covering the full
+upstream serialization registry (352 types at MacroEconometricModels 1.0.0) —
+every model `estimate` can fit, including DSGE/HA solutions (`dsge solve`,
+`hadsge solve`, `hadsge steady-state`, `dsge bayes estimate` all take
+`--save-model`). `.fmod` remains as the interim handle for unregistered
+payloads. `friedman model info PATH.jld2` reads the container header (writing
+versions, note, bundle layout) without re-running estimation — header-only, it
+never executes stored code.
+Trust caveat (mirrors upstream): a `--model` handle carrying DSGE/HA equations recompiles
+them at load through an AST allowlist (`Core.eval`), the same risk class as
+`Serialization.deserialize` — only load files you trust. Programmatic payloads with
+anonymous closures (household utilities, `ss_fn`) fail at `--save-model` time with
+`data/serialization`; persist named functions or callable structs (`CRRAUtility`) instead.
 
 ## Quiet / no-color / json alias
 
@@ -248,13 +330,13 @@ writes nothing. `friedman model info PATH` inspects either format without re-run
 
 Leading globals only (before the first subcommand token).
 
-## Legacy output
+## Removed in v1.0
 
-```bash
-FRIEDMAN_LEGACY_OUTPUT=1 friedman estimate var data.csv --format json
-```
-
-Restores pre-0.5 multi-document / non-envelope JSON for one minor release.
+- `FRIEDMAN_LEGACY_OUTPUT` (pre-0.5 multi-document JSON): the variable is
+  ignored; `--format json` always emits exactly one envelope.
+- Hidden snake_case command aliases (`gjr_garch`, `arch_lm`, `ljung_box`,
+  `hansen_j`): use the kebab-case primaries; the old spellings are now
+  unknown commands (exit 2).
 
 ## Handler rules (for contributors)
 

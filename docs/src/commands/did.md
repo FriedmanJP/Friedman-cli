@@ -1,6 +1,6 @@
 # did
 
-Difference-in-differences estimation, event study local projections, and diagnostics. 7 subcommands organized as 3 estimation commands + nested `test` group with 4 diagnostic commands.
+Difference-in-differences estimation and event-study local projections (`did estimate`, `did event-study`, `did lp-did`); diagnostics live under `test did`.
 
 Supports panel data with staggered treatment adoption. All commands accept panel CSV data as a positional argument with `--id-col` and `--time-col` options (default: first and second columns respectively).
 
@@ -131,12 +131,12 @@ friedman did lp-did panel.csv --outcome=y --treatment=treat --horizon=5 --pre-wi
 
 **Output:** Event-time coefficient table + optional pooled pre/post effects.
 
-## did test bacon
+## test did bacon
 
 Bacon decomposition (Goodman-Bacon 2021). Decomposes the TWFE estimator into weighted 2x2 DID comparisons to diagnose heterogeneity bias.
 
 ```bash
-friedman did test bacon panel.csv --outcome=y --treatment=treat
+friedman test did bacon panel.csv --outcome=y --treatment=treat
 ```
 
 | Option | Short | Type | Default | Description |
@@ -152,16 +152,16 @@ friedman did test bacon panel.csv --outcome=y --treatment=treat
 
 **Output:** Decomposition table (comparison type, cohort pair, estimate, weight) + overall TWFE ATT.
 
-## did test pretrend
+## test did pretrend
 
 Test the parallel trends assumption using pre-treatment coefficients.
 
 ```bash
 # Test from DID estimation
-friedman did test pretrend panel.csv --outcome=y --treatment=treat
+friedman test did pretrend panel.csv --outcome=y --treatment=treat
 
 # Test from event study
-friedman did test pretrend panel.csv --outcome=y --treatment=treat --method=event-study
+friedman test did pretrend panel.csv --outcome=y --treatment=treat --method=event-study
 ```
 
 | Option | Short | Type | Default | Description |
@@ -182,12 +182,12 @@ friedman did test pretrend panel.csv --outcome=y --treatment=treat --method=even
 
 **Output:** F-statistic, p-value, degrees of freedom, and verdict on parallel trends.
 
-## did test negweight
+## test did negweight
 
 Check for negative weights in TWFE estimation (de Chaisemartin & D'Haultfoeuille 2020).
 
 ```bash
-friedman did test negweight panel.csv --treatment=treat
+friedman test did negweight panel.csv --treatment=treat
 ```
 
 | Option | Short | Type | Default | Description |
@@ -200,16 +200,16 @@ friedman did test negweight panel.csv --treatment=treat
 
 **Output:** Whether negative weights exist, count, total negative weight. If found, details table of affected cohort-time pairs.
 
-## did test honest
+## test did honest
 
 HonestDiD sensitivity analysis (Rambachan & Roth 2023). Computes robust confidence intervals allowing for bounded violations of parallel trends.
 
 ```bash
 # From DID estimation
-friedman did test honest panel.csv --outcome=y --treatment=treat --mbar=1.0
+friedman test did honest panel.csv --outcome=y --treatment=treat --mbar=1.0
 
 # From event study
-friedman did test honest panel.csv --outcome=y --treatment=treat --method=event-study --mbar=0.5
+friedman test did honest panel.csv --outcome=y --treatment=treat --method=event-study --mbar=0.5
 ```
 
 | Option | Short | Type | Default | Description |

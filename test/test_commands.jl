@@ -71,8 +71,10 @@ include(joinpath(project_root, "src", "cli", "dispatch.jl"))
 # Include command files in dependency order
 include(joinpath(project_root, "src", "commands", "shared.jl"))
 include(joinpath(project_root, "src", "model_handle.jl"))
+include(joinpath(project_root, "src", "handles.jl"))
 include(joinpath(project_root, "src", "registry", "spec.jl"))
 include(joinpath(project_root, "src", "registry", "adapter.jl"))
+include(joinpath(project_root, "src", "registry", "families.jl"))
 include(joinpath(project_root, "src", "commands", "estimate.jl"))
 include(joinpath(project_root, "src", "commands", "test.jl"))
 include(joinpath(project_root, "src", "commands", "irf.jl"))
@@ -81,16 +83,19 @@ include(joinpath(project_root, "src", "commands", "hd.jl"))
 include(joinpath(project_root, "src", "commands", "forecast.jl"))
 include(joinpath(project_root, "src", "commands", "fitted.jl"))
 include(joinpath(project_root, "src", "commands", "filter.jl"))
+include(joinpath(project_root, "src", "commands", "data_simulate.jl"))
 include(joinpath(project_root, "src", "commands", "data.jl"))
 include(joinpath(project_root, "src", "commands", "io.jl"))
 include(joinpath(project_root, "src", "commands", "nowcast.jl"))
 include(joinpath(project_root, "src", "commands", "dsge.jl"))
+include(joinpath(project_root, "src", "commands", "hadsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
 include(joinpath(project_root, "src", "commands", "multipliers.jl"))
 include(joinpath(project_root, "src", "commands", "policy.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
+include(joinpath(project_root, "src", "commands", "show.jl"))
 
 include(joinpath(project_root, "test", "support.jl"))
 @testset "Command Handlers" begin
@@ -103,7 +108,7 @@ include(joinpath(project_root, "test", "support.jl"))
     mktempdir() do dir
         csv = _make_csv(dir; T=100, n=3)
         out = _capture() do
-            _dispatch_via_app(["estimate", "var", csv, "--lags", "1", "--format", "json"])
+            _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1", "--format", "json"])
         end
         # Strip any leading non-JSON status noise: find first '{'
         i = findfirst('{', out)
@@ -115,14 +120,18 @@ include(joinpath(project_root, "test", "support.jl"))
         @test doc.status == "ok"
     end
 
-    # Legacy path: FRIEDMAN_LEGACY_OUTPUT=1 restores pre-envelope multi-doc/json array output
+    # C055: FRIEDMAN_LEGACY_OUTPUT was removed at v1.0.0 — the var is ignored,
+    # --format json always emits exactly one envelope
     mktempdir() do dir
         csv = _make_csv(dir; T=100, n=3)
         withenv("FRIEDMAN_LEGACY_OUTPUT" => "1") do
             out = _capture() do
-                _dispatch_via_app(["estimate", "var", csv, "--lags", "1", "--format", "json"])
+                _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1", "--format", "json"])
             end
-            # Legacy is not a single envelope (no schema_version at top level required)
+            i = findfirst('{', out)
+            @test i !== nothing
+            doc = JSON3.read(out[i:end])
+            @test doc.schema_version == 1 && doc.status == "ok"
         end
     end
 end
@@ -153,7 +162,7 @@ end
 @testset "Shared utilities" begin
 
     @testset "ID_METHOD_MAP" begin
-        @test length(ID_METHOD_MAP) == 16
+        @test length(ID_METHOD_MAP) == 18   # 16 + lewis-tvv/sv-em (W1/#186)
         @test ID_METHOD_MAP["cholesky"] == :cholesky
         @test ID_METHOD_MAP["sign"] == :sign
         @test ID_METHOD_MAP["narrative"] == :narrative
@@ -170,6 +179,8 @@ end
         @test ID_METHOD_MAP["markov_switching"] == :markov_switching
         @test ID_METHOD_MAP["garch_id"] == :garch
         @test ID_METHOD_MAP["uhlig"] == :uhlig
+        @test ID_METHOD_MAP["lewis-tvv"] == :lewis_tvv
+        @test ID_METHOD_MAP["sv-em"] == :sv_em
     end
 
     @testset "_load_and_estimate_var" begin
@@ -270,9 +281,9 @@ end
         @test !haskey(kwargs, :check_func)
         @test !haskey(kwargs, :narrative_check)
 
-        # Unknown method -> falls back to :cholesky
-        kwargs2 = _build_identification_kwargs("unknown", "")
-        @test kwargs2[:method] == :cholesky
+        # Unknown method -> usage/invalid (W2/#166: no silent :cholesky fallback)
+        e_unknown = try; _build_identification_kwargs("unknown", ""); nothing; catch e; e; end
+        @test e_unknown isa CliError && e_unknown.code == "usage/invalid"
 
         # Sign with config
         mktempdir() do dir
@@ -446,51 +457,39 @@ end  # Shared utilities
         node = register_estimate_commands!()
         @test node isa NodeCommand
         @test node.name == "estimate"
-        # 65 primary leaves + 1 snake alias (gjr_garch → gjr-garch) = 66 keys (C044; +6 GARCH variants C064a, +arfima C068, +3 MGARCH C064b, +5 penalized/robust/tobit C067a, +truncreg/heckman C067b, +5 statespace/tvp/kde/kernel-reg/lowess C066, +cointreg/xtcointreg C062a, +ardl/nardl C062b, +pmg C062c, +midas C062d, +setar C065a, +star C065b, +ms-ar/ms C065c, +poisson/nbreg W2, +sarima W6,
-        # +tvpvar/mfvar W7)
-        @test length(node.subcmds) == 75
-        for cmd in ["var", "bvar", "lp", "arima", "arfima", "gmm", "smm", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml", "vecm", "pvar",
-                     "favar", "sdfm", "reg", "iv", "logit", "probit",
-                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit",
-                     "igarch", "cgarch", "aparch", "figarch", "fiegarch", "garch-midas",
-                     "ccc", "dcc", "bekk", "lasso", "ridge", "elastic-net", "robust",
-                     "tobit", "truncreg", "heckman"]
-            @test haskey(node.subcmds, cmd)
+        # v1.0.0: depth-2 model leaves sit under their family node.
+        for fam in ["multivariate", "volatility", "factor", "univariate", "regime", "panel", "choice", "regression"]
+            @test haskey(node.subcmds, fam)
+            @test node.subcmds[fam] isa NodeCommand
         end
-        @test haskey(node.subcmds, "gjr_garch")  # hidden alias
-        @test node.subcmds["gjr_garch"].name == "gjr-garch"
+        @test haskey(node.subcmds["volatility"].subcmds, "gjr-garch")
+        @test haskey(node.subcmds["volatility"].subcmds, "garch")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
+        @test !haskey(node.subcmds, "garch")
     end
 
-    @testset "C044 kebab primary + snake alias deprecation" begin
+    @testset "C055 kebab primary only; snake alias is unknown-command" begin
         node = register_estimate_commands!()
-        # Help lists kebab only, not snake alias
+        # Help lists kebab only
         help_io = IOBuffer()
-        print_help(help_io, node; prog="friedman estimate")
+        print_help(help_io, node.subcmds["volatility"]; prog="friedman estimate volatility")
         help_text = String(take!(help_io))
         @test contains(help_text, "gjr-garch")
         @test !contains(help_text, "gjr_garch")
 
-        # Snake alias dispatches and prints deprecation on stderr
+        # Snake alias no longer dispatches (the C044 deprecation path is gone)
         mktempdir() do dir
             csv = _make_csv(dir; T=80, n=1, colnames=["ret"])
-            streams = cd(dir) do
-                _capture_all() do
-                    _dispatch_via_app(["estimate", "gjr_garch", csv, "--p", "1", "--q", "1",
-                                       "--format", "table"])
-                end
-            end
-            @test contains(streams.err, "deprecated")
-            @test contains(streams.err, "gjr-garch")
-            @test contains(streams.err, "gjr_garch")
+            @test_throws DispatchError _dispatch_via_app(["estimate", "gjr_garch", csv, "--p", "1", "--q", "1",
+                                                           "--format", "table"])
         end
 
-        # Kebab primary: no deprecation line
+        # Kebab primary: dispatches, no deprecation line
         mktempdir() do dir
             csv = _make_csv(dir; T=80, n=1, colnames=["ret"])
             streams = cd(dir) do
                 _capture_all() do
-                    _dispatch_via_app(["estimate", "gjr-garch", csv, "--p", "1", "--q", "1",
+                    _dispatch_via_app(["estimate", "volatility", "gjr-garch", csv, "--p", "1", "--q", "1",
                                        "--format", "table"])
                 end
             end
@@ -543,6 +542,145 @@ end  # Shared utilities
             @test isfile(outfile)
             result_df = CSV.read(outfile, DataFrame)
             @test nrow(result_df) > 0
+        end
+    end
+
+    @testset "_estimate_var — coef table carries CSV names (#119 follow-up)" begin
+        # estimate multivariate var called bare estimate_var(Y, p) while the irf/fevd/forecast
+        # family goes through _load_and_estimate_var (varnames forwarded) — so
+        # var_coefficients rendered positional y1..yn on the same input.
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=2, colnames=["x", "y"])
+            out = _capture() do
+                _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1",
+                                   "--format", "json"])
+            end
+            doc = JSON3.read(out[findfirst('{', out):end])
+            @test doc.status == "ok"
+            t = doc.data.var_coefficients
+            eq_ = findfirst(==("equation"), String.(t.columns))
+            tm_ = findfirst(==("term"), String.(t.columns))
+            @test eq_ !== nothing && tm_ !== nothing
+            eqs = Set(String(collect(r)[eq_]) for r in t.rows)
+            terms = join(String(collect(r)[tm_]) for r in t.rows)
+            @test eqs == Set(["x", "y"])
+            @test occursin("x.L1", terms) && occursin("y.L1", terms)
+            @test !occursin("y1", terms) && !("y1" in eqs)
+        end
+    end
+
+    @testset "_estimate_svar — recursive pattern" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_svar(; data=csv, lags=2, pattern="recursive", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svar — blanchard-quah pattern" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_svar(; data=csv, lags=2, pattern="blanchard-quah", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svar — a/b/ab-model with config" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svar_config(dir)
+            for pat in ("a-model", "b-model", "ab-model")
+                out = cd(dir) do
+                    _capture() do
+                        _estimate_svar(; data=csv, lags=2, pattern=pat, config=cfg, format="table")
+                    end
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svar — json envelope keys" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _dispatch_via_app(["estimate", "multivariate", "svar", csv, "--lags", "2", "--format", "json"])
+                end
+            end
+            i = findfirst('{', out)
+            doc = JSON3.read(out[i:end])
+            @test haskey(doc[:data], :svar_a)
+            @test haskey(doc[:data], :svar_b)
+            @test haskey(doc[:data], :svar_summary)
+        end
+    end
+
+    @testset "_estimate_svar — guards" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svar_config(dir)
+            e1 = try; _estimate_svar(; data=csv, lags=2, n_starts=0); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _estimate_svar(; data=csv, lags=2, max_iter=0); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _estimate_svar(; data=csv, lags=2, pattern="a-model", config=""); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/missing"
+            e4 = try; _estimate_svar(; data=csv, lags=2, pattern="b-model", config=cfg[1:end-5] * ".missing"); nothing; catch e; e; end
+            @test e4 isa Exception
+        end
+    end
+
+    @testset "_load_svar_pattern — malformed matrix" begin
+        mktempdir() do dir
+            bad = joinpath(dir, "bad.toml")
+            open(bad, "w") do io
+                write(io, "[svar]\nA = [[1.0, 0.0], [0.0]]\nB = [[1.0, 0.0], [0.0, 1.0]]\n")
+            end
+            e = try; _load_svar_pattern(bad, 2, "ab-model", "estimate multivariate svar"); nothing; catch e; e; end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
+    @testset "_estimate_svec — default KPSW" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            out = cd(dir) do
+                _capture() do
+                    _estimate_svec(; data=csv, lags=2, rank="1", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_estimate_svec — custom zeros with json keys" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            cfg = _make_svec_config(dir; n=2)
+            out = cd(dir) do
+                _capture() do
+                    _dispatch_via_app(["estimate", "multivariate", "svec", csv, "--lags", "2", "--rank", "1",
+                                       "--config", cfg, "--format", "json"])
+                end
+            end
+            i = findfirst('{', out)
+            doc = JSON3.read(out[i:end])
+            @test haskey(doc[:data], :svec_b0)
+            @test haskey(doc[:data], :svec_xi)
+            @test haskey(doc[:data], :svec_summary)
+        end
+    end
+
+    @testset "_estimate_svec — guards" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=120, n=2)
+            e1 = try; _estimate_svec(; data=csv, n_starts=0); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
         end
     end
 
@@ -838,6 +976,53 @@ end  # Shared utilities
         end
     end
 
+    @testset "_estimate_gmm — IV opt-in (W3/#195)" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "iv.csv")
+            CSV.write(csv, DataFrame(y=randn(80), x=randn(80), z1=randn(80), z2=randn(80)))
+            iv = joinpath(dir, "iv.toml")
+            write(iv, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0, 0.0]
+            """)
+            out = _capture() do
+                _estimate_gmm(; data=csv, config=iv, weighting="twostep", format="table")
+            end
+            @test occursin("first_stage_F", out) || occursin("1st-stage F", out)
+            half = joinpath(dir, "half.toml")
+            write(half, """
+            [gmm]
+            dep = "y"
+            instruments = ["z1"]
+            """)
+            e = try; _estimate_gmm(; data=csv, config=half, format="table"); nothing; catch err; err; end
+            @test e isa CliError && e.code == "config/invalid"
+            under = joinpath(dir, "under.toml")
+            write(under, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = []
+            theta0 = [0.0, 0.0]
+            """)
+            e2 = try; _estimate_gmm(; data=csv, config=under, format="table"); nothing; catch err; err; end
+            @test e2 isa CliError && e2.code == "data/invalid"
+            badth = joinpath(dir, "badth.toml")
+            write(badth, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0]
+            """)
+            e3 = try; _estimate_gmm(; data=csv, config=badth, format="table"); nothing; catch err; err; end
+            @test e3 isa CliError && e3.code == "config/shape"
+        end
+    end
+
     @testset "_estimate_smm — ar1 config" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=1)
@@ -942,7 +1127,7 @@ end  # Shared utilities
         end
         _sysdoc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -998,7 +1183,7 @@ end  # Shared utilities
                 csv = _sys_csv(dir); cfg = _sur_cfg(dir)
                 _errcode(args) = begin
                     err = nothing
-                    try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch e; err = e; end
+                    try; _capture() do; _dispatch_via_app(vcat(_with_family("estimate", args))); end; catch e; err = e; end
                     err
                 end
                 @test _errcode(["sur", csv]) isa CliError && _errcode(["sur", csv]).code == "config/missing"
@@ -1138,7 +1323,7 @@ end  # Shared utilities
         # + a metric|value diagnostics table for each of the 6 volatility variants.
         _gv_doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -1229,7 +1414,7 @@ end  # Shared utilities
                 # error (was an uncaught BoundsError → exit 1 across ALL univariate leaves)
                 err(col) = begin
                     e = nothing
-                    try; _capture() do; _dispatch_via_app(String["estimate","igarch",csv,"--column",string(col)]); end; catch ex; e=ex; end
+                    try; _capture() do; _dispatch_via_app(String["estimate","volatility","igarch",csv,"--column",string(col)]); end; catch ex; e=ex; end
                     e
                 end
                 @test err(0) isa CliError && err(0).code == "data/column-range"
@@ -1239,7 +1424,7 @@ end  # Shared utilities
                 mcsv = joinpath(dir, "miss.csv")
                 write(mcsv, "x,ret\n0.1,0.2\n0.3,\n0.5,0.6\n0.7,0.8\n")
                 me = nothing
-                try; _capture() do; _dispatch_via_app(String["estimate","igarch",mcsv,"--column","2"]); end; catch ex; me=ex; end
+                try; _capture() do; _dispatch_via_app(String["estimate","volatility","igarch",mcsv,"--column","2"]); end; catch ex; me=ex; end
                 @test me isa CliError && me.code == "data/missing-values"
             end
         end
@@ -1250,7 +1435,7 @@ end  # Shared utilities
         # column + one column per series) and a diagnostics (metric|value) block for each.
         _mg_doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -1309,7 +1494,7 @@ end  # Shared utilities
                 # 1-column CSV → MGARCH needs ≥2 series → ArgumentError → data/invalid
                 onecol = _make_csv(dir; T=100, n=1, colnames=["x"])
                 e = nothing
-                try; _capture() do; _dispatch_via_app(String["estimate","ccc",onecol]); end; catch ex; e=ex; end
+                try; _capture() do; _dispatch_via_app(String["estimate","volatility","ccc",onecol]); end; catch ex; e=ex; end
                 @test e isa CliError && e.code == "data/invalid" && exit_class(e) == 3
                 # direct-handler typed classes
                 @test_throws CliError _estimate_dcc(; data=csv, correction="bogus")   # usage/invalid up-front
@@ -1322,7 +1507,7 @@ end  # Shared utilities
                 mcsv = joinpath(dir, "mg_miss.csv")
                 write(mcsv, "a,b\n0.1,0.2\n0.3,\n0.5,0.6\n0.7,0.8\n")
                 me = nothing
-                try; _capture() do; _dispatch_via_app(String["estimate","bekk",mcsv]); end; catch ex; me=ex; end
+                try; _capture() do; _dispatch_via_app(String["estimate","volatility","bekk",mcsv]); end; catch ex; me=ex; end
                 @test me isa CliError && me.code == "data/missing-values" && exit_class(me) == 3
                 # an input column literally named `series` collides with the wide-matrix
                 # label column → must NOT crash the (unwrapped) renderer to exit-1
@@ -1341,17 +1526,17 @@ end  # Shared utilities
         # leaf adds a metric|value diagnostics block.
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("estimate", args))); end; catch ex; e=ex; end
             e
         end
 
@@ -1424,42 +1609,37 @@ end  # Shared utilities
                 @test _err(["reg", misscsv, "--dep", "y"]).code == "data/missing-values"
             end
 
-            @testset "tobit default upper=Inf renders on the legacy JSON path (no Inf crash)" begin
-                # regression (adversarial review C067a): --upper Inf reached JSON3.write on the
-                # FRIEDMAN_LEGACY_OUTPUT path (which does not apply _json_safe) → "Inf not
-                # allowed in JSON spec" → exit-1. Now rendered as the string "Inf".
-                old = get(ENV, "FRIEDMAN_LEGACY_OUTPUT", nothing)
-                ENV["FRIEDMAN_LEGACY_OUTPUT"] = "1"
-                try
-                    e = nothing
-                    try; _capture() do; _dispatch_via_app(String["estimate","tobit",csv,"--dep","y","--lower","0.0","--format","json"]); end
-                    catch ex; e = ex; end
-                    @test e === nothing
-                finally
-                    old === nothing ? delete!(ENV, "FRIEDMAN_LEGACY_OUTPUT") : (ENV["FRIEDMAN_LEGACY_OUTPUT"] = old)
-                end
+            @testset "tobit default upper=Inf renders on the JSON path (no Inf crash)" begin
+                # regression (adversarial review C067a): --upper Inf reached JSON3.write
+                # ("Inf not allowed in JSON spec" → exit-1). Now rendered as the
+                # string "Inf" (C055: the legacy-output escape hatch is gone; the
+                # envelope path applies _json_safe and direct writers sanitize).
+                e = nothing
+                try; _capture() do; _dispatch_via_app(String["estimate","regression","tobit",csv,"--dep","y","--lower","0.0","--format","json"]); end
+                catch ex; e = ex; end
+                @test e === nothing
             end
         end
     end
 
-    @testset "estimate cointreg/xtcointreg (C062a)" begin
+    @testset "estimate regression cointreg/xtcointreg (C062a)" begin
         # cointreg (single-equation FMOLS/CCR/DOLS) + xtcointreg (panel FMOLS/DOLS). Both
         # render the hand-built tidy coef table term|estimate|std_error|stat|p_value|
         # ci_lower|ci_upper (CointRegModel/PanelCointRegModel are not Tables.jl-registered)
         # plus a metric|value diagnostics block. Bad input → typed classes, never exit-1.
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("estimate", args))); end; catch ex; e=ex; end
             e
         end
         _coefcols = ("term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper")
@@ -1535,26 +1715,26 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate ardl/nardl + test ardl-bounds/nardl-symmetry + multipliers nardl (C062b)" begin
-        # Single-equation ARDL/NARDL family. estimate ardl/nardl render a hand-built levels
+    @testset "estimate univariate ardl/nardl + test coint ardl-bounds/nardl-symmetry + multipliers nardl (C062b)" begin
+        # Single-equation ARDL/NARDL family. estimate univariate ardl/nardl render a hand-built levels
         # coef table + a folded long-run table + a diagnostics kv (ARDL: ECM α; NARDL: enlarged-k
-        # bounds decision). test ardl-bounds renders decision SYMBOLS + I(0)/I(1) bounds and has
+        # bounds decision). test coint ardl-bounds renders decision SYMBOLS + I(0)/I(1) bounds and has
         # NO p_value column. test nardl-symmetry is a tidy multi-row Wald table. multipliers nardl
         # (new top-level) melts the m⁺/m⁻ curves into one long table with optional band columns.
         _run(root, args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String[root], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family(root, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
         _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(root, args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String[root], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family(root, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -1562,7 +1742,7 @@ end  # Shared utilities
             csv = _make_csv(dir; T=120, n=3, colnames=["y", "x1", "x2"])   # dep=y, 2 regressors
             csv1 = _make_csv(dir; T=120, n=2, colnames=["y", "x1"])         # 1 regressor (for q-length)
 
-            @testset "estimate ardl — coef + long-run tables + ECM diagnostics" begin
+            @testset "estimate univariate ardl — coef + long-run tables + ECM diagnostics" begin
                 doc = _run("estimate", ["ardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
                 @test doc.status == "ok"
                 @test _has_tbl(doc, "term", "estimate", "std_error", "stat", "p_value")
@@ -1578,7 +1758,7 @@ end  # Shared utilities
                 @test (_err("estimate", ["ardl", csv, "--dep", "y", "--case", "9"])).code == "usage/invalid"
             end
 
-            @testset "estimate nardl — split coef (_POS/_NEG) + θ⁺/θ⁻ + bounds decision in kv" begin
+            @testset "estimate univariate nardl — split coef (_POS/_NEG) + θ⁺/θ⁻ + bounds decision in kv" begin
                 doc = _run("estimate", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1"])
                 @test doc.status == "ok"
                 coef = _tbl_with(doc, "term", "estimate", "std_error", "stat", "p_value")
@@ -1594,9 +1774,15 @@ end  # Shared utilities
                 # 2 POS/NEG cols) → usage/invalid up front, NOT MEMs data/invalid (review C062b)
                 en = _err("estimate", ["nardl", csv1, "--dep", "y", "--q", "1,2,3"])
                 @test en isa CliError && en.code == "usage/invalid"
+                # --plot-save writes the NARDL multipliers figure (real recipe:
+                # plot_result(::NARDLModel), plotting/ardl.jl)
+                html = joinpath(dir, "nardl.html")
+                dn = _run("estimate", ["univariate", "nardl", csv, "--dep", "y",
+                                       "--p", "1", "--q", "1", "--plot-save", html])
+                @test dn.status == "ok" && isfile(html)
             end
 
-            @testset "test ardl-bounds — decision symbols + bounds, NO p-value" begin
+            @testset "test coint ardl-bounds — decision symbols + bounds, NO p-value" begin
                 doc = _run("test", ["ardl-bounds", csv, "--dep", "y", "--p", "1", "--q", "1"])
                 @test doc.status == "ok"
                 bt = _tbl_with(doc, "bound", "statistic", "i0_lower", "i1_upper", "decision")
@@ -1623,22 +1809,22 @@ end  # Shared utilities
 
             @testset "multipliers nardl — long table + bands present/absent" begin
                 # bands present with default nreps
-                doc = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "6"])
+                doc = _run("estimate", ["univariate", "nardl", csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "6"])
                 @test doc.status == "ok"
                 mt = _tbl_with(doc, "horizon", "regressor", "m_pos", "m_neg", "m_diff")
                 @test "m_pos_lo" in String.(mt.columns)                # band columns present
                 @test Set(["horizon", "n_asym", "nreps", "level", "bootstrap"]) ⊆ _metrics(doc)
                 # --no-bootstrap drops the band columns
-                dnb = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                dnb = _run("estimate", ["univariate", "nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
                                            "--horizon", "6", "--no-bootstrap"])
                 mnb = _tbl_with(dnb, "horizon", "regressor", "m_pos", "m_neg", "m_diff")
                 @test !("m_pos_lo" in String.(mnb.columns))
                 # --nreps 0 also drops bands
-                dn0 = _run("multipliers", ["nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
+                dn0 = _run("estimate", ["univariate", "nardl", csv, "--dep", "y", "--p", "1", "--q", "1",
                                            "--horizon", "6", "--nreps", "0"])
                 @test !("m_pos_lo" in String.(_tbl_with(dn0, "horizon", "regressor", "m_pos").columns))
                 # negative horizon → usage/invalid
-                @test (_err("multipliers", ["nardl", csv, "--dep", "y", "--horizon", "-1"])).code == "usage/invalid"
+                @test (_err("estimate", ["univariate", "nardl", csv, "--dep", "y", "--horizon", "-1"])).code == "usage/invalid"
             end
 
             @testset "shared bad input stays typed (never uncaught exit-1)" begin
@@ -1646,19 +1832,21 @@ end  # Shared utilities
                 @test (_err("estimate", ["ardl", csv, "--dep", "nope"])).code == "data/column-range"
                 @test (_err("estimate", ["nardl", csv, "--dep", "nope"])).code == "data/column-range"
                 @test (_err("test", ["ardl-bounds", csv, "--dep", "nope"])).code == "data/column-range"
-                @test (_err("multipliers", ["nardl", csv, "--dep", "nope"])).code == "data/column-range"
+                @test (_err("estimate", ["univariate", "nardl", csv, "--dep", "nope"])).code == "data/column-range"
                 # missing cell → data/missing-values
                 misscsv = joinpath(dir, "missardl.csv")
                 write(misscsv, "y,x1\n1.0,2.0\n2.0,\n3.0,5.0\n4.0,7.0\n5.0,8.0\n6.0,9.0\n7.0,10.0\n8.0,11.0\n")
                 @test (_err("estimate", ["ardl", misscsv, "--dep", "y"])).code == "data/missing-values"
             end
 
-            @testset "multipliers command structure (new top-level)" begin
-                node = register_multipliers_commands!()
-                @test node isa NodeCommand
-                @test length(node.subcmds) == 1
-                @test haskey(node.subcmds, "nardl")
-                @test node.subcmds["nardl"] isa LeafCommand
+            @testset "nardl multiplier tables live on the estimate leaf" begin
+                row = only(r for r in model_catalog() if r.token == "nardl")
+                spec = row.verbs["estimate"]
+                names = Set(string(t.name) for t in spec.tables)
+                @test "nardl_cumulative_dynamic_multipliers" in names
+                @test "nardl_multipliers_summary" in names
+                @test any(o -> o.name == "horizon", spec.options)
+                @test any(f -> f.name == "no-bootstrap", spec.flags)
             end
         end
     end
@@ -1951,32 +2139,32 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate pmg + test pmg-hausman (C062c)" begin
-        # Dynamic heterogeneous-panel ARDL. estimate pmg renders a hand-built long-run θ table
+    @testset "estimate panel pmg + test panel pmg-hausman (C062c)" begin
+        # Dynamic heterogeneous-panel ARDL. estimate panel pmg renders a hand-built long-run θ table
         # + a short-run/EC (φ) table + diagnostics kv (PMGModel is not Tables.jl-registered).
-        # test pmg-hausman fits the panel twice (efficient vs MG) → a standard test kv WITH a
+        # test panel pmg-hausman fits the panel twice (efficient vs MG) → a standard test kv WITH a
         # p-value + interpretation. Bad input → typed classes, never uncaught exit-1.
         _run(root, args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String[root], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family(root, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
         _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(root, args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String[root], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family(root, args))); end; catch ex; e=ex; end
             e
         end
 
         mktempdir() do dir
             panel = _make_panel_csv(dir; G=8, T_per=25, n=2, colnames=["y", "x1"])
 
-            @testset "estimate pmg — long-run + short-run/EC tables + diagnostics" begin
+            @testset "estimate panel pmg — long-run + short-run/EC tables + diagnostics" begin
                 for meth in ("pmg", "mg", "dfe")
                     doc = _run("estimate", ["pmg", panel, "--dep", "y", "--indep", "x1",
                                             "--method", meth, "--p", "1", "--q", "1"])
@@ -1990,7 +2178,7 @@ end  # Shared utilities
                 end
             end
 
-            @testset "test pmg-hausman — standard test kv + interpretation" begin
+            @testset "test panel pmg-hausman — standard test kv + interpretation" begin
                 for eff in ("pmg", "dfe")
                     doc = _run("test", ["pmg-hausman", panel, "--dep", "y", "--indep", "x1",
                                         "--efficient", eff, "--p", "1", "--q", "1"])
@@ -2028,7 +2216,7 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate midas (C062d)" begin
+    @testset "estimate univariate midas (C062d)" begin
         # Mixed-frequency MIDAS: a low-frequency target (--data, --column) on --k high-frequency
         # lags of a single indicator (--hf-data, --hf-column). Renders a hand-built weight-curve
         # table (lag|weight) + coef table (term|estimate|std_error|stat|p_value) + diagnostics kv
@@ -2037,18 +2225,18 @@ end  # Shared utilities
         # len(HF)==m×len(LF) → data/shape. Bad input → typed classes, never uncaught exit-1.
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate", "midas"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["estimate", "univariate", "midas"], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
         _has_tbl(doc, cols...) = any(t -> Set(String.(cols)) ⊆ Set(String.(t.columns)), _tables(doc))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "midas"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "univariate", "midas"], collect(String, args))); end; catch ex; e=ex; end
             e
         end
         # Aligned mixed-frequency pair: LF target (Tlf rows) + HF indicator (m*Tlf rows).
@@ -2148,25 +2336,25 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate threshold (#70)" begin
+    @testset "estimate regime threshold (#70)" begin
         # The GENERAL threshold regression: y on X, split by a SEPARATE --threshold-col. Shares
-        # ThresholdModel (and therefore `_threshold_coef_table`) with `estimate setar`, but the
+        # ThresholdModel (and therefore `_threshold_coef_table`) with `estimate regime setar`, but the
         # COLUMN PARTITION is its own third shape — q is EXCLUDED from the regressors, which is a
         # correctness requirement, not a convenience: leaving q in X makes the regressors
         # collinear with the splitting variable and silently fits a different model.
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate", "threshold"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["estimate", "regime", "threshold"], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "threshold"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "regime", "threshold"], collect(String, args))); end; catch ex; e=ex; end
             e
         end
         # y, x1, x2, z — z is the splitting variable and must never appear as a regressor.
@@ -2266,7 +2454,7 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate setar (C065a)" begin
+    @testset "estimate regime setar (C065a)" begin
         # SETAR: two-regime hand-built coef table (regime|term|estimate|std_error|z_stat|
         # p_value, 2 regimes × |xnames| rows) + diagnostics kv; the attached Hansen (1996)
         # linearity test folds into the kv iff linearity is on (default). ThresholdModel is
@@ -2274,17 +2462,17 @@ end  # Shared utilities
         # estimator is wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate", "setar"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["estimate", "regime", "setar"], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "setar"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "regime", "setar"], collect(String, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -2343,7 +2531,7 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate star (C065b)" begin
+    @testset "estimate regime star (C065b)" begin
         # STAR: two regime-weight blocks (1−G / G) render as one hand-built table
         # (regime|term|estimate|std_error|z_stat|p_value); the transition parameters (γ, c)
         # render as a separate parameter|estimate|std_error|z_stat|p_value table; LM3 + (for
@@ -2352,17 +2540,17 @@ end  # Shared utilities
         # is wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate", "star"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["estimate", "regime", "star"], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "star"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "regime", "star"], collect(String, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -2416,7 +2604,7 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate ms-ar + estimate ms (C065c)" begin
+    @testset "estimate regime ms-ar + estimate regime ms (C065c)" begin
         # Markov-switching family. MSRegModel is not Tables.jl-registered → three hand-built
         # tables via the shared `_ms_render`: a per-regime coefficient table (regime|term|…),
         # a per-regime variance table (regime|sigma2|std_error), and a WIDE K×K transition
@@ -2426,7 +2614,7 @@ end  # Shared utilities
         # wrapped → typed CliError via `_nonlinear_error` (never uncaught exit-1).
         _doc(cmd, args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate", cmd], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["estimate", "regime", cmd], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -2443,7 +2631,7 @@ end  # Shared utilities
         end
         _err(cmd, args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate", cmd], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["estimate", "regime", cmd], collect(String, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -2461,7 +2649,7 @@ end  # Shared utilities
             multi = joinpath(dir, "ms_multi.csv"); _write_csv(multi, "y,x1,x2", 3)
             collide = joinpath(dir, "ms_collide.csv"); _write_csv(collide, "y,from_regime,to_regime1", 3)
 
-            @testset "estimate ms-ar — mu rows + common-AR block, variance + wide P, kv" begin
+            @testset "estimate regime ms-ar — mu rows + common-AR block, variance + wide P, kv" begin
                 doc = _doc("ms-ar", [csv, "--column", "1", "--p", "1"])
                 @test doc.status == "ok"
                 # coef table: per-regime `mu` rows + a common-AR block (φ1)
@@ -2489,7 +2677,7 @@ end  # Shared utilities
                 @test string(_mval(d2, "switching_var")) == "true"
             end
 
-            @testset "estimate ms-ar/ms — regime-probability table (#70 remainder)" begin
+            @testset "estimate regime ms-ar/ms — regime-probability table (#70 remainder)" begin
                 # The headline output of a Markov-switching fit: P(S_t = k | data) per period.
                 # LONG (`period|regime|filtered|smoothed`) so the COLUMN SET does not depend on
                 # --k-regimes; the ROW COUNT does (n × K).
@@ -2522,14 +2710,14 @@ end  # Shared utilities
                 @test _tbl_with(_doc("ms", [csv]), "period", "regime", "smoothed") !== nothing
             end
 
-            @testset "estimate ms-ar — bad input → typed usage/invalid" begin
+            @testset "estimate regime ms-ar — bad input → typed usage/invalid" begin
                 @test _err("ms-ar", [csv, "--p", "0"]).code == "usage/invalid"
                 @test _err("ms-ar", [csv, "--k-regimes", "1"]).code == "usage/invalid"
                 @test _err("ms-ar", [csv, "--max-iter", "0"]).code == "usage/invalid"
                 @test _err("ms-ar", [csv, "--column", "99"]).code == "data/column-range"
             end
 
-            @testset "estimate ms — regressors path, switching_var default TRUE" begin
+            @testset "estimate regime ms — regressors path, switching_var default TRUE" begin
                 # multi-column CSV → per-regime switching coefs over the regressor columns
                 doc = _doc("ms", [multi, "--dep", "y"])
                 @test doc.status == "ok"
@@ -2542,7 +2730,7 @@ end  # Shared utilities
                 @test string(_mval(dn, "switching_var")) == "false"
             end
 
-            @testset "estimate ms — intercept-only single-arg dispatch (dep-only CSV)" begin
+            @testset "estimate regime ms — intercept-only single-arg dispatch (dep-only CSV)" begin
                 # only the dependent column is numeric → _load_reg_data raises "no regressor
                 # columns", routing to the single-arg estimate_ms(y; …) intercept-only dispatch
                 doc = _doc("ms", [csv])
@@ -2554,13 +2742,13 @@ end  # Shared utilities
                 @test all(String(collect(r)[2]) == "const" for r in rows)
             end
 
-            @testset "estimate ms — bad input → typed usage/invalid" begin
+            @testset "estimate regime ms — bad input → typed usage/invalid" begin
                 @test _err("ms", [csv, "--k-regimes", "1"]).code == "usage/invalid"
                 @test _err("ms", [csv, "--max-iter", "0"]).code == "usage/invalid"
                 @test _err("ms", [csv, "--tol", "0"]).code == "usage/invalid"
             end
 
-            @testset "estimate ms — regressors named like P-labels render cleanly" begin
+            @testset "estimate regime ms — regressors named like P-labels render cleanly" begin
                 # UNLIKE MGARCH (where the input series names ARE the wide-matrix headers → a real
                 # collision the makeunique guards), the MS wide-P headers are FIXED strings
                 # (from_regime / to_regimeN), so a regressor column named `from_regime`/`to_regime1`
@@ -2575,31 +2763,31 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate truncreg/heckman + test weak-instrument (C067b)" begin
+    @testset "estimate regression truncreg/heckman + test iv weak-instrument (C067b)" begin
         _edoc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tdoc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("test", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         _eerr(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("estimate", args))); end; catch ex; e=ex; end
             e
         end
         _terr(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("test", args))); end; catch ex; e=ex; end
             e
         end
 
@@ -2746,17 +2934,17 @@ end  # Shared utilities
         end
     end
 
-    @testset "estimate statespace/tvp/kde/kernel-reg/lowess (C066)" begin
+    @testset "estimate regression statespace/tvp/kde/kernel-reg/lowess (C066)" begin
         _edoc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["estimate"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("estimate", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _tables(doc) = [t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns))]
         _tbl_with(doc, cols...) = first(t for t in _tables(doc) if Set(String.(cols)) ⊆ Set(String.(t.columns)))
-        _metrics(doc) = Set(String(collect(r)[1]) for r in
-                            first(t for t in _tables(doc) if "metric" in String.(t.columns)).rows)
+        _metrics(doc) = Set(String(collect(r)[1]) for t in _tables(doc)
+                            if "metric" in String.(t.columns) for r in t.rows)
         # Local on purpose: `_mval` in the MS testset is a testset-SCOPED closure, not a
         # global, so reaching for it from here would be an UndefVarError at run time.
         _mv(doc, name) = begin
@@ -2769,7 +2957,7 @@ end  # Shared utilities
         end
         _eerr(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["estimate"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("estimate", args))); end; catch ex; e=ex; end
             e
         end
 
@@ -2940,7 +3128,7 @@ end  # Shared utilities
                 @test _eerr(["kernel-reg", strcsv, "--indep", "b"]).code == "data/invalid"
                 @test _eerr(["lowess", strcsv, "--indep", "b"]).code == "data/invalid"
                 @test _eerr(["reg", strcsv]).code == "data/invalid"           # mirrored _load_reg_data hole
-                # (infra class-fix) the legacy-JSON writer sanitizes non-finite floats (Inf/NaN →
+                # (infra class-fix) the direct JSON writer sanitizes non-finite floats (Inf/NaN →
                 # "Inf"/"NaN" strings) instead of crashing JSON3.write ("… not allowed in JSON spec").
                 out = _capture() do
                     _write_json_raw(Dict("a" => Inf, "b" => NaN, "c" => 1.5), "")
@@ -3311,37 +3499,34 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        # 80 primary + 2 snake aliases (arch_lm, ljung_box) = 69 keys (C044; +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b, +hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder)
-        @test length(node.subcmds) == 85
-        for cmd in ["llc", "ips", "breitung", "fisher-johansen", "dh-causality",
-                     "white", "glejser", "harvey", "chow", "cusum", "cusumsq", "recursive-residuals", "influence",
-                     "hegy", "ers", "sadf", "gsadf", "edf", "engle-granger",
-                     "phillips-ouliaris", "hansen-instability", "park-added",
-                     "adf", "kpss", "pp", "za", "np", "gph", "local-whittle", "johansen",
-                     "normality", "identifiability", "heteroskedasticity",
-                     "arch-lm", "ljung-box", "sign-bias", "nyblom", "var", "vecm", "granger", "pvar", "lr", "lm",
-                     "variance-ratio", "bds", "hadri", "pedroni", "kao", "westerlund", "weak-instrument",
-                     "andrews", "bai-perron", "panic", "cips", "moon-perron", "factor-break",
-                     "fourier-adf", "fourier-kpss", "dfgls", "lm-unitroot",
-                     "adf-2break", "gregory-hansen", "vif",
-                     "hausman", "breusch-pagan", "f-fe", "pesaran-cd", "wooldridge-ar", "modified-wald",
-                     "fisher", "bartlett-wn", "box-pierce", "durbin-watson",
-                     "brant", "hausman-iia"]
-            @test haskey(node.subcmds, cmd)
+        for fam in ["unit-root", "coint", "stability", "serial", "iv", "panel", "multivariate", "vecm", "pvar"]
+            @test haskey(node.subcmds, fam)
+            @test node.subcmds[fam] isa NodeCommand
         end
-        @test haskey(node.subcmds, "arch_lm") && node.subcmds["arch_lm"].name == "arch-lm"
-        @test haskey(node.subcmds, "ljung_box") && node.subcmds["ljung_box"].name == "ljung-box"
-        # VAR is a nested NodeCommand with lagselect and stability
-        var_node = node.subcmds["var"]
-        @test var_node isa NodeCommand
-        @test haskey(var_node.subcmds, "lagselect")
-        @test haskey(var_node.subcmds, "stability")
-        # PVAR: 4 primary + 1 alias (hansen_j) = 5 keys (C044)
+        for cmd in ["vif", "normality", "gph", "variance-ratio", "brant"]
+            @test haskey(node.subcmds, cmd)
+            @test node.subcmds[cmd] isa LeafCommand
+        end
+        @test !haskey(node.subcmds, "adf")
+        @test haskey(node.subcmds["unit-root"].subcmds, "adf")
+        @test !haskey(node.subcmds, "arch_lm")  # C055: alias removed
+        @test !haskey(node.subcmds, "ljung_box")  # C055: alias removed
+        # multivariate is a nested NodeCommand with lagselect and stability
+        mvar_node = node.subcmds["multivariate"]
+        @test mvar_node isa NodeCommand
+        @test haskey(mvar_node.subcmds, "lagselect")
+        @test haskey(mvar_node.subcmds, "stability")
+        @test haskey(mvar_node.subcmds, "granger")
+        @test mvar_node.subcmds["lr"] isa LeafCommand
+        @test mvar_node.subcmds["lm"] isa LeafCommand
+        @test length(mvar_node.subcmds["lr"].args) == 2
+        @test length(mvar_node.subcmds["lm"].args) == 2
+        # PVAR: 4 primary leaves, no aliases (C055 removed hansen_j)
         pvar_node = node.subcmds["pvar"]
         @test pvar_node isa NodeCommand
-        @test length(pvar_node.subcmds) == 5
+        @test length(pvar_node.subcmds) == 4
         @test haskey(pvar_node.subcmds, "hansen-j")
-        @test haskey(pvar_node.subcmds, "hansen_j")  # alias
+        @test !haskey(pvar_node.subcmds, "hansen_j")  # C055: alias removed
         @test haskey(pvar_node.subcmds, "mmsc")
         @test haskey(pvar_node.subcmds, "lagselect")
         @test haskey(pvar_node.subcmds, "stability")
@@ -3354,11 +3539,6 @@ end  # Estimate handlers
         @test haskey(vecm_node.subcmds, "weak-exog")
         @test haskey(vecm_node.subcmds, "known-beta")
         @test haskey(vecm_node.subcmds, "joint")
-        # LR and LM are LeafCommands with 2 positional args
-        @test node.subcmds["lr"] isa LeafCommand
-        @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds["lr"].args) == 2
-        @test length(node.subcmds["lm"].args) == 2
     end
 
     @testset "_test_adf — reject" begin
@@ -3497,7 +3677,7 @@ end  # Estimate handlers
     @testset "_test_sign_bias / _test_nyblom (C064b)" begin
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("test", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -3537,7 +3717,7 @@ end  # Estimate handlers
 
             @testset "column out of range → data/column-range (not exit 1)" begin
                 e = nothing
-                try; _capture() do; _dispatch_via_app(String["test","sign-bias",csv,"--column","9"]); end; catch ex; e=ex; end
+                try; _capture() do; _dispatch_via_app(String["test","serial","sign-bias",csv,"--column","9"]); end; catch ex; e=ex; end
                 @test e isa CliError && e.code == "data/column-range"
             end
         end
@@ -3546,7 +3726,7 @@ end  # Estimate handlers
     @testset "test vecm restriction tests (C071)" begin
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("test", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -3556,7 +3736,7 @@ end  # Estimate handlers
                             for r in t.rows)
         _errcode(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("test", args))); end
             catch ex; e = ex; end
             e
         end
@@ -3634,7 +3814,7 @@ end  # Estimate handlers
     @testset "TS + panel test batteries (C069/C070)" begin
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["test"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(_with_family("test", args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -3645,7 +3825,7 @@ end  # Estimate handlers
                             for r in t.rows)
         _errcode(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["test"], collect(String, args))); end
+            try; _capture() do; _dispatch_via_app(vcat(_with_family("test", args))); end
             catch ex; e = ex; end
             e
         end
@@ -4148,6 +4328,26 @@ end  # Estimate handlers
         end
     end
 
+    @testset "_test_identifiability — W2 riders" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            for test_type in ["lambda-distinct", "gaussian-count", "label-stability"]
+                out = _capture() do
+                    _test_identifiability(; data=csv, lags=2, test=test_type,
+                                            method="fastica", n_bootstrap=10, format="table")
+                end
+            end
+            e = try
+                _test_identifiability(; data=csv, lags=2, test="lambda-distinct",
+                                        n_bootstrap=0, format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     @testset "_test_identifiability — all 5 ICA methods" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4354,6 +4554,38 @@ end  # Test handlers
         end
     end
 
+    @testset "_irf_var — narrative-adrr identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_adrr_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="narrative-adrr",
+                              config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_var — narrative-adrr without narrative_contributions errors" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_arias_config(dir)
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="narrative-adrr",
+                                  config=cfg, format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/missing"
+        end
+    end
+
     @testset "_irf_var — uhlig identification" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4376,6 +4608,239 @@ end  # Test handlers
                               config="", format="table")
                 end
             end
+        end
+    end
+
+    @testset "_irf_var — lewis-tvv identification (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_lewis_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="lewis-tvv",
+                              config=cfg, ci="none", format="table")
+                end
+            end
+            # cue weighting threads too
+            cfg_cue = _make_lewis_config(dir; weighting="cue")
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="lewis-tvv",
+                              config=cfg_cue, ci="none", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_var — lewis-tvv invalid weighting (config/invalid)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_lewis_config(dir; weighting="optimal")
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="lewis-tvv",
+                                  config=cfg, ci="none", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+        end
+    end
+
+    @testset "_irf_var — sv-em identification (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sv_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                              config=cfg, ci="none", format="table")
+                end
+            end
+            # partial hetero + non-default knobs thread too
+            cfg_p = _make_sv_config(dir; hetero_shocks=[1, 3], maxiter=50,
+                                    gibbs_burn=2, gibbs_draws=20, init="haar")
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                              config=cfg_p, ci="none", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_var — sv-em hetero out of range (usage/invalid)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sv_config(dir; hetero_shocks=[4])
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                                  config=cfg, ci="none", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+        end
+    end
+
+    @testset "_irf_var — sv-em invalid init (config/invalid)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sv_config(dir; init="newton")
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sv-em",
+                                  config=cfg, ci="none", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "config/invalid" && exit_class(e) == 4
+        end
+    end
+
+    @testset "_fevd_bvar — threads method (W1/#186 fix)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            # explicit cholesky renders (previously EVERY --id silently rendered cholesky)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_bvar(; data=csv, lags=2, horizons=10, id="cholesky",
+                                draws=100, sampler="direct", config="", format="table")
+                end
+            end
+            # unknown --id is now rejected (previously silently accepted)
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _fevd_bvar(; data=csv, lags=2, horizons=10, id="bogus",
+                                    draws=100, sampler="direct", config="", format="table")
+                    end
+                end
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+        end
+    end
+
+    @testset "_fevd_lp — lewis-tvv threads through structural_lp (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_lewis_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_lp(; data=csv, horizons=10, lags=4, id="lewis-tvv",
+                              vcov="newey_west", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_build_identification_kwargs — tvv/sv knob threading" begin
+        # defaults flow with upstream kwarg names
+        kw = _build_identification_kwargs("lewis-tvv", ""; nvars=3, leaf="unit")
+        @test kw[:method] == :lewis_tvv && kw[:weighting] == :two_step
+        kw2 = _build_identification_kwargs("sv-em", ""; nvars=3, leaf="unit")
+        @test kw2[:method] == :sv_em && kw2[:hetero] == trues(3)
+        @test kw2[:maxiter] == 500 && kw2[:gibbs_draws] == 100 && kw2[:init] == :ols_chol
+        # duplicates collapse, partial resolves (set semantics)
+        mktempdir() do dir
+            cfg = _make_sv_config(dir; hetero_shocks=[3, 1, 1])
+            kw3 = _build_identification_kwargs("sv-em", cfg; nvars=3, leaf="unit")
+            @test kw3[:hetero] == BitVector([true, false, true])
+        end
+        # other methods unaffected (no knob keys)
+        kw4 = _build_identification_kwargs("cholesky", ""; nvars=3, leaf="unit")
+        @test !haskey(kw4, :weighting) && !haskey(kw4, :hetero)
+    end
+
+    @testset "_irf_var — W2a proxy/max-share/gmm-moments (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3, colnames=["y1", "y2", "z"])
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="proxy",
+                              instrument="z", ci="none", format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10,
+                              id="max-share", target_var="y1", ci="none",
+                              format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10,
+                              id="max-share", target_var="2", ci="none",
+                              format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _irf_var(; data=csv, lags=2, shock=1, horizons=10,
+                              id="gmm-moments", ci="none", format="table")
+                end
+            end
+            e1 = try; _irf_var(; data=csv, lags=2, id="proxy", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/missing"
+            e2 = try; _irf_var(; data=csv, lags=2, id="cholesky", instrument="z", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _irf_var(; data=csv, lags=2, id="max-share", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/missing"
+            e4 = try; _irf_var(; data=csv, lags=2, id="cholesky", target_var="y1", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
+            e5 = try; _irf_var(; data=csv, lags=2, id="max-share", target_var="nope", format="table"); nothing; catch e; e; end
+            @test e5 isa CliError && e5.code == "usage/invalid"
+            e6 = try; _irf_var(; data=csv, lags=2, id="max-share", target_var="9", format="table"); nothing; catch e; e; end
+            @test e6 isa CliError && e6.code == "usage/invalid"
+            e7 = try; _irf_var(; data=csv, lags=2, id="bogus", format="table"); nothing; catch e; e; end
+            @test e7 isa CliError && e7.code == "usage/invalid"
+            e8 = try; _irf_var(; data=csv, lags=2, id="cholesky", identified_set=true, format="table"); nothing; catch e; e; end
+            @test e8 isa CliError && e8.code == "usage/invalid"
+            e9 = try; _irf_var(; data=csv, lags=2, id="arias", instrument="z", format="table"); nothing; catch e; e; end
+            @test e9 isa CliError && e9.code == "usage/invalid"
+        end
+    end
+
+    @testset "_fevd_var/_hd_var — W2a proxy/max-share guards (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3, colnames=["y1", "y2", "z"])
+            out = cd(dir) do
+                _capture() do
+                    _fevd_var(; data=csv, lags=2, horizons=10, id="proxy",
+                               instrument="z", format="table")
+                end
+            end
+            out = cd(dir) do
+                _capture() do
+                    _hd_var(; data=csv, lags=2, id="max-share", target_var="y2",
+                             format="table")
+                end
+            end
+            e1 = try; _fevd_var(; data=csv, lags=2, id="proxy", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/missing"
+            e2 = try; _fevd_var(; data=csv, lags=2, id="bogus", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _hd_var(; data=csv, lags=2, id="max-share", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/missing"
+            e4 = try; _hd_var(; data=csv, lags=2, id="bogus", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
         end
     end
 
@@ -4413,6 +4878,47 @@ end  # Test handlers
                                draws=100, sampler="direct", config="", format="table")
                 end
             end
+        end
+    end
+
+    @testset "_irf_bvar — robust-bayes" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_bvar_restrictions_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _dispatch_via_app(["irf", "bvar", csv, "--lags", "2", "--shock", "1",
+                                       "--horizons", "10", "--id", "robust-bayes",
+                                       "--draws", "100", "--config", cfg, "--format", "json"])
+                end
+            end
+            i = findfirst('{', out)
+            doc = JSON3.read(out[i:end])
+            @test haskey(doc[:data], :robust_bayes_bands)
+            @test haskey(doc[:data], :robust_bayes_diagnostics)
+        end
+    end
+
+    @testset "_irf_bvar — robust-bayes guards" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_bvar_restrictions_config(dir)
+            e1 = try
+                _irf_bvar(; data=csv, lags=2, shock=9, horizons=10, id="robust-bayes",
+                           draws=100, config=cfg, format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try
+                _irf_bvar(; data=csv, lags=2, shock=1, horizons=10, id="robust-bayes",
+                           draws=100, config="", format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e2 isa CliError && e2.code == "usage/missing"
         end
     end
 
@@ -4558,6 +5064,30 @@ end  # Test handlers
         end
     end
 
+    @testset "_irf_var — set-identified summaries" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_sign_config(dir)
+            for sum_kind in ["median-target", "modal-model", "joint-band", "sup-t-band"]
+                out = cd(dir) do
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="sign",
+                                  config=cfg, ci="none", format="table",
+                                  identified_set=true, summary=sum_kind)
+                    end
+                end
+            end
+            e = try
+                _irf_var(; data=csv, lags=2, shock=1, horizons=10, id="cholesky",
+                          ci="none", format="table", summary="median-target")
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     @testset "_irf_var — stationary-only flag with bootstrap" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4641,6 +5171,19 @@ end  # IRF handlers
         end
     end
 
+    @testset "_fevd_var — narrative-adrr identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_adrr_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_var(; data=csv, lags=2, horizons=10, id="narrative-adrr",
+                               config=cfg, format="table")
+                end
+            end
+        end
+    end
+
     @testset "_fevd_bvar" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
@@ -4677,8 +5220,8 @@ end  # FEVD handlers
         node = register_hd_commands!()
         @test node isa NodeCommand
         @test node.name == "hd"
-        @test length(node.subcmds) == 5
-        for cmd in ["var", "bvar", "lp", "vecm", "favar"]
+        @test length(node.subcmds) == 6
+        for cmd in ["var", "bvar", "lp", "vecm", "favar", "sdfm"]
             @test haskey(node.subcmds, cmd)
         end
     end
@@ -4713,6 +5256,18 @@ end  # FEVD handlers
             out = cd(dir) do
                 _capture() do
                     _hd_var(; data=csv, lags=2, id="arias", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_hd_var — narrative-adrr identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_adrr_config(dir)
+            out = cd(dir) do
+                _capture() do
+                    _hd_var(; data=csv, lags=2, id="narrative-adrr", config=cfg, format="table")
                 end
             end
         end
@@ -4766,13 +5321,13 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        # 16 primary + 1 alias (gjr_garch) + 1 evaluate sub-node = 18 keys (C044/C072; +setar C065a, +star C065b, +ms/ms-ar W3 #101)
-        @test length(node.subcmds) == 30
-        for cmd in ["var", "bvar", "lp", "arima", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr-garch", "sv", "vecm", "favar"]
-            @test haskey(node.subcmds, cmd)
+        for fam in ["multivariate", "volatility", "factor", "univariate", "regime", "evaluate"]
+            @test haskey(node.subcmds, fam)
+            @test node.subcmds[fam] isa NodeCommand
         end
-        @test haskey(node.subcmds, "gjr_garch")
+        @test haskey(node.subcmds["multivariate"].subcmds, "vecm")
+        @test haskey(node.subcmds["volatility"].subcmds, "gjr-garch")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
         # C072: nested forecast evaluate sub-node with 6 leaves
         @test haskey(node.subcmds, "evaluate")
         @test node.subcmds["evaluate"] isa NodeCommand
@@ -4781,13 +5336,13 @@ end  # HD handlers
         end
     end
 
-    @testset "forecast setar (C065a)" begin
+    @testset "forecast regime setar (C065a)" begin
         # SETAR bootstrap forecast: re-estimate then forecast → ThresholdForecast, rendered
         # via the generic long_table (horizon|variable|value|lower|upper). Options guarded
         # up-front → usage error; MEMs calls wrapped → typed CliError (never uncaught exit-1).
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["forecast", "setar"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["forecast", "regime", "setar"], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -4795,7 +5350,7 @@ end  # HD handlers
                                if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "setar"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "regime", "setar"], collect(String, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -4831,14 +5386,14 @@ end  # HD handlers
         end
     end
 
-    @testset "forecast star (C065b)" begin
+    @testset "forecast regime star (C065b)" begin
         # STAR bootstrap forecast: re-estimate a self-exciting STAR then forecast → STARForecast,
         # rendered via the generic long_table (horizon|variable|value|lower|upper). Options guarded
         # up-front → usage error; MEMs calls wrapped → typed CliError (never uncaught exit-1). Like
-        # forecast setar, NO --plot/--plot-save (MEMs ships no plot_result(::STARForecast) recipe).
+        # forecast regime setar, NO --plot/--plot-save (MEMs ships no plot_result(::STARForecast) recipe).
         _doc(args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["forecast", "star"], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["forecast", "regime", "star"], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
@@ -4846,7 +5401,7 @@ end  # HD handlers
                                if (t isa JSON3.Object && haskey(t, :columns) && col in String.(t.columns)))
         _err(args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "star"], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["forecast", "regime", "star"], collect(String, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -5293,7 +5848,7 @@ end  # HD handlers
 end  # Forecast handlers
 
 # ═══════════════════════════════════════════════════════════════
-# VECM handlers (estimate, irf, fevd, hd, forecast vecm + test granger)
+# VECM handlers (estimate, irf, fevd, hd, forecast multivariate vecm + test multivariate granger)
 # ═══════════════════════════════════════════════════════════════
 
 @testset "VECM handlers" begin
@@ -5302,9 +5857,10 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test length(node.subcmds) == 75  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
-        @test haskey(node.subcmds, "vecm")
-        @test node.subcmds["vecm"] isa LeafCommand
+        @test haskey(node.subcmds, "multivariate")
+        @test node.subcmds["multivariate"] isa NodeCommand
+        @test haskey(node.subcmds["multivariate"].subcmds, "vecm")
+        @test node.subcmds["multivariate"].subcmds["vecm"] isa LeafCommand
     end
 
     @testset "register_irf_commands! includes vecm" begin
@@ -5321,21 +5877,21 @@ end  # Forecast handlers
 
     @testset "register_hd_commands! includes vecm" begin
         node = register_hd_commands!()
-        @test length(node.subcmds) == 5
+        @test length(node.subcmds) == 6
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test length(node.subcmds) == 30  # 22 primary + gjr_garch alias + evaluate node (+setar C065a, +star C065b, +igarch/cgarch/aparch/figarch/fiegarch/garch-midas C064 #69, +arfima #73, +midas #67, +ms/ms-ar W3 #101)
-        @test haskey(node.subcmds, "vecm")
+        @test haskey(node.subcmds, "multivariate")
+        @test haskey(node.subcmds["multivariate"].subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 snake aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
-        @test haskey(node.subcmds, "granger")
-        @test node.subcmds["granger"] isa LeafCommand
+        @test haskey(node.subcmds, "multivariate")
+        @test haskey(node.subcmds["multivariate"].subcmds, "granger")
+        @test node.subcmds["multivariate"].subcmds["granger"] isa LeafCommand
     end
 
     # ── _load_and_estimate_vecm ──────────────────────────────
@@ -5360,7 +5916,7 @@ end  # Forecast handlers
         end
     end
 
-    # ── estimate vecm ────────────────────────────────────────
+    # ── estimate multivariate vecm ────────────────────────────────────────
 
     @testset "_estimate_vecm — auto rank" begin
         mktempdir() do dir
@@ -5460,6 +6016,45 @@ end  # Forecast handlers
         end
     end
 
+    @testset "_irf_vecm — svec identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _irf_vecm(; data=csv, lags=2, rank="1", shock=1, horizons=10,
+                               id="svec", ci="none", format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_vecm — svec with custom zeros" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svec_config(dir; n=3)
+            out = cd(dir) do
+                _capture() do
+                    _irf_vecm(; data=csv, lags=2, rank="1", shock=1, horizons=10,
+                               id="svec", ci="none", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
+    @testset "_irf_vecm — svec rejects bootstrap CI" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            e = try
+                _irf_vecm(; data=csv, lags=2, rank="1", shock=1, horizons=10,
+                           id="svec", ci="bootstrap", format="table")
+                nothing
+            catch e
+                e
+            end
+            @test e isa CliError && e.code == "usage/invalid"
+        end
+    end
+
     # ── fevd vecm ────────────────────────────────────────────
 
     @testset "_fevd_vecm — default" begin
@@ -5489,6 +6084,19 @@ end  # Forecast handlers
         end
     end
 
+    @testset "_fevd_vecm — svec identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cfg = _make_svec_config(dir; n=3)
+            out = cd(dir) do
+                _capture() do
+                    _fevd_vecm(; data=csv, lags=2, rank="1", horizons=10,
+                                id="svec", config=cfg, format="table")
+                end
+            end
+        end
+    end
+
     # ── hd vecm ──────────────────────────────────────────────
 
     @testset "_hd_vecm — default" begin
@@ -5514,7 +6122,18 @@ end  # Forecast handlers
         end
     end
 
-    # ── forecast vecm ────────────────────────────────────────
+    @testset "_hd_vecm — svec identification" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            out = cd(dir) do
+                _capture() do
+                    _hd_vecm(; data=csv, lags=2, rank="1", id="svec", format="table")
+                end
+            end
+        end
+    end
+
+    # ── forecast multivariate vecm ────────────────────────────────────────
 
     @testset "_forecast_vecm — no CI" begin
         mktempdir() do dir
@@ -5565,7 +6184,7 @@ end  # Forecast handlers
         end
     end
 
-    # ── test granger ─────────────────────────────────────────
+    # ── test multivariate granger ─────────────────────────────────────────
 
     @testset "_test_granger — default" begin
         mktempdir() do dir
@@ -5641,15 +6260,13 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        # 23 primary + 1 alias = 24 keys (C044; +ms/ms-ar W3 #101)
-        @test length(node.subcmds) == 39  # +poisson/nbreg (W2 #107)
-        for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
-                     "reg", "logit", "probit",
-                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
-            @test haskey(node.subcmds, cmd)
+        for fam in ["multivariate", "volatility", "univariate", "factor", "regression", "choice", "panel"]
+            @test haskey(node.subcmds, fam)
+            @test node.subcmds[fam] isa NodeCommand
         end
-        @test haskey(node.subcmds, "gjr_garch")
+        @test haskey(node.subcmds["volatility"].subcmds, "garch")
+        @test !haskey(node.subcmds["volatility"].subcmds, "star")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
     end
 
     @testset "_predict_var" begin
@@ -6127,7 +6744,7 @@ end  # Predict handlers
     end
 end
 
-@testset "forecast midas (#67)" begin
+@testset "forecast univariate midas (#67)" begin
     mktempdir() do dir
         lf = joinpath(dir, "lf.csv"); hf = joinpath(dir, "hf.csv")
         open(lf, "w") do io; println(io, "y"); for t in 1:60; println(io, 0.5t + 0.1); end; end
@@ -6400,18 +7017,15 @@ end
         node = register_residuals_commands!()
         @test node isa NodeCommand
         @test node.name == "residuals"
-        # 23 primary + 1 alias = 24 keys (C044); +#70 setar/star/ms-ar/ms => 38
-        @test length(node.subcmds) == 41
-        for cmd in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
-                     "arch", "garch", "egarch", "gjr-garch", "sv", "favar",
-                     "reg", "logit", "probit",
-                     "preg", "piv", "plogit", "pprobit", "ologit", "oprobit", "mlogit"]
-            @test haskey(node.subcmds, cmd)
+        for fam in ["multivariate", "volatility", "univariate", "factor", "regression", "choice", "panel", "regime"]
+            @test haskey(node.subcmds, fam)
+            @test node.subcmds[fam] isa NodeCommand
         end
-        @test haskey(node.subcmds, "gjr_garch")
+        @test haskey(node.subcmds["volatility"].subcmds, "garch")
+        @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
         # #70 remainder: the nonlinear-TS models define StatsAPI.residuals upstream
         for cmd in ["setar", "star", "ms-ar", "ms"]
-            @test haskey(node.subcmds, cmd)
+            @test haskey(node.subcmds["regime"].subcmds, cmd)
         end
         # W3/#101: MEMs#510 added predict/forecast for MSRegModel ONLY, so ms|ms-ar gained
         # both verbs while SETAR/STAR still have neither upstream. Advertising a leaf whose
@@ -6420,27 +7034,27 @@ end
         pnode = register_predict_commands!()
         fnode = register_forecast_commands!()
         for cmd in ["ms-ar", "ms"]
-            @test haskey(pnode.subcmds, cmd)
-            @test haskey(fnode.subcmds, cmd)
+            @test haskey(pnode.subcmds["regime"].subcmds, cmd)
+            @test haskey(fnode.subcmds["regime"].subcmds, cmd)
         end
         for cmd in ["setar", "star"]
-            @test !haskey(pnode.subcmds, cmd)
+            @test !haskey(pnode.subcmds["regime"].subcmds, cmd)
         end
     end
 
-    @testset "residuals setar|star|ms-ar|ms (#70 remainder)" begin
+    @testset "residuals regime setar|star|ms-ar|ms (#70 remainder)" begin
         # One tidy `period|residual` table per leaf. `period` is the EFFECTIVE-sample index:
         # the AR-based fits drop lags, the MS regression does not — asserted below.
         _rdoc(leaf, args) = begin
             out = _capture() do
-                _dispatch_via_app(vcat(String["residuals", leaf], collect(String, args), String["--format", "json"]))
+                _dispatch_via_app(vcat(String["residuals", "regime", leaf], collect(String, args), String["--format", "json"]))
             end
             JSON3.read(out[findfirst('{', out):end])
         end
         _rtbl(doc) = first(t for t in values(doc.data) if (t isa JSON3.Object && haskey(t, :columns)))
         _rerr(leaf, args) = begin
             e = nothing
-            try; _capture() do; _dispatch_via_app(vcat(String["residuals", leaf], collect(String, args))); end; catch ex; e=ex; end
+            try; _capture() do; _dispatch_via_app(vcat(String["residuals", "regime", leaf], collect(String, args))); end; catch ex; e=ex; end
             e
         end
 
@@ -7160,9 +7774,10 @@ end  # Filter handlers
 
     @testset "register_estimate_commands! includes pvar" begin
         node = register_estimate_commands!()
-        @test haskey(node.subcmds, "pvar")
-        @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 75  # 74 primary (+sarima W6, +tvpvar/mfvar W7) (+poisson/nbreg W2 #107) + gjr_garch alias (C064a +6, C068 +arfima, C064b +3 MGARCH, C067a +5, C067b +2, C066 +5, C062a +2, C062b +2, C062c +1, C062d +midas, C065a +setar, C065b +star, C065c +ms-ar/ms, C067 +select, #70 +threshold)
+        @test haskey(node.subcmds, "panel")
+        @test node.subcmds["panel"] isa NodeCommand
+        @test haskey(node.subcmds["panel"].subcmds, "pvar")
+        @test node.subcmds["panel"].subcmds["pvar"] isa LeafCommand
     end
 
     @testset "register_irf_commands! includes pvar" begin
@@ -7183,17 +7798,16 @@ end  # Filter handlers
         node = register_test_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa NodeCommand
-        @test length(node.subcmds["pvar"].subcmds) == 5  # 4 primary + hansen_j alias
+        @test length(node.subcmds["pvar"].subcmds) == 4  # 4 primary, no aliases (C055 removed hansen_j)
         @test haskey(node.subcmds["pvar"].subcmds, "hansen-j")
-        @test haskey(node.subcmds["pvar"].subcmds, "hansen_j")
+        @test !haskey(node.subcmds["pvar"].subcmds, "hansen_j")  # C055: alias removed
         @test haskey(node.subcmds["pvar"].subcmds, "mmsc")
         @test haskey(node.subcmds["pvar"].subcmds, "lagselect")
         @test haskey(node.subcmds["pvar"].subcmds, "stability")
-        @test haskey(node.subcmds, "lr")
-        @test node.subcmds["lr"] isa LeafCommand
-        @test haskey(node.subcmds, "lm")
-        @test node.subcmds["lm"] isa LeafCommand
-        @test length(node.subcmds) == 85  # 81 primary (+dispersion W2 #107) + 2 aliases (+hegy/ers/sadf/gsadf/edf/engle-granger/phillips-ouliaris/hansen-instability/park-added C069 remainder, +llc/ips/breitung/fisher-johansen/dh-causality C070 remainder, +gph, +local-whittle C068, +sign-bias, +nyblom C064b, +vecm C071, +variance-ratio/bds/hadri/pedroni/kao/westerlund C069/C070, +weak-instrument C067b, +ardl-bounds/nardl-symmetry C062b, +pmg-hausman C062c, +hansen-linearity C065a, +star-linearity C065b)
+        @test haskey(node.subcmds["multivariate"].subcmds, "lr")
+        @test node.subcmds["multivariate"].subcmds["lr"] isa LeafCommand
+        @test haskey(node.subcmds["multivariate"].subcmds, "lm")
+        @test node.subcmds["multivariate"].subcmds["lm"] isa LeafCommand
     end
 
     @testset "_parse_varlist" begin
@@ -7501,8 +8115,9 @@ end  # Enhanced Granger handlers
         node = register_data_commands!()
         @test node isa NodeCommand
         @test node.name == "data"
-        @test length(node.subcmds) == 11
-        for cmd in ["list", "load", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance", "dropna", "keeprows"]
+        @test length(node.subcmds) == 14
+        @test node.subcmds["simulate"] isa NodeCommand
+        for cmd in ["list", "load", "import", "export", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance", "dropna", "keeprows"]
             @test haskey(node.subcmds, cmd)
             @test node.subcmds[cmd] isa LeafCommand
         end
@@ -7512,6 +8127,8 @@ end  # Enhanced Granger handlers
         node = register_data_commands!()
         @test length(node.subcmds["list"].options) == 2
         @test length(node.subcmds["load"].options) == 6
+        @test length(node.subcmds["import"].options) == 10
+        @test length(node.subcmds["export"].options) == 2
         @test length(node.subcmds["describe"].options) == 2
         @test length(node.subcmds["diagnose"].options) == 2
         @test length(node.subcmds["fix"].options) == 3
@@ -7519,6 +8136,181 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["filter"].options) == 8
         @test length(node.subcmds["validate"].options) == 3
         @test length(node.subcmds["balance"].options) == 5
+        sim = node.subcmds["simulate"]
+        @test length(sim.subcmds) == 21
+        @test sim.subcmds["var"] isa LeafCommand
+        @test sim.subcmds["dsge"] isa LeafCommand
+        @test sim.subcmds["ha"] isa LeafCommand
+    end
+
+    @testset "data simulate (#177)" begin
+        dir = mktempdir()
+        out = joinpath(dir, "sim.csv")
+        truth_path(p) = replace(p, "." => "_truth.")
+        function cell(df, name; row=0, col=0)
+            for r in eachrow(df)
+                r.parameter == name && Int(r.row) == row && Int(r.col) == col && return r.value
+            end
+            error("missing truth $name [$row,$col]")
+        end
+
+        _data_simulate_var(; periods=6, burn=2, seed=4, format="csv", output=out)
+        sample = CSV.read(out, DataFrame)
+        @test names(sample) == ["time", "y1", "y2", "y3"]
+        @test nrow(sample) == 6
+        truth = CSV.read(truth_path(out), DataFrame)
+        @test cell(truth, "A_1"; row=1, col=1) ≈ 0.5
+        @test cell(truth, "B0"; row=2, col=1) ≈ 0.5
+        @test cell(truth, "B0"; row=1, col=2) ≈ 0.0
+        out2 = joinpath(dir, "sim2.csv")
+        _data_simulate_var(; periods=6, burn=2, seed=4, format="csv", output=out2)
+        again = CSV.read(out2, DataFrame)
+        @test names(again) == names(sample)
+        @test all(again[!, c] == sample[!, c] for c in names(sample))
+        out3 = joinpath(dir, "sim3.csv")
+        _data_simulate_var(; periods=6, burn=2, seed=5, format="csv", output=out3)
+        other = CSV.read(out3, DataFrame)
+        @test any(other[!, c] != sample[!, c] for c in names(sample) if c != "time")
+        @test_throws CliError _data_simulate_var(; periods=0, burn=0, seed=1,
+                                                 format="csv", output=out)
+
+        _data_simulate_svar(; dist="gauss", periods=5, burn=1, seed=1,
+                            format="csv", output=out)
+        @test nrow(CSV.read(out, DataFrame)) == 5
+        @test_throws CliError _data_simulate_svar(; dist="nope", periods=5, burn=1, seed=1,
+                                                  format="csv", output=out)
+        @test_throws CliError _data_simulate_svar(; dist="t", nu=1.5, periods=5, burn=1,
+                                                  seed=1, format="csv", output=out)
+
+        _data_simulate_hetvar(; kind="external", periods=5, burn=1, seed=1,
+                              format="csv", output=out)
+        @test nrow(CSV.read(out, DataFrame)) == 5
+        _data_simulate_hetvar(; kind="markov", periods=4, burn=1, seed=1,
+                              format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "P"; row=1, col=1) ≈ 0.95
+
+        _data_simulate_arima(; phi="0.5", periods=5, burn=1, seed=1,
+                             format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "phi"; row=1) ≈ 0.5
+        @test cell(CSV.read(truth_path(out), DataFrame), "sigma") ≈ 1.0
+
+        _data_simulate_garch(; kind="egarch", periods=8, burn=2, seed=1,
+                             format="csv", output=out)
+        @test "h" in CSV.read(truth_path(out), DataFrame).parameter
+        _data_simulate_sv(; periods=6, burn=1, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "phi") ≈ 0.95
+        @test_throws CliError _data_simulate_sv(; phi=1.2, periods=4, burn=1, seed=1,
+                                                format="csv", output=out)
+
+        _data_simulate_vecm(; periods=6, burn=1, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "alpha"; row=1, col=1) ≈ -0.3
+        _data_simulate_cointreg(; periods=8, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "beta"; row=1) ≈ 2.0
+        @test_throws CliError _data_simulate_cointreg(; endog_rho=1.0, periods=8, seed=1,
+                                                     format="csv", output=out)
+
+        _data_simulate_ardl(; periods=6, burn=1, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "theta") ≈ 3.0
+        @test_throws CliError _data_simulate_ardl(; phi=1.0, periods=6, burn=1, seed=1,
+                                                  format="csv", output=out)
+
+        _data_simulate_factors(; series=4, periods=5, burn=1, seed=1,
+                               format="csv", output=out)
+        @test names(CSV.read(out, DataFrame)) == ["time", "x1", "x2", "x3", "x4"]
+        _data_simulate_lpiv(; periods=6, pi1=1.5, theta=1.0, seed=1,
+                            format="csv", output=out)
+        @test names(CSV.read(out, DataFrame)) == ["time", "s", "y", "x2", "z1"]
+        @test cell(CSV.read(truth_path(out), DataFrame), "theta") ≈ 1.0
+
+        _data_simulate_panel(; kind="linear", n=4, periods=3, seed=1,
+                             format="csv", output=out)
+        @test names(CSV.read(out, DataFrame))[1:2] == ["id", "time"]
+        _data_simulate_panel(; kind="logit", n=4, periods=3, seed=1,
+                             format="csv", output=out)
+        _data_simulate_pvar(; n=3, periods=4, seed=1, format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "A1"; row=1, col=1) ≈ 0.8
+        _data_simulate_did(; n=6, periods=8, seed=1, format="csv", output=out)
+        did8 = CSV.read(out, DataFrame)
+        @test "D" in names(did8)
+        # periods=8 keeps upstream date 6 and drops 11 and 16 (past the sample).
+        @test all(c -> c == 6, did8.cohort)
+        did8_truth = CSV.read(truth_path(out), DataFrame)
+        @test all(isfinite, did8_truth.value)
+        @test "att_c:6" in did8_truth.parameter
+        @test !("att_c:11" in did8_truth.parameter)
+        @test !("att_c:16" in did8_truth.parameter)
+        @test cell(did8_truth, "overall_att") ≈ 1.0
+        _data_simulate_did(; n=20, periods=12, seed=3, format="csv", output=out)
+        did12 = CSV.read(out, DataFrame)
+        @test all(c -> c == 6 || c == 11, did12.cohort)
+        did12_truth = CSV.read(truth_path(out), DataFrame)
+        @test all(isfinite, did12_truth.value)
+        @test "att_c:6" in did12_truth.parameter
+        @test "att_c:11" in did12_truth.parameter
+        @test !("att_c:16" in did12_truth.parameter)
+
+        _data_simulate_gmm(; kind="iv", n=10, seed=1, format="csv", output=out)
+        @test "z1" in names(CSV.read(out, DataFrame))
+        _data_simulate_gmm(; kind="ols", n=10, seed=1, format="csv", output=out)
+        @test !("z1" in names(CSV.read(out, DataFrame)))
+        _data_simulate_regime(; kind="setar", periods=6, burn=1, seed=1,
+                              format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "phi_lo") ≈ 0.8
+        _data_simulate_regime(; kind="lstar", periods=6, burn=1, seed=1,
+                              format="csv", output=out)
+        _data_simulate_xsec(; kind="logit", n=12, seed=1, format="csv", output=out)
+        @test "y" in names(CSV.read(out, DataFrame))
+        _data_simulate_xsec(; kind="iv", n=12, seed=1, format="csv", output=out)
+        @test "z1" in names(CSV.read(out, DataFrame))
+
+        model = joinpath(dir, "m.jl")
+        write(model, """
+        @dsge begin
+            parameters: rho = 0.9, sigma = 0.01
+            endogenous: Y, C
+            exogenous: e
+            linear: true
+            Y[t] = rho * Y[t-1] + sigma * e[t]
+            C[t] = Y[t]
+        end
+        """)
+        _data_simulate_dsge(; model=model, periods=5, burn=1, seed=3,
+                            format="csv", output=out)
+        ds = CSV.read(out, DataFrame)
+        @test names(ds) == ["time", "Y", "C"]
+        @test nrow(ds) == 5
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss:Y") ≈ 0.0
+        _data_simulate_dsge(; model=model, periods=5, burn=1, seed=3,
+                            meas_sd="0.2", format="csv", output=out)
+        @test cell(CSV.read(truth_path(out), DataFrame), "H"; row=1) ≈ 0.04
+        @test_throws CliError _data_simulate_dsge(; model=model, method="gensys", order=2,
+                                                  periods=4, burn=0, seed=1,
+                                                  format="csv", output=out)
+
+        _data_simulate_ha(; model="huggett", method="reiter", periods=4,
+                          n_reduced=4, seed=2, format="csv", output=out)
+        @test nrow(CSV.read(out, DataFrame)) == 4
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss_agg:K") ≈ 10.0
+        @test_throws CliError _data_simulate_ha(; model="huggett", method="krusell-smith",
+                                                periods=2, n_reduced=4, seed=1,
+                                                format="csv", output=out)
+
+        _data_simulate_olg(; periods=4, seed=1, format="csv", output=out)
+        olg = CSV.read(out, DataFrame)
+        @test nrow(olg) == 5
+        @test names(olg) == ["time", "k", "C", "r", "w"]
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss:k") ≈ 5.0
+        @test_throws CliError _data_simulate_olg(; gamma=1.5, periods=4, seed=1,
+                                                 format="csv", output=out)
+
+        _data_simulate_ct(; grid_size=4, periods=3, max_iter=5, seed=1,
+                          format="csv", output=out)
+        ct = CSV.read(out, DataFrame)
+        @test names(ct) == ["time", "Z", "K", "r", "w", "C"]
+        @test nrow(ct) == 3
+        @test cell(CSV.read(truth_path(out), DataFrame), "ss:K") ≈ 3.0
+
+        rm(dir; recursive=true, force=true)
     end
 
     @testset "dataset_to_dataframe — panels keep their identifiers" begin
@@ -8770,7 +9562,7 @@ end  # Plot Support
             @test err isa CliError
             @test err.code == "usage/wrong-command"
             @test contains(err.message, "heterogeneous-agent")
-            @test contains(err.message, "dsge ha")
+            @test contains(err.message, "hadsge")
             @test exit_class(err) == 2
         end
     end
@@ -9623,7 +10415,7 @@ end
         @test haskey(node.subcmds, "steady-state")
         @test haskey(node.subcmds, "bayes")
         @test haskey(node.subcmds, "hd")
-        @test haskey(node.subcmds, "ha")
+        @test !haskey(node.subcmds, "ha")
         @test haskey(node.subcmds, "ct")
         @test haskey(node.subcmds, "olg")
         @test haskey(node.subcmds, "determinacy-map")   # W12/#114
@@ -9632,14 +10424,15 @@ end
         @test haskey(node.subcmds, "lifecycle")
         @test haskey(node.subcmds, "firm")
         @test haskey(node.subcmds, "bank")
-        @test length(node.subcmds) == 18
-        ha = node.subcmds["ha"]
+        @test length(node.subcmds) == 17
+        ha = register_hadsge_commands!()
         @test ha isa NodeCommand
+        @test ha.name == "hadsge"
         for leaf in ("solve", "steady-state", "irf", "fevd", "simulate",
-                     "distribution-irf", "inequality-irf", "simulate-panel", "estimate", "hd")
+                     "distribution-irf", "inequality-irf", "simulate-panel", "estimate", "hd", "accuracy")
             @test haskey(ha.subcmds, leaf)
+            @test ha.subcmds[leaf] isa LeafCommand
         end
-        @test haskey(ha.subcmds, "estimate")  # un-deferred (C048): MEMs#228 fixed in 0.6.7
         @test haskey(node.subcmds["ct"].subcmds, "solve")
         @test haskey(node.subcmds["ct"].subcmds, "transition")
         @test haskey(node.subcmds["olg"].subcmds, "solve")
@@ -9808,6 +10601,51 @@ end
                                      plot=false, plot_save="")
             @test tr isa MacroEconometricModels.CTTransition
         end
+    end
+
+    @testset "solver failure → typed model/error, never raw exit-1 (PR #205)" begin
+        # Runs f with the mock CT solver `name` throwing SingularException
+        # (mirrors the coarse-grid UMFPACK failure real MEMs raises on Linux);
+        # returns the caught exception. Always resets the flag. (Do-block
+        # passes the block as the FIRST argument, hence (f, name) order.)
+        _run_ct_fault(f, name) = begin
+            MacroEconometricModels._CT_THROW_SOLVER[] = name
+            try
+                try
+                    _capture(f)
+                    nothing
+                catch ex
+                    ex
+                end
+            finally
+                MacroEconometricModels._CT_THROW_SOLVER[] = :none
+            end
+        end
+        _is_model_error(e) =
+            e isa CliError && e.code == "model/error" && exit_class(e) == 5
+        e = _run_ct_fault(:ct_steady_state) do
+            _dsge_ct_solve(; grid_size=30, max_iter=20, tol=1e-4,
+                           format="table", output="")
+        end
+        @test _is_model_error(e)
+        e = _run_ct_fault(:ct_two_asset_solve) do
+            _dsge_ct_solve(; two_asset=true, max_iter=20, tol=1e-4,
+                           format="table", output="")
+        end
+        @test _is_model_error(e)
+        e = _run_ct_fault(:ct_steady_state) do
+            _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
+                                shock_size=0.95, format="table", output="",
+                                plot=false, plot_save="")
+        end
+        @test _is_model_error(e)
+        e = _run_ct_fault(:ct_mit_shock) do
+            _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
+                                shock_size=0.95, format="table", output="",
+                                plot=false, plot_save="")
+        end
+        @test _is_model_error(e)
+        @test MacroEconometricModels._CT_THROW_SOLVER[] === :none
     end
 
     @testset "_dsge_olg_solve" begin
@@ -10077,9 +10915,10 @@ end
         @test haskey(node.subcmds, "estimate")
         @test haskey(node.subcmds, "event-study")
         @test haskey(node.subcmds, "lp-did")
-        @test haskey(node.subcmds, "test")
-        @test length(node.subcmds) == 4
-        test_node = node.subcmds["test"]
+        @test !haskey(node.subcmds, "test")
+        @test length(node.subcmds) == 3
+        # bacon/pretrend/negweight/honest moved to `test did` (#202)
+        test_node = register_test_commands!().subcmds["did"]
         @test test_node isa NodeCommand
         @test haskey(test_node.subcmds, "bacon")
         @test haskey(test_node.subcmds, "pretrend")
@@ -10173,6 +11012,121 @@ end
         end
     end
 
+    @testset "sdfm W1 riders — method/spectral/q-method/instrument (mock)" begin
+        # New leaf checklist (T1/T2 on mocks): registry spec + handler → T3 + golden.
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            # auto selection through each upstream q_method branch
+            for qm in ("hallin-liska", "bai-ng", "amengual-watson")
+                out = _capture() do
+                    _estimate_sdfm(; data=csv, factors=nothing, q_method=qm,
+                                     horizon=10, format="table")
+                end
+            end
+            # legacy estimator + legacy spectrum
+            out = _capture() do
+                _estimate_sdfm(; data=csv, factors=2, method="gdfm-var",
+                                 spectral="smoothed-periodogram",
+                                 horizon=10, format="table")
+            end
+            # proxy identification with an instrument column runs
+            inst_csv = joinpath(dir, "inst.csv")
+            CSV.write(inst_csv, DataFrame(y1=randn(100), y2=randn(100), y3=randn(100),
+                                          z=randn(100)))
+            out = _capture() do
+                _estimate_sdfm(; data=inst_csv, factors=1, id="proxy",
+                                 instrument="z", horizon=10, format="table")
+            end
+            # guards: proxy needs an instrument; instrument needs proxy;
+            # q-method needs auto; enums are closed
+            e1 = try; _estimate_sdfm(; data=csv, factors=2, id="proxy", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/missing"
+            e2 = try; _estimate_sdfm(; data=csv, factors=2, instrument="var1", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _estimate_sdfm(; data=csv, factors=2, q_method="bai-ng", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/invalid"
+            e4 = try; _estimate_sdfm(; data=csv, factors=2, method="bogus", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
+            e5 = try; _estimate_sdfm(; data=csv, factors=2, spectral="bogus", format="table"); nothing; catch e; e; end
+            @test e5 isa CliError && e5.code == "usage/invalid"
+            e6 = try; _estimate_sdfm(; data=csv, factors=2, q_method="bogus", format="table"); nothing; catch e; e; end
+            @test e6 isa CliError && e6.code == "usage/invalid"
+            # instrument column hygiene mirrors the weights/coordinates loaders
+            e7 = try; _estimate_sdfm(; data=csv, factors=1, id="proxy", instrument="nope", format="table"); nothing; catch e; e; end
+            @test e7 isa CliError && e7.code == "data/column-range"
+            # W1/#193: kebab --id maps to :lewis_tvv/:sv_em/:gmm_moments
+            for sid in ("lewis-tvv", "sv-em", "gmm-moments")
+                _capture() do
+                    _estimate_sdfm(; data=csv, factors=2, id=sid, horizon=8, format="table")
+                end
+            end
+            e8 = try; _estimate_sdfm(; data=csv, factors=2, id="lewis-tvv",
+                                     instrument="var1", format="table"); nothing; catch e; e; end
+            @test e8 isa CliError && e8.code == "usage/invalid"
+        end
+    end
+
+    @testset "irf/fevd sdfm W1 riders — shared surface + bootstrap ci (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _irf_sdfm(; data=csv, factors=nothing, q_method="bai-ng",
+                            method="gdfm-var", horizons=8, format="table")
+            end
+            out = _capture() do
+                _irf_sdfm(; data=csv, factors=2, horizons=8, ci="bootstrap",
+                            reps=5, format="table")
+            end
+            e1 = try; _irf_sdfm(; data=csv, factors=2, ci="bogus", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _irf_sdfm(; data=csv, factors=2, reps=0, format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            out = _capture() do
+                _fevd_sdfm(; data=csv, factors=nothing, spectral="smoothed-periodogram",
+                             horizons=8, format="table")
+            end
+        end
+    end
+
+    @testset "gdfm W1 riders — spectral + forecast method (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _estimate_gdfm(; data=csv, nfactors=2, dynamic_rank=1,
+                                 spectral="smoothed-periodogram", format="table")
+            end
+            e1 = try; _estimate_gdfm(; data=csv, spectral="bogus", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            for m in ("ar", "one-sided", "spectral")
+                out = _capture() do
+                    _forecast_gdfm(; data=csv, nfactors=2, dynamic_rank=1,
+                                     horizons=4, method=m, format="table")
+                end
+            end
+            e2 = try; _forecast_gdfm(; data=csv, method="bogus", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _forecast_gdfm(; data=csv, spectral="bogus", format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/invalid"
+        end
+    end
+
+    @testset "forecast factor sdfm — new leaf (mock)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            out = _capture() do
+                _forecast_sdfm(; data=csv, factors=2, horizons=4, format="table")
+            end
+            out = _capture() do
+                _forecast_sdfm(; data=csv, factors=nothing, horizons=4,
+                                 ci="bootstrap", reps=5, format="table")
+            end
+            e1 = try; _forecast_sdfm(; data=csv, ci="bogus", format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _forecast_sdfm(; data=csv, reps=0, format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+        end
+    end
+
     @testset "_hd_favar" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
@@ -10180,6 +11134,65 @@ end
                 _hd_favar(; data=csv, factors=2, lags=1, key_vars="1,2",
                             horizons=10, format="table")
             end
+        end
+    end
+
+    @testset "_hd_sdfm" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=5)
+            # Panel space: one family table per panel variable, q structural
+            # shocks plus the idiosyncratic column.
+            out = _capture() do
+                _dispatch_via_app(["hd", "sdfm", csv, "--factors", "1",
+                                   "--horizons", "8", "--format", "json"])
+            end
+            doc = JSON3.read(out[findfirst('{', out):end])
+            @test doc.status == "ok"
+            @test haskey(doc.data, :sdfm_historical_decomposition_var1)
+            pcols = collect(doc.data.sdfm_historical_decomposition_var1.columns)
+            @test "contrib_Shock 1" in pcols
+            @test "contrib_Idiosyncratic" in pcols
+            # Factor space: q Factor-labeled tables, q shocks, no idiosyncratic.
+            out = _capture() do
+                _dispatch_via_app(["hd", "sdfm", csv, "--factors", "1",
+                                   "--space", "factor", "--horizons", "8",
+                                   "--format", "json"])
+            end
+            doc = JSON3.read(out[findfirst('{', out):end])
+            @test doc.status == "ok"
+            @test haskey(doc.data, :sdfm_historical_decomposition_static_factor_1)
+            fcols = collect(doc.data.sdfm_historical_decomposition_static_factor_1.columns)
+            @test !("contrib_Idiosyncratic" in fcols)
+            # --no-idiosyncratic drops the column in panel space.
+            out = _capture() do
+                _dispatch_via_app(["hd", "sdfm", csv, "--factors", "1",
+                                   "--no-idiosyncratic", "--horizons", "8",
+                                   "--format", "json"])
+            end
+            doc = JSON3.read(out[findfirst('{', out):end])
+            @test doc.status == "ok"
+            ncols = collect(doc.data.sdfm_historical_decomposition_var1.columns)
+            @test !("contrib_Idiosyncratic" in ncols)
+            # Loaded-result path re-renders through the same keys.
+            res = Ref{Any}(nothing)
+            _capture() do
+                res[] = _hd_sdfm(; data=csv, factors=1, horizons=8, format="table")
+            end
+            out = _capture() do
+                _hd_sdfm(; result=res[].result, format="table")
+            end
+            # Guards: horizons floor, closed space enum, dead flag combo,
+            # and computation options rejected with --result.
+            e1 = try; _hd_sdfm(; data=csv, horizons=0, format="table"); nothing; catch e; e; end
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            e2 = try; _hd_sdfm(; data=csv, space="bogus", format="table"); nothing; catch e; e; end
+            @test e2 isa CliError && e2.code == "usage/invalid"
+            e3 = try; _hd_sdfm(; data=csv, space="factor", no_idiosyncratic=true, format="table"); nothing; catch e; e; end
+            @test e3 isa CliError && e3.code == "usage/invalid"
+            e4 = try; _hd_sdfm(; result="dummy", space="factor", format="table"); nothing; catch e; e; end
+            @test e4 isa CliError && e4.code == "usage/invalid"
+            e5 = try; _hd_sdfm(; result="dummy", no_idiosyncratic=true, format="table"); nothing; catch e; e; end
+            @test e5 isa CliError && e5.code == "usage/invalid"
         end
     end
 
@@ -12613,8 +13626,10 @@ end  # Command Handlers
             (["spectral", "density", fix, "--method", "welch", "--format", "json"], ["spectral", "density"]),
             (["spectral", "cross", fix, "--var1", "1", "--var2", "2", "--format", "json"], ["spectral", "cross"]),
             (["spectral", "transfer", "--filter", "hp", "--lambda", "1600.0", "--nobs", "200", "--format", "json"], ["spectral", "transfer"]),
-            # #147: estimate sdfm estimation-record table
-            (["estimate", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "sdfm"]),
+            # #147: estimate factor sdfm estimation-record table
+            (["estimate", "factor", "sdfm", fix, "--factors", "1", "--format", "json"], ["estimate", "factor", "sdfm"]),
+            # W1/#165: new forecast factor sdfm leaf
+            (["forecast", "factor", "sdfm", fix, "--factors", "1", "--horizons", "4", "--format", "json"], ["forecast", "factor", "sdfm"]),
         ]
         for (argv, gkeys) in cases
             Random.seed!(42)
@@ -12638,8 +13653,8 @@ end  # Command Handlers
         err_cases = [
             (["filter", "hp", "/nope.csv", "--format", "json"],
              ["filter", "hp", "error"], "data/file-not-found", 3),
-            (["estimate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
-             ["estimate", "bvar", "config-error"], "config/file-not-found", 4),
+            (["estimate", "multivariate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "multivariate", "bvar", "config-error"], "config/file-not-found", 4),
         ]
         for (argv, gkeys, code, ec) in err_cases
             Random.seed!(42)
@@ -12662,10 +13677,49 @@ end  # Command Handlers
             errs = validate_envelope_json(js)
             @test isempty(errs) || (@info "schema errs" errs; false)
         end
+
+        # Wave 2 typed-handle error goldens (relative stems; cwd = dir)
+        cd(dir) do
+            Random.seed!(42)
+            CSV.write("panel.csv", DataFrame(group=repeat(1:4, inner=10),
+                                             time=repeat(1:10, outer=4),
+                                             y=randn(40), x=randn(40)))
+            save_model_dispatch("panel.jld2",
+                xtset(CSV.read("panel.csv", DataFrame), :group, :time))
+            Y = reduce(hcat, (sin.(1:40) .+ 0.1 .* cos.((1:40) ./ i) for i in 1:3))
+            save_model_dispatch("var.jld2", estimate_var(Y, 1; varnames=["y1", "y2", "y3"]))
+            handle_err = [
+                (["estimate", "multivariate", "var", "panel", "--lags", "1", "--format", "json"],
+                 ["estimate", "multivariate", "var", "wrong-kind"], "data/wrong-kind", 3),
+                (["irf", "var", "--result", "var", "--format", "json"],
+                 ["irf", "var", "wrong-result"], "data/wrong-result", 3),
+            ]
+            for (argv, gkeys, code, ec) in handle_err
+                Random.seed!(42)
+                out = _capture() do
+                    try
+                        _dispatch_via_app(String[string(a) for a in argv])
+                    catch e
+                        e isa CliError || rethrow()
+                    end
+                end
+                js = _extract_json_object(out)
+                @test js !== nothing
+                doc = JSON3.read(js)
+                @test string(doc.status) == "error"
+                @test string(doc.error.code) == code
+                @test doc.error.exit_code == ec
+                gpath = _golden_path(gkeys)
+                @test isfile(gpath)
+                @test _golden_compare(js, gpath)
+                errs = validate_envelope_json(js)
+                @test isempty(errs) || (@info "schema errs" errs; false)
+            end
+        end
     end
 
     # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)
-    env = Envelope(command="estimate var")
+    env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
     buf = IOBuffer(); render(env, :csv, buf)
     csv_out = replace(String(take!(buf)), "\r\n" => "\n")
@@ -12712,8 +13766,8 @@ end
     schema = JSON3.read(read(_ENVELOPE_SCHEMA_PATH, String))
     table = Dict("columns" => ["a", "b"], "rows" => [[1, "x"], [2.5, nothing]])
     base = Dict{String,Any}(
-        "schema_version" => 1, "command" => "estimate var", "status" => "ok",
-        "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.12.0",
+        "schema_version" => 1, "command" => "estimate multivariate var", "status" => "ok",
+        "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.13.0",
                                    "mems_version" => "0.8.0", "seed" => 42),
         "data" => Dict{String,Any}("coefficients" => table),
         "warnings" => Any[], "artifacts" => Any[], "error" => nothing)
@@ -13170,8 +14224,166 @@ end
         end
     end
 
+    @testset "W1 VFI smolyak + optimizer (MEMs#817-819, #821)" begin
+        _vfikv(doc) = Dict(String(r[1]) => r[2]
+                           for r in _table(doc, ["metric", "value"]).rows)
+        _vferr(args...) = begin
+            err = nothing
+            try; _capture() do
+                _dispatch_via_app(collect(String, args))
+            end; catch e; err = e; end
+            err
+        end
+        mktempdir() do dir
+            bell1 = joinpath(dir, "bell1.jl")
+            write(bell1, """
+            @dsge begin
+                parameters: beta = 0.99, rho = 0.9, sigma = 0.01
+                endogenous: C, K, A
+                exogenous: e
+                utility: log(C)
+                beta: beta
+                controls: C
+                C[t] = K[t]
+                K[t] = rho * K[t-1] + sigma * e[t]
+                A[t] = rho * A[t-1] + sigma * e[t]
+            end
+            """)
+            bell2 = joinpath(dir, "bell2.jl")
+            write(bell2, """
+            @dsge begin
+                parameters: beta = 0.99, rho = 0.9, sigma = 0.01
+                endogenous: C, I, K, A
+                exogenous: e
+                utility: log(C)
+                beta: beta
+                controls: C, I
+                C[t] + I[t] = K[t]
+                K[t] = rho * K[t-1] + sigma * e[t]
+                A[t] = rho * A[t-1] + sigma * e[t]
+            end
+            """)
+            bell0 = joinpath(dir, "bell0.jl")
+            write(bell0, """
+            @dsge begin
+                parameters: beta = 0.99, rho = 0.9, sigma = 0.01
+                endogenous: C, I, K, A
+                exogenous: e
+                utility: log(C)
+                beta: beta
+                C[t] + I[t] = K[t]
+                K[t] = rho * K[t-1] + sigma * e[t]
+                A[t] = rho * A[t-1] + sigma * e[t]
+            end
+            """)
+            # Mock nx: bell1 n=3 → 1 state; bell2/bell0 n=4 → 2 states.
+            sm = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                          "--grid", "smolyak")
+            smkv = _vfikv(sm)
+            @test string(smkv["grid_type"]) == "smolyak"
+            @test Int(smkv["smolyak_blocks"]) == 3
+            @test Int(smkv["n_nodes"]) == 5
+            @test _hascols(sm, ["node", "V"])
+            # W2/#194: mock bounds are [-2,2]; unit-cube nodes would stay in
+            # [-1,1]. physical_nodes must put a coordinate outside the cube.
+            vf = _table(sm, ["node", "V"])
+            scols = filter(c -> c != "node" && c != "V", String.(vf.columns))
+            @test !isempty(scols)
+            si = findfirst(==(scols[1]), String.(vf.columns))
+            svals = [Float64(r[si]) for r in vf.rows]
+            @test any(abs(v) > 1 + 1e-9 for v in svals)
+            au = _dsgedoc("dsge", "solve", bell1, "--method", "vfi")
+            aukv = _vfikv(au)
+            @test string(aukv["grid_type"]) == "tensor"
+            @test Int(aukv["smolyak_blocks"]) == 0
+            te = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                          "--grid", "tensor")
+            @test string(_vfikv(te)["grid_type"]) == "tensor"
+            for o in ("auto", "grid1d", "fminbox-nm", "fminbox-lbfgs")
+                d = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                             "--optimizer", o)
+                @test string(_vfikv(d)["grid_type"]) == "tensor"
+            end
+            # Explicit 2-control + grid1d: usage/invalid (CLI pre-check).
+            e1 = _vferr("dsge", "solve", bell2, "--method", "vfi",
+                        "--optimizer", "grid1d")
+            @test e1 isa CliError && e1.code == "usage/invalid"
+            # Explicit 2-control + auto: resolves to fminbox, solves fine.
+            a2 = _dsgedoc("dsge", "solve", bell2, "--method", "vfi")
+            @test string(_vfikv(a2)["grid_type"]) == "tensor"
+            # Default (empty) controls + grid1d: upstream ArgumentError →
+            # data/invalid, mirroring real MEMs (mock throw parity).
+            e0 = _vferr("dsge", "solve", bell0, "--method", "vfi",
+                        "--optimizer", "grid1d")
+            @test e0 isa CliError && e0.code == "data/invalid" &&
+                exit_class(e0) == 3
+            # Bad enum → parser exit 2.
+            eo = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--optimizer", "bogus")
+            @test eo isa ParseError || (eo isa CliError && exit_class(eo) == 2)
+            # smolyak-mu shape junk → usage/invalid.
+            for bad in ("x", "-1", "2,-1", "2,,3", "2.5", "2,")
+                eb = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                            "--grid", "smolyak", "--smolyak-mu", bad)
+                @test eb isa CliError && eb.code == "usage/invalid"
+            end
+            # Length-vs-nx: mock nx=1 on bell1, nx=2 on bell2.
+            m1 = _dsgedoc("dsge", "solve", bell1, "--method", "vfi",
+                          "--grid", "smolyak", "--smolyak-mu", "2")
+            @test string(_vfikv(m1)["grid_type"]) == "smolyak"
+            em = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "smolyak", "--smolyak-mu", "2,2")
+            @test em isa CliError && em.code == "data/invalid" &&
+                exit_class(em) == 3
+            m2 = _dsgedoc("dsge", "solve", bell2, "--method", "vfi",
+                          "--grid", "smolyak", "--smolyak-mu", "2,2")
+            @test string(_vfikv(m2)["grid_type"]) == "smolyak"
+            # Dead combos → usage/invalid.
+            dg = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "smolyak", "--n-grid", "8")
+            @test dg isa CliError && dg.code == "usage/invalid"
+            dt = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "tensor", "--smolyak-mu", "2")
+            @test dt isa CliError && dt.code == "usage/invalid"
+            dn = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--optimizer", "fminbox-nm", "--n-choice", "15")
+            @test dn isa CliError && dn.code == "usage/invalid"
+            dd = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "smolyak", "--degree", "3")
+            @test dd isa CliError && dd.code == "usage/invalid"
+            # The auto corner stays allowed (resolution needs the model).
+            ac = _dsgedoc("dsge", "solve", bell2, "--method", "vfi",
+                          "--n-choice", "15")
+            @test string(_vfikv(ac)["grid_type"]) == "tensor"
+            # Knob scope: VFI-only knobs on other methods → usage/invalid.
+            sg = _vferr("dsge", "solve", bell1, "--method", "gensys",
+                        "--optimizer", "auto")
+            @test sg isa CliError && sg.code == "usage/invalid"
+            sp = _vferr("dsge", "solve", bell1, "--method", "pfi",
+                        "--smolyak-mu", "2")
+            @test sp isa CliError && sp.code == "usage/invalid"
+            # vfi grid vocabulary unchanged otherwise.
+            gc = _vferr("dsge", "solve", bell1, "--method", "vfi",
+                        "--grid", "chebyshev")
+            @test gc isa CliError && gc.code == "usage/invalid"
+            # simulate+irf route through the ProjectionSolution path: the
+            # antithetic kwarg must never reach it (W1 fix; the mock throws
+            # MethodError like real if it regresses).
+            smd = _dsgedoc("dsge", "simulate", bell1, "--method", "vfi",
+                           "--periods", "5", "--burn", "2")
+            @test _hascols(smd, ["period"])
+            smd2 = _dsgedoc("dsge", "simulate", bell1, "--method", "vfi",
+                            "--periods", "5", "--burn", "2",
+                            "--antithetic", "--seed", "7")
+            @test _hascols(smd2, ["period"])
+            ird = _dsgedoc("dsge", "irf", bell1, "--method", "vfi",
+                           "--grid", "smolyak", "--horizon", "4")
+            @test ird isa JSON3.Object
+        end
+    end
+
     @testset "HA two-asset / huggett accuracy / hd" begin
-        doc = _dsgedoc("dsge", "ha", "steady-state", "two-asset-hank")
+        doc = _dsgedoc("hadsge", "steady-state", "two-asset-hank")
         kv = Dict{String,Any}()
         for t in values(doc.data)
             "name" in String.(t.columns) && "value" in String.(t.columns) || continue
@@ -13186,20 +14398,20 @@ end
         @test isapprox(Float64(kv["B"]), Float64(kv["B_supply"]); atol=1e-8)
         err = nothing
         try; _capture() do
-            _dispatch_via_app(String["dsge", "ha", "accuracy", "huggett"])
+            _dispatch_via_app(String["hadsge", "accuracy", "huggett"])
         end; catch e; err = e; end
         @test err isa CliError && err.code == "model/unsupported"
         mktempdir() do dir
             csv = joinpath(dir, "y.csv")
             write(csv, "K\n" * join(string.(1.0 .+ 0.01 .* (1:12)), "\n") * "\n")
-            hd = _dsgedoc("dsge", "ha", "hd", "krusell-smith", "--data", csv,
+            hd = _dsgedoc("hadsge", "hd", "krusell-smith", "--data", csv,
                           "--observables", "K", "--method", "ssj")
             @test any(c -> startswith(c, "t") || c == "t",
                       vcat((String.(t.columns) for t in values(hd.data))...))
         end
         err = nothing
         try; _capture() do
-            _dispatch_via_app(String["dsge", "ha", "solve", "huggett", "--hh-solver", "nope"])
+            _dispatch_via_app(String["hadsge", "solve", "huggett", "--hh-solver", "nope"])
         end; catch e; err = e; end
         @test err isa Exception
     end
@@ -13307,13 +14519,14 @@ if !@isdefined(APP)
             "io"        => register_io_commands!(),
             "nowcast"   => register_nowcast_commands!(),
             "dsge"      => register_dsge_commands!(),
+            "hadsge"    => register_hadsge_commands!(),
             "did"       => register_did_commands!(),
-            "multipliers" => register_multipliers_commands!(),
             "policy"    => register_policy_commands!(),
             "spectral"  => register_spectral_commands!(),
             "model"     => register_model_commands!(),
             "completions" => register_completions_commands!(),
             "schema"    => register_schema_command!(),
+            "show"      => register_show_commands!(),
         ), "test tree"); version=v"0.0.0-test")
 end
 
@@ -13323,7 +14536,7 @@ end
     end))
 
     # ── Leaf doc: draft-07 input_schema with x-cli annotations ──
-    doc = getdoc("estimate", "var")
+    doc = getdoc("estimate", "multivariate", "var")
     is = doc.input_schema
     @test String(is[Symbol("\$schema")]) == "http://json-schema.org/draft-07/schema#"
     @test String(is.type) == "object"
@@ -13364,11 +14577,11 @@ end
     # ── --docs: guide embedded; flag NEVER eats a path token (D-6) ──
     r1 = getdoc("--docs")
     @test haskey(r1, :docs) && occursin("# Agent Guide", String(r1.docs))
-    r2 = getdoc("--docs", "estimate", "var")   # D-6: `estimate` must survive
-    @test String.(r2.path) == ["estimate", "var"]
+    r2 = getdoc("--docs", "estimate", "multivariate", "var")   # D-6: `estimate` must survive
+    @test String.(r2.path) == ["estimate", "multivariate", "var"]
     @test haskey(r2, :docs)
-    r3 = getdoc("estimate", "var", "--docs")
-    @test String.(r3.path) == ["estimate", "var"]
+    r3 = getdoc("estimate", "multivariate", "var", "--docs")
+    @test String.(r3.path) == ["estimate", "multivariate", "var"]
     @test haskey(r3, :docs)
     @test !haskey(doc, :docs)                  # absent without the flag
     # the guide the schema serves is byte-identical to the baked const
@@ -13378,7 +14591,6 @@ end
     nchecked = Ref(0)
     function _walkschema(node, path)
         for (name, sub) in node.subcmds
-            is_hidden_alias(name, sub) && continue
             p = vcat(path, [name])
             if sub isa LeafCommand
                 s = _input_schema(sub, p)
@@ -13408,7 +14620,7 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
     @testset "_mcp_tools naming" begin
         tools = _mcp_tools()
         names = [t[1] for t in tools]
-        @test "estimate_var" in names
+        @test "estimate_multivariate_var" in names
         @test "dsge_bayes_estimate" in names
         @test length(names) == length(unique(names))
         @test !("serve" in names)             # never serves itself
@@ -13423,16 +14635,16 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
                      Option("output"; type=String, default="")],
             flags=[Flag("plot")],
             description="t")
-        p = ["estimate", "var"]
+        p = ["estimate", "multivariate", "var"]
         # full surface: positional + option + true flag + forced json
         argv = _mcp_argv(leaf, p, Dict{Symbol,Any}(
             :data => "x.csv", :lags => 2, :plot => true))
-        @test argv == ["estimate", "var", "x.csv", "--lags", "2", "--plot",
+        @test argv == ["estimate", "multivariate", "var", "x.csv", "--lags", "2", "--plot",
                        "--format", "json"]
         # false flag omitted; user format overridden by the forced json
         argv2 = _mcp_argv(leaf, p, Dict{Symbol,Any}(
             :data => "x.csv", :plot => false, :format => "csv"))
-        @test argv2 == ["estimate", "var", "x.csv", "--format", "json"]
+        @test argv2 == ["estimate", "multivariate", "var", "x.csv", "--format", "json"]
         # unknown key → forwarded so the strict parser rejects with a hint
         argv3 = _mcp_argv(leaf, p, Dict{Symbol,Any}(:data => "x.csv", :lgas => 2))
         @test "--lgas" in argv3
@@ -13487,7 +14699,7 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
         @test tl.id == 2
         tools = tl.result.tools
         @test length(tools) > 400
-        est = only(t for t in tools if t.name == "estimate_var")
+        est = only(t for t in tools if t.name == "estimate_multivariate_var")
         @test haskey(est, :inputSchema)
         @test String(est.inputSchema.type) == "object"
         @test "data" in String.(est.inputSchema.required)
@@ -13504,3 +14716,195 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
         @test err isa CliError && err.code == "usage/missing"
     end
 end
+
+@testset "W3/#167: universal serialization + reproduce" begin
+    @testset "_fwd_seed" begin
+        _SEED[] = nothing
+        @test isempty(_fwd_seed())
+        _SEED[] = 7
+        @test _fwd_seed() == (; seed=7)
+        _SEED[] = nothing
+    end
+
+    @testset "fallback registry is the 0.9.3 set" begin
+        @test length(_NATIVE_SAVE_TYPES_FALLBACK) == 350
+        for t in ("VARModel", "BVARPosterior", "RegModel", "DSGESolution",
+                  "PerturbationSolution", "KrusellSmithSolution", "HASteadyState",
+                  "HADSGESolution", "BayesianDSGE", "PosteriorMode", "SVARModel",
+                  "SVECResult", "MaxShareResult", "ProxySVARResult",
+                  "RobustBayesResult", "SignIdentifiedSet", "ImpulseResponse",
+                  "BayesianImpulseResponse", "FEVD", "VARForecast", "BVARForecast",
+                  "IOMultipliers", "LinkageResult", "JohansenResult",
+                  "IdentifiabilityTestResult", "MFVARPosterior", "TVPVARPosterior")
+            @test t in _NATIVE_SAVE_TYPES_FALLBACK
+        end
+    end
+
+    @testset "seeded mock estimators record manifests" begin
+        Y = randn(60, 2)
+        post = estimate_bvar(Y, 1; seed=11)
+        @test post.manifest !== nothing && post.manifest.seed == 11
+        @test estimate_bvar(Y, 1).manifest === nothing
+    end
+
+    @testset "model info reads the native header" begin
+        mktempdir() do dir
+            p = joinpath(dir, "m.jld2")
+            save_model_dispatch(p, estimate_bvar(randn(60, 2), 1))
+            info = _native_model_info(p)
+            @test info.model_type == "BVARPosterior"
+            @test info.magic == "MEMs native (jld2)"
+            @test info.note == ""
+            doc = _run_leaf(["model", "info", p])
+            @test string(doc.status) == "ok"
+            @test haskey(doc.data, :model_handle_info)
+        end
+    end
+
+    @testset "model reproduce: match / decline / unsupported" begin
+        mktempdir() do dir
+            seeded = joinpath(dir, "s.jld2")
+            save_model_dispatch(seeded, estimate_bvar(randn(60, 2), 1; seed=11))
+            doc = _run_leaf(["model", "reproduce", seeded])
+            @test string(doc.status) == "ok"
+            @test haskey(doc.data, :model_reproduce_summary)
+            @test haskey(doc.data, :model_reproduce_fields)
+            mrow = only(r for r in doc.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow[2] == "true"
+            srow = only(r for r in doc.data.model_reproduce_summary.rows if r[1] == "seed")
+            @test srow[2] == "11"
+
+            plain = joinpath(dir, "u.jld2")
+            save_model_dispatch(plain, estimate_bvar(randn(60, 2), 1))
+            doc2 = _run_leaf(["model", "reproduce", plain])
+            @test string(doc2.status) == "ok"
+            mrow2 = only(r for r in doc2.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow2[2] == "unverifiable (no recorded seed)"
+            @test !haskey(doc2.data, :model_reproduce_fields)
+
+            # Deterministic models carry no manifest: upstream's universal
+            # reproduce(x) fallback answers with a missing verdict (exit 0),
+            # never model/unsupported — the honest "cannot verify", not a pass.
+            varp = joinpath(dir, "v.jld2")
+            save_model_dispatch(varp, estimate_var(randn(60, 2), 1))
+            doc3 = _run_leaf(["model", "reproduce", varp])
+            @test string(doc3.status) == "ok"
+            mrow3 = only(r for r in doc3.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow3[2] == "unverifiable (no recorded seed)"
+            @test !haskey(doc3.data, :model_reproduce_fields)
+
+            # missing positional: the strict parser throws before any envelope
+            # (same ParseError family as every other leaf's missing-arg case)
+            errm = try
+                _dispatch_via_app(["model", "reproduce", "--format", "json"])
+                nothing
+            catch e
+                e
+            end
+            @test errm isa ParseError
+            @test occursin("missing required argument", errm.message)
+        end
+    end
+
+    @testset "model reproduce via model:// session handle" begin
+        _SERVE_MODEL_STORE[] = Dict{String,Any}()
+        try
+            save_model_dispatch("model://rep", estimate_bvar(randn(60, 2), 1; seed=5))
+            doc = _run_leaf(["model", "reproduce", "model://rep"])
+            @test string(doc.status) == "ok"
+            mrow = only(r for r in doc.data.model_reproduce_summary.rows if r[1] == "matched")
+            @test mrow[2] == "true"
+        finally
+            _SERVE_MODEL_STORE[] = nothing
+        end
+    end
+end
+
+@testset "v1.0.0 command structure (#199-#204)" begin
+    est = register_estimate_commands!()
+    @test est.subcmds["volatility"] isa NodeCommand
+    @test haskey(est.subcmds["volatility"].subcmds, "garch")
+    @test est.subcmds["volatility"].subcmds["garch"].family == "volatility"
+
+    rows = model_catalog()
+    star = only(r for r in rows if r.token == "star")
+    setar = only(r for r in rows if r.token == "setar")
+    @test !haskey(star.verbs, "predict")
+    @test !haskey(setar.verbs, "predict")
+    @test haskey(star.verbs, "residuals") && haskey(star.verbs, "forecast")
+    garch = only(r for r in rows if r.token == "garch")
+    raw = only(s for s in _prepared_estimate_specs() if s.path[end] == "garch")
+    cat = garch.verbs["estimate"]
+    @test [o.name for o in cat.options] == [o.name for o in raw.options]
+    @test [o.type for o in cat.options] == [o.type for o in raw.options]
+    @test [o.default for o in cat.options] == [o.default for o in raw.options]
+    @test [f.name for f in cat.flags] == [f.name for f in raw.flags]
+    @test [t.name for t in cat.tables] == [t.name for t in raw.tables]
+    @test cat.data_kinds == raw.data_kinds
+    @test !any(r -> r.token == "evaluate", rows)
+
+    if !@isdefined(APP)
+        error("APP must exist for tools/list")
+    end
+    alltools = _mcp_tools()
+    @test !any(t -> t[1] == "serve", alltools)
+    vol = _mcp_tools(prefix="estimate volatility")
+    @test !isempty(vol)
+    @test all(t -> t[3][1] == "estimate" && t[2].family == "volatility", vol)
+    @test any(t -> t[1] == "estimate_volatility_garch", vol)
+    @test isempty(_mcp_tools(prefix="nosuch"))
+    # unknown prefix is an empty successful list, not an RPC error
+    input = IOBuffer("""{"jsonrpc":"2.0","id":9,"method":"tools/list","params":{"prefix":"nosuch"}}\n""")
+    output = IOBuffer()
+    _serve_loop(input, output)
+    resp = JSON3.read(strip(String(take!(output))))
+    @test haskey(resp, :result)
+    @test isempty(resp.result.tools)
+
+    function _unknown(args)
+        try
+            _dispatch_via_app(String.(args))
+            nothing
+        catch e
+            e
+        end
+    end
+    for (old, neu) in (
+        (["estimate", "garch"], "estimate volatility garch"),
+        (["test", "adf"], "test unit-root adf"),
+        (["did", "test", "bacon"], "test did bacon"),
+        (["dsge", "ha", "solve"], "hadsge solve"),
+        (["multipliers", "nardl"], "estimate univariate nardl"),
+        (["estimate", "var", "var"], "estimate multivariate var"),
+        (["estimate", "var", "bvar"], "estimate multivariate bvar"),
+        (["forecast", "var", "scenario"], "forecast multivariate scenario"),
+        (["test", "var", "granger"], "test multivariate granger"),
+    )
+        err = _unknown(old)
+        @test err isa DispatchError
+        @test occursin(neu, err.message)
+        @test occursin("unknown command", err.message)
+    end
+    # test vif still resolves; test other vif does not
+    @test _dispatch_via_app(["test", "vif", "--help"]) === nothing
+    other = _unknown(["test", "other", "vif"])
+    @test other isa DispatchError
+    @test !occursin("use `", other.message)
+
+    nardl = only(r for r in rows if r.token == "nardl").verbs["estimate"]
+    nnames = Set(string(t.name) for t in nardl.tables)
+    @test "nardl_cumulative_dynamic_multipliers" in nnames
+    @test "nardl_multipliers_summary" in nnames
+
+    # schema exposes family
+    doc = JSON3.read(strip(_capture() do
+        dispatch_schema(["estimate", "volatility", "garch"])
+    end))
+    @test String(doc.family) == "volatility"
+    node = JSON3.read(strip(_capture() do
+        dispatch_schema(["estimate"])
+    end))
+    @test any(f -> String(f.name) == "volatility", node.families)
+end
+
+include(joinpath(project_root, "test", "test_handles.jl"))

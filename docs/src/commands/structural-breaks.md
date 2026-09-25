@@ -1,15 +1,15 @@
 # Structural Break Tests
 
-Tests for structural breaks in time series regression models. 2 subcommands under `test`.
+Tests for structural breaks in time series regression models, under `test stability`.
 
-## test andrews
+## test stability andrews
 
 Andrews (1993) supremum-type structural break test. Tests for a single unknown break point in a linear regression by computing the sup, exponential, or mean of Wald/LR/LM statistics over candidate break dates.
 
 ```bash
-friedman test andrews data.csv --response=1 --test=supwald
-friedman test andrews data.csv --response=2 --test=explr --trimming=0.20
-friedman test andrews data.csv --response=1 --test=meanlm
+friedman test stability andrews data.csv --response=1 --test=supwald
+friedman test stability andrews data.csv --response=2 --test=explr --trimming=0.20
+friedman test stability andrews data.csv --response=1 --test=meanlm
 ```
 
 | Option | Short | Type | Default | Description |
@@ -38,14 +38,14 @@ friedman test andrews data.csv --response=1 --test=meanlm
 
 **Output:** Test statistic, p-value, estimated break date, and rejection decision.
 
-## test bai-perron
+## test stability bai-perron
 
 Bai-Perron (1998) multiple structural break test. Estimates the number and location of multiple break points in a linear regression using a sequential or global optimization approach.
 
 ```bash
-friedman test bai-perron data.csv --response=1 --max-breaks=5
-friedman test bai-perron data.csv --response=2 --max-breaks=3 --criterion=lwz
-friedman test bai-perron data.csv --response=1 --trimming=0.20
+friedman test stability bai-perron data.csv --response=1 --max-breaks=5
+friedman test stability bai-perron data.csv --response=2 --max-breaks=3 --criterion=lwz
+friedman test stability bai-perron data.csv --response=1 --trimming=0.20
 ```
 
 | Option | Short | Type | Default | Description |

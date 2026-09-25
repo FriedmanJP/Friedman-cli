@@ -76,8 +76,8 @@ end
     _domain_error_class(e) → Union{CliError,Nothing}
 
 Translate a MacroEconometricModels domain exception into a typed `CliError`.
-Returns `nothing` when `e` is not a recognized MEMs domain error, so the caller
-falls back to the generic internal-error path (exit 1).
+Returns `nothing` when `e` is not one, so the caller falls back to the
+generic internal-error path (exit 1).
 
 - `ConvergenceError`     → `model/convergence` (5)
 - `IdentificationError`  → `model/identification` (5)

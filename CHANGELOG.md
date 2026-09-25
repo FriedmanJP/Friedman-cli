@@ -4,6 +4,350 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
+
+First major. 477 leaves / 21 top-level. MEMs pin
+**0.9.7 → 1.0.0** (exact); Julia compat **1.12 → 1.13** (1.12
+dropped). C055 freeze: the 7 hidden snake_case aliases and
+`FRIEDMAN_LEGACY_OUTPUT` are removed; envelope schema v1 is frozen.
+
+- **Command tree (#198–#204):** depth-2 leaves under `estimate`,
+  `predict`, `residuals`, `forecast`, and `test` gain their family as
+  the middle segment (`estimate volatility garch`, `test unit-root adf`).
+  Family `other` stays flat (`test vif`). `did test *` is `test did *`.
+  The 11 HouseholdSystem leaves are top-level `hadsge` (`hadsge solve`);
+  representative-agent `dsge` and `dsge ct|olg|dcegm|lifecycle|firm|bank`
+  stay. `multipliers nardl` folds onto `estimate univariate nardl`
+  (same two table keys). Removed spellings exit 2 and name the new path.
+  `data simulate` and `policy` paths are unchanged. Envelope schema
+  stays v1.
+- **Model family `var` → `multivariate`** (incl. `test var`):
+  `estimate var var` stuttered; the family holding `var`, `bvar`,
+  `vecm`, `svar`, `svec`, `tvpvar`, `mfvar`, `favar`, `lp`
+  (and forecast-only `scenario`) is now `multivariate`
+  (`estimate multivariate var`, `test multivariate granger`), mirroring
+  the `univariate` sibling. Table keys and envelope schema unchanged.
+  Removed `<verb> var …` spellings exit 2 and name the new path.
+
+- **MEMs 1.0.0**: lead-variable catalog (#223 — `LinearDSGE.Pi` one
+  column per distinct lead) and the two-asset steady-state closer
+  rewrite (#709 — `rb_init`/`relax_K`/`relax_rb` gone,
+  `k_lo`/`k_hi`/`inner_max_iter`/`k_atol`/`stable_iters` added,
+  defaults retuned) absorbed with no adapter change — the CLI never
+  touched the changed names. Plot-coverage 181/181; mock-surface hard 0;
+  captures show no value drift. MEMs 1.0.0 added no exports. Native save
+  registry at **352 types**.
+- **`data simulate` (#177):** 21 leaves. DGP simulators (`var`, `svar`,
+  `heteroskedastic-var`, `arima`, `garch`, `sv`, `vecm`, `cointreg`,
+  `ardl`, `factors`, `lp-iv`, `panel`, `pvar`, `did`, `gmm`, `regime`,
+  `cross-section`) each emit `simulated_data`, a flattened
+  `population_truth` table, and `simulation_settings`. `--seed` builds
+  the positional `Xoshiro` those simulators require. DSGE models have
+  no `dgp_*`: `dsge`, `ha`, `olg`, and `ct` solve and then `simulate`.
+  `dsge --meas-sd` records the measurement-error variance. `did` passes
+  only adoption dates inside the sample (upstream 6, 11, 16 when they
+  fit) and omits a non-finite cohort ATT. The hermetic
+  T3 generators in `test/integration/dgp.jl` stay; `var_irf`,
+  `var_fevd`, and `lyapunov_gamma0` are the closed-form checks on the
+  VAR leaves.
+- **Julia 1.13**: ~30% faster precompile, ~20% faster startup
+  upstream; dev-CLI cold runs measure ~1.8x faster than 1.12
+  (`--version` 5.6s vs 10.3s, `estimate var` 8.6s vs 16.1s, best of
+  3). `redirect_stdout(IOBuffer)` still unavailable — tempfile
+  capture stays.
+- **C055 freeze**: kebab-case only (`gjr_garch`, `arch_lm`,
+  `ljung_box`, `hansen_j` are now unknown commands, exit 2);
+  `--format json` always emits exactly one envelope (the env var is
+  ignored). Goldens regen: 17 files, all value-identical (Julia 1.13
+  key-order churn only).
+- **Build/CI**: matrices, installers, and release launchers require
+  Julia 1.13; TS-10 early-warning leg tracks prereleases;
+  `docs/Manifest.toml` re-resolved on 1.13. C074 latency budgets ride
+  unchanged until the 1.13 floor is measured at release time
+  (recorded on #79).
+- **`hd sdfm`**: new leaf wrapping
+  `historical_decomposition(::StructuralDFM)` — `--space panel|factor`,
+  `--no-idiosyncratic` (panel only), shared SDFM estimation surface,
+  `--result`/`--model` handles, `--plot`/`--plot-save`. 477th leaf.
+- **`estimate univariate nardl --plot`**: the multipliers figure
+  (`plot_result(::NARDLModel)`, one panel per asymmetric regressor)
+  is now advertised; 147 of 477 leaves are plot-capable.
+- **`estimate multivariate var` names (#119 follow-up)**: `var_coefficients`
+  forwards `varnames=` like the `irf`/`fevd`/`forecast` family, so
+  equations/terms carry CSV names instead of positional `y1..yn`.
+  Mock SDFM shock/factor names corrected to real
+  (`Shock $i` / `Static factor $i`); one golden regen'd.
+
+## [0.13.1] — 2026-09-18 — MEMs 0.9.7 adoption (#191–#196)
+
+Additive 0.x patch. 456 leaves / 21 top-level, unchanged. MEMs pin
+**0.9.6 → 0.9.7**.
+
+- **Pin** `MacroEconometricModels = "=0.9.7"`. Uhlig sign-normalization
+  (#814) absorbed with no golden/capture drift (goldens are mocks;
+  captured examples do not hit `--id uhlig`). `DSGESolveError` residual
+  gate (#816) already mapped to `model/solve`. Plot-coverage 181/181.
+- **SDFM statistical ID** (`--id lewis-tvv|sv-em|gmm-moments`) via
+  MEMs#830 `id_kwargs`. Invalid `--id` stays `data/invalid`.
+- **`vfi_value_function`** renders `physical_nodes(sol)` (MEMs#829);
+  closes #182.
+- **`estimate gmm` opt-in IV path:** `[gmm].dep` + `theta0` call
+  `estimate_gmm(...; X, Z)` so Stock–Yogo `first_stage_F` renders.
+  LP-GMM remains the default when those keys are omitted.
+- Retired the scheduled Nightly workflow. Push CI and the MEMs-dev
+  canary remain.
+
+## [0.13.0] — 2026-09-11 — Typed handles pipeline (#189)
+
+Additive 0.x minor. CSV remains legal on every leaf that already accepted it.
+MEMs pin stays **0.9.6**.
+
+The CLI prefers MEMs typed containers (`TimeSeriesData`, `PanelData`,
+`CrossSectionData`) as the unit of work. Fitted models and result objects
+are first-class inputs via kind-specific flags. Native persist is `.jld2`;
+argv takes a **stem** (`.jld2` is not part of the command language).
+
+- New leaves: `data import`, `data export`, `friedman show` — **456 leaves /
+  21 top-level** (was 453 / 20).
+- Registry: `CommandSpec.data_kinds` / `model_types` / `result_types`;
+  `wrap_legacy` type-checks before the handler (`data/wrong-kind` exit 3,
+  `model/wrong-kind` exit 5, `data/wrong-result` exit 3).
+- Stem load: `.jld2` preferred, then data-slot `.csv`, then exact path.
+  `FRIEDMAN_DATA_ROOT` confinement runs on **resolved** paths.
+- `--result` / `--save-result` on producing leaves; `forecast evaluate
+  --result` takes comma-separated stems (string option, not a single handle
+  load). `friedman schema` advertises `x-handle`.
+- CI drift gate `test/tools/check_handle_kinds.jl` (nonempty `data_kinds` on
+  data slots; nonempty `model_types` / `result_types` on `handle=true`
+  `--model` / `--result`).
+- Gates on #189: T3 integration-core green; T1/T2 Command Handlers 1934/1934;
+  goldens 59/59; docs inventory `--check` 456/21; gitleaks + semgrep clean.
+
+## [0.12.3] — 2026-09-09 — MEMs 0.9.6 adoption program (#184–#187)
+
+C038 bump, re-resolved from General. Upstream 0.9.6 delta is purely
+additive (1096 insertions, 0 deletions): Lewis TVV-ID
+(`lewis_tvv.jl`) + Bertsche–Braun SV-SVAR (`sv_svar.jl`) + TVV
+shock simulators (`nongaussian/tvv_common.jl`), 4 new exports,
+2 new `plot_result` recipes. Full per-point ledger (MEMs
+#823–#827) with tag-line evidence: `docs/src/commands/not-wrapped.md`
+(W0/#185 section).
+
+- **W1 (#186): heteroskedastic identification exposure.** New
+  `--id` values `lewis-tvv`/`sv-em` on the irf/fevd/hd var+vecm
+  leaves (bvar/lp work through the shared base map, unadvertised;
+  SDFM stays estimation-gated, MEMs#830 filed); TOML-first knobs
+  under `[identification.lewis_tvv]` / `[identification.sv_svar]`
+  (weighting/hetero_shocks/maxiter/gibbs_burn/gibbs_draws/init).
+  No new leaves (453, unchanged), no Q-injection, LP knobs stay
+  default (upstream allow-list has no knob channel). Recovery
+  teeth on a non-recursive SV DGP (seeded, determinism-pinned),
+  per-family smokes, exit-class pins (config/usage/data/model).
+  Review hardening: VAR-IRF + SDFM loader wraps (upstream bare
+  ArgumentErrors → data/invalid, exit 3), BVAR prior-default
+  KeyError fix, ID_METHOD_MAP pin 16→18. Final gates: T3
+  4180/4180 green; T1/T2 green; mock-surface PASS; plot-coverage
+  181/181 (ADDED LewisTVVResult/SVSVARResult, audited); docs
+  reference `--check` OK.
+
+## [0.12.2] — 2026-09-08 — MEMs 0.9.5 adoption program (#178–#181)
+
+CLI v0.12.2 adopts MacroEconometricModels **0.9.5**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed (453 leaves /
+20 top-level, unchanged).
+
+C038 bump, re-resolved from General (MEMs 0.9.4→0.9.5 plus routine
+transitive patches — NonlinearSolve stack, Ipopt, JSON, SciMLBase;
+197→197 packages, none added or removed; Optim pre-existing at 2.3.1).
+The 0.9.5 `src/` delta is `vfi.jl` + new `vfi_smolyak.jl` + one include
+line, absorbed as the Smolyak VFI grid + anisotropic levels
+(#817/#819/#821) and the control-vector Bellman optimizer (#818) — with
+two issue-text corrections (the optimizer set is 4 symbols including
+`:fminbox_nm`, and `dsge estimate` carries no VFI knobs).
+
+Final gates: T3 4084/4084 green; T1/T2 green; golden regen zero drift
+(mocks); docs captures OK with no regen; mock-surface PASS with the
+mock kept a strict subset (no new upstream exports); plot-coverage
+179/179 with neither ADDED nor REMOVED; table-keys PASS; docs reference
+`--check` OK. Full per-issue ledger (MEMs #817–#821) with file:line
+evidence: `docs/src/commands/not-wrapped.md` (W0/#179 section).
+
+### Decision record
+
+- **W0 (#179): 0.9.5 absorption ledger.** → W1: Smolyak VFI grid +
+  anisotropic levels (#817/#819/#821), control-vector Bellman
+  optimizer (#818: `:auto`/`:grid1d`/`:fminbox_nm`/`:fminbox_lbfgs`,
+  `optimizer_opts` keys `iterations`/`x_tol`/`f_tol`/`g_tol`/
+  `show_trace`). No-ops: solver docs + upstream tests (#820),
+  upstream lint + release docs; HA `--hh-solver vfi` / PE-VFI
+  untouched (file-list proof). Verified: `solve(method=:vfi)`
+  forwards kwargs verbatim (threading needs no dispatch change);
+  VFI-capable leaves are solve/irf/simulate only; no `seed=` kwarg
+  (global-RNG story unchanged). Watches re-checked: MEMs#609/#255
+  open with no movement, no `report()` overhaul, MEMs 1.0
+  unannounced, upstream OPEN #814/#815/#816 noted (not scope).
+
+- **W1 (#180): Smolyak VFI + multi-control optimizer.** `dsge
+  solve`/`irf`/`simulate --method vfi` gain `--grid smolyak`,
+  `--optimizer auto|grid1d|fminbox-nm|fminbox-lbfgs`, and
+  `--smolyak-mu` (scalar `μ ≥ 0` or per-dimension vector); the stale
+  "Smolyak value-function iteration is not implemented" guard is
+  gone. `--grid auto` passes through to upstream routing (`nx ≤ 3`
+  → tensor, bit-identical; `nx ≥ 4` → Smolyak — the only behavior
+  move, for previously near-intractable default solves).
+  Provably-dead explicit combos are `usage/invalid`; the `auto`
+  corners stay permissive. Diagnostics gain `n_nodes` +
+  `smolyak_blocks`. Deferred with record: `optimizer_opts`
+  (upstream defaults apply), `--smolyak-mu` for PFI/projection.
+  Pre-existing fixes with T1/T2+T3 regression: `dsge simulate`
+  on projection/pfi/vfi exited 1 on an unsupported `antithetic`
+  kwarg (now type-branched with `seed=` forwarding); the mock
+  `@dsge` spliced `utility:` bare (`UndefVarError` on the first
+  VFI-success test). Full decision record: `docs/src/commands/
+  not-wrapped.md` (W1/#180 appendix).
+
+## [0.12.1] — 2026-09-06 — MEMs 0.9.4 adoption program (#171–#174)
+
+CLI v0.12.1 adopts MacroEconometricModels **0.9.4**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed (453 leaves /
+20 top-level, unchanged).
+
+Two user-visible numerical caveats vs 0.12.0. First, the same `--seed`
+produces different randomized streams than 0.12.0: upstream default RNGs
+moved `MersenneTwister` → `Xoshiro` (determinism and `model reproduce`
+bit-reproduction are preserved). Second, SMM/GMM J-test p-values under
+identity weighting are now honestly `n/a` (identity weighting has no χ²
+limit — an efficient weighting is required) instead of a bare `NaN`.
+
+C038 bump, re-resolved from General (MEMs-only Manifest delta, no new
+transitives). T3 4031/4031 green; golden regen zero drift (mocks); docs
+captures one attributed regen (`dsge ha solve huggett --method reiter`
+`explained_variance` ULP move from the upstream `Xoshiro(1234)` default —
+see below); mock-surface PASS with the mock kept a strict subset (none of
+the 40 new upstream DGP exports added — no handler consumes them);
+plot-coverage 179/179 with neither ADDED nor REMOVED. Hands W1 the J-test
+NaN verdicts (GMM *and* SMM under identity weighting) plus two stale
+`MersenneTwister` comments, and W2 the DGP-library exposure decision.
+Full per-issue ledger (MEMs #790–#807 + #813) with file:line evidence:
+`docs/src/commands/not-wrapped.md` (W0/#171 section).
+
+### Decision record
+
+- **W0 (#171): 0.9.4 absorption ledger.** Defer: the 40-export `src/dgp/`
+  simulation library (no CLI leaf calls it; W2 decides exposure vs defer
+  + T3-harness adoption). No-ops (verified unreachable/display-only):
+  `compare_var_lp` off-by-one fix, `_smooth_lp_cv_errors` kwarg gate,
+  Johansen `_fmt`, upstream DGP-02–DGP-04/06/07/09–18 test seeding. W1
+  scope: SMM `j_test` NaN p-value under identity weighting (matches the
+  pre-existing GMM M-29 policy — both leaves render it), Xoshiro comment
+  rewords. Watches re-checked: MEMs#609/#255 open with no movement,
+  no `report()` overhaul, MEMs 1.0 unannounced.
+
+- **W1 (#172): 0.9.4 correctness moves.** SMM J p-value under identity
+  weighting renders `n/a (identity weighting — χ² limit needs efficient
+  weighting)` instead of a bare `NaN` (`_estimate_smm`); same NaN guard
+  applied to the `_estimate_gmm` J-test, whose verdict branch now reports
+  n/a on NaN instead of misreading `NaN < 0.05` as "Cannot reject"
+  (`j_test(::GMMModel)` shares the M-29 NaN policy per the W0 ledger —
+  through this leaf LP-GMM is just-identified, so the guard is
+  defense-in-depth, pinned by T3). T3: new identity-weighting SMM case
+  (n/a note, no bare NaN) + GMM identity/twostep cases pinning upstream
+  behavior. Stale `MersenneTwister` comments reworded to `Xoshiro`
+  (`shared.jl`, `dsge.jl`); CLI-owned `MersenneTwister(seed)`
+  constructions untouched. Verified no-ops: `compare_var_lp`
+  unreachable (zero `src/` hits, no `policy`/counterfactual transit),
+  `estimate_smooth_lp` call passes only `n_knots`/`lambda` (the
+  `_smooth_lp_cv_errors` kwarg gate cannot trigger — CLI calls
+  `cross_validate_lambda` positionally), Johansen `_fmt` display-only
+  (`test johansen` rounds result fields itself).
+
+- **W2 (#173): 0.9.4 DGP-library decision (no feature code).** Defer:
+  no `data simulate` leaf in v0.12.1 — a useful family is ~15–20 leaves
+  against a patch line, truth+data bundles need envelope schema design
+  (upstream returns NamedTuples, not tables), and upstream simulators
+  take a positional `rng` (no `seed=` kwarg for `_fwd_seed`); sketch +
+  T3 oracle-helper adoption filed as #177 (0.13.0 candidate). T3 harness
+  stays hermetic (32 local CSV-path DGPs, pinned streams). No-ops:
+  upstream white-noise lint, simulation guide, DGP API reference.
+  Watches re-checked at 0.9.4: MEMs#609/#255 open with no movement, no
+  `report()` overhaul, MEMs 1.0 unannounced. Full table:
+  `docs/src/commands/not-wrapped.md` (W2/#173 section).
+
+## [0.12.0] — 2026-09-06 — MEMs 0.9.3 adoption program (#163–#169)
+
+CLI v0.12.0 adopts MacroEconometricModels **0.9.3**. The machine surface stays
+additive: no leaf, option, or flag is removed or renamed.
+
+### Added
+
+- **SVAR expansion** (#166): new `estimate svar` (AB-model ML — `recursive`,
+  `blanchard-quah`, and TOML-matrix `a-model`/`b-model`/`ab-model` with `nan`
+  marking free parameters) and `estimate svec` (KPSW default plus optional
+  `[svec]` long/short-run zero matrices) leaves, both plot-capable with native
+  save/load handles; `--id narrative-adrr` on the `irf`/`fevd`/`hd` `var`
+  leaves runs ADRR narrative contributions through the Arias pipeline
+  (requires `[identification.narrative_contributions]` in `--config`);
+  `--id svec` on the `irf`/`fevd`/`hd` `vecm` leaves routes through
+  `identify_svec` on the VECM itself (KPSW default, optional `[svec]` zeros;
+  IRFs are point-only, `--ci none`); `--id robust-bayes` on `irf bvar`
+  renders Giacomini–Kitagawa robust bands from the posterior; `irf var
+  --identified-set --summary` selects a set-identified summary
+  (`median-target`/`modal-model`/`joint-band`/`sup-t-band`); `test
+  identifiability` gains opt-in `lambda-distinct`/`gaussian-count`/
+  `label-stability` riders plus `--n-bootstrap`; unknown `--id` values are now
+  `usage/invalid` instead of silently falling back to Cholesky. Deferred with
+  record: `label_shocks`, K-regime tokens, RWZ checker (enforced upstream).
+
+### Added
+
+- **Universal serialization + reproduce** (#167): the native `.jld2` registry
+  grows 73 → **350** types (frozen fallback + mock mirror refreshed; all 73 old
+  names still registered, `SERIALIZATION_FORMAT_VERSION` stays 1); the
+  DSGE/HA-solution `.fmod` carve-out is **retired** — native round-trips proven
+  field-by-field on real MEMs for `DSGESolution` (reloaded solution computes
+  IRFs; only load-time `ss_fn` closures differ by design), `SVARModel`,
+  `HASteadyState`, and `KrusellSmithSolution` (incl. `manifest.seed`); new
+  **`model reproduce`** leaf re-runs a saved handle from its `ReproManifest`
+  seed and reports a match verdict plus per-field diffs (honest
+  `unverifiable` when no seed was recorded; works on `.jld2`/`.fmod`/`model://`);
+  `--seed` is now forwarded as estimators' own `seed=` everywhere 0.9.3
+  supports it — BVAR/IRF (existing) plus SV, MFVAR, TVPVAR, FAVAR, SDFM, SMM,
+  quantile/robust/SETAR/threshold, NARDL multipliers, DiD, structural LP, PVAR
+  bootstrap IRF, conditional forecast, all `identify_*`/non-Gaussian tests,
+  wild-cluster bootstrap, MS/SETAR/STAR forecasts, the full policy/OPP family,
+  DSGE Bayes estimation + predictives, and Krusell–Smith solves — via one
+  `_fwd_seed()` helper that passes nothing when `--seed` is absent (so
+  `seed::Int=<const>` defaults are untouched). `model info` now reads the
+  container header (`model_info`: writing versions, note, bundle layout)
+  without reconstructing the payload, with best-effort dimensions.
+
+### Changed
+
+- MEMs pin `=0.9.0` → `=0.9.3` (#164).
+- Explicit no-surface (recorded): no `--compress` flag, no bundle/`note=`
+  writers — the CLI stays single-model-per-file and deterministic-default;
+  `model info` displays a saved note on the read path. CodecZlib arrives
+  transitively with JLD2 (already in the Manifest/bundle, zlib-licensed), so
+  no C060 action. Out of scope kept out: `posterior_mode` (no draws, no
+  `seed=`), rng-only paths (`historical_decomposition`, VAR/BVAR/ARIMA
+  forecasts, `identify_robust_bayes`, DSGE `simulate` leaves which pin their
+  own RNG), pre-`#786` `seed::Int=<const>` spec tests, and uncalled helpers
+  (`irf_match`, `model_average`, `identify_arias_bayesian`,
+  `hansen_linearity_test`, `posterior_predictive_check`).
+
+### Decision record
+
+- **W4 (#168): unexposed 0.9.1–0.9.3 remainder.** Adopted: SDFM `:auto`
+  corners (W1), #753 identification-serialization details (W3). Wontwrap:
+  `varindex`, `refs`/`report` as data, `TimeSeriesData` conveniences, v1
+  fixtures (#770). Deferred: `estimate_svar` experimental extensions,
+  ForwardDiff internals (#756), oracle/DGP helpers (#755). No direct
+  surface: `compute_Q` registry (reached via `identify_*`). Declined:
+  bundles/`note=`/`compress=`. Watches: MEMs#609/#255 (no movement),
+  `report()` overhaul (none landed), MEMs 1.0 (not announced), plus
+  CLI-filed MEMs#816 (LinearSolve world-age boom on the steady-state
+  QR-fallback branch). Full table: `docs/src/commands/not-wrapped.md`.
+
 ## [0.11.0] — 2026-08-29
 
 CLI v0.11.0 adopts MacroEconometricModels **0.9.0** (program index #150, waves

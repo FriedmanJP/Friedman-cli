@@ -1,17 +1,17 @@
 # Panel Unit Root Tests
 
-Panel unit root tests that account for cross-sectional dependence via common factors. 4 subcommands under `test`.
+Panel unit root tests that account for cross-sectional dependence via common factors, under `test`.
 
 All panel unit root tests accept CSV data in wide format (rows = time periods, columns = cross-sectional units) or panel format with `--id-col` and `--time-col` options.
 
-## test panic
+## test panel panic
 
 PANIC (Panel Analysis of Nonstationarity in Idiosyncratic and Common components) test by Bai & Ng (2004). Decomposes panel data into common factors and idiosyncratic components, then tests each for unit roots separately.
 
 ```bash
-friedman test panic panel.csv --factors=auto
-friedman test panic panel.csv --factors=3 --method=individual
-friedman test panic panel.csv --id-col=country --time-col=year
+friedman test panel panic panel.csv --factors=auto
+friedman test panel panic panel.csv --factors=3 --method=individual
+friedman test panel panic panel.csv --id-col=country --time-col=year
 ```
 
 | Option | Short | Type | Default | Description |
@@ -25,14 +25,14 @@ friedman test panic panel.csv --id-col=country --time-col=year
 
 **Output:** Test statistic, p-value, number of factors, and verdict on panel-wide stationarity.
 
-## test cips
+## test unit-root cips
 
 Pesaran (2007) Cross-sectionally Augmented IPS (CIPS) test. Augments individual ADF regressions with cross-sectional averages to account for common factors without explicitly estimating them.
 
 ```bash
-friedman test cips panel.csv
-friedman test cips panel.csv --lags=4 --deterministic=trend
-friedman test cips panel.csv --id-col=country --time-col=year
+friedman test unit-root cips panel.csv
+friedman test unit-root cips panel.csv --lags=4 --deterministic=trend
+friedman test unit-root cips panel.csv --id-col=country --time-col=year
 ```
 
 | Option | Short | Type | Default | Description |
@@ -46,14 +46,14 @@ friedman test cips panel.csv --id-col=country --time-col=year
 
 **Output:** CIPS statistic, p-value, and rejection decision. CIPS is the average of individual CADF statistics.
 
-## test moon-perron
+## test unit-root moon-perron
 
 Moon & Perron (2004) panel unit root test. Uses a factor-based approach where common factors are estimated and removed before applying modified t-statistics.
 
 ```bash
-friedman test moon-perron panel.csv
-friedman test moon-perron panel.csv --factors=2
-friedman test moon-perron panel.csv --id-col=country --time-col=year
+friedman test unit-root moon-perron panel.csv
+friedman test unit-root moon-perron panel.csv --factors=2
+friedman test unit-root moon-perron panel.csv --id-col=country --time-col=year
 ```
 
 | Option | Short | Type | Default | Description |
@@ -66,14 +66,14 @@ friedman test moon-perron panel.csv --id-col=country --time-col=year
 
 **Output:** Modified t-bar and t-star statistics with p-values and number of factors.
 
-## test factor-break
+## test stability factor-break
 
 Factor break test for structural change in the factor structure of a panel. Tests whether the factor loadings or factor structure has changed at an unknown break point.
 
 ```bash
-friedman test factor-break panel.csv --factors=2
-friedman test factor-break panel.csv --factors=3 --method=chen_dolado_gonzalo
-friedman test factor-break panel.csv --method=han_inoue --id-col=country --time-col=year
+friedman test stability factor-break panel.csv --factors=2
+friedman test stability factor-break panel.csv --factors=3 --method=chen_dolado_gonzalo
+friedman test stability factor-break panel.csv --method=han_inoue --id-col=country --time-col=year
 ```
 
 | Option | Short | Type | Default | Description |

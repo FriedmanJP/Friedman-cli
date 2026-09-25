@@ -202,7 +202,7 @@ function _overview_md(specs::Vector{Friedman.CommandSpec})::String
     println(io, "Every command and subcommand supports `--help`. Machine-readable schema:")
     println(io)
     println(io, "```bash")
-    println(io, "friedman schema estimate var")
+    println(io, "friedman schema estimate multivariate var")
     println(io, "```")
     return String(take!(io))
 end
@@ -350,6 +350,22 @@ function main()
     for top in sort(collect(keys(groups)))
         path = joinpath(gen_dir, "$top.md")
         ok &= _write_or_check(path, _top_page(top, groups[top]); check=CHECK)
+    end
+
+    # prune pages for removed top-levels (a regroup orphan must fail --check,
+    # not linger: generated/multipliers.md survived the #198-#204 fold)
+    expected = Set("$top.md" for top in keys(groups))
+    for fname in sort(readdir(gen_dir))
+        endswith(fname, ".md") || continue
+        fname in expected && continue
+        stale = joinpath(gen_dir, fname)
+        if CHECK
+            println(stderr, "generate_cli_reference: stale page $stale (no such top-level)")
+            ok = false
+        else
+            rm(stale)
+            println("pruned $stale")
+        end
     end
 
     # completions

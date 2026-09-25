@@ -46,7 +46,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         method=Symbol(method), leads=leads, horizon=horizon,
         covariates=covs, control_group=Symbol(control_group),
         cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
-        base_period=Symbol(base_period))
+        base_period=Symbol(base_period), _fwd_seed()...)
 
     # C051: DIDResult is deliberately NOT rendered via DataFrame(model)/long_table — the
     # event-time ATT summary (plus the optional group-time ATT block below) is a
@@ -262,7 +262,7 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
     else
         est = estimate_did(pd, outcome, treatment;
             method=Symbol(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level)
+            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
         result = pretrend_test(est)
     end
 
@@ -331,7 +331,7 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     else
         est = estimate_did(pd, outcome, treatment;
             method=Symbol(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level)
+            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
         result = honest_did(est; Mbar=mbar, conf_level=conf_level)
     end
 
@@ -551,9 +551,19 @@ function did_specs()::Vector{CommandSpec}
     ]
 end
 
+"""Prepared DiD specs. `did test *` is rewritten to `test did *` by `_finalize_spec`."""
+function _prepared_did_specs()
+    specs = with_default_csv_kinds(with_data_kinds(did_specs(), [:panel, :csv]))
+    return CommandSpec[_finalize_spec(s) for s in specs]
+end
+
+"""The four diagnostic leaves, already moved under `test did`."""
+function _did_test_specs()
+    return filter(s -> s.path[1] == "test", _prepared_did_specs())
+end
+
 function register_did_commands!()
-    specs = did_specs()
-    register!(specs)
-    return build_node("did", specs; description="Difference-in-differences: estimation, event study LP, diagnostics")
+    stay = register!(filter(s -> s.path[1] == "did", _prepared_did_specs()))
+    return build_node("did", stay; description="Difference-in-differences: estimation, event study LP, diagnostics")
 end
 

@@ -3,7 +3,7 @@
 
 Generated reference for `friedman did` and its subcommands.
 
-**Leaves:** 7
+**Leaves:** 3
 
 ### `friedman did estimate`
 
@@ -113,114 +113,6 @@ Path to panel CSV data file
 | `--only-event` | — | Only report event-time estimates |
 
 **Output tables:** `lp_did_dube_et_al_2023` (LP-DiD coefficient, SE, confidence band and observation count by event time)
-
----
-
-### `friedman did test bacon`
-
-Path to panel CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
-| `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `bacon_decomposition_goodman_bacon_2021` (Estimate and weight of every 2x2 DiD comparison by cohort pair and type)
-
----
-
-### `friedman did test honest`
-
-Path to panel CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
-| `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
-| `--mbar` | — | `Float64` | `1.0` | — | Violation bound M̄ |
-| `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
-| `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | — | did\|event-study |
-| `--did-method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `honestdid_sensitivity_rambachan_roth_2023` (Post-treatment ATT with robust and original confidence bands by event time)
-
----
-
-### `friedman did test negweight`
-
-Path to panel CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `negative_weight_check_de_chaisemartin_d_haultfoeuille_2020` (Whether TWFE assigns negative weights, how many, and their total); `weight_details` (The offending cohort-time cells and their weights (only when negative weights exist))
-
----
-
-### `friedman did test pretrend`
-
-Path to panel CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
-| `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
-| `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
-| `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | — | did\|event-study |
-| `--did-method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-
-**Output tables:** `pre_trend_test` (Joint pre-trend test type, statistic, p-value, degrees of freedom and verdict)
 
 ---
 
