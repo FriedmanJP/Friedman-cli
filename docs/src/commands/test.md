@@ -477,7 +477,7 @@ friedman test coint johansen data.csv --lags=2 --trend=constant
 
 ### VECM Cointegration Restriction Tests
 
-`test vecm beta | alpha | weak-exog | known-beta | joint` are Johansen likelihood-ratio tests of linear restrictions on the cointegrating structure of a VECM. Each first fits a VECM to the data (same options as `estimate var vecm`: `--lags`, `--rank`, `--deterministic`, `--method`, `--significance`) — the fitted cointegrating rank must be **≥ 1** (else `data/no-cointegration`) — then tests the restriction. H0 is that the restriction holds, so a **low p-value rejects** the imposed restriction. Output is a kv block (`LR statistic`, `df`, `p-value`, `rank`, `converged`, restriction description) plus a decision line.
+`test vecm beta | alpha | weak-exog | known-beta | joint` are Johansen likelihood-ratio tests of linear restrictions on the cointegrating structure of a VECM. Each first fits a VECM to the data (same options as `estimate multivariate vecm`: `--lags`, `--rank`, `--deterministic`, `--method`, `--significance`) — the fitted cointegrating rank must be **≥ 1** (else `data/no-cointegration`) — then tests the restriction. H0 is that the restriction holds, so a **low p-value rejects** the imposed restriction. Output is a kv block (`LR statistic`, `df`, `p-value`, `rank`, `converged`, restriction description) plus a decision line.
 
 The restriction matrices are supplied via `--config` in a `[vecm_restriction]` TOML section, given **row-major** (an array of equal-length numeric rows). See [Configuration](../configuration.md).
 
@@ -712,12 +712,12 @@ friedman test panel dh-causality panel.csv --cause=x --effect=y --bootstrap=500
 
 ## VAR Diagnostics
 
-### test var lagselect
+### test multivariate lagselect
 
 Select optimal lag order for a VAR model.
 
 ```bash
-friedman test var lagselect data.csv --max-lags=12 --criterion=aic
+friedman test multivariate lagselect data.csv --max-lags=12 --criterion=aic
 ```
 
 | Option | Short | Type | Default | Description |
@@ -729,12 +729,12 @@ friedman test var lagselect data.csv --max-lags=12 --criterion=aic
 
 **Output:** Table of AIC/BIC/HQC for each lag order, optimal lag.
 
-### test var stability
+### test multivariate stability
 
 Check VAR stationarity via companion matrix eigenvalues.
 
 ```bash
-friedman test var stability data.csv --lags=2
+friedman test multivariate stability data.csv --lags=2
 ```
 
 | Option | Short | Type | Default | Description |
@@ -884,14 +884,14 @@ friedman test stability nyblom data.csv --column=1 --model=garch
 
 ## Model Comparison Tests
 
-### test var granger
+### test multivariate granger
 
 Granger causality test for VAR or VECM models.
 
 ```bash
-friedman test var granger data.csv --cause=1 --effect=2 --lags=4
-friedman test var granger data.csv --cause=1 --effect=2 --model=vecm --rank=1
-friedman test var granger data.csv --all --lags=4
+friedman test multivariate granger data.csv --cause=1 --effect=2 --lags=4
+friedman test multivariate granger data.csv --cause=1 --effect=2 --model=vecm --rank=1
+friedman test multivariate granger data.csv --all --lags=4
 ```
 
 | Option | Short | Type | Default | Description |
@@ -907,13 +907,13 @@ friedman test var granger data.csv --all --lags=4
 
 **Output:** Test statistic, p-value, rejection decision.
 
-### test var lr
+### test multivariate lr
 
 Likelihood ratio test comparing two nested VAR models estimated from separate datasets.
 
 ```bash
-friedman test var lr restricted.csv unrestricted.csv
-friedman test var lr data_p2.csv data_p4.csv --lags1=2 --lags2=4
+friedman test multivariate lr restricted.csv unrestricted.csv
+friedman test multivariate lr data_p2.csv data_p4.csv --lags1=2 --lags2=4
 ```
 
 | Argument | Description |
@@ -930,13 +930,13 @@ friedman test var lr data_p2.csv data_p4.csv --lags1=2 --lags2=4
 
 **Output:** LR statistic, degrees of freedom, p-value, rejection decision.
 
-### test var lm
+### test multivariate lm
 
 Lagrange multiplier test comparing two nested VAR models estimated from separate datasets.
 
 ```bash
-friedman test var lm restricted.csv unrestricted.csv
-friedman test var lm data_p2.csv data_p4.csv --lags1=2 --lags2=4
+friedman test multivariate lm restricted.csv unrestricted.csv
+friedman test multivariate lm data_p2.csv data_p4.csv --lags1=2 --lags2=4
 ```
 
 | Argument | Description |

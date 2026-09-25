@@ -108,7 +108,7 @@ include(joinpath(project_root, "test", "support.jl"))
     mktempdir() do dir
         csv = _make_csv(dir; T=100, n=3)
         out = _capture() do
-            _dispatch_via_app(["estimate", "var", "var", csv, "--lags", "1", "--format", "json"])
+            _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1", "--format", "json"])
         end
         # Strip any leading non-JSON status noise: find first '{'
         i = findfirst('{', out)
@@ -126,7 +126,7 @@ include(joinpath(project_root, "test", "support.jl"))
         csv = _make_csv(dir; T=100, n=3)
         withenv("FRIEDMAN_LEGACY_OUTPUT" => "1") do
             out = _capture() do
-                _dispatch_via_app(["estimate", "var", "var", csv, "--lags", "1", "--format", "json"])
+                _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1", "--format", "json"])
             end
             i = findfirst('{', out)
             @test i !== nothing
@@ -458,7 +458,7 @@ end  # Shared utilities
         @test node isa NodeCommand
         @test node.name == "estimate"
         # v1.0.0: depth-2 model leaves sit under their family node.
-        for fam in ["var", "volatility", "factor", "univariate", "regime", "panel", "choice", "regression"]
+        for fam in ["multivariate", "volatility", "factor", "univariate", "regime", "panel", "choice", "regression"]
             @test haskey(node.subcmds, fam)
             @test node.subcmds[fam] isa NodeCommand
         end
@@ -546,13 +546,13 @@ end  # Shared utilities
     end
 
     @testset "_estimate_var — coef table carries CSV names (#119 follow-up)" begin
-        # estimate var var called bare estimate_var(Y, p) while the irf/fevd/forecast
+        # estimate multivariate var called bare estimate_var(Y, p) while the irf/fevd/forecast
         # family goes through _load_and_estimate_var (varnames forwarded) — so
         # var_coefficients rendered positional y1..yn on the same input.
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=2, colnames=["x", "y"])
             out = _capture() do
-                _dispatch_via_app(["estimate", "var", "var", csv, "--lags", "1",
+                _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1",
                                    "--format", "json"])
             end
             doc = JSON3.read(out[findfirst('{', out):end])
@@ -610,7 +610,7 @@ end  # Shared utilities
             csv = _make_csv(dir; T=100, n=3)
             out = cd(dir) do
                 _capture() do
-                    _dispatch_via_app(["estimate", "var", "svar", csv, "--lags", "2", "--format", "json"])
+                    _dispatch_via_app(["estimate", "multivariate", "svar", csv, "--lags", "2", "--format", "json"])
                 end
             end
             i = findfirst('{', out)
@@ -642,7 +642,7 @@ end  # Shared utilities
             open(bad, "w") do io
                 write(io, "[svar]\nA = [[1.0, 0.0], [0.0]]\nB = [[1.0, 0.0], [0.0, 1.0]]\n")
             end
-            e = try; _load_svar_pattern(bad, 2, "ab-model", "estimate var svar"); nothing; catch e; e; end
+            e = try; _load_svar_pattern(bad, 2, "ab-model", "estimate multivariate svar"); nothing; catch e; e; end
             @test e isa CliError && e.code == "usage/invalid"
         end
     end
@@ -664,7 +664,7 @@ end  # Shared utilities
             cfg = _make_svec_config(dir; n=2)
             out = cd(dir) do
                 _capture() do
-                    _dispatch_via_app(["estimate", "var", "svec", csv, "--lags", "2", "--rank", "1",
+                    _dispatch_via_app(["estimate", "multivariate", "svec", csv, "--lags", "2", "--rank", "1",
                                        "--config", cfg, "--format", "json"])
                 end
             end
@@ -3499,7 +3499,7 @@ end  # Estimate handlers
         node = register_test_commands!()
         @test node isa NodeCommand
         @test node.name == "test"
-        for fam in ["unit-root", "coint", "stability", "serial", "iv", "panel", "var", "vecm", "pvar"]
+        for fam in ["unit-root", "coint", "stability", "serial", "iv", "panel", "multivariate", "vecm", "pvar"]
             @test haskey(node.subcmds, fam)
             @test node.subcmds[fam] isa NodeCommand
         end
@@ -3511,16 +3511,16 @@ end  # Estimate handlers
         @test haskey(node.subcmds["unit-root"].subcmds, "adf")
         @test !haskey(node.subcmds, "arch_lm")  # C055: alias removed
         @test !haskey(node.subcmds, "ljung_box")  # C055: alias removed
-        # VAR is a nested NodeCommand with lagselect and stability
-        var_node = node.subcmds["var"]
-        @test var_node isa NodeCommand
-        @test haskey(var_node.subcmds, "lagselect")
-        @test haskey(var_node.subcmds, "stability")
-        @test haskey(var_node.subcmds, "granger")
-        @test var_node.subcmds["lr"] isa LeafCommand
-        @test var_node.subcmds["lm"] isa LeafCommand
-        @test length(var_node.subcmds["lr"].args) == 2
-        @test length(var_node.subcmds["lm"].args) == 2
+        # multivariate is a nested NodeCommand with lagselect and stability
+        mvar_node = node.subcmds["multivariate"]
+        @test mvar_node isa NodeCommand
+        @test haskey(mvar_node.subcmds, "lagselect")
+        @test haskey(mvar_node.subcmds, "stability")
+        @test haskey(mvar_node.subcmds, "granger")
+        @test mvar_node.subcmds["lr"] isa LeafCommand
+        @test mvar_node.subcmds["lm"] isa LeafCommand
+        @test length(mvar_node.subcmds["lr"].args) == 2
+        @test length(mvar_node.subcmds["lm"].args) == 2
         # PVAR: 4 primary leaves, no aliases (C055 removed hansen_j)
         pvar_node = node.subcmds["pvar"]
         @test pvar_node isa NodeCommand
@@ -5321,11 +5321,11 @@ end  # HD handlers
         node = register_forecast_commands!()
         @test node isa NodeCommand
         @test node.name == "forecast"
-        for fam in ["var", "volatility", "factor", "univariate", "regime", "evaluate"]
+        for fam in ["multivariate", "volatility", "factor", "univariate", "regime", "evaluate"]
             @test haskey(node.subcmds, fam)
             @test node.subcmds[fam] isa NodeCommand
         end
-        @test haskey(node.subcmds["var"].subcmds, "vecm")
+        @test haskey(node.subcmds["multivariate"].subcmds, "vecm")
         @test haskey(node.subcmds["volatility"].subcmds, "gjr-garch")
         @test !haskey(node.subcmds, "gjr_garch")  # C055: alias removed
         # C072: nested forecast evaluate sub-node with 6 leaves
@@ -5848,7 +5848,7 @@ end  # HD handlers
 end  # Forecast handlers
 
 # ═══════════════════════════════════════════════════════════════
-# VECM handlers (estimate, irf, fevd, hd, forecast var vecm + test var granger)
+# VECM handlers (estimate, irf, fevd, hd, forecast multivariate vecm + test multivariate granger)
 # ═══════════════════════════════════════════════════════════════
 
 @testset "VECM handlers" begin
@@ -5857,10 +5857,10 @@ end  # Forecast handlers
 
     @testset "register_estimate_commands! includes vecm" begin
         node = register_estimate_commands!()
-        @test haskey(node.subcmds, "var")
-        @test node.subcmds["var"] isa NodeCommand
-        @test haskey(node.subcmds["var"].subcmds, "vecm")
-        @test node.subcmds["var"].subcmds["vecm"] isa LeafCommand
+        @test haskey(node.subcmds, "multivariate")
+        @test node.subcmds["multivariate"] isa NodeCommand
+        @test haskey(node.subcmds["multivariate"].subcmds, "vecm")
+        @test node.subcmds["multivariate"].subcmds["vecm"] isa LeafCommand
     end
 
     @testset "register_irf_commands! includes vecm" begin
@@ -5883,15 +5883,15 @@ end  # Forecast handlers
 
     @testset "register_forecast_commands! includes vecm" begin
         node = register_forecast_commands!()
-        @test haskey(node.subcmds, "var")
-        @test haskey(node.subcmds["var"].subcmds, "vecm")
+        @test haskey(node.subcmds, "multivariate")
+        @test haskey(node.subcmds["multivariate"].subcmds, "vecm")
     end
 
     @testset "register_test_commands! includes granger" begin
         node = register_test_commands!()
-        @test haskey(node.subcmds, "var")
-        @test haskey(node.subcmds["var"].subcmds, "granger")
-        @test node.subcmds["var"].subcmds["granger"] isa LeafCommand
+        @test haskey(node.subcmds, "multivariate")
+        @test haskey(node.subcmds["multivariate"].subcmds, "granger")
+        @test node.subcmds["multivariate"].subcmds["granger"] isa LeafCommand
     end
 
     # ── _load_and_estimate_vecm ──────────────────────────────
@@ -5916,7 +5916,7 @@ end  # Forecast handlers
         end
     end
 
-    # ── estimate var vecm ────────────────────────────────────────
+    # ── estimate multivariate vecm ────────────────────────────────────────
 
     @testset "_estimate_vecm — auto rank" begin
         mktempdir() do dir
@@ -6133,7 +6133,7 @@ end  # Forecast handlers
         end
     end
 
-    # ── forecast var vecm ────────────────────────────────────────
+    # ── forecast multivariate vecm ────────────────────────────────────────
 
     @testset "_forecast_vecm — no CI" begin
         mktempdir() do dir
@@ -6184,7 +6184,7 @@ end  # Forecast handlers
         end
     end
 
-    # ── test var granger ─────────────────────────────────────────
+    # ── test multivariate granger ─────────────────────────────────────────
 
     @testset "_test_granger — default" begin
         mktempdir() do dir
@@ -6260,7 +6260,7 @@ end  # VECM handlers
         node = register_predict_commands!()
         @test node isa NodeCommand
         @test node.name == "predict"
-        for fam in ["var", "volatility", "univariate", "factor", "regression", "choice", "panel"]
+        for fam in ["multivariate", "volatility", "univariate", "factor", "regression", "choice", "panel"]
             @test haskey(node.subcmds, fam)
             @test node.subcmds[fam] isa NodeCommand
         end
@@ -7017,7 +7017,7 @@ end
         node = register_residuals_commands!()
         @test node isa NodeCommand
         @test node.name == "residuals"
-        for fam in ["var", "volatility", "univariate", "factor", "regression", "choice", "panel", "regime"]
+        for fam in ["multivariate", "volatility", "univariate", "factor", "regression", "choice", "panel", "regime"]
             @test haskey(node.subcmds, fam)
             @test node.subcmds[fam] isa NodeCommand
         end
@@ -7804,10 +7804,10 @@ end  # Filter handlers
         @test haskey(node.subcmds["pvar"].subcmds, "mmsc")
         @test haskey(node.subcmds["pvar"].subcmds, "lagselect")
         @test haskey(node.subcmds["pvar"].subcmds, "stability")
-        @test haskey(node.subcmds["var"].subcmds, "lr")
-        @test node.subcmds["var"].subcmds["lr"] isa LeafCommand
-        @test haskey(node.subcmds["var"].subcmds, "lm")
-        @test node.subcmds["var"].subcmds["lm"] isa LeafCommand
+        @test haskey(node.subcmds["multivariate"].subcmds, "lr")
+        @test node.subcmds["multivariate"].subcmds["lr"] isa LeafCommand
+        @test haskey(node.subcmds["multivariate"].subcmds, "lm")
+        @test node.subcmds["multivariate"].subcmds["lm"] isa LeafCommand
     end
 
     @testset "_parse_varlist" begin
@@ -13653,8 +13653,8 @@ end  # Command Handlers
         err_cases = [
             (["filter", "hp", "/nope.csv", "--format", "json"],
              ["filter", "hp", "error"], "data/file-not-found", 3),
-            (["estimate", "var", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
-             ["estimate", "var", "bvar", "config-error"], "config/file-not-found", 4),
+            (["estimate", "multivariate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "multivariate", "bvar", "config-error"], "config/file-not-found", 4),
         ]
         for (argv, gkeys, code, ec) in err_cases
             Random.seed!(42)
@@ -13689,8 +13689,8 @@ end  # Command Handlers
             Y = reduce(hcat, (sin.(1:40) .+ 0.1 .* cos.((1:40) ./ i) for i in 1:3))
             save_model_dispatch("var.jld2", estimate_var(Y, 1; varnames=["y1", "y2", "y3"]))
             handle_err = [
-                (["estimate", "var", "var", "panel", "--lags", "1", "--format", "json"],
-                 ["estimate", "var", "var", "wrong-kind"], "data/wrong-kind", 3),
+                (["estimate", "multivariate", "var", "panel", "--lags", "1", "--format", "json"],
+                 ["estimate", "multivariate", "var", "wrong-kind"], "data/wrong-kind", 3),
                 (["irf", "var", "--result", "var", "--format", "json"],
                  ["irf", "var", "wrong-result"], "data/wrong-result", 3),
             ]
@@ -13719,7 +13719,7 @@ end  # Command Handlers
     end
 
     # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)
-    env = Envelope(command="estimate var var")
+    env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
     buf = IOBuffer(); render(env, :csv, buf)
     csv_out = replace(String(take!(buf)), "\r\n" => "\n")
@@ -13766,7 +13766,7 @@ end
     schema = JSON3.read(read(_ENVELOPE_SCHEMA_PATH, String))
     table = Dict("columns" => ["a", "b"], "rows" => [[1, "x"], [2.5, nothing]])
     base = Dict{String,Any}(
-        "schema_version" => 1, "command" => "estimate var var", "status" => "ok",
+        "schema_version" => 1, "command" => "estimate multivariate var", "status" => "ok",
         "meta" => Dict{String,Any}("cli_version" => "0.0.0", "julia" => "1.13.0",
                                    "mems_version" => "0.8.0", "seed" => 42),
         "data" => Dict{String,Any}("coefficients" => table),
@@ -14536,7 +14536,7 @@ end
     end))
 
     # ── Leaf doc: draft-07 input_schema with x-cli annotations ──
-    doc = getdoc("estimate", "var", "var")
+    doc = getdoc("estimate", "multivariate", "var")
     is = doc.input_schema
     @test String(is[Symbol("\$schema")]) == "http://json-schema.org/draft-07/schema#"
     @test String(is.type) == "object"
@@ -14577,11 +14577,11 @@ end
     # ── --docs: guide embedded; flag NEVER eats a path token (D-6) ──
     r1 = getdoc("--docs")
     @test haskey(r1, :docs) && occursin("# Agent Guide", String(r1.docs))
-    r2 = getdoc("--docs", "estimate", "var", "var")   # D-6: `estimate` must survive
-    @test String.(r2.path) == ["estimate", "var", "var"]
+    r2 = getdoc("--docs", "estimate", "multivariate", "var")   # D-6: `estimate` must survive
+    @test String.(r2.path) == ["estimate", "multivariate", "var"]
     @test haskey(r2, :docs)
-    r3 = getdoc("estimate", "var", "var", "--docs")
-    @test String.(r3.path) == ["estimate", "var", "var"]
+    r3 = getdoc("estimate", "multivariate", "var", "--docs")
+    @test String.(r3.path) == ["estimate", "multivariate", "var"]
     @test haskey(r3, :docs)
     @test !haskey(doc, :docs)                  # absent without the flag
     # the guide the schema serves is byte-identical to the baked const
@@ -14620,7 +14620,7 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
     @testset "_mcp_tools naming" begin
         tools = _mcp_tools()
         names = [t[1] for t in tools]
-        @test "estimate_var_var" in names
+        @test "estimate_multivariate_var" in names
         @test "dsge_bayes_estimate" in names
         @test length(names) == length(unique(names))
         @test !("serve" in names)             # never serves itself
@@ -14635,16 +14635,16 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
                      Option("output"; type=String, default="")],
             flags=[Flag("plot")],
             description="t")
-        p = ["estimate", "var", "var"]
+        p = ["estimate", "multivariate", "var"]
         # full surface: positional + option + true flag + forced json
         argv = _mcp_argv(leaf, p, Dict{Symbol,Any}(
             :data => "x.csv", :lags => 2, :plot => true))
-        @test argv == ["estimate", "var", "var", "x.csv", "--lags", "2", "--plot",
+        @test argv == ["estimate", "multivariate", "var", "x.csv", "--lags", "2", "--plot",
                        "--format", "json"]
         # false flag omitted; user format overridden by the forced json
         argv2 = _mcp_argv(leaf, p, Dict{Symbol,Any}(
             :data => "x.csv", :plot => false, :format => "csv"))
-        @test argv2 == ["estimate", "var", "var", "x.csv", "--format", "json"]
+        @test argv2 == ["estimate", "multivariate", "var", "x.csv", "--format", "json"]
         # unknown key → forwarded so the strict parser rejects with a hint
         argv3 = _mcp_argv(leaf, p, Dict{Symbol,Any}(:data => "x.csv", :lgas => 2))
         @test "--lgas" in argv3
@@ -14699,7 +14699,7 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
         @test tl.id == 2
         tools = tl.result.tools
         @test length(tools) > 400
-        est = only(t for t in tools if t.name == "estimate_var_var")
+        est = only(t for t in tools if t.name == "estimate_multivariate_var")
         @test haskey(est, :inputSchema)
         @test String(est.inputSchema.type) == "object"
         @test "data" in String.(est.inputSchema.required)
@@ -14875,6 +14875,10 @@ end
         (["did", "test", "bacon"], "test did bacon"),
         (["dsge", "ha", "solve"], "hadsge solve"),
         (["multipliers", "nardl"], "estimate univariate nardl"),
+        (["estimate", "var", "var"], "estimate multivariate var"),
+        (["estimate", "var", "bvar"], "estimate multivariate bvar"),
+        (["forecast", "var", "scenario"], "forecast multivariate scenario"),
+        (["test", "var", "granger"], "test multivariate granger"),
     )
         err = _unknown(old)
         @test err isa DispatchError

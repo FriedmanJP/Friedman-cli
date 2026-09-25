@@ -1181,7 +1181,7 @@ function test_specs()::Vector{CommandSpec}
             handler=_test_vecm_joint,
         ),
         CommandSpec(
-            path=["test", "var", "lagselect"],
+            path=["test", "multivariate", "lagselect"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
@@ -1201,7 +1201,7 @@ function test_specs()::Vector{CommandSpec}
             handler=_test_var_lagselect,
         ),
         CommandSpec(
-            path=["test", "var", "stability"],
+            path=["test", "multivariate", "stability"],
             summary="Path to CSV data file",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
@@ -1838,7 +1838,7 @@ function register_test_commands!()
     for s in test_specs()
         kinds = if length(s.path) >= 2 && s.path[2] == "pvar"
             [:panel, :csv]
-        elseif length(s.path) >= 2 && s.path[2] == "var"
+        elseif length(s.path) >= 2 && s.path[2] == "multivariate"
             [:timeseries, :csv]
         elseif s.path[end] in _TEST_PANEL
             [:panel, :csv]

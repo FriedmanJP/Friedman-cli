@@ -16,9 +16,9 @@ Top-level commands include `policy`, `hadsge`, `model`, `serve`, `show`, and `co
 
 ```bash
 # install (see below), then:
-friedman estimate var var data.csv --lags 1 --format json | jq .
-friedman schema estimate var var | jq '.input_schema'   # draft-07 invocation schema
-friedman schema estimate var var | jq '.tables'         # stable result-table keys
+friedman estimate multivariate var data.csv --lags 1 --format json | jq .
+friedman schema estimate multivariate var | jq '.input_schema'   # draft-07 invocation schema
+friedman schema estimate multivariate var | jq '.tables'         # stable result-table keys
 friedman schema | jq '.contract.exit_codes'         # the whole output contract
 friedman schema --docs | jq -r '.docs'              # the full agent guide
 echo $?   # 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal
@@ -83,13 +83,13 @@ friedman [command] [subcommand] [args...] [options...]
 
 | Command | Subcommands | Description |
 |---------|-------------|-------------|
-| `estimate` | `var` · `volatility` · `factor` · `univariate` · `regime` · `panel` · `choice` · `regression` — path is `estimate <family> <model>` (`estimate var var`, `estimate volatility garch`, `estimate panel preg`) | Estimate models (ARFIMA long memory, univariate and multivariate GARCH, penalized and robust regression, Tobit, truncated, and Heckman selection, FMOLS/CCR/DOLS and panel cointegration, ARDL and NARDL with folded multipliers, PMG/MG/DFE, MIDAS, threshold/SETAR/STAR, Markov-switching, state-space and TVP, nonparametric regression, SUR/3SLS, panel regression, ordered and multinomial choice) |
-| `test` | `unit-root` · `coint` · `stability` · `serial` · `iv` · `panel` · `var` · `vecm` · `pvar` · `did`, plus flat leaves such as `vif` and `hausman-iia` (`test unit-root adf`, `test panel pmg-hausman`, `test vif`; `test other …` is not a command) | Statistical tests (unit-root and cointegration batteries, stability and serial diagnostics, weak-instrument tests, panel specification and DiD diagnostics, VAR/VECM/PVAR tests, and the flat diagnostics that stay directly under `test`) |
+| `estimate` | `multivariate` · `volatility` · `factor` · `univariate` · `regime` · `panel` · `choice` · `regression` — path is `estimate <family> <model>` (`estimate multivariate var`, `estimate volatility garch`, `estimate panel preg`) | Estimate models (ARFIMA long memory, univariate and multivariate GARCH, penalized and robust regression, Tobit, truncated, and Heckman selection, FMOLS/CCR/DOLS and panel cointegration, ARDL and NARDL with folded multipliers, PMG/MG/DFE, MIDAS, threshold/SETAR/STAR, Markov-switching, state-space and TVP, nonparametric regression, SUR/3SLS, panel regression, ordered and multinomial choice) |
+| `test` | `unit-root` · `coint` · `stability` · `serial` · `iv` · `panel` · `multivariate` · `vecm` · `pvar` · `did`, plus flat leaves such as `vif` and `hausman-iia` (`test unit-root adf`, `test panel pmg-hausman`, `test vif`; `test other …` is not a command) | Statistical tests (unit-root and cointegration batteries, stability and serial diagnostics, weak-instrument tests, panel specification and DiD diagnostics, VAR/VECM/PVAR tests, and the flat diagnostics that stay directly under `test`) |
 | `irf` | `var` `bvar` `tvpvar` `lp` `vecm` `pvar` `favar` `sdfm` | Impulse response functions (`tvpvar` is date-specific: `--date`) |
 | `fevd` | `var` `bvar` `lp` `vecm` `pvar` `favar` `sdfm` | Forecast error variance decomposition (`var` adds `--generalized` Pesaran-Shin) |
 | `hd` | `var` `bvar` `lp` `vecm` `favar` | Historical decomposition |
-| `forecast` | `var` · `volatility` · `factor` · `univariate` · `regime` · `evaluate` (`forecast var var`, `forecast volatility gjr-garch`, `forecast var scenario`, `forecast evaluate metrics`) | Forecasting, including SETAR/STAR bootstrap-simulation forecasts, plus the evaluation and combination leaves under `forecast evaluate` |
-| `predict` | `var` · `volatility` · `factor` · `univariate` · `regime` · `panel` · `choice` · `regression` (`predict var var`, `predict choice poisson`; no `setar` or `star`) | In-sample fitted values (`statespace` emits the filtered/smoothed state paths; `sur`/`3sls` one long per-equation table) |
+| `forecast` | `multivariate` · `volatility` · `factor` · `univariate` · `regime` · `evaluate` (`forecast multivariate var`, `forecast volatility gjr-garch`, `forecast multivariate scenario`, `forecast evaluate metrics`) | Forecasting, including SETAR/STAR bootstrap-simulation forecasts, plus the evaluation and combination leaves under `forecast evaluate` |
+| `predict` | `multivariate` · `volatility` · `factor` · `univariate` · `regime` · `panel` · `choice` · `regression` (`predict multivariate var`, `predict choice poisson`; no `setar` or `star`) | In-sample fitted values (`statespace` emits the filtered/smoothed state paths; `sur`/`3sls` one long per-equation table) |
 | `residuals` | same families as `predict`, plus `regime setar` and `regime star` (`residuals volatility garch`, `residuals regime setar`) | Model residuals (`statespace` emits Kalman innovations, `--standardized` for `v_t/√F_t`; `setar`/`star`/`ms`/`ms-ar` have residuals and no `predict` leaf) |
 | `filter` | `hp` `hamilton` `bn` `bk` `bhp` `x13` | Time series filters (+ X-13ARIMA-SEATS) |
 | `data` | `list` `load` `import` `export` `describe` `diagnose` `fix` `transform` `filter` `validate` `balance` `dropna` `keeprows` `simulate <dgp>` | Data management (typed handles, example datasets, diagnostics, simulation) |
@@ -128,7 +128,7 @@ The REPL provides:
 friedman> data use :fred-md
 Loaded :fred-md (804x126, vars: INDPRO, CPIAUCSL, ...)
 
-friedman> estimate var var --lags 4
+friedman> estimate multivariate var --lags 4
 [estimation output]
 Result cached as :var
 
@@ -144,34 +144,34 @@ Cached results: var
 
 ```bash
 # VAR(2)
-friedman estimate var var data.csv --lags=2
+friedman estimate multivariate var data.csv --lags=2
 
 # Bayesian VAR with NUTS sampler
-friedman estimate var bvar data.csv --lags=4 --draws=2000 --sampler=nuts
+friedman estimate multivariate bvar data.csv --lags=4 --draws=2000 --sampler=nuts
 
 # Bayesian VAR with Minnesota prior config
-friedman estimate var bvar data.csv --config=prior.toml
+friedman estimate multivariate bvar data.csv --config=prior.toml
 
 # Bayesian posterior summary (mean or median)
-friedman estimate var bvar data.csv --lags=4 --method=mean
+friedman estimate multivariate bvar data.csv --lags=4 --method=mean
 
 # Local Projections (Jorda 2005)
-friedman estimate var lp data.csv --shock=1 --horizons=20 --vcov=newey_west
+friedman estimate multivariate lp data.csv --shock=1 --horizons=20 --vcov=newey_west
 
 # LP-IV (Stock & Watson 2018)
-friedman estimate var lp data.csv --method=iv --shock=1 --instruments=instruments.csv
+friedman estimate multivariate lp data.csv --method=iv --shock=1 --instruments=instruments.csv
 
 # Smooth LP (Barnichon & Brownlees 2019) — auto-selects lambda via CV
-friedman estimate var lp data.csv --method=smooth --shock=1 --horizons=20
+friedman estimate multivariate lp data.csv --method=smooth --shock=1 --horizons=20
 
 # State-dependent LP (Auerbach & Gorodnichenko 2013)
-friedman estimate var lp data.csv --method=state --shock=1 --state-var=2 --gamma=1.5
+friedman estimate multivariate lp data.csv --method=state --shock=1 --state-var=2 --gamma=1.5
 
 # Propensity score LP (Angrist et al. 2018)
-friedman estimate var lp data.csv --method=propensity --treatment=1 --score-method=logit
+friedman estimate multivariate lp data.csv --method=propensity --treatment=1 --score-method=logit
 
 # Doubly robust LP
-friedman estimate var lp data.csv --method=robust --treatment=1 --score-method=logit
+friedman estimate multivariate lp data.csv --method=robust --treatment=1 --score-method=logit
 
 # ARIMA — explicit or auto order selection
 friedman estimate univariate arima data.csv --p=1 --d=1 --q=1
@@ -202,16 +202,16 @@ friedman estimate regression ml data.csv --distribution=student_t
 friedman estimate regression ml data.csv --distribution=mixture_normal
 
 # Vector Error Correction Model (Johansen)
-friedman estimate var vecm data.csv --lags=2
-friedman estimate var vecm data.csv --rank=1 --deterministic=constant
+friedman estimate multivariate vecm data.csv --lags=2
+friedman estimate multivariate vecm data.csv --rank=1 --deterministic=constant
 
 # Panel VAR (GMM or FE-OLS)
 friedman estimate panel pvar data.csv --id-col=country --time-col=year --lags=2
 friedman estimate panel pvar data.csv --id-col=country --time-col=year --method=feols
 
 # Factor-Augmented VAR (FAVAR)
-friedman estimate var favar data.csv --lags=4 --nfactors=3
-friedman estimate var favar data.csv --lags=4 --nfactors=3 --slow-vars=1,2,3
+friedman estimate multivariate favar data.csv --lags=4 --nfactors=3
+friedman estimate multivariate favar data.csv --lags=4 --nfactors=3 --slow-vars=1,2,3
 
 # Structural Dynamic Factor Model (SDFM)
 friedman estimate factor sdfm data.csv --nfactors=3 --factor-lags=2
@@ -366,9 +366,9 @@ friedman test unit-root np data.csv --column=1
 # Cointegration
 friedman test coint johansen data.csv --lags=2 --trend=constant
 
-# VAR diagnostics (nested under test var)
-friedman test var lagselect data.csv --max-lags=12 --criterion=aic
-friedman test var stability data.csv --lags=2
+# VAR diagnostics (nested under test multivariate)
+friedman test multivariate lagselect data.csv --max-lags=12 --criterion=aic
+friedman test multivariate stability data.csv --lags=2
 
 # Non-Gaussian SVAR diagnostics
 friedman test normality data.csv --lags=4
@@ -380,12 +380,12 @@ friedman test serial arch-lm data.csv --lags=4
 friedman test serial ljung-box data.csv --lags=10
 
 # Granger causality
-friedman test var granger data.csv --cause=1 --effect=2 --lags=4
-friedman test var granger data.csv --all --lags=4
+friedman test multivariate granger data.csv --cause=1 --effect=2 --lags=4
+friedman test multivariate granger data.csv --all --lags=4
 
 # Model comparison (LR and LM tests)
-friedman test var lr data.csv data.csv --lags1=2 --lags2=4
-friedman test var lm data.csv data.csv --lags1=2 --lags2=4
+friedman test multivariate lr data.csv data.csv --lags1=2 --lags2=4
+friedman test multivariate lm data.csv data.csv --lags1=2 --lags2=4
 
 # Panel VAR diagnostics
 friedman test pvar hansen-j data.csv --id-col=country --time-col=year --lags=2
@@ -512,16 +512,16 @@ friedman hd favar data.csv --id=cholesky --nfactors=3
 
 ```bash
 # VAR forecast with confidence intervals
-friedman forecast var var data.csv --horizons=12 --confidence=0.95
+friedman forecast multivariate var data.csv --horizons=12 --confidence=0.95
 
 # VAR forecast with bootstrap confidence intervals
-friedman forecast var var data.csv --horizons=12 --ci=bootstrap --replications=500
+friedman forecast multivariate var data.csv --horizons=12 --ci=bootstrap --replications=500
 
 # Bayesian forecast (posterior credible intervals)
-friedman forecast var bvar data.csv --horizons=12 --draws=2000
+friedman forecast multivariate bvar data.csv --horizons=12 --draws=2000
 
 # Direct LP forecast
-friedman forecast var lp data.csv --shock=1 --horizons=12 --shock-size=1.0
+friedman forecast multivariate lp data.csv --shock=1 --horizons=12 --shock-size=1.0
 
 # ARIMA forecast (auto model selection + h-step forecast)
 friedman forecast univariate arima data.csv --horizons=12 --confidence=0.95
@@ -539,35 +539,35 @@ friedman forecast volatility gjr-garch data.csv --column=1 --horizons=12
 friedman forecast volatility sv data.csv --column=1 --horizons=12
 
 # VECM forecast (bootstrap CIs)
-friedman forecast var vecm data.csv --horizons=12 --rank=2
+friedman forecast multivariate vecm data.csv --horizons=12 --rank=2
 
 # FAVAR forecast
-friedman forecast var favar data.csv --horizons=12 --nfactors=3
+friedman forecast multivariate favar data.csv --horizons=12 --nfactors=3
 ```
 
 ### Predict & Residuals
 
 ```bash
 # In-sample fitted values
-friedman predict var var data.csv --lags=2
-friedman predict var bvar data.csv --lags=4 --draws=2000
+friedman predict multivariate var data.csv --lags=2
+friedman predict multivariate bvar data.csv --lags=4 --draws=2000
 friedman predict univariate arima data.csv --p=1 --d=1 --q=1
-friedman predict var vecm data.csv --rank=1
+friedman predict multivariate vecm data.csv --rank=1
 friedman predict factor static data.csv --nfactors=3
 friedman predict volatility garch data.csv --column=1 --p=1 --q=1
-friedman predict var favar data.csv --lags=4 --nfactors=3
+friedman predict multivariate favar data.csv --lags=4 --nfactors=3
 friedman predict regression reg data.csv --dep=wage
 friedman predict choice logit data.csv --dep=employed --marginal-effects
 friedman predict choice probit data.csv --dep=employed --classification-table
 
 # Model residuals
-friedman residuals var var data.csv --lags=2
-friedman residuals var bvar data.csv --lags=4 --draws=2000
+friedman residuals multivariate var data.csv --lags=2
+friedman residuals multivariate bvar data.csv --lags=4 --draws=2000
 friedman residuals univariate arima data.csv --p=1 --d=1 --q=1
-friedman residuals var vecm data.csv --rank=1
+friedman residuals multivariate vecm data.csv --rank=1
 friedman residuals factor static data.csv --nfactors=3
 friedman residuals volatility garch data.csv --column=1 --p=1 --q=1
-friedman residuals var favar data.csv --lags=4 --nfactors=3
+friedman residuals multivariate favar data.csv --lags=4 --nfactors=3
 friedman residuals regression reg data.csv --dep=wage
 friedman residuals choice logit data.csv --dep=employed
 friedman residuals choice probit data.csv --dep=employed
@@ -614,7 +614,7 @@ friedman data describe :fred_md
 
 # Import CSV to a typed handle (stem; .jld2 is storage, not argv)
 friedman data import data.csv --kind timeseries --frequency quarterly -o macro
-friedman estimate var var macro --lags 2 --save-model var   # stem → var.jld2
+friedman estimate multivariate var macro --lags 2 --save-model var   # stem → var.jld2
 friedman irf var --model var --horizons 12 --save-result irf
 friedman show irf                                # re-render the saved ImpulseResponse
 friedman data export macro -o macro.csv          # inverse of import
@@ -804,13 +804,13 @@ All commands support `--format` and `--output`:
 
 ```bash
 # Terminal table (default)
-friedman estimate var var data.csv
+friedman estimate multivariate var data.csv
 
 # CSV export
-friedman estimate var var data.csv --format=csv --output=results.csv
+friedman estimate multivariate var data.csv --format=csv --output=results.csv
 
 # JSON export
-friedman estimate var var data.csv --format=json --output=results.json
+friedman estimate multivariate var data.csv --format=json --output=results.json
 ```
 
 ### Tidy result tables
@@ -818,7 +818,7 @@ friedman estimate var var data.csv --format=json --output=results.json
 Array-valued results (`irf`, `fevd`, `forecast`) render through MacroEconometricModels.jl's
 tidy `long_table(result)`: one row per `(horizon, variable[, shock])` cell, columns
 `horizon | variable | shock | value | lower | upper` (`fevd` drops `lower`/`upper`;
-`forecast` drops `shock`). Coefficient-bearing models (`estimate var var`, `estimate regression reg`, `estimate regression iv`, `estimate choice logit`,
+`forecast` drops `shock`). Coefficient-bearing models (`estimate multivariate var`, `estimate regression reg`, `estimate regression iv`, `estimate choice logit`,
 `estimate choice probit`, and the panel, ordered, and multinomial leaves) render through `DataFrame(model)`: one row per term,
 columns `term | estimate | std_error | stat | p_value | ci_lower | ci_upper`. A handful of
 leaves are deliberate exceptions and keep a domain-specific wide table instead — volatility
@@ -831,7 +831,7 @@ type for them yet or because collapsing to the generic schema would drop informa
 Save a fitted model and reuse it later without re-estimation:
 
 ```bash
-friedman estimate var var macro --lags 2 --save-model var   # stem → var.jld2
+friedman estimate multivariate var macro --lags 2 --save-model var   # stem → var.jld2
 friedman irf var --model var --horizons 12 --save-result irf
 friedman irf var --result irf                           # skip compute, re-render
 friedman show irf
@@ -842,7 +842,7 @@ friedman model info var.jld2                            # inspect type / dims / 
 `--result`, and `friedman show` accept suffix-less stems (append `.jld2`).
 `model info` still wants an explicit handle path (`.jld2` / `.fmod` /
 `model://`). A data handle whose type is not in the leaf's `data_kinds` is
-`data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate var var`. A
+`data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate multivariate var`. A
 `--result` handle of the wrong result type is `data/wrong-result` (exit 3);
 a `--model` handle of the wrong model type is `model/wrong-kind` (exit 5).
 

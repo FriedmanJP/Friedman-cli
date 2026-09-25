@@ -38,7 +38,7 @@ STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
         ├─ data export STEM  →  CSV (inverse of import)
         │
         ▼
-estimate var var STEM --save-model var         # stem → var.jld2
+estimate multivariate var STEM --save-model var         # stem → var.jld2
         │
         ▼
 irf var --model var --save-result irf      # --model stem → var.jld2
@@ -48,7 +48,7 @@ forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
 # evaluate --result is a comma-separated string (not RESULT_OPTION)
 
 CSV shortcut (unchanged, additive 0.x):
-estimate var var macro.csv --lags 2
+estimate multivariate var macro.csv --lags 2
 ```
 
 ### Stem resolution
@@ -93,7 +93,7 @@ handle). `model://name` is the serve-session URI and is not stem-expanded.
 
 `wrap_legacy` type-checks a loaded data handle against the leaf's
 registry-declared `data_kinds` **before** the handler runs. A mismatch is
-`data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate var var`. CSV
+`data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate multivariate var`. CSV
 remains legal on every leaf that lists `:csv`. `--result` of a type not in
 `result_types` is `data/wrong-result` (exit 3); `--model` of a type not in
 `model_types` is `model/wrong-kind` (exit 5). `--result` cannot be combined

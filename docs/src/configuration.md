@@ -4,7 +4,7 @@ Friedman uses TOML configuration files for complex model specifications. Pass th
 
 ## Minnesota Prior
 
-Used by `estimate var bvar`, `irf bvar`, `fevd bvar`, `hd bvar`, `forecast var bvar`.
+Used by `estimate multivariate bvar`, `irf bvar`, `fevd bvar`, `hd bvar`, `forecast multivariate bvar`.
 
 ```toml
 [prior]
@@ -151,7 +151,7 @@ kind = "most_important"  # or "overwhelming"
 
 ## SVAR AB-model Patterns
 
-Patterns for `estimate var svar --pattern`. `recursive` and `blanchard-quah` need no config; the matrix kinds read n×n arrays from the `[svar]` table, where TOML `nan` marks a free parameter and any fixed number a calibrated entry.
+Patterns for `estimate multivariate svar --pattern`. `recursive` and `blanchard-quah` need no config; the matrix kinds read n×n arrays from the `[svar]` table, where TOML `nan` marks a free parameter and any fixed number a calibrated entry.
 
 ```toml
 [svar]
@@ -164,7 +164,7 @@ A = [[1.0, 0.0], [nan, 1.0]]
 
 ## SVEC Restrictions
 
-Optional zero matrices for `estimate var svec --config`. Either key absent keeps upstream's KPSW default for that side; no `--config` at all gives the fully default KPSW identification. Same n×n `nan`-means-free convention as `[svar]`.
+Optional zero matrices for `estimate multivariate svec --config`. Either key absent keeps upstream's KPSW default for that side; no `--config` at all gives the fully default KPSW identification. Same n×n `nan`-means-free convention as `[svar]`.
 
 ```toml
 [svec]
@@ -476,7 +476,7 @@ All commands support three output formats:
 Terminal-formatted table using PrettyTables with center-aligned columns.
 
 ```bash
-friedman estimate var var data.csv
+friedman estimate multivariate var data.csv
 ```
 
 ### CSV
@@ -484,8 +484,8 @@ friedman estimate var var data.csv
 Standard CSV output, either to stdout or file.
 
 ```bash
-friedman estimate var var data.csv --format=csv
-friedman estimate var var data.csv --format=csv --output=results.csv
+friedman estimate multivariate var data.csv --format=csv
+friedman estimate multivariate var data.csv --format=csv --output=results.csv
 ```
 
 ### JSON
@@ -493,8 +493,8 @@ friedman estimate var var data.csv --format=csv --output=results.csv
 Array of row dictionaries.
 
 ```bash
-friedman estimate var var data.csv --format=json
-friedman estimate var var data.csv --format=json --output=results.json
+friedman estimate multivariate var data.csv --format=json
+friedman estimate multivariate var data.csv --format=json --output=results.json
 ```
 
 Example JSON output:

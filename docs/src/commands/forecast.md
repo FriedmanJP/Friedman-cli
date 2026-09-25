@@ -17,14 +17,14 @@ share a domain-specific `horizon | variance | volatility` table — collapsing i
 generic tidy schema would drop the `volatility` (= √variance) column, so it stays a
 principled exception (see [Volatility Model Forecasts](#volatility-model-forecasts) below).
 
-## forecast var var
+## forecast multivariate var
 
 H-step ahead VAR point forecasts with analytical or bootstrap confidence intervals.
 
 ```bash
-friedman forecast var var data.csv --horizons=12 --confidence=0.95
-friedman forecast var var data.csv --lags=4 --horizons=24
-friedman forecast var var data.csv --ci-method=bootstrap
+friedman forecast multivariate var data.csv --horizons=12 --confidence=0.95
+friedman forecast multivariate var data.csv --lags=4 --horizons=24
+friedman forecast multivariate var data.csv --ci-method=bootstrap
 ```
 
 | Option | Short | Type | Default | Description |
@@ -43,13 +43,13 @@ friedman forecast var var data.csv --ci-method=bootstrap
 !!! note "v0.3.0"
     VAR forecasts now return typed `VARForecast` objects with accessor functions: `point_forecast()`, `lower_bound()`, `upper_bound()`, `forecast_horizon()`.
 
-## forecast var bvar
+## forecast multivariate bvar
 
 Bayesian forecasts with posterior credible intervals (16th/50th/84th percentiles).
 
 ```bash
-friedman forecast var bvar data.csv --horizons=12 --draws=2000
-friedman forecast var bvar data.csv --sampler=gibbs --config=prior.toml
+friedman forecast multivariate bvar data.csv --horizons=12 --draws=2000
+friedman forecast multivariate bvar data.csv --sampler=gibbs --config=prior.toml
 ```
 
 | Option | Short | Type | Default | Description |
@@ -67,15 +67,15 @@ friedman forecast var bvar data.csv --sampler=gibbs --config=prior.toml
 !!! note "v0.3.0"
     BVAR forecasts now return typed `BVARForecast` objects with the same accessor interface as `VARForecast`.
 
-## forecast var scenario
+## forecast multivariate scenario
 
 Waggoner–Zha conditional (scenario) forecasts: pin some variables to chosen paths and let
 the model work out everything else, together with the structural shocks that would deliver
 the scenario.
 
 ```bash
-friedman forecast var scenario data.csv --conditions-file=scenario.csv --horizons=12
-friedman forecast var scenario data.csv --conditions-file=scenario.csv --method=bvar --draws=2000
+friedman forecast multivariate scenario data.csv --conditions-file=scenario.csv --horizons=12
+friedman forecast multivariate scenario data.csv --conditions-file=scenario.csv --method=bvar --draws=2000
 ```
 
 **Conditions file.** A long-format CSV, one condition per row:
@@ -121,7 +121,7 @@ credible, and the shock table is what reveals that.
     `--conditions` is reserved: it prints the GPL conditions notice, and it is matched
     anywhere in the command line.
 
-## forecast var lp
+## forecast multivariate lp
 
 Direct LP forecasts with configurable impulse path and confidence intervals.
 
@@ -129,8 +129,8 @@ Direct LP forecasts with configurable impulse path and confidence intervals.
     `LPForecast` field renamed: `.forecast` (was `.forecasts` in earlier versions).
 
 ```bash
-friedman forecast var lp data.csv --shock=1 --horizons=12 --shock-size=1.0
-friedman forecast var lp data.csv --ci-method=bootstrap --n-boot=500
+friedman forecast multivariate lp data.csv --shock=1 --horizons=12 --shock-size=1.0
+friedman forecast multivariate lp data.csv --ci-method=bootstrap --n-boot=500
 ```
 
 | Option | Short | Type | Default | Description |
@@ -378,14 +378,14 @@ friedman forecast volatility sv data.csv --column=1 --draws=5000 --horizons=12
 | `--plot` | | Flag | | Open interactive plot in browser |
 | `--plot-save` | | String | | Save plot to HTML file |
 
-## forecast var vecm
+## forecast multivariate vecm
 
 VECM forecasts with bootstrap confidence intervals.
 
 ```bash
-friedman forecast var vecm data.csv --horizons=12
-friedman forecast var vecm data.csv --rank=2 --deterministic=constant --lags=4
-friedman forecast var vecm data.csv --confidence=0.90 --replications=1000
+friedman forecast multivariate vecm data.csv --horizons=12
+friedman forecast multivariate vecm data.csv --rank=2 --deterministic=constant --lags=4
+friedman forecast multivariate vecm data.csv --confidence=0.90 --replications=1000
 ```
 
 | Option | Short | Type | Default | Description |

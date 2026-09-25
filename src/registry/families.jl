@@ -4,7 +4,10 @@
 # as its middle segment, except family `other` (those test leaves stay flat).
 # `did test <name>` moves to `test did <name>`. `dsge ha <op>` moves to
 # `hadsge <op>`. The old spelling does not dispatch; the usage error names
-# the new path via `_PATH_REPLACEMENTS`.
+# the new path via `_PATH_REPLACEMENTS`. The `var`→`multivariate` rename
+# registers the same way: each finalized `<verb> multivariate <leaf>` path
+# remembers its `<verb> var <leaf>` spelling, so the removed paths keep
+# naming the new one (the exact entry beats the depth-2 prefix hint).
 
 const _PROMOTE_VERBS = ("estimate", "predict", "residuals", "forecast", "test")
 const _EXEMPT_TOPS = ("serve", "show", "completions", "model")
@@ -12,9 +15,10 @@ const _EXEMPT_TOPS = ("serve", "show", "completions", "model")
 # Shared by estimate / predict / residuals / forecast. A token missing from a
 # verb simply has no leaf there (star and setar have no predict leaf).
 const _MODEL_FAMILY = Dict{String,String}(
-    "var" => "var", "bvar" => "var", "vecm" => "var", "svar" => "var",
-    "svec" => "var", "tvpvar" => "var", "mfvar" => "var", "favar" => "var",
-    "lp" => "var", "scenario" => "var",
+    "var" => "multivariate", "bvar" => "multivariate", "vecm" => "multivariate",
+    "svar" => "multivariate", "svec" => "multivariate", "tvpvar" => "multivariate",
+    "mfvar" => "multivariate", "favar" => "multivariate", "lp" => "multivariate",
+    "scenario" => "multivariate",
     "arch" => "volatility", "garch" => "volatility", "egarch" => "volatility",
     "gjr-garch" => "volatility", "igarch" => "volatility", "cgarch" => "volatility",
     "aparch" => "volatility", "figarch" => "volatility", "fiegarch" => "volatility",
@@ -41,7 +45,7 @@ const _MODEL_FAMILY = Dict{String,String}(
     "statespace" => "regression",
 )
 
-# Depth-2 `test` leaves. Already-nested `test var|vecm|pvar *` take the middle
+# Depth-2 `test` leaves. Already-nested `test multivariate|vecm|pvar *` take the middle
 # segment as their family and are not listed here. `other` is a help heading
 # only — those paths stay `test <leaf>`.
 const _TEST_FAMILY = Dict{String,String}(
@@ -66,7 +70,7 @@ const _TEST_FAMILY = Dict{String,String}(
     "f-fe" => "panel", "hausman" => "panel", "modified-wald" => "panel",
     "pesaran-cd" => "panel", "wooldridge-ar" => "panel", "pmg-hausman" => "panel",
     "dh-causality" => "panel", "panic" => "panel",
-    "granger" => "var", "lr" => "var", "lm" => "var",
+    "granger" => "multivariate", "lr" => "multivariate", "lm" => "multivariate",
     "brant" => "other", "dispersion" => "other", "edf" => "other", "fisher" => "other",
     "gph" => "other", "hansen-linearity" => "other", "hausman-iia" => "other",
     "identifiability" => "other", "influence" => "other", "local-whittle" => "other",
@@ -147,6 +151,10 @@ function _finalize_spec(s::CommandSpec)
     fam = isempty(s.family) ? _family_for(s.path) : s.family
     newpath, changed = _promote_path(s.path, fam)
     changed && _remember_replacement(s.path, newpath)
+    if length(newpath) == 3 && newpath[2] == "multivariate" &&
+       newpath[1] in ("estimate", "predict", "residuals", "forecast", "test")
+        _remember_replacement([newpath[1], "var", newpath[3]], newpath)
+    end
     (newpath == s.path && fam == s.family) && return s
     return _copy_spec(s; path=newpath, family=fam)
 end

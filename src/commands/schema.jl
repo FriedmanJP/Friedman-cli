@@ -348,7 +348,7 @@ function dispatch_schema(args::Vector{String}; prog::String="friedman schema")
     end
     # Split path tokens from options. FLAGS never consume the next token —
     # the old splitter ate the following path segment for ANY dash token, so
-    # `schema --docs estimate var` consumed `estimate` as --docs's value (D-6).
+    # `schema --docs estimate multivariate` consumed `estimate` as --docs's value (D-6).
     flag_tokens = Set{String}()
     for f in leaf.flags
         push!(flag_tokens, "--" * f.name)

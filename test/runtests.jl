@@ -989,14 +989,14 @@ using .MacroEconometricModels
         @test length(estimate_node.subcmds["pvar"].options) == 13
         @test length(estimate_node.subcmds["pvar"].flags) == 2
 
-        # Arg binding: estimate var var
+        # Arg binding: estimate multivariate var
         parsed = tokenize(["data.csv", "--lags=4", "--trend=both"])
         bound = bind_args(parsed, est_var)
         @test bound.data == "data.csv"
         @test bound.lags == 4
         @test bound.trend == "both"
 
-        # Arg binding: estimate var bvar
+        # Arg binding: estimate multivariate bvar
         parsed = tokenize(["data.csv", "--draws=5000", "--sampler=hmc"])
         bound = bind_args(parsed, est_bvar)
         @test bound.data == "data.csv"
@@ -1004,7 +1004,7 @@ using .MacroEconometricModels
         @test bound.sampler == "hmc"
         @test bound.lags == 4  # default
 
-        # Arg binding: estimate var lp
+        # Arg binding: estimate multivariate lp
         parsed = tokenize(["data.csv", "--method=iv", "--instruments=inst.csv"])
         bound = bind_args(parsed, est_lp)
         @test bound.data == "data.csv"
@@ -1012,7 +1012,7 @@ using .MacroEconometricModels
         @test bound.instruments == "inst.csv"
         @test bound.horizons == 20  # default
 
-        # Dispatch: estimate var var test.csv --lags=4
+        # Dispatch: estimate multivariate var test.csv --lags=4
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1027,7 +1027,7 @@ using .MacroEconometricModels
         @test called_with[][:data] == "test.csv"
         @test called_with[][:lags] == 4
 
-        # Dispatch: estimate var lp test.csv --method=iv
+        # Dispatch: estimate multivariate lp test.csv --method=iv
         est_lp_d = LeafCommand("lp", dispatch_handler;
             args=[Argument("data"; description="Data file")],
             options=[Option("method"; type=String, default="standard", description="Method")],
@@ -1361,7 +1361,7 @@ using .MacroEconometricModels
         @test bound.lags == 4
         @test bound.trend == "none"
 
-        # Dispatch through nested var node: friedman test var lagselect test.csv
+        # Dispatch through nested var node: friedman test multivariate lagselect test.csv
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1938,7 +1938,7 @@ using .MacroEconometricModels
         @test contains(help_text, "arch")
         @test contains(help_text, "sv")
 
-        # Arg binding: forecast var var
+        # Arg binding: forecast multivariate var
         parsed = tokenize(["data.csv", "--horizons=24", "--confidence=0.90"])
         bound = bind_args(parsed, fc_var)
         @test bound.data == "data.csv"
@@ -1956,7 +1956,7 @@ using .MacroEconometricModels
         @test bound.horizons == 24
         @test bound.confidence == 0.95  # default
 
-        # Dispatch: friedman forecast var var test.csv --horizons=24
+        # Dispatch: friedman forecast multivariate var test.csv --horizons=24
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2168,13 +2168,13 @@ using .MacroEconometricModels
             @test contains(help_text, key)
         end
 
-        # Arg binding: predict var var
+        # Arg binding: predict multivariate var
         parsed = tokenize(["data.csv", "--lags=3"])
         bound = bind_args(parsed, pred_var)
         @test bound.data == "data.csv"
         @test bound.lags == 3
 
-        # Dispatch: friedman predict var var test.csv --lags=2
+        # Dispatch: friedman predict multivariate var test.csv --lags=2
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2374,7 +2374,7 @@ using .MacroEconometricModels
             @test contains(help_text, key)
         end
 
-        # Dispatch: friedman residuals var var test.csv
+        # Dispatch: friedman residuals multivariate var test.csv
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2725,7 +2725,7 @@ function _write_table(df::DataFrame, output::String, title::String)
 end
 
 @testset "envelope core" begin
-    env = Envelope(command="estimate var var")
+    env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
     add_table!(env, :criteria, DataFrame(metric=["aic"], value=[NaN]))
     buf = IOBuffer(); render(env, :json, buf)
@@ -2741,7 +2741,7 @@ end
     buf = IOBuffer(); render(env, :csv, buf)
     @test startswith(String(take!(buf)), "variable,est")  # primary table only
 
-    err = Envelope(command="estimate var var")
+    err = Envelope(command="estimate multivariate var")
     set_error!(err, "data/file-not-found", "file not found: x.csv"; hint="check the path")
     buf = IOBuffer(); render(err, :json, buf)
     doc = JSON3.read(String(take!(buf)))
@@ -2778,18 +2778,18 @@ end
 
 # W2/#137: the raw-argv JSON pre-scan feeding run_cli's usage-error net.
 @testset "_argv_wants_json forms (W2/#137)" begin
-    @test _argv_wants_json(["estimate", "var", "var", "d.csv", "--format", "json"])
-    @test _argv_wants_json(["estimate", "var", "var", "--format=json"])
-    @test _argv_wants_json(["estimate", "var", "var", "-f", "json"])
-    @test _argv_wants_json(["estimate", "var", "var", "-f=json"])
-    @test _argv_wants_json(["--json", "estimate", "var", "var"])
-    @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "var", "var"])
-    @test !_argv_wants_json(["estimate", "var", "var", "d.csv"])
-    @test !_argv_wants_json(["estimate", "var", "var", "--format", "csv"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "d.csv", "--format", "json"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "--format=json"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "-f", "json"])
+    @test _argv_wants_json(["estimate", "multivariate", "var", "-f=json"])
+    @test _argv_wants_json(["--json", "estimate", "multivariate", "var"])
+    @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "multivariate", "var"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "d.csv"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "--format", "csv"])
     # --json is a LEADING global; mid-argv it belongs to the leaf parser (#117)
-    @test !_argv_wants_json(["estimate", "var", "var", "--json"])
-    @test !_argv_wants_json(["estimate", "var", "var", "-f", "table"])
-    @test !_argv_wants_json(["--seed=42", "estimate", "var", "var"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "--json"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "-f", "table"])
+    @test !_argv_wants_json(["--seed=42", "estimate", "multivariate", "var"])
 end
 
 # W2/#137: error objects carry exit_code from the SAME prefix map as the
@@ -4234,7 +4234,7 @@ end
     @test !haskey(est_node.subcmds["volatility"].subcmds, "gjr_garch")  # C055: alias removed
 
     # FAVAR has key-vars option
-    favar_cmd = est_node.subcmds["var"].subcmds["favar"]
+    favar_cmd = est_node.subcmds["multivariate"].subcmds["favar"]
     @test length(favar_cmd.args) == 1
     @test favar_cmd.args[1].name == "data"
     favar_opt_names = [o.name for o in favar_cmd.options]
@@ -4395,10 +4395,10 @@ end
     # Forecast model leaves sit under family nodes; evaluate stays a sub-node.
     fc_node = register_forecast_commands!()
     @test haskey(fc_node.subcmds, "evaluate")
-    @test fc_node.subcmds["var"].subcmds["favar"] isa LeafCommand
+    @test fc_node.subcmds["multivariate"].subcmds["favar"] isa LeafCommand
     @test fc_node.subcmds["factor"].subcmds["sdfm"] isa LeafCommand
 
-    fc_favar = fc_node.subcmds["var"].subcmds["favar"]
+    fc_favar = fc_node.subcmds["multivariate"].subcmds["favar"]
     fc_favar_opts = [o.name for o in fc_favar.options]
     @test "key-vars" in fc_favar_opts
     @test "horizons" in fc_favar_opts
@@ -4406,15 +4406,15 @@ end
     @test "panel-forecast" in fc_favar_flags
 
     pred_node = register_predict_commands!()
-    @test pred_node.subcmds["var"].subcmds["favar"] isa LeafCommand
+    @test pred_node.subcmds["multivariate"].subcmds["favar"] isa LeafCommand
 
-    pred_favar_opts = [o.name for o in pred_node.subcmds["var"].subcmds["favar"].options]
+    pred_favar_opts = [o.name for o in pred_node.subcmds["multivariate"].subcmds["favar"].options]
     @test "key-vars" in pred_favar_opts
 
     res_node = register_residuals_commands!()
-    @test res_node.subcmds["var"].subcmds["favar"] isa LeafCommand
+    @test res_node.subcmds["multivariate"].subcmds["favar"] isa LeafCommand
 
-    res_favar_opts = [o.name for o in res_node.subcmds["var"].subcmds["favar"].options]
+    res_favar_opts = [o.name for o in res_node.subcmds["multivariate"].subcmds["favar"].options]
     @test "key-vars" in res_favar_opts
 end
 
@@ -4575,8 +4575,8 @@ end
 
         # wrap_legacy save + load
         h_save = wrap_legacy((; data="", format="table", output="", kwargs...) -> (m=:var, ok=true))
-        env = Envelope(command="estimate var var")
-        dummy_spec = CommandSpec(path=["estimate", "var", "var"], summary="x")
+        env = Envelope(command="estimate multivariate var")
+        dummy_spec = CommandSpec(path=["estimate", "multivariate", "var"], summary="x")
         ctx = CmdContext(
             Dict{Symbol,Any}(:data => "x.csv"),
             Dict{Symbol,Any}(:save_model => tmp, :format => "table", :output => ""),
@@ -4597,7 +4597,7 @@ end
         # registry options present (use register_* — no test_main build_app mirror)
         est = register_estimate_commands!()
         irf = register_irf_commands!()
-        @test any(o -> o.name == "save-model", est.subcmds["var"].subcmds["var"].options)
+        @test any(o -> o.name == "save-model", est.subcmds["multivariate"].subcmds["var"].options)
         @test any(o -> o.name == "model", irf.subcmds["var"].options)
         mod = register_model_commands!()
         @test haskey(mod.subcmds, "info")

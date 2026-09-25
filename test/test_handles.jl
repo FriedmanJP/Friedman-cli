@@ -1,5 +1,5 @@
 @testset "typed-handles registry fields" begin
-    s = CommandSpec(path=["estimate", "var", "var"], summary="x",
+    s = CommandSpec(path=["estimate", "multivariate", "var"], summary="x",
                     args=[ArgSpec(name="data")],
                     handler=wrap_legacy((; kwargs...) -> nothing))
     @test s.data_kinds == Symbol[]
@@ -62,7 +62,7 @@ end
 
         saw = Ref{String}("")
         handler = wrap_legacy((; data::String="", format="table", output="") -> (saw[] = data; nothing))
-        spec = CommandSpec(path=["estimate", "var", "var"], summary="x",
+        spec = CommandSpec(path=["estimate", "multivariate", "var"], summary="x",
                            args=[ArgSpec(name="data", required=false, default="")],
                            options=[OptionSpec(name="format", default="table"),
                                     OptionSpec(name="output", default="")],
@@ -353,16 +353,16 @@ end
     end
 end
 
-@testset "estimate var var declares timeseries kind" begin
+@testset "estimate multivariate var declares timeseries kind" begin
     specs = with_config_ergonomics(with_save_model(estimate_specs()))
     # After register overlays:
     node = register_estimate_commands!()
     # Look up via REGISTRY — register! appends, so findlast not findfirst.
-    s = findlast(x -> x.path == ["estimate", "var", "var"], REGISTRY)
+    s = findlast(x -> x.path == ["estimate", "multivariate", "var"], REGISTRY)
     @test s !== nothing
     @test :timeseries in REGISTRY[s].data_kinds
     @test :csv in REGISTRY[s].data_kinds
-    @test haskey(node.subcmds, "var")
+    @test haskey(node.subcmds, "multivariate")
 
     s_pvar = findlast(x -> x.path == ["estimate", "panel", "pvar"], REGISTRY)
     @test s_pvar !== nothing
@@ -399,7 +399,7 @@ end
         pd = xtset(CSV.read(csv, DataFrame), :group, :time)
         save_model_dispatch(joinpath(dir, "panel.jld2"), pd)
         err = try
-            node.subcmds["var"].subcmds["var"].handler(; data=joinpath(dir, "panel"),
+            node.subcmds["multivariate"].subcmds["var"].handler(; data=joinpath(dir, "panel"),
                                         format="json", output="")
             nothing
         catch e; e; end
@@ -411,8 +411,8 @@ end
 
 @testset "schema x-handle" begin
     node = register_estimate_commands!()
-    leaf = node.subcmds["var"].subcmds["var"]
-    sch = _input_schema(leaf, ["estimate", "var", "var"])
+    leaf = node.subcmds["multivariate"].subcmds["var"]
+    sch = _input_schema(leaf, ["estimate", "multivariate", "var"])
     @test haskey(sch["properties"]["data"], "x-handle")
     xh = sch["properties"]["data"]["x-handle"]
     @test xh["role"] == "data"
@@ -597,7 +597,7 @@ end
     @test any(o -> o.name == "result" && o.handle, spec.options)
 
     fc_node = register_forecast_commands!()
-    @test any(o -> o.name == "result", fc_node.subcmds["var"].subcmds["var"].options)
+    @test any(o -> o.name == "result", fc_node.subcmds["multivariate"].subcmds["var"].options)
     eval_metrics = fc_node.subcmds["evaluate"].subcmds["metrics"]
     @test any(o -> o.name == "result", eval_metrics.options)
     eval_spec = _spec_for_path(["forecast", "evaluate", "metrics"])
@@ -691,7 +691,7 @@ end
     end
 
     pnode = register_predict_commands!()
-    pspec = _spec_for_path(["predict", "var", "var"])
+    pspec = _spec_for_path(["predict", "multivariate", "var"])
     @test :VARModel in pspec.model_types
     aspec = _spec_for_path(["predict", "univariate", "arima"])
     @test :ARIMAModel in aspec.model_types

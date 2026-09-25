@@ -37,17 +37,17 @@ include(joinpath(@__DIR__, "runtests.jl"))
         rm(csv; force=true)
     end
 
-    @testset "predict var var" begin
+    @testset "predict multivariate var" begin
         csv = dgp_var2(; T=120, seed=104)
-        r = run_json(["predict", "var", "var", csv, "--lags", "1"])
-        assert_envelope_ok(r; label="predict var var")
+        r = run_json(["predict", "multivariate", "var", csv, "--lags", "1"])
+        assert_envelope_ok(r; label="predict multivariate var")
         rm(csv; force=true)
     end
 
-    @testset "residuals var var" begin
+    @testset "residuals multivariate var" begin
         csv = dgp_var2(; T=120, seed=105)
-        r = run_json(["residuals", "var", "var", csv, "--lags", "1"])
-        assert_envelope_ok(r; label="residuals var var")
+        r = run_json(["residuals", "multivariate", "var", csv, "--lags", "1"])
+        assert_envelope_ok(r; label="residuals multivariate var")
         rm(csv; force=true)
     end
 
@@ -120,9 +120,9 @@ include(joinpath(@__DIR__, "runtests.jl"))
         rm(csv; force=true)
     end
 
-    @testset "test var lagselect" begin
+    @testset "test multivariate lagselect" begin
         csv = dgp_var2(; T=150, seed=113)
-        r = run_json(["test", "var", "lagselect", csv])
+        r = run_json(["test", "multivariate", "lagselect", csv])
         if r.code == 0 && r.doc !== nothing && string(r.doc.status) == "ok"
             assert_envelope_ok(r; label="var lagselect")
         else
@@ -157,7 +157,7 @@ include(joinpath(@__DIR__, "runtests.jl"))
     end
 
     @testset "schema command is JSON" begin
-        r = run_json(["schema", "estimate", "var", "var"]; quiet=false)
+        r = run_json(["schema", "estimate", "multivariate", "var"]; quiet=false)
         # schema may not use envelope — accept exit 0 + parseable JSON
         @test r.code == 0 || r.doc !== nothing || occursin("{", r.raw)
         if !isempty(strip(r.raw))

@@ -14,14 +14,14 @@ equation); the panel models are the same 7 columns as `reg`/`logit`/`probit`; `o
 pseudo-R²/log-likelihood, convergence) print as a separate small table alongside the
 coefficient table, not merged into it.
 
-## estimate var var
+## estimate multivariate var
 
 Estimate a VAR(p) model via OLS. Lag order is auto-selected via AIC when `--lags` is omitted.
 
 ```bash
-friedman estimate var var data.csv
-friedman estimate var var data.csv --lags=2
-friedman estimate var var data.csv --lags=4 --format=csv --output=var_results.csv
+friedman estimate multivariate var data.csv
+friedman estimate multivariate var data.csv --lags=2
+friedman estimate multivariate var data.csv --lags=4 --format=csv --output=var_results.csv
 ```
 
 | Option | Short | Type | Default | Description |
@@ -37,7 +37,7 @@ Shown on the bundled Denmark money dataset (`:denmark`); status lines go to stde
 
 <!-- capture -->
 ```bash
-friedman estimate var var :denmark --lags 1 --format json
+friedman estimate multivariate var :denmark --lags 1 --format json
 ```
 ```json
 {
@@ -387,21 +387,21 @@ friedman estimate var var :denmark --lags 1 --format json
     "status": "ok",
     "artifacts": [
     ],
-    "command": "friedman estimate var var",
+    "command": "friedman estimate multivariate var",
     "meta": {
     },
     "error": null
 }
 ```
 
-## estimate var bvar
+## estimate multivariate bvar
 
 Estimate a Bayesian VAR with MCMC sampling and posterior extraction.
 
 ```bash
-friedman estimate var bvar data.csv --lags=4 --draws=2000
-friedman estimate var bvar data.csv --config=prior.toml --method=median
-friedman estimate var bvar data.csv --sampler=gibbs --draws=5000
+friedman estimate multivariate bvar data.csv --lags=4 --draws=2000
+friedman estimate multivariate bvar data.csv --config=prior.toml --method=median
+friedman estimate multivariate bvar data.csv --sampler=gibbs --draws=5000
 ```
 
 | Option | Short | Type | Default | Description |
@@ -425,12 +425,12 @@ See [Configuration](../configuration.md) for Minnesota prior TOML format.
     to the library, which now runs the full **Giannone, Lenza & Primiceri (2015)**
     joint optimization of the marginal likelihood over the overall, sum-of-coefficients
     and dummy-initial-observation tightness. Through CLI v0.9.0 this was a `tau`-only
-    grid search, so **`estimate var bvar` results change at this version** for runs that do
+    grid search, so **`estimate multivariate bvar` results change at this version** for runs that do
     not pass `--config`. Supplying `--config` pins the hyperparameters explicitly and is
     unaffected, as is `--prior normal`.
 
     Only this leaf is affected. The derived BVAR commands (`irf`/`fevd`/`hd`/`forecast`/
-    `predict`/`residuals var bvar`, `nowcast bvar`) default to the **normal** prior when no
+    `predict`/`residuals multivariate bvar`, `nowcast bvar`) default to the **normal** prior when no
     `--config` is given, and hyperparameter selection is never reached under that prior.
 
 ### Choosing and inspecting the hyperparameters
@@ -566,14 +566,14 @@ exactly as a weak instrument does.
 
 No `--plot`: upstream ships no plot recipe for `RDDResult` (verified at MEMs 1.0.0).
 
-## estimate var tvpvar
+## estimate multivariate tvpvar
 
 Time-varying-parameter VAR with stochastic volatility (Primiceri 2005): both the
 coefficients and the shock volatilities drift as random walks, estimated by Gibbs sampling.
 
 ```bash
-friedman estimate var tvpvar data.csv --lags=2 --draws=2000 --burnin=1000
-friedman estimate var tvpvar data.csv --no-sv          # drifting coefficients, constant volatility
+friedman estimate multivariate tvpvar data.csv --lags=2 --draws=2000 --burnin=1000
+friedman estimate multivariate tvpvar data.csv --no-sv          # drifting coefficients, constant volatility
 ```
 
 | Option | Short | Type | Default | Description |
@@ -616,10 +616,10 @@ friedman irf tvpvar data.csv --date=40 --horizons=20
 | `--no-stationary-only` | | Flag | | Include explosive draws instead of discarding them |
 
 Estimation options (`--lags`, `--draws`, `--burnin`, `--thin`, `--n-train`, `--k-q`/`--k-s`/`--k-w`,
-`--no-tvp`, `--no-sv`) match `estimate var tvpvar`.
+`--no-tvp`, `--no-sv`) match `estimate multivariate tvpvar`.
 
 `--date` indexes the **effective** sample, after lags and any training observations — run
-`estimate var tvpvar` first and read `T_eff` from the specification table. A missing `--date` is
+`estimate multivariate tvpvar` first and read `T_eff` from the specification table. A missing `--date` is
 rejected before the sampler runs; an out-of-range one can only be caught afterwards, since
 `T_eff` is not known until then.
 
@@ -627,15 +627,15 @@ By default explosive posterior draws are discarded. If *every* draw is explosive
 requested date the command fails with `model/error` naming `--no-stationary-only` as the
 escape hatch — that is a modelling outcome, not a bug.
 
-## estimate var mfvar
+## estimate multivariate mfvar
 
 Mixed-frequency VAR (Schorfheide & Song 2015). Series observed at different frequencies are
 combined in a single high-frequency VAR, with the low-frequency series treated as a latent
 high-frequency process observed only periodically.
 
 ```bash
-friedman estimate var mfvar monthly_quarterly.csv --freq-ratio=3 --aggregation=average
-friedman estimate var mfvar data.csv --low-freq=2,3 --aggregation=growth,flow
+friedman estimate multivariate mfvar monthly_quarterly.csv --freq-ratio=3 --aggregation=average
+friedman estimate multivariate mfvar data.csv --low-freq=2,3 --aggregation=growth,flow
 ```
 
 **Data layout.** One CSV at the **high** frequency. A low-frequency series occupies a normal
@@ -680,29 +680,29 @@ No `--plot`: upstream ships no plot recipe for `MFVARPosterior` (verified at MEM
 !!! note "Seeding"
     `estimate_tvpvar` and `estimate_mfvar` take an RNG rather than a seed, so `--seed`
     cannot be recorded in the result's reproducibility manifest the way it is for
-    `estimate var bvar`. Runs remain reproducible through the global seed the CLI sets.
+    `estimate multivariate bvar`. Runs remain reproducible through the global seed the CLI sets.
 
-## estimate var lp
+## estimate multivariate lp
 
 Estimate local projections with 6 method variants.
 
 ### Standard LP (Jorda 2005)
 
 ```bash
-friedman estimate var lp data.csv --shock=1 --horizons=20 --vcov=newey_west
+friedman estimate multivariate lp data.csv --shock=1 --horizons=20 --vcov=newey_west
 ```
 
 ### LP-IV (Stock & Watson 2018)
 
 ```bash
-friedman estimate var lp data.csv --method=iv --shock=1 --instruments=instruments.csv
+friedman estimate multivariate lp data.csv --method=iv --shock=1 --instruments=instruments.csv
 ```
 
 ### Smooth LP (Barnichon & Brownlees 2019)
 
 ```bash
-friedman estimate var lp data.csv --method=smooth --shock=1 --horizons=20
-friedman estimate var lp data.csv --method=smooth --lambda=0.5 --knots=4
+friedman estimate multivariate lp data.csv --method=smooth --shock=1 --horizons=20
+friedman estimate multivariate lp data.csv --method=smooth --lambda=0.5 --knots=4
 ```
 
 When `--lambda=0` (default), the smoothing parameter is auto-selected via cross-validation.
@@ -710,19 +710,19 @@ When `--lambda=0` (default), the smoothing parameter is auto-selected via cross-
 ### State-Dependent LP (Auerbach & Gorodnichenko 2013)
 
 ```bash
-friedman estimate var lp data.csv --method=state --shock=1 --state-var=2 --gamma=1.5
+friedman estimate multivariate lp data.csv --method=state --shock=1 --state-var=2 --gamma=1.5
 ```
 
 ### Propensity Score LP (Angrist et al. 2018)
 
 ```bash
-friedman estimate var lp data.csv --method=propensity --treatment=1 --score-method=logit
+friedman estimate multivariate lp data.csv --method=propensity --treatment=1 --score-method=logit
 ```
 
 ### Doubly Robust LP
 
 ```bash
-friedman estimate var lp data.csv --method=robust --treatment=1 --score-method=logit
+friedman estimate multivariate lp data.csv --method=robust --treatment=1 --score-method=logit
 ```
 
 | Option | Short | Type | Default | Description |
@@ -756,10 +756,10 @@ The LP-IV summary always reports the per-horizon first-stage F — as a **minimu
 
 ```bash
 # Montiel Olea-Pflueger effective F — the correct weak-IV statistic under heteroskedasticity
-friedman estimate var lp data.csv --method=iv --instruments=z.csv --mop-f --mop-tau=0.10
+friedman estimate multivariate lp data.csv --method=iv --instruments=z.csv --mop-f --mop-tau=0.10
 
 # Anderson-Rubin bands — correct coverage at ANY instrument strength
-friedman estimate var lp data.csv --method=iv --instruments=z.csv --ar-bands --ar-level=0.95
+friedman estimate multivariate lp data.csv --method=iv --instruments=z.csv --ar-bands --ar-level=0.95
 ```
 
 `--mop-f` emits a **Montiel Olea-Pflueger Effective F** table (`f_effective`, `critical_value`, `tau`, `weak`, `n_instruments`, `bandwidth`, `f_naive`). The effective F is the statistic to act on: the naive first-stage F is valid only under homoskedasticity, and the two diverge exactly when it matters. The critical values are MOP's *simplified* (nuisance-parameter-free) ones — conservative upper bounds — so a pass is a genuine pass.
@@ -1310,15 +1310,15 @@ friedman estimate regression ml data.csv --distribution=skew_normal
 
 **Output:** Structural impact matrix (B0), model fit (log-likelihood, AIC, BIC), distribution parameters, parameter estimates with standard errors.
 
-## estimate var vecm
+## estimate multivariate vecm
 
 Estimate a Vector Error Correction Model via Johansen MLE. Cointegration rank is auto-selected via trace test when `--rank` is omitted.
 
 ```bash
-friedman estimate var vecm data.csv --lags=2
-friedman estimate var vecm data.csv --rank=1 --deterministic=constant
-friedman estimate var vecm data.csv --lags=4 --rank=2 --method=johansen
-friedman estimate var vecm data.csv --significance=0.01
+friedman estimate multivariate vecm data.csv --lags=2
+friedman estimate multivariate vecm data.csv --rank=1 --deterministic=constant
+friedman estimate multivariate vecm data.csv --lags=4 --rank=2 --method=johansen
+friedman estimate multivariate vecm data.csv --significance=0.01
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1333,15 +1333,15 @@ friedman estimate var vecm data.csv --significance=0.01
 
 **Output:** Cointegration rank, loading matrix (alpha), cointegrating vectors (beta), short-run coefficients.
 
-## estimate var svar
+## estimate multivariate svar
 
 Maximum-likelihood estimation of the AB-model SVAR (`A u_t = B ε_t`, Amisano–Giannini). `recursive` and `blanchard-quah` are closed-form; overidentified matrix patterns are maximised with LBFGS from `--n-starts` starting values. Matrix patterns come from the `[svar]` config table (`nan` = free parameter); see [Configuration](../configuration.md).
 
 ```bash
-friedman estimate var svar data.csv --lags=2
-friedman estimate var svar data.csv --pattern=blanchard-quah
-friedman estimate var svar data.csv --pattern=a-model --config=svar.toml
-friedman estimate var svar data.csv --pattern=ab-model --config=svar.toml --n-starts=10
+friedman estimate multivariate svar data.csv --lags=2
+friedman estimate multivariate svar data.csv --pattern=blanchard-quah
+friedman estimate multivariate svar data.csv --pattern=a-model --config=svar.toml
+friedman estimate multivariate svar data.csv --pattern=ab-model --config=svar.toml --n-starts=10
 ```
 
 | Option | Short | Type | Default | Description |
@@ -1358,13 +1358,13 @@ friedman estimate var svar data.csv --pattern=ab-model --config=svar.toml --n-st
 
 **Output:** Contemporaneous matrix A, structural matrix B, log-likelihood with the LR overidentification test and identification status.
 
-## estimate var svec
+## estimate multivariate svec
 
 Structural VECM via King–Plosser–Stock–Watson (default) or custom long/short-run zero matrices from the `[svec]` config table. Without `--config` the identification is fully KPSW.
 
 ```bash
-friedman estimate var svec data.csv --lags=2 --rank=1
-friedman estimate var svec data.csv --lags=2 --rank=1 --config=svec.toml
+friedman estimate multivariate svec data.csv --lags=2 --rank=1
+friedman estimate multivariate svec data.csv --lags=2 --rank=1 --config=svec.toml
 ```
 
 | Option | Short | Type | Default | Description |

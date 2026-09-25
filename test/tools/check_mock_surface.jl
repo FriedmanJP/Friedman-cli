@@ -141,7 +141,7 @@ end
 #
 # A mock function that returns a NamedTuple literal can invent keys real MEMs
 # never produces — invisible to the struct/getproperty checks because an NT is
-# neither. `estimate var lp --method iv` shipped dead this way (mock invented
+# neither. `estimate multivariate lp --method iv` shipped dead this way (mock invented
 # `F_stat`/`is_weak`; real returns `(F_stats, weak_horizons, min_F,
 # passes_threshold, threshold)`).
 

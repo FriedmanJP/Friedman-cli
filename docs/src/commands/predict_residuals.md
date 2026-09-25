@@ -8,10 +8,10 @@ Both commands share identical subcommand structure and options. Each subcommand 
 
 | Path under `predict` / `residuals` | Model |
 |------------|-------|
-| `var var` | Frequentist VAR |
-| `var bvar` | Bayesian VAR |
+| `multivariate var` | Frequentist VAR |
+| `multivariate bvar` | Bayesian VAR |
 | `univariate arima` | ARIMA |
-| `var vecm` | Vector Error Correction Model |
+| `multivariate vecm` | Vector Error Correction Model |
 | `factor static` | Static factor model (PCA) |
 | `factor dynamic` | Dynamic factor model |
 | `factor gdfm` | Generalized dynamic factor model |
@@ -20,7 +20,7 @@ Both commands share identical subcommand structure and options. Each subcommand 
 | `volatility egarch` | EGARCH volatility |
 | `volatility gjr-garch` | GJR-GARCH volatility |
 | `volatility sv` | Stochastic volatility |
-| `var favar` | Factor-Augmented VAR |
+| `multivariate favar` | Factor-Augmented VAR |
 | `regression reg` | OLS/WLS regression |
 | `choice logit` | Logit regression |
 | `choice probit` | Probit regression |
@@ -38,19 +38,19 @@ Both commands share identical subcommand structure and options. Each subcommand 
 ## predict
 
 ```bash
-friedman predict var var data.csv --lags=2
+friedman predict multivariate var data.csv --lags=2
 friedman predict univariate arima data.csv --p=1 --d=1 --q=1
 friedman predict volatility garch data.csv --column=1 --p=1 --q=1
-friedman predict var vecm data.csv --lags=4 --rank=2
+friedman predict multivariate vecm data.csv --lags=4 --rank=2
 ```
 
 ## residuals
 
 ```bash
-friedman residuals var var data.csv --lags=2
+friedman residuals multivariate var data.csv --lags=2
 friedman residuals univariate arima data.csv --p=1 --d=1 --q=1
 friedman residuals volatility garch data.csv --column=1 --p=1 --q=1
-friedman residuals var vecm data.csv --lags=4 --rank=2
+friedman residuals multivariate vecm data.csv --lags=4 --rank=2
 ```
 
 ## Common Options

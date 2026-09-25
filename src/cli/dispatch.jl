@@ -32,8 +32,8 @@ function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
     # Pre-dispatch globals are LEADING-ONLY (#117): they fire only as the FIRST
     # token, before any subcommand path is consumed. The old whole-argv match
     # swallowed a leaf option of the same name — the GPL notice printed instead
-    # of the command running, silently, exit 0 (found in W8; `forecast var scenario`
-    # spells its option `--conditions-file` to dodge the old behaviour).
+    # of the command running, silently, exit 0 (found in W8; `forecast multivariate
+    # scenario` spells its option `--conditions-file` to dodge the old behaviour).
     if !isempty(args)
         if args[1] == "--version" || args[1] == "-V"
             println(entry.name, " v", entry.version)

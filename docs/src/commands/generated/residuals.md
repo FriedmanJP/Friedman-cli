@@ -229,6 +229,94 @@ Model residuals (static)
 
 ---
 
+### `friedman residuals multivariate bvar`
+
+Model residuals (bvar)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
+| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--sampler` | — | `String` | `direct` | — | Sampler |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `bvar_residuals` (BVAR residuals at the posterior mean, one column per variable)
+
+---
+
+### `friedman residuals multivariate favar`
+
+Model residuals (favar)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--factors` | `-r` | `Int64` | — | — | Number of factors |
+| `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
+| `--key-vars` | — | `String` | `""` | — | Key variables |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `favar_residuals` (FAVAR residuals, one column per factor and observed variable)
+
+---
+
+### `friedman residuals multivariate var`
+
+Model residuals (var)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `var_residuals` (VAR residuals, one column per variable)
+
+---
+
+### `friedman residuals multivariate vecm`
+
+Model residuals (vecm)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `vecm_residuals` (VECM residuals (via the VAR representation), one column per variable)
+
+---
+
 ### `friedman residuals panel piv`
 
 Model residuals (piv)
@@ -604,94 +692,6 @@ Path to CSV data file
 | `--no-intercept` | — | Exclude the intercept term |
 
 **Output tables:** `sarima_residuals` (SARIMA residuals, one row per period)
-
----
-
-### `friedman residuals var bvar`
-
-Model residuals (bvar)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | Sampler |
-| `--config` | — | `String` | `""` | — | TOML prior config |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `bvar_residuals` (BVAR residuals at the posterior mean, one column per variable)
-
----
-
-### `friedman residuals var favar`
-
-Model residuals (favar)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
-| `--key-vars` | — | `String` | `""` | — | Key variables |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `favar_residuals` (FAVAR residuals, one column per factor and observed variable)
-
----
-
-### `friedman residuals var var`
-
-Model residuals (var)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `var_residuals` (VAR residuals, one column per variable)
-
----
-
-### `friedman residuals var vecm`
-
-Model residuals (vecm)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `vecm_residuals` (VECM residuals (via the VAR representation), one column per variable)
 
 ---
 

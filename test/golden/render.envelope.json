@@ -1,1 +1,1 @@
-{"schema_version":1,"data":{"coefficients":{"columns":["variable","est"],"rows":[["y1",0.5],["y2",-0.25]]}},"warnings":[],"status":"ok","artifacts":[],"command":"estimate var var","meta":{"julia":"GOLDEN","cli_version":"GOLDEN","mems_version":"GOLDEN"},"error":null}
+{"schema_version":1,"data":{"coefficients":{"columns":["variable","est"],"rows":[["y1",0.5],["y2",-0.25]]}},"warnings":[],"status":"ok","artifacts":[],"command":"estimate multivariate var","meta":{"julia":"GOLDEN","cli_version":"GOLDEN","mems_version":"GOLDEN"},"error":null}

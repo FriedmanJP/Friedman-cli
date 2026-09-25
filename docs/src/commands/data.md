@@ -19,7 +19,7 @@ it before (additive 0.x).
   An **edit** of a CSV with `-o out.jld2` is `usage/invalid` (import first).
   Omitting `--save-model` means do not save (no default stem).
 - **Wrong kind:** a handle whose type is not in the leaf's `data_kinds` is
-  `data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate var var`, a raw CSV
+  `data/wrong-kind` (exit 3) — e.g. a panel handle on `estimate multivariate var`, a raw CSV
   on `data export`, or `apply_tcode` on `CrossSectionData`.
 
 | Input | `-o` | Writes |

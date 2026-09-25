@@ -640,6 +640,120 @@ Path to CSV data file
 
 ---
 
+### `friedman test multivariate granger`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--cause` | — | `Int64` | `1` | — | Cause variable index (1-based) |
+| `--effect` | — | `Int64` | `2` | — | Effect variable index (1-based) |
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--model` | — | `String` | `vecm` | — | var\|vecm (model type for Granger test) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--all` | — | Test all pairwise combinations (VAR only) |
+
+**Output tables:** `granger_causality` (Causality result for the requested direction (short-run/long-run/joint rows under --model vecm)); `var_granger_causality_all_pairwise` (Statistic, df and p-value for every ordered variable pair (--all only))
+
+---
+
+### `friedman test multivariate lagselect`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--max-lags` | — | `Int64` | `12` | — | Maximum lag order to test |
+| `--criterion` | — | `String` | `aic` | — | aic\|bic\|hqc |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `lag_order_selection` (AIC, BIC and HQC for every candidate lag order); `optimal_lag` (Selected lag order and the criterion that chose it (JSON output only))
+
+---
+
+### `friedman test multivariate lm`
+
+Path to CSV data file for restricted model
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data1` | `String` | yes | — | Path to CSV data file for restricted model |
+| `data2` | `String` | yes | — | Path to CSV data file for unrestricted model |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags1` | — | `Int64` | — | — | Lag order for restricted model (default: auto) |
+| `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `lagrange_multiplier_test` (LM statistic, p-value, df and sample size)
+
+---
+
+### `friedman test multivariate lr`
+
+Path to CSV data file for restricted model
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data1` | `String` | yes | — | Path to CSV data file for restricted model |
+| `data2` | `String` | yes | — | Path to CSV data file for unrestricted model |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags1` | — | `Int64` | — | — | Lag order for restricted model (default: auto) |
+| `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `likelihood_ratio_test` (LR statistic, p-value, df and both log-likelihoods)
+
+---
+
+### `friedman test multivariate stability`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+**Output tables:** `companion_matrix_eigenvalues` (Companion-matrix eigenvalue and its modulus, one row per root)
+
+---
+
 ### `friedman test nardl-symmetry`
 
 Path to CSV data file
@@ -1962,120 +2076,6 @@ Path to CSV data file
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 **Output tables:** `zivot_andrews_test` (Zivot-Andrews statistic and the estimated break observation)
-
----
-
-### `friedman test var granger`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--cause` | — | `Int64` | `1` | — | Cause variable index (1-based) |
-| `--effect` | — | `Int64` | `2` | — | Effect variable index (1-based) |
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--model` | — | `String` | `vecm` | — | var\|vecm (model type for Granger test) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--all` | — | Test all pairwise combinations (VAR only) |
-
-**Output tables:** `granger_causality` (Causality result for the requested direction (short-run/long-run/joint rows under --model vecm)); `var_granger_causality_all_pairwise` (Statistic, df and p-value for every ordered variable pair (--all only))
-
----
-
-### `friedman test var lagselect`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--max-lags` | — | `Int64` | `12` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `aic` | — | aic\|bic\|hqc |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `lag_order_selection` (AIC, BIC and HQC for every candidate lag order); `optimal_lag` (Selected lag order and the criterion that chose it (JSON output only))
-
----
-
-### `friedman test var lm`
-
-Path to CSV data file for restricted model
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data1` | `String` | yes | — | Path to CSV data file for restricted model |
-| `data2` | `String` | yes | — | Path to CSV data file for unrestricted model |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags1` | — | `Int64` | — | — | Lag order for restricted model (default: auto) |
-| `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `lagrange_multiplier_test` (LM statistic, p-value, df and sample size)
-
----
-
-### `friedman test var lr`
-
-Path to CSV data file for restricted model
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data1` | `String` | yes | — | Path to CSV data file for restricted model |
-| `data2` | `String` | yes | — | Path to CSV data file for unrestricted model |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags1` | — | `Int64` | — | — | Lag order for restricted model (default: auto) |
-| `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `likelihood_ratio_test` (LR statistic, p-value, df and both log-likelihoods)
-
----
-
-### `friedman test var stability`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
-
-**Output tables:** `companion_matrix_eigenvalues` (Companion-matrix eigenvalue and its modulus, one row per root)
 
 ---
 

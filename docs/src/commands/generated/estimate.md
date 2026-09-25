@@ -306,6 +306,270 @@ Path to CSV data file
 
 ---
 
+### `friedman estimate multivariate bvar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
+| `--prior` | — | `String` | `minnesota` | — | Prior type: minnesota |
+| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
+| `--method` | — | `String` | `mean` | — | mean\|median (posterior extraction) |
+| `--hyperopt` | — | `String` | `glp` | `glp`, `grid` | Minnesota hyperparameter selection: glp\|grid |
+| `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `bvar_coefficients` (Posterior mean (or median) BVAR coefficients, one row per equation x regressor); `minnesota_hyperparameters` (Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the posterior point model)
+
+---
+
+### `friedman estimate multivariate favar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
+| `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
+| `--method` | — | `String` | `two_step` | — | two_step\|bayesian |
+| `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws (bayesian only) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+
+**Output tables:** `favar_coefficients` (FAVAR coefficients over factors and key variables, one row per equation x regressor); `bayesian_favar` (Factor, key-variable, lag and draw counts of a --method bayesian fit)
+
+---
+
+### `friedman estimate multivariate lp`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--method` | — | `String` | `standard` | — | standard\|iv\|smooth\|state\|propensity\|robust |
+| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
+| `--control-lags` | — | `Int64` | `4` | — | Number of control lags |
+| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
+| `--instruments` | — | `String` | `""` | — | Path to instruments CSV (iv only) |
+| `--knots` | — | `Int64` | `3` | — | Number of B-spline knots (smooth only) |
+| `--lambda` | — | `Float64` | `0.0` | — | Smoothing penalty, 0=auto CV (smooth only) |
+| `--state-var` | — | `Int64` | — | — | State variable index (state only) |
+| `--gamma` | — | `Float64` | `1.5` | — | Transition steepness (state only) |
+| `--transition` | — | `String` | `logistic` | — | logistic\|exponential\|indicator (state only) |
+| `--treatment` | — | `Int64` | `1` | — | Treatment variable index (propensity/robust only) |
+| `--score-method` | — | `String` | `logit` | — | logit\|probit (propensity/robust only) |
+| `--mop-tau` | — | `Float64` | `0.1` | — | MOP worst-case relative-bias target: 0.05\|0.10\|0.20\|0.30 (iv, with --mop-f) |
+| `--mop-bandwidth` | — | `Int64` | `0` | — | HAC lag length for the MOP effective F; 0 = auto (iv, with --mop-f) |
+| `--ar-level` | — | `Float64` | `0.95` | — | Coverage for the AR bands (iv, with --ar-bands) |
+| `--ar-grid` | — | `Int64` | `401` | — | Grid points per horizon×response when inverting the AR test (iv, with --ar-bands) |
+| `--ar-span` | — | `Float64` | `20.0` | — | AR search half-width in 2SLS standard errors (iv, with --ar-bands) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--mop-f` | — | Report the Montiel Olea-Pflueger effective first-stage F (LP-IV) |
+| `--ar-bands` | — | Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV) |
+
+**Output tables:** `lp_coefficients` (Impulse responses by horizon with standard errors and t-statistics, one column per response variable); `lp_coefficients_expansion` (Expansion-regime responses (--method state only)); `lp_coefficients_recession` (Recession-regime responses (--method state only)); `lp_estimation_summary` (Effective sample size, covariance estimator and, for LP-IV, the first-stage F); `montiel_olea_pflueger_effective_f` (Montiel Olea-Pflueger effective first-stage F against its critical value (--mop-f)); `lp_iv_anderson_rubin_bands` (Weak-instrument-robust Anderson-Rubin bands per horizon x response (--ar-bands))
+
+---
+
+### `friedman estimate multivariate mfvar`
+
+Mixed-frequency VAR (Schorfheide-Song 2015)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | CSV at the HIGH frequency; low-frequency series blank between observations |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--low-freq` | — | `String` | `""` | — | 1-based indices of low-frequency columns (default: those with gaps) |
+| `--freq-ratio` | — | `Int64` | `3` | — | High- per low-frequency periods (3 = monthly/quarterly) |
+| `--aggregation` | — | `String` | `growth` | — | stock\|flow\|average\|growth (one, or one per low-freq series) |
+| `--draws` | `-n` | `Int64` | `1000` | — | Retained Gibbs draws |
+| `--burnin` | — | `Int64` | `500` | — | Burn-in sweeps discarded |
+| `--prior` | — | `String` | `minnesota` | `minnesota`, `diffuse` | minnesota\|diffuse |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+
+**Output tables:** `mf_var_latent_high_frequency_path_68_credible_band` (Posterior mean and 16/50/84 quantiles of the latent high-frequency path); `mf_var_specification` (Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation)
+
+---
+
+### `friedman estimate multivariate svar`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
+| `--pattern` | — | `String` | `recursive` | `recursive`, `blanchard-quah`, `a-model`, `b-model`, `ab-model` | AB-model pattern: recursive\|blanchard-quah\|a-model\|b-model\|ab-model |
+| `--config` | — | `String` | `""` | — | TOML config with [svar] A/B matrices (a/b/ab-model) |
+| `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (overidentified patterns) |
+| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `svar_a` (SVAR contemporaneous A matrix, one row per equation); `svar_b` (SVAR structural B matrix, one row per equation); `svar_summary` (Log-likelihood, LR overidentification test and identification status)
+
+---
+
+### `friedman estimate multivariate svec`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--config` | — | `String` | `""` | — | TOML config with optional [svec] long/short-run zero matrices |
+| `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (restricted patterns) |
+| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `svec_b0` (SVEC contemporaneous impact matrix B0, one row per equation); `svec_xi` (SVEC long-run impact matrix Xi, one row per equation); `svec_summary` (Permanent-shock count and identification status)
+
+---
+
+### `friedman estimate multivariate tvpvar`
+
+TVP-VAR with stochastic volatility (Primiceri 2005)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--draws` | `-n` | `Int64` | `2000` | — | Retained Gibbs draws |
+| `--burnin` | — | `Int64` | `1000` | — | Burn-in sweeps discarded |
+| `--thin` | — | `Int64` | `1` | — | Keep every k-th draw |
+| `--n-train` | — | `Int64` | `0` | — | Training sample used to calibrate priors |
+| `--k-q` | — | `Float64` | `0.01` | — | Coefficient random-walk prior scale (> 0) |
+| `--k-s` | — | `Float64` | `0.1` | — | Covariance random-walk prior scale (> 0) |
+| `--k-w` | — | `Float64` | `0.01` | — | Log-volatility random-walk prior scale (> 0) |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-tvp` | — | Hold coefficients constant (drop the time variation) |
+| `--no-sv` | — | Hold volatilities constant (drop stochastic volatility) |
+
+**Output tables:** `tvp_var_stochastic_volatility_path_posterior_sd_68_band` (Posterior mean and 16/50/84 quantiles of the stochastic-volatility path, one row per period x variable); `tvp_var_specification` (Lags, variable count, effective sample, training sample, draws and the tvp/sv switches)
+
+---
+
+### `friedman estimate multivariate var`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
+| `--trend` | — | `String` | `constant` | — | none\|constant\|trend\|both |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+
+**Output tables:** `var_coefficients` (Tidy VAR coefficient table: one row per equation x term with SEs, t-stats, p-values and CIs); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VAR)
+
+---
+
+### `friedman estimate multivariate vecm`
+
+Path to CSV data file
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+
+**Output tables:** `cointegrating_vectors_beta` (Cointegrating vectors beta, one row per variable and one column per relation); `adjustment_coefficients_alpha` (Adjustment coefficients alpha, one row per equation); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VECM)
+
+---
+
 ### `friedman estimate panel piv`
 
 Path to CSV panel data file
@@ -1389,270 +1653,6 @@ Path to CSV data file
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `sarima_coefficients` (Non-seasonal and seasonal AR/MA estimates plus the innovation variance); `information_criteria` (AIC, BIC, log-likelihood and effective sample size)
-
----
-
-### `friedman estimate var bvar`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--prior` | — | `String` | `minnesota` | — | Prior type: minnesota |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
-| `--method` | — | `String` | `mean` | — | mean\|median (posterior extraction) |
-| `--hyperopt` | — | `String` | `glp` | `glp`, `grid` | Minnesota hyperparameter selection: glp\|grid |
-| `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `bvar_coefficients` (Posterior mean (or median) BVAR coefficients, one row per equation x regressor); `minnesota_hyperparameters` (Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the posterior point model)
-
----
-
-### `friedman estimate var favar`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
-| `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--method` | — | `String` | `two_step` | — | two_step\|bayesian |
-| `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws (bayesian only) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-
-**Output tables:** `favar_coefficients` (FAVAR coefficients over factors and key variables, one row per equation x regressor); `bayesian_favar` (Factor, key-variable, lag and draw counts of a --method bayesian fit)
-
----
-
-### `friedman estimate var lp`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `standard` | — | standard\|iv\|smooth\|state\|propensity\|robust |
-| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--control-lags` | — | `Int64` | `4` | — | Number of control lags |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
-| `--instruments` | — | `String` | `""` | — | Path to instruments CSV (iv only) |
-| `--knots` | — | `Int64` | `3` | — | Number of B-spline knots (smooth only) |
-| `--lambda` | — | `Float64` | `0.0` | — | Smoothing penalty, 0=auto CV (smooth only) |
-| `--state-var` | — | `Int64` | — | — | State variable index (state only) |
-| `--gamma` | — | `Float64` | `1.5` | — | Transition steepness (state only) |
-| `--transition` | — | `String` | `logistic` | — | logistic\|exponential\|indicator (state only) |
-| `--treatment` | — | `Int64` | `1` | — | Treatment variable index (propensity/robust only) |
-| `--score-method` | — | `String` | `logit` | — | logit\|probit (propensity/robust only) |
-| `--mop-tau` | — | `Float64` | `0.1` | — | MOP worst-case relative-bias target: 0.05\|0.10\|0.20\|0.30 (iv, with --mop-f) |
-| `--mop-bandwidth` | — | `Int64` | `0` | — | HAC lag length for the MOP effective F; 0 = auto (iv, with --mop-f) |
-| `--ar-level` | — | `Float64` | `0.95` | — | Coverage for the AR bands (iv, with --ar-bands) |
-| `--ar-grid` | — | `Int64` | `401` | — | Grid points per horizon×response when inverting the AR test (iv, with --ar-bands) |
-| `--ar-span` | — | `Float64` | `20.0` | — | AR search half-width in 2SLS standard errors (iv, with --ar-bands) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--mop-f` | — | Report the Montiel Olea-Pflueger effective first-stage F (LP-IV) |
-| `--ar-bands` | — | Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV) |
-
-**Output tables:** `lp_coefficients` (Impulse responses by horizon with standard errors and t-statistics, one column per response variable); `lp_coefficients_expansion` (Expansion-regime responses (--method state only)); `lp_coefficients_recession` (Recession-regime responses (--method state only)); `lp_estimation_summary` (Effective sample size, covariance estimator and, for LP-IV, the first-stage F); `montiel_olea_pflueger_effective_f` (Montiel Olea-Pflueger effective first-stage F against its critical value (--mop-f)); `lp_iv_anderson_rubin_bands` (Weak-instrument-robust Anderson-Rubin bands per horizon x response (--ar-bands))
-
----
-
-### `friedman estimate var mfvar`
-
-Mixed-frequency VAR (Schorfheide-Song 2015)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | CSV at the HIGH frequency; low-frequency series blank between observations |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
-| `--low-freq` | — | `String` | `""` | — | 1-based indices of low-frequency columns (default: those with gaps) |
-| `--freq-ratio` | — | `Int64` | `3` | — | High- per low-frequency periods (3 = monthly/quarterly) |
-| `--aggregation` | — | `String` | `growth` | — | stock\|flow\|average\|growth (one, or one per low-freq series) |
-| `--draws` | `-n` | `Int64` | `1000` | — | Retained Gibbs draws |
-| `--burnin` | — | `Int64` | `500` | — | Burn-in sweeps discarded |
-| `--prior` | — | `String` | `minnesota` | `minnesota`, `diffuse` | minnesota\|diffuse |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-
-**Output tables:** `mf_var_latent_high_frequency_path_68_credible_band` (Posterior mean and 16/50/84 quantiles of the latent high-frequency path); `mf_var_specification` (Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation)
-
----
-
-### `friedman estimate var svar`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--pattern` | — | `String` | `recursive` | `recursive`, `blanchard-quah`, `a-model`, `b-model`, `ab-model` | AB-model pattern: recursive\|blanchard-quah\|a-model\|b-model\|ab-model |
-| `--config` | — | `String` | `""` | — | TOML config with [svar] A/B matrices (a/b/ab-model) |
-| `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (overidentified patterns) |
-| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `svar_a` (SVAR contemporaneous A matrix, one row per equation); `svar_b` (SVAR structural B matrix, one row per equation); `svar_summary` (Log-likelihood, LR overidentification test and identification status)
-
----
-
-### `friedman estimate var svec`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
-| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--config` | — | `String` | `""` | — | TOML config with optional [svec] long/short-run zero matrices |
-| `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (restricted patterns) |
-| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `svec_b0` (SVEC contemporaneous impact matrix B0, one row per equation); `svec_xi` (SVEC long-run impact matrix Xi, one row per equation); `svec_summary` (Permanent-shock count and identification status)
-
----
-
-### `friedman estimate var tvpvar`
-
-TVP-VAR with stochastic volatility (Primiceri 2005)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
-| `--draws` | `-n` | `Int64` | `2000` | — | Retained Gibbs draws |
-| `--burnin` | — | `Int64` | `1000` | — | Burn-in sweeps discarded |
-| `--thin` | — | `Int64` | `1` | — | Keep every k-th draw |
-| `--n-train` | — | `Int64` | `0` | — | Training sample used to calibrate priors |
-| `--k-q` | — | `Float64` | `0.01` | — | Coefficient random-walk prior scale (> 0) |
-| `--k-s` | — | `Float64` | `0.1` | — | Covariance random-walk prior scale (> 0) |
-| `--k-w` | — | `Float64` | `0.01` | — | Log-volatility random-walk prior scale (> 0) |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--no-tvp` | — | Hold coefficients constant (drop the time variation) |
-| `--no-sv` | — | Hold volatilities constant (drop stochastic volatility) |
-
-**Output tables:** `tvp_var_stochastic_volatility_path_posterior_sd_68_band` (Posterior mean and 16/50/84 quantiles of the stochastic-volatility path, one row per period x variable); `tvp_var_specification` (Lags, variable count, effective sample, training sample, draws and the tvp/sv switches)
-
----
-
-### `friedman estimate var var`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--trend` | — | `String` | `constant` | — | none\|constant\|trend\|both |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-
-**Output tables:** `var_coefficients` (Tidy VAR coefficient table: one row per equation x term with SEs, t-stats, p-values and CIs); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VAR)
-
----
-
-### `friedman estimate var vecm`
-
-Path to CSV data file
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
-| `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
-
-**Output tables:** `cointegrating_vectors_beta` (Cointegrating vectors beta, one row per variable and one column per relation); `adjustment_coefficients_alpha` (Adjustment coefficients alpha, one row per equation); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VECM)
 
 ---
 

@@ -147,8 +147,8 @@ function main()
         err_cases = [
             (["filter", "hp", "/nope.csv", "--format", "json"],
              ["filter", "hp", "error"]),
-            (["estimate", "var", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
-             ["estimate", "var", "bvar", "config-error"]),
+            (["estimate", "multivariate", "bvar", fix, "--config", "/nope.toml", "--format", "json"],
+             ["estimate", "multivariate", "bvar", "config-error"]),
         ]
         for (argv, gpath) in err_cases
             Random.seed!(42)
@@ -180,8 +180,8 @@ function main()
             Y = reduce(hcat, (sin.(1:40) .+ 0.1 .* cos.((1:40) ./ i) for i in 1:3))
             save_model_dispatch("var.jld2", estimate_var(Y, 1; varnames=["y1", "y2", "y3"]))
             handle_err = [
-                (["estimate", "var", "var", "panel", "--lags", "1", "--format", "json"],
-                 ["estimate", "var", "var", "wrong-kind"]),
+                (["estimate", "multivariate", "var", "panel", "--lags", "1", "--format", "json"],
+                 ["estimate", "multivariate", "var", "wrong-kind"]),
                 (["irf", "var", "--result", "var", "--format", "json"],
                  ["irf", "var", "wrong-result"]),
             ]
@@ -206,7 +206,7 @@ function main()
     end
     # Renderer text goldens (table + csv) — centralized output path
     mktempdir() do dir
-        env = Envelope(command="estimate var var")
+        env = Envelope(command="estimate multivariate var")
         add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
         # table
         buf = IOBuffer(); render(env, :table, buf)

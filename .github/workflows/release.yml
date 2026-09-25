@@ -15,7 +15,7 @@ on:
         required: false
         default: "3000"
       budget_estimate_ms:
-        description: "first estimate var budget in ms (default 3500)"
+        description: "first estimate multivariate var budget in ms (default 3500)"
         required: false
         default: "3500"
 
@@ -100,7 +100,7 @@ jobs:
           for t in $(seq 1 60); do printf '%s,%s\n' "$t.1" "$((t % 7)).3" >> smoke.csv; done
 
           # Hard gate: exactly one JSON document (no ::warning fallback)
-          "$BIN" --quiet estimate var smoke.csv --lags 1 --format json > smoke_out.json
+          "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > smoke_out.json
           python3 - <<'PY'
           import json, sys
           raw = open("smoke_out.json").read().strip()
@@ -115,7 +115,7 @@ jobs:
           PY
 
           # schema command → valid JSON
-          "$BIN" schema estimate var > schema_out.json
+          "$BIN" schema estimate multivariate var > schema_out.json
           python3 -c "import json; json.load(open('schema_out.json')); print('schema json ok')"
 
           # exit codes: unknown command → 2, missing file → 3
@@ -126,7 +126,7 @@ jobs:
           test "$ec" -eq 2 || { echo "expected exit 2 for unknown command, got $ec"; exit 1; }
 
           set +e
-          "$BIN" estimate var /nope/missing.csv >/dev/null 2>&1
+          "$BIN" estimate multivariate var /nope/missing.csv >/dev/null 2>&1
           ec=$?
           set -e
           test "$ec" -eq 3 || { echo "expected exit 3 for missing file, got $ec"; exit 1; }

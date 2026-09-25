@@ -243,6 +243,94 @@ In-sample fitted values (static)
 
 ---
 
+### `friedman predict multivariate bvar`
+
+In-sample fitted values (bvar)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
+| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--sampler` | — | `String` | `direct` | — | Sampler |
+| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `bvar_predictions` (In-sample BVAR fitted values at the posterior mean, one column per variable)
+
+---
+
+### `friedman predict multivariate favar`
+
+In-sample fitted values (favar)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--factors` | `-r` | `Int64` | — | — | Number of factors |
+| `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
+| `--key-vars` | — | `String` | `""` | — | Key variables |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `favar_predictions` (In-sample FAVAR fitted values, one column per factor and observed variable)
+
+---
+
+### `friedman predict multivariate var`
+
+In-sample fitted values (var)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `var_predictions` (In-sample VAR fitted values, one column per variable)
+
+---
+
+### `friedman predict multivariate vecm`
+
+In-sample fitted values (vecm)
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+**Output tables:** `vecm_predictions` (In-sample VECM fitted values (via the VAR representation), one column per variable)
+
+---
+
 ### `friedman predict panel piv`
 
 In-sample fitted values (piv)
@@ -570,94 +658,6 @@ Path to CSV data file
 | `--no-intercept` | — | Exclude the intercept term |
 
 **Output tables:** `sarima_predictions` (In-sample SARIMA fitted values, one row per period)
-
----
-
-### `friedman predict var bvar`
-
-In-sample fitted values (bvar)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | Sampler |
-| `--config` | — | `String` | `""` | — | TOML prior config |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
-| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
-
-**Output tables:** `bvar_predictions` (In-sample BVAR fitted values at the posterior mean, one column per variable)
-
----
-
-### `friedman predict var favar`
-
-In-sample fitted values (favar)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
-| `--key-vars` | — | `String` | `""` | — | Key variables |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `favar_predictions` (In-sample FAVAR fitted values, one column per factor and observed variable)
-
----
-
-### `friedman predict var var`
-
-In-sample fitted values (var)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `var_predictions` (In-sample VAR fitted values, one column per variable)
-
----
-
-### `friedman predict var vecm`
-
-In-sample fitted values (vecm)
-
-| Argument | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
-
-| Option | Short | Type | Default | Choices | Description |
-|--------|-------|------|---------|---------|-------------|
-| `--lags` | `-p` | `Int64` | `2` | — | Lag order |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
-| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
-
-**Output tables:** `vecm_predictions` (In-sample VECM fitted values (via the VAR representation), one column per variable)
 
 ---
 

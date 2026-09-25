@@ -9,7 +9,7 @@ the documentation site renders the same file.
 With `--format=json`, **stdout is exactly one JSON document** (the result envelope). Status and diagnostics go to **stderr**.
 
 ```bash
-friedman estimate var var data.csv --lags 1 --format json | jq .
+friedman estimate multivariate var data.csv --lags 1 --format json | jq .
 ```
 
 Model commands are `verb family model` (`estimate volatility garch`,
@@ -23,14 +23,14 @@ Example shape (fields abbreviated):
 ```json
 {
   "schema_version": 1,
-  "command": "friedman estimate var var",
+  "command": "friedman estimate multivariate var",
   "status": "ok",
   "meta": {
     "cli_version": "0.9.2",
     "mems_version": "0.8.0",
     "julia": "1.13.x",
     "seed": null,
-    "argv": ["estimate", "var", "var", "data.csv", "--lags", "1", "--format", "json"],
+    "argv": ["estimate", "multivariate", "var", "data.csv", "--lags", "1", "--format", "json"],
     "elapsed_ms": 12.3
   },
   "data": {
@@ -71,7 +71,7 @@ directly.
 `data` keys are **predictable before you run the command**: they come from each
 leaf's registry-declared table names, never from runtime values.
 
-- **Singleton tables** use the declared name verbatim: `estimate var var` always
+- **Singleton tables** use the declared name verbatim: `estimate multivariate var` always
   answers under `var_coefficients` + `information_criteria` — regardless of
   `--lags`, your column names, or anything estimated. (Before v0.10.0 the same
   table was `var_2_coefficients` — the lag order baked into the address.)
@@ -97,12 +97,12 @@ object carries the machine-readable failure:
 ```json
 {
   "schema_version": 1,
-  "command": "friedman estimate var var",
+  "command": "friedman estimate multivariate var",
   "status": "error",
   "data": {},
   "error": {
     "code": "usage/parse",
-    "message": "friedman estimate var var: unknown option --lgas — did you mean --lags?",
+    "message": "friedman estimate multivariate var: unknown option --lgas — did you mean --lags?",
     "exit_code": 2
   }
 }
@@ -132,7 +132,7 @@ object carries the machine-readable failure:
 
 ```bash
 friedman nosuchcmd; echo $?          # 2
-friedman estimate var var /nope.csv; echo $?   # 3
+friedman estimate multivariate var /nope.csv; echo $?   # 3
 ```
 
 Domain failures carry **typed codes** where the underlying failure mode is
@@ -148,7 +148,7 @@ recognized (all are stable identifiers; the set only grows):
 | `model/error` | 5 | other recognized domain failure |
 | `data/serialization` | 3 | saved model handle unreadable or version-incompatible |
 | `data/orientation` | 3 | data matrix transposed relative to the observables |
-| `data/wrong-kind` | 3 | data slot loaded a container not in the leaf's `data_kinds` (e.g. `PanelData` on `estimate var var`) |
+| `data/wrong-kind` | 3 | data slot loaded a container not in the leaf's `data_kinds` (e.g. `PanelData` on `estimate multivariate var`) |
 | `data/wrong-result` | 3 | `--result` loaded a type not in the leaf's `result_types` (e.g. a `VARModel` on `irf var --result`) |
 | `model/wrong-kind` | 5 | `--model` loaded a type not in the leaf's `model_types` (e.g. an `ImpulseResponse` on `irf var --model`) |
 
@@ -160,7 +160,7 @@ class table above; `internal/error` (exit 1) means a CLI bug — report it.
 Unknown options throw with a suggestion when the edit distance is small:
 
 ```text
-Error: friedman estimate var var: unknown option --lgas — did you mean --lags?
+Error: friedman estimate multivariate var: unknown option --lgas — did you mean --lags?
 ```
 
 `--format` is restricted to `table|csv|json`. Negative numerics bind: `--threshold -0.5`.
@@ -169,9 +169,9 @@ Error: friedman estimate var var: unknown option --lgas — did you mean --lags?
 
 ```bash
 friedman schema | jq '.commands | length'            # top-level command count
-friedman schema estimate var var | jq '.options[].name'  # leaf options
-friedman schema estimate var var | jq '.input_schema'    # draft-07 invocation schema
-friedman schema estimate var var | jq '.tables'          # declared result-table keys
+friedman schema estimate multivariate var | jq '.options[].name'  # leaf options
+friedman schema estimate multivariate var | jq '.input_schema'    # draft-07 invocation schema
+friedman schema estimate multivariate var | jq '.tables'          # declared result-table keys
 friedman schema | jq '.contract.exit_codes'          # exit-code taxonomy
 friedman schema | jq -r '.docs'                      # this guide (--docs)
 ```
@@ -212,7 +212,7 @@ friedman serve --mcp    # JSON-RPC 2.0 / Model Context Protocol on stdio
 Every command becomes an MCP **tool** — one process, no per-call spawn:
 
 - **`tools/list`** mirrors the registry: tool name = command path joined with
-  `_` (`estimate_var_var`, `estimate_volatility_garch`, `dsge_bayes_estimate`).
+  `_` (`estimate_multivariate_var`, `estimate_volatility_garch`, `dsge_bayes_estimate`).
   Each tool has a `family` field, and its description starts with that family.
   `inputSchema` is the same draft-07 schema `friedman schema` reports.
   Pass `params.prefix` to keep one slice (`"estimate volatility"` returns only
@@ -235,7 +235,7 @@ Every command becomes an MCP **tool** — one process, no per-call spawn:
 ## Determinism & reproducibility
 
 ```bash
-friedman --seed 42 estimate var var data.csv --format json
+friedman --seed 42 estimate multivariate var data.csv --format json
 ```
 
 `meta.seed` echoes the seed; use the same seed for reproducible stochastic paths. Every JSON
@@ -273,7 +273,7 @@ are unchanged.
 
 ```bash
 friedman data import macro.csv --kind timeseries -o macro
-friedman estimate var var macro --lags 2 --save-model var   # stem → var.jld2
+friedman estimate multivariate var macro --lags 2 --save-model var   # stem → var.jld2
 friedman irf var --model var --horizons 12 --save-result irf
 friedman irf var --result irf                            # re-render; no data
 friedman show macro          # TimeSeriesData descriptive stats
@@ -282,7 +282,7 @@ friedman show irf            # re-render the saved ImpulseResponse
 friedman forecast evaluate metrics macro --actual gdp --result fcst_var,fcst_bvar
 friedman model info var.jld2
 # CSV shortcut still works:
-friedman estimate var var macro.csv --lags 2
+friedman estimate multivariate var macro.csv --lags 2
 ```
 
 `data import --kind` is required for CSV (no autodetection). Edits do not

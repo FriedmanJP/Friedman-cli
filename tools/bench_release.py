@@ -7,7 +7,7 @@ reported number is the minimum, which filters scheduler noise while keeping
 the full cold-start cost):
 
     version:   $BIN --version                                   (default budget 3000 ms)
-    estimate:  $BIN --quiet estimate var <data> --lags 1        (default budget 3500 ms)
+    estimate:  $BIN --quiet estimate multivariate <data> --lags 1        (default budget 3500 ms)
 
 Markdown table to stdout and, when set, $GITHUB_STEP_SUMMARY. A budget breach
 exits non-zero ONLY under --enforce (release CI enforces on ubuntu; macOS and
@@ -63,8 +63,8 @@ def main() -> int:
 
     cases = [
         ("--version", prefix + [bin_path, "--version"], args.budget_version_ms),
-        ("first estimate var",
-         prefix + [bin_path, "--quiet", "estimate", "var", args.data, "--lags", "1"],
+        ("first estimate multivariate",
+         prefix + [bin_path, "--quiet", "estimate", "multivariate", args.data, "--lags", "1"],
          args.budget_estimate_ms),
     ]
 

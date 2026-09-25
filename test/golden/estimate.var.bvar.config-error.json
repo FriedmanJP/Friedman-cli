@@ -1,1 +1,0 @@
-{"schema_version":1,"data":{},"warnings":[],"status":"error","artifacts":[],"command":"estimate var bvar","meta":{"julia":"GOLDEN","cli_version":"GOLDEN","seed":null,"mems_version":"GOLDEN"},"error":{"exit_code":4,"message":"config file not found: /nope.toml","code":"config/file-not-found"}}
