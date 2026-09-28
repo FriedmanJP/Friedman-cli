@@ -6,13 +6,20 @@ each run N times as a COLD process start (cold start IS the metric; the
 reported number is the minimum, which filters scheduler noise while keeping
 the full cold-start cost):
 
-    version:   $BIN --version                                   (default budget 3000 ms)
-    estimate:  $BIN --quiet estimate multivariate <data> --lags 1        (default budget 3500 ms)
+    version:   $BIN --version                                      (default budget 3000 ms)
+    estimate:  $BIN --quiet estimate multivariate var <data> --lags 1
+                                                                   (default budget 3500 ms)
+
+`estimate multivariate` is a family node. The timed command is the `var`
+leaf — the same leaf the release smoke step runs and `build_release.jl`
+precompiles. The smoke step adds `--format json`; this bench does not,
+because the budget is the default-table cold start. Passing the CSV where
+the leaf name belongs is `usage/unknown-command` (exit 2), not a slow run.
 
 Markdown table to stdout and, when set, $GITHUB_STEP_SUMMARY. A budget breach
 exits non-zero ONLY under --enforce (release CI enforces on ubuntu; macOS and
 Windows report). A case that FAILS to run exits non-zero regardless — a broken
-binary must never look like a slow one.
+binary must never look like a slow one — and the CLI's stderr is printed.
 
 Budget calibration (2026-08, #79 measure-first baseline): the JuMP+Ipopt-bundled
 sysimage costs ~2.3 s of pure runtime boot per cold invocation on ubuntu-latest
@@ -29,16 +36,85 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+
+# Leaf timed by the release. Keep this in lockstep with the smoke step in
+# .github/workflows/release.yml, the local timer in tools/bench_binary.sh,
+# and the precompile dispatch in build_release.jl.
+ESTIMATE_LEAF = ("estimate", "multivariate", "var")
+
+_STDERR_LIMIT = 4000
+
+
+def estimate_argv(prefix, bin_path, data):
+    """Argv for one cold `estimate multivariate var` start."""
+    return prefix + [bin_path, "--quiet", *ESTIMATE_LEAF, data, "--lags", "1"]
+
+
+def _clip(text: str, limit: int = _STDERR_LIMIT) -> str:
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    return "…\n" + text[-limit:]
+
+
+def _fail_broken(cmd, returncode, stdout, stderr):
+    detail = _clip(stderr) or _clip(stdout) or "(no stdout or stderr)"
+    sys.exit(f"FAIL: {' '.join(cmd)} exited {returncode} — broken, not slow\n{detail}")
+
+
+def _require_same_leaf() -> None:
+    """Fail before timing if the smoke step, local bench, or precompile
+    stopped naming this leaf. A missing source file is skipped so a copied
+    script can still time a binary."""
+    root = Path(__file__).resolve().parents[1]
+    leaf = " ".join(ESTIMATE_LEAF)
+    problems = []
+
+    yml = root / ".github" / "workflows" / "release.yml"
+    if yml.is_file():
+        # The smoke invocation, not a nearby comment: it names the fixture.
+        matched = any(
+            leaf in line and "smoke.csv" in line and "--lags 1" in line
+            for line in yml.read_text(encoding="utf-8").splitlines()
+        )
+        if not matched:
+            problems.append(f"{yml}: smoke step does not run `{leaf}` on smoke.csv --lags 1")
+
+    sh = root / "tools" / "bench_binary.sh"
+    if sh.is_file():
+        matched = any(
+            'estimate multivariate var "$FIX" --lags 1' in line
+            for line in sh.read_text(encoding="utf-8").splitlines()
+        )
+        if not matched:
+            problems.append(f"{sh}: local bench does not run `{leaf} --lags 1`")
+
+    jl = root / "build_release.jl"
+    if jl.is_file():
+        needle = ", ".join(f'"{part}"' for part in ESTIMATE_LEAF)
+        matched = any(
+            needle in line and '"--lags", "1"' in line
+            for line in jl.read_text(encoding="utf-8").splitlines()
+        )
+        if not matched:
+            problems.append(
+                f"{jl}: precompile does not dispatch `{leaf}` with --lags 1"
+            )
+
+    if problems:
+        sys.exit("FAIL: latency bench drifted from the release leaf\n" + "\n".join(problems))
 
 
 def run_case(cmd, n):
     times = []
     for _ in range(n):
         t0 = time.perf_counter()
-        r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         dt_ms = (time.perf_counter() - t0) * 1000.0
         if r.returncode != 0:
-            sys.exit(f"FAIL: {' '.join(cmd)} exited {r.returncode} — broken, not slow")
+            _fail_broken(cmd, r.returncode, r.stdout or "", r.stderr or "")
         times.append(dt_ms)
     return times
 
@@ -54,17 +130,28 @@ def main() -> int:
                     help="exit non-zero on budget breach (release CI: ubuntu only)")
     args = ap.parse_args()
 
+    if args.runs < 1:
+        sys.exit("FAIL: --runs must be ≥ 1")
+
+    _require_same_leaf()
+
     # Windows ships friedman.cmd — CreateProcess cannot exec a .cmd directly,
     # and cmd.exe does not resolve forward-slash paths (the CI step passes
     # build/friedman/bin/friedman.cmd from bash) — normpath converts to
     # backslashes on Windows and is a no-op elsewhere.
     bin_path = os.path.normpath(args.bin)
+    if not os.path.isfile(bin_path):
+        sys.exit(f"FAIL: binary not found: {bin_path}")
+    data_path = args.data
+    if not os.path.isfile(data_path):
+        sys.exit(f"FAIL: estimate fixture not found: {data_path}")
+
     prefix = ["cmd", "/c"] if bin_path.lower().endswith((".cmd", ".bat")) else []
 
     cases = [
         ("--version", prefix + [bin_path, "--version"], args.budget_version_ms),
-        ("first estimate multivariate",
-         prefix + [bin_path, "--quiet", "estimate", "multivariate", args.data, "--lags", "1"],
+        ("estimate multivariate var",
+         estimate_argv(prefix, bin_path, data_path),
          args.budget_estimate_ms),
     ]
 

@@ -64,7 +64,10 @@ dropped). C055 freeze: the 7 hidden snake_case aliases and
   Julia 1.13; TS-10 early-warning leg tracks prereleases;
   `docs/Manifest.toml` re-resolved on 1.13. C074 latency budgets ride
   unchanged until the 1.13 floor is measured at release time
-  (recorded on #79).
+  (recorded on #79). `tools/bench_release.py` times
+  `estimate multivariate var` (the leaf the smoke step runs) and
+  prints the CLI stderr when that case exits non-zero. Budgets stay
+  3000 ms / 3500 ms.
 - **`hd sdfm`**: new leaf wrapping
   `historical_decomposition(::StructuralDFM)` — `--space panel|factor`,
   `--no-idiosyncratic` (panel only), shared SDFM estimation surface,

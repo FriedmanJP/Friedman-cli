@@ -139,6 +139,9 @@ jobs:
       # and Windows report to the job summary only (runner variance). A real
       # breach is fixed by expanding the build_release.jl precompile workload
       # — budgets are never relaxed.
+      # The estimate case is `estimate multivariate var --lags 1` inside
+      # tools/bench_release.py (ESTIMATE_LEAF), the same leaf as the smoke
+      # step above. `estimate multivariate` alone is the family node.
       - name: Latency budgets (C074/#79)
         shell: bash
         run: |
