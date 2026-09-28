@@ -616,7 +616,7 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | forecast | lower | upper)
+**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | variable | value | lower | upper)
 
 ---
 

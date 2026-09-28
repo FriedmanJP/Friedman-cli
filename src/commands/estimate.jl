@@ -2691,13 +2691,12 @@ function _forecast_arfima(; data::String="", result=nothing, column::Int=1, p::I
         throw(_long_memory_error(e, "ARFIMA forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(DataFrame(
-            horizon = collect(1:horizons),
-            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
-            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
-            upper = round.(Float64.(collect(fc.ci_upper)); digits=6));
-        format=Symbol(format), output=output,
-        title="ARFIMA($p,d,$q) Forecast for $vname", key="arfima_forecast")
+    # #220: forecast(::ARFIMAModel) returns ARIMAForecast — route via the central
+    # helper (was a same-grain hand-build with renamed columns). Columns change
+    # horizon|forecast|lower|upper → horizon|variable|value|lower|upper
+    # (Option-A minor-evolvable), unrounded; accessors read the same fields.
+    _emit_result(fc; title="ARFIMA($p,d,$q) Forecast for $vname", key="arfima_forecast",
+                 format=Symbol(format), output=output)
     return (; model=m, result=fc)
 end
 

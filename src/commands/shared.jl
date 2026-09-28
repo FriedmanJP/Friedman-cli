@@ -3249,16 +3249,26 @@ const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
 """Emit an array-valued result via upstream `long_table`.
 
 `shocks` (single name or vector) filters the tidy rows to the selected structural
-shock(s) — the per-shock IRF pattern. Keys stay caller-chosen (frozen per #215
-Option A); columns come from upstream.
+shock(s) — the per-shock IRF pattern. `extra_cols` appends caller-computed columns
+(`name => values`) for data upstream's table legitimately lacks (scenario
+`unconditional` baseline); a length mismatch is a typed `model/error`, never a
+silent misalignment. Keys stay caller-chosen (frozen per #215 Option A); the base
+columns come from upstream.
 """
 function _emit_result(r::_TIDY_LONG_TYPES; title::String="Results", key::AbstractString="",
                       format::Union{String,Symbol}=:table, output::String="",
-                      shocks::Union{Nothing,AbstractString,AbstractVector}=nothing)
+                      shocks::Union{Nothing,AbstractString,AbstractVector}=nothing,
+                      extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
     df = long_table(r)
     if shocks !== nothing && "shock" in names(df)
         keep = shocks isa AbstractString ? [String(shocks)] : String[string(s) for s in shocks]
         df = df[in.(df.shock, Ref(keep)), :]
+    end
+    for (name, vals) in extra_cols
+        v = collect(vals)
+        length(v) == nrow(df) || throw(CliError("model/error",
+            "extra column '$name' has $(length(v)) rows for a $(nrow(df))-row table"))
+        df[!, name] = v
     end
     output_result(df; format=format, output=output, title=title, key=key)
 end

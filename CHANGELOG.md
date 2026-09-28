@@ -32,6 +32,16 @@ permissive than real converts a production crash into a green suite).
 - Mock mirrors: `DataFrame(::MarginalEffects)`/`(::DIDResult)` in upstream column
   shape; mock forecast types subtyped under a new `AbstractForecastResult`
   (real `core/types.jl` hierarchy).
+- **#220 audit fixes (wave-2 misses — the audit enumerated call sites, not
+  result types):** `forecast scenario` (ConditionalForecast) now routes via
+  `long_table` + an `extra_cols` knob for the `unconditional` baseline — rows
+  unify from variable-major to horizon-major, values identical; `forecast
+  arfima` (ARIMAForecast) routes via the helper — columns
+  `horizon|forecast|lower|upper` → `horizon|variable|value|lower|upper`,
+  unrounded. Stay hand-built on correctness grounds: `forecast midas`
+  (generic `long_table` would mislabel the direct horizon as 1 and drop `se`;
+  TIDY-14) and the vol `variance|volatility` table (sqrt transform, different
+  data — deliberate C051 exception kept).
 
 ## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
 

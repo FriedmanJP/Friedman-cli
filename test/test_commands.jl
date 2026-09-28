@@ -6966,8 +6966,10 @@ end
                                    format="table", output="")
             end
             # the result type is ARIMAForecast: its interval fields are ci_lower/ci_upper,
-            # NOT lower/upper (an early draft used the latter and FieldError'd)
-            @test contains(out, "forecast") && contains(out, "lower") && contains(out, "upper")
+            # NOT lower/upper (an early draft used the latter and FieldError'd).
+            # #220: routes via _emit_result → upstream horizon|variable|value|lower|upper.
+            @test contains(out, "value") && contains(out, "variable")
+            @test contains(out, "lower") && contains(out, "upper")
         end
 
         @testset "predict / residuals — read the model's fields" begin
@@ -11063,6 +11065,41 @@ end
             end
             @test e isa CliError && e.code == "model/unsupported"
         end
+    end
+end
+
+@testset "_emit_result scenario + extra_cols (#220)" begin
+    @testset "scenario routes via long_table + unconditional baseline" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cond = joinpath(dir, "cond.csv")
+            write(cond, "variable,period,value\nvar1,1,2.5\n")
+            out = _capture() do
+                _forecast_scenario(; data=csv, conditions_file=cond, lags=2, horizons=6,
+                                   replications=100, format="table", output="")
+            end
+            @test contains(out, "unconditional")
+            @test contains(out, "Implied Structural Shocks")
+        end
+    end
+    @testset "extra_cols appends aligned columns" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)  # 4*2*2 = 16 rows
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="",
+                         extra_cols=["xcol" => fill(1.5, 16)])
+        end
+        @test contains(out, "xcol")
+    end
+    @testset "extra_cols length mismatch is typed model/error, never silent" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
+        e = try
+            _emit_result(irf; title="t", key="k", format="table", output="",
+                         extra_cols=["bad" => [1.0, 2.0]])
+            nothing
+        catch ex
+            ex
+        end
+        @test e isa CliError && e.code == "model/error"
     end
 end
 

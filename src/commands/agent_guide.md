@@ -366,7 +366,7 @@ Leading globals only (before the first subcommand token). A mid-argv `--quiet`,
 ## Handler rules (for contributors)
 
 - Status/progress: `_status` / `_status_styled` (stderr), never bare `println` for status
-- Data tables: `output_result` / `output_kv`
+- Data tables: `output_result` / `output_kv`; upstream-registered results go through the `_emit_result` router (`DataFrame(model)` / `long_table`), never a hand-build
 - Typed failures: `throw(CliError("class/code", "message"; hint="…"))`
 
 ---

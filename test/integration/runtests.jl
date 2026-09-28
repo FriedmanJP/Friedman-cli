@@ -2883,11 +2883,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             assert_envelope_ok(rf; label="forecast univariate arfima")
             t = first_table(rf.doc)[2]
             @test t !== nothing && length(table_rows(t)) == 6
-            @test Set(["horizon", "forecast", "lower", "upper"]) ⊆ Set(String.(table_cols(t)))
+            # #220: routes via upstream long_table (ARIMAForecast) — value, not forecast.
+            @test Set(["horizon", "variable", "value", "lower", "upper"]) ⊆ Set(String.(table_cols(t)))
             # intervals must bracket the point forecast and widen with the horizon
             lo1 = Float64(collect(first(table_rows(t)))[col_index(t, "lower")])
             hi1 = Float64(collect(first(table_rows(t)))[col_index(t, "upper")])
-            f1  = Float64(collect(first(table_rows(t)))[col_index(t, "forecast")])
+            f1  = Float64(collect(first(table_rows(t)))[col_index(t, "value")])
             @test lo1 <= f1 <= hi1
             last_row = collect(table_rows(t))[end]
             @test (Float64(collect(last_row)[col_index(t, "upper")]) -

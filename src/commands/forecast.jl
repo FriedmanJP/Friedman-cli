@@ -49,7 +49,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:arfima_forecast, description="Point forecasts with interval bounds: horizon | forecast | lower | upper")],
+            tables=[TableSpec(name=:arfima_forecast, description="Point forecasts with interval bounds: horizon | variable | value | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_arfima),
         ),
@@ -1731,6 +1731,15 @@ end
 # `"--conditions" in args` across the WHOLE argv to print the GPL notice, so a leaf option
 # of that name is swallowed before dispatch ever runs. Recorded as an engine flaw for the
 # C055 freeze; renaming here is the zero-risk fix.
+"""Unconditional baseline path in upstream `long_table` row order (horizon-major).
+
+Mirrors `long_table(::AbstractForecastResult)`'s documented `for h in 1:H, v in 1:nv`
+loop; `_emit_result`'s length guard turns any drift into a typed error.
+"""
+function _unconditional_col(fc)
+    H, nv = fc.horizon, length(fc.varnames)
+    return [Float64(fc.unconditional[h, v]) for h in 1:H for v in 1:nv]
+end
 function _forecast_scenario(; data::String="", result=nothing, conditions_file::String="", lags=nothing,
                              horizons::Int=12, method::String="var",
                              draws::Int=2000, sampler::String="direct",
@@ -1741,18 +1750,11 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
                              model=nothing)
     loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast scenario")
     if loaded !== nothing
-        H = loaded.horizon
-        n = length(loaded.varnames)
-        df = DataFrame(
-            horizon       = repeat(1:H, outer=n),
-            variable      = repeat(loaded.varnames; inner=H),
-            value         = vec(Float64.(loaded.forecast)),
-            lower         = vec(Float64.(loaded.ci_lower)),
-            upper         = vec(Float64.(loaded.ci_upper)),
-            unconditional = vec(Float64.(loaded.unconditional)),
-        )
-        output_result(df; format=Symbol(format), output=output,
-                      title="Conditional Forecast", key="conditional_forecast")
+        # #220: upstream long_table + the unconditional baseline (was a variable-major
+        # hand-build; rows are now horizon-major like every other forecast leaf).
+        _emit_result(loaded; title="Conditional Forecast", key="conditional_forecast",
+                     format=Symbol(format), output=output,
+                     extra_cols=["unconditional" => _unconditional_col(loaded)])
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
@@ -1799,22 +1801,17 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _status_report(() -> report(fc))
 
-    # Tidy long form, with the UNCONDITIONAL path alongside: the scenario is only
-    # interpretable against the baseline it departs from, and having to run a second
-    # command to get it invites comparing paths from different draws.
-    H = fc.horizon
-    n = length(fc.varnames)
-    df = DataFrame(
-        horizon       = repeat(1:H, outer=n),
-        variable      = repeat(fc.varnames; inner=H),
-        value         = vec(Float64.(fc.forecast)),
-        lower         = vec(Float64.(fc.ci_lower)),
-        upper         = vec(Float64.(fc.ci_upper)),
-        unconditional = vec(Float64.(fc.unconditional)),
-    )
-    output_result(df; format=Symbol(format), output=output,
-                  title="Conditional Forecast ($(round(Int, 100*fc.conf_level))% interval, " *
-                        "$(fc.identification) identification)", key="conditional_forecast")
+    # The UNCONDITIONAL path rides alongside: the scenario is only interpretable
+    # against the baseline it departs from, and having to run a second command to
+    # get it invites comparing paths from different draws. Base columns come from
+    # upstream long_table (#220 — was a variable-major hand-build; rows are now
+    # horizon-major like every other forecast leaf); values identical (the
+    # accessors read the same fields).
+    H = fc.horizon  # used by the Scenario Settings block below
+    _emit_result(fc; title="Conditional Forecast ($(round(Int, 100*fc.conf_level))% interval, " *
+                           "$(fc.identification) identification)", key="conditional_forecast",
+                 format=Symbol(format), output=output,
+                 extra_cols=["unconditional" => _unconditional_col(fc)])
 
     # The implied structural shocks are what actually delivers the scenario; a scenario
     # requiring implausibly large shocks is not a credible one.

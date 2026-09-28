@@ -4726,6 +4726,13 @@ function _mock_fc_lt(pf, lo, hi, varnames::Vector{String})
 end
 long_table(f::BVARForecast)       = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, f.varnames)
 long_table(f::LPForecast)         = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+# #220: generic fallback mirroring real `long_table(::AbstractForecastResult)`
+# (core/tables.jl) — catches ConditionalForecast/MidasForecast, for which the mock
+# previously defined no method (concrete methods above keep precedence).
+function long_table(f::AbstractForecastResult)
+    vn = hasproperty(f, :varnames) ? String[String(x) for x in f.varnames] : String[]
+    return _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, vn)
+end
 
 # Coefficient-bearing models expose a tidy coef table via Tables.jl in real MEMs
 # (`DataFrame(model)` → equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper,
@@ -11969,7 +11976,7 @@ end
 # MOST-RECENT-FIRST contract: real applies the decaying weight curve to X_new in that
 # order, and passing the block chronologically does not error — it silently returns a
 # wrong number.
-struct MidasForecast{T<:AbstractFloat}
+struct MidasForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Vector{T}
     ci_lower::Vector{T}
     ci_upper::Vector{T}
@@ -12183,7 +12190,7 @@ end
 forecast_condition(variable::Union{Int,String,Symbol}, horizon::Integer, value::Real;
                    sd::Real=0.0) = ForecastCondition{Float64}(variable, horizon, value, sd)
 
-struct ConditionalForecast{T<:AbstractFloat}
+struct ConditionalForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Matrix{T}
     ci_lower::Matrix{T}
     ci_upper::Matrix{T}
