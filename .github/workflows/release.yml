@@ -65,9 +65,11 @@ jobs:
           # Registry MacroEconometricModels pinned =1.0.0 via [compat]
           julia --project -e 'using Pkg; Pkg.instantiate()'
 
-      # PackageCompiler building the JuMP+Ipopt-bundled sysimage (0.7.0 line, C060)
-      # OOM-kills the ~7 GB ubuntu runner. Give it swap headroom so peak memory
-      # spills to disk instead of terminating the runner. Linux-only (fallocate).
+      # Swap is headroom only. The v1.0.0 ubuntu death (signal 15 during
+      # "compiling incremental system image", twice, ~15 min in, under the 120 min
+      # cap) is Julia 1.13's PackageCompiler default cpu_target="sysimage"
+      # (three x86_64 clones). build_release.jl passes cpu_target="generic" there.
+      # The runner is 15Gi, not the old ~7 GB image. Linux-only (fallocate).
       - name: Add swap space (Linux OOM headroom)
         if: runner.os == 'Linux'
         run: |

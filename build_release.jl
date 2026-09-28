@@ -127,11 +127,23 @@ println("This will take several minutes.")
 # --strip-metadata: size win when StructUtils/JSON3 path stays healthy (F47).
 # Validated by release smoke (C006) on the next tag — do NOT add --strip-ir
 # (MissingCodeError) or filter_stdlibs (needs incremental=false).
+#
+# Julia 1.13 PackageCompiler defaults cpu_target to "sysimage". On the official
+# x86_64 build that is three clones
+# (generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)). Julia 1.12
+# defaulted to "native" (one clone), and the v0.13.1 ubuntu release finished
+# "compiling incremental system image" in ~19 min on the same 15Gi runner.
+# v1.0.0 died there twice (14 min and 17 min) with SIGTERM — the runner
+# shutdown that follows an OOM, not the 120 min step timeout. One portable
+# clone fits. aarch64 keeps "sysimage" (generic;apple-m1,clone_all only).
+cpu_target = Sys.ARCH === :x86_64 ? "generic" : "sysimage"
+println("Sysimage cpu_target: $cpu_target")
 create_sysimage(
     [:Friedman];
     sysimage_path=sysimage_path,
     precompile_execution_file=precompile_script,
     project=build_project_dir,
+    cpu_target=cpu_target,
     sysimage_build_args=`--strip-metadata`,
 )
 
