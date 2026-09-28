@@ -49,7 +49,7 @@ Trend: constant, Observations: 200
   y2.L2          0.0248     0.0705    0.3521   0.7251    -0.1143     0.1640
 ```
 
-Impulse responses, with bootstrap bands and a plot you can send to a coauthor:
+Impulse responses, with bootstrap bands and a plot:
 
 ```bash
 friedman irf var macro.csv --shock 1 --horizons 8 --plot-save irf.html
@@ -145,7 +145,7 @@ Data handling (`data describe/diagnose/transform/validate`), filters
 REPL (`friedman repl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/repl/))
 round it out.
 
-## Reproducibility is the point
+## Reproducibility
 
 - **Same command, same numbers.** `--seed N` is forwarded to samplers/simulators
   and every `--format json` envelope carries a manifest (seed, threads, OS,
@@ -165,6 +165,9 @@ and every JSON failure carries a matching `error.code`/`error.exit_code`.
 `friedman schema <path…>` returns a draft-07 input schema plus result-table keys
 for any command; `serve --mcp` exposes every command as a Model Context Protocol
 tool over stdio. Start at the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/).
+
+Full command reference:
+[docs](https://friedmanjp.github.io/Friedman-cli/dev/).
 
 ## Installation
 
@@ -188,5 +191,4 @@ Details: [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/insta
 
 ## License
 
-GPL-3.0-or-later. Full command reference:
-[docs](https://friedmanjp.github.io/Friedman-cli/dev/).
+GPL-3.0-or-later.
